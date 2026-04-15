@@ -1,0 +1,4 @@
+node_modules
+dist
+.env
+ibkr_live_data_ts_fixes.zip

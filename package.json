@@ -1,0 +1,22 @@
+{
+  "name": "levels-system-phase1",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test src/tests/**/*.test.ts",
+    "manual:test": "tsx src/scripts/run-manual-level-test.ts",
+    "watchlist:test": "tsx src/scripts/run-watchlist-monitor-sample.ts",
+    "alert:test": "tsx src/scripts/run-alert-intelligence-sample.ts",
+    "watchlist:alerts:test": "tsx src/scripts/run-watchlist-alerts-sample.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@stoqey/ib": "^1.5.3"
+  }
+}
