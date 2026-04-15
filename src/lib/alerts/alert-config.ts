@@ -28,6 +28,7 @@ export type AlertIntelligenceConfig = {
 
 export const DEFAULT_ALERT_INTELLIGENCE_CONFIG: AlertIntelligenceConfig = {
   eventBaseScores: {
+    level_touch: 10,
     breakout: 32,
     breakdown: 32,
     rejection: 24,

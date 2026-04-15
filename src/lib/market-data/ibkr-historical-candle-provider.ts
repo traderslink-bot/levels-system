@@ -5,6 +5,7 @@ import type {
   HistoricalCandleProvider,
   HistoricalFetchRequest,
 } from "./candle-fetch-service.js";
+import { sharedIbkrPacingQueue } from "./ibkr-pacing-queue.js";
 
 type HistoricalDataListener = (
   reqId: number,
@@ -80,7 +81,9 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
 
     const reqId = IbkrHistoricalCandleProvider.nextRequestId++;
     const symbol = request.symbol.trim().toUpperCase();
-    const bars = await this.requestHistoricalBars(reqId, symbol, request);
+    const bars = await sharedIbkrPacingQueue.enqueue(() =>
+      this.requestHistoricalBars(reqId, symbol, request),
+    );
 
     if (bars.length === 0) {
       throw new Error(`IBKR returned no historical candles for ${symbol} (${request.timeframe}).`);

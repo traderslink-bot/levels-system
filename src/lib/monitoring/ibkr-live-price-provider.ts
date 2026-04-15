@@ -6,6 +6,13 @@
 import { IBApi } from "@stoqey/ib";
 import type { LivePriceProvider, LivePriceListener } from "./live-price-types.js";
 import type { WatchlistEntry } from "./monitoring-types.js";
+import {
+  createIbkrClient,
+  initializeIbkrRuntime,
+  isIbkrConnected,
+  onIbkrDisconnect,
+  onIbkrReconnect,
+} from "../../scripts/shared/ibkr-runtime.js";
 
 type SymbolSubscription = {
   tickerId: number;
@@ -18,11 +25,15 @@ type SymbolSubscription = {
 
 export class IBKRLivePriceProvider implements LivePriceProvider {
   private readonly ib: IBApi;
+  private readonly host: string;
+  private readonly ownsConnection: boolean;
   private readonly subscriptions = new Map<number, SymbolSubscription>();
   private listener?: LivePriceListener;
   private isConnected = false;
   private hasRegisteredHandlers = false;
   private nextTickerId = 1;
+  private unsubscribeReconnect?: () => void;
+  private unsubscribeDisconnect?: () => void;
 
   private readonly handleConnected = (): void => {
     this.isConnected = true;
@@ -137,16 +148,41 @@ export class IBKRLivePriceProvider implements LivePriceProvider {
     });
   };
 
+  private readonly handleRuntimeReconnect = (info: {
+    requiresResubscribe: boolean;
+  }): void => {
+    this.isConnected = true;
+
+    if (!info.requiresResubscribe || !this.listener) {
+      return;
+    }
+
+    this.resubscribeAll();
+  };
+
+  private readonly handleRuntimeDisconnect = (): void => {
+    this.isConnected = false;
+  };
+
+  constructor(ib: IBApi);
+  constructor(host?: string, port?: number, clientId?: number);
   constructor(
-    private readonly host: string = "127.0.0.1",
+    ibOrHost: IBApi | string = "127.0.0.1",
     private readonly port: number = 7497,
     private readonly clientId: number = 101,
   ) {
-    this.ib = new IBApi({
-      host: this.host,
-      port: this.port,
-      clientId: this.clientId,
-    });
+    if (typeof ibOrHost !== "string") {
+      this.ib = initializeIbkrRuntime(ibOrHost);
+      this.host = "injected";
+      this.ownsConnection = false;
+      this.isConnected = isIbkrConnected(this.ib);
+      return;
+    }
+
+    this.host = ibOrHost;
+    this.ownsConnection = true;
+    this.ib = createIbkrClient(this.clientId, this.host, this.port);
+    this.isConnected = isIbkrConnected(this.ib);
   }
 
   // 2026-04-14 11:39 PM America/Toronto
@@ -193,6 +229,8 @@ export class IBKRLivePriceProvider implements LivePriceProvider {
     this.ibAny.on("error", this.handleError);
     this.ibAny.on("tickPrice", this.handleTickPrice);
     this.ibAny.on("tickSize", this.handleTickSize);
+    this.unsubscribeReconnect = onIbkrReconnect(this.ib, this.handleRuntimeReconnect);
+    this.unsubscribeDisconnect = onIbkrDisconnect(this.ib, this.handleRuntimeDisconnect);
   }
 
   private unregisterEventHandlers(): void {
@@ -205,19 +243,46 @@ export class IBKRLivePriceProvider implements LivePriceProvider {
     this.ibAny.off("error", this.handleError);
     this.ibAny.off("tickPrice", this.handleTickPrice);
     this.ibAny.off("tickSize", this.handleTickSize);
+    this.unsubscribeReconnect?.();
+    this.unsubscribeReconnect = undefined;
+    this.unsubscribeDisconnect?.();
+    this.unsubscribeDisconnect = undefined;
     this.hasRegisteredHandlers = false;
+  }
+
+  private requestMarketDataForSubscription(subscription: SymbolSubscription): void {
+    this.ibAny.reqMktData(
+      subscription.tickerId,
+      {
+        symbol: subscription.symbol,
+        secType: "STK" as any,
+        exchange: "SMART",
+        currency: "USD",
+      },
+      "",
+      false,
+      false,
+    );
+  }
+
+  private resubscribeAll(): void {
+    for (const subscription of this.subscriptions.values()) {
+      this.requestMarketDataForSubscription(subscription);
+    }
   }
 
   private async waitForConnection(timeoutMs: number = 10_000): Promise<void> {
     const start = Date.now();
 
-    while (!this.isConnected) {
+    while (!this.isConnected && !isIbkrConnected(this.ib)) {
       if (Date.now() - start > timeoutMs) {
         throw new Error("Timed out waiting for IBKR connection.");
       }
 
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+
+    this.isConnected = true;
   }
 
   async start(entries: WatchlistEntry[], onUpdate: LivePriceListener): Promise<void> {
@@ -226,8 +291,12 @@ export class IBKRLivePriceProvider implements LivePriceProvider {
     this.listener = onUpdate;
     this.registerEventHandlers();
 
-    this.ibAny.connect();
-    await this.waitForConnection();
+    if (!isIbkrConnected(this.ib)) {
+      this.ibAny.connect();
+      await this.waitForConnection();
+    } else {
+      this.isConnected = true;
+    }
 
     const activeEntries = entries.filter((entry) => entry.active);
 
@@ -241,18 +310,7 @@ export class IBKRLivePriceProvider implements LivePriceProvider {
         symbol,
       });
 
-      this.ibAny.reqMktData(
-        tickerId,
-        {
-          symbol,
-          secType: "STK" as any,
-          exchange: "SMART",
-          currency: "USD",
-        },
-        "",
-        false,
-        false,
-      );
+      this.requestMarketDataForSubscription(this.subscriptions.get(tickerId)!);
     });
   }
 
@@ -272,12 +330,14 @@ export class IBKRLivePriceProvider implements LivePriceProvider {
     this.subscriptions.clear();
     this.nextTickerId = 1;
 
-    if (this.isConnected) {
+    if (this.ownsConnection && this.isConnected) {
       this.ibAny.disconnect();
     }
 
     this.unregisterEventHandlers();
     this.listener = undefined;
-    this.isConnected = false;
+    if (this.ownsConnection) {
+      this.isConnected = false;
+    }
   }
 }

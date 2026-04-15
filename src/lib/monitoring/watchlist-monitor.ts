@@ -7,6 +7,7 @@ import { DEFAULT_MONITORING_CONFIG, type MonitoringConfig } from "./monitoring-c
 import { detectMonitoringEvents } from "./event-detector.js";
 import { createInitialInteractionState, updateInteractionState } from "./interaction-state-machine.js";
 import type { LivePriceProvider } from "./live-price-types.js";
+import { recordMonitoringEvent } from "./symbol-state.js";
 import type {
   LivePriceUpdate,
   MonitoringEvent,
@@ -45,6 +46,8 @@ export class WatchlistMonitor {
       supportZones: this.levelStore.getSupportZones(symbol),
       resistanceZones: this.levelStore.getResistanceZones(symbol),
       interactions: {},
+      bias: "neutral",
+      pressureScore: 0,
       recentEvents: [],
     };
 
@@ -153,6 +156,7 @@ export class WatchlistMonitor {
         zone,
         update,
         previousPrice: symbolState.previousPrice,
+        symbolState,
         config: this.config,
       });
 
@@ -199,7 +203,7 @@ export class WatchlistMonitor {
     for (const item of finalEvents) {
       const nextState = this.applyEmittedEventToState(item.updatedState, item.event);
       symbolState.interactions[item.zone.id] = nextState;
-      symbolState.recentEvents.push(item.event);
+      recordMonitoringEvent(symbolState, item.event);
       this.markEventEmitted(item.event);
       listener(item.event);
     }
@@ -219,10 +223,6 @@ export class WatchlistMonitor {
     ];
 
     this.emitPendingEvents(symbolState, pending, listener);
-
-    if (symbolState.recentEvents.length > 50) {
-      symbolState.recentEvents.splice(0, symbolState.recentEvents.length - 50);
-    }
   }
 
   async start(entries: WatchlistEntry[], listener: MonitoringEventListener): Promise<void> {

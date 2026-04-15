@@ -6,8 +6,14 @@ import type { MonitoringConfig } from "./monitoring-config.js";
 import type {
   LivePriceUpdate,
   MonitoringEvent,
+  SymbolMonitoringState,
   ZoneInteractionState,
 } from "./monitoring-types.js";
+import {
+  buildInteractionEpisodeId,
+  scoreMonitoringEvent,
+  shouldFilterMonitoringEvent,
+} from "./monitoring-event-scoring.js";
 import { isAboveZone, isBelowZone, isInsideZone } from "./zone-utils.js";
 
 function buildEvent(
@@ -15,18 +21,81 @@ function buildEvent(
   eventType: MonitoringEvent["eventType"],
   zone: FinalLevelZone,
   update: LivePriceUpdate,
+  previousPrice: number | undefined,
+  currentState: ZoneInteractionState,
+  symbolState: SymbolMonitoringState,
+  config: MonitoringConfig,
   notes: string[],
 ): MonitoringEvent {
+  const signal = scoreMonitoringEvent({
+    eventType,
+    zone,
+    update,
+    previousPrice,
+    currentState,
+    symbolState,
+    config,
+  });
+
   return {
     id: `${symbol}-${zone.id}-${eventType}-${update.timestamp}`,
+    episodeId: buildInteractionEpisodeId(symbol, zone, currentState, update),
     symbol,
+    type: signal.type,
     eventType,
     zoneId: zone.id,
     zoneKind: zone.kind,
+    level: signal.level,
     triggerPrice: update.lastPrice,
+    strength: signal.strength,
+    confidence: signal.confidence,
+    priority: signal.priority,
+    bias: signal.bias ?? "neutral",
+    pressureScore: signal.pressureScore,
     timestamp: update.timestamp,
     notes,
   };
+}
+
+function pushEventIfRelevant(
+  events: MonitoringEvent[],
+  params: {
+    symbol: string;
+    eventType: MonitoringEvent["eventType"];
+    zone: FinalLevelZone;
+    update: LivePriceUpdate;
+    previousPrice?: number;
+    currentState: ZoneInteractionState;
+    symbolState: SymbolMonitoringState;
+    config: MonitoringConfig;
+    notes: string[];
+  },
+): void {
+  if (
+    shouldFilterMonitoringEvent({
+      eventType: params.eventType,
+      currentState: params.currentState,
+      update: params.update,
+      previousPrice: params.previousPrice,
+      config: params.config,
+    })
+  ) {
+    return;
+  }
+
+  events.push(
+    buildEvent(
+      params.symbol,
+      params.eventType,
+      params.zone,
+      params.update,
+      params.previousPrice,
+      params.currentState,
+      params.symbolState,
+      params.config,
+      params.notes,
+    ),
+  );
 }
 
 export function detectMonitoringEvents(params: {
@@ -35,15 +104,35 @@ export function detectMonitoringEvents(params: {
   zone: FinalLevelZone;
   update: LivePriceUpdate;
   previousPrice?: number;
+  symbolState: SymbolMonitoringState;
   config: MonitoringConfig;
 }): MonitoringEvent[] {
-  const { previousState, currentState, zone, update, previousPrice, config } = params;
+  const { previousState, currentState, zone, update, previousPrice, symbolState, config } = params;
   const events: MonitoringEvent[] = [];
   const inside = isInsideZone(update.lastPrice, zone);
   const above = isAboveZone(update.lastPrice, zone);
   const below = isBelowZone(update.lastPrice, zone);
 
   if (zone.kind === "resistance") {
+    const levelTouch =
+      inside &&
+      previousState.phase !== "touching" &&
+      currentState.updatesNearZone >= 1;
+
+    if (levelTouch) {
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "level_touch",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: ["Price touched resistance level and opened a new interaction episode."],
+      });
+    }
+
     const breakoutDistancePct =
       (update.lastPrice - zone.zoneHigh) / Math.max(zone.zoneHigh, 0.0001);
     const freshBreakoutCross =
@@ -57,11 +146,19 @@ export function detectMonitoringEvents(params: {
       breakoutDistancePct <= config.maxConfirmDistancePct;
 
     if (previousState.phase !== "confirmed" && confirmedBreakout) {
-      events.push(
-        buildEvent(zone.symbol, "breakout", zone, update, [
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "breakout",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: [
           "Price confirmed above resistance zone.",
-        ]),
-      );
+        ],
+      });
     }
 
     const fakeBreakout =
@@ -72,26 +169,43 @@ export function detectMonitoringEvents(params: {
           config.failureReturnPct);
 
     if (previousState.phase === "breaking" && fakeBreakout) {
-      events.push(
-        buildEvent(zone.symbol, "fake_breakout", zone, update, [
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "fake_breakout",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: [
           "Price attempted breakout but failed back into or below resistance.",
-        ]),
-      );
+        ],
+      });
     }
 
     const rejection =
       previousPrice !== undefined &&
       previousPrice <= zone.zoneHigh &&
+      previousState.updatesNearZone < 3 &&
       inside &&
       update.lastPrice < previousPrice &&
       currentState.updatesNearZone >= 2;
 
     if (rejection && previousState.phase !== "rejected") {
-      events.push(
-        buildEvent(zone.symbol, "rejection", zone, update, [
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "rejection",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: [
           "Price tested resistance and reversed away.",
-        ]),
-      );
+        ],
+      });
     }
 
     const compression =
@@ -101,13 +215,40 @@ export function detectMonitoringEvents(params: {
       !above;
 
     if (compression) {
-      events.push(
-        buildEvent(zone.symbol, "compression", zone, update, [
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "compression",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: [
           "Price is compressing near resistance.",
-        ]),
-      );
+        ],
+      });
     }
   } else {
+    const levelTouch =
+      inside &&
+      previousState.phase !== "touching" &&
+      currentState.updatesNearZone >= 1;
+
+    if (levelTouch) {
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "level_touch",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: ["Price touched support level and opened a new interaction episode."],
+      });
+    }
+
     const breakdownDistancePct =
       (zone.zoneLow - update.lastPrice) / Math.max(zone.zoneLow, 0.0001);
     const freshBreakdownCross =
@@ -121,11 +262,19 @@ export function detectMonitoringEvents(params: {
       breakdownDistancePct <= config.maxConfirmDistancePct;
 
     if (previousState.phase !== "confirmed" && confirmedBreakdown) {
-      events.push(
-        buildEvent(zone.symbol, "breakdown", zone, update, [
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "breakdown",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: [
           "Price confirmed below support zone.",
-        ]),
-      );
+        ],
+      });
     }
 
     const fakeBreakdown =
@@ -136,11 +285,19 @@ export function detectMonitoringEvents(params: {
           config.failureReturnPct);
 
     if (previousState.phase === "breaking" && fakeBreakdown) {
-      events.push(
-        buildEvent(zone.symbol, "fake_breakdown", zone, update, [
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "fake_breakdown",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: [
           "Price lost support but quickly reclaimed it.",
-        ]),
-      );
+        ],
+      });
     }
 
     const reclaim =
@@ -149,11 +306,19 @@ export function detectMonitoringEvents(params: {
       update.lastPrice > zone.zoneHigh;
 
     if (reclaim) {
-      events.push(
-        buildEvent(zone.symbol, "reclaim", zone, update, [
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "reclaim",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: [
           "Price reclaimed support zone.",
-        ]),
-      );
+        ],
+      });
     }
 
     const compression =
@@ -163,11 +328,19 @@ export function detectMonitoringEvents(params: {
       !below;
 
     if (compression) {
-      events.push(
-        buildEvent(zone.symbol, "compression", zone, update, [
+      pushEventIfRelevant(events, {
+        symbol: zone.symbol,
+        eventType: "compression",
+        zone,
+        update,
+        previousPrice,
+        currentState,
+        symbolState,
+        config,
+        notes: [
           "Price is compressing near support.",
-        ]),
-      );
+        ],
+      });
     }
   }
 

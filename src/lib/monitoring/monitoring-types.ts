@@ -4,6 +4,7 @@
 import type { FinalLevelZone } from "../levels/level-types.js";
 
 export type MonitoringEventType =
+  | "level_touch"
   | "breakout"
   | "breakdown"
   | "rejection"
@@ -11,6 +12,18 @@ export type MonitoringEventType =
   | "fake_breakdown"
   | "reclaim"
   | "compression";
+
+export type MonitoringAlertType =
+  | "level_touch"
+  | "breakout"
+  | "breakdown"
+  | "rejection"
+  | "fake_breakout"
+  | "fake_breakdown"
+  | "reclaim"
+  | "consolidation";
+
+export type SymbolBias = "bullish" | "bearish" | "neutral";
 
 export type InteractionPhase =
   | "idle"
@@ -56,6 +69,8 @@ export type SymbolMonitoringState = {
   lastPrice?: number;
   previousPrice?: number;
   lastUpdateAt?: number;
+  bias?: SymbolBias;
+  pressureScore?: number;
   supportZones: FinalLevelZone[];
   resistanceZones: FinalLevelZone[];
   interactions: Record<string, ZoneInteractionState>;
@@ -64,11 +79,20 @@ export type SymbolMonitoringState = {
 
 export type MonitoringEvent = {
   id: string;
+  episodeId: string;
   symbol: string;
+  type: MonitoringAlertType;
   eventType: MonitoringEventType;
   zoneId: string;
   zoneKind: "support" | "resistance";
+  level: number;
   triggerPrice: number;
+  strength: number;
+  confidence: number;
+  priority: number;
+  bias: SymbolBias;
+  pressureScore: number;
+  memoryWeight?: number;
   timestamp: number;
   notes: string[];
 };

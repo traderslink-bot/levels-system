@@ -3,7 +3,7 @@
 // This runs the watchlist monitor, sends real monitoring events through the alert intelligence engine,
 // suppresses weak alerts, and prints only trader-facing formatted alerts.
 
-import { IBApi } from "@stoqey/ib";
+import type { IBApi } from "@stoqey/ib";
 
 import { AlertIntelligenceEngine } from "../lib/alerts/alert-intelligence-engine.js";
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
@@ -13,6 +13,7 @@ import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provide
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
+import { createIbkrClient } from "./shared/ibkr-runtime.js";
 
 async function seedLevels(
   symbols: string[],
@@ -45,47 +46,44 @@ async function main(): Promise<void> {
       : ["AAPL", "MSFT", "NVDA"];
 
   const levelStore = new LevelStore();
-
-  const historicalIb = new IBApi({
-    host: "127.0.0.1",
-    port: 7497,
-    clientId: 102,
-  });
+  const ib = createIbkrClient();
 
   try {
-    await waitForIbkrConnection(historicalIb);
-    await seedLevels(watchSymbols, levelStore, historicalIb);
-  } finally {
-    historicalIb.disconnect();
+    await waitForIbkrConnection(ib);
+    await seedLevels(watchSymbols, levelStore, ib);
+
+    const intelligence = new AlertIntelligenceEngine();
+    const monitor = new WatchlistMonitor(
+      levelStore,
+      new IBKRLivePriceProvider(ib),
+    );
+
+    await monitor.start(
+      watchSymbols.map((symbol: string, index: number) => ({
+        symbol,
+        active: true,
+        priority: index + 1,
+        tags: ["phase3-live-test"],
+      })),
+      (event) => {
+        const levels = levelStore.getLevels(event.symbol);
+        const result = intelligence.processEvent(event, levels);
+
+        if (result.formatted) {
+          console.log(JSON.stringify(result.formatted, null, 2));
+        }
+      },
+    );
+
+    setTimeout(async () => {
+      await monitor.stop();
+      ib.disconnect();
+      process.exit(0);
+    }, 20_000);
+  } catch (error) {
+    ib.disconnect();
+    throw error;
   }
-
-  const intelligence = new AlertIntelligenceEngine();
-  const monitor = new WatchlistMonitor(
-    levelStore,
-    new IBKRLivePriceProvider("127.0.0.1", 7497, 101),
-  );
-
-  await monitor.start(
-    watchSymbols.map((symbol: string, index: number) => ({
-      symbol,
-      active: true,
-      priority: index + 1,
-      tags: ["phase3-live-test"],
-    })),
-    (event) => {
-      const levels = levelStore.getLevels(event.symbol);
-      const result = intelligence.processEvent(event, levels);
-
-      if (result.formatted) {
-        console.log(JSON.stringify(result.formatted, null, 2));
-      }
-    },
-  );
-
-  setTimeout(async () => {
-    await monitor.stop();
-    process.exit(0);
-  }, 20_000);
 }
 
 main().catch((error: unknown) => {

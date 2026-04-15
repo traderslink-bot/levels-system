@@ -59,11 +59,19 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
   const engine = new AlertIntelligenceEngine();
   const event: MonitoringEvent = {
     id: "evt-breakout",
+    episodeId: "evt-breakout-episode",
     symbol: "AAPL",
+    type: "breakout",
     eventType: "breakout",
     zoneId: "zone-major-resistance",
     zoneKind: "resistance",
+    level: 100.5,
     triggerPrice: 101.4,
+    strength: 0.92,
+    confidence: 0.88,
+    priority: 92,
+    bias: "bullish",
+    pressureScore: 0.74,
     timestamp: 10,
     notes: ["Confirmed breakout."],
   };
@@ -80,11 +88,19 @@ test("AlertIntelligenceEngine suppresses weak low-confidence compression alerts"
   const engine = new AlertIntelligenceEngine();
   const event: MonitoringEvent = {
     id: "evt-compression",
+    episodeId: "evt-compression-episode",
     symbol: "AAPL",
+    type: "consolidation",
     eventType: "compression",
     zoneId: "zone-weak-support",
     zoneKind: "support",
+    level: 98.1,
     triggerPrice: 98.1,
+    strength: 0.22,
+    confidence: 0.18,
+    priority: 18,
+    bias: "neutral",
+    pressureScore: 0.21,
     timestamp: 11,
     notes: ["Compression near weak support."],
   };

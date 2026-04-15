@@ -1,8 +1,6 @@
 // 2026-04-15 08:35 AM America/Toronto
 // Sample watchlist monitor runner using IBKR historical candles to build levels and replay price updates.
 
-import { IBApi } from "@stoqey/ib";
-
 import { formatMonitoringEventAsAlert } from "../lib/alerts/alert-router.js";
 import type { Candle } from "../lib/market-data/candle-types.js";
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
@@ -14,6 +12,7 @@ import type { LivePriceListener, LivePriceProvider } from "../lib/monitoring/liv
 import type { MonitoringEvent, WatchlistEntry } from "../lib/monitoring/monitoring-types.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
+import { createIbkrClient } from "./shared/ibkr-runtime.js";
 
 class HistoricalReplayLivePriceProvider implements LivePriceProvider {
   constructor(
@@ -62,11 +61,7 @@ async function buildLevels(
 async function main(): Promise<void> {
   const symbol = process.argv[2]?.toUpperCase() ?? "AAPL";
   const capturedEvents: MonitoringEvent[] = [];
-  const ib = new IBApi({
-    host: "127.0.0.1",
-    port: 7497,
-    clientId: 101,
-  });
+  const ib = createIbkrClient();
 
   try {
     await waitForIbkrConnection(ib);
