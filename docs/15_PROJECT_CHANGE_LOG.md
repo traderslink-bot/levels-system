@@ -12,6 +12,40 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-15 11:40 AM America/Toronto
+
+### Summary
+
+- Added an ongoing change-log document and linked it from the docs index.
+- Initialized the project as a local Git repository on branch `main`.
+- Added a repository `README.md`.
+- Added `.gitattributes` for cleaner Git line-ending behavior.
+- Created a short GitHub setup doc covering the remaining remote-push steps.
+- Created the initial repository commit.
+
+### Files added
+
+- `README.md`
+- `.gitattributes`
+- `docs/15_PROJECT_CHANGE_LOG.md`
+- `docs/16_GITHUB_REPO_SETUP.md`
+
+### Files updated
+
+- `.gitignore`
+- `docs/00_DOC_INDEX.md`
+
+### Git state
+
+- Local repository initialized with `git init -b main`
+- Initial commit created:
+  `Initial project import and IBKR integration progress`
+
+### Remaining GitHub step
+
+- Create a remote repository on GitHub and push `main`
+- See `docs/16_GITHUB_REPO_SETUP.md`
+
 ## 2026-04-15 11:25 AM America/Toronto
 
 ### Summary

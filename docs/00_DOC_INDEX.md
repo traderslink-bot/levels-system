@@ -30,3 +30,4 @@ This folder contains the full plan for the candle-based levels system, including
 ## Ongoing project log
 
 18. `15_PROJECT_CHANGE_LOG.md`
+19. `16_GITHUB_REPO_SETUP.md`
