@@ -20,12 +20,13 @@ src/
 ## Data flow
 
 monitoring event
-→ enrich with zone context
-→ score alert importance
-→ assign confidence
-→ suppress weak alerts
-→ format human-readable output
-→ downstream Discord or UI later
+-> use explicit monitoring event context
+-> score alert importance
+-> assign confidence and severity
+-> suppress weak low-value alerts
+-> apply posting policy and deduplication
+-> format compact deterministic trader-facing output
+-> downstream Discord or runtime output
 
 ## Design rules
 
@@ -34,3 +35,18 @@ monitoring event
 - alert intelligence interprets events for humans
 - formatting stays separate from scoring
 - filtering thresholds must be configurable
+- delivery policy should stay separate from scoring and formatting
+- scoring should preserve:
+  - freshness
+  - origin
+  - remap status
+  - ladder position
+  - recent refresh state
+  - extension-promotion state
+  - data-quality degradation
+- output should stay compact and deterministic rather than verbose
+- posting policy should preserve materially new state such as:
+  - remap/replacement transitions
+  - promoted-extension activation
+  - outermost-ladder significance
+  - freshness or data-quality state changes

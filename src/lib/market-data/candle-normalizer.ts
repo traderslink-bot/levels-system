@@ -1,7 +1,7 @@
 // 2026-04-14 08:05 PM America/Toronto
 // Provider response normalization helpers for candle data.
 
-import type { Candle, CandleProviderResponse, CandleTimeframe } from "./candle-types.js";
+import type { BaseCandleProviderResponse, Candle, CandleProviderName, CandleTimeframe } from "./candle-types.js";
 
 type GenericProviderCandle = {
   datetime?: string | number;
@@ -36,12 +36,18 @@ function toTimestamp(value: string | number | undefined): number {
   return parsed;
 }
 
-export function normalizeGenericProviderCandles(
-  symbol: string,
-  timeframe: CandleTimeframe,
-  rows: GenericProviderCandle[],
-): CandleProviderResponse {
-  const candles: Candle[] = rows.map((row) => ({
+export function normalizeGenericProviderCandles(params: {
+  provider: CandleProviderName;
+  symbol: string;
+  timeframe: CandleTimeframe;
+  requestedLookbackBars: number;
+  rows: GenericProviderCandle[];
+  requestedStartTimestamp: number;
+  requestedEndTimestamp: number;
+  sessionMetadataAvailable: boolean;
+  providerMetadata?: Record<string, string | number | boolean | null>;
+}): BaseCandleProviderResponse {
+  const candles: Candle[] = params.rows.map((row) => ({
     timestamp: toTimestamp(row.datetime ?? row.timestamp ?? row.time),
     open: Number(row.open),
     high: Number(row.high),
@@ -53,8 +59,16 @@ export function normalizeGenericProviderCandles(
   candles.sort((a, b) => a.timestamp - b.timestamp);
 
   return {
-    symbol,
-    timeframe,
+    provider: params.provider,
+    symbol: params.symbol.toUpperCase(),
+    timeframe: params.timeframe,
+    requestedLookbackBars: params.requestedLookbackBars,
     candles,
+    fetchStartTimestamp: Date.now(),
+    fetchEndTimestamp: Date.now(),
+    requestedStartTimestamp: params.requestedStartTimestamp,
+    requestedEndTimestamp: params.requestedEndTimestamp,
+    sessionMetadataAvailable: params.sessionMetadataAvailable,
+    providerMetadata: params.providerMetadata,
   };
 }

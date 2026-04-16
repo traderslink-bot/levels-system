@@ -6,13 +6,13 @@ import type { MonitoringEvent } from "../lib/monitoring/monitoring-types.js";
 import { AlertIntelligenceEngine } from "../lib/alerts/alert-intelligence-engine.js";
 
 const levels: LevelEngineOutput = {
-  symbol: "AAPL",
+  symbol: "ALBT",
   generatedAt: 1,
   majorSupport: [],
   majorResistance: [
     {
       id: "zone-major-resistance",
-      symbol: "AAPL",
+      symbol: "ALBT",
       kind: "resistance",
       timeframeBias: "mixed",
       zoneLow: 100,
@@ -24,8 +24,17 @@ const levels: LevelEngineOutput = {
       confluenceCount: 3,
       sourceTypes: ["swing_high"],
       timeframeSources: ["5m", "4h", "daily"],
+      reactionQualityScore: 0.9,
+      rejectionScore: 0.55,
+      displacementScore: 0.8,
+      sessionSignificanceScore: 0.4,
+      followThroughScore: 0.88,
+      gapContinuationScore: 0.22,
+      sourceEvidenceCount: 3,
       firstTimestamp: 1,
       lastTimestamp: 2,
+      isExtension: false,
+      freshness: "fresh",
       notes: ["Major resistance."],
     },
   ],
@@ -34,7 +43,7 @@ const levels: LevelEngineOutput = {
   intradaySupport: [
     {
       id: "zone-weak-support",
-      symbol: "AAPL",
+      symbol: "ALBT",
       kind: "support",
       timeframeBias: "5m",
       zoneLow: 98,
@@ -46,12 +55,58 @@ const levels: LevelEngineOutput = {
       confluenceCount: 1,
       sourceTypes: ["swing_low"],
       timeframeSources: ["5m"],
+      reactionQualityScore: 0.35,
+      rejectionScore: 0.25,
+      displacementScore: 0.25,
+      sessionSignificanceScore: 0.2,
+      followThroughScore: 0.34,
+      gapContinuationScore: 0,
+      sourceEvidenceCount: 1,
       firstTimestamp: 1,
       lastTimestamp: 2,
+      isExtension: false,
+      freshness: "fresh",
       notes: ["Weak support."],
     },
   ],
   intradayResistance: [],
+  extensionLevels: {
+    support: [],
+    resistance: [
+      {
+        id: "zone-extension-resistance",
+        symbol: "ALBT",
+        kind: "resistance",
+        timeframeBias: "5m",
+        zoneLow: 3.25,
+        zoneHigh: 3.35,
+        representativePrice: 3.3,
+        strengthScore: 28,
+        strengthLabel: "strong",
+        touchCount: 3,
+        confluenceCount: 1,
+        sourceTypes: ["swing_high"],
+        timeframeSources: ["5m", "4h"],
+        reactionQualityScore: 0.72,
+        rejectionScore: 0.44,
+        displacementScore: 0.64,
+        sessionSignificanceScore: 0.25,
+        followThroughScore: 0.79,
+        gapContinuationScore: 0.18,
+        sourceEvidenceCount: 2,
+        firstTimestamp: 1,
+        lastTimestamp: 2,
+        isExtension: true,
+        freshness: "fresh",
+        notes: ["Extension resistance."],
+      },
+    ],
+  },
+  metadata: {
+    providerByTimeframe: {},
+    dataQualityFlags: [],
+    freshness: "fresh",
+  },
   specialLevels: {},
 };
 
@@ -60,7 +115,7 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
   const event: MonitoringEvent = {
     id: "evt-breakout",
     episodeId: "evt-breakout-episode",
-    symbol: "AAPL",
+    symbol: "ALBT",
     type: "breakout",
     eventType: "breakout",
     zoneId: "zone-major-resistance",
@@ -72,6 +127,20 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
     priority: 92,
     bias: "bullish",
     pressureScore: 0.74,
+    eventContext: {
+      monitoredZoneId: "monitored-zone-major-resistance",
+      canonicalZoneId: "zone-major-resistance",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["legacy-zone-major-resistance"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "major",
+      sourceGeneratedAt: 1,
+    },
     timestamp: 10,
     notes: ["Confirmed breakout."],
   };
@@ -81,7 +150,13 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
   assert.equal(result.rawAlert.severity, "critical");
   assert.equal(result.rawAlert.confidence, "high");
   assert.ok(result.formatted);
-  assert.equal(result.formatted?.title, "AAPL breakout");
+  assert.equal(result.formatted?.title, "ALBT breakout");
+  assert.equal(
+    result.formatted?.body,
+    "breakout resistance 100.00-101.00 | major outermost | fresh | refreshed",
+  );
+  assert.ok(result.rawAlert.tags.includes("outermost"));
+  assert.ok(result.rawAlert.scoreComponents.ladderPosition > 0);
 });
 
 test("AlertIntelligenceEngine suppresses weak low-confidence compression alerts", () => {
@@ -89,7 +164,7 @@ test("AlertIntelligenceEngine suppresses weak low-confidence compression alerts"
   const event: MonitoringEvent = {
     id: "evt-compression",
     episodeId: "evt-compression-episode",
-    symbol: "AAPL",
+    symbol: "ALBT",
     type: "consolidation",
     eventType: "compression",
     zoneId: "zone-weak-support",
@@ -101,6 +176,20 @@ test("AlertIntelligenceEngine suppresses weak low-confidence compression alerts"
     priority: 18,
     bias: "neutral",
     pressureScore: 0.21,
+    eventContext: {
+      monitoredZoneId: "monitored-zone-weak-support",
+      canonicalZoneId: "zone-weak-support",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "weak",
+      sourceGeneratedAt: 1,
+    },
     timestamp: 11,
     notes: ["Compression near weak support."],
   };
@@ -110,4 +199,245 @@ test("AlertIntelligenceEngine suppresses weak low-confidence compression alerts"
   assert.equal(result.rawAlert.shouldNotify, false);
   assert.equal(result.rawAlert.confidence, "low");
   assert.equal(result.formatted, null);
+});
+
+test("AlertIntelligenceEngine preserves promoted extension significance without flattening it into a normal inner touch", () => {
+  const engine = new AlertIntelligenceEngine();
+  const outerExtensionEvent: MonitoringEvent = {
+    id: "evt-extension-touch",
+    episodeId: "evt-extension-touch-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "ALBT-resistance-monitored-9",
+    zoneKind: "resistance",
+    level: 3.3,
+    triggerPrice: 3.31,
+    strength: 0.69,
+    confidence: 0.63,
+    priority: 70,
+    bias: "bullish",
+    pressureScore: 0.67,
+    eventContext: {
+      monitoredZoneId: "ALBT-resistance-monitored-9",
+      canonicalZoneId: "zone-extension-resistance",
+      zoneFreshness: "fresh",
+      zoneOrigin: "promoted_extension",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: true,
+      ladderPosition: "extension",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 12,
+    notes: ["Promoted extension touch."],
+  };
+  const weakInnerTouch: MonitoringEvent = {
+    id: "evt-inner-touch",
+    episodeId: "evt-inner-touch-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "zone-weak-support",
+    zoneKind: "support",
+    level: 98.1,
+    triggerPrice: 98.12,
+    strength: 0.42,
+    confidence: 0.36,
+    priority: 32,
+    bias: "neutral",
+    pressureScore: 0.28,
+    eventContext: {
+      monitoredZoneId: "zone-weak-support",
+      canonicalZoneId: "zone-weak-support",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "weak",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 13,
+    notes: ["Weak inner touch."],
+  };
+
+  const extensionResult = engine.processEvent(outerExtensionEvent, levels);
+  const weakResult = engine.processEvent(weakInnerTouch, levels);
+
+  assert.ok(extensionResult.rawAlert.score > weakResult.rawAlert.score);
+  assert.ok(extensionResult.formatted);
+  assert.equal(
+    extensionResult.formatted?.body,
+    "level touch resistance 3.25-3.35 | strong promoted extension | fresh",
+  );
+  assert.ok(extensionResult.rawAlert.tags.includes("promoted_extension"));
+});
+
+test("AlertIntelligenceEngine penalizes degraded data quality and preserves remap context in output", () => {
+  const engine = new AlertIntelligenceEngine();
+  const cleanEvent: MonitoringEvent = {
+    id: "evt-clean",
+    episodeId: "evt-clean-episode",
+    symbol: "ALBT",
+    type: "reclaim",
+    eventType: "reclaim",
+    zoneId: "zone-major-resistance",
+    zoneKind: "resistance",
+    level: 100.5,
+    triggerPrice: 101.2,
+    strength: 0.78,
+    confidence: 0.75,
+    priority: 81,
+    bias: "bullish",
+    pressureScore: 0.62,
+    eventContext: {
+      monitoredZoneId: "monitored-clean",
+      canonicalZoneId: "zone-major-resistance",
+      zoneFreshness: "aging",
+      zoneOrigin: "canonical",
+      remapStatus: "merged",
+      remappedFromZoneIds: ["old-1", "old-2"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "major",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 14,
+    notes: ["Clean reclaim."],
+  };
+  const degradedEvent: MonitoringEvent = {
+    ...cleanEvent,
+    id: "evt-degraded",
+    episodeId: "evt-degraded-episode",
+    eventContext: {
+      ...cleanEvent.eventContext,
+      dataQualityDegraded: true,
+    },
+  };
+
+  const cleanResult = engine.processEvent(cleanEvent, levels);
+  const degradedResult = engine.processEvent(degradedEvent, levels);
+
+  assert.ok(cleanResult.rawAlert.score > degradedResult.rawAlert.score);
+  assert.ok(cleanResult.formatted);
+  assert.equal(
+    cleanResult.formatted?.body,
+    "reclaim resistance 100.00-101.00 | major outermost | aging | merged | refreshed",
+  );
+  assert.ok(cleanResult.formatted?.meta.context.includes("remap:merged"));
+  assert.ok(degradedResult.formatted?.meta.context.includes("data_quality_degraded"));
+});
+
+test("AlertIntelligenceEngine suppresses near-duplicate alerts for the same structural situation", () => {
+  const engine = new AlertIntelligenceEngine();
+  const firstEvent: MonitoringEvent = {
+    id: "evt-dup-1",
+    episodeId: "evt-dup-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "zone-major-resistance",
+    zoneKind: "resistance",
+    level: 100.5,
+    triggerPrice: 100.9,
+    strength: 0.72,
+    confidence: 0.68,
+    priority: 72,
+    bias: "bullish",
+    pressureScore: 0.58,
+    eventContext: {
+      monitoredZoneId: "monitored-dup",
+      canonicalZoneId: "zone-major-resistance",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["legacy-dup"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "major",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 20,
+    notes: ["Initial outermost touch."],
+  };
+  const duplicateEvent: MonitoringEvent = {
+    ...firstEvent,
+    id: "evt-dup-2",
+    timestamp: 40,
+    triggerPrice: 100.92,
+  };
+
+  const firstResult = engine.processEvent(firstEvent, levels);
+  const duplicateResult = engine.processEvent(duplicateEvent, levels);
+
+  assert.ok(firstResult.formatted);
+  assert.equal(firstResult.delivery.reason, "posted");
+  assert.equal(duplicateResult.formatted, null);
+  assert.equal(duplicateResult.delivery.reason, "duplicate_context");
+});
+
+test("AlertIntelligenceEngine preserves materially new remap state instead of suppressing it as a duplicate", () => {
+  const engine = new AlertIntelligenceEngine();
+  const preservedEvent: MonitoringEvent = {
+    id: "evt-preserved",
+    episodeId: "evt-remap-episode",
+    symbol: "ALBT",
+    type: "breakout",
+    eventType: "breakout",
+    zoneId: "zone-major-resistance",
+    zoneKind: "resistance",
+    level: 100.5,
+    triggerPrice: 101.25,
+    strength: 0.84,
+    confidence: 0.8,
+    priority: 84,
+    bias: "bullish",
+    pressureScore: 0.7,
+    eventContext: {
+      monitoredZoneId: "monitored-remap",
+      canonicalZoneId: "zone-major-resistance",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["legacy-remap"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "major",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 100,
+    notes: ["Preserved breakout."],
+  };
+  const replacedEvent: MonitoringEvent = {
+    ...preservedEvent,
+    id: "evt-replaced",
+    timestamp: 110,
+    eventContext: {
+      ...preservedEvent.eventContext,
+      remapStatus: "replaced",
+      remappedFromZoneIds: ["monitored-old-extension"],
+    },
+    notes: ["Replaced breakout after remap."],
+  };
+
+  const firstResult = engine.processEvent(preservedEvent, levels);
+  const secondResult = engine.processEvent(replacedEvent, levels);
+
+  assert.ok(firstResult.formatted);
+  assert.ok(secondResult.formatted);
+  assert.equal(secondResult.delivery.reason, "posted");
+  assert.ok(secondResult.formatted?.meta.context.includes("remap:replaced"));
 });

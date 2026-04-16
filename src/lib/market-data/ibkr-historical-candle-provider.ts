@@ -1,10 +1,7 @@
 import { EventName, IBApi, WhatToShow } from "@stoqey/ib";
 
-import type { Candle, CandleProviderResponse, CandleTimeframe } from "./candle-types.js";
-import type {
-  HistoricalCandleProvider,
-  HistoricalFetchRequest,
-} from "./candle-fetch-service.js";
+import type { BaseCandleProviderResponse, Candle, CandleTimeframe } from "./candle-types.js";
+import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "./provider-types.js";
 import { sharedIbkrPacingQueue } from "./ibkr-pacing-queue.js";
 
 type HistoricalDataListener = (
@@ -15,9 +12,6 @@ type HistoricalDataListener = (
   low: number,
   close: number,
   volume: number,
-  count?: number,
-  wap?: number,
-  hasGaps?: boolean,
 ) => void;
 
 type HistoricalDataEndListener = (
@@ -62,46 +56,61 @@ type IbkrHistoricalBar = {
 const DEFAULT_TIMEOUT_MS = 30_000;
 const HISTORICAL_DATA_END_EVENT = "historicalDataEnd";
 
-const TIMEFRAME_TO_BAR_SIZE: Record<CandleTimeframe, string> = {
-  daily: "1 day",
-  "4h": "4 hours",
-  "5m": "5 mins",
-};
+function formatIbkrEndDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+  const hour = `${date.getUTCHours()}`.padStart(2, "0");
+  const minute = `${date.getUTCMinutes()}`.padStart(2, "0");
+  const second = `${date.getUTCSeconds()}`.padStart(2, "0");
+
+  return `${year}${month}${day} ${hour}:${minute}:${second} UTC`;
+}
 
 export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
-  private static nextRequestId = 10_000;
+  static nextRequestId = 10_000;
+  readonly providerName = "ibkr" as const;
 
   constructor(
     private readonly ib: IBApi,
     private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS,
   ) {}
 
-  async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+  async fetchCandles(
+    request: HistoricalFetchRequest,
+    plan: HistoricalFetchPlan,
+  ): Promise<BaseCandleProviderResponse> {
     this.validateRequest(request);
 
     const reqId = IbkrHistoricalCandleProvider.nextRequestId++;
     const symbol = request.symbol.trim().toUpperCase();
+    const fetchStartTimestamp = Date.now();
     const bars = await sharedIbkrPacingQueue.enqueue(() =>
-      this.requestHistoricalBars(reqId, symbol, request),
+      this.requestHistoricalBars(reqId, symbol, request, plan),
     );
-
-    if (bars.length === 0) {
-      throw new Error(`IBKR returned no historical candles for ${symbol} (${request.timeframe}).`);
-    }
+    const fetchEndTimestamp = Date.now();
 
     const candles = bars
       .map((bar, index) => this.mapBarToCandle(bar, symbol, request.timeframe, index))
       .sort((left, right) => left.timestamp - right.timestamp)
-      .slice(-request.lookbackBars);
-
-    if (candles.length === 0) {
-      throw new Error(`IBKR returned no usable historical candles for ${symbol} (${request.timeframe}).`);
-    }
+      .slice(-plan.plannedBarCount);
 
     return {
+      provider: this.providerName,
       symbol,
       timeframe: request.timeframe,
+      requestedLookbackBars: request.lookbackBars,
       candles,
+      fetchStartTimestamp,
+      fetchEndTimestamp,
+      requestedStartTimestamp: plan.requestStartTimestamp,
+      requestedEndTimestamp: plan.requestEndTimestamp,
+      sessionMetadataAvailable: plan.sessionMetadataAvailable,
+      providerMetadata: {
+        durationStr: plan.providerRequest.durationStr ?? null,
+        barSizeSetting: plan.providerRequest.barSizeSetting,
+      },
     };
   }
 
@@ -123,6 +132,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     reqId: number,
     symbol: string,
     request: HistoricalFetchRequest,
+    plan: HistoricalFetchPlan,
   ): Promise<IbkrHistoricalBar[]> {
     return new Promise<IbkrHistoricalBar[]>((resolve, reject) => {
       const bars: IbkrHistoricalBar[] = [];
@@ -156,7 +166,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
         try {
           this.ibClient.cancelHistoricalData(reqId);
         } catch {
-          // Ignore cancellation failures during error cleanup.
+          // Ignore cancellation failures during cleanup.
         }
 
         reject(error);
@@ -244,9 +254,9 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
             exchange: "SMART",
             currency: "USD",
           },
-          "",
-          this.getDurationForTimeframe(request.timeframe),
-          TIMEFRAME_TO_BAR_SIZE[request.timeframe],
+          formatIbkrEndDate(plan.requestEndTimestamp),
+          plan.providerRequest.durationStr ?? this.getFallbackDuration(request.timeframe),
+          plan.providerRequest.barSizeSetting,
           WhatToShow.TRADES,
           false,
           2,
@@ -289,7 +299,6 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
   private parseIbkrTimestamp(rawTime: string | number): number {
     if (typeof rawTime === "number") {
       const timestamp = rawTime * 1000;
-
       if (!Number.isFinite(timestamp)) {
         throw new Error(`Invalid IBKR numeric timestamp: ${rawTime}`);
       }
@@ -323,10 +332,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
       return timestamp;
     }
 
-    const parts = trimmed.match(
-      /^(\d{4})(\d{2})(\d{2})[-\s]+(\d{2}):(\d{2}):(\d{2})$/,
-    );
-
+    const parts = trimmed.match(/^(\d{4})(\d{2})(\d{2})[-\s]+(\d{2}):(\d{2}):(\d{2})$/);
     if (parts) {
       const [, yearText, monthText, dayText, hourText, minuteText, secondText] = parts;
       const timestamp = new Date(
@@ -346,7 +352,6 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     }
 
     const fallbackTimestamp = Date.parse(trimmed);
-
     if (!Number.isFinite(fallbackTimestamp)) {
       throw new Error(`Unsupported IBKR timestamp format: ${rawTime}`);
     }
@@ -354,14 +359,14 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     return fallbackTimestamp;
   }
 
-  private getDurationForTimeframe(timeframe: CandleTimeframe): string {
+  private getFallbackDuration(timeframe: CandleTimeframe): string {
     switch (timeframe) {
       case "5m":
-        return "2 D";
+        return "3 D";
       case "4h":
-        return "1 M";
+        return "2 M";
       case "daily":
-        return "1 Y";
+        return "2 Y";
     }
   }
 

@@ -1,9 +1,19 @@
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
+import { formatCandleDiagnostics } from "../lib/market-data/candle-quality.js";
 import { LevelEngine } from "../lib/levels/level-engine.js";
-import { formatMonitoringEventAsAlert } from "../lib/alerts/alert-router.js";
+import { AlertIntelligenceEngine } from "../lib/alerts/alert-intelligence-engine.js";
 import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
+import {
+  AdaptiveScoringEngine,
+  DEFAULT_ADAPTIVE_SCORING_CONFIG,
+} from "../lib/monitoring/adaptive-scoring.js";
+import { AdaptiveStatePersistence } from "../lib/monitoring/adaptive-state-persistence.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
+import { buildOpportunityDiagnosticsLogEntry } from "../lib/monitoring/opportunity-diagnostics.js";
+import {
+  OpportunityRuntimeController,
+} from "../lib/monitoring/opportunity-runtime-controller.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import type { WatchlistEntry } from "../lib/monitoring/monitoring-types.js";
 import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
@@ -60,6 +70,21 @@ async function main(): Promise<void> {
   const candleService = new CandleFetchService(historicalProvider);
   const levelStore = new LevelStore();
   const monitor = new WatchlistMonitor(levelStore, liveProvider);
+  const alertIntelligenceEngine = new AlertIntelligenceEngine();
+  const adaptiveStatePersistence = new AdaptiveStatePersistence({
+    minMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.minMultiplier,
+    maxMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.maxMultiplier,
+  });
+  const initialAdaptiveState = adaptiveStatePersistence.load() ?? undefined;
+  const adaptiveScoringEngine = new AdaptiveScoringEngine(
+    DEFAULT_ADAPTIVE_SCORING_CONFIG,
+    undefined,
+    initialAdaptiveState,
+  );
+  const decisionController = new OpportunityRuntimeController({
+    adaptiveScoringEngine,
+    adaptiveStatePersistence,
+  });
 
   let shuttingDown = false;
 
@@ -95,11 +120,45 @@ async function main(): Promise<void> {
 
   try {
     await waitForIbkrConnection(ib);
+    const diagnostics = await candleService.fetchCandles({
+      symbol: watchlist[0]!.symbol,
+      timeframe: "5m",
+      lookbackBars: 100,
+    });
+    console.log(`[CandleDiagnostics] ${watchlist[0]!.symbol} ${formatCandleDiagnostics(diagnostics)}`);
     await seedLevels(watchlist, candleService, levelStore);
 
     await monitor.start(watchlist, (event) => {
-      const alert = formatMonitoringEventAsAlert(event);
-      console.log(JSON.stringify(alert, null, 2));
+      const alert = alertIntelligenceEngine.processEvent(event, levelStore.getLevels(event.symbol));
+      if (alert.formatted) {
+        console.log(JSON.stringify(alert.formatted, null, 2));
+      }
+
+      const snapshot = decisionController.processMonitoringEvent(event);
+      if (snapshot.newOpportunity) {
+        console.log(JSON.stringify(
+          buildOpportunityDiagnosticsLogEntry("opportunity_snapshot", snapshot, {
+            symbol: event.symbol,
+            timestamp: event.timestamp,
+          }),
+          null,
+          2,
+        ));
+      }
+    }, (update) => {
+      const snapshot = decisionController.processPriceUpdate(update);
+      if (!snapshot || snapshot.completedEvaluations.length === 0) {
+        return;
+      }
+
+      console.log(JSON.stringify(
+        buildOpportunityDiagnosticsLogEntry("evaluation_update", snapshot, {
+          symbol: update.symbol,
+          timestamp: update.timestamp,
+        }),
+        null,
+        2,
+      ));
     });
 
     console.log(

@@ -2,26 +2,31 @@
 
 ## Goal
 
-Build the Phase 2 watchlist monitoring system on top of the completed Phase 1 levels engine.
+Build the watchlist monitoring system on top of the completed levels engine and keep it reusable for alerting, Discord delivery, and future selection layers.
 
 Phase 1 answered:
 - where the important levels are
 
-Phase 2 answers:
+Monitoring answers:
 - what price is doing relative to those levels right now
+
+The current system now also supports:
+- manual watchlist activation and deactivation
+- persisted active/inactive watchlist state
+- persisted Discord thread reuse per symbol
 
 ## Core idea
 
 The monitoring system should:
 - load a watchlist
-- load or refresh stored levels for each symbol
+- load or refresh stored levels for each active symbol
 - subscribe to live price updates
 - maintain per-symbol monitoring state
 - detect interactions with support and resistance zones
 - emit structured monitoring events
-- remain reusable by future alerting and Discord layers
+- remain reusable by downstream alert and Discord layers
 
-## What this phase should detect
+## What the current system detects
 
 - breakout
 - breakdown
@@ -30,21 +35,26 @@ The monitoring system should:
 - fake breakdown
 - reclaim
 - compression near a level
+- level touch
 
-## What this phase should not do yet
+## What the current manual operations layer adds
 
-- full Discord automation
-- full UI dashboard
-- advanced multi-user permissions
+The system can now:
+- accept a manually entered symbol
+- optionally store a note for that symbol
+- mark the symbol active
+- seed levels for that symbol
+- start live monitoring for that symbol through the shared monitor/runtime path
+- deactivate the symbol later without deleting its stored Discord thread id
+- reactivate the symbol later from the normal add flow
+
+## What this phase should still not do
+
+- full Discord bot automation
+- website delivery system
+- AI watchlist selection
+- multi-user permission management
 - heavy-scale infra optimization
-
-## Dependency model
-
-This system depends on:
-- stored support and resistance levels from Phase 1
-- a live price source
-- a polling or streaming loop
-- stateful monitoring logic
 
 ## Monitoring philosophy
 
@@ -59,4 +69,4 @@ The system should use state:
 - rejecting
 - failing
 
-A stateful engine will perform much better than single-candle boolean checks.
+A stateful engine will perform better than single-candle boolean checks, and the manual watchlist layer should only orchestrate which symbols are currently active in that engine.

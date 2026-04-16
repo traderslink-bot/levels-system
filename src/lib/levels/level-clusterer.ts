@@ -3,7 +3,7 @@
 
 import type { CandleTimeframe } from "../market-data/candle-types.js";
 import type { LevelEngineConfig } from "./level-config.js";
-import type { FinalLevelZone, RawLevelCandidate } from "./level-types.js";
+import type { FinalLevelZone, LevelDataFreshness, RawLevelCandidate } from "./level-types.js";
 
 function unique<T>(items: T[]): T[] {
   return [...new Set(items)];
@@ -27,6 +27,19 @@ function dominantTimeframe(timeframes: CandleTimeframe[]): CandleTimeframe | "mi
   }
 
   return sorted[0][0];
+}
+
+function zoneFreshness(lastTimestamp: number): LevelDataFreshness {
+  const hoursAgo = (Date.now() - lastTimestamp) / (1000 * 60 * 60);
+  if (hoursAgo <= 24) {
+    return "fresh";
+  }
+
+  if (hoursAgo <= 24 * 7) {
+    return "aging";
+  }
+
+  return "stale";
 }
 
 function buildZoneFromGroup(
@@ -56,8 +69,45 @@ function buildZoneFromGroup(
     confluenceCount: timeframeSources.length,
     sourceTypes,
     timeframeSources,
+    reactionQualityScore: Number(
+      (
+        group.reduce((sum, item) => sum + item.reactionQuality, 0) /
+        Math.max(group.length, 1)
+      ).toFixed(4),
+    ),
+    rejectionScore: Number(
+      (
+        group.reduce((sum, item) => sum + item.rejectionScore, 0) /
+        Math.max(group.length, 1)
+      ).toFixed(4),
+    ),
+    displacementScore: Number(
+      (
+        group.reduce((sum, item) => sum + item.displacementScore, 0) /
+        Math.max(group.length, 1)
+      ).toFixed(4),
+    ),
+    sessionSignificanceScore: Number(
+      Math.max(...group.map((item) => item.sessionSignificance)).toFixed(4),
+    ),
+    followThroughScore: Number(
+      (
+        group.reduce((sum, item) => sum + item.followThroughScore, 0) /
+        Math.max(group.length, 1)
+      ).toFixed(4),
+    ),
+    gapContinuationScore: Number(
+      (
+        group.reduce((sum, item) => sum + (item.gapContinuationScore ?? 0), 0) /
+        Math.max(group.length, 1)
+      ).toFixed(4),
+    ),
+    sourceEvidenceCount: group.length,
     firstTimestamp: Math.min(...group.map((item) => item.firstTimestamp)),
     lastTimestamp: Math.max(...group.map((item) => item.lastTimestamp)),
+    sessionDate: undefined,
+    isExtension: false,
+    freshness: zoneFreshness(Math.max(...group.map((item) => item.lastTimestamp))),
     notes,
   };
 }
@@ -200,8 +250,50 @@ function secondPassMergeZones(
         ]).length,
         sourceTypes: unique([...current.sourceTypes, ...next.sourceTypes]),
         timeframeSources: unique([...current.timeframeSources, ...next.timeframeSources]),
+        reactionQualityScore: Number(
+          (
+            (current.reactionQualityScore * current.sourceEvidenceCount +
+              next.reactionQualityScore * next.sourceEvidenceCount) /
+            Math.max(current.sourceEvidenceCount + next.sourceEvidenceCount, 1)
+          ).toFixed(4),
+        ),
+        rejectionScore: Number(
+          (
+            (current.rejectionScore * current.sourceEvidenceCount +
+              next.rejectionScore * next.sourceEvidenceCount) /
+            Math.max(current.sourceEvidenceCount + next.sourceEvidenceCount, 1)
+          ).toFixed(4),
+        ),
+        displacementScore: Number(
+          (
+            (current.displacementScore * current.sourceEvidenceCount +
+              next.displacementScore * next.sourceEvidenceCount) /
+            Math.max(current.sourceEvidenceCount + next.sourceEvidenceCount, 1)
+          ).toFixed(4),
+        ),
+        sessionSignificanceScore: Number(
+          Math.max(current.sessionSignificanceScore, next.sessionSignificanceScore).toFixed(4),
+        ),
+        followThroughScore: Number(
+          (
+            (current.followThroughScore * current.sourceEvidenceCount +
+              next.followThroughScore * next.sourceEvidenceCount) /
+            Math.max(current.sourceEvidenceCount + next.sourceEvidenceCount, 1)
+          ).toFixed(4),
+        ),
+        gapContinuationScore: Number(
+          (
+            ((current.gapContinuationScore ?? 0) * current.sourceEvidenceCount +
+              (next.gapContinuationScore ?? 0) * next.sourceEvidenceCount) /
+            Math.max(current.sourceEvidenceCount + next.sourceEvidenceCount, 1)
+          ).toFixed(4),
+        ),
+        sourceEvidenceCount: current.sourceEvidenceCount + next.sourceEvidenceCount,
         firstTimestamp: Math.min(current.firstTimestamp, next.firstTimestamp),
         lastTimestamp: Math.max(current.lastTimestamp, next.lastTimestamp),
+        sessionDate: current.sessionDate ?? next.sessionDate,
+        isExtension: current.isExtension || next.isExtension,
+        freshness: zoneFreshness(Math.max(current.lastTimestamp, next.lastTimestamp)),
         notes: unique([...current.notes, ...next.notes, "Merged in second clustering pass."]),
         timeframeBias: dominantTimeframe(
           unique([...current.timeframeSources, ...next.timeframeSources]),

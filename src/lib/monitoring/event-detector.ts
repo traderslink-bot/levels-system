@@ -6,6 +6,7 @@ import type { MonitoringConfig } from "./monitoring-config.js";
 import type {
   LivePriceUpdate,
   MonitoringEvent,
+  MonitoringEventContext,
   SymbolMonitoringState,
   ZoneInteractionState,
 } from "./monitoring-types.js";
@@ -15,6 +16,45 @@ import {
   shouldFilterMonitoringEvent,
 } from "./monitoring-event-scoring.js";
 import { isAboveZone, isBelowZone, isInsideZone } from "./zone-utils.js";
+
+function buildMonitoringEventContext(
+  zone: FinalLevelZone,
+  symbolState: SymbolMonitoringState,
+): MonitoringEventContext {
+  const zoneContext = symbolState.zoneContexts[zone.id];
+
+  if (zoneContext) {
+    return {
+      monitoredZoneId: zoneContext.monitoredZoneId,
+      canonicalZoneId: zoneContext.canonicalZoneId,
+      zoneFreshness: zoneContext.zoneFreshness,
+      zoneOrigin: zoneContext.origin,
+      remapStatus: zoneContext.remapStatus,
+      remappedFromZoneIds: [...zoneContext.remappedFromZoneIds],
+      dataQualityDegraded: zoneContext.dataQualityDegraded,
+      recentlyRefreshed: zoneContext.recentlyRefreshed,
+      recentlyPromotedExtension: zoneContext.recentlyPromotedExtension,
+      ladderPosition: zoneContext.ladderPosition,
+      zoneStrengthLabel: zoneContext.zoneStrengthLabel,
+      sourceGeneratedAt: zoneContext.sourceGeneratedAt,
+    };
+  }
+
+  return {
+    monitoredZoneId: zone.id,
+    canonicalZoneId: zone.id,
+    zoneFreshness: zone.freshness,
+    zoneOrigin: (zone.isExtension ? "promoted_extension" : "canonical"),
+    remapStatus: "new" as const,
+    remappedFromZoneIds: [],
+    dataQualityDegraded: (symbolState.levelDataQualityFlags?.length ?? 0) > 0,
+    recentlyRefreshed: false,
+    recentlyPromotedExtension: zone.isExtension,
+    ladderPosition: zone.isExtension ? "extension" as const : "inner" as const,
+    zoneStrengthLabel: zone.strengthLabel,
+    sourceGeneratedAt: symbolState.levelGeneratedAt,
+  };
+}
 
 function buildEvent(
   symbol: string,
@@ -52,6 +92,7 @@ function buildEvent(
     priority: signal.priority,
     bias: signal.bias ?? "neutral",
     pressureScore: signal.pressureScore,
+    eventContext: buildMonitoringEventContext(zone, symbolState),
     timestamp: update.timestamp,
     notes,
   };
@@ -78,6 +119,8 @@ function pushEventIfRelevant(
       update: params.update,
       previousPrice: params.previousPrice,
       config: params.config,
+      zone: params.zone,
+      symbolState: params.symbolState,
     })
   ) {
     return;

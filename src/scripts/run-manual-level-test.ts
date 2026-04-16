@@ -2,6 +2,7 @@
 // Manual runner for IBKR historical candle fetching.
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
+import { formatCandleDiagnostics } from "../lib/market-data/candle-quality.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createIbkrClient } from "./shared/ibkr-runtime.js";
@@ -23,6 +24,7 @@ async function main(): Promise<void> {
     });
 
     console.log("Fetched candles:", response.candles.length);
+    console.log(formatCandleDiagnostics(response));
   } finally {
     ib.disconnect();
   }

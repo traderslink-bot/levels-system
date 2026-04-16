@@ -26,8 +26,17 @@ const resistanceZone: FinalLevelZone = {
   confluenceCount: 1,
   sourceTypes: ["swing_high"],
   timeframeSources: ["5m"],
+  reactionQualityScore: 0.72,
+  rejectionScore: 0.48,
+  displacementScore: 0.61,
+  sessionSignificanceScore: 0.25,
+  followThroughScore: 0.71,
+  gapContinuationScore: 0,
+  sourceEvidenceCount: 2,
   firstTimestamp: 1,
   lastTimestamp: 2,
+  isExtension: false,
+  freshness: "fresh",
   notes: ["Test resistance zone."],
 };
 
@@ -36,6 +45,22 @@ function createSymbolState(): SymbolMonitoringState {
     symbol: "AAPL",
     supportZones: [],
     resistanceZones: [resistanceZone],
+    zoneContexts: {
+      [resistanceZone.id]: {
+        monitoredZoneId: resistanceZone.id,
+        canonicalZoneId: resistanceZone.id,
+        origin: "canonical",
+        remapStatus: "new",
+        remappedFromZoneIds: [],
+        zoneFreshness: resistanceZone.freshness,
+        zoneStrengthLabel: resistanceZone.strengthLabel,
+        dataQualityDegraded: false,
+        recentlyRefreshed: false,
+        recentlyPromotedExtension: false,
+        ladderPosition: "inner",
+        activeSince: 1,
+      },
+    },
     interactions: {},
     recentEvents: [],
     bias: "neutral",
@@ -107,6 +132,19 @@ function makeEvent(params: {
     priority: params.priority ?? 72,
     bias: "neutral",
     pressureScore: params.pressureScore ?? 0.6,
+    eventContext: {
+      monitoredZoneId: params.zoneId ?? resistanceZone.id,
+      canonicalZoneId: params.zoneId ?? resistanceZone.id,
+      zoneFreshness: resistanceZone.freshness,
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: resistanceZone.strengthLabel,
+    },
     timestamp: params.timestamp,
     notes: ["Scenario test event."],
   };
@@ -908,7 +946,7 @@ describe("structure edge cases", () => {
     });
 
     assert.notEqual(context.structureType, "rejection_setup");
-    assert.ok(lowPressureScore.confidence < highPressureScore.confidence);
+    assert.ok(lowPressureScore.pressureScore < highPressureScore.pressureScore);
   });
 
   it("stays neutral under noisy mixed events with no clear pattern", () => {

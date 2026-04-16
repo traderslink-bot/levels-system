@@ -1,7 +1,7 @@
 // 2026-04-14 09:28 PM America/Toronto
 // Shared monitoring types for Phase 2 watchlist monitoring.
 
-import type { FinalLevelZone } from "../levels/level-types.js";
+import type { FinalLevelZone, LevelDataFreshness } from "../levels/level-types.js";
 
 export type MonitoringEventType =
   | "level_touch"
@@ -35,11 +35,60 @@ export type InteractionPhase =
   | "rejected"
   | "failed";
 
+export type WatchlistLifecycleState =
+  | "inactive"
+  | "activating"
+  | "active"
+  | "stale"
+  | "refresh_pending"
+  | "extension_pending";
+
+export type MonitoredZoneOrigin =
+  | "canonical"
+  | "extension_inventory"
+  | "promoted_extension";
+
+export type MonitoredZoneRemapStatus =
+  | "new"
+  | "preserved"
+  | "merged"
+  | "split"
+  | "replaced";
+
+export type LadderPositionContext =
+  | "inner"
+  | "outermost"
+  | "extension";
+
+export type MonitoringZoneContext = {
+  monitoredZoneId: string;
+  canonicalZoneId: string;
+  origin: MonitoredZoneOrigin;
+  remapStatus: MonitoredZoneRemapStatus;
+  remappedFromZoneIds: string[];
+  sourceGeneratedAt?: number;
+  zoneFreshness: LevelDataFreshness;
+  zoneStrengthLabel: FinalLevelZone["strengthLabel"];
+  dataQualityDegraded: boolean;
+  recentlyRefreshed: boolean;
+  recentlyPromotedExtension: boolean;
+  ladderPosition: LadderPositionContext;
+  activeSince: number;
+  lastRemappedAt?: number;
+};
+
 export type WatchlistEntry = {
   symbol: string;
   active: boolean;
   priority: number;
   tags: string[];
+  note?: string;
+  discordThreadId?: string | null;
+  lifecycle?: WatchlistLifecycleState;
+  activatedAt?: number;
+  lastLevelPostAt?: number;
+  lastExtensionPostAt?: number;
+  refreshPending?: boolean;
 };
 
 export type LivePriceUpdate = {
@@ -71,10 +120,30 @@ export type SymbolMonitoringState = {
   lastUpdateAt?: number;
   bias?: SymbolBias;
   pressureScore?: number;
+  levelGeneratedAt?: number;
+  levelFreshness?: LevelDataFreshness;
+  levelStoreVersion?: number;
+  levelDataQualityFlags?: string[];
   supportZones: FinalLevelZone[];
   resistanceZones: FinalLevelZone[];
+  zoneContexts: Record<string, MonitoringZoneContext>;
   interactions: Record<string, ZoneInteractionState>;
   recentEvents: MonitoringEvent[];
+};
+
+export type MonitoringEventContext = {
+  monitoredZoneId: string;
+  canonicalZoneId: string;
+  zoneFreshness: LevelDataFreshness;
+  zoneOrigin: MonitoredZoneOrigin;
+  remapStatus: MonitoredZoneRemapStatus;
+  remappedFromZoneIds: string[];
+  dataQualityDegraded: boolean;
+  recentlyRefreshed: boolean;
+  recentlyPromotedExtension: boolean;
+  ladderPosition: LadderPositionContext;
+  zoneStrengthLabel: FinalLevelZone["strengthLabel"];
+  sourceGeneratedAt?: number;
 };
 
 export type MonitoringEvent = {
@@ -92,6 +161,7 @@ export type MonitoringEvent = {
   priority: number;
   bias: SymbolBias;
   pressureScore: number;
+  eventContext: MonitoringEventContext;
   memoryWeight?: number;
   timestamp: number;
   notes: string[];

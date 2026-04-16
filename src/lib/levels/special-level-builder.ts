@@ -1,7 +1,8 @@
 // 2026-04-14 08:05 PM America/Toronto
-// Add special intraday levels for the most recent 5 minute session.
+// Session-aware special intraday levels derived from classified 5 minute candles.
 
 import type { Candle } from "../market-data/candle-types.js";
+import { filterCandlesBySession } from "../market-data/candle-session-classifier.js";
 import type { RawLevelCandidate } from "./level-types.js";
 
 export type SpecialLevelOutput = {
@@ -14,49 +15,86 @@ export type SpecialLevelOutput = {
   };
 };
 
+function round(value: number): number {
+  return Number(value.toFixed(4));
+}
+
+function latestSessionCandles(candles: Candle[]): Candle[] {
+  const latestDay = new Date(candles.at(-1)?.timestamp ?? Date.now()).getDate();
+  return candles.filter((candle) => new Date(candle.timestamp).getDate() === latestDay);
+}
+
 export function buildSpecialLevelCandidates(symbol: string, candles: Candle[]): SpecialLevelOutput {
   if (candles.length === 0) {
     return { candidates: [], summary: {} };
   }
 
-  const latestSessionCandles = candles.slice(Math.max(0, candles.length - 24));
-  const firstSix = latestSessionCandles.slice(0, Math.min(6, latestSessionCandles.length));
-
-  const premarketHigh = Number(Math.max(...latestSessionCandles.map((c) => c.high)).toFixed(4));
-  const premarketLow = Number(Math.min(...latestSessionCandles.map((c) => c.low)).toFixed(4));
-  const openingRangeHigh = firstSix.length > 0 ? Number(Math.max(...firstSix.map((c) => c.high)).toFixed(4)) : undefined;
-  const openingRangeLow = firstSix.length > 0 ? Number(Math.min(...firstSix.map((c) => c.low)).toFixed(4)) : undefined;
-  const lastTimestamp = latestSessionCandles.at(-1)?.timestamp ?? Date.now();
-
+  const latestCandles = latestSessionCandles(candles);
+  const premarketCandles = filterCandlesBySession(latestCandles, "5m", "premarket");
+  const openingRangeCandles = filterCandlesBySession(latestCandles, "5m", "opening_range");
   const candidates: RawLevelCandidate[] = [];
+  const lastTimestamp = latestCandles.at(-1)?.timestamp ?? Date.now();
 
-  candidates.push({
-    id: `${symbol}-5m-premarket-high-${lastTimestamp}`,
-    symbol,
-    price: premarketHigh,
-    kind: "resistance",
-    timeframe: "5m",
-    sourceType: "premarket_high",
-    touchCount: 1,
-    reactionScore: 1,
-    firstTimestamp: latestSessionCandles[0].timestamp,
-    lastTimestamp,
-    notes: ["Recent intraday session high."],
-  });
+  const premarketHigh =
+    premarketCandles.length > 0 ? round(Math.max(...premarketCandles.map((candle) => candle.high))) : undefined;
+  const premarketLow =
+    premarketCandles.length > 0 ? round(Math.min(...premarketCandles.map((candle) => candle.low))) : undefined;
+  const openingRangeHigh =
+    openingRangeCandles.length > 0
+      ? round(Math.max(...openingRangeCandles.map((candle) => candle.high)))
+      : undefined;
+  const openingRangeLow =
+    openingRangeCandles.length > 0
+      ? round(Math.min(...openingRangeCandles.map((candle) => candle.low)))
+      : undefined;
 
-  candidates.push({
-    id: `${symbol}-5m-premarket-low-${lastTimestamp}`,
-    symbol,
-    price: premarketLow,
-    kind: "support",
-    timeframe: "5m",
-    sourceType: "premarket_low",
-    touchCount: 1,
-    reactionScore: 1,
-    firstTimestamp: latestSessionCandles[0].timestamp,
-    lastTimestamp,
-    notes: ["Recent intraday session low."],
-  });
+  if (premarketHigh !== undefined) {
+    candidates.push({
+      id: `${symbol}-5m-premarket-high-${lastTimestamp}`,
+      symbol,
+      price: premarketHigh,
+      kind: "resistance",
+      timeframe: "5m",
+      sourceType: "premarket_high",
+      touchCount: 1,
+      reactionScore: 1,
+      reactionQuality: 0.8,
+      rejectionScore: 0.65,
+      displacementScore: 0.6,
+      sessionSignificance: 1,
+      followThroughScore: 0.72,
+      gapContinuationScore: 0,
+      repeatedReactionCount: 1,
+      gapStructure: false,
+      firstTimestamp: premarketCandles[0]!.timestamp,
+      lastTimestamp,
+      notes: ["Session-accurate premarket high candidate."],
+    });
+  }
+
+  if (premarketLow !== undefined) {
+    candidates.push({
+      id: `${symbol}-5m-premarket-low-${lastTimestamp}`,
+      symbol,
+      price: premarketLow,
+      kind: "support",
+      timeframe: "5m",
+      sourceType: "premarket_low",
+      touchCount: 1,
+      reactionScore: 1,
+      reactionQuality: 0.8,
+      rejectionScore: 0.65,
+      displacementScore: 0.6,
+      sessionSignificance: 1,
+      followThroughScore: 0.72,
+      gapContinuationScore: 0,
+      repeatedReactionCount: 1,
+      gapStructure: false,
+      firstTimestamp: premarketCandles[0]!.timestamp,
+      lastTimestamp,
+      notes: ["Session-accurate premarket low candidate."],
+    });
+  }
 
   if (openingRangeHigh !== undefined) {
     candidates.push({
@@ -68,9 +106,17 @@ export function buildSpecialLevelCandidates(symbol: string, candles: Candle[]): 
       sourceType: "opening_range_high",
       touchCount: 1,
       reactionScore: 1,
-      firstTimestamp: firstSix[0].timestamp,
+      reactionQuality: 0.9,
+      rejectionScore: 0.72,
+      displacementScore: 0.7,
+      sessionSignificance: 1,
+      followThroughScore: 0.82,
+      gapContinuationScore: 0,
+      repeatedReactionCount: 1,
+      gapStructure: false,
+      firstTimestamp: openingRangeCandles[0]!.timestamp,
       lastTimestamp,
-      notes: ["Opening range high candidate."],
+      notes: ["Session-accurate opening range high candidate."],
     });
   }
 
@@ -84,9 +130,17 @@ export function buildSpecialLevelCandidates(symbol: string, candles: Candle[]): 
       sourceType: "opening_range_low",
       touchCount: 1,
       reactionScore: 1,
-      firstTimestamp: firstSix[0].timestamp,
+      reactionQuality: 0.9,
+      rejectionScore: 0.72,
+      displacementScore: 0.7,
+      sessionSignificance: 1,
+      followThroughScore: 0.82,
+      gapContinuationScore: 0,
+      repeatedReactionCount: 1,
+      gapStructure: false,
+      firstTimestamp: openingRangeCandles[0]!.timestamp,
       lastTimestamp,
-      notes: ["Opening range low candidate."],
+      notes: ["Session-accurate opening range low candidate."],
     });
   }
 

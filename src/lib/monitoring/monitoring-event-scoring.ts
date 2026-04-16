@@ -25,6 +25,10 @@ function timeframeImportance(zone: FinalLevelZone): number {
   return 0.5;
 }
 
+function freshnessImportance(zone: FinalLevelZone): number {
+  return zone.freshness === "fresh" ? 1 : zone.freshness === "aging" ? 0.72 : 0.45;
+}
+
 function standardizedTypeForEvent(eventType: MonitoringEventType): MonitoringAlertType {
   if (eventType === "compression") {
     return "consolidation";
@@ -54,12 +58,22 @@ export function shouldFilterMonitoringEvent(params: {
   update: LivePriceUpdate;
   previousPrice?: number;
   config: MonitoringConfig;
+  zone: FinalLevelZone;
+  symbolState: SymbolMonitoringState;
 }): boolean {
-  const { eventType, currentState, update, previousPrice, config } = params;
+  const { eventType, currentState, update, previousPrice, config, zone, symbolState } = params;
   const movePct =
     previousPrice !== undefined
       ? Math.abs(update.lastPrice - previousPrice) / Math.max(Math.abs(previousPrice), 0.0001)
       : 0;
+  const zoneContext = symbolState.zoneContexts[zone.id];
+  const lowSignalInnerZone =
+    zone.strengthLabel === "weak" &&
+    (zoneContext?.ladderPosition ?? "inner") === "inner" &&
+    !zone.isExtension;
+  const staleLowContext =
+    (zoneContext?.zoneFreshness ?? zone.freshness) === "stale" &&
+    (zoneContext?.ladderPosition ?? "inner") === "inner";
 
   if (
     eventType !== "level_touch" &&
@@ -72,6 +86,22 @@ export function shouldFilterMonitoringEvent(params: {
   if (
     (eventType === "compression" || eventType === "level_touch") &&
     currentState.nearestDistancePct > config.nearZonePct
+  ) {
+    return true;
+  }
+
+  if (
+    eventType === "level_touch" &&
+    lowSignalInnerZone &&
+    currentState.nearestDistancePct > config.nearZonePct * 0.4
+  ) {
+    return true;
+  }
+
+  if (
+    eventType === "compression" &&
+    (lowSignalInnerZone || staleLowContext) &&
+    currentState.updatesNearZone < config.compressionMinUpdates + 1
   ) {
     return true;
   }
@@ -97,6 +127,7 @@ export function scoreMonitoringEvent(params: {
   pressureScore: number;
 } {
   const { eventType, zone, update, previousPrice, currentState, symbolState, config } = params;
+  const zoneContext = symbolState.zoneContexts[zone.id];
   const context = buildSymbolContext({
     symbolState,
     zone,
@@ -117,6 +148,7 @@ export function scoreMonitoringEvent(params: {
   const speedScore = clamp(movePct / Math.max(config.breakoutConfirmPct, 0.0001));
   const zoneStrengthScore = clamp(zone.strengthScore / 100);
   const timeframeScore = timeframeImportance(zone);
+  const freshnessScore = freshnessImportance(zone);
   const episodeScore = clamp(
     currentState.updatesNearZone / Math.max(config.compressionMinUpdates, 1),
   );
@@ -172,6 +204,33 @@ export function scoreMonitoringEvent(params: {
           context.pressureScore >= 0.65
         ? context.failedBreakoutCount * context.pressureScore * 0.16
         : 0;
+  const extensionContext =
+    (zoneContext?.origin === "promoted_extension" || zone.isExtension) &&
+    (eventType === "breakout" || eventType === "breakdown" || eventType === "level_touch")
+      ? 0.06
+      : zoneContext?.origin === "promoted_extension" || zone.isExtension
+        ? 0.03
+        : 0;
+  const dataQualityPenalty =
+    zoneContext?.dataQualityDegraded || (symbolState.levelDataQualityFlags?.length ?? 0) > 0 ? 0.06 : 0;
+  const outermostContext =
+    zoneContext?.ladderPosition === "outermost" &&
+    (eventType === "level_touch" || eventType === "breakout" || eventType === "breakdown")
+      ? 0.05
+      : 0;
+  const refreshedContext =
+    zoneContext?.recentlyRefreshed &&
+    (eventType === "level_touch" || eventType === "reclaim" || eventType === "rejection")
+      ? 0.03
+      : 0;
+  const staleContextPenalty =
+    zoneContext?.zoneFreshness === "stale" && !zone.isExtension ? 0.05 : 0;
+  const weakZonePenalty =
+    zoneContext?.zoneStrengthLabel === "weak" &&
+    zoneContext.ladderPosition === "inner" &&
+    (eventType === "level_touch" || eventType === "compression")
+      ? 0.04
+      : 0;
 
   const strength = clamp(
     proximityScore * 0.32 +
@@ -179,24 +238,38 @@ export function scoreMonitoringEvent(params: {
       volumeScore * 0.12 +
       zoneStrengthScore * 0.18 +
       timeframeScore * 0.1 +
+      freshnessScore * 0.06 +
       eventBias * 0.05 +
       context.pressureScore * 0.08 +
       repeatedTestBoost +
       alignmentAdjustment +
       structureBoost +
-      failureAmplification,
+      failureAmplification +
+      outermostContext +
+      refreshedContext +
+      extensionContext -
+      dataQualityPenalty -
+      staleContextPenalty -
+      weakZonePenalty,
   );
 
   const confidence = clamp(
     strength * 0.45 +
       timeframeScore * 0.2 +
+      freshnessScore * 0.1 +
       zoneStrengthScore * 0.15 +
       episodeScore * 0.1 +
       volumeScore * 0.1 +
       context.pressureScore * 0.08 +
       Math.max(0, alignmentAdjustment) * 0.12 +
       structureBoost * 0.9 +
-      failureAmplification * 0.85,
+      failureAmplification * 0.85 +
+      outermostContext * 0.9 +
+      refreshedContext * 0.8 +
+      extensionContext * 0.8 -
+      dataQualityPenalty * 0.5 -
+      staleContextPenalty * 0.75 -
+      weakZonePenalty * 0.6,
   );
 
   const priority = Math.max(

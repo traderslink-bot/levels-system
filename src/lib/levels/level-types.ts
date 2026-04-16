@@ -11,6 +11,9 @@ export type SwingPoint = {
   price: number;
   kind: LevelKind;
   strength: number;
+  displacement: number;
+  separation: number;
+  reactionCount: number;
 };
 
 export type RawLevelCandidateSourceType =
@@ -30,10 +33,20 @@ export type RawLevelCandidate = {
   sourceType: RawLevelCandidateSourceType;
   touchCount: number;
   reactionScore: number;
+  reactionQuality: number;
+  rejectionScore: number;
+  displacementScore: number;
+  sessionSignificance: number;
+  followThroughScore: number;
+  gapContinuationScore?: number;
+  repeatedReactionCount: number;
+  gapStructure: boolean;
   firstTimestamp: number;
   lastTimestamp: number;
   notes: string[];
 };
+
+export type LevelDataFreshness = "fresh" | "aging" | "stale";
 
 export type FinalLevelZone = {
   id: string;
@@ -49,20 +62,43 @@ export type FinalLevelZone = {
   confluenceCount: number;
   sourceTypes: RawLevelCandidateSourceType[];
   timeframeSources: CandleTimeframe[];
+  reactionQualityScore: number;
+  rejectionScore: number;
+  displacementScore: number;
+  sessionSignificanceScore: number;
+  followThroughScore: number;
+  gapContinuationScore?: number;
+  sourceEvidenceCount: number;
   firstTimestamp: number;
   lastTimestamp: number;
+  sessionDate?: string;
+  isExtension: boolean;
+  freshness: LevelDataFreshness;
   notes: string[];
+};
+
+export type LevelLadderExtension = {
+  support: FinalLevelZone[];
+  resistance: FinalLevelZone[];
+};
+
+export type LevelOutputMetadata = {
+  providerByTimeframe: Partial<Record<CandleTimeframe, string>>;
+  dataQualityFlags: string[];
+  freshness: LevelDataFreshness;
 };
 
 export type LevelEngineOutput = {
   symbol: string;
   generatedAt: number;
+  metadata: LevelOutputMetadata;
   majorSupport: FinalLevelZone[];
   majorResistance: FinalLevelZone[];
   intermediateSupport: FinalLevelZone[];
   intermediateResistance: FinalLevelZone[];
   intradaySupport: FinalLevelZone[];
   intradayResistance: FinalLevelZone[];
+  extensionLevels: LevelLadderExtension;
   specialLevels: {
     premarketHigh?: number;
     premarketLow?: number;

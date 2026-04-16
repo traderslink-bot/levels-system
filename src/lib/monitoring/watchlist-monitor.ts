@@ -6,11 +6,12 @@ import type { FinalLevelZone } from "../levels/level-types.js";
 import { DEFAULT_MONITORING_CONFIG, type MonitoringConfig } from "./monitoring-config.js";
 import { detectMonitoringEvents } from "./event-detector.js";
 import { createInitialInteractionState, updateInteractionState } from "./interaction-state-machine.js";
-import type { LivePriceProvider } from "./live-price-types.js";
+import type { LivePriceListener, LivePriceProvider } from "./live-price-types.js";
 import { recordMonitoringEvent } from "./symbol-state.js";
 import type {
   LivePriceUpdate,
   MonitoringEvent,
+  MonitoringZoneContext,
   SymbolMonitoringState,
   WatchlistEntry,
   ZoneInteractionState,
@@ -38,13 +39,21 @@ export class WatchlistMonitor {
   private ensureSymbolState(symbol: string): SymbolMonitoringState {
     const existing = this.symbolStates.get(symbol);
     if (existing) {
+      this.reconcileSymbolState(existing);
       return existing;
     }
+
+    const output = this.levelStore.getLevels(symbol);
 
     const state: SymbolMonitoringState = {
       symbol,
       supportZones: this.levelStore.getSupportZones(symbol),
       resistanceZones: this.levelStore.getResistanceZones(symbol),
+      levelGeneratedAt: output?.generatedAt,
+      levelFreshness: output?.metadata.freshness,
+      levelStoreVersion: this.levelStore.getVersion(symbol),
+      levelDataQualityFlags: output?.metadata.dataQualityFlags ?? [],
+      zoneContexts: this.levelStore.getZoneContexts(symbol),
       interactions: {},
       bias: "neutral",
       pressureScore: 0,
@@ -57,6 +66,126 @@ export class WatchlistMonitor {
 
     this.symbolStates.set(symbol, state);
     return state;
+  }
+
+  private reconcileSymbolState(symbolState: SymbolMonitoringState): void {
+    const symbol = symbolState.symbol.toUpperCase();
+    const currentVersion = this.levelStore.getVersion(symbol);
+
+    if (symbolState.levelStoreVersion === currentVersion) {
+      return;
+    }
+
+    const output = this.levelStore.getLevels(symbol);
+    const supportZones = this.levelStore.getSupportZones(symbol);
+    const resistanceZones = this.levelStore.getResistanceZones(symbol);
+    const zoneIds = new Set([...supportZones, ...resistanceZones].map((zone) => zone.id));
+    const nextZoneContexts = this.levelStore.getZoneContexts(symbol);
+    const nextInteractions: Record<string, ZoneInteractionState> = {};
+    const interactionByPriorZoneId = symbolState.interactions;
+
+    const selectPreservedInteraction = (
+      context: MonitoringZoneContext | undefined,
+      zoneId: string,
+    ): ZoneInteractionState | undefined => {
+      const candidates = [
+        interactionByPriorZoneId[zoneId],
+        ...(context?.remappedFromZoneIds ?? []).map((priorZoneId) => interactionByPriorZoneId[priorZoneId]),
+      ].filter((value): value is ZoneInteractionState => Boolean(value));
+
+      if (candidates.length === 0) {
+        return undefined;
+      }
+
+      return [...candidates].sort(
+        (left, right) =>
+          (right.lastTouchedAt ?? 0) - (left.lastTouchedAt ?? 0) ||
+          (right.firstTouchedAt ?? 0) - (left.firstTouchedAt ?? 0) ||
+          right.updatesNearZone - left.updatesNearZone,
+      )[0];
+    };
+
+    for (const zone of [...supportZones, ...resistanceZones]) {
+      const context = nextZoneContexts[zone.id];
+      nextInteractions[zone.id] =
+        selectPreservedInteraction(context, zone.id) ?? createInitialInteractionState(symbol, zone);
+    }
+
+    const remapTargetsByPriorZoneId = new Map<string, string>();
+    for (const [nextZoneId, context] of Object.entries(nextZoneContexts)) {
+      for (const priorZoneId of context.remappedFromZoneIds) {
+        if (!remapTargetsByPriorZoneId.has(priorZoneId)) {
+          remapTargetsByPriorZoneId.set(priorZoneId, nextZoneId);
+        }
+      }
+    }
+
+    const remappedRecentEvents = symbolState.recentEvents
+      .map((event) => {
+        const nextZoneId = zoneIds.has(event.zoneId)
+          ? event.zoneId
+          : remapTargetsByPriorZoneId.get(event.zoneId);
+        if (!nextZoneId) {
+          return null;
+        }
+
+        const nextContext = nextZoneContexts[nextZoneId];
+        if (!nextContext) {
+          return null;
+        }
+
+        return {
+          ...event,
+          zoneId: nextZoneId,
+          eventContext: {
+            ...event.eventContext,
+            monitoredZoneId: nextContext.monitoredZoneId,
+            canonicalZoneId: nextContext.canonicalZoneId,
+            zoneFreshness: nextContext.zoneFreshness,
+            zoneOrigin: nextContext.origin,
+            remapStatus: nextContext.remapStatus,
+            remappedFromZoneIds: [...nextContext.remappedFromZoneIds],
+            dataQualityDegraded: nextContext.dataQualityDegraded,
+            recentlyRefreshed: nextContext.recentlyRefreshed,
+            recentlyPromotedExtension: nextContext.recentlyPromotedExtension,
+            ladderPosition: nextContext.ladderPosition,
+            zoneStrengthLabel: nextContext.zoneStrengthLabel,
+            sourceGeneratedAt: nextContext.sourceGeneratedAt,
+          },
+        };
+      })
+      .filter((event) => event !== null) as MonitoringEvent[];
+
+    symbolState.supportZones = supportZones;
+    symbolState.resistanceZones = resistanceZones;
+    symbolState.zoneContexts = nextZoneContexts;
+    symbolState.interactions = nextInteractions;
+    symbolState.recentEvents = remappedRecentEvents;
+    symbolState.levelGeneratedAt = output?.generatedAt;
+    symbolState.levelFreshness = output?.metadata.freshness;
+    symbolState.levelDataQualityFlags = output?.metadata.dataQualityFlags ?? [];
+    symbolState.levelStoreVersion = currentVersion;
+  }
+
+  private syncTrackedSymbols(entries: WatchlistEntry[]): void {
+    const activeSymbols = new Set(
+      entries
+        .filter((entry) => entry.active)
+        .map((entry) => entry.symbol.toUpperCase()),
+    );
+
+    for (const symbol of this.symbolStates.keys()) {
+      if (!activeSymbols.has(symbol)) {
+        this.symbolStates.delete(symbol);
+      }
+    }
+
+    for (const gateKey of this.emittedEventTimestamps.keys()) {
+      const symbol = gateKey.split("|", 1)[0];
+      if (symbol && !activeSymbols.has(symbol)) {
+        this.emittedEventTimestamps.delete(gateKey);
+      }
+    }
   }
 
   private buildEventGateKey(event: MonitoringEvent): string {
@@ -209,9 +338,14 @@ export class WatchlistMonitor {
     }
   }
 
-  private handleUpdate(update: LivePriceUpdate, listener: MonitoringEventListener): void {
+  private handleUpdate(
+    update: LivePriceUpdate,
+    listener: MonitoringEventListener,
+    onPriceUpdate?: LivePriceListener,
+  ): void {
     const symbol = update.symbol.toUpperCase();
     const symbolState = this.ensureSymbolState(symbol);
+    this.reconcileSymbolState(symbolState);
 
     symbolState.previousPrice = symbolState.lastPrice;
     symbolState.lastPrice = update.lastPrice;
@@ -223,20 +357,31 @@ export class WatchlistMonitor {
     ];
 
     this.emitPendingEvents(symbolState, pending, listener);
+    onPriceUpdate?.(update);
   }
 
-  async start(entries: WatchlistEntry[], listener: MonitoringEventListener): Promise<void> {
+  async start(
+    entries: WatchlistEntry[],
+    listener: MonitoringEventListener,
+    onPriceUpdate?: LivePriceListener,
+  ): Promise<void> {
     const normalized = entries.map((entry) => ({
       ...entry,
       symbol: entry.symbol.toUpperCase(),
     }));
 
+    this.syncTrackedSymbols(normalized);
+
     for (const entry of normalized) {
+      if (!entry.active) {
+        continue;
+      }
+
       this.ensureSymbolState(entry.symbol);
     }
 
     await this.livePriceProvider.start(normalized, (update) => {
-      this.handleUpdate(update, listener);
+      this.handleUpdate(update, listener, onPriceUpdate);
     });
   }
 

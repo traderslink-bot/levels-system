@@ -1,25 +1,37 @@
 // 2026-04-14 08:05 PM America/Toronto
-// Phase 1 fetch service. This includes a deterministic stub so the project runs before a real provider is wired in.
+// Candle fetch service with provider planning, validation, and diagnostics-ready output.
 
-import type { Candle, CandleProviderResponse, CandleTimeframe } from "./candle-types.js";
+import type { BaseCandleProviderResponse, Candle, CandleProviderResponse, CandleProviderName } from "./candle-types.js";
+import { finalizeCandleProviderResponse } from "./candle-quality.js";
+import { buildHistoricalFetchPlan } from "./fetch-planning.js";
+import { createHistoricalCandleProvider, type HistoricalProviderFactoryOptions } from "./provider-factory.js";
+import type { HistoricalCandleProvider, HistoricalFetchRequest } from "./provider-types.js";
 
-export type HistoricalFetchRequest = {
-  symbol: string;
-  timeframe: CandleTimeframe;
-  lookbackBars: number;
+export type { HistoricalCandleProvider, HistoricalFetchRequest } from "./provider-types.js";
+
+export type CandleFetchServiceOptions = Omit<HistoricalProviderFactoryOptions, "provider"> & {
+  provider?: HistoricalCandleProvider;
+  providerName?: CandleProviderName;
 };
-
-export interface HistoricalCandleProvider {
-  fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse>;
-}
 
 function seededNumber(seed: number): number {
   const x = Math.sin(seed) * 10000;
   return x - Math.floor(x);
 }
 
-function generateStubCandles(request: HistoricalFetchRequest): CandleProviderResponse {
-  const now = Date.now();
+function timeframeBasePrice(timeframe: HistoricalFetchRequest["timeframe"]): number {
+  switch (timeframe) {
+    case "daily":
+      return 4.2;
+    case "4h":
+      return 4.6;
+    case "5m":
+      return 4.8;
+  }
+}
+
+function generateStubCandles(request: HistoricalFetchRequest): Candle[] {
+  const now = request.endTimeMs ?? Date.now();
   const spacingMs =
     request.timeframe === "daily"
       ? 24 * 60 * 60 * 1000
@@ -27,7 +39,7 @@ function generateStubCandles(request: HistoricalFetchRequest): CandleProviderRes
         ? 4 * 60 * 60 * 1000
         : 5 * 60 * 1000;
 
-  let price = request.timeframe === "daily" ? 4.2 : request.timeframe === "4h" ? 4.6 : 4.8;
+  let price = timeframeBasePrice(request.timeframe);
   const candles: Candle[] = [];
 
   for (let i = request.lookbackBars - 1; i >= 0; i -= 1) {
@@ -53,27 +65,76 @@ function generateStubCandles(request: HistoricalFetchRequest): CandleProviderRes
     price = close + (seededNumber(seed + 11) - 0.5) * 0.05;
   }
 
+  return candles;
+}
+
+function buildStubProviderResponse(request: HistoricalFetchRequest): BaseCandleProviderResponse {
+  const requestEndTimestamp = request.endTimeMs ?? Date.now();
+  const intervalMs =
+    request.timeframe === "daily"
+      ? 24 * 60 * 60 * 1000
+      : request.timeframe === "4h"
+        ? 4 * 60 * 60 * 1000
+        : 5 * 60 * 1000;
+
   return {
+    provider: "stub",
     symbol: request.symbol.toUpperCase(),
     timeframe: request.timeframe,
-    candles,
+    requestedLookbackBars: request.lookbackBars,
+    candles: generateStubCandles(request),
+    fetchStartTimestamp: Date.now(),
+    fetchEndTimestamp: Date.now(),
+    requestedStartTimestamp: requestEndTimestamp - request.lookbackBars * intervalMs,
+    requestedEndTimestamp: requestEndTimestamp,
+    sessionMetadataAvailable: request.timeframe === "5m",
+    providerMetadata: {
+      source: "deterministic_stub",
+    },
   };
 }
 
 export class StubHistoricalCandleProvider implements HistoricalCandleProvider {
-  async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
-    return generateStubCandles(request);
+  readonly providerName = "stub" as const;
+
+  async fetchCandles(request: HistoricalFetchRequest): Promise<BaseCandleProviderResponse> {
+    return buildStubProviderResponse(request);
   }
 }
 
 export class CandleFetchService {
-  constructor(private readonly provider: HistoricalCandleProvider) {}
+  private readonly provider: HistoricalCandleProvider;
+
+  constructor(providerOrOptions: HistoricalCandleProvider | CandleFetchServiceOptions) {
+    if ("fetchCandles" in providerOrOptions) {
+      this.provider = providerOrOptions;
+      return;
+    }
+
+    this.provider =
+      providerOrOptions.provider ??
+      createHistoricalCandleProvider({
+        provider: providerOrOptions.providerName,
+        ib: providerOrOptions.ib,
+        twelveDataApiKey: providerOrOptions.twelveDataApiKey,
+      });
+  }
+
+  getProviderName(): CandleProviderName {
+    return this.provider.providerName;
+  }
 
   async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
-    if (request.lookbackBars <= 0) {
+    if (!request.symbol.trim()) {
+      throw new Error("symbol is required.");
+    }
+
+    if (!Number.isInteger(request.lookbackBars) || request.lookbackBars <= 0) {
       throw new Error("lookbackBars must be greater than zero.");
     }
 
-    return this.provider.fetchCandles(request);
+    const plan = buildHistoricalFetchPlan(request, request.preferredProvider ?? this.provider.providerName);
+    const baseResponse = await this.provider.fetchCandles(request, plan);
+    return finalizeCandleProviderResponse(baseResponse);
   }
 }

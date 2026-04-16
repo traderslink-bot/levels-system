@@ -16,6 +16,29 @@ export function shouldSuppressAlert(alert: IntelligentAlert): boolean {
     return true;
   }
 
+  if (
+    alert.event.eventType === "compression" &&
+    alert.event.eventContext.ladderPosition === "inner" &&
+    alert.event.eventContext.zoneOrigin === "canonical" &&
+    alert.severity !== "high" &&
+    alert.severity !== "critical"
+  ) {
+    return true;
+  }
+
+  if (
+    alert.event.eventType === "level_touch" &&
+    alert.event.eventContext.ladderPosition === "inner" &&
+    alert.event.eventContext.zoneStrengthLabel === "weak" &&
+    alert.severity === "low"
+  ) {
+    return true;
+  }
+
+  if (alert.event.eventContext.dataQualityDegraded && alert.severity === "low") {
+    return true;
+  }
+
   return false;
 }
 

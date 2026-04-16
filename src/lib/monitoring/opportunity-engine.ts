@@ -243,8 +243,8 @@ export class OpportunityEngine {
       });
   }
 
-  selectTop(opportunities: RankedOpportunity[], limit: number): RankedOpportunity[] {
-    const selected: RankedOpportunity[] = [];
+  selectTop<T extends RankedOpportunity>(opportunities: T[], limit: number): T[] {
+    const selected: T[] = [];
     const perSymbolCounts = new Map<string, number>();
 
     for (const opportunity of opportunities) {

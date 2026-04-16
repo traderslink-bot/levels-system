@@ -5,6 +5,7 @@ import { EventEmitter } from "node:events";
 import { EventName } from "@stoqey/ib";
 
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
+import { buildHistoricalFetchPlan } from "../lib/market-data/fetch-planning.js";
 import { sharedIbkrPacingQueue } from "../lib/market-data/ibkr-pacing-queue.js";
 
 class FakeHistoricalIbApi extends EventEmitter {
@@ -55,17 +56,28 @@ test("IbkrHistoricalCandleProvider maps historical bars into candles and honors 
   sharedIbkrPacingQueue.resetForTests();
   const ib = new FakeHistoricalIbApi();
   const provider = new IbkrHistoricalCandleProvider(ib as any, 100);
+  const plan = buildHistoricalFetchPlan(
+    {
+      symbol: "aapl",
+      timeframe: "5m",
+      lookbackBars: 2,
+    },
+    "ibkr",
+  );
 
-  const fetchPromise = provider.fetchCandles({
-    symbol: "aapl",
-    timeframe: "5m",
-    lookbackBars: 2,
-  });
+  const fetchPromise = provider.fetchCandles(
+    {
+      symbol: "aapl",
+      timeframe: "5m",
+      lookbackBars: 2,
+    },
+    plan,
+  );
 
   const reqId = await waitForHistoricalRequest(ib);
 
   assert.equal(ib.historicalRequests.length, 1);
-  assert.equal(ib.historicalRequests[0]?.durationStr, "2 D");
+  assert.equal(ib.historicalRequests[0]?.durationStr, plan.providerRequest.durationStr);
   assert.equal(ib.historicalRequests[0]?.barSizeSetting, "5 mins");
   assert.equal(ib.historicalRequests[0]?.contract.symbol, "AAPL");
   ib.emit(EventName.historicalData, reqId, 1_776_265_200, 100, 101, 99.5, 100.5, 1_000);
@@ -75,7 +87,10 @@ test("IbkrHistoricalCandleProvider maps historical bars into candles and honors 
   const response = await fetchPromise;
 
   assert.equal(response.symbol, "AAPL");
+  assert.equal(response.provider, "ibkr");
   assert.equal(response.candles.length, 2);
+  assert.equal(response.requestedLookbackBars, 2);
+  assert.equal(response.providerMetadata?.barSizeSetting, "5 mins");
   assert.deepEqual(
     response.candles.map((candle) => candle.timestamp),
     [
@@ -86,36 +101,57 @@ test("IbkrHistoricalCandleProvider maps historical bars into candles and honors 
   assert.equal(response.candles.at(-1)?.close, 100.5);
 });
 
-test("IbkrHistoricalCandleProvider rejects empty IBKR historical responses", async () => {
+test("IbkrHistoricalCandleProvider returns an empty candle set when IBKR sends no bars", async () => {
   sharedIbkrPacingQueue.resetForTests();
   const ib = new FakeHistoricalIbApi();
   const provider = new IbkrHistoricalCandleProvider(ib as any, 100);
+  const plan = buildHistoricalFetchPlan(
+    {
+      symbol: "AAPL",
+      timeframe: "daily",
+      lookbackBars: 1,
+    },
+    "ibkr",
+  );
 
-  const fetchPromise = provider.fetchCandles({
-    symbol: "AAPL",
-    timeframe: "daily",
-    lookbackBars: 1,
-  });
+  const fetchPromise = provider.fetchCandles(
+    {
+      symbol: "AAPL",
+      timeframe: "daily",
+      lookbackBars: 1,
+    },
+    plan,
+  );
 
   const reqId = await waitForHistoricalRequest(ib);
   ib.emit("historicalDataEnd", reqId, "start", "end");
 
-  await assert.rejects(
-    () => fetchPromise,
-    /IBKR returned no historical candles for AAPL \(daily\)\./,
-  );
+  const response = await fetchPromise;
+  assert.equal(response.candles.length, 0);
+  assert.equal(response.provider, "ibkr");
 });
 
 test("IbkrHistoricalCandleProvider cancels requests when IBKR returns a request-scoped error", async () => {
   sharedIbkrPacingQueue.resetForTests();
   const ib = new FakeHistoricalIbApi();
   const provider = new IbkrHistoricalCandleProvider(ib as any, 100);
+  const plan = buildHistoricalFetchPlan(
+    {
+      symbol: "AAPL",
+      timeframe: "4h",
+      lookbackBars: 1,
+    },
+    "ibkr",
+  );
 
-  const fetchPromise = provider.fetchCandles({
-    symbol: "AAPL",
-    timeframe: "4h",
-    lookbackBars: 1,
-  });
+  const fetchPromise = provider.fetchCandles(
+    {
+      symbol: "AAPL",
+      timeframe: "4h",
+      lookbackBars: 1,
+    },
+    plan,
+  );
 
   const reqId = await waitForHistoricalRequest(ib);
   ib.emit(EventName.error, new Error("No market data permissions"), 162, reqId);

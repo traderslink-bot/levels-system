@@ -11,8 +11,31 @@ export function formatIntelligentAlert(alert: IntelligentAlert): {
     confidence: string;
     score: number;
     tags: string[];
+    context: string[];
   };
 } {
+  const context: string[] = [
+    `origin:${alert.event.eventContext.zoneOrigin}`,
+    `ladder:${alert.event.eventContext.ladderPosition}`,
+    `freshness:${alert.event.eventContext.zoneFreshness}`,
+  ];
+
+  if (alert.event.eventContext.remapStatus !== "new") {
+    context.push(`remap:${alert.event.eventContext.remapStatus}`);
+  }
+
+  if (alert.event.eventContext.recentlyRefreshed) {
+    context.push("recently_refreshed");
+  }
+
+  if (alert.event.eventContext.recentlyPromotedExtension) {
+    context.push("recently_promoted_extension");
+  }
+
+  if (alert.event.eventContext.dataQualityDegraded) {
+    context.push("data_quality_degraded");
+  }
+
   return {
     title: alert.title,
     body: alert.body,
@@ -21,6 +44,7 @@ export function formatIntelligentAlert(alert: IntelligentAlert): {
       confidence: alert.confidence,
       score: alert.score,
       tags: alert.tags,
+      context,
     },
   };
 }

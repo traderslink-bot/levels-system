@@ -9,7 +9,12 @@
     "manual:test": "tsx src/scripts/run-manual-level-test.ts",
     "watchlist:test": "tsx src/scripts/run-watchlist-monitor-sample.ts",
     "alert:test": "tsx src/scripts/run-alert-intelligence-sample.ts",
-    "watchlist:alerts:test": "tsx src/scripts/run-watchlist-alerts-sample.ts"
+    "watchlist:alerts:test": "tsx src/scripts/run-watchlist-alerts-sample.ts",
+    "watchlist:manual": "tsx src/runtime/manual-watchlist-server.ts",
+    "validation:live": "tsx src/scripts/run-live-opportunity-validation.ts",
+    "validation:test": "tsx src/scripts/run-opportunity-validation-sample.ts",
+    "validation:summary": "tsx src/scripts/summarize-opportunity-validations.ts",
+    "validation:recovery": "tsx src/scripts/scan-opportunity-recovery-windows.ts"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
