@@ -1,6 +1,7 @@
 // 2026-04-14 08:05 PM America/Toronto
 // Rank zones and split into output buckets.
 
+import type { CandleTimeframe } from "../market-data/candle-types.js";
 import type { LevelEngineConfig } from "./level-config.js";
 import type { FinalLevelZone, LevelEngineOutput } from "./level-types.js";
 
@@ -8,8 +9,27 @@ function sortZones(zones: FinalLevelZone[]): FinalLevelZone[] {
   return [...zones].sort((a, b) => b.strengthScore - a.strengthScore || b.touchCount - a.touchCount);
 }
 
-function byTimeframePreference(zones: FinalLevelZone[], bucket: "daily" | "4h" | "5m"): FinalLevelZone[] {
-  return zones.filter((zone) => zone.timeframeSources.includes(bucket));
+function preferredBucketForZone(zone: FinalLevelZone): CandleTimeframe {
+  const timeframeOrder: CandleTimeframe[] = ["daily", "4h", "5m"];
+
+  if (zone.timeframeBias !== "mixed" && zone.timeframeSources.includes(zone.timeframeBias)) {
+    return zone.timeframeBias;
+  }
+
+  for (const timeframe of timeframeOrder) {
+    if (zone.timeframeSources.includes(timeframe)) {
+      return timeframe;
+    }
+  }
+
+  return "5m";
+}
+
+function byOwnedBucket(
+  zones: FinalLevelZone[],
+  bucket: CandleTimeframe,
+): FinalLevelZone[] {
+  return zones.filter((zone) => preferredBucketForZone(zone) === bucket);
 }
 
 export function rankLevelZones(params: {
@@ -21,29 +41,29 @@ export function rankLevelZones(params: {
 }): LevelEngineOutput {
   const { symbol, supportZones, resistanceZones, specialLevels, config } = params;
 
-  const dailySupport = sortZones(byTimeframePreference(supportZones, "daily")).slice(
+  const dailySupport = sortZones(byOwnedBucket(supportZones, "daily")).slice(
     0,
     config.timeframeConfig.daily.maxOutputPerSide,
   );
-  const dailyResistance = sortZones(byTimeframePreference(resistanceZones, "daily")).slice(
+  const dailyResistance = sortZones(byOwnedBucket(resistanceZones, "daily")).slice(
     0,
     config.timeframeConfig.daily.maxOutputPerSide,
   );
 
-  const intermediateSupport = sortZones(byTimeframePreference(supportZones, "4h")).slice(
+  const intermediateSupport = sortZones(byOwnedBucket(supportZones, "4h")).slice(
     0,
     config.timeframeConfig["4h"].maxOutputPerSide,
   );
-  const intermediateResistance = sortZones(byTimeframePreference(resistanceZones, "4h")).slice(
+  const intermediateResistance = sortZones(byOwnedBucket(resistanceZones, "4h")).slice(
     0,
     config.timeframeConfig["4h"].maxOutputPerSide,
   );
 
-  const intradaySupport = sortZones(byTimeframePreference(supportZones, "5m")).slice(
+  const intradaySupport = sortZones(byOwnedBucket(supportZones, "5m")).slice(
     0,
     config.timeframeConfig["5m"].maxOutputPerSide,
   );
-  const intradayResistance = sortZones(byTimeframePreference(resistanceZones, "5m")).slice(
+  const intradayResistance = sortZones(byOwnedBucket(resistanceZones, "5m")).slice(
     0,
     config.timeframeConfig["5m"].maxOutputPerSide,
   );
