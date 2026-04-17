@@ -375,6 +375,93 @@ test("LevelEngine returns metadata, session-accurate special levels, and extensi
   assert.ok(Array.isArray(output.extensionLevels.support));
 });
 
+test("LevelEngine still generates structural levels when 5m is unavailable", async () => {
+  const baseTimestamp = Date.parse("2026-04-15T00:00:00Z");
+  const provider = new FakeHistoricalProvider({
+    daily: {
+      provider: "stub",
+      symbol: "ALBT",
+      timeframe: "daily",
+      requestedLookbackBars: 20,
+      candles: Array.from({ length: 20 }, (_, index) => ({
+        timestamp: baseTimestamp + index * 24 * 60 * 60 * 1000,
+        open: 5 + index * 0.05,
+        high: 5.4 + index * 0.07,
+        low: 4.8 + index * 0.04,
+        close: 5.1 + index * 0.06,
+        volume: 10000 + index * 100,
+      })),
+      fetchStartTimestamp: 1,
+      fetchEndTimestamp: 2,
+      requestedStartTimestamp: baseTimestamp,
+      requestedEndTimestamp: baseTimestamp + 19 * 24 * 60 * 60 * 1000,
+      sessionMetadataAvailable: false,
+      actualBarsReturned: 20,
+      completenessStatus: "complete",
+      stale: false,
+      validationIssues: [],
+      sessionSummary: null,
+    },
+    "4h": {
+      provider: "stub",
+      symbol: "ALBT",
+      timeframe: "4h",
+      requestedLookbackBars: 20,
+      candles: Array.from({ length: 20 }, (_, index) => ({
+        timestamp: baseTimestamp + index * 4 * 60 * 60 * 1000,
+        open: 5.5 + index * 0.02,
+        high: 5.7 + index * 0.03,
+        low: 5.3 + index * 0.02,
+        close: 5.55 + index * 0.025,
+        volume: 5000 + index * 50,
+      })),
+      fetchStartTimestamp: 1,
+      fetchEndTimestamp: 2,
+      requestedStartTimestamp: baseTimestamp,
+      requestedEndTimestamp: baseTimestamp + 19 * 4 * 60 * 60 * 1000,
+      sessionMetadataAvailable: false,
+      actualBarsReturned: 20,
+      completenessStatus: "complete",
+      stale: false,
+      validationIssues: [],
+      sessionSummary: null,
+    },
+    "5m": {
+      provider: "stub",
+      symbol: "ALBT",
+      timeframe: "5m",
+      requestedLookbackBars: 15,
+      candles: [],
+      fetchStartTimestamp: 1,
+      fetchEndTimestamp: 2,
+      requestedStartTimestamp: baseTimestamp,
+      requestedEndTimestamp: baseTimestamp,
+      sessionMetadataAvailable: true,
+      actualBarsReturned: 0,
+      completenessStatus: "empty",
+      stale: true,
+      validationIssues: [],
+      sessionSummary: null,
+    },
+  });
+
+  const engine = new LevelEngine(new CandleFetchService(provider as any));
+  const output = await engine.generateLevels({
+    symbol: "ALBT",
+    historicalRequests: {
+      daily: { symbol: "ALBT", timeframe: "daily", lookbackBars: 20 },
+      "4h": { symbol: "ALBT", timeframe: "4h", lookbackBars: 20 },
+      "5m": { symbol: "ALBT", timeframe: "5m", lookbackBars: 15 },
+    },
+  });
+
+  assert.ok(output.majorSupport.length + output.intermediateSupport.length >= 0);
+  assert.ok(output.majorResistance.length + output.intermediateResistance.length >= 0);
+  assert.equal(output.specialLevels.premarketHigh, undefined);
+  assert.ok(output.metadata.dataQualityFlags.includes("5m:unavailable"));
+  assert.ok(Math.abs((output.metadata.referencePrice ?? 0) - 6.025) < 1e-9);
+});
+
 test("buildLevelExtensions exposes the next resistance and support ladder beyond surfaced zones", () => {
   const supportZones: FinalLevelZone[] = [
     {

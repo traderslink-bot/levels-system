@@ -1632,3 +1632,40 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Fresh trader-facing snapshots after the fix:
   - `GXAI` -> `1.36 / 1.40 / 1.53 / 1.64 / 1.67 / 1.85 / 1.97`
   - `PMNT` -> `0.4183 / 0.4500 / 0.4699 / 0.5100 / 0.5200 / 0.5600 / 0.5877`
+
+## 2026-04-17 11:30 AM America/Toronto
+
+### Timeframe role-split plan added
+
+- Added `docs/19_TIMEFRAME_ROLE_SPLIT_PLAN.md`.
+- Captured the current design recommendation from live small-cap work:
+  - `daily` should remain the major structural backbone
+  - `4h` should remain the intermediate structural layer
+  - `15m` is the best candidate for future intraday structural context
+  - `5m` should be treated more like micro-context than a major support/resistance authority
+- Also documented the related higher-timeframe lookback problem:
+  - some small-cap runners likely need deeper `daily` / `4h` history to expose real overhead resistance
+- This is a design-direction document, not a rushed timeframe implementation.
+
+## 2026-04-17 12:05 PM America/Toronto
+
+### Structural reads now tolerate missing `5m`
+
+- Implemented the first concrete step from the timeframe role-split plan:
+  - weak or missing `5m` should not make the whole symbol unreadable when `daily` and `4h` are still usable
+- Refined `src/lib/levels/level-engine.ts` so:
+  - `daily` and `4h` remain mandatory structural inputs
+  - `5m` is now optional for structural generation
+  - when `5m` is unavailable, the engine falls back to higher-timeframe structure instead of failing the full symbol
+  - `referencePrice` falls back from `5m` to `4h` to `daily`
+  - output metadata now records `5m:unavailable`
+- Refined `src/lib/validation/level-validation-batch.ts` and `src/scripts/run-level-validation-batch.ts` so:
+  - a symbol is only fully `unavailable` when `daily` or `4h` are unavailable
+  - `5m`-only failures are treated as `degraded`
+  - batch validation can still produce persistence and partial structural evidence when forward `5m` validation is unavailable
+- Added focused coverage in:
+  - `src/tests/level-engine.test.ts`
+  - `src/tests/level-validation-batch.test.ts`
+- Live effect on a weak-intraday name:
+  - `FAMI` no longer collapses into an unusable symbol just because `5m` is poor
+  - validation can still surface a higher-timeframe structural read and show that the real weak area is extension usefulness, not total unreadability

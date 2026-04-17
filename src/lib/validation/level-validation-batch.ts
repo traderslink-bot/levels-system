@@ -61,11 +61,17 @@ function average(values: number[]): number {
 function symbolHealthStatus(
   result: SymbolLevelValidationBatchResult,
 ): "healthy" | "degraded" | "unavailable" {
-  if (result.healthReports.some((report) => report.status === "unavailable")) {
+  if (
+    result.healthReports.some(
+      (report) =>
+        (report.timeframe === "daily" || report.timeframe === "4h") &&
+        report.status === "unavailable",
+    )
+  ) {
     return "unavailable";
   }
 
-  if (result.healthReports.some((report) => report.status === "degraded")) {
+  if (result.healthReports.some((report) => report.status !== "healthy")) {
     return "degraded";
   }
 

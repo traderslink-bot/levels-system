@@ -157,7 +157,13 @@ async function runSymbolValidation(params: {
     console.log(formatCandleSourceHealthReport(report));
   }
 
-  if (healthReports.some((report) => report.status === "unavailable")) {
+  if (
+    healthReports.some(
+      (report) =>
+        (report.timeframe === "daily" || report.timeframe === "4h") &&
+        report.status === "unavailable",
+    )
+  ) {
     return {
       symbol: params.symbol,
       healthReports,
@@ -191,16 +197,27 @@ async function runSymbolValidation(params: {
     ...forwardOutput,
     generatedAt: generationEndTimeMs,
   };
-  const futureResponse = await params.candleFetchService.fetchCandles({
-    symbol: params.symbol,
-    timeframe: "5m",
-    lookbackBars: params.forwardHorizonBars + params.futureBufferBars,
-    endTimeMs: Date.now(),
-    preferredProvider: params.providerName,
-  });
-  const futureCandles = futureResponse.candles.filter(
-    (candle) => candle.timestamp > generationEndTimeMs,
-  );
+  let futureCandles;
+  try {
+    const futureResponse = await params.candleFetchService.fetchCandles({
+      symbol: params.symbol,
+      timeframe: "5m",
+      lookbackBars: params.forwardHorizonBars + params.futureBufferBars,
+      endTimeMs: Date.now(),
+      preferredProvider: params.providerName,
+    });
+    futureCandles = futureResponse.candles.filter(
+      (candle) => candle.timestamp > generationEndTimeMs,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      symbol: params.symbol,
+      healthReports,
+      persistenceReport,
+      errorMessage: `forward validation unavailable: ${message}`,
+    };
+  }
 
   if (futureCandles.length === 0) {
     return {

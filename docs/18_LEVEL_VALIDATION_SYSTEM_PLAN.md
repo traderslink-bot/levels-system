@@ -515,4 +515,12 @@ Evidence-first reminder for future structural passes:
 - if the snapshot path filters a level out relative to current price, the forward validator should not still count it as a surfaced or extension failure
 - after correcting the validator, also verify raw surfaced bucket ownership against the live reference price before tuning extension logic again
 - if raw surfaced support/resistance buckets still keep wrong-side levels that the snapshot later filters out, fix `level-ranker.ts` first because those zones can still distort the surfaced/extension boundary internally
+- if future timeframe work is proposed, do not treat all timeframes as equal structural sources by default
+- use the planned role split:
+  - `daily` backbone
+  - `4h` intermediate structure
+  - `15m` intraday structure
+  - `5m` micro-context only
+- when `5m` is unavailable but `daily` and `4h` are still usable, treat the symbol as structurally readable but degraded
+- do not let `5m`-only failures mark the whole symbol unavailable unless higher-timeframe structure is also missing
 - do not mix a broad validation expansion and a broad level-engine tuning pass in the same change unless there is no smaller path

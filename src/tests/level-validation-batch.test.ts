@@ -243,3 +243,22 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
     "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | surfacedUseful=1.0000/0.2500 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000",
   );
 });
+
+test("summarizeLevelValidationBatch treats 5m-only unavailability as degraded instead of structurally unavailable", () => {
+  const summary = summarizeLevelValidationBatch([
+    {
+      symbol: "FAMI",
+      healthReports: [
+        buildHealthReport("FAMI", "daily", "healthy"),
+        buildHealthReport("FAMI", "4h", "degraded"),
+        buildHealthReport("FAMI", "5m", "unavailable"),
+      ],
+      errorMessage: "forward validation unavailable: no future 5m candles",
+    },
+  ]);
+
+  assert.equal(summary.healthySymbols, 0);
+  assert.equal(summary.degradedSymbols, 1);
+  assert.equal(summary.unavailableSymbols, 0);
+  assert.equal(summary.failedSymbols, 1);
+});

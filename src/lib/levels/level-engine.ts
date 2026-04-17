@@ -23,24 +23,78 @@ export class LevelEngine {
     private readonly config: LevelEngineConfig = DEFAULT_LEVEL_ENGINE_CONFIG,
   ) {}
 
+  private buildOptionalIntradayFallback(params: {
+    symbol: string;
+    request: HistoricalFetchRequest;
+    fallbackProvider: CandleProviderResponse["provider"];
+  }): CandleProviderResponse {
+    const requestEndTimestamp = params.request.endTimeMs ?? Date.now();
+    const intervalMs = 5 * 60 * 1000;
+    const requestedStartTimestamp = requestEndTimestamp - params.request.lookbackBars * intervalMs;
+
+    return {
+      provider: params.fallbackProvider,
+      symbol: params.symbol.toUpperCase(),
+      timeframe: "5m",
+      requestedLookbackBars: params.request.lookbackBars,
+      candles: [],
+      fetchStartTimestamp: requestEndTimestamp,
+      fetchEndTimestamp: requestEndTimestamp,
+      requestedStartTimestamp,
+      requestedEndTimestamp: requestEndTimestamp,
+      sessionMetadataAvailable: true,
+      actualBarsReturned: 0,
+      completenessStatus: "empty",
+      stale: true,
+      validationIssues: [],
+      sessionSummary: null,
+      providerMetadata: {
+        degraded_reason: "optional_intraday_unavailable",
+      },
+    };
+  }
+
   private async loadSeries(
     request: LevelEngineRequest,
   ): Promise<Record<CandleTimeframe, CandleProviderResponse>> {
-    const [daily, fourHour, fiveMinute] = await Promise.all([
-      this.fetchService.fetchCandles(request.historicalRequests.daily),
-      this.fetchService.fetchCandles(request.historicalRequests["4h"]),
-      this.fetchService.fetchCandles(request.historicalRequests["5m"]),
+    const dailyPromise = this.fetchService.fetchCandles(request.historicalRequests.daily);
+    const fourHourPromise = this.fetchService.fetchCandles(request.historicalRequests["4h"]);
+    const fiveMinutePromise = this.fetchService.fetchCandles(request.historicalRequests["5m"]);
+
+    const [daily, fourHour, fiveMinuteResult] = await Promise.allSettled([
+      dailyPromise,
+      fourHourPromise,
+      fiveMinutePromise,
     ]);
 
+    if (daily.status !== "fulfilled") {
+      throw daily.reason;
+    }
+
+    if (fourHour.status !== "fulfilled") {
+      throw fourHour.reason;
+    }
+
+    const fiveMinute =
+      fiveMinuteResult.status === "fulfilled" &&
+      fiveMinuteResult.value.completenessStatus !== "empty" &&
+      !fiveMinuteResult.value.validationIssues.some((issue) => issue.severity === "error")
+        ? fiveMinuteResult.value
+        : this.buildOptionalIntradayFallback({
+            symbol: request.symbol,
+            request: request.historicalRequests["5m"],
+            fallbackProvider: daily.value.provider,
+          });
+
     return {
-      daily,
-      "4h": fourHour,
+      daily: daily.value,
+      "4h": fourHour.value,
       "5m": fiveMinute,
     };
   }
 
   private assertSeriesUsable(seriesMap: Record<CandleTimeframe, CandleProviderResponse>): void {
-    for (const timeframe of ["daily", "4h", "5m"] as const) {
+    for (const timeframe of ["daily", "4h"] as const) {
       const series = seriesMap[timeframe];
       const errors = series.validationIssues.filter((issue) => issue.severity === "error");
 
@@ -68,6 +122,9 @@ export class LevelEngine {
         ),
       ),
     ];
+    if (seriesMap["5m"].candles.length === 0) {
+      dataQualityFlags.push("5m:unavailable");
+    }
     const freshestTimestamp = Math.max(...Object.values(seriesMap).map((series) => series.candles.at(-1)?.timestamp ?? 0));
     const ageHours = (Date.now() - freshestTimestamp) / (1000 * 60 * 60);
     const freshness: LevelDataFreshness =
@@ -97,6 +154,9 @@ export class LevelEngine {
 
     for (const timeframe of ["daily", "4h", "5m"] as const) {
       const series = seriesMap[timeframe];
+      if (series.candles.length === 0) {
+        continue;
+      }
       const swings = detectSwingPoints(
         series.candles,
         {
