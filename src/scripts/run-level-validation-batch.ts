@@ -24,11 +24,13 @@ import {
 } from "../lib/validation/level-validation-batch.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createIbkrClient } from "./shared/ibkr-runtime.js";
+import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
 
-const DEFAULT_WINDOW_COUNT = 6;
+const DEFAULT_WINDOW_COUNT = 4;
 const DEFAULT_STEP_MINUTES = 15;
 const DEFAULT_FORWARD_HORIZON_BARS = 48;
 const DEFAULT_FUTURE_BUFFER_BARS = 24;
+const RECOMMENDED_LIVE_BATCH_SIZE = 5;
 const DEFAULT_LOOKBACKS: Record<CandleTimeframe, number> = {
   daily: 120,
   "4h": 120,
@@ -255,13 +257,23 @@ async function main(): Promise<void> {
       ib,
       twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
     });
-    const candleFetchService = new CandleFetchService(provider);
+    const baseFetchService = new CandleFetchService(provider);
+    const { candleFetchService, cacheMode, cacheDirectoryPath } =
+      createValidationCandleFetchService(baseFetchService);
     const levelEngine = new LevelEngine(candleFetchService);
 
     console.log(`[LevelValidation] Active provider path: ${provider.providerName}`);
     console.log(
+      `[LevelValidation] Candle cache | mode=${cacheMode} | dir=${cacheDirectoryPath}`,
+    );
+    console.log(
       `[LevelValidation] Batch config | symbols=${symbols.join(",")} | windows=${windowCount} | stepMinutes=${stepMinutes} | forwardHorizonBars=${forwardHorizonBars}`,
     );
+    if (providerName === "ibkr" && cacheMode !== "replay" && symbols.length > RECOMMENDED_LIVE_BATCH_SIZE) {
+      console.warn(
+        `[LevelValidation] Live IBKR batches are fastest in groups of ${RECOMMENDED_LIVE_BATCH_SIZE} or fewer symbols. Current batch size is ${symbols.length}.`,
+      );
+    }
 
     const results: SymbolLevelValidationBatchResult[] = [];
 

@@ -11,6 +11,7 @@ import {
 } from "../lib/validation/candle-source-health.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createIbkrClient } from "./shared/ibkr-runtime.js";
+import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
 
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
@@ -46,13 +47,18 @@ async function main(): Promise<void> {
       ib,
       twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
     });
-    const candleFetchService = new CandleFetchService(provider);
+    const baseFetchService = new CandleFetchService(provider);
+    const { candleFetchService, cacheMode, cacheDirectoryPath } =
+      createValidationCandleFetchService(baseFetchService);
     const reports = await Promise.all(
       defaultRequests(symbol).map((request) => checkCandleSourceHealth(candleFetchService, request)),
     );
 
     console.log(`[LevelValidation] Candle source health for ${symbol}`);
     console.log(`[LevelValidation] Active provider path: ${provider.providerName}`);
+    console.log(
+      `[LevelValidation] Candle cache | mode=${cacheMode} | dir=${cacheDirectoryPath}`,
+    );
 
     for (const report of reports) {
       console.log(formatCandleSourceHealthReport(report));

@@ -110,6 +110,10 @@ function materiallyDominatesInBand(
     return true;
   }
 
+  if (strengthLead >= 1.25 && strongerConfluence && strongerRejection && strongerFollowThrough) {
+    return true;
+  }
+
   return false;
 }
 

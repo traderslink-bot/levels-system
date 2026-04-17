@@ -450,3 +450,55 @@ When future level-engine tuning is proposed:
 - run the validation workflow first
 - use the active candle provider path when doing live validation
 - confirm whether failures come from chart-reading logic or from candle-source health before changing support/resistance logic
+- do not rely only on live Discord snapshot inspection before changing structural logic
+
+Recommended validation command order before and after any meaningful level-engine change:
+
+1. `npm run validation:levels:live -- <SYMBOL>`
+2. `npm run validation:levels:persistence -- <SYMBOL>`
+3. `npm run validation:levels:forward -- <SYMBOL>`
+4. `npm run validation:levels:batch -- <SYMBOL1> <SYMBOL2> <SYMBOL3> ...`
+
+Recommended live validation workflow:
+
+- prefer small IBKR live batches of about `4` to `5` symbols at a time
+- use candle-cache mode during validation runs so repeat passes do not keep depending on live provider speed
+- cache controls:
+  - `LEVEL_VALIDATION_CACHE_MODE=read_write`
+  - `LEVEL_VALIDATION_CACHE_MODE=replay`
+  - `LEVEL_VALIDATION_CACHE_MODE=refresh`
+  - `LEVEL_VALIDATION_CACHE_MODE=off`
+- optional cache directory override:
+  - `LEVEL_VALIDATION_CACHE_DIR=<path>`
+
+What the validation output should now be used to detect:
+
+- whether weakness is stronger on `support` or `resistance`
+- whether weakness is mainly in:
+  - `near` levels
+  - `intermediate` levels
+  - `far` levels
+  - `extension` levels
+- whether forward usefulness is:
+  - full respect
+  - partial respect
+  - clean break
+- whether high persistence is honest stability or loose nearby remapping inside tolerance
+
+Interpretation reminder for future Codex work:
+
+- do not treat high persistence alone as success
+- compare:
+  - surfaced support usefulness
+  - surfaced resistance usefulness
+  - extension support usefulness
+  - extension resistance usefulness
+- check the `near / intermediate / far` usefulness bands before deciding where the level engine is weakest
+- check loose surfaced match rates before declaring a persistence result meaningfully stable
+
+Minimum expectation for future Codex work:
+
+- run the full automated suite with:
+  - `npm test`
+  - `npm run build`
+- then run the level-validation workflow before declaring a structural-tuning pass complete

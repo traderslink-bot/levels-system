@@ -3,6 +3,7 @@ import type { FinalLevelZone, LevelEngineOutput } from "../levels/level-types.js
 export type LevelPersistenceValidatorOptions = {
   priceTolerancePct?: number;
   priceToleranceAbsolute?: number;
+  looseMatchToleranceRatio?: number;
 };
 
 export type LevelPersistenceRunSummary = {
@@ -14,6 +15,8 @@ export type LevelPersistenceRunSummary = {
   extensionResistancePersistenceRate: number;
   surfacedSupportChurnRate: number;
   surfacedResistanceChurnRate: number;
+  supportLooseMatchRate: number;
+  resistanceLooseMatchRate: number;
   averageMatchedDriftPct: number;
 };
 
@@ -25,12 +28,15 @@ export type LevelPersistenceValidationReport = {
   averageExtensionResistancePersistenceRate: number;
   averageSurfacedSupportChurnRate: number;
   averageSurfacedResistanceChurnRate: number;
+  averageSupportLooseMatchRate: number;
+  averageResistanceLooseMatchRate: number;
   averageMatchedDriftPct: number;
   runSummaries: LevelPersistenceRunSummary[];
 };
 
 const DEFAULT_PRICE_TOLERANCE_PCT = 0.0125;
 const DEFAULT_PRICE_TOLERANCE_ABSOLUTE = 0.015;
+const DEFAULT_LOOSE_MATCH_TOLERANCE_RATIO = 0.5;
 
 function average(values: number[]): number {
   if (values.length === 0) {
@@ -69,15 +75,20 @@ function driftPct(leftPrice: number, rightPrice: number): number {
   return Math.abs(leftPrice - rightPrice) / Math.max(Math.max(leftPrice, rightPrice), 0.0001);
 }
 
+function looseMatchToleranceRatio(options: LevelPersistenceValidatorOptions): number {
+  return options.looseMatchToleranceRatio ?? DEFAULT_LOOSE_MATCH_TOLERANCE_RATIO;
+}
+
 function matchZones(
   previous: FinalLevelZone[],
   next: FinalLevelZone[],
   kind: "support" | "resistance",
   options: LevelPersistenceValidatorOptions,
-): { matchedCount: number; driftPcts: number[] } {
+): { matchedCount: number; looseMatchCount: number; driftPcts: number[] } {
   const remaining = sortForMatching(next, kind);
   const driftPcts: number[] = [];
   let matchedCount = 0;
+  let looseMatchCount = 0;
 
   for (const priorZone of sortForMatching(previous, kind)) {
     const tolerance = priceTolerance(priorZone.representativePrice, options);
@@ -91,22 +102,33 @@ function matchZones(
     }
 
     const [matchedZone] = remaining.splice(matchIndex, 1);
+    const drift = driftPct(priorZone.representativePrice, matchedZone!.representativePrice);
     matchedCount += 1;
-    driftPcts.push(driftPct(priorZone.representativePrice, matchedZone!.representativePrice));
+    driftPcts.push(drift);
+
+    const tolerancePct = tolerance / Math.max(priorZone.representativePrice, 0.0001);
+    if (tolerancePct > 0 && drift / tolerancePct >= looseMatchToleranceRatio(options)) {
+      looseMatchCount += 1;
+    }
   }
 
-  return { matchedCount, driftPcts };
+  return { matchedCount, looseMatchCount, driftPcts };
 }
 
-function persistenceRate(
-  previousCount: number,
-  matchedCount: number,
-): number {
+function persistenceRate(previousCount: number, matchedCount: number): number {
   if (previousCount === 0) {
     return 1;
   }
 
   return Number((matchedCount / previousCount).toFixed(4));
+}
+
+function looseMatchRate(matchedCount: number, looseMatchCount: number): number {
+  if (matchedCount === 0) {
+    return 0;
+  }
+
+  return Number((looseMatchCount / matchedCount).toFixed(4));
 }
 
 export function validateLevelPersistence(
@@ -122,6 +144,8 @@ export function validateLevelPersistence(
       averageExtensionResistancePersistenceRate: 0,
       averageSurfacedSupportChurnRate: 0,
       averageSurfacedResistanceChurnRate: 0,
+      averageSupportLooseMatchRate: 0,
+      averageResistanceLooseMatchRate: 0,
       averageMatchedDriftPct: 0,
       runSummaries: [],
     };
@@ -180,6 +204,14 @@ export function validateLevelPersistence(
       extensionResistancePersistenceRate,
       surfacedSupportChurnRate: Number((1 - supportPersistenceRate).toFixed(4)),
       surfacedResistanceChurnRate: Number((1 - resistancePersistenceRate).toFixed(4)),
+      supportLooseMatchRate: looseMatchRate(
+        supportMatches.matchedCount,
+        supportMatches.looseMatchCount,
+      ),
+      resistanceLooseMatchRate: looseMatchRate(
+        resistanceMatches.matchedCount,
+        resistanceMatches.looseMatchCount,
+      ),
       averageMatchedDriftPct: average([
         ...supportMatches.driftPcts,
         ...resistanceMatches.driftPcts,
@@ -207,6 +239,12 @@ export function validateLevelPersistence(
     averageSurfacedResistanceChurnRate: average(
       runSummaries.map((summary) => summary.surfacedResistanceChurnRate),
     ),
+    averageSupportLooseMatchRate: average(
+      runSummaries.map((summary) => summary.supportLooseMatchRate),
+    ),
+    averageResistanceLooseMatchRate: average(
+      runSummaries.map((summary) => summary.resistanceLooseMatchRate),
+    ),
     averageMatchedDriftPct: average(runSummaries.map((summary) => summary.averageMatchedDriftPct)),
     runSummaries,
   };
@@ -220,6 +258,7 @@ export function formatLevelPersistenceReport(
     `[LevelValidation] Surfaced persistence | support=${report.averageSupportPersistenceRate.toFixed(4)} | resistance=${report.averageResistancePersistenceRate.toFixed(4)}`,
     `[LevelValidation] Extension persistence | support=${report.averageExtensionSupportPersistenceRate.toFixed(4)} | resistance=${report.averageExtensionResistancePersistenceRate.toFixed(4)}`,
     `[LevelValidation] Surfaced churn | support=${report.averageSurfacedSupportChurnRate.toFixed(4)} | resistance=${report.averageSurfacedResistanceChurnRate.toFixed(4)}`,
+    `[LevelValidation] Loose surfaced matches | support=${report.averageSupportLooseMatchRate.toFixed(4)} | resistance=${report.averageResistanceLooseMatchRate.toFixed(4)}`,
     `[LevelValidation] Average matched drift pct: ${report.averageMatchedDriftPct.toFixed(4)}`,
   ];
 
@@ -233,6 +272,8 @@ export function formatLevelPersistenceReport(
         `extensionResistance=${summary.extensionResistancePersistenceRate.toFixed(4)}`,
         `supportChurn=${summary.surfacedSupportChurnRate.toFixed(4)}`,
         `resistanceChurn=${summary.surfacedResistanceChurnRate.toFixed(4)}`,
+        `supportLoose=${summary.supportLooseMatchRate.toFixed(4)}`,
+        `resistanceLoose=${summary.resistanceLooseMatchRate.toFixed(4)}`,
         `avgDrift=${summary.averageMatchedDriftPct.toFixed(4)}`,
       ].join(" | "),
     );

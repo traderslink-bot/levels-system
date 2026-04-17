@@ -186,6 +186,35 @@ function crowdingPenaltyMultiplier(
   );
 }
 
+function recycledIntradayPenaltyMultiplier(zone: FinalLevelZone): number {
+  const intradayOnly = zone.timeframeSources.length === 1 && zone.timeframeSources[0] === "5m";
+  if (!intradayOnly) {
+    return 1;
+  }
+
+  const heavyReuse = zone.touchCount >= 4 || zone.sourceEvidenceCount >= 4;
+  const moderateReuse = zone.touchCount >= 3 || zone.sourceEvidenceCount >= 3;
+  const weakDecisionQuality =
+    zone.rejectionScore < 0.34 &&
+    zone.followThroughScore < 0.35 &&
+    zone.displacementScore < 0.45 &&
+    zone.reactionQualityScore < 0.55;
+  const softDecisionQuality =
+    zone.rejectionScore < 0.4 &&
+    zone.followThroughScore < 0.45 &&
+    zone.displacementScore < 0.55;
+
+  if (heavyReuse && weakDecisionQuality) {
+    return 0.72;
+  }
+
+  if (moderateReuse && softDecisionQuality) {
+    return 0.84;
+  }
+
+  return 1;
+}
+
 export function scoreLevelZones(
   zones: FinalLevelZone[],
   config: LevelEngineConfig,
@@ -196,6 +225,7 @@ export function scoreLevelZones(
       zone.freshness === "fresh" ? 1 : zone.freshness === "aging" ? 0.84 : 0.62;
     const overcrowdingPenalty = zone.sourceEvidenceCount >= 6 && zone.confluenceCount <= 1 ? 0.88 : 1;
     const crowdingPenalty = crowdingPenaltyMultiplier(zone, zones, config);
+    const recycledPenalty = recycledIntradayPenaltyMultiplier(zone);
     const baseScore =
       zone.touchCount * config.touchWeight +
       timeframeWeight(zone, config) +
@@ -211,7 +241,8 @@ export function scoreLevelZones(
       singleTimeframePenaltyMultiplier(zone, config) *
       freshnessMultiplier *
       overcrowdingPenalty *
-      crowdingPenalty;
+      crowdingPenalty *
+      recycledPenalty;
 
     return {
       ...zone,
@@ -226,6 +257,7 @@ export function scoreLevelZones(
         `gapContinuation=${(zone.gapContinuationScore ?? 0).toFixed(4)}`,
         `pathClearance=${clearanceScore.toFixed(4)}`,
         `crowdingPenalty=${crowdingPenalty.toFixed(4)}`,
+        `recycledPenalty=${recycledPenalty.toFixed(4)}`,
       ],
     };
   });

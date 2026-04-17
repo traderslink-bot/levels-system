@@ -20,11 +20,27 @@ function makeZone(params: Partial<FinalLevelZone>): FinalLevelZone {
     confluenceCount: 2,
     sourceTypes: ["swing_high"],
     timeframeSources: params.timeframeSources ?? ["daily", "4h", "5m"],
+    reactionQualityScore: 0.7,
+    rejectionScore: 0.5,
+    displacementScore: 0.65,
+    sessionSignificanceScore: 0.15,
+    followThroughScore: 0.6,
+    sourceEvidenceCount: 2,
+    sessionDate: undefined,
+    isExtension: false,
+    freshness: "fresh",
     firstTimestamp: 1,
     lastTimestamp: 2,
     notes: [],
+    ...params,
   };
 }
+
+const testMetadata = {
+  providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+  dataQualityFlags: [],
+  freshness: "fresh" as const,
+};
 
 describe("level-ranker bucket ownership", () => {
   it("assigns mixed multi-timeframe zone to a single highest-priority bucket", () => {
@@ -35,6 +51,7 @@ describe("level-ranker bucket ownership", () => {
       supportZones: [],
       resistanceZones: [zone],
       specialLevels: {},
+      metadata: testMetadata,
       config: DEFAULT_LEVEL_ENGINE_CONFIG,
     });
 
@@ -51,6 +68,7 @@ describe("level-ranker bucket ownership", () => {
       supportZones: [],
       resistanceZones: [zone],
       specialLevels: {},
+      metadata: testMetadata,
       config: DEFAULT_LEVEL_ENGINE_CONFIG,
     });
 
@@ -67,6 +85,7 @@ describe("level-ranker bucket ownership", () => {
       supportZones: [],
       resistanceZones: [zone],
       specialLevels: {},
+      metadata: testMetadata,
       config: DEFAULT_LEVEL_ENGINE_CONFIG,
     });
 

@@ -15,6 +15,7 @@ import {
 } from "../lib/validation/level-persistence-validator.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createIbkrClient } from "./shared/ibkr-runtime.js";
+import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
 
 const DEFAULT_WINDOW_COUNT = 6;
 const DEFAULT_STEP_MINUTES = 15;
@@ -121,10 +122,15 @@ async function main(): Promise<void> {
       ib,
       twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
     });
-    const candleFetchService = new CandleFetchService(provider);
+    const baseFetchService = new CandleFetchService(provider);
+    const { candleFetchService, cacheMode, cacheDirectoryPath } =
+      createValidationCandleFetchService(baseFetchService);
     const levelEngine = new LevelEngine(candleFetchService);
 
     console.log(`[LevelValidation] Active provider path: ${provider.providerName}`);
+    console.log(
+      `[LevelValidation] Candle cache | mode=${cacheMode} | dir=${cacheDirectoryPath}`,
+    );
     console.log(
       `[LevelValidation] Persistence run config | symbol=${symbol} | windows=${windowCount} | stepMinutes=${stepMinutes}`,
     );

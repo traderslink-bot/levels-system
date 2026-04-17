@@ -24,7 +24,7 @@ function buildHealthReport(
   };
 }
 
-test("summarizeLevelValidationBatch aggregates health, persistence, and forward metrics", () => {
+test("summarizeLevelValidationBatch aggregates support, resistance, and distance-band usefulness", () => {
   const summary = summarizeLevelValidationBatch([
     {
       symbol: "AAPL",
@@ -41,6 +41,8 @@ test("summarizeLevelValidationBatch aggregates health, persistence, and forward 
         averageExtensionResistancePersistenceRate: 0.75,
         averageSurfacedSupportChurnRate: 0.2,
         averageSurfacedResistanceChurnRate: 0.1,
+        averageSupportLooseMatchRate: 0.1,
+        averageResistanceLooseMatchRate: 0.2,
         averageMatchedDriftPct: 0.01,
         runSummaries: [],
       },
@@ -50,15 +52,30 @@ test("summarizeLevelValidationBatch aggregates health, persistence, and forward 
         extensionLevelsEvaluated: 2,
         surfacedTouchRate: 0.5,
         extensionTouchRate: 0.4,
+        surfacedUsefulnessRate: 0.4,
+        extensionUsefulnessRate: 0.25,
         surfacedRespectRate: 0.3,
         extensionRespectRate: 0.2,
+        surfacedPartialRespectRate: 0.1,
+        extensionPartialRespectRate: 0.05,
         surfacedBreakRate: 0.1,
         extensionBreakRate: 0.2,
+        byKindSource: {
+          surfacedSupport: { evaluated: 3, touchRate: 0.66, usefulnessRate: 0.5, respectRate: 0.33, partialRespectRate: 0.17, breakRate: 0.17 },
+          surfacedResistance: { evaluated: 5, touchRate: 0.4, usefulnessRate: 0.3, respectRate: 0.2, partialRespectRate: 0.1, breakRate: 0.1 },
+          extensionSupport: { evaluated: 1, touchRate: 1, usefulnessRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+          extensionResistance: { evaluated: 1, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.4 },
+        },
+        byDistanceBand: {
+          near: { evaluated: 4, touchRate: 0.75, usefulnessRate: 0.5, respectRate: 0.25, partialRespectRate: 0.25, breakRate: 0.25 },
+          intermediate: { evaluated: 3, touchRate: 0.33, usefulnessRate: 0.33, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
+          far: { evaluated: 3, touchRate: 0.33, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.33 },
+        },
         byStrengthLabel: {
-          weak: { evaluated: 1, touchRate: 0, respectRate: 0, breakRate: 0 },
-          moderate: { evaluated: 4, touchRate: 0.5, respectRate: 0.25, breakRate: 0.25 },
-          strong: { evaluated: 3, touchRate: 0.66, respectRate: 0.33, breakRate: 0 },
-          major: { evaluated: 2, touchRate: 0.5, respectRate: 0.5, breakRate: 0 },
+          weak: { evaluated: 1, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          moderate: { evaluated: 4, touchRate: 0.5, usefulnessRate: 0.25, respectRate: 0.25, partialRespectRate: 0, breakRate: 0.25 },
+          strong: { evaluated: 3, touchRate: 0.66, usefulnessRate: 0.33, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
+          major: { evaluated: 2, touchRate: 0.5, usefulnessRate: 0.5, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
         },
         levelResults: [],
       },
@@ -78,6 +95,8 @@ test("summarizeLevelValidationBatch aggregates health, persistence, and forward 
         averageExtensionResistancePersistenceRate: 0.4,
         averageSurfacedSupportChurnRate: 0.3,
         averageSurfacedResistanceChurnRate: 0.4,
+        averageSupportLooseMatchRate: 0.2,
+        averageResistanceLooseMatchRate: 0.4,
         averageMatchedDriftPct: 0.02,
         runSummaries: [],
       },
@@ -87,15 +106,30 @@ test("summarizeLevelValidationBatch aggregates health, persistence, and forward 
         extensionLevelsEvaluated: 2,
         surfacedTouchRate: 0.3,
         extensionTouchRate: 0.2,
+        surfacedUsefulnessRate: 0.2,
+        extensionUsefulnessRate: 0.1,
         surfacedRespectRate: 0.1,
         extensionRespectRate: 0.05,
+        surfacedPartialRespectRate: 0.1,
+        extensionPartialRespectRate: 0.05,
         surfacedBreakRate: 0.2,
         extensionBreakRate: 0.15,
+        byKindSource: {
+          surfacedSupport: { evaluated: 2, touchRate: 0.5, usefulnessRate: 0.5, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
+          surfacedResistance: { evaluated: 4, touchRate: 0.2, usefulnessRate: 0.05, respectRate: 0, partialRespectRate: 0.05, breakRate: 0.3 },
+          extensionSupport: { evaluated: 1, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          extensionResistance: { evaluated: 1, touchRate: 0.4, usefulnessRate: 0.2, respectRate: 0.1, partialRespectRate: 0.1, breakRate: 0.3 },
+        },
+        byDistanceBand: {
+          near: { evaluated: 3, touchRate: 0.5, usefulnessRate: 0.33, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
+          intermediate: { evaluated: 3, touchRate: 0.33, usefulnessRate: 0.17, respectRate: 0, partialRespectRate: 0.17, breakRate: 0.17 },
+          far: { evaluated: 2, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.5 },
+        },
         byStrengthLabel: {
-          weak: { evaluated: 2, touchRate: 0.5, respectRate: 0, breakRate: 0.5 },
-          moderate: { evaluated: 3, touchRate: 0.33, respectRate: 0.33, breakRate: 0 },
-          strong: { evaluated: 2, touchRate: 0, respectRate: 0, breakRate: 0 },
-          major: { evaluated: 1, touchRate: 0, respectRate: 0, breakRate: 0 },
+          weak: { evaluated: 2, touchRate: 0.5, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.5 },
+          moderate: { evaluated: 3, touchRate: 0.33, usefulnessRate: 0.33, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
+          strong: { evaluated: 2, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          major: { evaluated: 1, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
         },
         levelResults: [],
       },
@@ -117,10 +151,16 @@ test("summarizeLevelValidationBatch aggregates health, persistence, and forward 
   assert.equal(summary.unavailableSymbols, 1);
   assert.equal(summary.completedSymbols, 2);
   assert.equal(summary.failedSymbols, 1);
+  assert.equal(summary.averageSurfacedSupportPersistenceRate, 0.75);
   assert.equal(summary.averageSurfacedResistancePersistenceRate, 0.75);
+  assert.equal(summary.averageExtensionSupportPersistenceRate, 0.6);
   assert.equal(summary.averageExtensionResistancePersistenceRate, 0.575);
-  assert.equal(summary.averageSurfacedRespectRate, 0.2);
-  assert.equal(summary.averageExtensionRespectRate, 0.125);
+  assert.equal(summary.averageSupportLooseMatchRate, 0.15);
+  assert.equal(summary.averageResistanceLooseMatchRate, 0.3);
+  assert.equal(summary.averageSurfacedSupportUsefulnessRate, 0.5);
+  assert.equal(summary.averageSurfacedResistanceUsefulnessRate, 0.175);
+  assert.equal(summary.averageExtensionResistanceUsefulnessRate, 0.1);
+  assert.equal(summary.byDistanceBand.far.usefulnessRate, 0);
 });
 
 test("formatLevelValidationBatchSummary produces deterministic readable lines", () => {
@@ -141,6 +181,8 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
           averageExtensionResistancePersistenceRate: 0.8,
           averageSurfacedSupportChurnRate: 0,
           averageSurfacedResistanceChurnRate: 0.1,
+          averageSupportLooseMatchRate: 0.1,
+          averageResistanceLooseMatchRate: 0.2,
           averageMatchedDriftPct: 0.01,
           runSummaries: [],
         },
@@ -150,15 +192,30 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
           extensionLevelsEvaluated: 1,
           surfacedTouchRate: 0.6,
           extensionTouchRate: 0.5,
+          surfacedUsefulnessRate: 0.5,
+          extensionUsefulnessRate: 0.3,
           surfacedRespectRate: 0.4,
           extensionRespectRate: 0.3,
+          surfacedPartialRespectRate: 0.1,
+          extensionPartialRespectRate: 0,
           surfacedBreakRate: 0.2,
           extensionBreakRate: 0.1,
+          byKindSource: {
+            surfacedSupport: { evaluated: 1, touchRate: 1, usefulnessRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+            surfacedResistance: { evaluated: 2, touchRate: 0.5, usefulnessRate: 0.25, respectRate: 0.1, partialRespectRate: 0.15, breakRate: 0.2 },
+            extensionSupport: { evaluated: 0, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+            extensionResistance: { evaluated: 1, touchRate: 0.5, usefulnessRate: 0.3, respectRate: 0.3, partialRespectRate: 0, breakRate: 0.1 },
+          },
+          byDistanceBand: {
+            near: { evaluated: 2, touchRate: 0.5, usefulnessRate: 0.5, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
+            intermediate: { evaluated: 1, touchRate: 1, usefulnessRate: 0.5, respectRate: 0, partialRespectRate: 0.5, breakRate: 0.5 },
+            far: { evaluated: 1, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          },
           byStrengthLabel: {
-            weak: { evaluated: 1, touchRate: 0, respectRate: 0, breakRate: 0 },
-            moderate: { evaluated: 1, touchRate: 1, respectRate: 1, breakRate: 0 },
-            strong: { evaluated: 1, touchRate: 1, respectRate: 0, breakRate: 1 },
-            major: { evaluated: 1, touchRate: 0, respectRate: 0, breakRate: 0 },
+            weak: { evaluated: 1, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+            moderate: { evaluated: 1, touchRate: 1, usefulnessRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+            strong: { evaluated: 1, touchRate: 1, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 1 },
+            major: { evaluated: 1, touchRate: 0, usefulnessRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
           },
           levelResults: [],
         },
@@ -170,6 +227,10 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
   assert.equal(lines[1], "[LevelValidation] Health summary | healthy=1 | degraded=0 | unavailable=0");
   assert.equal(
     lines[4],
-    "[LevelValidation] Symbol AAPL | health=healthy | surfacedResistance=0.9000 | extensionResistance=0.8000 | surfacedRespect=0.4000 | extensionRespect=0.3000",
+    "[LevelValidation] Surfaced usefulness | support=1.0000 | resistance=0.2500",
+  );
+  assert.equal(
+    lines[10],
+    "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | surfacedUseful=1.0000/0.2500 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000",
   );
 });

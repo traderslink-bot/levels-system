@@ -1,5 +1,9 @@
 import type { CandleSourceHealthReport } from "./candle-source-health.js";
-import type { ForwardReactionValidationReport } from "./forward-reaction-validator.js";
+import type {
+  ForwardReactionDistanceBand,
+  ForwardReactionSummary,
+  ForwardReactionValidationReport,
+} from "./forward-reaction-validator.js";
 import type { LevelPersistenceValidationReport } from "./level-persistence-validator.js";
 
 export type SymbolLevelValidationBatchResult = {
@@ -17,10 +21,21 @@ export type LevelValidationBatchSummary = {
   unavailableSymbols: number;
   completedSymbols: number;
   failedSymbols: number;
+  averageSurfacedSupportPersistenceRate: number;
   averageSurfacedResistancePersistenceRate: number;
+  averageExtensionSupportPersistenceRate: number;
   averageExtensionResistancePersistenceRate: number;
-  averageSurfacedRespectRate: number;
-  averageExtensionRespectRate: number;
+  averageSupportLooseMatchRate: number;
+  averageResistanceLooseMatchRate: number;
+  averageSurfacedSupportUsefulnessRate: number;
+  averageSurfacedResistanceUsefulnessRate: number;
+  averageExtensionSupportUsefulnessRate: number;
+  averageExtensionResistanceUsefulnessRate: number;
+  averageSurfacedSupportRespectRate: number;
+  averageSurfacedResistanceRespectRate: number;
+  averageExtensionSupportRespectRate: number;
+  averageExtensionResistanceRespectRate: number;
+  byDistanceBand: Record<ForwardReactionDistanceBand, ForwardReactionSummary>;
   symbolResults: SymbolLevelValidationBatchResult[];
 };
 
@@ -32,7 +47,9 @@ function average(values: number[]): number {
   return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(4));
 }
 
-function symbolHealthStatus(result: SymbolLevelValidationBatchResult): "healthy" | "degraded" | "unavailable" {
+function symbolHealthStatus(
+  result: SymbolLevelValidationBatchResult,
+): "healthy" | "degraded" | "unavailable" {
   if (result.healthReports.some((report) => report.status === "unavailable")) {
     return "unavailable";
   }
@@ -42,6 +59,17 @@ function symbolHealthStatus(result: SymbolLevelValidationBatchResult): "healthy"
   }
 
   return "healthy";
+}
+
+function summarizeForward(values: ForwardReactionSummary[]): ForwardReactionSummary {
+  return {
+    evaluated: Math.round(values.reduce((sum, value) => sum + value.evaluated, 0)),
+    touchRate: average(values.map((value) => value.touchRate)),
+    usefulnessRate: average(values.map((value) => value.usefulnessRate)),
+    respectRate: average(values.map((value) => value.respectRate)),
+    partialRespectRate: average(values.map((value) => value.partialRespectRate)),
+    breakRate: average(values.map((value) => value.breakRate)),
+  };
 }
 
 export function summarizeLevelValidationBatch(
@@ -58,18 +86,59 @@ export function summarizeLevelValidationBatch(
     unavailableSymbols: symbolResults.filter((result) => symbolHealthStatus(result) === "unavailable").length,
     completedSymbols: completed.length,
     failedSymbols: symbolResults.filter((result) => result.errorMessage).length,
+    averageSurfacedSupportPersistenceRate: average(
+      completed.map((result) => result.persistenceReport!.averageSupportPersistenceRate),
+    ),
     averageSurfacedResistancePersistenceRate: average(
       completed.map((result) => result.persistenceReport!.averageResistancePersistenceRate),
+    ),
+    averageExtensionSupportPersistenceRate: average(
+      completed.map((result) => result.persistenceReport!.averageExtensionSupportPersistenceRate),
     ),
     averageExtensionResistancePersistenceRate: average(
       completed.map((result) => result.persistenceReport!.averageExtensionResistancePersistenceRate),
     ),
-    averageSurfacedRespectRate: average(
-      completed.map((result) => result.forwardReactionReport!.surfacedRespectRate),
+    averageSupportLooseMatchRate: average(
+      completed.map((result) => result.persistenceReport!.averageSupportLooseMatchRate),
     ),
-    averageExtensionRespectRate: average(
-      completed.map((result) => result.forwardReactionReport!.extensionRespectRate),
+    averageResistanceLooseMatchRate: average(
+      completed.map((result) => result.persistenceReport!.averageResistanceLooseMatchRate),
     ),
+    averageSurfacedSupportUsefulnessRate: average(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport.usefulnessRate),
+    ),
+    averageSurfacedResistanceUsefulnessRate: average(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedResistance.usefulnessRate),
+    ),
+    averageExtensionSupportUsefulnessRate: average(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionSupport.usefulnessRate),
+    ),
+    averageExtensionResistanceUsefulnessRate: average(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance.usefulnessRate),
+    ),
+    averageSurfacedSupportRespectRate: average(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport.respectRate),
+    ),
+    averageSurfacedResistanceRespectRate: average(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedResistance.respectRate),
+    ),
+    averageExtensionSupportRespectRate: average(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionSupport.respectRate),
+    ),
+    averageExtensionResistanceRespectRate: average(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance.respectRate),
+    ),
+    byDistanceBand: {
+      near: summarizeForward(
+        completed.map((result) => result.forwardReactionReport!.byDistanceBand.near),
+      ),
+      intermediate: summarizeForward(
+        completed.map((result) => result.forwardReactionReport!.byDistanceBand.intermediate),
+      ),
+      far: summarizeForward(
+        completed.map((result) => result.forwardReactionReport!.byDistanceBand.far),
+      ),
+    },
     symbolResults,
   };
 }
@@ -80,21 +149,23 @@ export function formatLevelValidationBatchSummary(
   const lines = [
     `[LevelValidation] Batch summary | symbols=${summary.totalSymbols} | completed=${summary.completedSymbols} | failed=${summary.failedSymbols}`,
     `[LevelValidation] Health summary | healthy=${summary.healthySymbols} | degraded=${summary.degradedSymbols} | unavailable=${summary.unavailableSymbols}`,
-    `[LevelValidation] Persistence summary | surfacedResistance=${summary.averageSurfacedResistancePersistenceRate.toFixed(4)} | extensionResistance=${summary.averageExtensionResistancePersistenceRate.toFixed(4)}`,
-    `[LevelValidation] Forward summary | surfacedRespect=${summary.averageSurfacedRespectRate.toFixed(4)} | extensionRespect=${summary.averageExtensionRespectRate.toFixed(4)}`,
+    `[LevelValidation] Surfaced persistence | support=${summary.averageSurfacedSupportPersistenceRate.toFixed(4)} | resistance=${summary.averageSurfacedResistancePersistenceRate.toFixed(4)}`,
+    `[LevelValidation] Extension persistence | support=${summary.averageExtensionSupportPersistenceRate.toFixed(4)} | resistance=${summary.averageExtensionResistancePersistenceRate.toFixed(4)}`,
+    `[LevelValidation] Surfaced usefulness | support=${summary.averageSurfacedSupportUsefulnessRate.toFixed(4)} | resistance=${summary.averageSurfacedResistanceUsefulnessRate.toFixed(4)}`,
+    `[LevelValidation] Extension usefulness | support=${summary.averageExtensionSupportUsefulnessRate.toFixed(4)} | resistance=${summary.averageExtensionResistanceUsefulnessRate.toFixed(4)}`,
+    `[LevelValidation] Surfaced respect | support=${summary.averageSurfacedSupportRespectRate.toFixed(4)} | resistance=${summary.averageSurfacedResistanceRespectRate.toFixed(4)}`,
+    `[LevelValidation] Extension respect | support=${summary.averageExtensionSupportRespectRate.toFixed(4)} | resistance=${summary.averageExtensionResistanceRespectRate.toFixed(4)}`,
+    `[LevelValidation] Distance usefulness | near=${summary.byDistanceBand.near.usefulnessRate.toFixed(4)} | intermediate=${summary.byDistanceBand.intermediate.usefulnessRate.toFixed(4)} | far=${summary.byDistanceBand.far.usefulnessRate.toFixed(4)}`,
+    `[LevelValidation] Loose persistence matches | support=${summary.averageSupportLooseMatchRate.toFixed(4)} | resistance=${summary.averageResistanceLooseMatchRate.toFixed(4)}`,
   ];
 
   for (const result of summary.symbolResults) {
-    const healthStatus = result.healthReports.some((report) => report.status === "unavailable")
-      ? "unavailable"
-      : result.healthReports.some((report) => report.status === "degraded")
-        ? "degraded"
-        : "healthy";
+    const healthStatus = symbolHealthStatus(result);
     const persistence = result.persistenceReport
-      ? `surfacedResistance=${result.persistenceReport.averageResistancePersistenceRate.toFixed(4)} | extensionResistance=${result.persistenceReport.averageExtensionResistancePersistenceRate.toFixed(4)}`
+      ? `surfacedPersist=${result.persistenceReport.averageSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageResistancePersistenceRate.toFixed(4)} | extensionPersist=${result.persistenceReport.averageExtensionSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageExtensionResistancePersistenceRate.toFixed(4)} | loose=${result.persistenceReport.averageSupportLooseMatchRate.toFixed(4)}/${result.persistenceReport.averageResistanceLooseMatchRate.toFixed(4)}`
       : "persistence=unavailable";
     const forward = result.forwardReactionReport
-      ? `surfacedRespect=${result.forwardReactionReport.surfacedRespectRate.toFixed(4)} | extensionRespect=${result.forwardReactionReport.extensionRespectRate.toFixed(4)}`
+      ? `surfacedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulnessRate.toFixed(4)} | extensionUseful=${result.forwardReactionReport.byKindSource.extensionSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.extensionResistance.usefulnessRate.toFixed(4)} | bands=${result.forwardReactionReport.byDistanceBand.near.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.usefulnessRate.toFixed(4)}`
       : "forward=unavailable";
     const failure = result.errorMessage ? ` | error=${result.errorMessage}` : "";
 

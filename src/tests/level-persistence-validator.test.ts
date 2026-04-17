@@ -78,8 +78,32 @@ test("validateLevelPersistence reports strong persistence when nearby refreshed 
   assert.equal(report.totalRunsCompared, 1);
   assert.equal(report.averageResistancePersistenceRate, 1);
   assert.equal(report.averageExtensionResistancePersistenceRate, 1);
+  assert.equal(report.averageResistanceLooseMatchRate, 0);
   assert.ok(report.averageMatchedDriftPct > 0);
   assert.ok(report.averageMatchedDriftPct < 0.01);
+});
+
+test("validateLevelPersistence exposes loose persistence when matches survive only near tolerance edges", () => {
+  const outputs = [
+    buildOutput(1, {
+      intradayResistance: [
+        buildValidationZone({ id: "R1", symbol: "GXAI", kind: "resistance", representativePrice: 1.49 }),
+      ],
+    }),
+    buildOutput(2, {
+      intradayResistance: [
+        buildValidationZone({ id: "R1b", symbol: "GXAI", kind: "resistance", representativePrice: 1.506 }),
+      ],
+    }),
+  ];
+
+  const report = validateLevelPersistence(outputs, {
+    priceToleranceAbsolute: 0.03,
+    looseMatchToleranceRatio: 0.5,
+  });
+
+  assert.equal(report.averageResistancePersistenceRate, 1);
+  assert.equal(report.averageResistanceLooseMatchRate, 1);
 });
 
 test("validateLevelPersistence reports churn when surfaced levels rotate to different structure", () => {
@@ -115,5 +139,6 @@ test("validateLevelPersistence returns an empty report when fewer than two outpu
 
   assert.equal(report.totalRunsCompared, 0);
   assert.equal(report.averageSupportPersistenceRate, 0);
+  assert.equal(report.averageSupportLooseMatchRate, 0);
   assert.equal(report.runSummaries.length, 0);
 });

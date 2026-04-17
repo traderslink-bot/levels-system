@@ -18,6 +18,119 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-16 09:35 PM America/Toronto
+
+### Summary
+
+- Reworked the validation layer so it is more actionable for support/resistance tuning and less resistance-only / averaged.
+- Expanded forward reaction validation to separate:
+  - full respect
+  - partial respect
+  - clean break
+  while staying deterministic and compact.
+- Added explicit forward usefulness summaries by:
+  - support vs resistance
+  - surfaced vs extension
+  - near vs intermediate vs far distance bands
+- Strengthened persistence validation with loose-match diagnostics so high persistence can be distinguished from nearby remapping inside tolerance.
+- Kept the pass focused on validation usefulness for structural tuning and did not expand Discord formatting or add any auto-tuning layer.
+
+### Files updated
+
+- `docs/15_PROJECT_CHANGE_LOG.md`
+- `docs/18_LEVEL_VALIDATION_SYSTEM_PLAN.md`
+- `src/lib/validation/forward-reaction-validator.ts`
+- `src/lib/validation/level-persistence-validator.ts`
+- `src/lib/validation/level-validation-batch.ts`
+- `src/tests/forward-reaction-validator.test.ts`
+- `src/tests/level-persistence-validator.test.ts`
+- `src/tests/level-validation-batch.test.ts`
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- Validation output can now tell us whether the real weakness is more likely to be:
+  - support vs resistance selection
+  - near vs intermediate vs far usefulness
+  - surfaced vs extension usefulness
+  - real stability vs loose remap-style persistence
+
+---
+
+## 2026-04-16 08:40 PM America/Toronto
+
+### Summary
+
+- Improved the validation workflow so repeated live runs do not have to pull the same candle windows from IBKR every time.
+- Added a validation-only candle snapshot cache with modes for:
+  - `read_write`
+  - `replay`
+  - `refresh`
+  - `off`
+- Wired the candle cache into:
+  - live candle-health validation
+  - persistence validation
+  - forward reaction validation
+  - batch validation
+- Reduced the default live batch validation window count from `6` to `4` and added an IBKR warning when a live batch is larger than the recommended small-group size.
+
+### Files updated
+
+- `docs/15_PROJECT_CHANGE_LOG.md`
+- `docs/18_LEVEL_VALIDATION_SYSTEM_PLAN.md`
+- `src/lib/validation/validation-candle-cache.ts`
+- `src/scripts/run-forward-reaction-validation.ts`
+- `src/scripts/run-level-candle-health-check.ts`
+- `src/scripts/run-level-persistence-validation.ts`
+- `src/scripts/run-level-validation-batch.ts`
+- `src/scripts/shared/validation-candle-cache.ts`
+- `src/tests/validation-candle-cache.test.ts`
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- Validation runs can now fetch once and replay the same candle windows on later passes, which should materially reduce IBKR waiting during structural tuning and make before/after comparisons more reproducible.
+
+---
+
+## 2026-04-16 08:10 PM America/Toronto
+
+### Summary
+
+- Used the first live small-cap validation batch evidence to drive the next narrow structural truth pass instead of doing more snapshot/output cleanup.
+- Confirmed the engine was already stable and that the next weak spot was usefulness separation: repeatedly recycled intraday levels with weak decision quality could still score too competitively just because they accumulated touches.
+- Updated `src/lib/levels/level-scorer.ts` with a bounded recycled-intraday penalty so single-timeframe `5m` levels are discounted when they show:
+  - heavy local reuse
+  - weak rejection/follow-through
+  - shallow displacement / reaction quality
+- Added focused regression and scenario coverage proving that a stronger decisive nearby anchor now outranks recycled local resistance while farther meaningful structure still survives.
+
+### Files updated
+
+- `docs/15_PROJECT_CHANGE_LOG.md`
+- `src/lib/levels/level-scorer.ts`
+- `src/tests/level-engine.test.ts`
+- `src/tests/level-validation-scenarios.test.ts`
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- The engine now separates “repeatedly existing” intraday resistance from more actionable decision structure more honestly, which should reduce low-usefulness surfaced levels without reopening the broader level engine.
+
+---
+
 ## 2026-04-16 07:05 PM America/Toronto
 
 ### Summary

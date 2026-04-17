@@ -14,6 +14,7 @@ import {
 } from "../lib/validation/forward-reaction-validator.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createIbkrClient } from "./shared/ibkr-runtime.js";
+import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
 
 const DEFAULT_GENERATION_LOOKBACKS: Record<CandleTimeframe, number> = {
   daily: 120,
@@ -124,10 +125,15 @@ async function main(): Promise<void> {
       ib,
       twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
     });
-    const candleFetchService = new CandleFetchService(provider);
+    const baseFetchService = new CandleFetchService(provider);
+    const { candleFetchService, cacheMode, cacheDirectoryPath } =
+      createValidationCandleFetchService(baseFetchService);
     const levelEngine = new LevelEngine(candleFetchService);
 
     console.log(`[LevelValidation] Active provider path: ${provider.providerName}`);
+    console.log(
+      `[LevelValidation] Candle cache | mode=${cacheMode} | dir=${cacheDirectoryPath}`,
+    );
     console.log(
       `[LevelValidation] Forward reaction config | symbol=${symbol} | horizonBars=${forwardHorizonBars} | generationEnd=${new Date(generationEndTimeMs).toISOString()}`,
     );

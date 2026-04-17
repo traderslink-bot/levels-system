@@ -1118,6 +1118,62 @@ test("scoreLevelZones promotes mixed higher-timeframe confluence above similar 5
   assert.ok(mixed!.strengthLabel === "strong" || mixed!.strengthLabel === "major");
 });
 
+test("scoreLevelZones penalizes recycled intraday resistance that has touches but weak decision quality", () => {
+  const baseZone = {
+    symbol: "GXAI",
+    kind: "resistance" as const,
+    timeframeBias: "5m" as const,
+    zoneLow: 1.5,
+    zoneHigh: 1.54,
+    representativePrice: 1.52,
+    sourceTypes: ["swing_high"] as FinalLevelZone["sourceTypes"],
+    timeframeSources: ["5m"] as FinalLevelZone["timeframeSources"],
+    sessionSignificanceScore: 0.12,
+    firstTimestamp: Date.now() - 60 * 60 * 1000,
+    lastTimestamp: Date.now() - 60 * 60 * 1000,
+    sessionDate: undefined,
+    isExtension: false,
+    freshness: "fresh" as const,
+    notes: [],
+    strengthScore: 0,
+    strengthLabel: "weak" as const,
+    gapContinuationScore: 0,
+  };
+
+  const recycled: FinalLevelZone = {
+    ...baseZone,
+    id: "recycled-local",
+    touchCount: 5,
+    confluenceCount: 1,
+    reactionQualityScore: 0.48,
+    rejectionScore: 0.25,
+    displacementScore: 0.3,
+    followThroughScore: 0.21,
+    sourceEvidenceCount: 4,
+  };
+  const decisive: FinalLevelZone = {
+    ...baseZone,
+    id: "decisive-anchor",
+    zoneLow: 1.56,
+    zoneHigh: 1.6,
+    representativePrice: 1.58,
+    touchCount: 2,
+    confluenceCount: 2,
+    reactionQualityScore: 0.72,
+    rejectionScore: 0.5,
+    displacementScore: 0.62,
+    followThroughScore: 0.58,
+    sourceEvidenceCount: 2,
+  };
+
+  const scored = scoreLevelZones([recycled, decisive], DEFAULT_LEVEL_ENGINE_CONFIG);
+  const recycledScored = scored.find((zone) => zone.id === "recycled-local")!;
+  const decisiveScored = scored.find((zone) => zone.id === "decisive-anchor")!;
+
+  assert.ok(decisiveScored.strengthScore > recycledScored.strengthScore);
+  assert.ok(recycledScored.notes.some((note) => note === "recycledPenalty=0.7200"));
+});
+
 test("scoreLevelZones rewards open breakout path over cramped nearby continuation space", () => {
   const baseZone = {
     symbol: "ALBT",
