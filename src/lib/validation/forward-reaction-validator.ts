@@ -19,6 +19,7 @@ export type ForwardReactionOutcome =
   | "touched_no_resolution";
 
 export type ForwardReactionDistanceBand = "near" | "intermediate" | "far";
+export type SurfacedForwardBucket = "daily" | "4h" | "5m";
 
 export type ForwardReactionSummary = {
   evaluated: number;
@@ -35,6 +36,7 @@ export type ForwardReactionLevelResult = {
   zoneId: string;
   kind: "support" | "resistance";
   source: "surfaced" | "extension";
+  surfacedBucket?: SurfacedForwardBucket;
   timeframeBias: FinalLevelZone["timeframeBias"];
   strengthLabel: FinalLevelZone["strengthLabel"];
   representativePrice: number;
@@ -74,6 +76,7 @@ export type ForwardReactionValidationReport = {
     extensionSupport: ForwardReactionSummary;
     extensionResistance: ForwardReactionSummary;
   };
+  bySurfacedSupportBucket: Record<SurfacedForwardBucket, ForwardReactionSummary>;
   byDistanceBand: Record<ForwardReactionDistanceBand, ForwardReactionSummary>;
   byStrengthLabel: Record<FinalLevelZone["strengthLabel"], ForwardReactionSummary>;
   levelResults: ForwardReactionLevelResult[];
@@ -140,14 +143,39 @@ function buildEvaluationLevels(
 ): Array<{
   zone: FinalLevelZone;
   source: "surfaced" | "extension";
+  surfacedBucket?: SurfacedForwardBucket;
 }> {
   const evaluationLevels = [
-    ...output.majorSupport.map((zone) => ({ zone, source: "surfaced" as const })),
-    ...output.intermediateSupport.map((zone) => ({ zone, source: "surfaced" as const })),
-    ...output.intradaySupport.map((zone) => ({ zone, source: "surfaced" as const })),
-    ...output.majorResistance.map((zone) => ({ zone, source: "surfaced" as const })),
-    ...output.intermediateResistance.map((zone) => ({ zone, source: "surfaced" as const })),
-    ...output.intradayResistance.map((zone) => ({ zone, source: "surfaced" as const })),
+    ...output.majorSupport.map((zone) => ({
+      zone,
+      source: "surfaced" as const,
+      surfacedBucket: "daily" as const,
+    })),
+    ...output.intermediateSupport.map((zone) => ({
+      zone,
+      source: "surfaced" as const,
+      surfacedBucket: "4h" as const,
+    })),
+    ...output.intradaySupport.map((zone) => ({
+      zone,
+      source: "surfaced" as const,
+      surfacedBucket: "5m" as const,
+    })),
+    ...output.majorResistance.map((zone) => ({
+      zone,
+      source: "surfaced" as const,
+      surfacedBucket: "daily" as const,
+    })),
+    ...output.intermediateResistance.map((zone) => ({
+      zone,
+      source: "surfaced" as const,
+      surfacedBucket: "4h" as const,
+    })),
+    ...output.intradayResistance.map((zone) => ({
+      zone,
+      source: "surfaced" as const,
+      surfacedBucket: "5m" as const,
+    })),
     ...output.extensionLevels.support.map((zone) => ({ zone, source: "extension" as const })),
     ...output.extensionLevels.resistance.map((zone) => ({ zone, source: "extension" as const })),
   ];
@@ -236,6 +264,7 @@ function summarize(results: ForwardReactionLevelResult[]): ForwardReactionSummar
 function evaluateLevelForwardReaction(params: {
   zone: FinalLevelZone;
   source: "surfaced" | "extension";
+  surfacedBucket?: SurfacedForwardBucket;
   referencePrice: number | undefined;
   futureCandles: Candle[];
   options: ForwardReactionValidatorOptions;
@@ -254,6 +283,7 @@ function evaluateLevelForwardReaction(params: {
       zoneId: params.zone.id,
       kind: params.zone.kind,
       source: params.source,
+      surfacedBucket: params.surfacedBucket,
       timeframeBias: params.zone.timeframeBias,
       strengthLabel: params.zone.strengthLabel,
       representativePrice: params.zone.representativePrice,
@@ -286,6 +316,7 @@ function evaluateLevelForwardReaction(params: {
         zoneId: params.zone.id,
         kind: params.zone.kind,
         source: params.source,
+        surfacedBucket: params.surfacedBucket,
         timeframeBias: params.zone.timeframeBias,
         strengthLabel: params.zone.strengthLabel,
         representativePrice: params.zone.representativePrice,
@@ -314,6 +345,7 @@ function evaluateLevelForwardReaction(params: {
           zoneId: params.zone.id,
           kind: params.zone.kind,
           source: params.source,
+          surfacedBucket: params.surfacedBucket,
           timeframeBias: params.zone.timeframeBias,
           strengthLabel: params.zone.strengthLabel,
           representativePrice: params.zone.representativePrice,
@@ -336,6 +368,7 @@ function evaluateLevelForwardReaction(params: {
         zoneId: params.zone.id,
         kind: params.zone.kind,
         source: params.source,
+        surfacedBucket: params.surfacedBucket,
         timeframeBias: params.zone.timeframeBias,
         strengthLabel: params.zone.strengthLabel,
         representativePrice: params.zone.representativePrice,
@@ -360,6 +393,7 @@ function evaluateLevelForwardReaction(params: {
       zoneId: params.zone.id,
       kind: params.zone.kind,
       source: params.source,
+      surfacedBucket: params.surfacedBucket,
       timeframeBias: params.zone.timeframeBias,
       strengthLabel: params.zone.strengthLabel,
       representativePrice: params.zone.representativePrice,
@@ -382,6 +416,7 @@ function evaluateLevelForwardReaction(params: {
     zoneId: params.zone.id,
     kind: params.zone.kind,
     source: params.source,
+    surfacedBucket: params.surfacedBucket,
     timeframeBias: params.zone.timeframeBias,
     strengthLabel: params.zone.strengthLabel,
     representativePrice: params.zone.representativePrice,
@@ -407,10 +442,12 @@ export function validateForwardReactions(
   options: ForwardReactionValidatorOptions = {},
 ): ForwardReactionValidationReport {
   const referencePrice = params.output.metadata.referencePrice;
-  const levelResults = buildEvaluationLevels(params.output, options).map(({ zone, source }) =>
+  const levelResults = buildEvaluationLevels(params.output, options).map(
+    ({ zone, source, surfacedBucket }) =>
     evaluateLevelForwardReaction({
       zone,
       source,
+      surfacedBucket,
       referencePrice,
       futureCandles: params.futureCandles,
       options,
@@ -453,6 +490,32 @@ export function validateForwardReactions(
         levelResults.filter((result) => result.source === "extension" && result.kind === "resistance"),
       ),
     },
+    bySurfacedSupportBucket: {
+      daily: summarize(
+        levelResults.filter(
+          (result) =>
+            result.source === "surfaced" &&
+            result.kind === "support" &&
+            result.surfacedBucket === "daily",
+        ),
+      ),
+      "4h": summarize(
+        levelResults.filter(
+          (result) =>
+            result.source === "surfaced" &&
+            result.kind === "support" &&
+            result.surfacedBucket === "4h",
+        ),
+      ),
+      "5m": summarize(
+        levelResults.filter(
+          (result) =>
+            result.source === "surfaced" &&
+            result.kind === "support" &&
+            result.surfacedBucket === "5m",
+        ),
+      ),
+    },
     byDistanceBand: {
       near: summarize(levelResults.filter((result) => result.distanceBand === "near")),
       intermediate: summarize(levelResults.filter((result) => result.distanceBand === "intermediate")),
@@ -476,6 +539,9 @@ export function formatForwardReactionReport(
     `[LevelValidation] Surfaced forward outcome | touch=${report.surfacedTouchRate.toFixed(4)} | useful=${report.surfacedUsefulnessRate.toFixed(4)} | usefulWhenTouched=${report.surfacedUsefulWhenTouchedRate.toFixed(4)} | respect=${report.surfacedRespectRate.toFixed(4)} | partial=${report.surfacedPartialRespectRate.toFixed(4)} | break=${report.surfacedBreakRate.toFixed(4)}`,
     `[LevelValidation] Extension forward outcome | touch=${report.extensionTouchRate.toFixed(4)} | useful=${report.extensionUsefulnessRate.toFixed(4)} | usefulWhenTouched=${report.extensionUsefulWhenTouchedRate.toFixed(4)} | respect=${report.extensionRespectRate.toFixed(4)} | partial=${report.extensionPartialRespectRate.toFixed(4)} | break=${report.extensionBreakRate.toFixed(4)}`,
     `[LevelValidation] By side/source | surfacedSupport=${report.byKindSource.surfacedSupport.usefulnessRate.toFixed(4)} | surfacedResistance=${report.byKindSource.surfacedResistance.usefulnessRate.toFixed(4)} | extensionSupport=${report.byKindSource.extensionSupport.usefulnessRate.toFixed(4)} | extensionResistance=${report.byKindSource.extensionResistance.usefulnessRate.toFixed(4)}`,
+    `[LevelValidation] Support bucket usefulness | daily=${report.bySurfacedSupportBucket.daily.usefulnessRate.toFixed(4)} | 4h=${report.bySurfacedSupportBucket["4h"].usefulnessRate.toFixed(4)} | 5m=${report.bySurfacedSupportBucket["5m"].usefulnessRate.toFixed(4)}`,
+    `[LevelValidation] Support bucket touch | daily=${report.bySurfacedSupportBucket.daily.touchRate.toFixed(4)} | 4h=${report.bySurfacedSupportBucket["4h"].touchRate.toFixed(4)} | 5m=${report.bySurfacedSupportBucket["5m"].touchRate.toFixed(4)}`,
+    `[LevelValidation] Support bucket useful when touched | daily=${report.bySurfacedSupportBucket.daily.usefulWhenTouchedRate.toFixed(4)} | 4h=${report.bySurfacedSupportBucket["4h"].usefulWhenTouchedRate.toFixed(4)} | 5m=${report.bySurfacedSupportBucket["5m"].usefulWhenTouchedRate.toFixed(4)}`,
     `[LevelValidation] By distance band | near=${report.byDistanceBand.near.usefulnessRate.toFixed(4)} | intermediate=${report.byDistanceBand.intermediate.usefulnessRate.toFixed(4)} | far=${report.byDistanceBand.far.usefulnessRate.toFixed(4)}`,
     `[LevelValidation] Distance reachability | near=${report.byDistanceBand.near.touchRate.toFixed(4)} | intermediate=${report.byDistanceBand.intermediate.touchRate.toFixed(4)} | far=${report.byDistanceBand.far.touchRate.toFixed(4)}`,
     `[LevelValidation] Distance useful when touched | near=${report.byDistanceBand.near.usefulWhenTouchedRate.toFixed(4)} | intermediate=${report.byDistanceBand.intermediate.usefulWhenTouchedRate.toFixed(4)} | far=${report.byDistanceBand.far.usefulWhenTouchedRate.toFixed(4)}`,

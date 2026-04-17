@@ -510,6 +510,11 @@ Interpretation reminder for future Codex work:
   - `Support bucket persistence`
   - `Support bucket loose matches`
   before treating support instability as a broad higher-timeframe problem
+- when support still looks weak after that, also check:
+  - `Support bucket usefulness`
+  - `Support bucket touch`
+  - `Support bucket useful when touched`
+  before blaming the engine for a bucket that simply was not reached in the short forward window
 - check loose surfaced match rates before declaring a persistence result meaningfully stable
 
 Minimum expectation for future Codex work:

@@ -200,6 +200,10 @@ test("validateForwardReactions separates support/resistance and near/intermediat
   assert.equal(report.byKindSource.surfacedSupport.usefulnessRate, 1);
   assert.equal(report.byKindSource.surfacedResistance.usefulnessRate, 0);
   assert.equal(report.byKindSource.extensionResistance.usefulnessRate, 0);
+  assert.equal(report.bySurfacedSupportBucket.daily.evaluated, 0);
+  assert.equal(report.bySurfacedSupportBucket["4h"].evaluated, 0);
+  assert.equal(report.bySurfacedSupportBucket["5m"].usefulnessRate, 1);
+  assert.equal(report.bySurfacedSupportBucket["5m"].usefulWhenTouchedRate, 1);
   assert.equal(report.byDistanceBand.near.usefulnessRate, 1);
   assert.equal(report.byDistanceBand.intermediate.touchRate, 1);
   assert.equal(report.byDistanceBand.intermediate.usefulnessRate, 0);
@@ -304,4 +308,6 @@ test("validateForwardReactions ignores non-actionable levels on the wrong side o
   );
   assert.equal(report.byKindSource.surfacedSupport.evaluated, 1);
   assert.equal(report.byKindSource.surfacedResistance.evaluated, 1);
+  assert.equal(report.bySurfacedSupportBucket["5m"].evaluated, 1);
+  assert.equal(report.bySurfacedSupportBucket.daily.evaluated, 0);
 });

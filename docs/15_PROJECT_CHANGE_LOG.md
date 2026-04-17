@@ -1731,3 +1731,30 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused coverage in:
   - `src/tests/level-persistence-validator.test.ts`
   - `src/tests/level-validation-batch.test.ts`
+
+## 2026-04-17 06:20 PM America/Toronto
+
+### Support forward validation now exposes `daily / 4h / 5m` bucket usefulness
+
+- Refined `src/lib/validation/forward-reaction-validator.ts` and `src/lib/validation/level-validation-batch.ts`.
+- Forward output now prints surfaced support bucket splits for:
+  - `Support bucket usefulness`
+  - `Support bucket touch`
+  - `Support bucket useful when touched`
+- Batch output now carries the same support-bucket forward split into:
+  - summary lines
+  - per-symbol lines
+- Why this matters:
+  - support persistence alone was not enough to tell whether the weak bucket was actually failing once touched
+  - this now separates:
+    - unstable but never reached
+    - reached and useful
+    - reached and weak
+- Live read from the repeat ticker set:
+  - `GXAI` repeated weak `4h` support persistence, but no surfaced support bucket was touched in the short forward window
+  - `PMNT` showed `5m` support doing the real near-term work, with `daily` support partially useful and `4h` untouched
+  - `FAMI` support weakness was mainly a `daily` bucket remap issue, and the `daily` support bucket was useful when touched
+  - `EFOI` kept `5m` as the weaker persistence bucket, but none of its surfaced support buckets were reached in that forward window
+- Added focused coverage in:
+  - `src/tests/forward-reaction-validator.test.ts`
+  - `src/tests/level-validation-batch.test.ts`
