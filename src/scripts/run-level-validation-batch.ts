@@ -22,6 +22,7 @@ import {
   summarizeLevelValidationBatch,
   type SymbolLevelValidationBatchResult,
 } from "../lib/validation/level-validation-batch.js";
+import { resolveValidationLookbacks } from "../lib/validation/validation-lookback-config.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createIbkrClient } from "./shared/ibkr-runtime.js";
 import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
@@ -31,11 +32,6 @@ const DEFAULT_STEP_MINUTES = 15;
 const DEFAULT_FORWARD_HORIZON_BARS = 48;
 const DEFAULT_FUTURE_BUFFER_BARS = 24;
 const RECOMMENDED_LIVE_BATCH_SIZE = 5;
-const DEFAULT_LOOKBACKS: Record<CandleTimeframe, number> = {
-  daily: 120,
-  "4h": 120,
-  "5m": 160,
-};
 
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
@@ -68,26 +64,27 @@ function buildHistoricalRequests(
   symbol: string,
   providerName: CandleProviderName,
   endTimeMs: number,
+  lookbacks: Record<CandleTimeframe, number>,
 ): Record<CandleTimeframe, HistoricalFetchRequest> {
   return {
     daily: {
       symbol,
       timeframe: "daily",
-      lookbackBars: DEFAULT_LOOKBACKS.daily,
+      lookbackBars: lookbacks.daily,
       endTimeMs,
       preferredProvider: providerName,
     },
     "4h": {
       symbol,
       timeframe: "4h",
-      lookbackBars: DEFAULT_LOOKBACKS["4h"],
+      lookbackBars: lookbacks["4h"],
       endTimeMs,
       preferredProvider: providerName,
     },
     "5m": {
       symbol,
       timeframe: "5m",
-      lookbackBars: DEFAULT_LOOKBACKS["5m"],
+      lookbackBars: lookbacks["5m"],
       endTimeMs,
       preferredProvider: providerName,
     },
@@ -98,13 +95,14 @@ async function collectHealthReports(
   candleFetchService: CandleFetchService,
   symbol: string,
   providerName: CandleProviderName,
+  lookbacks: Record<CandleTimeframe, number>,
 ) {
   return Promise.all(
     (["daily", "4h", "5m"] as const).map((timeframe) =>
       checkCandleSourceHealth(candleFetchService, {
         symbol,
         timeframe,
-        lookbackBars: DEFAULT_LOOKBACKS[timeframe],
+        lookbackBars: lookbacks[timeframe],
         preferredProvider: providerName,
       }),
     ),
@@ -114,6 +112,7 @@ async function collectHealthReports(
 async function buildPersistenceOutputs(params: {
   symbol: string;
   providerName: CandleProviderName;
+  lookbacks: Record<CandleTimeframe, number>;
   windowCount: number;
   stepMs: number;
   levelEngine: LevelEngine;
@@ -125,7 +124,12 @@ async function buildPersistenceOutputs(params: {
     const endTimeMs = anchorTimeMs - (params.windowCount - 1 - index) * params.stepMs;
     const output = await params.levelEngine.generateLevels({
       symbol: params.symbol,
-      historicalRequests: buildHistoricalRequests(params.symbol, params.providerName, endTimeMs),
+      historicalRequests: buildHistoricalRequests(
+        params.symbol,
+        params.providerName,
+        endTimeMs,
+        params.lookbacks,
+      ),
     });
     outputs.push({
       ...output,
@@ -141,6 +145,7 @@ async function runSymbolValidation(params: {
   levelEngine: LevelEngine;
   providerName: CandleProviderName;
   symbol: string;
+  lookbacks: Record<CandleTimeframe, number>;
   windowCount: number;
   stepMs: number;
   forwardHorizonBars: number;
@@ -150,6 +155,7 @@ async function runSymbolValidation(params: {
     params.candleFetchService,
     params.symbol,
     params.providerName,
+    params.lookbacks,
   );
 
   console.log(`[LevelValidation] Candle source health for ${params.symbol}`);
@@ -174,6 +180,7 @@ async function runSymbolValidation(params: {
   const outputs = await buildPersistenceOutputs({
     symbol: params.symbol,
     providerName: params.providerName,
+    lookbacks: params.lookbacks,
     windowCount: params.windowCount,
     stepMs: params.stepMs,
     levelEngine: params.levelEngine,
@@ -191,6 +198,7 @@ async function runSymbolValidation(params: {
       params.symbol,
       params.providerName,
       generationEndTimeMs,
+      params.lookbacks,
     ),
   });
   const normalizedForwardOutput: LevelEngineOutput = {
@@ -260,6 +268,7 @@ async function main(): Promise<void> {
     process.env.LEVEL_VALIDATION_FUTURE_BUFFER_BARS,
     DEFAULT_FUTURE_BUFFER_BARS,
   );
+  const lookbacks = resolveValidationLookbacks();
   const stepMs = stepMinutes * 60 * 1000;
   const needsIbkr = providerName === "ibkr";
   const ib = needsIbkr ? createIbkrClient() : undefined;
@@ -284,6 +293,9 @@ async function main(): Promise<void> {
       `[LevelValidation] Candle cache | mode=${cacheMode} | dir=${cacheDirectoryPath}`,
     );
     console.log(
+      `[LevelValidation] Lookbacks | daily=${lookbacks.daily} | 4h=${lookbacks["4h"]} | 5m=${lookbacks["5m"]}`,
+    );
+    console.log(
       `[LevelValidation] Batch config | symbols=${symbols.join(",")} | windows=${windowCount} | stepMinutes=${stepMinutes} | forwardHorizonBars=${forwardHorizonBars}`,
     );
     if (providerName === "ibkr" && cacheMode !== "replay" && symbols.length > RECOMMENDED_LIVE_BATCH_SIZE) {
@@ -303,6 +315,7 @@ async function main(): Promise<void> {
             levelEngine,
             providerName,
             symbol,
+            lookbacks,
             windowCount,
             stepMs,
             forwardHorizonBars,

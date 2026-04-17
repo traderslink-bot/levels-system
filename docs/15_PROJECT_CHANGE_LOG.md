@@ -1669,3 +1669,25 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Live effect on a weak-intraday name:
   - `FAMI` no longer collapses into an unusable symbol just because `5m` is poor
   - validation can still surface a higher-timeframe structural read and show that the real weak area is extension usefulness, not total unreadability
+
+## 2026-04-17 01:10 PM America/Toronto
+
+### Validation lookbacks are now configurable for deeper overhead testing
+
+- Added `src/lib/validation/validation-lookback-config.ts` and wired it into:
+  - `src/scripts/run-level-candle-health-check.ts`
+  - `src/scripts/run-level-persistence-validation.ts`
+  - `src/scripts/run-forward-reaction-validation.ts`
+  - `src/scripts/run-level-validation-batch.ts`
+- Validation runners now accept per-timeframe env overrides:
+  - `LEVEL_VALIDATION_LOOKBACK_DAILY`
+  - `LEVEL_VALIDATION_LOOKBACK_4H`
+  - `LEVEL_VALIDATION_LOOKBACK_5M`
+- This does not change the live level engine defaults yet.
+- Purpose:
+  - let validation test whether weak far / extension usefulness is partly caused by shallow higher-timeframe history
+  - especially for small-cap runners with important older overhead spike zones
+- Also aligned validation prechecks with the new structural-read rule:
+  - `daily` and `4h` remain structurally required
+  - `5m`-only unavailability degrades validation but does not automatically abort structurally useful runs
+- Added focused coverage in `src/tests/validation-lookback-config.test.ts`.

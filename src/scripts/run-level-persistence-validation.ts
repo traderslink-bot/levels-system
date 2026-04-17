@@ -13,17 +13,16 @@ import {
   formatLevelPersistenceReport,
   validateLevelPersistence,
 } from "../lib/validation/level-persistence-validator.js";
+import {
+  isStructurallyRequiredValidationTimeframe,
+  resolveValidationLookbacks,
+} from "../lib/validation/validation-lookback-config.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createIbkrClient } from "./shared/ibkr-runtime.js";
 import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
 
 const DEFAULT_WINDOW_COUNT = 6;
 const DEFAULT_STEP_MINUTES = 15;
-const DEFAULT_LOOKBACKS: Record<CandleTimeframe, number> = {
-  daily: 120,
-  "4h": 120,
-  "5m": 160,
-};
 
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
@@ -44,26 +43,27 @@ function buildHistoricalRequests(
   symbol: string,
   providerName: CandleProviderName,
   endTimeMs: number,
+  lookbacks: Record<CandleTimeframe, number>,
 ): Record<CandleTimeframe, HistoricalFetchRequest> {
   return {
     daily: {
       symbol,
       timeframe: "daily",
-      lookbackBars: DEFAULT_LOOKBACKS.daily,
+      lookbackBars: lookbacks.daily,
       endTimeMs,
       preferredProvider: providerName,
     },
     "4h": {
       symbol,
       timeframe: "4h",
-      lookbackBars: DEFAULT_LOOKBACKS["4h"],
+      lookbackBars: lookbacks["4h"],
       endTimeMs,
       preferredProvider: providerName,
     },
     "5m": {
       symbol,
       timeframe: "5m",
-      lookbackBars: DEFAULT_LOOKBACKS["5m"],
+      lookbackBars: lookbacks["5m"],
       endTimeMs,
       preferredProvider: providerName,
     },
@@ -74,11 +74,12 @@ async function verifyProviderHealth(
   candleFetchService: CandleFetchService,
   symbol: string,
   providerName: CandleProviderName,
+  lookbacks: Record<CandleTimeframe, number>,
 ): Promise<void> {
   const requests = (["daily", "4h", "5m"] as const).map((timeframe) => ({
     symbol,
     timeframe,
-    lookbackBars: DEFAULT_LOOKBACKS[timeframe],
+    lookbackBars: lookbacks[timeframe],
     preferredProvider: providerName,
   }));
   const reports = await Promise.all(
@@ -90,7 +91,11 @@ async function verifyProviderHealth(
     console.log(formatCandleSourceHealthReport(report));
   }
 
-  const unavailableReports = reports.filter((report) => report.status === "unavailable");
+  const unavailableReports = reports.filter(
+    (report) =>
+      isStructurallyRequiredValidationTimeframe(report.timeframe) &&
+      report.status === "unavailable",
+  );
   if (unavailableReports.length > 0) {
     throw new Error(
       `Candle provider is unavailable for ${unavailableReports
@@ -108,6 +113,7 @@ async function main(): Promise<void> {
     process.env.LEVEL_VALIDATION_STEP_MINUTES,
     DEFAULT_STEP_MINUTES,
   );
+  const lookbacks = resolveValidationLookbacks();
   const stepMs = stepMinutes * 60 * 1000;
   const needsIbkr = providerName === "ibkr";
   const ib = needsIbkr ? createIbkrClient() : undefined;
@@ -134,8 +140,11 @@ async function main(): Promise<void> {
     console.log(
       `[LevelValidation] Persistence run config | symbol=${symbol} | windows=${windowCount} | stepMinutes=${stepMinutes}`,
     );
+    console.log(
+      `[LevelValidation] Lookbacks | daily=${lookbacks.daily} | 4h=${lookbacks["4h"]} | 5m=${lookbacks["5m"]}`,
+    );
 
-    await verifyProviderHealth(candleFetchService, symbol, providerName);
+    await verifyProviderHealth(candleFetchService, symbol, providerName, lookbacks);
 
     const outputs: LevelEngineOutput[] = [];
     const anchorTimeMs = Date.now();
@@ -144,7 +153,7 @@ async function main(): Promise<void> {
       const endTimeMs = anchorTimeMs - (windowCount - 1 - index) * stepMs;
       const output = await levelEngine.generateLevels({
         symbol,
-        historicalRequests: buildHistoricalRequests(symbol, providerName, endTimeMs),
+        historicalRequests: buildHistoricalRequests(symbol, providerName, endTimeMs, lookbacks),
       });
       const normalizedOutput = {
         ...output,

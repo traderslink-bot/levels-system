@@ -470,6 +470,11 @@ Recommended live validation workflow:
   - `LEVEL_VALIDATION_CACHE_MODE=off`
 - optional cache directory override:
   - `LEVEL_VALIDATION_CACHE_DIR=<path>`
+- optional validation lookback overrides for deeper overhead testing:
+  - `LEVEL_VALIDATION_LOOKBACK_DAILY=<bars>`
+  - `LEVEL_VALIDATION_LOOKBACK_4H=<bars>`
+  - `LEVEL_VALIDATION_LOOKBACK_5M=<bars>`
+- use those overrides when testing whether far / extension weakness is really a missing-history problem instead of a ranking or clustering problem
 
 What the validation output should now be used to detect:
 

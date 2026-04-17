@@ -9,6 +9,10 @@ import {
   checkCandleSourceHealth,
   formatCandleSourceHealthReport,
 } from "../lib/validation/candle-source-health.js";
+import {
+  isStructurallyRequiredValidationTimeframe,
+  resolveValidationLookbacks,
+} from "../lib/validation/validation-lookback-config.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createIbkrClient } from "./shared/ibkr-runtime.js";
 import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
@@ -23,17 +27,21 @@ function resolveProviderName(): CandleProviderName {
   return "ibkr";
 }
 
-function defaultRequests(symbol: string): HistoricalFetchRequest[] {
+function defaultRequests(
+  symbol: string,
+  lookbacks: ReturnType<typeof resolveValidationLookbacks>,
+): HistoricalFetchRequest[] {
   return [
-    { symbol, timeframe: "daily", lookbackBars: 120 },
-    { symbol, timeframe: "4h", lookbackBars: 120 },
-    { symbol, timeframe: "5m", lookbackBars: 160 },
+    { symbol, timeframe: "daily", lookbackBars: lookbacks.daily },
+    { symbol, timeframe: "4h", lookbackBars: lookbacks["4h"] },
+    { symbol, timeframe: "5m", lookbackBars: lookbacks["5m"] },
   ];
 }
 
 async function main(): Promise<void> {
   const symbol = process.argv[2]?.toUpperCase() ?? "AAPL";
   const providerName = resolveProviderName();
+  const lookbacks = resolveValidationLookbacks();
   const needsIbkr = providerName === "ibkr";
   const ib = needsIbkr ? createIbkrClient() : undefined;
 
@@ -51,7 +59,9 @@ async function main(): Promise<void> {
     const { candleFetchService, cacheMode, cacheDirectoryPath } =
       createValidationCandleFetchService(baseFetchService);
     const reports = await Promise.all(
-      defaultRequests(symbol).map((request) => checkCandleSourceHealth(candleFetchService, request)),
+      defaultRequests(symbol, lookbacks).map((request) =>
+        checkCandleSourceHealth(candleFetchService, request)
+      ),
     );
 
     console.log(`[LevelValidation] Candle source health for ${symbol}`);
@@ -59,12 +69,19 @@ async function main(): Promise<void> {
     console.log(
       `[LevelValidation] Candle cache | mode=${cacheMode} | dir=${cacheDirectoryPath}`,
     );
+    console.log(
+      `[LevelValidation] Lookbacks | daily=${lookbacks.daily} | 4h=${lookbacks["4h"]} | 5m=${lookbacks["5m"]}`,
+    );
 
     for (const report of reports) {
       console.log(formatCandleSourceHealthReport(report));
     }
 
-    const unavailableReports = reports.filter((report) => report.status === "unavailable");
+    const unavailableReports = reports.filter(
+      (report) =>
+        isStructurallyRequiredValidationTimeframe(report.timeframe) &&
+        report.status === "unavailable",
+    );
     if (unavailableReports.length > 0) {
       console.error(
         `[LevelValidation] Candle provider is unavailable for ${unavailableReports

@@ -12,15 +12,14 @@ import {
   formatForwardReactionReport,
   validateForwardReactions,
 } from "../lib/validation/forward-reaction-validator.js";
+import {
+  isStructurallyRequiredValidationTimeframe,
+  resolveValidationLookbacks,
+} from "../lib/validation/validation-lookback-config.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createIbkrClient } from "./shared/ibkr-runtime.js";
 import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
 
-const DEFAULT_GENERATION_LOOKBACKS: Record<CandleTimeframe, number> = {
-  daily: 120,
-  "4h": 120,
-  "5m": 160,
-};
 const DEFAULT_FORWARD_HORIZON_BARS = 48;
 const DEFAULT_FUTURE_BUFFER_BARS = 24;
 
@@ -43,26 +42,27 @@ function buildGenerationRequests(
   symbol: string,
   providerName: CandleProviderName,
   endTimeMs: number,
+  lookbacks: Record<CandleTimeframe, number>,
 ): Record<CandleTimeframe, HistoricalFetchRequest> {
   return {
     daily: {
       symbol,
       timeframe: "daily",
-      lookbackBars: DEFAULT_GENERATION_LOOKBACKS.daily,
+      lookbackBars: lookbacks.daily,
       endTimeMs,
       preferredProvider: providerName,
     },
     "4h": {
       symbol,
       timeframe: "4h",
-      lookbackBars: DEFAULT_GENERATION_LOOKBACKS["4h"],
+      lookbackBars: lookbacks["4h"],
       endTimeMs,
       preferredProvider: providerName,
     },
     "5m": {
       symbol,
       timeframe: "5m",
-      lookbackBars: DEFAULT_GENERATION_LOOKBACKS["5m"],
+      lookbackBars: lookbacks["5m"],
       endTimeMs,
       preferredProvider: providerName,
     },
@@ -73,11 +73,12 @@ async function verifyProviderHealth(
   candleFetchService: CandleFetchService,
   symbol: string,
   providerName: CandleProviderName,
+  lookbacks: Record<CandleTimeframe, number>,
 ): Promise<void> {
   const requests = (["daily", "4h", "5m"] as const).map((timeframe) => ({
     symbol,
     timeframe,
-    lookbackBars: DEFAULT_GENERATION_LOOKBACKS[timeframe],
+    lookbackBars: lookbacks[timeframe],
     preferredProvider: providerName,
   }));
   const reports = await Promise.all(
@@ -89,7 +90,11 @@ async function verifyProviderHealth(
     console.log(formatCandleSourceHealthReport(report));
   }
 
-  const unavailableReports = reports.filter((report) => report.status === "unavailable");
+  const unavailableReports = reports.filter(
+    (report) =>
+      isStructurallyRequiredValidationTimeframe(report.timeframe) &&
+      report.status === "unavailable",
+  );
   if (unavailableReports.length > 0) {
     throw new Error(
       `Candle provider is unavailable for ${unavailableReports
@@ -110,6 +115,7 @@ async function main(): Promise<void> {
     process.env.LEVEL_VALIDATION_FUTURE_BUFFER_BARS,
     DEFAULT_FUTURE_BUFFER_BARS,
   );
+  const lookbacks = resolveValidationLookbacks();
   const forwardHorizonMs = forwardHorizonBars * 5 * 60 * 1000;
   const generationEndTimeMs = Date.now() - forwardHorizonMs;
   const needsIbkr = providerName === "ibkr";
@@ -137,12 +143,20 @@ async function main(): Promise<void> {
     console.log(
       `[LevelValidation] Forward reaction config | symbol=${symbol} | horizonBars=${forwardHorizonBars} | generationEnd=${new Date(generationEndTimeMs).toISOString()}`,
     );
+    console.log(
+      `[LevelValidation] Lookbacks | daily=${lookbacks.daily} | 4h=${lookbacks["4h"]} | 5m=${lookbacks["5m"]}`,
+    );
 
-    await verifyProviderHealth(candleFetchService, symbol, providerName);
+    await verifyProviderHealth(candleFetchService, symbol, providerName, lookbacks);
 
     const output = await levelEngine.generateLevels({
       symbol,
-      historicalRequests: buildGenerationRequests(symbol, providerName, generationEndTimeMs),
+      historicalRequests: buildGenerationRequests(
+        symbol,
+        providerName,
+        generationEndTimeMs,
+        lookbacks,
+      ),
     });
     const normalizedOutput = {
       ...output,
