@@ -184,6 +184,8 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
   assert.equal(summary.degradedSymbols, 1);
   assert.equal(summary.unavailableSymbols, 1);
   assert.equal(summary.completedSymbols, 2);
+  assert.equal(summary.persistenceCompletedSymbols, 2);
+  assert.equal(summary.forwardCompletedSymbols, 2);
   assert.equal(summary.failedSymbols, 1);
   assert.equal(summary.averageSurfacedSupportPersistenceRate, 0.75);
   assert.equal(summary.averageSurfacedResistancePersistenceRate, 0.75);
@@ -301,63 +303,156 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
   );
 
   assert.equal(lines[0], "[LevelValidation] Batch summary | symbols=1 | completed=1 | failed=0");
-  assert.equal(lines[1], "[LevelValidation] Health summary | healthy=1 | degraded=0 | unavailable=0");
+  assert.equal(lines[1], "[LevelValidation] Report availability | persistence=1 | forward=1");
+  assert.equal(lines[2], "[LevelValidation] Health summary | healthy=1 | degraded=0 | unavailable=0");
   assert.equal(
-    lines[3],
+    lines[4],
     "[LevelValidation] Support bucket persistence | daily=1.0000 | 4h=0.7500 | 5m=0.5000",
   );
   assert.equal(
-    lines[5],
+    lines[6],
     "[LevelValidation] Surfaced usefulness | support=1.0000 | resistance=0.2500",
   );
   assert.equal(
-    lines[9],
+    lines[10],
     "[LevelValidation] Support bucket evaluated | daily=1 | 4h=0 | 5m=0",
   );
   assert.equal(
-    lines[10],
+    lines[11],
     "[LevelValidation] Support bucket usefulness | daily=1.0000 | 4h=0.0000 | 5m=0.0000",
   );
   assert.equal(
-    lines[11],
+    lines[12],
     "[LevelValidation] Support bucket touch | daily=1.0000 | 4h=0.0000 | 5m=0.0000",
   );
   assert.equal(
-    lines[12],
+    lines[13],
     "[LevelValidation] Support bucket useful when touched | daily=1.0000 | 4h=0.0000 | 5m=0.0000",
   );
   assert.equal(
-    lines[13],
+    lines[14],
     "[LevelValidation] Support bucket closest approach | daily=0.0000 | 4h=0.0000 | 5m=0.0000",
   );
   assert.equal(
-    lines[14],
+    lines[15],
     "[LevelValidation] Surfaced respect | support=1.0000 | resistance=0.1000",
   );
   assert.equal(
-    lines[16],
+    lines[17],
     "[LevelValidation] Distance usefulness | near=0.5000 | intermediate=0.5000 | far=0.0000",
   );
   assert.equal(
-    lines[17],
+    lines[18],
     "[LevelValidation] Distance touch | near=0.5000 | intermediate=1.0000 | far=0.0000",
   );
   assert.equal(
-    lines[18],
+    lines[19],
     "[LevelValidation] Distance useful when touched | near=1.0000 | intermediate=0.5000 | far=0.0000",
   );
   assert.equal(
-    lines[20],
+    lines[21],
     "[LevelValidation] Support bucket loose matches | daily=0.0000 | 4h=0.1000 | 5m=0.2500",
   );
   assert.equal(
-    lines[21],
+    lines[22],
     "[LevelValidation] Weakest usefulness areas | far=0.0000(1) | surfacedResistance=0.2500(2) | extensionResistance=0.3000(1)",
   );
   assert.equal(
-    lines[22],
+    lines[23],
     "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | supportBuckets=1.0000/0.7500/0.5000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | supportBucketLoose=0.0000/0.1000/0.2500 | surfacedUseful=1.0000/0.2500 | surfacedTouchedUseful=1.0000/0.5000 | supportBucketEval=1/0/0 | supportBucketUseful=1.0000/0.0000/0.0000 | supportBucketTouch=1.0000/0.0000/0.0000 | supportBucketApproach=0.0000/0.0000/0.0000 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000 | bandTouch=0.5000/1.0000/0.0000",
   );
+});
+
+test("summarizeLevelValidationBatch tracks persistence and forward availability independently", () => {
+  const summary = summarizeLevelValidationBatch([
+    {
+      symbol: "PERSIST",
+      healthReports: [
+        buildHealthReport("PERSIST", "daily", "healthy"),
+        buildHealthReport("PERSIST", "4h", "healthy"),
+        buildHealthReport("PERSIST", "5m", "unavailable"),
+      ],
+      persistenceReport: {
+        totalRunsCompared: 1,
+        averageSupportPersistenceRate: 0.9,
+        averageResistancePersistenceRate: 0.8,
+        averageSupportBucketPersistenceRate: {
+          daily: 1,
+          "4h": 0.8,
+          "5m": 0.4,
+        },
+        averageExtensionSupportPersistenceRate: 0.6,
+        averageExtensionResistancePersistenceRate: 0.5,
+        averageSurfacedSupportChurnRate: 0.1,
+        averageSurfacedResistanceChurnRate: 0.2,
+        averageSupportLooseMatchRate: 0.1,
+        averageResistanceLooseMatchRate: 0.2,
+        averageSupportBucketLooseMatchRate: {
+          daily: 0,
+          "4h": 0.1,
+          "5m": 0.2,
+        },
+        averageMatchedDriftPct: 0.01,
+        runSummaries: [],
+      },
+    },
+    {
+      symbol: "FORWARD",
+      healthReports: [
+        buildHealthReport("FORWARD", "daily", "healthy"),
+        buildHealthReport("FORWARD", "4h", "healthy"),
+        buildHealthReport("FORWARD", "5m", "healthy"),
+      ],
+      forwardReactionReport: {
+        totalLevelsEvaluated: 2,
+        surfacedLevelsEvaluated: 2,
+        extensionLevelsEvaluated: 0,
+        surfacedTouchRate: 0.5,
+        extensionTouchRate: 0,
+        surfacedUsefulnessRate: 0.5,
+        extensionUsefulnessRate: 0,
+        surfacedUsefulWhenTouchedRate: 1,
+        extensionUsefulWhenTouchedRate: 0,
+        surfacedRespectRate: 0.5,
+        extensionRespectRate: 0,
+        surfacedPartialRespectRate: 0,
+        extensionPartialRespectRate: 0,
+        surfacedBreakRate: 0,
+        extensionBreakRate: 0,
+        byKindSource: {
+          surfacedSupport: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+          surfacedResistance: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0.05, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          extensionSupport: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          extensionResistance: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+        },
+        bySurfacedSupportBucket: {
+          daily: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+          "4h": { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          "5m": { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+        },
+        byDistanceBand: {
+          near: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+          intermediate: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0.05, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          far: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+        },
+        byStrengthLabel: {
+          weak: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          moderate: { evaluated: 2, touched: 1, touchRate: 0.5, closestApproachPct: 0.025, usefulnessRate: 0.5, usefulWhenTouchedRate: 1, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
+          strong: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          major: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+        },
+        levelResults: [],
+      },
+    },
+  ]);
+
+  assert.equal(summary.totalSymbols, 2);
+  assert.equal(summary.completedSymbols, 0);
+  assert.equal(summary.persistenceCompletedSymbols, 1);
+  assert.equal(summary.forwardCompletedSymbols, 1);
+  assert.equal(summary.averageSurfacedSupportPersistenceRate, 0.9);
+  assert.equal(summary.averageSurfacedSupportUsefulnessRate, 1);
+  assert.equal(summary.totalSupportBucketEvaluated.daily, 1);
 });
 
 test("summarizeLevelValidationBatch treats 5m-only unavailability as degraded instead of structurally unavailable", () => {

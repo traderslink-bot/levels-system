@@ -18,6 +18,29 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-17 11:55 PM America/Toronto
+
+### Batch validation availability is now split by report type
+
+- Refined `src/lib/validation/level-validation-batch.ts` so batch summaries no longer treat `completed` as the only meaningful availability signal.
+- Batch output now distinguishes:
+  - `completed`
+    - symbols with both persistence and forward reports
+  - `persistenceCompleted`
+    - symbols with a persistence report
+  - `forwardCompleted`
+    - symbols with a forward report
+- Why this matters:
+  - a degraded symbol can still contribute valid persistence evidence even when forward validation is unavailable
+  - a symbol can also contribute forward evidence without being forced into a fake all-zero persistence average
+  - this keeps batch-level averages honest instead of making partial report availability look like missing or weak results
+- Batch summary now prints:
+  - `Report availability | persistence=<n> | forward=<n>`
+- Added focused coverage in:
+  - `src/tests/level-validation-batch.test.ts`
+
+---
+
 ## 2026-04-16 09:35 PM America/Toronto
 
 ### Summary

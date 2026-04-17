@@ -20,6 +20,8 @@ export type LevelValidationBatchSummary = {
   degradedSymbols: number;
   unavailableSymbols: number;
   completedSymbols: number;
+  persistenceCompletedSymbols: number;
+  forwardCompletedSymbols: number;
   failedSymbols: number;
   averageSurfacedSupportPersistenceRate: number;
   averageSurfacedResistancePersistenceRate: number;
@@ -139,29 +141,31 @@ export function summarizeLevelValidationBatch(
   const completed = symbolResults.filter(
     (result) => result.persistenceReport && result.forwardReactionReport,
   );
+  const persistenceCompleted = symbolResults.filter((result) => result.persistenceReport);
+  const forwardCompleted = symbolResults.filter((result) => result.forwardReactionReport);
   const byKindSource = {
     surfacedSupport: summarizeForward(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport),
     ),
     surfacedResistance: summarizeForward(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedResistance),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.surfacedResistance),
     ),
     extensionSupport: summarizeForward(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionSupport),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.extensionSupport),
     ),
     extensionResistance: summarizeForward(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance),
     ),
   };
   const byDistanceBand = {
     near: summarizeForward(
-      completed.map((result) => result.forwardReactionReport!.byDistanceBand.near),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byDistanceBand.near),
     ),
     intermediate: summarizeForward(
-      completed.map((result) => result.forwardReactionReport!.byDistanceBand.intermediate),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byDistanceBand.intermediate),
     ),
     far: summarizeForward(
-      completed.map((result) => result.forwardReactionReport!.byDistanceBand.far),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byDistanceBand.far),
     ),
   };
   const weakestUsefulnessAreas = [
@@ -193,117 +197,119 @@ export function summarizeLevelValidationBatch(
     degradedSymbols: symbolResults.filter((result) => symbolHealthStatus(result) === "degraded").length,
     unavailableSymbols: symbolResults.filter((result) => symbolHealthStatus(result) === "unavailable").length,
     completedSymbols: completed.length,
+    persistenceCompletedSymbols: persistenceCompleted.length,
+    forwardCompletedSymbols: forwardCompleted.length,
     failedSymbols: symbolResults.filter((result) => result.errorMessage).length,
     averageSurfacedSupportPersistenceRate: average(
-      completed.map((result) => result.persistenceReport!.averageSupportPersistenceRate),
+      persistenceCompleted.map((result) => result.persistenceReport!.averageSupportPersistenceRate),
     ),
     averageSurfacedResistancePersistenceRate: average(
-      completed.map((result) => result.persistenceReport!.averageResistancePersistenceRate),
+      persistenceCompleted.map((result) => result.persistenceReport!.averageResistancePersistenceRate),
     ),
     averageSupportBucketPersistenceRate: {
       daily: average(
-        completed.map(
+        persistenceCompleted.map(
           (result) => result.persistenceReport!.averageSupportBucketPersistenceRate.daily,
         ),
       ),
       "4h": average(
-        completed.map(
+        persistenceCompleted.map(
           (result) => result.persistenceReport!.averageSupportBucketPersistenceRate["4h"],
         ),
       ),
       "5m": average(
-        completed.map(
+        persistenceCompleted.map(
           (result) => result.persistenceReport!.averageSupportBucketPersistenceRate["5m"],
         ),
       ),
     },
     averageExtensionSupportPersistenceRate: average(
-      completed.map((result) => result.persistenceReport!.averageExtensionSupportPersistenceRate),
+      persistenceCompleted.map((result) => result.persistenceReport!.averageExtensionSupportPersistenceRate),
     ),
     averageExtensionResistancePersistenceRate: average(
-      completed.map((result) => result.persistenceReport!.averageExtensionResistancePersistenceRate),
+      persistenceCompleted.map((result) => result.persistenceReport!.averageExtensionResistancePersistenceRate),
     ),
     averageSupportLooseMatchRate: average(
-      completed.map((result) => result.persistenceReport!.averageSupportLooseMatchRate),
+      persistenceCompleted.map((result) => result.persistenceReport!.averageSupportLooseMatchRate),
     ),
     averageResistanceLooseMatchRate: average(
-      completed.map((result) => result.persistenceReport!.averageResistanceLooseMatchRate),
+      persistenceCompleted.map((result) => result.persistenceReport!.averageResistanceLooseMatchRate),
     ),
     averageSupportBucketLooseMatchRate: {
       daily: average(
-        completed.map(
+        persistenceCompleted.map(
           (result) => result.persistenceReport!.averageSupportBucketLooseMatchRate.daily,
         ),
       ),
       "4h": average(
-        completed.map(
+        persistenceCompleted.map(
           (result) => result.persistenceReport!.averageSupportBucketLooseMatchRate["4h"],
         ),
       ),
       "5m": average(
-        completed.map(
+        persistenceCompleted.map(
           (result) => result.persistenceReport!.averageSupportBucketLooseMatchRate["5m"],
         ),
       ),
     },
     averageSurfacedSupportUsefulnessRate: average(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport.usefulnessRate),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport.usefulnessRate),
     ),
     averageSurfacedResistanceUsefulnessRate: average(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedResistance.usefulnessRate),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.surfacedResistance.usefulnessRate),
     ),
     averageExtensionSupportUsefulnessRate: average(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionSupport.usefulnessRate),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.extensionSupport.usefulnessRate),
     ),
     averageExtensionResistanceUsefulnessRate: average(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance.usefulnessRate),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance.usefulnessRate),
     ),
     averageSurfacedSupportUsefulWhenTouchedRate: average(
-      completed.map(
+      forwardCompleted.map(
         (result) => result.forwardReactionReport!.byKindSource.surfacedSupport.usefulWhenTouchedRate,
       ),
     ),
     averageSurfacedResistanceUsefulWhenTouchedRate: average(
-      completed.map(
+      forwardCompleted.map(
         (result) => result.forwardReactionReport!.byKindSource.surfacedResistance.usefulWhenTouchedRate,
       ),
     ),
     averageExtensionSupportUsefulWhenTouchedRate: average(
-      completed.map(
+      forwardCompleted.map(
         (result) => result.forwardReactionReport!.byKindSource.extensionSupport.usefulWhenTouchedRate,
       ),
     ),
     averageExtensionResistanceUsefulWhenTouchedRate: average(
-      completed.map(
+      forwardCompleted.map(
         (result) => result.forwardReactionReport!.byKindSource.extensionResistance.usefulWhenTouchedRate,
       ),
     ),
     averageSupportBucketTouchRate: {
       daily: average(
-        completed.map((result) => result.forwardReactionReport!.bySurfacedSupportBucket.daily.touchRate),
+        forwardCompleted.map((result) => result.forwardReactionReport!.bySurfacedSupportBucket.daily.touchRate),
       ),
       "4h": average(
-        completed.map((result) => result.forwardReactionReport!.bySurfacedSupportBucket["4h"].touchRate),
+        forwardCompleted.map((result) => result.forwardReactionReport!.bySurfacedSupportBucket["4h"].touchRate),
       ),
       "5m": average(
-        completed.map((result) => result.forwardReactionReport!.bySurfacedSupportBucket["5m"].touchRate),
+        forwardCompleted.map((result) => result.forwardReactionReport!.bySurfacedSupportBucket["5m"].touchRate),
       ),
     },
     totalSupportBucketEvaluated: {
       daily: Math.round(
-        completed.reduce(
+        forwardCompleted.reduce(
           (sum, result) => sum + result.forwardReactionReport!.bySurfacedSupportBucket.daily.evaluated,
           0,
         ),
       ),
       "4h": Math.round(
-        completed.reduce(
+        forwardCompleted.reduce(
           (sum, result) => sum + result.forwardReactionReport!.bySurfacedSupportBucket["4h"].evaluated,
           0,
         ),
       ),
       "5m": Math.round(
-        completed.reduce(
+        forwardCompleted.reduce(
           (sum, result) => sum + result.forwardReactionReport!.bySurfacedSupportBucket["5m"].evaluated,
           0,
         ),
@@ -311,36 +317,36 @@ export function summarizeLevelValidationBatch(
     },
     averageSupportBucketUsefulnessRate: {
       daily: average(
-        completed.map(
+        forwardCompleted.map(
           (result) => result.forwardReactionReport!.bySurfacedSupportBucket.daily.usefulnessRate,
         ),
       ),
       "4h": average(
-        completed.map(
+        forwardCompleted.map(
           (result) => result.forwardReactionReport!.bySurfacedSupportBucket["4h"].usefulnessRate,
         ),
       ),
       "5m": average(
-        completed.map(
+        forwardCompleted.map(
           (result) => result.forwardReactionReport!.bySurfacedSupportBucket["5m"].usefulnessRate,
         ),
       ),
     },
     averageSupportBucketUsefulWhenTouchedRate: {
       daily: average(
-        completed.map(
+        forwardCompleted.map(
           (result) =>
             result.forwardReactionReport!.bySurfacedSupportBucket.daily.usefulWhenTouchedRate,
         ),
       ),
       "4h": average(
-        completed.map(
+        forwardCompleted.map(
           (result) =>
             result.forwardReactionReport!.bySurfacedSupportBucket["4h"].usefulWhenTouchedRate,
         ),
       ),
       "5m": average(
-        completed.map(
+        forwardCompleted.map(
           (result) =>
             result.forwardReactionReport!.bySurfacedSupportBucket["5m"].usefulWhenTouchedRate,
         ),
@@ -348,35 +354,35 @@ export function summarizeLevelValidationBatch(
     },
     averageSupportBucketClosestApproachPct: {
       daily: average(
-        completed.map(
+        forwardCompleted.map(
           (result) =>
             result.forwardReactionReport!.bySurfacedSupportBucket.daily.closestApproachPct,
         ),
       ),
       "4h": average(
-        completed.map(
+        forwardCompleted.map(
           (result) =>
             result.forwardReactionReport!.bySurfacedSupportBucket["4h"].closestApproachPct,
         ),
       ),
       "5m": average(
-        completed.map(
+        forwardCompleted.map(
           (result) =>
             result.forwardReactionReport!.bySurfacedSupportBucket["5m"].closestApproachPct,
         ),
       ),
     },
     averageSurfacedSupportRespectRate: average(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport.respectRate),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport.respectRate),
     ),
     averageSurfacedResistanceRespectRate: average(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedResistance.respectRate),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.surfacedResistance.respectRate),
     ),
     averageExtensionSupportRespectRate: average(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionSupport.respectRate),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.extensionSupport.respectRate),
     ),
     averageExtensionResistanceRespectRate: average(
-      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance.respectRate),
+      forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance.respectRate),
     ),
     byKindSource,
     byDistanceBand,
@@ -390,6 +396,7 @@ export function formatLevelValidationBatchSummary(
 ): string[] {
   const lines = [
     `[LevelValidation] Batch summary | symbols=${summary.totalSymbols} | completed=${summary.completedSymbols} | failed=${summary.failedSymbols}`,
+    `[LevelValidation] Report availability | persistence=${summary.persistenceCompletedSymbols} | forward=${summary.forwardCompletedSymbols}`,
     `[LevelValidation] Health summary | healthy=${summary.healthySymbols} | degraded=${summary.degradedSymbols} | unavailable=${summary.unavailableSymbols}`,
     `[LevelValidation] Surfaced persistence | support=${summary.averageSurfacedSupportPersistenceRate.toFixed(4)} | resistance=${summary.averageSurfacedResistancePersistenceRate.toFixed(4)}`,
     `[LevelValidation] Support bucket persistence | daily=${summary.averageSupportBucketPersistenceRate.daily.toFixed(4)} | 4h=${summary.averageSupportBucketPersistenceRate["4h"].toFixed(4)} | 5m=${summary.averageSupportBucketPersistenceRate["5m"].toFixed(4)}`,

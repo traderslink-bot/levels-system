@@ -538,6 +538,12 @@ Interpretation reminder for future Codex work:
     - same or larger lookback only
   - in `replay`, the cache may reuse the latest prior compatible file even when older than one bar so offline evidence passes do not keep failing just because wall-clock time moved on
   - if replay still misses after that, treat it as a real cache coverage gap rather than assuming IBKR must be hit every time
+- when reading a batch summary, do not assume `completed` tells the whole story
+  - also check:
+    - `Report availability | persistence=<n> | forward=<n>`
+  - `completed` means both reports existed on the same symbol
+  - `persistence` and `forward` counts tell you whether partial evidence was still available on degraded symbols
+  - use those counts before interpreting all-zero averages as real weakness
 - check loose surfaced match rates before declaring a persistence result meaningfully stable
 
 Minimum expectation for future Codex work:
