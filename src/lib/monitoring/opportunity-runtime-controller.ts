@@ -161,7 +161,6 @@ export class OpportunityRuntimeController {
       }
 
       interpretations.push(interpretation);
-      console.log(this.interpretationLayer.formatForConsole(interpretation));
     }
 
     return interpretations;

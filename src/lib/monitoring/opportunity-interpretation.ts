@@ -202,6 +202,17 @@ export function interpretOpportunity(
   };
 }
 
+export function formatInterpretationForConsole(
+  interpretation: OpportunityInterpretation,
+): string {
+  return [
+    `SYMBOL: ${interpretation.symbol}`,
+    `TYPE: ${interpretation.type}`,
+    `MESSAGE: ${interpretation.message}`,
+    `CONFIDENCE: ${interpretation.confidence.toFixed(2)}`,
+  ].join("\n");
+}
+
 export class OpportunityInterpretationLayer {
   private readonly progressByOpportunity = new Map<string, InterpretationProgressState>();
   private readonly lastBySignature = new Map<string, number>();
@@ -272,11 +283,6 @@ export class OpportunityInterpretationLayer {
   }
 
   formatForConsole(interpretation: OpportunityInterpretation): string {
-    return [
-      `SYMBOL: ${interpretation.symbol}`,
-      `TYPE: ${interpretation.type}`,
-      `MESSAGE: ${interpretation.message}`,
-      `CONFIDENCE: ${interpretation.confidence.toFixed(2)}`,
-    ].join("\n");
+    return formatInterpretationForConsole(interpretation);
   }
 }

@@ -17,6 +17,7 @@ import { LevelStore } from "./level-store.js";
 import type { LivePriceUpdate, MonitoringEvent, WatchlistEntry } from "./monitoring-types.js";
 import { buildOpportunityDiagnosticsLogEntry } from "./opportunity-diagnostics.js";
 import { OpportunityRuntimeController } from "./opportunity-runtime-controller.js";
+import { formatInterpretationForConsole } from "./opportunity-interpretation.js";
 import { WatchlistMonitor } from "./watchlist-monitor.js";
 import { WatchlistStatePersistence } from "./watchlist-state-persistence.js";
 import { WatchlistStore } from "./watchlist-store.js";
@@ -551,6 +552,14 @@ export class ManualWatchlistRuntimeManager {
     this.options.levelStore.setLevels(output);
   }
 
+  private emitTraderFacingInterpretations(
+    interpretations?: ReturnType<OpportunityRuntimeController["processMonitoringEvent"]>["interpretations"],
+  ): void {
+    for (const interpretation of interpretations ?? []) {
+      console.log(formatInterpretationForConsole(interpretation));
+    }
+  }
+
   private async ensureLevelsForActiveEntries(entries: WatchlistEntry[]): Promise<void> {
     for (const entry of entries) {
       if (!entry.active) {
@@ -584,6 +593,7 @@ export class ManualWatchlistRuntimeManager {
     }
 
     const snapshot = this.options.opportunityRuntimeController.processMonitoringEvent(event);
+    this.emitTraderFacingInterpretations(snapshot.interpretations);
     if (snapshot.newOpportunity) {
       console.log(JSON.stringify(
         buildOpportunityDiagnosticsLogEntry("opportunity_snapshot", snapshot, {
@@ -603,7 +613,12 @@ export class ManualWatchlistRuntimeManager {
     });
 
     const snapshot = this.options.opportunityRuntimeController.processPriceUpdate(update);
-    if (!snapshot || snapshot.completedEvaluations.length === 0) {
+    if (!snapshot) {
+      return;
+    }
+
+    this.emitTraderFacingInterpretations(snapshot.interpretations);
+    if (snapshot.completedEvaluations.length === 0) {
       return;
     }
 

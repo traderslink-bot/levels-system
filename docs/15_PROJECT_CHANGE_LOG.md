@@ -18,6 +18,30 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-18 12:10 AM America/Toronto
+
+### Trader-facing runtime paths now consume generated interpretations directly
+
+- Refined the real runtime consumers so they now use `snapshot.interpretations` instead of relying on the controller to print interpretations internally.
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/runtime/main.ts`
+- `src/lib/monitoring/opportunity-runtime-controller.ts` now stays focused on producing deterministic runtime snapshots and no longer acts as the console sink for trader-facing output.
+- Why this matters:
+  - the actual trader-facing paths now decide when and where interpretation output is surfaced
+  - delivery is consistent with the runtime snapshot contract
+  - duplicate suppression still lives in the interpretation layer, but output responsibility now lives in the real consumers
+- Added one focused end-to-end manager test proving:
+  - a monitoring event enters
+  - interpretation output is emitted through the real runtime manager path
+  - the exact trader-facing console message appears once
+  - an immediate duplicate does not spam a second interpretation message
+- Added focused updates in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/opportunity-diagnostics.test.ts`
+
+---
+
 ## 2026-04-17 11:59 PM America/Toronto
 
 ### Interpretation runtime now uses canonical monitoring event types

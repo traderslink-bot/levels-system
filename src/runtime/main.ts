@@ -11,6 +11,7 @@ import {
 import { AdaptiveStatePersistence } from "../lib/monitoring/adaptive-state-persistence.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import { buildOpportunityDiagnosticsLogEntry } from "../lib/monitoring/opportunity-diagnostics.js";
+import { formatInterpretationForConsole } from "../lib/monitoring/opportunity-interpretation.js";
 import {
   OpportunityRuntimeController,
 } from "../lib/monitoring/opportunity-runtime-controller.js";
@@ -135,6 +136,9 @@ async function main(): Promise<void> {
       }
 
       const snapshot = decisionController.processMonitoringEvent(event);
+      for (const interpretation of snapshot.interpretations) {
+        console.log(formatInterpretationForConsole(interpretation));
+      }
       if (snapshot.newOpportunity) {
         console.log(JSON.stringify(
           buildOpportunityDiagnosticsLogEntry("opportunity_snapshot", snapshot, {
@@ -147,7 +151,14 @@ async function main(): Promise<void> {
       }
     }, (update) => {
       const snapshot = decisionController.processPriceUpdate(update);
-      if (!snapshot || snapshot.completedEvaluations.length === 0) {
+      if (!snapshot) {
+        return;
+      }
+
+      for (const interpretation of snapshot.interpretations) {
+        console.log(formatInterpretationForConsole(interpretation));
+      }
+      if (snapshot.completedEvaluations.length === 0) {
         return;
       }
 

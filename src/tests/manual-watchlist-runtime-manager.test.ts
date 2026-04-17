@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { DiscordThreadRoutingResult } from "../lib/alerts/alert-types.js";
+import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
 import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import { WatchlistStore } from "../lib/monitoring/watchlist-store.js";
@@ -997,6 +998,109 @@ test("ManualWatchlistRuntimeManager suppresses near-duplicate alert posts for th
   await waitForAsyncWork();
 
   assert.equal(discordAlertRouter.routed.length, 1);
+});
+
+test("ManualWatchlistRuntimeManager emits deterministic trader-facing interpretation once and suppresses repeat spam", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new OpportunityRuntimeController(),
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+            strengthLabel: "strong",
+            strengthScore: 28,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+
+  const originalConsoleLog = console.log;
+  const capturedLogs: string[] = [];
+  console.log = (...args: unknown[]) => {
+    capturedLogs.push(args.map((arg) => String(arg)).join(" "));
+  };
+
+  try {
+    const baseEvent = {
+      episodeId: "evt-interpret-episode",
+      symbol: "ALBT",
+      type: "breakout" as const,
+      eventType: "breakout" as const,
+      zoneId: "ALBT-resistance-monitored-1",
+      zoneKind: "resistance" as const,
+      level: 2.45,
+      triggerPrice: 2.52,
+      strength: 0.82,
+      confidence: 0.79,
+      priority: 86,
+      bias: "bullish" as const,
+      pressureScore: 0.71,
+      eventContext: {
+        monitoredZoneId: "ALBT-resistance-monitored-1",
+        canonicalZoneId: "R1",
+        zoneFreshness: "fresh" as const,
+        zoneOrigin: "canonical" as const,
+        remapStatus: "preserved" as const,
+        remappedFromZoneIds: ["ALBT-resistance-monitored-legacy"],
+        dataQualityDegraded: false,
+        recentlyRefreshed: true,
+        recentlyPromotedExtension: false,
+        ladderPosition: "outermost" as const,
+        zoneStrengthLabel: "strong" as const,
+        sourceGeneratedAt: 1,
+      },
+      notes: ["Breakout through outermost resistance."],
+    };
+
+    monitor.listener?.({
+      id: "evt-interpret-1",
+      timestamp: 10,
+      ...baseEvent,
+    });
+    await waitForAsyncWork();
+
+    monitor.listener?.({
+      id: "evt-interpret-2",
+      timestamp: 40,
+      ...baseEvent,
+    });
+    await waitForAsyncWork();
+  } finally {
+    console.log = originalConsoleLog;
+  }
+
+  const expectedInterpretation = [
+    "SYMBOL: ALBT",
+    "TYPE: pre_zone",
+    "MESSAGE: watching pullback into support near 2.45",
+    "CONFIDENCE: 0.82",
+  ].join("\n");
+
+  assert.equal(
+    capturedLogs.filter((entry) => entry === expectedInterpretation).length,
+    1,
+  );
 });
 
 test("ManualWatchlistRuntimeManager posts next support levels when price approaches the lowest surfaced support", async () => {
