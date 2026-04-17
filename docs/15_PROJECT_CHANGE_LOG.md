@@ -1774,3 +1774,26 @@ This document tracks concrete implementation changes made to the `levels-system`
   - this keeps the change scoped to validation and live evidence gathering, not the main level engine
 - Added focused coverage in:
   - `src/tests/provider-factory.test.ts`
+
+## 2026-04-17 09:10 PM America/Toronto
+
+### Support forward validation now exposes closest-approach context
+
+- Refined `src/lib/validation/forward-reaction-validator.ts` and `src/lib/validation/level-validation-batch.ts`.
+- Forward output now prints:
+  - `Support bucket closest approach`
+- Batch output now also carries per-symbol support approach context via:
+  - `supportBucketApproach=daily/4h/5m`
+- Why this matters:
+  - several fresh live runs showed surfaced support buckets with `touch=0.0000`
+  - that still left an ambiguity between:
+    - support that was never realistically approached
+    - support that came close but still was not touched
+- The new metric reports the smallest normalized distance from future price action to each surfaced support bucket.
+- Interpretation:
+  - `0.0000` means the bucket was touched
+  - a small non-zero value means price got close without touching
+  - a larger value means the bucket sat meaningfully below the realized path
+- Added focused coverage in:
+  - `src/tests/forward-reaction-validator.test.ts`
+  - `src/tests/level-validation-batch.test.ts`

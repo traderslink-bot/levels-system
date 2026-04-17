@@ -73,26 +73,26 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
         surfacedBreakRate: 0.1,
         extensionBreakRate: 0.2,
         byKindSource: {
-          surfacedSupport: { evaluated: 3, touched: 2, touchRate: 0.66, usefulnessRate: 0.5, usefulWhenTouchedRate: 0.75, respectRate: 0.33, partialRespectRate: 0.17, breakRate: 0.17 },
-          surfacedResistance: { evaluated: 5, touched: 2, touchRate: 0.4, usefulnessRate: 0.3, usefulWhenTouchedRate: 0.75, respectRate: 0.2, partialRespectRate: 0.1, breakRate: 0.1 },
-          extensionSupport: { evaluated: 1, touched: 1, touchRate: 1, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
-          extensionResistance: { evaluated: 1, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.4 },
+          surfacedSupport: { evaluated: 3, touched: 2, touchRate: 0.66, closestApproachPct: 0, usefulnessRate: 0.5, usefulWhenTouchedRate: 0.75, respectRate: 0.33, partialRespectRate: 0.17, breakRate: 0.17 },
+          surfacedResistance: { evaluated: 5, touched: 2, touchRate: 0.4, closestApproachPct: 0, usefulnessRate: 0.3, usefulWhenTouchedRate: 0.75, respectRate: 0.2, partialRespectRate: 0.1, breakRate: 0.1 },
+          extensionSupport: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+          extensionResistance: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.4 },
         },
         bySurfacedSupportBucket: {
-          daily: { evaluated: 1, touched: 1, touchRate: 1, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
-          "4h": { evaluated: 1, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
-          "5m": { evaluated: 1, touched: 1, touchRate: 1, usefulnessRate: 0.5, usefulWhenTouchedRate: 0.5, respectRate: 0, partialRespectRate: 0.5, breakRate: 0.5 },
+          daily: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+          "4h": { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0.02, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          "5m": { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 0.5, usefulWhenTouchedRate: 0.5, respectRate: 0, partialRespectRate: 0.5, breakRate: 0.5 },
         },
         byDistanceBand: {
-          near: { evaluated: 4, touched: 3, touchRate: 0.75, usefulnessRate: 0.5, usefulWhenTouchedRate: 0.6667, respectRate: 0.25, partialRespectRate: 0.25, breakRate: 0.25 },
-          intermediate: { evaluated: 3, touched: 1, touchRate: 0.33, usefulnessRate: 0.33, usefulWhenTouchedRate: 1, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
-          far: { evaluated: 3, touched: 1, touchRate: 0.33, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.33 },
+          near: { evaluated: 4, touched: 3, touchRate: 0.75, closestApproachPct: 0, usefulnessRate: 0.5, usefulWhenTouchedRate: 0.6667, respectRate: 0.25, partialRespectRate: 0.25, breakRate: 0.25 },
+          intermediate: { evaluated: 3, touched: 1, touchRate: 0.33, closestApproachPct: 0, usefulnessRate: 0.33, usefulWhenTouchedRate: 1, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
+          far: { evaluated: 3, touched: 1, touchRate: 0.33, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.33 },
         },
         byStrengthLabel: {
-          weak: { evaluated: 1, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
-          moderate: { evaluated: 4, touched: 2, touchRate: 0.5, usefulnessRate: 0.25, usefulWhenTouchedRate: 0.5, respectRate: 0.25, partialRespectRate: 0, breakRate: 0.25 },
-          strong: { evaluated: 3, touched: 2, touchRate: 0.66, usefulnessRate: 0.33, usefulWhenTouchedRate: 0.5, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
-          major: { evaluated: 2, touched: 1, touchRate: 0.5, usefulnessRate: 0.5, usefulWhenTouchedRate: 1, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
+          weak: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          moderate: { evaluated: 4, touched: 2, touchRate: 0.5, closestApproachPct: 0, usefulnessRate: 0.25, usefulWhenTouchedRate: 0.5, respectRate: 0.25, partialRespectRate: 0, breakRate: 0.25 },
+          strong: { evaluated: 3, touched: 2, touchRate: 0.66, closestApproachPct: 0, usefulnessRate: 0.33, usefulWhenTouchedRate: 0.5, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
+          major: { evaluated: 2, touched: 1, touchRate: 0.5, closestApproachPct: 0, usefulnessRate: 0.5, usefulWhenTouchedRate: 1, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
         },
         levelResults: [],
       },
@@ -144,26 +144,26 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
         surfacedBreakRate: 0.2,
         extensionBreakRate: 0.15,
         byKindSource: {
-          surfacedSupport: { evaluated: 2, touched: 1, touchRate: 0.5, usefulnessRate: 0.5, usefulWhenTouchedRate: 1, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
-          surfacedResistance: { evaluated: 4, touched: 1, touchRate: 0.2, usefulnessRate: 0.05, usefulWhenTouchedRate: 0.25, respectRate: 0, partialRespectRate: 0.05, breakRate: 0.3 },
-          extensionSupport: { evaluated: 1, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
-          extensionResistance: { evaluated: 1, touched: 1, touchRate: 0.4, usefulnessRate: 0.2, usefulWhenTouchedRate: 0.5, respectRate: 0.1, partialRespectRate: 0.1, breakRate: 0.3 },
+          surfacedSupport: { evaluated: 2, touched: 1, touchRate: 0.5, closestApproachPct: 0, usefulnessRate: 0.5, usefulWhenTouchedRate: 1, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
+          surfacedResistance: { evaluated: 4, touched: 1, touchRate: 0.2, closestApproachPct: 0, usefulnessRate: 0.05, usefulWhenTouchedRate: 0.25, respectRate: 0, partialRespectRate: 0.05, breakRate: 0.3 },
+          extensionSupport: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          extensionResistance: { evaluated: 1, touched: 1, touchRate: 0.4, closestApproachPct: 0, usefulnessRate: 0.2, usefulWhenTouchedRate: 0.5, respectRate: 0.1, partialRespectRate: 0.1, breakRate: 0.3 },
         },
         bySurfacedSupportBucket: {
-          daily: { evaluated: 0, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
-          "4h": { evaluated: 1, touched: 1, touchRate: 1, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
-          "5m": { evaluated: 1, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          daily: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          "4h": { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+          "5m": { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0.03, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
         },
         byDistanceBand: {
-          near: { evaluated: 3, touched: 2, touchRate: 0.5, usefulnessRate: 0.33, usefulWhenTouchedRate: 0.5, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
-          intermediate: { evaluated: 3, touched: 1, touchRate: 0.33, usefulnessRate: 0.17, usefulWhenTouchedRate: 0.5, respectRate: 0, partialRespectRate: 0.17, breakRate: 0.17 },
-          far: { evaluated: 2, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.5 },
+          near: { evaluated: 3, touched: 2, touchRate: 0.5, closestApproachPct: 0, usefulnessRate: 0.33, usefulWhenTouchedRate: 0.5, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
+          intermediate: { evaluated: 3, touched: 1, touchRate: 0.33, closestApproachPct: 0, usefulnessRate: 0.17, usefulWhenTouchedRate: 0.5, respectRate: 0, partialRespectRate: 0.17, breakRate: 0.17 },
+          far: { evaluated: 2, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.5 },
         },
         byStrengthLabel: {
-          weak: { evaluated: 2, touched: 1, touchRate: 0.5, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.5 },
-          moderate: { evaluated: 3, touched: 1, touchRate: 0.33, usefulnessRate: 0.33, usefulWhenTouchedRate: 1, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
-          strong: { evaluated: 2, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
-          major: { evaluated: 1, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          weak: { evaluated: 2, touched: 1, touchRate: 0.5, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0.5 },
+          moderate: { evaluated: 3, touched: 1, touchRate: 0.33, closestApproachPct: 0, usefulnessRate: 0.33, usefulWhenTouchedRate: 1, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
+          strong: { evaluated: 2, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+          major: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
         },
         levelResults: [],
       },
@@ -203,6 +203,9 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
   assert.equal(summary.averageSupportBucketTouchRate.daily, 0.5);
   assert.equal(summary.averageSupportBucketTouchRate["4h"], 0.5);
   assert.equal(summary.averageSupportBucketTouchRate["5m"], 0.5);
+  assert.equal(summary.averageSupportBucketClosestApproachPct.daily, 0);
+  assert.equal(summary.averageSupportBucketClosestApproachPct["4h"], 0.01);
+  assert.equal(summary.averageSupportBucketClosestApproachPct["5m"], 0.015);
   assert.equal(summary.averageSupportBucketUsefulnessRate.daily, 0.5);
   assert.equal(summary.averageSupportBucketUsefulnessRate["4h"], 0.5);
   assert.equal(summary.averageSupportBucketUsefulnessRate["5m"], 0.25);
@@ -267,26 +270,26 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
           surfacedBreakRate: 0.2,
           extensionBreakRate: 0.1,
           byKindSource: {
-            surfacedSupport: { evaluated: 1, touched: 1, touchRate: 1, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
-            surfacedResistance: { evaluated: 2, touched: 1, touchRate: 0.5, usefulnessRate: 0.25, usefulWhenTouchedRate: 0.5, respectRate: 0.1, partialRespectRate: 0.15, breakRate: 0.2 },
-            extensionSupport: { evaluated: 0, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
-            extensionResistance: { evaluated: 1, touched: 1, touchRate: 0.5, usefulnessRate: 0.3, usefulWhenTouchedRate: 0.6, respectRate: 0.3, partialRespectRate: 0, breakRate: 0.1 },
+            surfacedSupport: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+            surfacedResistance: { evaluated: 2, touched: 1, touchRate: 0.5, closestApproachPct: 0, usefulnessRate: 0.25, usefulWhenTouchedRate: 0.5, respectRate: 0.1, partialRespectRate: 0.15, breakRate: 0.2 },
+            extensionSupport: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+            extensionResistance: { evaluated: 1, touched: 1, touchRate: 0.5, closestApproachPct: 0, usefulnessRate: 0.3, usefulWhenTouchedRate: 0.6, respectRate: 0.3, partialRespectRate: 0, breakRate: 0.1 },
           },
           bySurfacedSupportBucket: {
-            daily: { evaluated: 1, touched: 1, touchRate: 1, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
-            "4h": { evaluated: 0, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
-            "5m": { evaluated: 0, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+            daily: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+            "4h": { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+            "5m": { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
           },
           byDistanceBand: {
-            near: { evaluated: 2, touched: 1, touchRate: 0.5, usefulnessRate: 0.5, usefulWhenTouchedRate: 1, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
-            intermediate: { evaluated: 1, touched: 1, touchRate: 1, usefulnessRate: 0.5, usefulWhenTouchedRate: 0.5, respectRate: 0, partialRespectRate: 0.5, breakRate: 0.5 },
-            far: { evaluated: 1, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+            near: { evaluated: 2, touched: 1, touchRate: 0.5, closestApproachPct: 0, usefulnessRate: 0.5, usefulWhenTouchedRate: 1, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
+            intermediate: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 0.5, usefulWhenTouchedRate: 0.5, respectRate: 0, partialRespectRate: 0.5, breakRate: 0.5 },
+            far: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
           },
           byStrengthLabel: {
-            weak: { evaluated: 1, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
-            moderate: { evaluated: 1, touched: 1, touchRate: 1, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
-            strong: { evaluated: 1, touched: 1, touchRate: 1, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 1 },
-            major: { evaluated: 1, touched: 0, touchRate: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+            weak: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
+            moderate: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 1, usefulWhenTouchedRate: 1, respectRate: 1, partialRespectRate: 0, breakRate: 0 },
+            strong: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 1 },
+            major: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
           },
           levelResults: [],
         },
@@ -318,31 +321,35 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
   );
   assert.equal(
     lines[12],
+    "[LevelValidation] Support bucket closest approach | daily=0.0000 | 4h=0.0000 | 5m=0.0000",
+  );
+  assert.equal(
+    lines[13],
     "[LevelValidation] Surfaced respect | support=1.0000 | resistance=0.1000",
   );
   assert.equal(
-    lines[14],
+    lines[15],
     "[LevelValidation] Distance usefulness | near=0.5000 | intermediate=0.5000 | far=0.0000",
   );
   assert.equal(
-    lines[15],
+    lines[16],
     "[LevelValidation] Distance touch | near=0.5000 | intermediate=1.0000 | far=0.0000",
   );
   assert.equal(
-    lines[16],
+    lines[17],
     "[LevelValidation] Distance useful when touched | near=1.0000 | intermediate=0.5000 | far=0.0000",
   );
   assert.equal(
-    lines[18],
+    lines[19],
     "[LevelValidation] Support bucket loose matches | daily=0.0000 | 4h=0.1000 | 5m=0.2500",
   );
   assert.equal(
-    lines[19],
+    lines[20],
     "[LevelValidation] Weakest usefulness areas | far=0.0000(1) | surfacedResistance=0.2500(2) | extensionResistance=0.3000(1)",
   );
   assert.equal(
-    lines[20],
-    "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | supportBuckets=1.0000/0.7500/0.5000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | supportBucketLoose=0.0000/0.1000/0.2500 | surfacedUseful=1.0000/0.2500 | surfacedTouchedUseful=1.0000/0.5000 | supportBucketUseful=1.0000/0.0000/0.0000 | supportBucketTouch=1.0000/0.0000/0.0000 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000 | bandTouch=0.5000/1.0000/0.0000",
+    lines[21],
+    "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | supportBuckets=1.0000/0.7500/0.5000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | supportBucketLoose=0.0000/0.1000/0.2500 | surfacedUseful=1.0000/0.2500 | surfacedTouchedUseful=1.0000/0.5000 | supportBucketUseful=1.0000/0.0000/0.0000 | supportBucketTouch=1.0000/0.0000/0.0000 | supportBucketApproach=0.0000/0.0000/0.0000 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000 | bandTouch=0.5000/1.0000/0.0000",
   );
 });
 

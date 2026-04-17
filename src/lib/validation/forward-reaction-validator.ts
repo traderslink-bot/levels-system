@@ -25,6 +25,7 @@ export type ForwardReactionSummary = {
   evaluated: number;
   touched: number;
   touchRate: number;
+  closestApproachPct: number;
   usefulnessRate: number;
   usefulWhenTouchedRate: number;
   respectRate: number;
@@ -48,6 +49,7 @@ export type ForwardReactionLevelResult = {
   partialRespected: boolean;
   broken: boolean;
   brokeAfterPartial: boolean;
+  closestApproachPct: number;
   firstTouchTimestamp?: number;
   resolutionTimestamp?: number;
   maxFavorableExcursionPct?: number;
@@ -191,6 +193,21 @@ function touchMatches(zone: FinalLevelZone, candle: Candle, tolerance: number): 
   return candle.high >= low && candle.low <= high;
 }
 
+function closestApproachPct(zone: FinalLevelZone, candle: Candle, tolerance: number): number {
+  const low = zone.zoneLow - tolerance;
+  const high = zone.zoneHigh + tolerance;
+
+  if (candle.high >= low && candle.low <= high) {
+    return 0;
+  }
+
+  const gapAbove = candle.low - high;
+  const gapBelow = low - candle.high;
+  const distance = Math.max(Math.max(gapAbove, gapBelow), 0);
+
+  return distance / Math.max(zone.representativePrice, 0.0001);
+}
+
 function favorableExcursionPct(zone: FinalLevelZone, candle: Candle): number {
   if (zone.kind === "resistance") {
     return Math.max(zone.representativePrice - candle.low, 0) / Math.max(zone.representativePrice, 0.0001);
@@ -250,6 +267,12 @@ function summarize(results: ForwardReactionLevelResult[]): ForwardReactionSummar
     evaluated: results.length,
     touched,
     touchRate: rate(touched, results.length),
+    closestApproachPct:
+      results.length === 0
+        ? 0
+        : roundMetric(
+            Math.min(...results.map((result) => result.closestApproachPct)),
+          ),
     usefulnessRate: rate(useful, results.length),
     usefulWhenTouchedRate: rate(useful, touched),
     respectRate: rate(results.filter((result) => result.respected).length, results.length),
@@ -274,6 +297,16 @@ function evaluateLevelForwardReaction(params: {
   const partialReactionThresholdPct = partialReactionMovePct(params.options);
   const lookaheadBars = resolutionLookaheadBars(params.options);
   const band = distanceBand(params.zone, params.referencePrice, params.options);
+  const minApproachPct =
+    params.futureCandles.length === 0
+      ? 0
+      : roundMetric(
+          Math.min(
+            ...params.futureCandles.map((candle) =>
+              closestApproachPct(params.zone, candle, tolerance),
+            ),
+          ),
+        );
   const firstTouchIndex = params.futureCandles.findIndex((candle) =>
     touchMatches(params.zone, candle, tolerance),
   );
@@ -295,6 +328,7 @@ function evaluateLevelForwardReaction(params: {
       partialRespected: false,
       broken: false,
       brokeAfterPartial: false,
+      closestApproachPct: minApproachPct,
     };
   }
 
@@ -328,6 +362,7 @@ function evaluateLevelForwardReaction(params: {
         partialRespected: false,
         broken: false,
         brokeAfterPartial: false,
+        closestApproachPct: 0,
         firstTouchTimestamp: touchedCandle.timestamp,
         resolutionTimestamp: candle.timestamp,
         maxFavorableExcursionPct: roundMetric(maxFavorablePct),
@@ -357,6 +392,7 @@ function evaluateLevelForwardReaction(params: {
           partialRespected: true,
           broken: true,
           brokeAfterPartial: true,
+          closestApproachPct: 0,
           firstTouchTimestamp: touchedCandle.timestamp,
           resolutionTimestamp: candle.timestamp,
           maxFavorableExcursionPct: roundMetric(maxFavorablePct),
@@ -380,6 +416,7 @@ function evaluateLevelForwardReaction(params: {
         partialRespected: false,
         broken: true,
         brokeAfterPartial: false,
+        closestApproachPct: 0,
         firstTouchTimestamp: touchedCandle.timestamp,
         resolutionTimestamp: candle.timestamp,
         maxFavorableExcursionPct: roundMetric(maxFavorablePct),
@@ -405,6 +442,7 @@ function evaluateLevelForwardReaction(params: {
       partialRespected: true,
       broken: false,
       brokeAfterPartial: false,
+      closestApproachPct: 0,
       firstTouchTimestamp: touchedCandle.timestamp,
       resolutionTimestamp: partialTimestamp,
       maxFavorableExcursionPct: roundMetric(maxFavorablePct),
@@ -428,6 +466,7 @@ function evaluateLevelForwardReaction(params: {
     partialRespected: false,
     broken: false,
     brokeAfterPartial: false,
+    closestApproachPct: 0,
     firstTouchTimestamp: touchedCandle.timestamp,
     maxFavorableExcursionPct: roundMetric(maxFavorablePct),
     maxAdverseExcursionPct: roundMetric(maxAdversePct),
@@ -542,6 +581,7 @@ export function formatForwardReactionReport(
     `[LevelValidation] Support bucket usefulness | daily=${report.bySurfacedSupportBucket.daily.usefulnessRate.toFixed(4)} | 4h=${report.bySurfacedSupportBucket["4h"].usefulnessRate.toFixed(4)} | 5m=${report.bySurfacedSupportBucket["5m"].usefulnessRate.toFixed(4)}`,
     `[LevelValidation] Support bucket touch | daily=${report.bySurfacedSupportBucket.daily.touchRate.toFixed(4)} | 4h=${report.bySurfacedSupportBucket["4h"].touchRate.toFixed(4)} | 5m=${report.bySurfacedSupportBucket["5m"].touchRate.toFixed(4)}`,
     `[LevelValidation] Support bucket useful when touched | daily=${report.bySurfacedSupportBucket.daily.usefulWhenTouchedRate.toFixed(4)} | 4h=${report.bySurfacedSupportBucket["4h"].usefulWhenTouchedRate.toFixed(4)} | 5m=${report.bySurfacedSupportBucket["5m"].usefulWhenTouchedRate.toFixed(4)}`,
+    `[LevelValidation] Support bucket closest approach | daily=${report.bySurfacedSupportBucket.daily.closestApproachPct.toFixed(4)} | 4h=${report.bySurfacedSupportBucket["4h"].closestApproachPct.toFixed(4)} | 5m=${report.bySurfacedSupportBucket["5m"].closestApproachPct.toFixed(4)}`,
     `[LevelValidation] By distance band | near=${report.byDistanceBand.near.usefulnessRate.toFixed(4)} | intermediate=${report.byDistanceBand.intermediate.usefulnessRate.toFixed(4)} | far=${report.byDistanceBand.far.usefulnessRate.toFixed(4)}`,
     `[LevelValidation] Distance reachability | near=${report.byDistanceBand.near.touchRate.toFixed(4)} | intermediate=${report.byDistanceBand.intermediate.touchRate.toFixed(4)} | far=${report.byDistanceBand.far.touchRate.toFixed(4)}`,
     `[LevelValidation] Distance useful when touched | near=${report.byDistanceBand.near.usefulWhenTouchedRate.toFixed(4)} | intermediate=${report.byDistanceBand.intermediate.usefulWhenTouchedRate.toFixed(4)} | far=${report.byDistanceBand.far.usefulWhenTouchedRate.toFixed(4)}`,

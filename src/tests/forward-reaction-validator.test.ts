@@ -204,6 +204,7 @@ test("validateForwardReactions separates support/resistance and near/intermediat
   assert.equal(report.bySurfacedSupportBucket["4h"].evaluated, 0);
   assert.equal(report.bySurfacedSupportBucket["5m"].usefulnessRate, 1);
   assert.equal(report.bySurfacedSupportBucket["5m"].usefulWhenTouchedRate, 1);
+  assert.equal(report.bySurfacedSupportBucket["5m"].closestApproachPct, 0);
   assert.equal(report.byDistanceBand.near.usefulnessRate, 1);
   assert.equal(report.byDistanceBand.intermediate.touchRate, 1);
   assert.equal(report.byDistanceBand.intermediate.usefulnessRate, 0);
@@ -252,6 +253,7 @@ test("validateForwardReactions leaves untouched levels as untouched and keeps st
   assert.equal(report.surfacedUsefulnessRate, 0);
   assert.equal(report.byStrengthLabel.major.evaluated, 1);
   assert.equal(report.byStrengthLabel.weak.evaluated, 1);
+  assert.equal(report.bySurfacedSupportBucket["5m"].closestApproachPct, 0.124);
   assert.equal(report.levelResults.every((result) => result.outcome === "untouched"), true);
 });
 

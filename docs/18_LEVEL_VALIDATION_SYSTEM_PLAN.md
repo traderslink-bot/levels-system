@@ -517,6 +517,11 @@ Interpretation reminder for future Codex work:
   - `Support bucket touch`
   - `Support bucket useful when touched`
   before blaming the engine for a bucket that simply was not reached in the short forward window
+- if support bucket touch is still `0.0000`, also check:
+  - `Support bucket closest approach`
+  to distinguish:
+  - a bucket that sat too far below the realized path
+  - from a bucket that price nearly reached but did not quite touch
 - check loose surfaced match rates before declaring a persistence result meaningfully stable
 
 Minimum expectation for future Codex work:
