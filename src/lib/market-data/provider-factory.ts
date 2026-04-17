@@ -11,6 +11,7 @@ export type HistoricalProviderFactoryOptions = {
   provider?: CandleProviderName;
   ib?: IBApi;
   twelveDataApiKey?: string;
+  ibkrTimeoutMs?: number;
 };
 
 export function createHistoricalCandleProvider(
@@ -24,7 +25,7 @@ export function createHistoricalCandleProvider(
     }
 
     if (providerName === "ibkr" && options.ib) {
-      return new IbkrHistoricalCandleProvider(options.ib);
+      return new IbkrHistoricalCandleProvider(options.ib, options.ibkrTimeoutMs);
     }
 
     if (providerName === "stub") {

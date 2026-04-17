@@ -27,6 +27,11 @@ function resolveProviderName(): CandleProviderName {
   return "ibkr";
 }
 
+function resolvePositiveInteger(rawValue: string | undefined): number | undefined {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 function defaultRequests(
   symbol: string,
   lookbacks: ReturnType<typeof resolveValidationLookbacks>,
@@ -42,6 +47,7 @@ async function main(): Promise<void> {
   const symbol = process.argv[2]?.toUpperCase() ?? "AAPL";
   const providerName = resolveProviderName();
   const lookbacks = resolveValidationLookbacks();
+  const ibkrTimeoutMs = resolvePositiveInteger(process.env.LEVEL_VALIDATION_IBKR_TIMEOUT_MS);
   const needsIbkr = providerName === "ibkr";
   const ib = needsIbkr ? createIbkrClient() : undefined;
 
@@ -54,6 +60,7 @@ async function main(): Promise<void> {
       provider: providerName,
       ib,
       twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
+      ibkrTimeoutMs,
     });
     const baseFetchService = new CandleFetchService(provider);
     const { candleFetchService, cacheMode, cacheDirectoryPath } =
@@ -72,6 +79,9 @@ async function main(): Promise<void> {
     console.log(
       `[LevelValidation] Lookbacks | daily=${lookbacks.daily} | 4h=${lookbacks["4h"]} | 5m=${lookbacks["5m"]}`,
     );
+    if (providerName === "ibkr" && ibkrTimeoutMs) {
+      console.log(`[LevelValidation] IBKR historical timeout | ms=${ibkrTimeoutMs}`);
+    }
 
     for (const report of reports) {
       console.log(formatCandleSourceHealthReport(report));

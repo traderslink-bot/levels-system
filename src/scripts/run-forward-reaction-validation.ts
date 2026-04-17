@@ -38,6 +38,11 @@ function resolvePositiveInteger(rawValue: string | undefined, fallback: number):
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function resolveOptionalPositiveInteger(rawValue: string | undefined): number | undefined {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 function buildGenerationRequests(
   symbol: string,
   providerName: CandleProviderName,
@@ -116,6 +121,7 @@ async function main(): Promise<void> {
     DEFAULT_FUTURE_BUFFER_BARS,
   );
   const lookbacks = resolveValidationLookbacks();
+  const ibkrTimeoutMs = resolveOptionalPositiveInteger(process.env.LEVEL_VALIDATION_IBKR_TIMEOUT_MS);
   const forwardHorizonMs = forwardHorizonBars * 5 * 60 * 1000;
   const generationEndTimeMs = Date.now() - forwardHorizonMs;
   const needsIbkr = providerName === "ibkr";
@@ -130,6 +136,7 @@ async function main(): Promise<void> {
       provider: providerName,
       ib,
       twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
+      ibkrTimeoutMs,
     });
     const baseFetchService = new CandleFetchService(provider);
     const { candleFetchService, cacheMode, cacheDirectoryPath } =
@@ -143,6 +150,9 @@ async function main(): Promise<void> {
     console.log(
       `[LevelValidation] Forward reaction config | symbol=${symbol} | horizonBars=${forwardHorizonBars} | generationEnd=${new Date(generationEndTimeMs).toISOString()}`,
     );
+    if (providerName === "ibkr" && ibkrTimeoutMs) {
+      console.log(`[LevelValidation] IBKR historical timeout | ms=${ibkrTimeoutMs}`);
+    }
     console.log(
       `[LevelValidation] Lookbacks | daily=${lookbacks.daily} | 4h=${lookbacks["4h"]} | 5m=${lookbacks["5m"]}`,
     );

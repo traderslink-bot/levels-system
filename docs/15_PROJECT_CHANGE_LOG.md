@@ -1758,3 +1758,19 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused coverage in:
   - `src/tests/forward-reaction-validator.test.ts`
   - `src/tests/level-validation-batch.test.ts`
+
+## 2026-04-17 06:45 PM America/Toronto
+
+### Validation runners now support a longer IBKR historical fetch timeout
+
+- Refined `src/lib/market-data/provider-factory.ts` so an explicit IBKR historical timeout can be passed through when creating the provider.
+- Wired `LEVEL_VALIDATION_IBKR_TIMEOUT_MS` into:
+  - `src/scripts/run-level-candle-health-check.ts`
+  - `src/scripts/run-level-persistence-validation.ts`
+  - `src/scripts/run-forward-reaction-validation.ts`
+  - `src/scripts/run-level-validation-batch.ts`
+- Why this matters:
+  - fresh-cache validation runs were hitting the provider’s default `30000ms` timeout before the next support-horizon comparison could complete
+  - this keeps the change scoped to validation and live evidence gathering, not the main level engine
+- Added focused coverage in:
+  - `src/tests/provider-factory.test.ts`

@@ -48,6 +48,11 @@ function resolvePositiveInteger(rawValue: string | undefined, fallback: number):
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function resolveOptionalPositiveInteger(rawValue: string | undefined): number | undefined {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 function resolveSymbols(): string[] {
   const args = process.argv.slice(2).map((value) => value.trim().toUpperCase()).filter(Boolean);
   if (args.length > 0) {
@@ -269,6 +274,7 @@ async function main(): Promise<void> {
     DEFAULT_FUTURE_BUFFER_BARS,
   );
   const lookbacks = resolveValidationLookbacks();
+  const ibkrTimeoutMs = resolveOptionalPositiveInteger(process.env.LEVEL_VALIDATION_IBKR_TIMEOUT_MS);
   const stepMs = stepMinutes * 60 * 1000;
   const needsIbkr = providerName === "ibkr";
   const ib = needsIbkr ? createIbkrClient() : undefined;
@@ -282,6 +288,7 @@ async function main(): Promise<void> {
       provider: providerName,
       ib,
       twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
+      ibkrTimeoutMs,
     });
     const baseFetchService = new CandleFetchService(provider);
     const { candleFetchService, cacheMode, cacheDirectoryPath } =
@@ -298,6 +305,9 @@ async function main(): Promise<void> {
     console.log(
       `[LevelValidation] Batch config | symbols=${symbols.join(",")} | windows=${windowCount} | stepMinutes=${stepMinutes} | forwardHorizonBars=${forwardHorizonBars}`,
     );
+    if (providerName === "ibkr" && ibkrTimeoutMs) {
+      console.log(`[LevelValidation] IBKR historical timeout | ms=${ibkrTimeoutMs}`);
+    }
     if (providerName === "ibkr" && cacheMode !== "replay" && symbols.length > RECOMMENDED_LIVE_BATCH_SIZE) {
       console.warn(
         `[LevelValidation] Live IBKR batches are fastest in groups of ${RECOMMENDED_LIVE_BATCH_SIZE} or fewer symbols. Current batch size is ${symbols.length}.`,
