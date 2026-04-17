@@ -202,6 +202,72 @@ test("validation scenario: extension selection favors decisive forward structure
   assert.deepEqual(extensions.resistance.map((zone) => zone.id), ["decisive-forward"]);
 });
 
+test("validation scenario: extension selection ignores a very far surfaced outlier when a practical forward resistance exists", () => {
+  const surfacedResistance = [
+    buildValidationZone({
+      id: "visible",
+      symbol: "GXAI",
+      kind: "resistance",
+      representativePrice: 1.74,
+      strengthScore: 18,
+      timeframeBias: "4h",
+      timeframeSources: ["4h"],
+    }),
+    buildValidationZone({
+      id: "surfaced-far-outlier",
+      symbol: "GXAI",
+      kind: "resistance",
+      representativePrice: 2.65,
+      strengthScore: 14,
+      timeframeBias: "daily",
+      timeframeSources: ["daily"],
+    }),
+  ];
+
+  const resistanceZones = [
+    ...surfacedResistance,
+    buildValidationZone({
+      id: "practical-forward",
+      symbol: "GXAI",
+      kind: "resistance",
+      representativePrice: 1.85,
+      strengthScore: 23,
+      timeframeBias: "4h",
+      timeframeSources: ["4h"],
+      reactionQualityScore: 0.66,
+      rejectionScore: 0.41,
+      displacementScore: 0.57,
+      followThroughScore: 0.5,
+    }),
+    buildValidationZone({
+      id: "too-far-forward",
+      symbol: "GXAI",
+      kind: "resistance",
+      representativePrice: 2.96,
+      strengthScore: 13,
+      timeframeBias: "daily",
+      timeframeSources: ["daily"],
+      reactionQualityScore: 0.55,
+      rejectionScore: 0.4,
+      displacementScore: 0.49,
+      followThroughScore: 0.38,
+    }),
+  ];
+
+  const extensions = buildLevelExtensions({
+    supportZones: [],
+    resistanceZones,
+    surfacedSupport: [],
+    surfacedResistance,
+    spacingPct: 0.01,
+    searchWindowPct: 0.08,
+    maxExtensionPerSide: 1,
+    referencePrice: 1.48,
+  });
+
+  assert.deepEqual(extensions.resistance.map((zone) => zone.id), ["practical-forward"]);
+});
+
 test("validation scenario: recycled intraday resistance loses to a stronger decisive nearby anchor", () => {
   const scoredResistance = scoreLevelZones(
     [

@@ -1543,3 +1543,28 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused tests proving:
   - a decisive forward resistance can outrank a weak intraday leftover
   - near / intermediate / far continuity still survives when the near step is genuinely actionable
+
+## 2026-04-17 09:40 AM America/Toronto
+
+### Practical forward-bound extension refinement
+
+- Used live IBKR validation and live snapshot inspection on small-cap symbols including:
+  - `GXAI`
+  - `PMNT`
+  - `PBM`
+  - `RMSG`
+  - `FJET`
+- Confirmed the next real weakness was not churn:
+  - persistence remained strong
+  - loose remapping stayed near zero
+  - far / extension usefulness remained the weak area
+- Found the narrower structural issue:
+  - very far surfaced resistance could push the extension frontier too far forward
+  - resistance extension selection could still choose the absolute farthest candidate instead of the practical forward frontier
+- Refined `src/lib/levels/level-extension-engine.ts` so resistance extensions now:
+  - use the practical surfaced frontier relative to live `referencePrice`
+  - cap resistance extension candidates to the trader-facing forward planning range when `referencePrice` is available
+  - preserve actionable near / intermediate continuity while avoiding unusably far extension jumps
+- Passed the practical live spot check:
+  - `GXAI` extension resistance moved into `1.74 / 1.82 / 1.97`
+  - `PMNT` extension resistance moved into `0.4945 / 0.5200 / 0.5600`

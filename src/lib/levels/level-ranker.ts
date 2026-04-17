@@ -212,6 +212,7 @@ export function rankLevelZones(params: {
     surfacedResistance: [...dailyResistance, ...intermediateResistance, ...intradayResistance],
     spacingPct: config.extensionSpacingPct,
     searchWindowPct: config.extensionSearchWindowPct,
+    referencePrice: metadata.referencePrice,
   });
 
   return {

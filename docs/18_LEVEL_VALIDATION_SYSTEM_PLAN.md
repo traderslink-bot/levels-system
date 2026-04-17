@@ -508,4 +508,5 @@ Evidence-first reminder for future structural passes:
 - if validation says persistence is strong but usefulness is weak, do not spend the next pass on more stability work
 - prefer the smallest live batch that can complete cleanly on IBKR, even a single symbol, over a larger timeout-prone batch
 - when `near` usefulness survives but `intermediate` / `far` or `extension` usefulness collapses, inspect `level-extension-engine.ts` before touching broader scoring or clustering
+- when a live bucket dump shows surfaced resistance already extending far beyond trader-usable planning range, check whether the extension frontier should be anchored to the practical surfaced boundary instead of the absolute farthest surfaced level
 - do not mix a broad validation expansion and a broad level-engine tuning pass in the same change unless there is no smaller path

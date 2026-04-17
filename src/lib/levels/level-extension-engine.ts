@@ -24,6 +24,41 @@ function sortResistance(zones: FinalLevelZone[]): FinalLevelZone[] {
   return [...zones].sort((a, b) => a.representativePrice - b.representativePrice);
 }
 
+const DEFAULT_FORWARD_PLANNING_RANGE_PCT = 0.5;
+
+function maxPracticalResistancePrice(
+  referencePrice: number | undefined,
+  forwardPlanningRangePct: number,
+): number {
+  return referencePrice && referencePrice > 0
+    ? referencePrice * (1 + forwardPlanningRangePct)
+    : Number.POSITIVE_INFINITY;
+}
+
+function surfacedResistanceBoundary(params: {
+  surfaced: FinalLevelZone[];
+  referencePrice?: number;
+  forwardPlanningRangePct: number;
+}): number {
+  const maxPracticalPrice = maxPracticalResistancePrice(
+    params.referencePrice,
+    params.forwardPlanningRangePct,
+  );
+  const surfacedPracticalBoundary = params.surfaced
+    .filter((zone) => zone.representativePrice <= maxPracticalPrice)
+    .map((zone) => zone.representativePrice);
+
+  if (surfacedPracticalBoundary.length > 0) {
+    return Math.max(...surfacedPracticalBoundary);
+  }
+
+  if (params.surfaced.length === 0) {
+    return -Infinity;
+  }
+
+  return Math.max(...params.surfaced.map((zone) => zone.representativePrice));
+}
+
 function extensionUsefulnessScore(zone: FinalLevelZone): number {
   const freshnessBonus =
     zone.freshness === "fresh" ? 0.25 : zone.freshness === "aging" ? 0.1 : -0.15;
@@ -233,23 +268,35 @@ function selectContinuityAwareResistanceExtensions(params: {
   maxCount: number;
   spacingPct: number;
   searchWindowPct: number;
+  referencePrice?: number;
+  forwardPlanningRangePct: number;
 }): FinalLevelZone[] {
   const selected: FinalLevelZone[] = [];
+  const maxPracticalPrice = maxPracticalResistancePrice(
+    params.referencePrice,
+    params.forwardPlanningRangePct,
+  );
   let remaining = [...params.candidates].filter(
     (candidate) => !isTooCloseToAny(candidate, params.surfaced, params.spacingPct),
   );
-  const startBoundary =
-    params.surfaced.length === 0
-      ? -Infinity
-      : Math.max(...params.surfaced.map((zone) => zone.representativePrice));
+  const startBoundary = surfacedResistanceBoundary({
+    surfaced: params.surfaced,
+    referencePrice: params.referencePrice,
+    forwardPlanningRangePct: params.forwardPlanningRangePct,
+  });
 
-  const nearFrontier = remaining.filter(
+  const practicalRemaining = remaining.filter(
+    (candidate) => candidate.representativePrice <= maxPracticalPrice,
+  );
+  const preferredRemaining = practicalRemaining.length > 0 ? practicalRemaining : remaining;
+
+  const nearFrontier = preferredRemaining.filter(
     (candidate) =>
       !Number.isFinite(startBoundary) ||
       distanceFromBoundaryPct(startBoundary, candidate.representativePrice) <= params.searchWindowPct,
   );
   const nearCandidate = selectNearContinuityCandidate(
-    nearFrontier.length > 0 ? nearFrontier : remaining.slice(0, 1),
+    nearFrontier.length > 0 ? nearFrontier : preferredRemaining.slice(0, 1),
     startBoundary,
   );
   if (nearCandidate) {
@@ -266,7 +313,10 @@ function selectContinuityAwareResistanceExtensions(params: {
     return selected;
   }
 
-  const farCandidate = remaining.at(-1);
+  const practicalFarCandidate = remaining
+    .filter((candidate) => candidate.representativePrice <= maxPracticalPrice)
+    .at(-1);
+  const farCandidate = practicalFarCandidate ?? remaining.at(-1);
   if (farCandidate && !isTooCloseToAny(farCandidate, selected, params.spacingPct)) {
     selected.push({ ...farCandidate, isExtension: true });
     remaining = removeSelectedNeighborhood(
@@ -323,12 +373,16 @@ function selectSpacedExtensions(params: {
   maxCount: number;
   spacingPct: number;
   searchWindowPct: number;
+  referencePrice?: number;
+  forwardPlanningRangePct?: number;
 }): FinalLevelZone[] {
   const candidates = pruneDominatedForwardCandidates(
     params.candidates,
     params.side,
     params.searchWindowPct,
   );
+  const forwardPlanningRangePct =
+    params.forwardPlanningRangePct ?? DEFAULT_FORWARD_PLANNING_RANGE_PCT;
   if (params.side === "resistance" && params.maxCount >= 3) {
     return selectContinuityAwareResistanceExtensions({
       candidates,
@@ -336,6 +390,8 @@ function selectSpacedExtensions(params: {
       maxCount: params.maxCount,
       spacingPct: params.spacingPct,
       searchWindowPct: params.searchWindowPct,
+      referencePrice: params.referencePrice,
+      forwardPlanningRangePct,
     });
   }
 
@@ -346,13 +402,32 @@ function selectSpacedExtensions(params: {
         ? -Infinity
         : Infinity
       : params.side === "resistance"
-        ? Math.max(...params.surfaced.map((zone) => zone.representativePrice))
+        ? surfacedResistanceBoundary({
+            surfaced: params.surfaced,
+            referencePrice: params.referencePrice,
+            forwardPlanningRangePct,
+          })
         : Math.min(...params.surfaced.map((zone) => zone.representativePrice));
   let boundary = startBoundary;
   let remaining = [...candidates];
+  const maxPracticalPrice =
+    params.side === "resistance" &&
+    params.referencePrice &&
+    params.referencePrice > 0
+      ? params.referencePrice * (1 + forwardPlanningRangePct)
+      : Number.POSITIVE_INFINITY;
 
   while (remaining.length > 0 && selected.length < params.maxCount) {
-    const frontier = remaining.filter((candidate) => {
+    const preferredRemaining =
+      params.side === "resistance"
+        ? (() => {
+            const practical = remaining.filter(
+              (candidate) => candidate.representativePrice <= maxPracticalPrice,
+            );
+            return practical.length > 0 ? practical : remaining;
+          })()
+        : remaining;
+    const frontier = preferredRemaining.filter((candidate) => {
       if (params.side === "resistance") {
         if (candidate.representativePrice <= boundary) {
           return false;
@@ -374,7 +449,7 @@ function selectSpacedExtensions(params: {
       );
     });
 
-    const candidatePool = frontier.length > 0 ? frontier : [remaining[0]!];
+    const candidatePool = frontier.length > 0 ? frontier : [preferredRemaining[0]!];
     const best = [...candidatePool].sort(
       (a, b) =>
         extensionUsefulnessScore(b) - extensionUsefulnessScore(a) ||
@@ -422,18 +497,28 @@ export function buildLevelExtensions(params: {
   maxExtensionPerSide?: number;
   spacingPct?: number;
   searchWindowPct?: number;
+  referencePrice?: number;
+  forwardPlanningRangePct?: number;
 }): LevelLadderExtension {
   const maxExtensionPerSide = params.maxExtensionPerSide ?? 3;
   const spacingPct = params.spacingPct ?? 0.01;
   const searchWindowPct = params.searchWindowPct ?? 0.05;
+  const forwardPlanningRangePct =
+    params.forwardPlanningRangePct ?? DEFAULT_FORWARD_PLANNING_RANGE_PCT;
   const lowestVisibleSupport =
     params.surfacedSupport.length > 0
       ? Math.min(...params.surfacedSupport.map((zone) => zone.representativePrice))
       : Infinity;
   const highestVisibleResistance =
     params.surfacedResistance.length > 0
-      ? Math.max(...params.surfacedResistance.map((zone) => zone.representativePrice))
+      ? surfacedResistanceBoundary({
+          surfaced: params.surfacedResistance,
+          referencePrice: params.referencePrice,
+          forwardPlanningRangePct,
+        })
       : -Infinity;
+  const maxPracticalResistance =
+    maxPracticalResistancePrice(params.referencePrice, forwardPlanningRangePct);
 
   return {
     support: selectSpacedExtensions({
@@ -445,16 +530,24 @@ export function buildLevelExtensions(params: {
       maxCount: maxExtensionPerSide,
       spacingPct,
       searchWindowPct,
+      referencePrice: params.referencePrice,
+      forwardPlanningRangePct,
     }),
     resistance: selectSpacedExtensions({
       candidates: sortResistance(
-        params.resistanceZones.filter((zone) => zone.representativePrice > highestVisibleResistance),
+        params.resistanceZones.filter(
+          (zone) =>
+            zone.representativePrice > highestVisibleResistance &&
+            zone.representativePrice <= maxPracticalResistance,
+        ),
       ),
       surfaced: params.surfacedResistance,
       side: "resistance",
       maxCount: maxExtensionPerSide,
       spacingPct,
       searchWindowPct,
+      referencePrice: params.referencePrice,
+      forwardPlanningRangePct,
     }),
   };
 }
