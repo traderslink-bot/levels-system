@@ -509,4 +509,6 @@ Evidence-first reminder for future structural passes:
 - prefer the smallest live batch that can complete cleanly on IBKR, even a single symbol, over a larger timeout-prone batch
 - when `near` usefulness survives but `intermediate` / `far` or `extension` usefulness collapses, inspect `level-extension-engine.ts` before touching broader scoring or clustering
 - when a live bucket dump shows surfaced resistance already extending far beyond trader-usable planning range, check whether the extension frontier should be anchored to the practical surfaced boundary instead of the absolute farthest surfaced level
+- after any extension-frontier fix, rerun both live validation and exact snapshot output during market hours to verify that surfaced resistance did not keep overly far levels that should have stayed out of the trader-facing ladder
+- if live validation stays stable but exact snapshots still show surfaced resistance far beyond the `50%` trader planning range, inspect `level-ranker.ts` before touching scoring or clustering again
 - do not mix a broad validation expansion and a broad level-engine tuning pass in the same change unless there is no smaller path

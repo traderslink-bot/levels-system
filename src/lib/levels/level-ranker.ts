@@ -7,6 +7,7 @@ import { buildLevelExtensions } from "./level-extension-engine.js";
 import type { FinalLevelZone, LevelEngineOutput } from "./level-types.js";
 
 type SurfaceBucket = "daily" | "4h" | "5m";
+const SURFACED_FORWARD_PLANNING_RANGE_PCT = 0.5;
 
 function freshnessRank(zone: FinalLevelZone): number {
   if (zone.freshness === "fresh") {
@@ -74,6 +75,18 @@ function sortZones(zones: FinalLevelZone[]): FinalLevelZone[] {
       b.touchCount - a.touchCount ||
       b.confluenceCount - a.confluenceCount,
   );
+}
+
+function filterPracticalSurfacedResistanceZones(
+  zones: FinalLevelZone[],
+  referencePrice: number | undefined,
+): FinalLevelZone[] {
+  if (!referencePrice || referencePrice <= 0) {
+    return zones;
+  }
+
+  const maxPracticalPrice = referencePrice * (1 + SURFACED_FORWARD_PLANNING_RANGE_PCT);
+  return zones.filter((zone) => zone.representativePrice <= maxPracticalPrice);
 }
 
 function byOwnedBucket(zones: FinalLevelZone[], bucket: SurfaceBucket): FinalLevelZone[] {
@@ -165,6 +178,10 @@ export function rankLevelZones(params: {
   config: LevelEngineConfig;
 }): LevelEngineOutput {
   const { symbol, supportZones, resistanceZones, specialLevels, metadata, config } = params;
+  const surfacedResistanceZones = filterPracticalSurfacedResistanceZones(
+    resistanceZones,
+    metadata.referencePrice,
+  );
 
   const dailySupport = selectSpacedZones({
     zones: byOwnedBucket(supportZones, "daily"),
@@ -173,7 +190,7 @@ export function rankLevelZones(params: {
     config,
   });
   const dailyResistance = selectSpacedZones({
-    zones: byOwnedBucket(resistanceZones, "daily"),
+    zones: byOwnedBucket(surfacedResistanceZones, "daily"),
     bucket: "daily",
     maxCount: config.timeframeConfig.daily.maxOutputPerSide,
     config,
@@ -186,7 +203,7 @@ export function rankLevelZones(params: {
     config,
   });
   const intermediateResistance = selectSpacedZones({
-    zones: byOwnedBucket(resistanceZones, "4h"),
+    zones: byOwnedBucket(surfacedResistanceZones, "4h"),
     bucket: "4h",
     maxCount: config.timeframeConfig["4h"].maxOutputPerSide,
     config,
@@ -199,7 +216,7 @@ export function rankLevelZones(params: {
     config,
   });
   const intradayResistance = selectSpacedZones({
-    zones: byOwnedBucket(resistanceZones, "5m"),
+    zones: byOwnedBucket(surfacedResistanceZones, "5m"),
     bucket: "5m",
     maxCount: config.timeframeConfig["5m"].maxOutputPerSide,
     config,

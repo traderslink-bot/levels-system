@@ -93,4 +93,42 @@ describe("level-ranker bucket ownership", () => {
     assert.equal(result.intermediateResistance.length, 0);
     assert.equal(result.intradayResistance.length, 1);
   });
+
+  it("does not surface resistance beyond the practical forward planning range when reference price is available", () => {
+    const nearZone = makeZone({
+      id: "near",
+      representativePrice: 11.5,
+      timeframeSources: ["4h"],
+      timeframeBias: "4h",
+      strengthScore: 24,
+    });
+    const tooFarZone = makeZone({
+      id: "too-far",
+      representativePrice: 16.5,
+      timeframeSources: ["daily"],
+      timeframeBias: "daily",
+      strengthScore: 28,
+    });
+
+    const result = rankLevelZones({
+      symbol: "TEST",
+      supportZones: [],
+      resistanceZones: [nearZone, tooFarZone],
+      specialLevels: {},
+      metadata: {
+        ...testMetadata,
+        referencePrice: 10.5,
+      },
+      config: DEFAULT_LEVEL_ENGINE_CONFIG,
+    });
+
+    const surfacedIds = [
+      ...result.majorResistance.map((zone) => zone.id),
+      ...result.intermediateResistance.map((zone) => zone.id),
+      ...result.intradayResistance.map((zone) => zone.id),
+    ];
+
+    assert.ok(surfacedIds.includes("near"));
+    assert.ok(!surfacedIds.includes("too-far"));
+  });
 });

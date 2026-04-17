@@ -1568,3 +1568,24 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Passed the practical live spot check:
   - `GXAI` extension resistance moved into `1.74 / 1.82 / 1.97`
   - `PMNT` extension resistance moved into `0.4945 / 0.5200 / 0.5600`
+
+## 2026-04-17 10:05 AM America/Toronto
+
+### Surfaced resistance capped to practical forward range
+
+- Ran a live market-hours evidence pass on:
+  - `GXAI`
+  - `PMNT`
+- Confirmed the post-extension-refinement pattern:
+  - surfaced usefulness remained positive
+  - extension usefulness still lagged
+  - the next narrow weakness was the surfaced/extension boundary, not general stability
+- Found that surfaced resistance could still include levels beyond the trader-facing `50%` forward planning range before extension selection even began.
+- Refined `src/lib/levels/level-ranker.ts` so surfaced resistance selection now:
+  - uses the live `referencePrice` when available
+  - excludes surfaced resistance zones beyond the practical forward planning range
+  - leaves support behavior unchanged
+- Added a focused test in `src/tests/level-ranker.test.ts` proving resistance beyond the practical forward range does not surface when `referencePrice` is known.
+- Live snapshot improvement after the ranker change:
+  - `GXAI` no longer surfaced `2.65`; snapshot tightened to `1.36 / 1.40 / 1.53 / 1.64 / 1.67 / 1.85`
+  - `PMNT` no longer surfaced `0.80`; snapshot tightened to `0.3823 / 0.4699 / 0.5200`
