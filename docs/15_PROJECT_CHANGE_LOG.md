@@ -1609,3 +1609,26 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `PBM/RMSG` combined surfaced resistance usefulness improved from `0.0500` to `0.1250`
   - combined `far` usefulness improved from `0.0000` to `0.0384`
 - This clarified that part of the earlier weak resistance / far reading was a validation mismatch, not only a structural chart-reading failure.
+
+## 2026-04-17 10:35 AM America/Toronto
+
+### Surfaced bucket ownership now respects the live side of price
+
+- After correcting the forward validator, used a fresh live market-hours pass on:
+  - `GXAI`
+  - `PMNT`
+- Found the next structural weakness more clearly:
+  - raw surfaced support / resistance buckets could still retain zones on the wrong side of the live reference price
+  - those wrong-side surfaced zones were being filtered out later by the snapshot path, but they could still distort surfaced ownership and extension handoff inside the engine
+- Refined `src/lib/levels/level-ranker.ts` so surfaced bucket selection now only keeps actionable zones when `referencePrice` is available:
+  - supports below live price
+  - resistances above live price and within the practical forward planning range
+- Added focused coverage in `src/tests/level-ranker.test.ts`.
+- Live post-fix evidence:
+  - raw surfaced resistance no longer kept obvious below-price leftovers on `GXAI` / `PMNT`
+  - `PMNT` regained a real extension resistance ladder: `0.5600 / 0.5800 / 0.5877`
+  - `GXAI/PMNT` batch rerun improved combined surfaced resistance usefulness to `0.3333`
+  - combined `far` usefulness improved to `0.0667`
+- Fresh trader-facing snapshots after the fix:
+  - `GXAI` -> `1.36 / 1.40 / 1.53 / 1.64 / 1.67 / 1.85 / 1.97`
+  - `PMNT` -> `0.4183 / 0.4500 / 0.4699 / 0.5100 / 0.5200 / 0.5600 / 0.5877`

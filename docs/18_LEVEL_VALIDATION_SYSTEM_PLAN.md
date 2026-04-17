@@ -513,4 +513,6 @@ Evidence-first reminder for future structural passes:
 - if live validation stays stable but exact snapshots still show surfaced resistance far beyond the `50%` trader planning range, inspect `level-ranker.ts` before touching scoring or clustering again
 - before trusting weak support/resistance usefulness metrics, confirm the validator is only grading actionable levels on the correct side of the live reference price
 - if the snapshot path filters a level out relative to current price, the forward validator should not still count it as a surfaced or extension failure
+- after correcting the validator, also verify raw surfaced bucket ownership against the live reference price before tuning extension logic again
+- if raw surfaced support/resistance buckets still keep wrong-side levels that the snapshot later filters out, fix `level-ranker.ts` first because those zones can still distort the surfaced/extension boundary internally
 - do not mix a broad validation expansion and a broad level-engine tuning pass in the same change unless there is no smaller path

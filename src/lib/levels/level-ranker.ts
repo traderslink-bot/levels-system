@@ -86,7 +86,22 @@ function filterPracticalSurfacedResistanceZones(
   }
 
   const maxPracticalPrice = referencePrice * (1 + SURFACED_FORWARD_PLANNING_RANGE_PCT);
-  return zones.filter((zone) => zone.representativePrice <= maxPracticalPrice);
+  return zones.filter(
+    (zone) =>
+      zone.representativePrice > referencePrice &&
+      zone.representativePrice <= maxPracticalPrice,
+  );
+}
+
+function filterActionableSurfacedSupportZones(
+  zones: FinalLevelZone[],
+  referencePrice: number | undefined,
+): FinalLevelZone[] {
+  if (!referencePrice || referencePrice <= 0) {
+    return zones;
+  }
+
+  return zones.filter((zone) => zone.representativePrice < referencePrice);
 }
 
 function byOwnedBucket(zones: FinalLevelZone[], bucket: SurfaceBucket): FinalLevelZone[] {
@@ -178,13 +193,17 @@ export function rankLevelZones(params: {
   config: LevelEngineConfig;
 }): LevelEngineOutput {
   const { symbol, supportZones, resistanceZones, specialLevels, metadata, config } = params;
+  const actionableSupportZones = filterActionableSurfacedSupportZones(
+    supportZones,
+    metadata.referencePrice,
+  );
   const surfacedResistanceZones = filterPracticalSurfacedResistanceZones(
     resistanceZones,
     metadata.referencePrice,
   );
 
   const dailySupport = selectSpacedZones({
-    zones: byOwnedBucket(supportZones, "daily"),
+    zones: byOwnedBucket(actionableSupportZones, "daily"),
     bucket: "daily",
     maxCount: config.timeframeConfig.daily.maxOutputPerSide,
     config,
@@ -197,7 +216,7 @@ export function rankLevelZones(params: {
   });
 
   const intermediateSupport = selectSpacedZones({
-    zones: byOwnedBucket(supportZones, "4h"),
+    zones: byOwnedBucket(actionableSupportZones, "4h"),
     bucket: "4h",
     maxCount: config.timeframeConfig["4h"].maxOutputPerSide,
     config,
@@ -210,7 +229,7 @@ export function rankLevelZones(params: {
   });
 
   const intradaySupport = selectSpacedZones({
-    zones: byOwnedBucket(supportZones, "5m"),
+    zones: byOwnedBucket(actionableSupportZones, "5m"),
     bucket: "5m",
     maxCount: config.timeframeConfig["5m"].maxOutputPerSide,
     config,

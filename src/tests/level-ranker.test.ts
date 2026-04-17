@@ -131,4 +131,65 @@ describe("level-ranker bucket ownership", () => {
     assert.ok(surfacedIds.includes("near"));
     assert.ok(!surfacedIds.includes("too-far"));
   });
+
+  it("does not surface support or resistance on the wrong side of the live reference price", () => {
+    const supportBelow = makeZone({
+      id: "support-below",
+      kind: "support",
+      representativePrice: 9.6,
+      timeframeSources: ["daily"],
+      timeframeBias: "daily",
+      strengthScore: 22,
+    });
+    const supportAbove = makeZone({
+      id: "support-above",
+      kind: "support",
+      representativePrice: 10.4,
+      timeframeSources: ["4h"],
+      timeframeBias: "4h",
+      strengthScore: 25,
+    });
+    const resistanceAbove = makeZone({
+      id: "resistance-above",
+      representativePrice: 10.6,
+      timeframeSources: ["daily"],
+      timeframeBias: "daily",
+      strengthScore: 22,
+    });
+    const resistanceBelow = makeZone({
+      id: "resistance-below",
+      representativePrice: 9.4,
+      timeframeSources: ["4h"],
+      timeframeBias: "4h",
+      strengthScore: 25,
+    });
+
+    const result = rankLevelZones({
+      symbol: "TEST",
+      supportZones: [supportBelow, supportAbove],
+      resistanceZones: [resistanceAbove, resistanceBelow],
+      specialLevels: {},
+      metadata: {
+        ...testMetadata,
+        referencePrice: 10,
+      },
+      config: DEFAULT_LEVEL_ENGINE_CONFIG,
+    });
+
+    const surfacedSupportIds = [
+      ...result.majorSupport.map((zone) => zone.id),
+      ...result.intermediateSupport.map((zone) => zone.id),
+      ...result.intradaySupport.map((zone) => zone.id),
+    ];
+    const surfacedResistanceIds = [
+      ...result.majorResistance.map((zone) => zone.id),
+      ...result.intermediateResistance.map((zone) => zone.id),
+      ...result.intradayResistance.map((zone) => zone.id),
+    ];
+
+    assert.ok(surfacedSupportIds.includes("support-below"));
+    assert.ok(!surfacedSupportIds.includes("support-above"));
+    assert.ok(surfacedResistanceIds.includes("resistance-above"));
+    assert.ok(!surfacedResistanceIds.includes("resistance-below"));
+  });
 });
