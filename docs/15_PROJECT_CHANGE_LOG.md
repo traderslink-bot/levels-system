@@ -1589,3 +1589,23 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Live snapshot improvement after the ranker change:
   - `GXAI` no longer surfaced `2.65`; snapshot tightened to `1.36 / 1.40 / 1.53 / 1.64 / 1.67 / 1.85`
   - `PMNT` no longer surfaced `0.80`; snapshot tightened to `0.3823 / 0.4699 / 0.5200`
+
+## 2026-04-17 10:10 AM America/Toronto
+
+### Forward validation now ignores non-actionable wrong-side levels
+
+- During the next live market-hours evidence pass on:
+  - `PBM`
+  - `RMSG`
+- Found that the forward reaction validator was still grading raw surfaced zones even when:
+  - a `support` was already above the live reference price
+  - or a `resistance` was already below the live reference price
+- That meant the validation layer could understate real support/resistance usefulness compared with the trader-facing snapshot, which already filters levels relative to the current price.
+- Refined `src/lib/validation/forward-reaction-validator.ts` so forward validation now evaluates only actionable levels:
+  - supports below the live reference price
+  - resistances above the live reference price
+- Added focused coverage in `src/tests/forward-reaction-validator.test.ts`.
+- Live effect after the validation fix, without touching the level engine:
+  - `PBM/RMSG` combined surfaced resistance usefulness improved from `0.0500` to `0.1250`
+  - combined `far` usefulness improved from `0.0000` to `0.0384`
+- This clarified that part of the earlier weak resistance / far reading was a validation mismatch, not only a structural chart-reading failure.

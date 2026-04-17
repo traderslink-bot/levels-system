@@ -250,3 +250,58 @@ test("validateForwardReactions leaves untouched levels as untouched and keeps st
   assert.equal(report.byStrengthLabel.weak.evaluated, 1);
   assert.equal(report.levelResults.every((result) => result.outcome === "untouched"), true);
 });
+
+test("validateForwardReactions ignores non-actionable levels on the wrong side of the live reference price", () => {
+  const output = buildOutput({
+    intradaySupport: [
+      buildValidationZone({
+        id: "S-bad",
+        symbol: "GXAI",
+        kind: "support",
+        representativePrice: 1.52,
+        zoneLow: 1.51,
+        zoneHigh: 1.53,
+      }),
+      buildValidationZone({
+        id: "S-good",
+        symbol: "GXAI",
+        kind: "support",
+        representativePrice: 1.45,
+        zoneLow: 1.44,
+        zoneHigh: 1.46,
+      }),
+    ],
+    intradayResistance: [
+      buildValidationZone({
+        id: "R-bad",
+        symbol: "GXAI",
+        kind: "resistance",
+        representativePrice: 1.40,
+        zoneLow: 1.39,
+        zoneHigh: 1.41,
+      }),
+      buildValidationZone({
+        id: "R-good",
+        symbol: "GXAI",
+        kind: "resistance",
+        representativePrice: 1.62,
+        zoneLow: 1.61,
+        zoneHigh: 1.63,
+      }),
+    ],
+  });
+  const futureCandles = [
+    candle(1, 1.47, 1.48, 1.44, 1.46),
+    candle(2, 1.60, 1.62, 1.59, 1.61),
+  ];
+
+  const report = validateForwardReactions({ output, futureCandles });
+
+  assert.equal(report.totalLevelsEvaluated, 2);
+  assert.deepEqual(
+    report.levelResults.map((result) => result.zoneId).sort(),
+    ["R-good", "S-good"],
+  );
+  assert.equal(report.byKindSource.surfacedSupport.evaluated, 1);
+  assert.equal(report.byKindSource.surfacedResistance.evaluated, 1);
+});

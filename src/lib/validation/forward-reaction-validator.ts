@@ -113,11 +113,31 @@ function resolutionLookaheadBars(options: ForwardReactionValidatorOptions): numb
   return options.resolutionLookaheadBars ?? DEFAULT_RESOLUTION_LOOKAHEAD_BARS;
 }
 
-function buildEvaluationLevels(output: LevelEngineOutput): Array<{
+function isActionableEvaluationZone(
+  zone: FinalLevelZone,
+  referencePrice: number | undefined,
+  options: ForwardReactionValidatorOptions,
+): boolean {
+  if (!(referencePrice && referencePrice > 0)) {
+    return true;
+  }
+
+  const tolerance = touchTolerance(zone.representativePrice, options);
+  if (zone.kind === "support") {
+    return zone.representativePrice < referencePrice - tolerance;
+  }
+
+  return zone.representativePrice > referencePrice + tolerance;
+}
+
+function buildEvaluationLevels(
+  output: LevelEngineOutput,
+  options: ForwardReactionValidatorOptions,
+): Array<{
   zone: FinalLevelZone;
   source: "surfaced" | "extension";
 }> {
-  return [
+  const evaluationLevels = [
     ...output.majorSupport.map((zone) => ({ zone, source: "surfaced" as const })),
     ...output.intermediateSupport.map((zone) => ({ zone, source: "surfaced" as const })),
     ...output.intradaySupport.map((zone) => ({ zone, source: "surfaced" as const })),
@@ -127,6 +147,10 @@ function buildEvaluationLevels(output: LevelEngineOutput): Array<{
     ...output.extensionLevels.support.map((zone) => ({ zone, source: "extension" as const })),
     ...output.extensionLevels.resistance.map((zone) => ({ zone, source: "extension" as const })),
   ];
+
+  return evaluationLevels.filter(({ zone }) =>
+    isActionableEvaluationZone(zone, output.metadata.referencePrice, options),
+  );
 }
 
 function touchMatches(zone: FinalLevelZone, candle: Candle, tolerance: number): boolean {
@@ -374,7 +398,7 @@ export function validateForwardReactions(
   options: ForwardReactionValidatorOptions = {},
 ): ForwardReactionValidationReport {
   const referencePrice = params.output.metadata.referencePrice;
-  const levelResults = buildEvaluationLevels(params.output).map(({ zone, source }) =>
+  const levelResults = buildEvaluationLevels(params.output, options).map(({ zone, source }) =>
     evaluateLevelForwardReaction({
       zone,
       source,

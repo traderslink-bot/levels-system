@@ -511,4 +511,6 @@ Evidence-first reminder for future structural passes:
 - when a live bucket dump shows surfaced resistance already extending far beyond trader-usable planning range, check whether the extension frontier should be anchored to the practical surfaced boundary instead of the absolute farthest surfaced level
 - after any extension-frontier fix, rerun both live validation and exact snapshot output during market hours to verify that surfaced resistance did not keep overly far levels that should have stayed out of the trader-facing ladder
 - if live validation stays stable but exact snapshots still show surfaced resistance far beyond the `50%` trader planning range, inspect `level-ranker.ts` before touching scoring or clustering again
+- before trusting weak support/resistance usefulness metrics, confirm the validator is only grading actionable levels on the correct side of the live reference price
+- if the snapshot path filters a level out relative to current price, the forward validator should not still count it as a surfaced or extension failure
 - do not mix a broad validation expansion and a broad level-engine tuning pass in the same change unless there is no smaller path
