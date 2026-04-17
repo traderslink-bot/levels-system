@@ -22,8 +22,10 @@ export type ForwardReactionDistanceBand = "near" | "intermediate" | "far";
 
 export type ForwardReactionSummary = {
   evaluated: number;
+  touched: number;
   touchRate: number;
   usefulnessRate: number;
+  usefulWhenTouchedRate: number;
   respectRate: number;
   partialRespectRate: number;
   breakRate: number;
@@ -58,6 +60,8 @@ export type ForwardReactionValidationReport = {
   extensionTouchRate: number;
   surfacedUsefulnessRate: number;
   extensionUsefulnessRate: number;
+  surfacedUsefulWhenTouchedRate: number;
+  extensionUsefulWhenTouchedRate: number;
   surfacedRespectRate: number;
   extensionRespectRate: number;
   surfacedPartialRespectRate: number;
@@ -211,10 +215,15 @@ function distanceBand(
 }
 
 function summarize(results: ForwardReactionLevelResult[]): ForwardReactionSummary {
+  const touched = results.filter((result) => result.touched).length;
+  const useful = results.filter((result) => result.useful).length;
+
   return {
     evaluated: results.length,
-    touchRate: rate(results.filter((result) => result.touched).length, results.length),
-    usefulnessRate: rate(results.filter((result) => result.useful).length, results.length),
+    touched,
+    touchRate: rate(touched, results.length),
+    usefulnessRate: rate(useful, results.length),
+    usefulWhenTouchedRate: rate(useful, touched),
     respectRate: rate(results.filter((result) => result.respected).length, results.length),
     partialRespectRate: rate(
       results.filter((result) => result.partialRespected).length,
@@ -411,21 +420,25 @@ export function validateForwardReactions(
   const surfacedResults = levelResults.filter((result) => result.source === "surfaced");
   const extensionResults = levelResults.filter((result) => result.source === "extension");
   const strengthLabels: FinalLevelZone["strengthLabel"][] = ["weak", "moderate", "strong", "major"];
+  const surfacedSummary = summarize(surfacedResults);
+  const extensionSummary = summarize(extensionResults);
 
   return {
     totalLevelsEvaluated: levelResults.length,
     surfacedLevelsEvaluated: surfacedResults.length,
     extensionLevelsEvaluated: extensionResults.length,
-    surfacedTouchRate: summarize(surfacedResults).touchRate,
-    extensionTouchRate: summarize(extensionResults).touchRate,
-    surfacedUsefulnessRate: summarize(surfacedResults).usefulnessRate,
-    extensionUsefulnessRate: summarize(extensionResults).usefulnessRate,
-    surfacedRespectRate: summarize(surfacedResults).respectRate,
-    extensionRespectRate: summarize(extensionResults).respectRate,
-    surfacedPartialRespectRate: summarize(surfacedResults).partialRespectRate,
-    extensionPartialRespectRate: summarize(extensionResults).partialRespectRate,
-    surfacedBreakRate: summarize(surfacedResults).breakRate,
-    extensionBreakRate: summarize(extensionResults).breakRate,
+    surfacedTouchRate: surfacedSummary.touchRate,
+    extensionTouchRate: extensionSummary.touchRate,
+    surfacedUsefulnessRate: surfacedSummary.usefulnessRate,
+    extensionUsefulnessRate: extensionSummary.usefulnessRate,
+    surfacedUsefulWhenTouchedRate: surfacedSummary.usefulWhenTouchedRate,
+    extensionUsefulWhenTouchedRate: extensionSummary.usefulWhenTouchedRate,
+    surfacedRespectRate: surfacedSummary.respectRate,
+    extensionRespectRate: extensionSummary.respectRate,
+    surfacedPartialRespectRate: surfacedSummary.partialRespectRate,
+    extensionPartialRespectRate: extensionSummary.partialRespectRate,
+    surfacedBreakRate: surfacedSummary.breakRate,
+    extensionBreakRate: extensionSummary.breakRate,
     byKindSource: {
       surfacedSupport: summarize(
         levelResults.filter((result) => result.source === "surfaced" && result.kind === "support"),
@@ -460,10 +473,12 @@ export function formatForwardReactionReport(
 ): string[] {
   const lines = [
     `[LevelValidation] Levels evaluated: ${report.totalLevelsEvaluated} | surfaced=${report.surfacedLevelsEvaluated} | extension=${report.extensionLevelsEvaluated}`,
-    `[LevelValidation] Surfaced forward outcome | touch=${report.surfacedTouchRate.toFixed(4)} | useful=${report.surfacedUsefulnessRate.toFixed(4)} | respect=${report.surfacedRespectRate.toFixed(4)} | partial=${report.surfacedPartialRespectRate.toFixed(4)} | break=${report.surfacedBreakRate.toFixed(4)}`,
-    `[LevelValidation] Extension forward outcome | touch=${report.extensionTouchRate.toFixed(4)} | useful=${report.extensionUsefulnessRate.toFixed(4)} | respect=${report.extensionRespectRate.toFixed(4)} | partial=${report.extensionPartialRespectRate.toFixed(4)} | break=${report.extensionBreakRate.toFixed(4)}`,
+    `[LevelValidation] Surfaced forward outcome | touch=${report.surfacedTouchRate.toFixed(4)} | useful=${report.surfacedUsefulnessRate.toFixed(4)} | usefulWhenTouched=${report.surfacedUsefulWhenTouchedRate.toFixed(4)} | respect=${report.surfacedRespectRate.toFixed(4)} | partial=${report.surfacedPartialRespectRate.toFixed(4)} | break=${report.surfacedBreakRate.toFixed(4)}`,
+    `[LevelValidation] Extension forward outcome | touch=${report.extensionTouchRate.toFixed(4)} | useful=${report.extensionUsefulnessRate.toFixed(4)} | usefulWhenTouched=${report.extensionUsefulWhenTouchedRate.toFixed(4)} | respect=${report.extensionRespectRate.toFixed(4)} | partial=${report.extensionPartialRespectRate.toFixed(4)} | break=${report.extensionBreakRate.toFixed(4)}`,
     `[LevelValidation] By side/source | surfacedSupport=${report.byKindSource.surfacedSupport.usefulnessRate.toFixed(4)} | surfacedResistance=${report.byKindSource.surfacedResistance.usefulnessRate.toFixed(4)} | extensionSupport=${report.byKindSource.extensionSupport.usefulnessRate.toFixed(4)} | extensionResistance=${report.byKindSource.extensionResistance.usefulnessRate.toFixed(4)}`,
     `[LevelValidation] By distance band | near=${report.byDistanceBand.near.usefulnessRate.toFixed(4)} | intermediate=${report.byDistanceBand.intermediate.usefulnessRate.toFixed(4)} | far=${report.byDistanceBand.far.usefulnessRate.toFixed(4)}`,
+    `[LevelValidation] Distance reachability | near=${report.byDistanceBand.near.touchRate.toFixed(4)} | intermediate=${report.byDistanceBand.intermediate.touchRate.toFixed(4)} | far=${report.byDistanceBand.far.touchRate.toFixed(4)}`,
+    `[LevelValidation] Distance useful when touched | near=${report.byDistanceBand.near.usefulWhenTouchedRate.toFixed(4)} | intermediate=${report.byDistanceBand.intermediate.usefulWhenTouchedRate.toFixed(4)} | far=${report.byDistanceBand.far.usefulWhenTouchedRate.toFixed(4)}`,
   ];
 
   for (const label of ["weak", "moderate", "strong", "major"] as const) {

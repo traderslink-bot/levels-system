@@ -488,6 +488,9 @@ What the validation output should now be used to detect:
   - full respect
   - partial respect
   - clean break
+- whether a weak far / extension result is caused by:
+  - low reachability in the forward window
+  - or poor reaction quality once touched
 - whether high persistence is honest stability or loose nearby remapping inside tolerance
 
 Interpretation reminder for future Codex work:
@@ -499,6 +502,10 @@ Interpretation reminder for future Codex work:
   - extension support usefulness
   - extension resistance usefulness
 - check the `near / intermediate / far` usefulness bands before deciding where the level engine is weakest
+- also check:
+  - distance-band `touch`
+  - distance-band `useful when touched`
+  before treating weak far / extension usefulness as an engine-quality failure
 - check loose surfaced match rates before declaring a persistence result meaningfully stable
 
 Minimum expectation for future Codex work:

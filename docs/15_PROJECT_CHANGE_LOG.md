@@ -1691,3 +1691,21 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `daily` and `4h` remain structurally required
   - `5m`-only unavailability degrades validation but does not automatically abort structurally useful runs
 - Added focused coverage in `src/tests/validation-lookback-config.test.ts`.
+
+## 2026-04-17 02:05 PM America/Toronto
+
+### Forward validation now separates reachability from reaction quality
+
+- Refined `src/lib/validation/forward-reaction-validator.ts` and `src/lib/validation/level-validation-batch.ts`.
+- Forward summaries now include:
+  - `touch` / reachability
+  - `usefulWhenTouched`
+- This keeps the original usefulness metrics but makes them more interpretable for deeper higher-timeframe overhead levels.
+- Why this matters:
+  - far or extension resistance can look weak under a short forward window simply because price never got there
+  - `usefulWhenTouched` now tells us whether a level was weak once reached, instead of collapsing "not reached" and "reached but poor" into the same read
+- Batch output now prints:
+  - surfaced and extension `useful when touched`
+  - distance-band `touch`
+  - distance-band `useful when touched`
+- Added coverage in `src/tests/level-validation-batch.test.ts`.
