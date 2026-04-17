@@ -23,10 +23,20 @@ export type LevelValidationBatchSummary = {
   failedSymbols: number;
   averageSurfacedSupportPersistenceRate: number;
   averageSurfacedResistancePersistenceRate: number;
+  averageSupportBucketPersistenceRate: {
+    daily: number;
+    "4h": number;
+    "5m": number;
+  };
   averageExtensionSupportPersistenceRate: number;
   averageExtensionResistancePersistenceRate: number;
   averageSupportLooseMatchRate: number;
   averageResistanceLooseMatchRate: number;
+  averageSupportBucketLooseMatchRate: {
+    daily: number;
+    "4h": number;
+    "5m": number;
+  };
   averageSurfacedSupportUsefulnessRate: number;
   averageSurfacedResistanceUsefulnessRate: number;
   averageExtensionSupportUsefulnessRate: number;
@@ -164,6 +174,23 @@ export function summarizeLevelValidationBatch(
     averageSurfacedResistancePersistenceRate: average(
       completed.map((result) => result.persistenceReport!.averageResistancePersistenceRate),
     ),
+    averageSupportBucketPersistenceRate: {
+      daily: average(
+        completed.map(
+          (result) => result.persistenceReport!.averageSupportBucketPersistenceRate.daily,
+        ),
+      ),
+      "4h": average(
+        completed.map(
+          (result) => result.persistenceReport!.averageSupportBucketPersistenceRate["4h"],
+        ),
+      ),
+      "5m": average(
+        completed.map(
+          (result) => result.persistenceReport!.averageSupportBucketPersistenceRate["5m"],
+        ),
+      ),
+    },
     averageExtensionSupportPersistenceRate: average(
       completed.map((result) => result.persistenceReport!.averageExtensionSupportPersistenceRate),
     ),
@@ -176,6 +203,23 @@ export function summarizeLevelValidationBatch(
     averageResistanceLooseMatchRate: average(
       completed.map((result) => result.persistenceReport!.averageResistanceLooseMatchRate),
     ),
+    averageSupportBucketLooseMatchRate: {
+      daily: average(
+        completed.map(
+          (result) => result.persistenceReport!.averageSupportBucketLooseMatchRate.daily,
+        ),
+      ),
+      "4h": average(
+        completed.map(
+          (result) => result.persistenceReport!.averageSupportBucketLooseMatchRate["4h"],
+        ),
+      ),
+      "5m": average(
+        completed.map(
+          (result) => result.persistenceReport!.averageSupportBucketLooseMatchRate["5m"],
+        ),
+      ),
+    },
     averageSurfacedSupportUsefulnessRate: average(
       completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport.usefulnessRate),
     ),
@@ -234,6 +278,7 @@ export function formatLevelValidationBatchSummary(
     `[LevelValidation] Batch summary | symbols=${summary.totalSymbols} | completed=${summary.completedSymbols} | failed=${summary.failedSymbols}`,
     `[LevelValidation] Health summary | healthy=${summary.healthySymbols} | degraded=${summary.degradedSymbols} | unavailable=${summary.unavailableSymbols}`,
     `[LevelValidation] Surfaced persistence | support=${summary.averageSurfacedSupportPersistenceRate.toFixed(4)} | resistance=${summary.averageSurfacedResistancePersistenceRate.toFixed(4)}`,
+    `[LevelValidation] Support bucket persistence | daily=${summary.averageSupportBucketPersistenceRate.daily.toFixed(4)} | 4h=${summary.averageSupportBucketPersistenceRate["4h"].toFixed(4)} | 5m=${summary.averageSupportBucketPersistenceRate["5m"].toFixed(4)}`,
     `[LevelValidation] Extension persistence | support=${summary.averageExtensionSupportPersistenceRate.toFixed(4)} | resistance=${summary.averageExtensionResistancePersistenceRate.toFixed(4)}`,
     `[LevelValidation] Surfaced usefulness | support=${summary.averageSurfacedSupportUsefulnessRate.toFixed(4)} | resistance=${summary.averageSurfacedResistanceUsefulnessRate.toFixed(4)}`,
     `[LevelValidation] Extension usefulness | support=${summary.averageExtensionSupportUsefulnessRate.toFixed(4)} | resistance=${summary.averageExtensionResistanceUsefulnessRate.toFixed(4)}`,
@@ -245,6 +290,7 @@ export function formatLevelValidationBatchSummary(
     `[LevelValidation] Distance touch | near=${summary.byDistanceBand.near.touchRate.toFixed(4)} | intermediate=${summary.byDistanceBand.intermediate.touchRate.toFixed(4)} | far=${summary.byDistanceBand.far.touchRate.toFixed(4)}`,
     `[LevelValidation] Distance useful when touched | near=${summary.byDistanceBand.near.usefulWhenTouchedRate.toFixed(4)} | intermediate=${summary.byDistanceBand.intermediate.usefulWhenTouchedRate.toFixed(4)} | far=${summary.byDistanceBand.far.usefulWhenTouchedRate.toFixed(4)}`,
     `[LevelValidation] Loose persistence matches | support=${summary.averageSupportLooseMatchRate.toFixed(4)} | resistance=${summary.averageResistanceLooseMatchRate.toFixed(4)}`,
+    `[LevelValidation] Support bucket loose matches | daily=${summary.averageSupportBucketLooseMatchRate.daily.toFixed(4)} | 4h=${summary.averageSupportBucketLooseMatchRate["4h"].toFixed(4)} | 5m=${summary.averageSupportBucketLooseMatchRate["5m"].toFixed(4)}`,
     `[LevelValidation] Weakest usefulness areas | ${summary.weakestUsefulnessAreas
       .map((entry) => `${entry.label}=${entry.usefulnessRate.toFixed(4)}(${entry.evaluated})`)
       .join(" | ")}`,
@@ -253,7 +299,7 @@ export function formatLevelValidationBatchSummary(
   for (const result of summary.symbolResults) {
     const healthStatus = symbolHealthStatus(result);
     const persistence = result.persistenceReport
-      ? `surfacedPersist=${result.persistenceReport.averageSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageResistancePersistenceRate.toFixed(4)} | extensionPersist=${result.persistenceReport.averageExtensionSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageExtensionResistancePersistenceRate.toFixed(4)} | loose=${result.persistenceReport.averageSupportLooseMatchRate.toFixed(4)}/${result.persistenceReport.averageResistanceLooseMatchRate.toFixed(4)}`
+      ? `surfacedPersist=${result.persistenceReport.averageSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageResistancePersistenceRate.toFixed(4)} | supportBuckets=${result.persistenceReport.averageSupportBucketPersistenceRate.daily.toFixed(4)}/${result.persistenceReport.averageSupportBucketPersistenceRate["4h"].toFixed(4)}/${result.persistenceReport.averageSupportBucketPersistenceRate["5m"].toFixed(4)} | extensionPersist=${result.persistenceReport.averageExtensionSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageExtensionResistancePersistenceRate.toFixed(4)} | loose=${result.persistenceReport.averageSupportLooseMatchRate.toFixed(4)}/${result.persistenceReport.averageResistanceLooseMatchRate.toFixed(4)} | supportBucketLoose=${result.persistenceReport.averageSupportBucketLooseMatchRate.daily.toFixed(4)}/${result.persistenceReport.averageSupportBucketLooseMatchRate["4h"].toFixed(4)}/${result.persistenceReport.averageSupportBucketLooseMatchRate["5m"].toFixed(4)}`
       : "persistence=unavailable";
     const forward = result.forwardReactionReport
       ? `surfacedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulnessRate.toFixed(4)} | surfacedTouchedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulWhenTouchedRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulWhenTouchedRate.toFixed(4)} | extensionUseful=${result.forwardReactionReport.byKindSource.extensionSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.extensionResistance.usefulnessRate.toFixed(4)} | bands=${result.forwardReactionReport.byDistanceBand.near.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.usefulnessRate.toFixed(4)} | bandTouch=${result.forwardReactionReport.byDistanceBand.near.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.touchRate.toFixed(4)}`

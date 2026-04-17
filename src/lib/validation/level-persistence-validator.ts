@@ -1,5 +1,7 @@
 import type { FinalLevelZone, LevelEngineOutput } from "../levels/level-types.js";
 
+export type SurfacedLevelBucket = "daily" | "4h" | "5m";
+
 export type LevelPersistenceValidatorOptions = {
   priceTolerancePct?: number;
   priceToleranceAbsolute?: number;
@@ -11,12 +13,14 @@ export type LevelPersistenceRunSummary = {
   toGeneratedAt: number;
   supportPersistenceRate: number;
   resistancePersistenceRate: number;
+  supportBucketPersistenceRate: Record<SurfacedLevelBucket, number>;
   extensionSupportPersistenceRate: number;
   extensionResistancePersistenceRate: number;
   surfacedSupportChurnRate: number;
   surfacedResistanceChurnRate: number;
   supportLooseMatchRate: number;
   resistanceLooseMatchRate: number;
+  supportBucketLooseMatchRate: Record<SurfacedLevelBucket, number>;
   averageMatchedDriftPct: number;
 };
 
@@ -24,12 +28,14 @@ export type LevelPersistenceValidationReport = {
   totalRunsCompared: number;
   averageSupportPersistenceRate: number;
   averageResistancePersistenceRate: number;
+  averageSupportBucketPersistenceRate: Record<SurfacedLevelBucket, number>;
   averageExtensionSupportPersistenceRate: number;
   averageExtensionResistancePersistenceRate: number;
   averageSurfacedSupportChurnRate: number;
   averageSurfacedResistanceChurnRate: number;
   averageSupportLooseMatchRate: number;
   averageResistanceLooseMatchRate: number;
+  averageSupportBucketLooseMatchRate: Record<SurfacedLevelBucket, number>;
   averageMatchedDriftPct: number;
   runSummaries: LevelPersistenceRunSummary[];
 };
@@ -52,6 +58,21 @@ function surfacedSupportZones(output: LevelEngineOutput): FinalLevelZone[] {
 
 function surfacedResistanceZones(output: LevelEngineOutput): FinalLevelZone[] {
   return [...output.majorResistance, ...output.intermediateResistance, ...output.intradayResistance];
+}
+
+function surfacedSupportZonesForBucket(
+  output: LevelEngineOutput,
+  bucket: SurfacedLevelBucket,
+): FinalLevelZone[] {
+  if (bucket === "daily") {
+    return output.majorSupport;
+  }
+
+  if (bucket === "4h") {
+    return output.intermediateSupport;
+  }
+
+  return output.intradaySupport;
 }
 
 function priceTolerance(price: number, options: LevelPersistenceValidatorOptions): number {
@@ -131,6 +152,14 @@ function looseMatchRate(matchedCount: number, looseMatchCount: number): number {
   return Number((looseMatchCount / matchedCount).toFixed(4));
 }
 
+function emptyBucketRates(): Record<SurfacedLevelBucket, number> {
+  return {
+    daily: 0,
+    "4h": 0,
+    "5m": 0,
+  };
+}
+
 export function validateLevelPersistence(
   outputs: LevelEngineOutput[],
   options: LevelPersistenceValidatorOptions = {},
@@ -140,12 +169,14 @@ export function validateLevelPersistence(
       totalRunsCompared: 0,
       averageSupportPersistenceRate: 0,
       averageResistancePersistenceRate: 0,
+      averageSupportBucketPersistenceRate: emptyBucketRates(),
       averageExtensionSupportPersistenceRate: 0,
       averageExtensionResistancePersistenceRate: 0,
       averageSurfacedSupportChurnRate: 0,
       averageSurfacedResistanceChurnRate: 0,
       averageSupportLooseMatchRate: 0,
       averageResistanceLooseMatchRate: 0,
+      averageSupportBucketLooseMatchRate: emptyBucketRates(),
       averageMatchedDriftPct: 0,
       runSummaries: [],
     };
@@ -165,6 +196,26 @@ export function validateLevelPersistence(
     const currentExtensionSupport = current.extensionLevels.support;
     const previousExtensionResistance = previous.extensionLevels.resistance;
     const currentExtensionResistance = current.extensionLevels.resistance;
+    const supportBucketMatches = {
+      daily: matchZones(
+        surfacedSupportZonesForBucket(previous, "daily"),
+        surfacedSupportZonesForBucket(current, "daily"),
+        "support",
+        options,
+      ),
+      "4h": matchZones(
+        surfacedSupportZonesForBucket(previous, "4h"),
+        surfacedSupportZonesForBucket(current, "4h"),
+        "support",
+        options,
+      ),
+      "5m": matchZones(
+        surfacedSupportZonesForBucket(previous, "5m"),
+        surfacedSupportZonesForBucket(current, "5m"),
+        "support",
+        options,
+      ),
+    };
 
     const supportMatches = matchZones(previousSupport, currentSupport, "support", options);
     const resistanceMatches = matchZones(previousResistance, currentResistance, "resistance", options);
@@ -200,6 +251,20 @@ export function validateLevelPersistence(
       toGeneratedAt: current.generatedAt,
       supportPersistenceRate,
       resistancePersistenceRate,
+      supportBucketPersistenceRate: {
+        daily: persistenceRate(
+          surfacedSupportZonesForBucket(previous, "daily").length,
+          supportBucketMatches.daily.matchedCount,
+        ),
+        "4h": persistenceRate(
+          surfacedSupportZonesForBucket(previous, "4h").length,
+          supportBucketMatches["4h"].matchedCount,
+        ),
+        "5m": persistenceRate(
+          surfacedSupportZonesForBucket(previous, "5m").length,
+          supportBucketMatches["5m"].matchedCount,
+        ),
+      },
       extensionSupportPersistenceRate,
       extensionResistancePersistenceRate,
       surfacedSupportChurnRate: Number((1 - supportPersistenceRate).toFixed(4)),
@@ -212,6 +277,20 @@ export function validateLevelPersistence(
         resistanceMatches.matchedCount,
         resistanceMatches.looseMatchCount,
       ),
+      supportBucketLooseMatchRate: {
+        daily: looseMatchRate(
+          supportBucketMatches.daily.matchedCount,
+          supportBucketMatches.daily.looseMatchCount,
+        ),
+        "4h": looseMatchRate(
+          supportBucketMatches["4h"].matchedCount,
+          supportBucketMatches["4h"].looseMatchCount,
+        ),
+        "5m": looseMatchRate(
+          supportBucketMatches["5m"].matchedCount,
+          supportBucketMatches["5m"].looseMatchCount,
+        ),
+      },
       averageMatchedDriftPct: average([
         ...supportMatches.driftPcts,
         ...resistanceMatches.driftPcts,
@@ -227,6 +306,11 @@ export function validateLevelPersistence(
     averageResistancePersistenceRate: average(
       runSummaries.map((summary) => summary.resistancePersistenceRate),
     ),
+    averageSupportBucketPersistenceRate: {
+      daily: average(runSummaries.map((summary) => summary.supportBucketPersistenceRate.daily)),
+      "4h": average(runSummaries.map((summary) => summary.supportBucketPersistenceRate["4h"])),
+      "5m": average(runSummaries.map((summary) => summary.supportBucketPersistenceRate["5m"])),
+    },
     averageExtensionSupportPersistenceRate: average(
       runSummaries.map((summary) => summary.extensionSupportPersistenceRate),
     ),
@@ -245,6 +329,11 @@ export function validateLevelPersistence(
     averageResistanceLooseMatchRate: average(
       runSummaries.map((summary) => summary.resistanceLooseMatchRate),
     ),
+    averageSupportBucketLooseMatchRate: {
+      daily: average(runSummaries.map((summary) => summary.supportBucketLooseMatchRate.daily)),
+      "4h": average(runSummaries.map((summary) => summary.supportBucketLooseMatchRate["4h"])),
+      "5m": average(runSummaries.map((summary) => summary.supportBucketLooseMatchRate["5m"])),
+    },
     averageMatchedDriftPct: average(runSummaries.map((summary) => summary.averageMatchedDriftPct)),
     runSummaries,
   };
@@ -256,9 +345,11 @@ export function formatLevelPersistenceReport(
   const lines = [
     `[LevelValidation] Runs compared: ${report.totalRunsCompared}`,
     `[LevelValidation] Surfaced persistence | support=${report.averageSupportPersistenceRate.toFixed(4)} | resistance=${report.averageResistancePersistenceRate.toFixed(4)}`,
+    `[LevelValidation] Support bucket persistence | daily=${report.averageSupportBucketPersistenceRate.daily.toFixed(4)} | 4h=${report.averageSupportBucketPersistenceRate["4h"].toFixed(4)} | 5m=${report.averageSupportBucketPersistenceRate["5m"].toFixed(4)}`,
     `[LevelValidation] Extension persistence | support=${report.averageExtensionSupportPersistenceRate.toFixed(4)} | resistance=${report.averageExtensionResistancePersistenceRate.toFixed(4)}`,
     `[LevelValidation] Surfaced churn | support=${report.averageSurfacedSupportChurnRate.toFixed(4)} | resistance=${report.averageSurfacedResistanceChurnRate.toFixed(4)}`,
     `[LevelValidation] Loose surfaced matches | support=${report.averageSupportLooseMatchRate.toFixed(4)} | resistance=${report.averageResistanceLooseMatchRate.toFixed(4)}`,
+    `[LevelValidation] Support bucket loose matches | daily=${report.averageSupportBucketLooseMatchRate.daily.toFixed(4)} | 4h=${report.averageSupportBucketLooseMatchRate["4h"].toFixed(4)} | 5m=${report.averageSupportBucketLooseMatchRate["5m"].toFixed(4)}`,
     `[LevelValidation] Average matched drift pct: ${report.averageMatchedDriftPct.toFixed(4)}`,
   ];
 
@@ -267,12 +358,18 @@ export function formatLevelPersistenceReport(
       [
         `[LevelValidation] Window ${summary.fromGeneratedAt} -> ${summary.toGeneratedAt}`,
         `surfacedSupport=${summary.supportPersistenceRate.toFixed(4)}`,
+        `supportDaily=${summary.supportBucketPersistenceRate.daily.toFixed(4)}`,
+        `support4h=${summary.supportBucketPersistenceRate["4h"].toFixed(4)}`,
+        `support5m=${summary.supportBucketPersistenceRate["5m"].toFixed(4)}`,
         `surfacedResistance=${summary.resistancePersistenceRate.toFixed(4)}`,
         `extensionSupport=${summary.extensionSupportPersistenceRate.toFixed(4)}`,
         `extensionResistance=${summary.extensionResistancePersistenceRate.toFixed(4)}`,
         `supportChurn=${summary.surfacedSupportChurnRate.toFixed(4)}`,
         `resistanceChurn=${summary.surfacedResistanceChurnRate.toFixed(4)}`,
         `supportLoose=${summary.supportLooseMatchRate.toFixed(4)}`,
+        `supportLooseDaily=${summary.supportBucketLooseMatchRate.daily.toFixed(4)}`,
+        `supportLoose4h=${summary.supportBucketLooseMatchRate["4h"].toFixed(4)}`,
+        `supportLoose5m=${summary.supportBucketLooseMatchRate["5m"].toFixed(4)}`,
         `resistanceLoose=${summary.resistanceLooseMatchRate.toFixed(4)}`,
         `avgDrift=${summary.averageMatchedDriftPct.toFixed(4)}`,
       ].join(" | "),

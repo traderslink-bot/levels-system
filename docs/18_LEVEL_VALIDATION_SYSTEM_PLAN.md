@@ -506,6 +506,10 @@ Interpretation reminder for future Codex work:
   - distance-band `touch`
   - distance-band `useful when touched`
   before treating weak far / extension usefulness as an engine-quality failure
+- when support persistence looks weak, also check:
+  - `Support bucket persistence`
+  - `Support bucket loose matches`
+  before treating support instability as a broad higher-timeframe problem
 - check loose surfaced match rates before declaring a persistence result meaningfully stable
 
 Minimum expectation for future Codex work:

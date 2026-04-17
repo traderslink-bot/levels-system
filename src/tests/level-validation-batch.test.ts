@@ -37,12 +37,22 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
         totalRunsCompared: 2,
         averageSupportPersistenceRate: 0.8,
         averageResistancePersistenceRate: 0.9,
+        averageSupportBucketPersistenceRate: {
+          daily: 1,
+          "4h": 0.75,
+          "5m": 0.5,
+        },
         averageExtensionSupportPersistenceRate: 0.7,
         averageExtensionResistancePersistenceRate: 0.75,
         averageSurfacedSupportChurnRate: 0.2,
         averageSurfacedResistanceChurnRate: 0.1,
         averageSupportLooseMatchRate: 0.1,
         averageResistanceLooseMatchRate: 0.2,
+        averageSupportBucketLooseMatchRate: {
+          daily: 0,
+          "4h": 0.1,
+          "5m": 0.25,
+        },
         averageMatchedDriftPct: 0.01,
         runSummaries: [],
       },
@@ -93,12 +103,22 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
         totalRunsCompared: 2,
         averageSupportPersistenceRate: 0.7,
         averageResistancePersistenceRate: 0.6,
+        averageSupportBucketPersistenceRate: {
+          daily: 0.9,
+          "4h": 0.7,
+          "5m": 0.4,
+        },
         averageExtensionSupportPersistenceRate: 0.5,
         averageExtensionResistancePersistenceRate: 0.4,
         averageSurfacedSupportChurnRate: 0.3,
         averageSurfacedResistanceChurnRate: 0.4,
         averageSupportLooseMatchRate: 0.2,
         averageResistanceLooseMatchRate: 0.4,
+        averageSupportBucketLooseMatchRate: {
+          daily: 0,
+          "4h": 0.2,
+          "5m": 0.5,
+        },
         averageMatchedDriftPct: 0.02,
         runSummaries: [],
       },
@@ -157,10 +177,16 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
   assert.equal(summary.failedSymbols, 1);
   assert.equal(summary.averageSurfacedSupportPersistenceRate, 0.75);
   assert.equal(summary.averageSurfacedResistancePersistenceRate, 0.75);
+  assert.equal(summary.averageSupportBucketPersistenceRate.daily, 0.95);
+  assert.equal(summary.averageSupportBucketPersistenceRate["4h"], 0.725);
+  assert.equal(summary.averageSupportBucketPersistenceRate["5m"], 0.45);
   assert.equal(summary.averageExtensionSupportPersistenceRate, 0.6);
   assert.equal(summary.averageExtensionResistancePersistenceRate, 0.575);
   assert.equal(summary.averageSupportLooseMatchRate, 0.15);
   assert.equal(summary.averageResistanceLooseMatchRate, 0.3);
+  assert.equal(summary.averageSupportBucketLooseMatchRate.daily, 0);
+  assert.equal(summary.averageSupportBucketLooseMatchRate["4h"], 0.15);
+  assert.equal(summary.averageSupportBucketLooseMatchRate["5m"], 0.375);
   assert.equal(summary.averageSurfacedSupportUsefulnessRate, 0.5);
   assert.equal(summary.averageSurfacedResistanceUsefulnessRate, 0.175);
   assert.equal(summary.averageExtensionResistanceUsefulnessRate, 0.1);
@@ -186,12 +212,22 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
           totalRunsCompared: 1,
           averageSupportPersistenceRate: 1,
           averageResistancePersistenceRate: 0.9,
+          averageSupportBucketPersistenceRate: {
+            daily: 1,
+            "4h": 0.75,
+            "5m": 0.5,
+          },
           averageExtensionSupportPersistenceRate: 1,
           averageExtensionResistancePersistenceRate: 0.8,
           averageSurfacedSupportChurnRate: 0,
           averageSurfacedResistanceChurnRate: 0.1,
           averageSupportLooseMatchRate: 0.1,
           averageResistanceLooseMatchRate: 0.2,
+          averageSupportBucketLooseMatchRate: {
+            daily: 0,
+            "4h": 0.1,
+            "5m": 0.25,
+          },
           averageMatchedDriftPct: 0.01,
           runSummaries: [],
         },
@@ -237,32 +273,40 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
   assert.equal(lines[0], "[LevelValidation] Batch summary | symbols=1 | completed=1 | failed=0");
   assert.equal(lines[1], "[LevelValidation] Health summary | healthy=1 | degraded=0 | unavailable=0");
   assert.equal(
-    lines[4],
+    lines[3],
+    "[LevelValidation] Support bucket persistence | daily=1.0000 | 4h=0.7500 | 5m=0.5000",
+  );
+  assert.equal(
+    lines[5],
     "[LevelValidation] Surfaced usefulness | support=1.0000 | resistance=0.2500",
   );
   assert.equal(
-    lines[8],
+    lines[9],
     "[LevelValidation] Surfaced respect | support=1.0000 | resistance=0.1000",
   );
   assert.equal(
-    lines[10],
+    lines[11],
     "[LevelValidation] Distance usefulness | near=0.5000 | intermediate=0.5000 | far=0.0000",
   );
   assert.equal(
-    lines[11],
+    lines[12],
     "[LevelValidation] Distance touch | near=0.5000 | intermediate=1.0000 | far=0.0000",
   );
   assert.equal(
-    lines[12],
+    lines[13],
     "[LevelValidation] Distance useful when touched | near=1.0000 | intermediate=0.5000 | far=0.0000",
   );
   assert.equal(
-    lines[14],
+    lines[15],
+    "[LevelValidation] Support bucket loose matches | daily=0.0000 | 4h=0.1000 | 5m=0.2500",
+  );
+  assert.equal(
+    lines[16],
     "[LevelValidation] Weakest usefulness areas | far=0.0000(1) | surfacedResistance=0.2500(2) | extensionResistance=0.3000(1)",
   );
   assert.equal(
-    lines[15],
-    "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | surfacedUseful=1.0000/0.2500 | surfacedTouchedUseful=1.0000/0.5000 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000 | bandTouch=0.5000/1.0000/0.0000",
+    lines[17],
+    "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | supportBuckets=1.0000/0.7500/0.5000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | supportBucketLoose=0.0000/0.1000/0.2500 | surfacedUseful=1.0000/0.2500 | surfacedTouchedUseful=1.0000/0.5000 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000 | bandTouch=0.5000/1.0000/0.0000",
   );
 });
 

@@ -77,6 +77,7 @@ test("validateLevelPersistence reports strong persistence when nearby refreshed 
 
   assert.equal(report.totalRunsCompared, 1);
   assert.equal(report.averageResistancePersistenceRate, 1);
+  assert.equal(report.averageSupportBucketPersistenceRate["5m"], 1);
   assert.equal(report.averageExtensionResistancePersistenceRate, 1);
   assert.equal(report.averageResistanceLooseMatchRate, 0);
   assert.ok(report.averageMatchedDriftPct > 0);
@@ -103,18 +104,32 @@ test("validateLevelPersistence exposes loose persistence when matches survive on
   });
 
   assert.equal(report.averageResistancePersistenceRate, 1);
+  assert.equal(report.averageSupportBucketLooseMatchRate["5m"], 0);
   assert.equal(report.averageResistanceLooseMatchRate, 1);
 });
 
 test("validateLevelPersistence reports churn when surfaced levels rotate to different structure", () => {
   const outputs = [
     buildOutput(1, {
+      intradaySupport: [
+        buildValidationZone({ id: "S1", symbol: "GXAI", kind: "support", representativePrice: 1.33 }),
+      ],
       intradayResistance: [
         buildValidationZone({ id: "R1", symbol: "GXAI", kind: "resistance", representativePrice: 1.49 }),
         buildValidationZone({ id: "R2", symbol: "GXAI", kind: "resistance", representativePrice: 1.58 }),
       ],
     }),
     buildOutput(2, {
+      majorSupport: [
+        buildValidationZone({
+          id: "S2",
+          symbol: "GXAI",
+          kind: "support",
+          representativePrice: 1.12,
+          timeframeBias: "daily",
+          timeframeSources: ["daily"],
+        }),
+      ],
       intradayResistance: [
         buildValidationZone({ id: "R3", symbol: "GXAI", kind: "resistance", representativePrice: 1.74 }),
       ],
@@ -124,6 +139,7 @@ test("validateLevelPersistence reports churn when surfaced levels rotate to diff
   const report = validateLevelPersistence(outputs);
 
   assert.equal(report.totalRunsCompared, 1);
+  assert.equal(report.averageSupportBucketPersistenceRate["5m"], 0);
   assert.equal(report.averageResistancePersistenceRate, 0);
   assert.equal(report.averageSurfacedResistanceChurnRate, 1);
 });
@@ -139,6 +155,8 @@ test("validateLevelPersistence returns an empty report when fewer than two outpu
 
   assert.equal(report.totalRunsCompared, 0);
   assert.equal(report.averageSupportPersistenceRate, 0);
+  assert.equal(report.averageSupportBucketPersistenceRate.daily, 0);
+  assert.equal(report.averageSupportBucketLooseMatchRate["5m"], 0);
   assert.equal(report.averageSupportLooseMatchRate, 0);
   assert.equal(report.runSummaries.length, 0);
 });

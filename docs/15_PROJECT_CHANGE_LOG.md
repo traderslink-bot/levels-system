@@ -1709,3 +1709,25 @@ This document tracks concrete implementation changes made to the `levels-system`
   - distance-band `touch`
   - distance-band `useful when touched`
 - Added coverage in `src/tests/level-validation-batch.test.ts`.
+
+## 2026-04-17 04:55 PM America/Toronto
+
+### Surfaced support persistence now exposes `daily / 4h / 5m` bucket splits
+
+- Refined `src/lib/validation/level-persistence-validator.ts` and `src/lib/validation/level-validation-batch.ts`.
+- Persistence output now prints:
+  - `Support bucket persistence | daily / 4h / 5m`
+  - `Support bucket loose matches | daily / 4h / 5m`
+- Batch output now carries the same support-bucket split into:
+  - summary lines
+  - per-symbol lines
+- Why this matters:
+  - the next structural question is whether support instability is broad or mostly intraday
+  - this bucket split now lets future live passes say that directly instead of inferring it from one blended support-persistence number
+- Live read from the first support-focused pass:
+  - `FAMI` support buckets were stable across `daily / 4h / 5m`
+  - `EFOI` support weakness was concentrated in `5m`
+  - that points more toward intraday support instability than higher-timeframe support weakness
+- Added focused coverage in:
+  - `src/tests/level-persistence-validator.test.ts`
+  - `src/tests/level-validation-batch.test.ts`
