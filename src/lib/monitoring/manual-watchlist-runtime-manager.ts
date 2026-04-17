@@ -1,12 +1,18 @@
 import { CandleFetchService } from "../market-data/candle-fetch-service.js";
 import { LevelEngine } from "../levels/level-engine.js";
+import type { FinalLevelZone } from "../levels/level-types.js";
 import { decideLevelRefresh } from "../levels/level-refresh-policy.js";
 import { AlertIntelligenceEngine } from "../alerts/alert-intelligence-engine.js";
 import {
   formatIntelligentAlertAsPayload,
   type DiscordAlertRouter,
 } from "../alerts/alert-router.js";
-import type { LevelExtensionPayload, LevelExtensionSide, LevelSnapshotPayload } from "../alerts/alert-types.js";
+import type {
+  LevelExtensionPayload,
+  LevelExtensionSide,
+  LevelSnapshotDisplayZone,
+  LevelSnapshotPayload,
+} from "../alerts/alert-types.js";
 import { LevelStore } from "./level-store.js";
 import type { LivePriceUpdate, MonitoringEvent, WatchlistEntry } from "./monitoring-types.js";
 import { buildOpportunityDiagnosticsLogEntry } from "./opportunity-diagnostics.js";
@@ -39,6 +45,7 @@ type ActiveLevelSnapshotState = {
   lastSnapshot: string;
   highestResistance: number | null;
   lowestSupport: number | null;
+  referencePrice: number | null;
   lastRefreshTriggerResistance: number | null;
   lastRefreshTriggerSupport: number | null;
   lastRefreshTimestamp: number | null;
@@ -48,11 +55,144 @@ type ActiveLevelSnapshotState = {
 
 const LEVEL_REFRESH_THRESHOLD_PCT = 0.01;
 const LEVEL_REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
+const SNAPSHOT_PRICE_TOLERANCE_PCT = 0.001;
+const SNAPSHOT_PRICE_TOLERANCE_ABSOLUTE = 0.001;
+const SNAPSHOT_DISPLAY_COMPACTION_PCT = 0.0075;
+const SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE = 0.01;
+const SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 0.5;
 
 function uniqueSortedLevels(levels: number[], direction: "asc" | "desc"): number[] {
   const unique = [...new Set(levels.filter((level) => Number.isFinite(level) && level > 0))];
   unique.sort((a, b) => (direction === "asc" ? a - b : b - a));
   return unique;
+}
+
+function snapshotPriceTolerance(price: number): number {
+  return Math.max(price * SNAPSHOT_PRICE_TOLERANCE_PCT, SNAPSHOT_PRICE_TOLERANCE_ABSOLUTE);
+}
+
+function snapshotDisplayCompactionTolerance(price: number): number {
+  return Math.max(price * SNAPSHOT_DISPLAY_COMPACTION_PCT, SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE);
+}
+
+function formatSnapshotLevel(level: number): string {
+  return level >= 1 ? level.toFixed(2) : level.toFixed(4);
+}
+
+function freshnessRank(freshness: FinalLevelZone["freshness"]): number {
+  switch (freshness) {
+    case "fresh":
+      return 2;
+    case "aging":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function timeframeRank(timeframeBias: FinalLevelZone["timeframeBias"]): number {
+  switch (timeframeBias) {
+    case "mixed":
+      return 3;
+    case "daily":
+      return 2;
+    case "4h":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function isBetterSnapshotRepresentative(
+  challenger: FinalLevelZone,
+  incumbent: FinalLevelZone,
+  currentPrice: number,
+  side: "support" | "resistance",
+): boolean {
+  if (challenger.strengthScore !== incumbent.strengthScore) {
+    return challenger.strengthScore > incumbent.strengthScore;
+  }
+
+  if (challenger.confluenceCount !== incumbent.confluenceCount) {
+    return challenger.confluenceCount > incumbent.confluenceCount;
+  }
+
+  if (challenger.sourceEvidenceCount !== incumbent.sourceEvidenceCount) {
+    return challenger.sourceEvidenceCount > incumbent.sourceEvidenceCount;
+  }
+
+  if (timeframeRank(challenger.timeframeBias) !== timeframeRank(incumbent.timeframeBias)) {
+    return timeframeRank(challenger.timeframeBias) > timeframeRank(incumbent.timeframeBias);
+  }
+
+  if (freshnessRank(challenger.freshness) !== freshnessRank(incumbent.freshness)) {
+    return freshnessRank(challenger.freshness) > freshnessRank(incumbent.freshness);
+  }
+
+  const challengerDistance = Math.abs(challenger.representativePrice - currentPrice);
+  const incumbentDistance = Math.abs(incumbent.representativePrice - currentPrice);
+  if (challengerDistance !== incumbentDistance) {
+    return challengerDistance < incumbentDistance;
+  }
+
+  return side === "support"
+    ? challenger.representativePrice > incumbent.representativePrice
+    : challenger.representativePrice < incumbent.representativePrice;
+}
+
+function sortSnapshotZones(
+  zones: FinalLevelZone[],
+  side: "support" | "resistance",
+): FinalLevelZone[] {
+  return [...zones].sort((left, right) =>
+    side === "support"
+      ? right.representativePrice - left.representativePrice
+      : left.representativePrice - right.representativePrice,
+  );
+}
+
+function compactSnapshotZones(
+  zones: FinalLevelZone[],
+  currentPrice: number,
+  side: "support" | "resistance",
+): FinalLevelZone[] {
+  const sorted = sortSnapshotZones(zones, side);
+  const compacted: FinalLevelZone[] = [];
+  const tolerance = snapshotDisplayCompactionTolerance(Math.max(currentPrice, 0.0001));
+
+  for (const zone of sorted) {
+    const last = compacted.at(-1);
+    if (!last) {
+      compacted.push(zone);
+      continue;
+    }
+
+    const sameDisplayPrice =
+      formatSnapshotLevel(last.representativePrice) === formatSnapshotLevel(zone.representativePrice);
+    const veryClose =
+      Math.abs(last.representativePrice - zone.representativePrice) <= tolerance;
+
+    if (!sameDisplayPrice && !veryClose) {
+      compacted.push(zone);
+      continue;
+    }
+
+    if (isBetterSnapshotRepresentative(zone, last, currentPrice, side)) {
+      compacted[compacted.length - 1] = zone;
+    }
+  }
+
+  return compacted;
+}
+
+function buildSnapshotDisplayZones(
+  zones: FinalLevelZone[],
+  _currentPrice: number,
+  side: "support" | "resistance",
+): LevelSnapshotDisplayZone[] {
+  return sortSnapshotZones(zones, side).map((zone) => ({
+    representativePrice: zone.representativePrice,
+  }));
 }
 
 export class ManualWatchlistRuntimeManager {
@@ -74,20 +214,55 @@ export class ManualWatchlistRuntimeManager {
     this.watchlistStatePersistence.save(this.watchlistStore.getEntries());
   }
 
-  private buildLevelSnapshotPayload(symbol: string, timestamp: number): LevelSnapshotPayload {
-    const supportLevels = uniqueSortedLevels(
-      this.options.levelStore.getSupportZones(symbol).map((zone) => zone.representativePrice),
-      "desc",
+  private buildLevelSnapshotPayload(
+    symbol: string,
+    timestamp: number,
+    referencePriceOverride?: number,
+  ): LevelSnapshotPayload {
+    const levels = this.options.levelStore.getLevels(symbol);
+    const currentPrice =
+      (typeof referencePriceOverride === "number" && Number.isFinite(referencePriceOverride)
+        ? referencePriceOverride
+        : levels?.metadata.referencePrice) ?? 0;
+    const normalizedPrice = Math.max(currentPrice, 0);
+    const tolerance = snapshotPriceTolerance(Math.max(normalizedPrice, 0.0001));
+    const levelsOutput = this.options.levelStore.getLevels(symbol);
+    const maxForwardResistancePrice =
+      normalizedPrice * (1 + SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT);
+    const surfacedSupportZones = this.options.levelStore.getSupportZones(symbol);
+    const surfacedResistanceZones = this.options.levelStore.getResistanceZones(symbol);
+    const extensionResistanceZones =
+      levelsOutput?.extensionLevels.resistance.filter(
+        (zone) =>
+          zone.representativePrice > normalizedPrice + tolerance &&
+          zone.representativePrice <= maxForwardResistancePrice,
+      ) ?? [];
+    const supportZones = compactSnapshotZones(
+      surfacedSupportZones.filter((zone) => zone.representativePrice < normalizedPrice - tolerance),
+      normalizedPrice,
+      "support",
     );
-    const resistanceLevels = uniqueSortedLevels(
-      this.options.levelStore.getResistanceZones(symbol).map((zone) => zone.representativePrice),
-      "asc",
+    const resistanceZones = compactSnapshotZones(
+      [...surfacedResistanceZones, ...extensionResistanceZones].filter(
+        (zone) =>
+          zone.representativePrice > normalizedPrice + tolerance &&
+          zone.representativePrice <= maxForwardResistancePrice,
+      ),
+      normalizedPrice,
+      "resistance",
+    );
+    const supportDisplayZones = buildSnapshotDisplayZones(supportZones, normalizedPrice, "support");
+    const resistanceDisplayZones = buildSnapshotDisplayZones(
+      resistanceZones,
+      normalizedPrice,
+      "resistance",
     );
 
     return {
       symbol,
-      supportLevels,
-      resistanceLevels,
+      currentPrice: normalizedPrice,
+      supportZones: supportDisplayZones,
+      resistanceZones: resistanceDisplayZones,
       timestamp,
     };
   }
@@ -118,20 +293,26 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
-  private async postLevelSnapshot(symbol: string, threadId: string, timestamp: number): Promise<void> {
-    const payload = this.buildLevelSnapshotPayload(symbol, timestamp);
+  private async postLevelSnapshot(
+    symbol: string,
+    threadId: string,
+    timestamp: number,
+    referencePriceOverride?: number,
+  ): Promise<void> {
+    const payload = this.buildLevelSnapshotPayload(symbol, timestamp, referencePriceOverride);
     const snapshotKey = JSON.stringify({
       symbol: payload.symbol,
-      supportLevels: payload.supportLevels,
-      resistanceLevels: payload.resistanceLevels,
+      supportZones: payload.supportZones,
+      resistanceZones: payload.resistanceZones,
     });
     const existingState = this.activeSnapshotState.get(symbol);
 
     if (existingState?.lastSnapshot === snapshotKey) {
       this.activeSnapshotState.set(symbol, {
         ...existingState,
-        highestResistance: payload.resistanceLevels[0] ?? null,
-        lowestSupport: payload.supportLevels.at(-1) ?? null,
+        highestResistance: payload.resistanceZones[0]?.representativePrice ?? null,
+        lowestSupport: payload.supportZones.at(-1)?.representativePrice ?? null,
+        referencePrice: payload.currentPrice,
       });
       this.watchlistStore.patchEntry(symbol, {
         lifecycle: "active",
@@ -144,8 +325,9 @@ export class ManualWatchlistRuntimeManager {
     await this.options.discordAlertRouter.routeLevelSnapshot(threadId, payload);
     this.activeSnapshotState.set(symbol, {
       lastSnapshot: snapshotKey,
-      highestResistance: payload.resistanceLevels[0] ?? null,
-      lowestSupport: payload.supportLevels.at(-1) ?? null,
+      highestResistance: payload.resistanceZones[0]?.representativePrice ?? null,
+      lowestSupport: payload.supportZones.at(-1)?.representativePrice ?? null,
+      referencePrice: payload.currentPrice,
       lastRefreshTriggerResistance: null,
       lastRefreshTriggerSupport: null,
       lastRefreshTimestamp: timestamp,
@@ -186,6 +368,7 @@ export class ManualWatchlistRuntimeManager {
       lastSnapshot: existingState?.lastSnapshot ?? "",
       highestResistance: existingState?.highestResistance ?? null,
       lowestSupport: existingState?.lowestSupport ?? null,
+      referencePrice: existingState?.referencePrice ?? null,
       lastRefreshTriggerResistance: existingState?.lastRefreshTriggerResistance ?? null,
       lastRefreshTriggerSupport: existingState?.lastRefreshTriggerSupport ?? null,
       lastRefreshTimestamp: existingState?.lastRefreshTimestamp ?? null,
@@ -318,7 +501,7 @@ export class ManualWatchlistRuntimeManager {
 
     if (!extensionPosted) {
       await this.seedLevelsForSymbol(symbol);
-      await this.postLevelSnapshot(symbol, entry.discordThreadId, update.timestamp);
+      await this.postLevelSnapshot(symbol, entry.discordThreadId, update.timestamp, update.lastPrice);
       extensionPosted = await this.postLevelExtension(
         symbol,
         entry.discordThreadId,
@@ -332,6 +515,7 @@ export class ManualWatchlistRuntimeManager {
       lastSnapshot: refreshedState?.lastSnapshot ?? snapshotState.lastSnapshot,
       highestResistance: refreshedState?.highestResistance ?? snapshotState.highestResistance,
       lowestSupport: refreshedState?.lowestSupport ?? snapshotState.lowestSupport,
+      referencePrice: refreshedState?.referencePrice ?? snapshotState.referencePrice,
       lastRefreshTriggerResistance:
         side === "resistance" ? boundary : refreshedState?.lastRefreshTriggerResistance ?? snapshotState.lastRefreshTriggerResistance,
       lastRefreshTriggerSupport:

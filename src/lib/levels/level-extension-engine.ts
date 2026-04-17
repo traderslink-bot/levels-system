@@ -1,5 +1,21 @@
 import type { FinalLevelZone, LevelLadderExtension } from "./level-types.js";
 
+function timeframeBiasRank(zone: FinalLevelZone): number {
+  if (zone.timeframeBias === "mixed") {
+    return 4;
+  }
+
+  if (zone.timeframeBias === "daily") {
+    return 3;
+  }
+
+  if (zone.timeframeBias === "4h") {
+    return 2;
+  }
+
+  return 1;
+}
+
 function sortSupport(zones: FinalLevelZone[]): FinalLevelZone[] {
   return [...zones].sort((a, b) => b.representativePrice - a.representativePrice);
 }
@@ -30,6 +46,212 @@ function distanceFromBoundaryPct(boundary: number, price: number): number {
   return Math.abs(price - boundary) / Math.max(Math.max(price, boundary), 0.0001);
 }
 
+function normalizedDistancePct(leftPrice: number, rightPrice: number): number {
+  return Math.abs(leftPrice - rightPrice) / Math.max(Math.max(leftPrice, rightPrice), 0.0001);
+}
+
+function shouldPreferForwardStructuralCandidate(params: {
+  candidate: FinalLevelZone;
+  challenger: FinalLevelZone;
+  candidatePrice: number;
+  challengerPrice: number;
+  side: "support" | "resistance";
+  searchWindowPct: number;
+}): boolean {
+  const fartherForward =
+    params.side === "resistance"
+      ? params.challengerPrice > params.candidatePrice
+      : params.challengerPrice < params.candidatePrice;
+
+  if (!fartherForward) {
+    return false;
+  }
+
+  const localBandPct = Math.max(params.searchWindowPct * 1.5, 0.08);
+  if (normalizedDistancePct(params.candidatePrice, params.challengerPrice) > localBandPct) {
+    return false;
+  }
+
+  const usefulnessDelta =
+    extensionUsefulnessScore(params.challenger) - extensionUsefulnessScore(params.candidate);
+  if (usefulnessDelta < 6) {
+    return false;
+  }
+
+  const strongerTimeframe =
+    timeframeBiasRank(params.challenger) > timeframeBiasRank(params.candidate);
+  const strongerRejection =
+    params.challenger.rejectionScore >= params.candidate.rejectionScore + 0.12;
+  const strongerFollowThrough =
+    params.challenger.followThroughScore >= params.candidate.followThroughScore + 0.12;
+
+  return strongerTimeframe || strongerRejection || strongerFollowThrough;
+}
+
+function pruneDominatedForwardCandidates(
+  candidates: FinalLevelZone[],
+  side: "support" | "resistance",
+  searchWindowPct: number,
+): FinalLevelZone[] {
+  const ordered = side === "resistance" ? sortResistance(candidates) : sortSupport(candidates);
+
+  return ordered.filter((candidate, index) => {
+    const laterCandidates = ordered.slice(index + 1);
+
+    return !laterCandidates.some((challenger) => {
+      return shouldPreferForwardStructuralCandidate({
+        candidate,
+        challenger,
+        candidatePrice: candidate.representativePrice,
+        challengerPrice: challenger.representativePrice,
+        side,
+        searchWindowPct,
+      });
+    });
+  });
+}
+
+function isTooCloseToAny(
+  zone: FinalLevelZone,
+  others: FinalLevelZone[],
+  spacingPct: number,
+): boolean {
+  return others.some((other) => proximityPct(other, zone) <= spacingPct);
+}
+
+function selectBestCandidate(
+  candidates: FinalLevelZone[],
+  boundary: number,
+): FinalLevelZone | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return [...candidates].sort(
+    (a, b) =>
+      extensionUsefulnessScore(b) - extensionUsefulnessScore(a) ||
+      b.followThroughScore - a.followThroughScore ||
+      b.strengthScore - a.strengthScore ||
+      distanceFromBoundaryPct(boundary, a.representativePrice) -
+        distanceFromBoundaryPct(boundary, b.representativePrice),
+  )[0]!;
+}
+
+function removeSelectedNeighborhood(
+  candidates: FinalLevelZone[],
+  selected: FinalLevelZone,
+  side: "support" | "resistance",
+  spacingPct: number,
+  preserveInterior: boolean = false,
+): FinalLevelZone[] {
+  return candidates.filter((candidate) => {
+    if (candidate.id === selected.id) {
+      return false;
+    }
+
+    if (proximityPct(candidate, selected) <= spacingPct) {
+      return false;
+    }
+
+    if (preserveInterior) {
+      return true;
+    }
+
+    return side === "resistance"
+      ? candidate.representativePrice > selected.representativePrice
+      : candidate.representativePrice < selected.representativePrice;
+  });
+}
+
+function selectContinuityAwareResistanceExtensions(params: {
+  candidates: FinalLevelZone[];
+  surfaced: FinalLevelZone[];
+  maxCount: number;
+  spacingPct: number;
+  searchWindowPct: number;
+}): FinalLevelZone[] {
+  const selected: FinalLevelZone[] = [];
+  let remaining = [...params.candidates].filter(
+    (candidate) => !isTooCloseToAny(candidate, params.surfaced, params.spacingPct),
+  );
+  const startBoundary =
+    params.surfaced.length === 0
+      ? -Infinity
+      : Math.max(...params.surfaced.map((zone) => zone.representativePrice));
+
+  const nearFrontier = remaining.filter(
+    (candidate) =>
+      !Number.isFinite(startBoundary) ||
+      distanceFromBoundaryPct(startBoundary, candidate.representativePrice) <= params.searchWindowPct,
+  );
+  const nearCandidate = selectBestCandidate(
+    nearFrontier.length > 0 ? nearFrontier : remaining.slice(0, 1),
+    startBoundary,
+  );
+  if (nearCandidate) {
+    selected.push({ ...nearCandidate, isExtension: true });
+    remaining = removeSelectedNeighborhood(
+      remaining,
+      nearCandidate,
+      "resistance",
+      params.spacingPct,
+    );
+  }
+
+  if (selected.length >= params.maxCount || remaining.length === 0) {
+    return selected;
+  }
+
+  const farCandidate = remaining.at(-1);
+  if (farCandidate && !isTooCloseToAny(farCandidate, selected, params.spacingPct)) {
+    selected.push({ ...farCandidate, isExtension: true });
+    remaining = removeSelectedNeighborhood(
+      remaining,
+      farCandidate,
+      "resistance",
+      params.spacingPct,
+      true,
+    );
+  }
+
+  if (selected.length >= params.maxCount || remaining.length === 0) {
+    return [...selected].sort((a, b) => a.representativePrice - b.representativePrice);
+  }
+
+  const lowerBound = Math.min(...selected.map((zone) => zone.representativePrice));
+  const upperBound = Math.max(...selected.map((zone) => zone.representativePrice));
+  const middleCandidates = remaining.filter(
+    (candidate) =>
+      candidate.representativePrice > lowerBound &&
+      candidate.representativePrice < upperBound,
+  );
+  const middleSlots = params.maxCount - selected.length;
+
+  for (let slot = 0; slot < middleSlots; slot += 1) {
+    if (middleCandidates.length === 0) {
+      break;
+    }
+
+    const start = Math.floor((slot * middleCandidates.length) / middleSlots);
+    const end = Math.floor(((slot + 1) * middleCandidates.length) / middleSlots);
+    const segment = middleCandidates.slice(start, Math.max(end, start + 1));
+    const bestInSegment = selectBestCandidate(
+      segment.filter((candidate) => !isTooCloseToAny(candidate, selected, params.spacingPct)),
+      lowerBound,
+    );
+
+    if (!bestInSegment) {
+      continue;
+    }
+
+    selected.push({ ...bestInSegment, isExtension: true });
+  }
+
+  return [...selected]
+    .sort((a, b) => a.representativePrice - b.representativePrice)
+    .slice(0, params.maxCount);
+}
+
 function selectSpacedExtensions(params: {
   candidates: FinalLevelZone[];
   surfaced: FinalLevelZone[];
@@ -38,6 +260,21 @@ function selectSpacedExtensions(params: {
   spacingPct: number;
   searchWindowPct: number;
 }): FinalLevelZone[] {
+  const candidates = pruneDominatedForwardCandidates(
+    params.candidates,
+    params.side,
+    params.searchWindowPct,
+  );
+  if (params.side === "resistance" && params.maxCount >= 3) {
+    return selectContinuityAwareResistanceExtensions({
+      candidates,
+      surfaced: params.surfaced,
+      maxCount: params.maxCount,
+      spacingPct: params.spacingPct,
+      searchWindowPct: params.searchWindowPct,
+    });
+  }
+
   const selected: FinalLevelZone[] = [];
   const startBoundary =
     params.surfaced.length === 0
@@ -48,7 +285,7 @@ function selectSpacedExtensions(params: {
         ? Math.max(...params.surfaced.map((zone) => zone.representativePrice))
         : Math.min(...params.surfaced.map((zone) => zone.representativePrice));
   let boundary = startBoundary;
-  let remaining = [...params.candidates];
+  let remaining = [...candidates];
 
   while (remaining.length > 0 && selected.length < params.maxCount) {
     const frontier = remaining.filter((candidate) => {

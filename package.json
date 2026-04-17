@@ -11,6 +11,10 @@
     "alert:test": "tsx src/scripts/run-alert-intelligence-sample.ts",
     "watchlist:alerts:test": "tsx src/scripts/run-watchlist-alerts-sample.ts",
     "watchlist:manual": "tsx src/runtime/manual-watchlist-server.ts",
+    "validation:levels:live": "tsx src/scripts/run-level-candle-health-check.ts",
+    "validation:levels:persistence": "tsx src/scripts/run-level-persistence-validation.ts",
+    "validation:levels:forward": "tsx src/scripts/run-forward-reaction-validation.ts",
+    "validation:levels:batch": "tsx src/scripts/run-level-validation-batch.ts",
     "validation:live": "tsx src/scripts/run-live-opportunity-validation.ts",
     "validation:test": "tsx src/scripts/run-opportunity-validation-sample.ts",
     "validation:summary": "tsx src/scripts/summarize-opportunity-validations.ts",
@@ -22,6 +26,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@stoqey/ib": "^1.5.3"
+    "@stoqey/ib": "^1.5.3",
+    "dotenv": "^17.4.2"
   }
 }

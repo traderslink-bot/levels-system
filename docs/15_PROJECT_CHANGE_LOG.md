@@ -18,6 +18,109 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-16 07:05 PM America/Toronto
+
+### Summary
+
+- Added the next practical validation step: batch validation across multiple symbols.
+- Added a batch summary layer that aggregates:
+  - candle-source health
+  - resistance persistence/churn
+  - forward reaction usefulness
+- Added a live batch runner that uses the active provider path, defaults to IBKR, keeps going when one symbol fails, and emits a single summary at the end.
+- Kept the implementation focused on validation workflow rather than turning it into a new tuning or dashboard system.
+
+### Files updated
+
+- `docs/15_PROJECT_CHANGE_LOG.md`
+- `docs/17_REPO_REVIEW_IMPLEMENTATION_DIRECTIVE.md`
+- `docs/18_LEVEL_VALIDATION_SYSTEM_PLAN.md`
+- `package.json`
+- `src/lib/validation/level-validation-batch.ts`
+- `src/scripts/run-level-validation-batch.ts`
+- `src/tests/level-validation-batch.test.ts`
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- The repo can now validate a small symbol batch in one pass instead of relying only on one-off symbol checks, which makes regressions easier to spot across a wider sample.
+
+---
+
+## 2026-04-16 06:45 PM America/Toronto
+
+### Summary
+
+- Added the next validation layer: forward reaction validation for support/resistance usefulness.
+- Added a first forward-reaction validator that evaluates whether surfaced and extension levels are:
+  - touched
+  - respected
+  - broken
+  using post-generation `5m` candles
+- Added a live runner that uses the active candle provider path, defaults to IBKR, and checks candle-source health before evaluating what price did after generation.
+- Kept the validator descriptive instead of turning it into an auto-tuning system.
+
+### Files updated
+
+- `docs/15_PROJECT_CHANGE_LOG.md`
+- `docs/17_REPO_REVIEW_IMPLEMENTATION_DIRECTIVE.md`
+- `docs/18_LEVEL_VALIDATION_SYSTEM_PLAN.md`
+- `package.json`
+- `src/lib/validation/forward-reaction-validator.ts`
+- `src/scripts/run-forward-reaction-validation.ts`
+- `src/tests/forward-reaction-validator.test.ts`
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- The repo can now validate not only level stability across refreshes, but also whether surfaced and extension levels produce useful future reactions after they are generated.
+
+---
+
+## 2026-04-16 06:25 PM America/Toronto
+
+### Summary
+
+- Continued the validation-first hardening phase by adding level persistence and churn validation instead of reopening broad level-engine feature work.
+- Added a first persistence validator that compares rolling `LevelEngineOutput` snapshots and reports:
+  - surfaced support/resistance persistence
+  - extension support/resistance persistence
+  - surfaced churn
+  - average matched price drift
+- Added a live runner that uses the active candle provider path, defaults to IBKR, and checks candle-source health before generating rolling validation windows.
+- Tightened the live validation path so `.env` loading also applies to candle-source health checks and persistence runs.
+
+### Files updated
+
+- `docs/15_PROJECT_CHANGE_LOG.md`
+- `docs/17_REPO_REVIEW_IMPLEMENTATION_DIRECTIVE.md`
+- `docs/18_LEVEL_VALIDATION_SYSTEM_PLAN.md`
+- `package.json`
+- `src/lib/validation/level-persistence-validator.ts`
+- `src/scripts/run-level-candle-health-check.ts`
+- `src/scripts/run-level-persistence-validation.ts`
+- `src/tests/level-persistence-validator.test.ts`
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- The repo now has a runnable persistence/churn validation path that uses the same active candle-provider workflow as live testing.
+- Provider-health failures can be separated from level-persistence weaknesses before structural tuning starts.
+
+---
+
 ## 2026-04-16 05:45 PM America/Toronto
 
 ### Summary
@@ -1051,3 +1154,261 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 - Compression setups now require both repeated interaction and visibly tightening structure.
 - Resolved zones reset their local setup memory, which keeps future scoring cleaner and less sticky.
+## 2026-04-16 11:40 AM America/Toronto
+
+### Trader-facing Discord snapshot zone compression
+
+- Updated Discord level snapshot output to render compact display zones instead of only dense nearby discrete prices.
+- Snapshot payloads now carry price-relative `supportZones` and `resistanceZones`, where each displayed zone includes:
+  - `representativePrice`
+  - optional `lowPrice`
+  - optional `highPrice`
+- Final display zones are formed after the existing price-relative filtering, duplicate removal, and near-level compaction pass.
+- Nearby displayed levels are now merged into deterministic trader-facing zones using a bounded display-layer tolerance.
+- Representative selection within a displayed zone uses existing metadata in deterministic order:
+  - `strengthScore`
+  - `confluenceCount`
+  - `sourceEvidenceCount`
+  - timeframe bias
+  - freshness
+  - then actionable distance to current price
+- Snapshot formatting now shows:
+  - representative price always
+  - range only when it adds real meaning
+  - nearest support zones first going downward
+  - nearest resistance zones first going upward
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- Live Discord snapshots are now materially more readable and trader-usable because tightly packed neighboring prices are presented as compact zones instead of dense numeric staircases.
+
+## 2026-04-16 11:10 AM America/Toronto
+
+### Price-anchored Discord level snapshots
+
+- Updated manual watchlist snapshot posting so trader-facing support and resistance are now partitioned relative to the snapshot reference price instead of the original structural support/resistance origin buckets.
+- Added `referencePrice` to level output metadata, sourced from the freshest available runtime candle path with preference order:
+  - `5m` last close
+  - `4h` last close
+  - `daily` last close
+- Updated snapshot formatting to include the current reference price explicitly in the Discord level snapshot message.
+- Added deterministic near-price tolerance handling so levels extremely close to the snapshot price are excluded from both displayed support and displayed resistance instead of being misclassified by tiny drift.
+- Added targeted tests covering:
+  - snapshot price inclusion
+  - price-relative support/resistance partitioning
+  - deterministic near-price tolerance behavior
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- Live level snapshots now read like trader-facing ladders anchored to the actual snapshot price, which avoids showing "resistance" below market or "support" above market.
+
+## 2026-04-16 10:20 AM America/Toronto
+
+### Real Discord manual activation path
+
+- Added `src/lib/alerts/discord-rest-thread-gateway.ts` to support real Discord thread reuse, recovery, creation, and message posting through the existing alert-router boundary.
+- Updated `src/runtime/manual-watchlist-server.ts` so the manual watchlist activation flow now uses the real Discord REST gateway when `DISCORD_BOT_TOKEN` and `DISCORD_WATCHLIST_CHANNEL_ID` are configured, while preserving the existing local gateway fallback for manual/local testing.
+- Added `src/tests/discord-rest-thread-gateway.test.ts` to verify:
+  - thread creation under the configured watchlist channel
+  - exact-name recovery
+  - deterministic level snapshot posting into the target thread
+- Added `.env` loading for the manual runtime via `dotenv/config`, plus startup diagnostics that show whether Discord env values are present or missing and whether the runtime is using the real Discord gateway or local fallback.
+- Added `.env.example` with the Discord/manual runtime variables needed for the first live watchlist test.
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- The existing manual activation workflow is now wired to a real Discord posting path without changing the watchlist/runtime architecture.
+- Ticker entry can now drive real thread creation/reuse and initial level posting when Discord credentials are present.
+
+## 2026-04-16 11:05 AM America/Toronto
+
+### Discord snapshot ladder coverage and zone display hardening
+
+- Updated the manual watchlist snapshot display path in `src/lib/monitoring/manual-watchlist-runtime-manager.ts` so resistance snapshots now honor the product's forward planning window and can surface meaningful resistance zones out to 50 percent above the snapshot price when valid levels exist.
+- Kept support and resistance display price-relative while preserving the existing duplicate removal, near-level compaction, representative selection, and deterministic ordering behavior.
+- Added a minimum meaningful zone-width rule so very narrow grouped zones now collapse to a single representative level instead of rendering as visually noisy low-to-high ranges.
+- Updated `src/tests/manual-watchlist-runtime-manager.test.ts` to cover:
+  - forward resistance ladder coverage through the 50 percent planning range
+  - narrow grouped zone collapse to a single level
+  - preservation of wider grouped zone range formatting
+  - deterministic compact snapshot behavior
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- Live Discord level snapshots now carry farther forward-looking resistance coverage without reverting to dense micro-level output, and narrow reaction clusters no longer present fake-looking trader-facing zones.
+
+## 2026-04-16 11:40 AM America/Toronto
+
+### Resistance snapshot selection validation hardening
+
+- Validated the live resistance snapshot path against a real chart-review concern where a meaningful isolated intermediate wick-high could be skipped inside the forward ladder window.
+- Confirmed the weakness was in the final capped trader-facing resistance selection, not a broad failure of raw level generation.
+- Updated `src/lib/monitoring/manual-watchlist-runtime-manager.ts` so capped resistance snapshot zones now preserve:
+  - nearest resistance context
+  - farthest forward-planning context
+  - the strongest representative inside each middle coverage segment
+- This keeps the Discord ladder compact while allowing a structurally meaningful intermediate wick-high zone to survive final display selection when it is genuinely stronger than nearby leftovers.
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- Trader-facing resistance snapshots remain compact, but they are less likely to skip a useful intermediate wick-high level inside the forward planning range.
+
+## 2026-04-16 12:20 PM America/Toronto
+
+### Structural truth audit: resistance extension ladder
+
+- Audited the candle-data-to-level pipeline across:
+  - swing detection
+  - raw candidate generation
+  - candidate evidence quality
+  - clustering
+  - scoring
+  - surfaced selection
+  - extension ladder generation
+- Confirmed isolated meaningful wick highs are still detected as raw resistance candidates from candle data.
+- Identified the first materially weak stage as extension ladder generation: nearby micro-structure could consume forward extension slots and crowd out a stronger isolated higher-timeframe wick-high farther ahead.
+- Updated `src/lib/levels/level-extension-engine.ts` with a bounded pruning step that removes a weaker nearby forward candidate when a materially stronger forward structural candidate exists in the same local band.
+- This keeps the ladder compact while making forward resistance planning less dependent on stair-step local leftovers.
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- The structural pipeline now preserves meaningful isolated forward wick-high resistance more reliably without reopening the broader level engine or reverting to cluttered ladders.
+
+## 2026-04-16 12:45 PM America/Toronto
+
+### Forward resistance ladder continuity refinement
+
+- Refined `src/lib/levels/level-extension-engine.ts` so forward resistance extension selection now preserves:
+  - near resistance context
+  - at least one meaningful intermediate structural step when available
+  - far-forward planning reach
+- Kept the 50 percent forward-range behavior intact while preventing the far-forward slot from effectively wiping out all intermediate ladder continuity.
+- Added/updated tests in:
+  - `src/tests/level-engine.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- New coverage confirms:
+  - raw isolated wick-high resistance is still detected
+  - nearby micro-structure does not crowd out a stronger forward wick-high
+  - compact runtime snapshots preserve near, intermediate, and far resistance continuity without regressing into clutter
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- Forward resistance ladders now remain compact while carrying a more usable stepwise path for traders instead of jumping too directly from nearby levels to the far bound.
+
+## 2026-04-16 04:40 PM America/Toronto
+
+### Cluster representative truth and temporary discrete snapshot output
+
+- Refined `src/lib/levels/level-clusterer.ts` so clustered zones now keep a trader-meaningful representative price instead of averaging nearby candidates into a midpoint.
+- Representative selection now prefers stronger existing candle evidence:
+  - higher timeframe
+  - stronger rejection
+  - stronger follow-through
+  - stronger reaction quality / displacement / touch evidence
+- This preserves real wick-led prices inside merged zones more honestly, especially for nearby resistance and support areas that should remain anchored to an actual chart price.
+- Updated `src/lib/monitoring/manual-watchlist-runtime-manager.ts` so live snapshots temporarily output discrete representative levels only and no longer collapse nearby levels into bracketed display ranges.
+- Updated snapshot formatting tests in:
+  - `src/tests/level-engine.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-rest-thread-gateway.test.ts`
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- The structural pipeline now preserves actual wick/decision prices more faithfully, and live Discord snapshots show discrete levels directly while structural tuning continues.
+
+## 2026-04-16 05:15 PM America/Toronto
+
+### Surfaced ladder same-band dominance refinement
+
+- Refined `src/lib/levels/level-ranker.ts` so surfaced selection is less likely to preserve every nearby resistance/support step inside the same local band when one nearby level is already materially stronger.
+- This change does not add a new scoring system. It strengthens the existing surfaced-selection dominance rule by:
+  - using a slightly wider same-band radius suitable for volatile small-cap names
+  - still requiring the nearby incumbent level to be materially stronger before suppressing a challenger
+- Added focused regression coverage in `src/tests/level-engine.test.ts` to confirm:
+  - weaker nearby band clutter is reduced
+  - stronger near-anchor levels still survive
+  - farther meaningful structure still survives
+
+### Verification completed
+
+- `npm run build`
+- `npm test`
+
+### Observed outcome
+
+- Dense nearby resistance bands are now less likely to surface as a staircase of equally important-looking levels when one nearby anchor level is clearly stronger.
+
+## 2026-04-16 05:45 PM America/Toronto
+
+### Level validation system plan added
+
+- Added `docs/18_LEVEL_VALIDATION_SYSTEM_PLAN.md`.
+- This plan formalizes the next high-value build direction:
+  - synthetic scenario validation
+  - level persistence and churn validation
+  - forward reaction validation
+- The goal is to give future support/resistance tuning a stronger evidence base than ad hoc live chart review alone.
+
+## 2026-04-16 06:05 PM America/Toronto
+
+### Validation workflow kickoff and live candle-source health checks
+
+- Added `src/tests/level-validation-scenarios.test.ts` as the first dedicated scenario-validation file for the support/resistance engine.
+- Added `src/tests/helpers/level-validation-fixtures.ts` to keep structural scenario setup reusable and deterministic.
+- Added `src/lib/validation/candle-source-health.ts` to classify live candle-provider behavior as:
+  - `healthy`
+  - `degraded`
+  - `unavailable`
+- Added `src/tests/candle-source-health.test.ts` to verify:
+  - healthy provider responses
+  - empty provider responses
+  - thrown provider failures
+- Added `src/scripts/run-level-candle-health-check.ts` and package script:
+  - `npm run validation:levels:live -- <SYMBOL>`
+- The live validator uses the active provider path and is intended to run against IBKR now, while still supporting future provider switching through environment/config.
+- Updated `src/runtime/manual-watchlist-server.ts` to log the active candle provider path at startup so live validation can distinguish provider-path issues from level-logic issues.
+- Added reminder notes in:
+  - `docs/17_REPO_REVIEW_IMPLEMENTATION_DIRECTIVE.md`
+  - `docs/18_LEVEL_VALIDATION_SYSTEM_PLAN.md`
+  so future tuning stays validation-first.

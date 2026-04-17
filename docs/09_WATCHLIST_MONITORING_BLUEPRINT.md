@@ -8,6 +8,7 @@ src/
     alerts/
       alert-types.ts
       alert-router.ts
+      discord-rest-thread-gateway.ts
       local-discord-thread-gateway.ts
 
     monitoring/
@@ -158,6 +159,7 @@ This state stays inside the existing watchlist store/runtime manager path. The U
 
 - `src/runtime/manual-watchlist-server.ts`
   Local manual watchlist page and API for add/activate/deactivate operations
+  When Discord credentials are configured, this entry point now uses the real Discord REST thread gateway for watchlist thread creation and posting.
 
 ## Current local/manual persistence files
 

@@ -31,6 +31,9 @@ Already materially completed in code:
 
 Current highest-value open work:
 - validation-driven hardening of the current support/resistance engine using targeted small-cap scenario coverage
+- persistence and churn validation over rolling candle windows using the active provider path
+- forward reaction validation so surfaced and extension levels can be judged by what price does afterward
+- batch validation over multiple symbols so structural changes can be judged across a wider sample instead of one-off spot checks
 - final monitoring semantics cleanup only where validation against the stronger level truth justifies it
 - testing-driven refinement of alert delivery rules only where real runtime behavior proves it necessary
 
@@ -38,6 +41,7 @@ Current execution posture:
 - Broad structural feature building is no longer the default.
 - New level-engine changes should be made only when targeted validation reveals a real remaining weakness.
 - The current repo is now in an evidence-driven hardening phase rather than an open-ended feature-expansion phase.
+- Going forward, support/resistance tuning should be validated through the level-validation workflow first, not only through ad hoc live snapshot review.
 
 The most important conclusion from the repo review is this:
 

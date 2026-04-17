@@ -6,6 +6,7 @@ import type {
   AlertPayload,
   DiscordThread,
   LevelExtensionPayload,
+  LevelSnapshotDisplayZone,
   LevelSnapshotPayload,
   DiscordThreadRoutingResult,
   IntelligentAlert,
@@ -44,18 +45,23 @@ function formatLevel(level: number): string {
   return level >= 1 ? level.toFixed(2) : level.toFixed(4);
 }
 
+function formatSnapshotDisplayZone(zone: LevelSnapshotDisplayZone): string {
+  return formatLevel(zone.representativePrice);
+}
+
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
   const supportLine =
-    payload.supportLevels.length > 0
-      ? payload.supportLevels.map((level) => formatLevel(level)).join(", ")
+    payload.supportZones.length > 0
+      ? payload.supportZones.map((zone) => formatSnapshotDisplayZone(zone)).join(", ")
       : "none";
   const resistanceLine =
-    payload.resistanceLevels.length > 0
-      ? payload.resistanceLevels.map((level) => formatLevel(level)).join(", ")
+    payload.resistanceZones.length > 0
+      ? payload.resistanceZones.map((zone) => formatSnapshotDisplayZone(zone)).join(", ")
       : "none";
 
   return [
     `LEVEL SNAPSHOT: ${payload.symbol}`,
+    `PRICE: ${formatLevel(payload.currentPrice)}`,
     `SUPPORT: ${supportLine}`,
     `RESISTANCE: ${resistanceLine}`,
   ].join("\n");

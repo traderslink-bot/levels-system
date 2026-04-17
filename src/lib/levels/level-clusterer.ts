@@ -42,6 +42,118 @@ function zoneFreshness(lastTimestamp: number): LevelDataFreshness {
   return "stale";
 }
 
+function timeframeRank(timeframe: CandleTimeframe): number {
+  switch (timeframe) {
+    case "daily":
+      return 3;
+    case "4h":
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+function preferRawCandidateRepresentative(
+  challenger: RawLevelCandidate,
+  incumbent: RawLevelCandidate,
+  kind: "support" | "resistance",
+): boolean {
+  if (timeframeRank(challenger.timeframe) !== timeframeRank(incumbent.timeframe)) {
+    return timeframeRank(challenger.timeframe) > timeframeRank(incumbent.timeframe);
+  }
+
+  if (challenger.rejectionScore !== incumbent.rejectionScore) {
+    return challenger.rejectionScore > incumbent.rejectionScore;
+  }
+
+  if (challenger.followThroughScore !== incumbent.followThroughScore) {
+    return challenger.followThroughScore > incumbent.followThroughScore;
+  }
+
+  if (challenger.reactionQuality !== incumbent.reactionQuality) {
+    return challenger.reactionQuality > incumbent.reactionQuality;
+  }
+
+  if (challenger.displacementScore !== incumbent.displacementScore) {
+    return challenger.displacementScore > incumbent.displacementScore;
+  }
+
+  if (challenger.touchCount !== incumbent.touchCount) {
+    return challenger.touchCount > incumbent.touchCount;
+  }
+
+  if (challenger.repeatedReactionCount !== incumbent.repeatedReactionCount) {
+    return challenger.repeatedReactionCount > incumbent.repeatedReactionCount;
+  }
+
+  if (challenger.lastTimestamp !== incumbent.lastTimestamp) {
+    return challenger.lastTimestamp > incumbent.lastTimestamp;
+  }
+
+  return kind === "resistance"
+    ? challenger.price > incumbent.price
+    : challenger.price < incumbent.price;
+}
+
+function pickRepresentativeCandidate(
+  group: RawLevelCandidate[],
+  kind: "support" | "resistance",
+): RawLevelCandidate {
+  return group.reduce((best, candidate) =>
+    preferRawCandidateRepresentative(candidate, best, kind) ? candidate : best,
+  );
+}
+
+function preferZoneRepresentative(
+  challenger: FinalLevelZone,
+  incumbent: FinalLevelZone,
+): boolean {
+  const challengerPrimary = dominantTimeframe(challenger.timeframeSources);
+  const incumbentPrimary = dominantTimeframe(incumbent.timeframeSources);
+
+  const challengerRank = challengerPrimary === "mixed" ? 4 : timeframeRank(challengerPrimary);
+  const incumbentRank = incumbentPrimary === "mixed" ? 4 : timeframeRank(incumbentPrimary);
+  if (challengerRank !== incumbentRank) {
+    return challengerRank > incumbentRank;
+  }
+
+  if (challenger.confluenceCount !== incumbent.confluenceCount) {
+    return challenger.confluenceCount > incumbent.confluenceCount;
+  }
+
+  if (challenger.rejectionScore !== incumbent.rejectionScore) {
+    return challenger.rejectionScore > incumbent.rejectionScore;
+  }
+
+  if (challenger.followThroughScore !== incumbent.followThroughScore) {
+    return challenger.followThroughScore > incumbent.followThroughScore;
+  }
+
+  if (challenger.reactionQualityScore !== incumbent.reactionQualityScore) {
+    return challenger.reactionQualityScore > incumbent.reactionQualityScore;
+  }
+
+  if (challenger.displacementScore !== incumbent.displacementScore) {
+    return challenger.displacementScore > incumbent.displacementScore;
+  }
+
+  if (challenger.sourceEvidenceCount !== incumbent.sourceEvidenceCount) {
+    return challenger.sourceEvidenceCount > incumbent.sourceEvidenceCount;
+  }
+
+  if (challenger.touchCount !== incumbent.touchCount) {
+    return challenger.touchCount > incumbent.touchCount;
+  }
+
+  if (challenger.lastTimestamp !== incumbent.lastTimestamp) {
+    return challenger.lastTimestamp > incumbent.lastTimestamp;
+  }
+
+  return challenger.kind === "resistance"
+    ? challenger.representativePrice > incumbent.representativePrice
+    : challenger.representativePrice < incumbent.representativePrice;
+}
+
 function buildZoneFromGroup(
   symbol: string,
   kind: "support" | "resistance",
@@ -52,6 +164,7 @@ function buildZoneFromGroup(
   const sourceTypes = unique(group.map((item) => item.sourceType));
   const timeframeSources = unique(group.map((item) => item.timeframe));
   const notes = unique(group.flatMap((item) => item.notes));
+  const representativeCandidate = pickRepresentativeCandidate(group, kind);
 
   return {
     id: `${symbol}-${kind}-zone-${index + 1}`,
@@ -60,9 +173,7 @@ function buildZoneFromGroup(
     timeframeBias: dominantTimeframe(timeframeSources),
     zoneLow: Number(Math.min(...prices).toFixed(4)),
     zoneHigh: Number(Math.max(...prices).toFixed(4)),
-    representativePrice: Number(
-      (prices.reduce((sum, price) => sum + price, 0) / prices.length).toFixed(4),
-    ),
+    representativePrice: Number(representativeCandidate.price.toFixed(4)),
     strengthScore: 0,
     strengthLabel: "weak",
     touchCount: group.reduce((sum, item) => sum + item.touchCount, 0),
@@ -232,17 +343,12 @@ function secondPassMergeZones(
     );
 
     if (closeEnough && !tooWideIfMerged) {
+      const representativeZone = preferZoneRepresentative(next, current) ? next : current;
       current = {
         ...current,
         zoneLow: Number(Math.min(current.zoneLow, next.zoneLow).toFixed(4)),
         zoneHigh: Number(Math.max(current.zoneHigh, next.zoneHigh).toFixed(4)),
-        representativePrice: Number(
-          (
-            (current.representativePrice * current.touchCount +
-              next.representativePrice * next.touchCount) /
-            Math.max(current.touchCount + next.touchCount, 1)
-          ).toFixed(4),
-        ),
+        representativePrice: representativeZone.representativePrice,
         touchCount: current.touchCount + next.touchCount,
         confluenceCount: unique([
           ...current.timeframeSources,

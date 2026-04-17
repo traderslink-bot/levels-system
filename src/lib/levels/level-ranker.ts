@@ -43,6 +43,22 @@ function preferredBucketRank(bucket: SurfaceBucket): number {
   return 1;
 }
 
+function timeframeBiasRank(zone: FinalLevelZone): number {
+  if (zone.timeframeBias === "mixed") {
+    return 4;
+  }
+
+  if (zone.timeframeBias === "daily") {
+    return 3;
+  }
+
+  if (zone.timeframeBias === "4h") {
+    return 2;
+  }
+
+  return 1;
+}
+
 function bucketForZone(zone: FinalLevelZone): SurfaceBucket {
   if (zone.timeframeSources.includes("daily")) {
     return "daily";
@@ -66,6 +82,32 @@ function proximityPct(left: FinalLevelZone, right: FinalLevelZone): number {
   );
 }
 
+function materiallyDominatesInBand(
+  incumbent: FinalLevelZone,
+  challenger: FinalLevelZone,
+): boolean {
+  const strengthLead = incumbent.strengthScore - challenger.strengthScore;
+  const strongerTimeframe = timeframeBiasRank(incumbent) > timeframeBiasRank(challenger);
+  const strongerConfluence = incumbent.confluenceCount > challenger.confluenceCount;
+  const strongerRejection = incumbent.rejectionScore >= challenger.rejectionScore + 0.08;
+  const strongerFollowThrough =
+    incumbent.followThroughScore >= challenger.followThroughScore + 0.08;
+
+  if (strengthLead >= 6) {
+    return true;
+  }
+
+  if (strengthLead >= 3 && (strongerTimeframe || strongerConfluence)) {
+    return true;
+  }
+
+  if (strengthLead >= 3 && (strongerRejection || strongerFollowThrough)) {
+    return true;
+  }
+
+  return false;
+}
+
 function selectSpacedZones(params: {
   zones: FinalLevelZone[];
   bucket: SurfaceBucket;
@@ -74,15 +116,22 @@ function selectSpacedZones(params: {
 }): FinalLevelZone[] {
   const selected: FinalLevelZone[] = [];
   const spacingPct = params.config.surfacedSpacingPct[params.bucket];
+  const localBandPct = Math.max(
+    params.config.maxMergedZoneWidthPct,
+    Math.min(spacingPct * 8, 0.06),
+  );
 
   for (const zone of sortZones(params.zones)) {
     const tooCloseToSelected = selected.some((existing) => {
-      const close = proximityPct(existing, zone) <= spacingPct;
+      const distancePct = proximityPct(existing, zone);
+      const tightClose = distancePct <= spacingPct;
+      const localBandClose = distancePct <= localBandPct;
       const strongerExisting =
         existing.strengthScore >= zone.strengthScore &&
         existing.confluenceCount >= zone.confluenceCount;
+      const dominantBandIncumbent = materiallyDominatesInBand(existing, zone);
 
-      return close && strongerExisting;
+      return (tightClose && strongerExisting) || (localBandClose && dominantBandIncumbent);
     });
 
     if (tooCloseToSelected) {

@@ -66,7 +66,7 @@ manual UI
 -> alert router / Discord thread router
 -> Discord thread gateway
 
-That separation is intentional and should remain in place when a real Discord adapter is added later.
+That separation is intentional and remains in place now that the first real Discord REST adapter is available.
 
 ### Alert intelligence behavior
 
@@ -130,6 +130,25 @@ Current Discord thread persistence includes:
 - thread name
 - local message history for manual/local testing
 
+## Real Discord activation workflow
+
+The manual watchlist runtime can now post into real Discord threads when these environment variables are set:
+
+- `DISCORD_BOT_TOKEN`
+- `DISCORD_WATCHLIST_CHANNEL_ID`
+- `DISCORD_GUILD_ID` (recommended for thread recovery by exact symbol name)
+
+Current runtime behavior:
+- if Discord credentials are configured, `src/runtime/manual-watchlist-server.ts` uses the real Discord REST thread gateway
+- if credentials are not configured, it falls back to the local persisted gateway for manual/local testing
+
+The real gateway currently:
+- posts a starter message in the watchlist channel
+- creates the symbol-named thread from that starter message
+- posts initial level snapshots, extension posts, and event alerts into that thread
+- reuses stored thread ids when valid
+- attempts exact-name recovery through active guild threads and archived public threads when configured to do so
+
 ## What this phase does not do
 
 - real Discord API integration
@@ -139,9 +158,9 @@ Current Discord thread persistence includes:
 - AI-driven symbol selection
 - duplicate strategy layers outside the current monitor/runtime path
 
-## Next Discord-facing expansion later
+## Remaining Discord-facing work later
 
-When the project is ready for deeper Discord integration, the next safe step is:
-- replace the local Discord thread gateway with a real Discord adapter
-- keep the same router/orchestration boundary
-- preserve the thread reuse and recovery rules already established here
+The next safe Discord-facing expansions later are:
+- slash commands or bot-side manual activation
+- richer thread starter formatting if needed
+- permission and failure-mode hardening against the live Discord API

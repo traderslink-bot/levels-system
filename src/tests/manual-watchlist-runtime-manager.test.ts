@@ -50,6 +50,7 @@ function buildLevelOutput(
       providerByTimeframe: {},
       dataQualityFlags: [],
       freshness: "fresh",
+      referencePrice: 2.2,
     },
     majorSupport: [],
     majorResistance: [],
@@ -190,8 +191,13 @@ test("ManualWatchlistRuntimeManager loads persisted active entries and starts mo
   assert.equal(discordAlertRouter.levelSnapshots.length, 1);
   assert.equal(discordAlertRouter.levelSnapshots[0]?.threadId, "thread-bird");
   assert.equal(discordAlertRouter.levelSnapshots[0]?.payload.symbol, "BIRD");
-  assert.deepEqual(discordAlertRouter.levelSnapshots[0]?.payload.supportLevels, [1.95]);
-  assert.deepEqual(discordAlertRouter.levelSnapshots[0]?.payload.resistanceLevels, [2.45]);
+  assert.equal(discordAlertRouter.levelSnapshots[0]?.payload.currentPrice, 2.2);
+  assert.deepEqual(discordAlertRouter.levelSnapshots[0]?.payload.supportZones, [
+    { representativePrice: 1.95 },
+  ]);
+  assert.deepEqual(discordAlertRouter.levelSnapshots[0]?.payload.resistanceZones, [
+    { representativePrice: 2.45 },
+  ]);
   assert.equal(typeof discordAlertRouter.levelSnapshots[0]?.payload.timestamp, "number");
 });
 
@@ -336,11 +342,455 @@ test("ManualWatchlistRuntimeManager refreshes and reposts level snapshot when pr
     threadId: "thread-ALBT",
     payload: {
       symbol: "ALBT",
-      supportLevels: [1.95],
-      resistanceLevels: [2.72],
+      currentPrice: 2.46,
+      supportZones: [{ representativePrice: 1.95 }],
+      resistanceZones: [{ representativePrice: 2.72 }],
       timestamp: 1000,
     },
   });
+});
+
+test("ManualWatchlistRuntimeManager snapshots partition displayed levels relative to snapshot price", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 1.55,
+        },
+        intradaySupport: [
+          buildZone({ id: "S-low", symbol, kind: "support", representativePrice: 1.33, zoneLow: 1.31, zoneHigh: 1.35 }),
+          buildZone({ id: "S-near", symbol, kind: "support", representativePrice: 1.60, zoneLow: 1.58, zoneHigh: 1.62 }),
+        ],
+        intradayResistance: [
+          buildZone({ id: "R-below", symbol, kind: "resistance", representativePrice: 1.22, zoneLow: 1.21, zoneHigh: 1.23 }),
+          buildZone({ id: "R-near", symbol, kind: "resistance", representativePrice: 1.62, zoneLow: 1.61, zoneHigh: 1.63 }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "GXAI" });
+
+  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload, {
+    symbol: "GXAI",
+    currentPrice: 1.55,
+    supportZones: [
+      { representativePrice: 1.33 },
+    ],
+    resistanceZones: [
+      { representativePrice: 1.62 },
+    ],
+    timestamp: discordAlertRouter.levelSnapshots.at(-1)?.payload.timestamp,
+  });
+});
+
+test("ManualWatchlistRuntimeManager snapshot tolerance excludes near-price levels from both support and resistance display", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 1.55,
+        },
+        intradaySupport: [
+          buildZone({ id: "S-close", symbol, kind: "support", representativePrice: 1.5495, zoneLow: 1.548, zoneHigh: 1.551 }),
+          buildZone({ id: "S-below", symbol, kind: "support", representativePrice: 1.53, zoneLow: 1.52, zoneHigh: 1.54 }),
+        ],
+        intradayResistance: [
+          buildZone({ id: "R-close", symbol, kind: "resistance", representativePrice: 1.5504, zoneLow: 1.549, zoneHigh: 1.552 }),
+          buildZone({ id: "R-above", symbol, kind: "resistance", representativePrice: 1.58, zoneLow: 1.57, zoneHigh: 1.59 }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "BIRD" });
+
+  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones, [
+    { representativePrice: 1.53 },
+  ]);
+  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+    { representativePrice: 1.58 },
+  ]);
+});
+
+test("ManualWatchlistRuntimeManager removes exact duplicate displayed prices and compacts dense nearby levels", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 1.47,
+        },
+        intradaySupport: [
+          buildZone({ id: "S-143-a", symbol, kind: "support", representativePrice: 1.431, strengthScore: 2.2, confluenceCount: 2 }),
+          buildZone({ id: "S-143-b", symbol, kind: "support", representativePrice: 1.434, strengthScore: 1.2, confluenceCount: 1 }),
+          buildZone({ id: "S-136", symbol, kind: "support", representativePrice: 1.36, strengthScore: 1.5 }),
+          buildZone({ id: "S-133", symbol, kind: "support", representativePrice: 1.33, strengthScore: 1.4 }),
+          buildZone({ id: "S-130", symbol, kind: "support", representativePrice: 1.30, strengthScore: 1.3 }),
+          buildZone({ id: "S-129", symbol, kind: "support", representativePrice: 1.29, strengthScore: 0.6 }),
+          buildZone({ id: "S-128", symbol, kind: "support", representativePrice: 1.28, strengthScore: 0.5 }),
+          buildZone({ id: "S-125-a", symbol, kind: "support", representativePrice: 1.251, strengthScore: 1.8 }),
+          buildZone({ id: "S-125-b", symbol, kind: "support", representativePrice: 1.249, strengthScore: 1.1 }),
+          buildZone({ id: "S-124", symbol, kind: "support", representativePrice: 1.24, strengthScore: 0.9 }),
+          buildZone({ id: "S-122-a", symbol, kind: "support", representativePrice: 1.221, strengthScore: 1.6 }),
+          buildZone({ id: "S-122-b", symbol, kind: "support", representativePrice: 1.219, strengthScore: 0.8 }),
+          buildZone({ id: "S-117", symbol, kind: "support", representativePrice: 1.17, strengthScore: 1.2 }),
+          buildZone({ id: "S-111", symbol, kind: "support", representativePrice: 1.11, strengthScore: 1.0 }),
+        ],
+        intradayResistance: [
+          buildZone({ id: "R-152", symbol, kind: "resistance", representativePrice: 1.52, strengthScore: 1.3 }),
+          buildZone({ id: "R-153", symbol, kind: "resistance", representativePrice: 1.53, strengthScore: 1.1 }),
+          buildZone({ id: "R-158", symbol, kind: "resistance", representativePrice: 1.58, strengthScore: 1.5 }),
+          buildZone({ id: "R-160", symbol, kind: "resistance", representativePrice: 1.60, strengthScore: 1.4 }),
+          buildZone({ id: "R-162", symbol, kind: "resistance", representativePrice: 1.62, strengthScore: 1.0 }),
+          buildZone({ id: "R-164", symbol, kind: "resistance", representativePrice: 1.64, strengthScore: 0.9 }),
+          buildZone({ id: "R-167", symbol, kind: "resistance", representativePrice: 1.67, strengthScore: 0.8 }),
+        ],
+        extensionLevels: {
+          support: [],
+          resistance: [
+            buildZone({ id: "RX-175", symbol, kind: "resistance", representativePrice: 1.75, isExtension: true, strengthScore: 1.2 }),
+            buildZone({ id: "RX-189", symbol, kind: "resistance", representativePrice: 1.89, isExtension: true, strengthScore: 1.4 }),
+            buildZone({ id: "RX-208", symbol, kind: "resistance", representativePrice: 2.08, isExtension: true, strengthScore: 1.1 }),
+          ],
+        },
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "GXAI" });
+
+  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones, [
+    { representativePrice: 1.431 },
+    { representativePrice: 1.36 },
+    { representativePrice: 1.33 },
+    { representativePrice: 1.3 },
+    { representativePrice: 1.28 },
+    { representativePrice: 1.251 },
+    { representativePrice: 1.221 },
+    { representativePrice: 1.17 },
+    { representativePrice: 1.11 },
+  ]);
+  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+    { representativePrice: 1.52 },
+    { representativePrice: 1.58 },
+    { representativePrice: 1.6 },
+    { representativePrice: 1.62 },
+    { representativePrice: 1.64 },
+    { representativePrice: 1.67 },
+    { representativePrice: 1.75 },
+    { representativePrice: 1.89 },
+    { representativePrice: 2.08 },
+  ]);
+  assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones.length, 9);
+  assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones.length, 9);
+});
+
+test("ManualWatchlistRuntimeManager keeps the strongest representative when close snapshot levels compete", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 2.5,
+        },
+        intradayResistance: [
+          buildZone({
+            id: "R-weak-near",
+            symbol,
+            kind: "resistance",
+            representativePrice: 2.61,
+            strengthScore: 1.0,
+            confluenceCount: 1,
+            sourceEvidenceCount: 1,
+            timeframeBias: "5m",
+            freshness: "aging",
+          }),
+          buildZone({
+            id: "R-strong-close",
+            symbol,
+            kind: "resistance",
+            representativePrice: 2.62,
+            strengthScore: 2.8,
+            confluenceCount: 3,
+            sourceEvidenceCount: 3,
+            timeframeBias: "4h",
+            freshness: "fresh",
+          }),
+          buildZone({
+            id: "R-next",
+            symbol,
+            kind: "resistance",
+            representativePrice: 2.74,
+            strengthScore: 1.5,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+
+  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+    { representativePrice: 2.62 },
+    { representativePrice: 2.74 },
+  ]);
+});
+
+test("ManualWatchlistRuntimeManager extends resistance snapshot coverage through the 50 percent forward planning range", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 1.41,
+        },
+        intradayResistance: [
+          buildZone({ id: "R-147", symbol, kind: "resistance", representativePrice: 1.47 }),
+          buildZone({ id: "R-153", symbol, kind: "resistance", representativePrice: 1.53 }),
+          buildZone({ id: "R-158", symbol, kind: "resistance", representativePrice: 1.58 }),
+        ],
+        extensionLevels: {
+          support: [],
+          resistance: [
+            buildZone({ id: "RX-172", symbol, kind: "resistance", representativePrice: 1.72, isExtension: true, strengthScore: 1.6 }),
+            buildZone({ id: "RX-184", symbol, kind: "resistance", representativePrice: 1.84, isExtension: true, strengthScore: 1.4 }),
+            buildZone({ id: "RX-205", symbol, kind: "resistance", representativePrice: 2.05, isExtension: true, strengthScore: 1.2 }),
+            buildZone({ id: "RX-220", symbol, kind: "resistance", representativePrice: 2.2, isExtension: true, strengthScore: 1.8 }),
+          ],
+        },
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "GXAI" });
+
+  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+    { representativePrice: 1.47 },
+    { representativePrice: 1.53 },
+    { representativePrice: 1.58 },
+    { representativePrice: 1.72 },
+    { representativePrice: 1.84 },
+    { representativePrice: 2.05 },
+  ]);
+});
+
+test("ManualWatchlistRuntimeManager preserves near, intermediate, and far resistance continuity in the compact snapshot ladder", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 1.45,
+        },
+        intradayResistance: [
+          buildZone({ id: "R-149", symbol, kind: "resistance", representativePrice: 1.49, strengthScore: 1.9 }),
+          buildZone({ id: "R-158", symbol, kind: "resistance", representativePrice: 1.58, strengthScore: 1.4 }),
+          buildZone({ id: "R-164", symbol, kind: "resistance", representativePrice: 1.64, strengthScore: 1.1 }),
+        ],
+        extensionLevels: {
+          support: [],
+          resistance: [
+            buildZone({
+              id: "RX-175",
+              symbol,
+              kind: "resistance",
+              representativePrice: 1.75,
+              isExtension: true,
+              strengthScore: 2.5,
+              timeframeBias: "daily",
+              timeframeSources: ["daily"],
+              rejectionScore: 0.61,
+            }),
+            buildZone({
+              id: "RX-185",
+              symbol,
+              kind: "resistance",
+              representativePrice: 1.85,
+              isExtension: true,
+              strengthScore: 1.8,
+              timeframeBias: "4h",
+              timeframeSources: ["4h"],
+              rejectionScore: 0.39,
+            }),
+            buildZone({ id: "RX-206", symbol, kind: "resistance", representativePrice: 2.06, isExtension: true, strengthScore: 1.2 }),
+          ],
+        },
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "GXAI" });
+
+  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+    { representativePrice: 1.49 },
+    { representativePrice: 1.58 },
+    { representativePrice: 1.64 },
+    { representativePrice: 1.75 },
+    { representativePrice: 1.85 },
+    { representativePrice: 2.06 },
+  ]);
+  assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones.length, 6);
+});
+
+test("ManualWatchlistRuntimeManager preserves a meaningful isolated intermediate wick-high when capping resistance display zones", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 1.44,
+        },
+        intradayResistance: [
+          buildZone({ id: "R-149", symbol, kind: "resistance", representativePrice: 1.49, strengthScore: 1.6 }),
+          buildZone({ id: "R-158", symbol, kind: "resistance", representativePrice: 1.58, strengthScore: 1.5 }),
+          buildZone({ id: "R-164", symbol, kind: "resistance", representativePrice: 1.64, strengthScore: 1.1 }),
+        ],
+        extensionLevels: {
+          support: [],
+          resistance: [
+            buildZone({ id: "RX-172", symbol, kind: "resistance", representativePrice: 1.72, isExtension: true, strengthScore: 0.9 }),
+            buildZone({
+              id: "RX-175",
+              symbol,
+              kind: "resistance",
+              representativePrice: 1.75,
+              isExtension: true,
+              strengthScore: 2.4,
+              confluenceCount: 2,
+              timeframeBias: "daily",
+              timeframeSources: ["daily"],
+              rejectionScore: 0.62,
+            }),
+            buildZone({ id: "RX-185", symbol, kind: "resistance", representativePrice: 1.85, isExtension: true, strengthScore: 1.0 }),
+            buildZone({ id: "RX-195", symbol, kind: "resistance", representativePrice: 1.95, isExtension: true, strengthScore: 0.8 }),
+            buildZone({ id: "RX-205", symbol, kind: "resistance", representativePrice: 2.05, isExtension: true, strengthScore: 1.2 }),
+          ],
+        },
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "GXAI" });
+
+  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+    { representativePrice: 1.49 },
+    { representativePrice: 1.58 },
+    { representativePrice: 1.64 },
+    { representativePrice: 1.72 },
+    { representativePrice: 1.75 },
+    { representativePrice: 1.85 },
+    { representativePrice: 1.95 },
+    { representativePrice: 2.05 },
+  ]);
+  assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones.length, 8);
 });
 
 test("ManualWatchlistRuntimeManager does not repost repeatedly at the same refresh boundary", async () => {

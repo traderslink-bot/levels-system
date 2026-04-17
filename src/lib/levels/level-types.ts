@@ -86,6 +86,7 @@ export type LevelOutputMetadata = {
   providerByTimeframe: Partial<Record<CandleTimeframe, string>>;
   dataQualityFlags: string[];
   freshness: LevelDataFreshness;
+  referencePrice?: number;
 };
 
 export type LevelEngineOutput = {

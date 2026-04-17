@@ -29,10 +29,17 @@ export type DiscordThreadRoutingResult = {
   created: boolean;
 };
 
+export type LevelSnapshotDisplayZone = {
+  representativePrice: number;
+  lowPrice?: number;
+  highPrice?: number;
+};
+
 export type LevelSnapshotPayload = {
   symbol: string;
-  supportLevels: number[];
-  resistanceLevels: number[];
+  currentPrice: number;
+  supportZones: LevelSnapshotDisplayZone[];
+  resistanceZones: LevelSnapshotDisplayZone[];
   timestamp: number;
 };
 

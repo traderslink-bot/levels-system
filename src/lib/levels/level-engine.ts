@@ -72,6 +72,10 @@ export class LevelEngine {
     const ageHours = (Date.now() - freshestTimestamp) / (1000 * 60 * 60);
     const freshness: LevelDataFreshness =
       ageHours <= 24 ? "fresh" : ageHours <= 24 * 7 ? "aging" : "stale";
+    const referencePrice =
+      seriesMap["5m"].candles.at(-1)?.close ??
+      seriesMap["4h"].candles.at(-1)?.close ??
+      seriesMap.daily.candles.at(-1)?.close;
 
     return {
       providerByTimeframe: {
@@ -81,6 +85,7 @@ export class LevelEngine {
       },
       dataQualityFlags,
       freshness,
+      referencePrice,
     };
   }
 

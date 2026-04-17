@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type { CandleProviderResponse } from "../lib/market-data/candle-types.js";
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
+import { clusterRawLevelCandidates } from "../lib/levels/level-clusterer.js";
 import { DEFAULT_LEVEL_ENGINE_CONFIG } from "../lib/levels/level-config.js";
 import { LevelEngine } from "../lib/levels/level-engine.js";
 import { buildLevelExtensions } from "../lib/levels/level-extension-engine.js";
@@ -114,6 +115,98 @@ test("buildRawLevelCandidates does not overvalue a gap that fills quickly", () =
   }
   assert.equal(resistance.gapStructure, true);
   assert.ok((resistance.gapContinuationScore ?? 0) < 0.45);
+});
+
+test("buildRawLevelCandidates detects an isolated meaningful wick-high as a raw resistance candidate", () => {
+  const baseTimestamp = Date.parse("2026-04-10T13:30:00Z");
+  const candles = [
+    { timestamp: baseTimestamp, open: 1.3, high: 1.36, low: 1.27, close: 1.34, volume: 1000 },
+    { timestamp: baseTimestamp + 24 * 60 * 60 * 1000, open: 1.34, high: 1.39, low: 1.31, close: 1.37, volume: 1200 },
+    { timestamp: baseTimestamp + 2 * 24 * 60 * 60 * 1000, open: 1.37, high: 1.76, low: 1.34, close: 1.46, volume: 3200 },
+    { timestamp: baseTimestamp + 3 * 24 * 60 * 60 * 1000, open: 1.45, high: 1.55, low: 1.4, close: 1.43, volume: 1700 },
+    { timestamp: baseTimestamp + 4 * 24 * 60 * 60 * 1000, open: 1.43, high: 1.48, low: 1.38, close: 1.41, volume: 1600 },
+  ];
+
+  const swings = detectSwingPoints(candles, {
+    swingWindow: 1,
+    minimumDisplacementPct: 0.08,
+    minimumSeparationBars: 2,
+  });
+
+  const candidates = buildRawLevelCandidates({
+    symbol: "GXAI",
+    timeframe: "daily",
+    candles,
+    swings,
+  });
+  const resistance = candidates.find(
+    (candidate) => candidate.kind === "resistance" && Math.abs(candidate.price - 1.76) < 0.001,
+  );
+
+  assert.ok(resistance);
+  if (!resistance) {
+    throw new Error("Expected isolated wick-high resistance candidate.");
+  }
+  assert.ok(resistance.rejectionScore > 0.45);
+  assert.ok(resistance.followThroughScore > 0.35);
+});
+
+test("clusterRawLevelCandidates preserves the strongest nearby wick-led representative instead of averaging it away", () => {
+  const candidates = [
+    {
+      id: "R-weak-local",
+      symbol: "GXAI",
+      price: 1.72,
+      kind: "resistance" as const,
+      timeframe: "5m" as const,
+      sourceType: "swing_high" as const,
+      touchCount: 1,
+      reactionScore: 0.2,
+      reactionQuality: 0.28,
+      rejectionScore: 0.18,
+      displacementScore: 0.21,
+      sessionSignificance: 0.1,
+      followThroughScore: 0.22,
+      repeatedReactionCount: 0,
+      gapStructure: false,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      notes: [],
+    },
+    {
+      id: "R-strong-wick",
+      symbol: "GXAI",
+      price: 1.75,
+      kind: "resistance" as const,
+      timeframe: "daily" as const,
+      sourceType: "swing_high" as const,
+      touchCount: 2,
+      reactionScore: 0.6,
+      reactionQuality: 0.71,
+      rejectionScore: 0.62,
+      displacementScore: 0.66,
+      sessionSignificance: 0.25,
+      followThroughScore: 0.58,
+      repeatedReactionCount: 1,
+      gapStructure: false,
+      firstTimestamp: 1,
+      lastTimestamp: 3,
+      notes: [],
+    },
+  ];
+
+  const zones = clusterRawLevelCandidates(
+    "GXAI",
+    "resistance",
+    candidates,
+    0.03,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+  );
+
+  assert.equal(zones.length, 1);
+  assert.equal(zones[0]?.representativePrice, 1.75);
+  assert.equal(zones[0]?.zoneLow, 1.72);
+  assert.equal(zones[0]?.zoneHigh, 1.75);
 });
 
 test("LevelEngine returns metadata, session-accurate special levels, and extension ladders", async () => {
@@ -802,6 +895,181 @@ test("buildLevelExtensions can skip a trivial closer leftover when a stronger fr
   assert.deepEqual(extensions.resistance.map((zone) => zone.id), ["R3"]);
 });
 
+test("buildLevelExtensions does not let nearby micro-structure crowd out a stronger isolated forward wick-high", () => {
+  const resistanceZones: FinalLevelZone[] = [
+    {
+      id: "R1",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 1.48,
+      zoneHigh: 1.5,
+      representativePrice: 1.49,
+      strengthScore: 24,
+      strengthLabel: "moderate",
+      touchCount: 2,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.58,
+      rejectionScore: 0.31,
+      displacementScore: 0.42,
+      sessionSignificanceScore: 0.14,
+      followThroughScore: 0.41,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R2",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 1.52,
+      zoneHigh: 1.54,
+      representativePrice: 1.53,
+      strengthScore: 15,
+      strengthLabel: "moderate",
+      touchCount: 2,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.48,
+      rejectionScore: 0.22,
+      displacementScore: 0.29,
+      sessionSignificanceScore: 0.11,
+      followThroughScore: 0.22,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R3",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 1.57,
+      zoneHigh: 1.59,
+      representativePrice: 1.58,
+      strengthScore: 16,
+      strengthLabel: "moderate",
+      touchCount: 2,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.49,
+      rejectionScore: 0.24,
+      displacementScore: 0.31,
+      sessionSignificanceScore: 0.12,
+      followThroughScore: 0.24,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R4",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 1.63,
+      zoneHigh: 1.65,
+      representativePrice: 1.64,
+      strengthScore: 14,
+      strengthLabel: "moderate",
+      touchCount: 2,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.46,
+      rejectionScore: 0.21,
+      displacementScore: 0.27,
+      sessionSignificanceScore: 0.12,
+      followThroughScore: 0.2,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R5",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "daily",
+      zoneLow: 1.73,
+      zoneHigh: 1.76,
+      representativePrice: 1.75,
+      strengthScore: 32,
+      strengthLabel: "strong",
+      touchCount: 1,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["daily"],
+      reactionQualityScore: 0.78,
+      rejectionScore: 0.61,
+      displacementScore: 0.74,
+      sessionSignificanceScore: 0.2,
+      followThroughScore: 0.72,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R6",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "4h",
+      zoneLow: 1.84,
+      zoneHigh: 1.86,
+      representativePrice: 1.85,
+      strengthScore: 23,
+      strengthLabel: "moderate",
+      touchCount: 1,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["4h"],
+      reactionQualityScore: 0.65,
+      rejectionScore: 0.37,
+      displacementScore: 0.56,
+      sessionSignificanceScore: 0.16,
+      followThroughScore: 0.49,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+  ];
+
+  const extensions = buildLevelExtensions({
+    supportZones: [],
+    resistanceZones,
+    surfacedSupport: [],
+    surfacedResistance: [resistanceZones[0]!],
+    spacingPct: 0.01,
+    searchWindowPct: 0.05,
+  });
+
+  assert.ok(extensions.resistance.map((zone) => zone.id).includes("R5"));
+  assert.ok(extensions.resistance.map((zone) => zone.id).includes("R6"));
+  assert.ok(!extensions.resistance.map((zone) => zone.id).includes("R4"));
+  assert.equal(extensions.resistance.length, 3);
+});
+
 test("scoreLevelZones promotes mixed higher-timeframe confluence above similar 5m-only reaction structure", () => {
   const baseZone = {
     symbol: "ALBT",
@@ -1013,4 +1281,196 @@ test("rankLevelZones surfaces mixed higher-timeframe zones once in the highest b
   assert.deepEqual(output.intradayResistance.map((zone) => zone.id), ["5m-1"]);
   assert.ok(!output.intermediateResistance.some((zone) => zone.id === "mix-1"));
   assert.ok(!output.intradayResistance.some((zone) => zone.id === "mix-1"));
+});
+
+test("rankLevelZones suppresses weaker nearby band clutter while preserving stronger anchor levels", () => {
+  const resistanceZones: FinalLevelZone[] = [
+    {
+      id: "R-near",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 1.48,
+      zoneHigh: 1.5,
+      representativePrice: 1.49,
+      strengthScore: 16,
+      strengthLabel: "moderate",
+      touchCount: 2,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.42,
+      rejectionScore: 0.28,
+      displacementScore: 0.38,
+      sessionSignificanceScore: 0.12,
+      followThroughScore: 0.25,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      sessionDate: undefined,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R-anchor",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 1.57,
+      zoneHigh: 1.59,
+      representativePrice: 1.58,
+      strengthScore: 27,
+      strengthLabel: "strong",
+      touchCount: 4,
+      confluenceCount: 2,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.71,
+      rejectionScore: 0.49,
+      displacementScore: 0.64,
+      sessionSignificanceScore: 0.18,
+      followThroughScore: 0.56,
+      sourceEvidenceCount: 2,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      sessionDate: undefined,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R-band-1",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 1.61,
+      zoneHigh: 1.63,
+      representativePrice: 1.62,
+      strengthScore: 18,
+      strengthLabel: "moderate",
+      touchCount: 2,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.46,
+      rejectionScore: 0.31,
+      displacementScore: 0.4,
+      sessionSignificanceScore: 0.11,
+      followThroughScore: 0.29,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      sessionDate: undefined,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R-band-2",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 1.63,
+      zoneHigh: 1.65,
+      representativePrice: 1.64,
+      strengthScore: 17,
+      strengthLabel: "moderate",
+      touchCount: 2,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.45,
+      rejectionScore: 0.3,
+      displacementScore: 0.39,
+      sessionSignificanceScore: 0.11,
+      followThroughScore: 0.28,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      sessionDate: undefined,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R-band-3",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 1.66,
+      zoneHigh: 1.68,
+      representativePrice: 1.67,
+      strengthScore: 16,
+      strengthLabel: "moderate",
+      touchCount: 2,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.44,
+      rejectionScore: 0.29,
+      displacementScore: 0.38,
+      sessionSignificanceScore: 0.1,
+      followThroughScore: 0.27,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      sessionDate: undefined,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    {
+      id: "R-far",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "daily",
+      zoneLow: 1.84,
+      zoneHigh: 1.86,
+      representativePrice: 1.85,
+      strengthScore: 24,
+      strengthLabel: "strong",
+      touchCount: 3,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["daily"],
+      reactionQualityScore: 0.67,
+      rejectionScore: 0.52,
+      displacementScore: 0.6,
+      sessionSignificanceScore: 0.2,
+      followThroughScore: 0.48,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      sessionDate: undefined,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+  ];
+
+  const output = rankLevelZones({
+    symbol: "GXAI",
+    supportZones: [],
+    resistanceZones,
+    specialLevels: {},
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+    },
+    config: DEFAULT_LEVEL_ENGINE_CONFIG,
+  });
+
+  const surfacedIds = [
+    ...output.majorResistance.map((zone) => zone.id),
+    ...output.intermediateResistance.map((zone) => zone.id),
+    ...output.intradayResistance.map((zone) => zone.id),
+  ];
+
+  assert.ok(surfacedIds.includes("R-near"));
+  assert.ok(surfacedIds.includes("R-anchor"));
+  assert.ok(surfacedIds.includes("R-far"));
+  assert.ok(!surfacedIds.includes("R-band-2"));
+  assert.ok(!surfacedIds.includes("R-band-3"));
 });

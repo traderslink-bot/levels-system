@@ -145,12 +145,20 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
   assert.equal(
     formatLevelSnapshotMessage({
       symbol: "ALBT",
-      supportLevels: [2.4, 2.25],
-      resistanceLevels: [2.6, 2.75],
+      currentPrice: 2.51,
+      supportZones: [
+        { representativePrice: 2.4 },
+        { representativePrice: 2.25, lowPrice: 2.2, highPrice: 2.28 },
+      ],
+      resistanceZones: [
+        { representativePrice: 2.6, lowPrice: 2.58, highPrice: 2.62 },
+        { representativePrice: 2.75 },
+      ],
       timestamp: 1,
     }),
     [
       "LEVEL SNAPSHOT: ALBT",
+      "PRICE: 2.51",
       "SUPPORT: 2.40, 2.25",
       "RESISTANCE: 2.60, 2.75",
     ].join("\n"),
@@ -163,8 +171,12 @@ test("DiscordAlertRouter routes level snapshots separately from alerts", async (
 
   await router.routeLevelSnapshot("thread-3", {
     symbol: "IMMP",
-    supportLevels: [3.15],
-    resistanceLevels: [3.42, 3.55],
+    currentPrice: 3.31,
+    supportZones: [{ representativePrice: 3.15 }],
+    resistanceZones: [
+      { representativePrice: 3.42 },
+      { representativePrice: 3.55 },
+    ],
     timestamp: 10,
   });
 
@@ -173,8 +185,12 @@ test("DiscordAlertRouter routes level snapshots separately from alerts", async (
       threadId: "thread-3",
       payload: {
         symbol: "IMMP",
-        supportLevels: [3.15],
-        resistanceLevels: [3.42, 3.55],
+        currentPrice: 3.31,
+        supportZones: [{ representativePrice: 3.15 }],
+        resistanceZones: [
+          { representativePrice: 3.42 },
+          { representativePrice: 3.55 },
+        ],
         timestamp: 10,
       },
     },
