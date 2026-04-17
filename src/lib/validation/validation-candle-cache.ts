@@ -95,10 +95,11 @@ async function readCacheEntry(path: string): Promise<ValidationCandleCacheEntry 
   }
 }
 
-async function findNearestPriorCachePath(
+async function findNearestReusableCachePath(
   cacheDirectoryPath: string,
   request: HistoricalFetchRequest,
   provider: CandleProviderName,
+  mode: ValidationCandleCacheMode,
 ): Promise<string | null> {
   const directoryPath = join(
     cacheDirectoryPath,
@@ -107,21 +108,37 @@ async function findNearestPriorCachePath(
     request.timeframe,
   );
   const requestedEndTimeMs = normalizeEndTimeMs(request);
-  const maxFallbackGapMs = timeframeMs(request.timeframe);
-  const prefix = `${request.lookbackBars}-`;
+  const maxFallbackGapMs =
+    mode === "replay" ? Number.POSITIVE_INFINITY : timeframeMs(request.timeframe);
 
   try {
     const filenames = await readdir(directoryPath);
-    let bestCandidateEndTimeMs: number | null = null;
+    let bestCandidate:
+      | {
+          endTimeMs: number;
+          lookbackBars: number;
+        }
+      | null = null;
 
     for (const filename of filenames) {
-      if (!filename.startsWith(prefix) || !filename.endsWith(".json")) {
+      if (!filename.endsWith(".json")) {
         continue;
       }
 
-      const endTimeRaw = filename.slice(prefix.length, -".json".length);
+      const separatorIndex = filename.indexOf("-");
+      if (separatorIndex <= 0) {
+        continue;
+      }
+
+      const lookbackRaw = filename.slice(0, separatorIndex);
+      const endTimeRaw = filename.slice(separatorIndex + 1, -".json".length);
+      const candidateLookbackBars = Number(lookbackRaw);
       const candidateEndTimeMs = Number(endTimeRaw);
-      if (!Number.isFinite(candidateEndTimeMs)) {
+      if (!Number.isFinite(candidateLookbackBars) || !Number.isFinite(candidateEndTimeMs)) {
+        continue;
+      }
+
+      if (candidateLookbackBars < request.lookbackBars) {
         continue;
       }
 
@@ -130,16 +147,24 @@ async function findNearestPriorCachePath(
         continue;
       }
 
-      if (bestCandidateEndTimeMs === null || candidateEndTimeMs > bestCandidateEndTimeMs) {
-        bestCandidateEndTimeMs = candidateEndTimeMs;
+      if (
+        bestCandidate === null ||
+        candidateEndTimeMs > bestCandidate.endTimeMs ||
+        (candidateEndTimeMs === bestCandidate.endTimeMs &&
+          candidateLookbackBars < bestCandidate.lookbackBars)
+      ) {
+        bestCandidate = {
+          endTimeMs: candidateEndTimeMs,
+          lookbackBars: candidateLookbackBars,
+        };
       }
     }
 
-    if (bestCandidateEndTimeMs === null) {
+    if (bestCandidate === null) {
       return null;
     }
 
-    return join(directoryPath, `${request.lookbackBars}-${bestCandidateEndTimeMs}.json`);
+    return join(directoryPath, `${bestCandidate.lookbackBars}-${bestCandidate.endTimeMs}.json`);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return null;
@@ -219,10 +244,11 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
         return withRequestMetadata(cached.response, request);
       }
 
-      const nearbyCachePath = await findNearestPriorCachePath(
+      const nearbyCachePath = await findNearestReusableCachePath(
         this.cacheDirectoryPath,
         request,
         provider,
+        this.mode,
       );
       if (nearbyCachePath) {
         const nearbyCached = await readCacheEntry(nearbyCachePath);

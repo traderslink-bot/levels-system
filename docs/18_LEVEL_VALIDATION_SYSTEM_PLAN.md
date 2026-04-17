@@ -524,8 +524,13 @@ Interpretation reminder for future Codex work:
   - from a bucket that price nearly reached but did not quite touch
 - when using cached validation candles:
   - prefer `read_write` before `refresh` during repeated evidence passes
-  - the validation cache can now reuse the nearest prior same-lookback candle file within one bar
-  - but if replay/read-write still miss, treat that as a true cache coverage gap rather than assuming IBKR must be hit every time
+  - the validation cache can now reuse the nearest prior compatible candle file
+  - in `read_write`, reuse stays conservative:
+    - prior-only
+    - within one bar
+    - same or larger lookback only
+  - in `replay`, the cache may reuse the latest prior compatible file even when older than one bar so offline evidence passes do not keep failing just because wall-clock time moved on
+  - if replay still misses after that, treat it as a real cache coverage gap rather than assuming IBKR must be hit every time
 - check loose surfaced match rates before declaring a persistence result meaningfully stable
 
 Minimum expectation for future Codex work:

@@ -1807,8 +1807,9 @@ This document tracks concrete implementation changes made to the `levels-system`
 - The cache layer now reuses the nearest prior cached file for the same:
   - `symbol`
   - `timeframe`
-  - `lookback`
-  when the cached end time is within one bar of the requested end time.
+  - requested lookback or a larger compatible lookback
+  when the cached end time is within one bar of the requested end time in `read_write`.
+- In `replay` mode, the cache can now also reuse the latest prior compatible cached file even when it is older than one bar.
 - Reused cache responses are rewritten with the current request's:
   - `requestedStartTimestamp`
   - `requestedEndTimestamp`
@@ -1818,7 +1819,12 @@ This document tracks concrete implementation changes made to the `levels-system`
   - this improves `read_write` and `replay` validation reliability without pretending materially older data is current
 - The fallback stays intentionally conservative:
   - prior-only, never future
-  - one-bar gap only
-  - same lookback only
+  - `read_write` still keeps the one-bar gap rule
+  - `replay` can use older prior cache on purpose for offline analysis
+  - larger-lookback reuse is allowed, smaller-lookback reuse is not
+- This materially improved offline validation on cached symbols like:
+  - `GXAI`
+  - `EFOI`
+  by turning prior 5m cache misses into completed replay-mode forward validation runs.
 - Added focused coverage in:
   - `src/tests/validation-candle-cache.test.ts`

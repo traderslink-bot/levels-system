@@ -189,6 +189,99 @@ test("ValidationCachedCandleFetchService replay mode can reuse the nearest prior
   );
 });
 
+test("ValidationCachedCandleFetchService can reuse a larger-lookback cached file when the exact lookback is missing", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "validation-candle-cache-"));
+  const response = buildResponse();
+  const largerRequest: HistoricalFetchRequest = {
+    symbol: "GXAI",
+    timeframe: "5m",
+    lookbackBars: 30,
+    endTimeMs: Date.parse("2026-04-16T14:05:00Z"),
+  };
+  const smallerRequest: HistoricalFetchRequest = {
+    ...largerRequest,
+    lookbackBars: 20,
+  };
+
+  const writer = new ValidationCachedCandleFetchService(
+    {
+      getProviderName: () => "stub" as const,
+      fetchCandles: async () => response,
+    },
+    {
+      cacheDirectoryPath: tempDir,
+      mode: "read_write",
+    },
+  );
+  await writer.fetchCandles(largerRequest);
+
+  const replayService = new ValidationCachedCandleFetchService(
+    {
+      getProviderName: () => "stub" as const,
+      fetchCandles: async () => {
+        throw new Error("delegate should not be called when larger cache is reusable");
+      },
+    },
+    {
+      cacheDirectoryPath: tempDir,
+      mode: "replay",
+    },
+  );
+
+  const reused = await replayService.fetchCandles(smallerRequest);
+  const normalizedEndTime = Math.floor(smallerRequest.endTimeMs! / (5 * 60 * 1000)) * 5 * 60 * 1000;
+  assert.equal(reused.requestedLookbackBars, smallerRequest.lookbackBars);
+  assert.equal(reused.requestedEndTimestamp, normalizedEndTime);
+  assert.equal(
+    reused.requestedStartTimestamp,
+    normalizedEndTime - smallerRequest.lookbackBars * 5 * 60 * 1000,
+  );
+});
+
+test("ValidationCachedCandleFetchService replay mode can reuse the latest prior cached file even when older than one bar", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "validation-candle-cache-"));
+  const response = buildResponse();
+  const cachedRequest: HistoricalFetchRequest = {
+    symbol: "GXAI",
+    timeframe: "5m",
+    lookbackBars: 20,
+    endTimeMs: Date.parse("2026-04-16T14:05:00Z"),
+  };
+  const muchLaterRequest: HistoricalFetchRequest = {
+    ...cachedRequest,
+    endTimeMs: Date.parse("2026-04-16T14:40:00Z"),
+  };
+
+  const writer = new ValidationCachedCandleFetchService(
+    {
+      getProviderName: () => "stub" as const,
+      fetchCandles: async () => response,
+    },
+    {
+      cacheDirectoryPath: tempDir,
+      mode: "read_write",
+    },
+  );
+  await writer.fetchCandles(cachedRequest);
+
+  const replayService = new ValidationCachedCandleFetchService(
+    {
+      getProviderName: () => "stub" as const,
+      fetchCandles: async () => {
+        throw new Error("delegate should not be called when replay can reuse older cache");
+      },
+    },
+    {
+      cacheDirectoryPath: tempDir,
+      mode: "replay",
+    },
+  );
+
+  const reused = await replayService.fetchCandles(muchLaterRequest);
+  const normalizedEndTime = Math.floor(muchLaterRequest.endTimeMs! / (5 * 60 * 1000)) * 5 * 60 * 1000;
+  assert.equal(reused.requestedEndTimestamp, normalizedEndTime);
+});
+
 test("resolveValidationCandleCacheMode defaults to read_write for unknown values", () => {
   assert.equal(resolveValidationCandleCacheMode(undefined), "read_write");
   assert.equal(resolveValidationCandleCacheMode("replay"), "replay");
