@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import {
@@ -95,6 +95,76 @@ async function readCacheEntry(path: string): Promise<ValidationCandleCacheEntry 
   }
 }
 
+async function findNearestPriorCachePath(
+  cacheDirectoryPath: string,
+  request: HistoricalFetchRequest,
+  provider: CandleProviderName,
+): Promise<string | null> {
+  const directoryPath = join(
+    cacheDirectoryPath,
+    provider,
+    request.symbol.trim().toUpperCase(),
+    request.timeframe,
+  );
+  const requestedEndTimeMs = normalizeEndTimeMs(request);
+  const maxFallbackGapMs = timeframeMs(request.timeframe);
+  const prefix = `${request.lookbackBars}-`;
+
+  try {
+    const filenames = await readdir(directoryPath);
+    let bestCandidateEndTimeMs: number | null = null;
+
+    for (const filename of filenames) {
+      if (!filename.startsWith(prefix) || !filename.endsWith(".json")) {
+        continue;
+      }
+
+      const endTimeRaw = filename.slice(prefix.length, -".json".length);
+      const candidateEndTimeMs = Number(endTimeRaw);
+      if (!Number.isFinite(candidateEndTimeMs)) {
+        continue;
+      }
+
+      const gapMs = requestedEndTimeMs - candidateEndTimeMs;
+      if (gapMs < 0 || gapMs > maxFallbackGapMs) {
+        continue;
+      }
+
+      if (bestCandidateEndTimeMs === null || candidateEndTimeMs > bestCandidateEndTimeMs) {
+        bestCandidateEndTimeMs = candidateEndTimeMs;
+      }
+    }
+
+    if (bestCandidateEndTimeMs === null) {
+      return null;
+    }
+
+    return join(directoryPath, `${request.lookbackBars}-${bestCandidateEndTimeMs}.json`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+
+    return null;
+  }
+}
+
+function withRequestMetadata(
+  response: CandleProviderResponse,
+  request: HistoricalFetchRequest,
+): CandleProviderResponse {
+  const requestedEndTimestamp = normalizeEndTimeMs(request);
+  const requestedStartTimestamp =
+    requestedEndTimestamp - request.lookbackBars * timeframeMs(request.timeframe);
+
+  return {
+    ...response,
+    requestedLookbackBars: request.lookbackBars,
+    requestedStartTimestamp,
+    requestedEndTimestamp,
+  };
+}
+
 async function writeCacheEntry(path: string, entry: ValidationCandleCacheEntry): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(entry, null, 2)}\n`, "utf8");
@@ -146,7 +216,19 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
     if (this.mode !== "refresh") {
       const cached = await readCacheEntry(cachePath);
       if (cached) {
-        return cached.response;
+        return withRequestMetadata(cached.response, request);
+      }
+
+      const nearbyCachePath = await findNearestPriorCachePath(
+        this.cacheDirectoryPath,
+        request,
+        provider,
+      );
+      if (nearbyCachePath) {
+        const nearbyCached = await readCacheEntry(nearbyCachePath);
+        if (nearbyCached) {
+          return withRequestMetadata(nearbyCached.response, request);
+        }
       }
 
       if (this.mode === "replay") {
@@ -156,7 +238,7 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
       }
     }
 
-    const response = await this.delegate.fetchCandles(request);
+    const response = withRequestMetadata(await this.delegate.fetchCandles(request), request);
     const cacheEntry: ValidationCandleCacheEntry = {
       schemaVersion: CACHE_SCHEMA_VERSION,
       cachedAt: Date.now(),

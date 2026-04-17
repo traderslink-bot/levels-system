@@ -1797,3 +1797,28 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused coverage in:
   - `src/tests/forward-reaction-validator.test.ts`
   - `src/tests/level-validation-batch.test.ts`
+
+## 2026-04-17 11:25 PM America/Toronto
+
+### Validation candle cache now reuses the nearest prior matching window
+
+- Refined `src/lib/validation/validation-candle-cache.ts`.
+- Validation candle caching no longer requires an exact timestamp match for every rolling request.
+- The cache layer now reuses the nearest prior cached file for the same:
+  - `symbol`
+  - `timeframe`
+  - `lookback`
+  when the cached end time is within one bar of the requested end time.
+- Reused cache responses are rewritten with the current request's:
+  - `requestedStartTimestamp`
+  - `requestedEndTimestamp`
+  so candle-health and staleness checks stay honest.
+- Why this matters:
+  - rolling `5m` validation requests were frequently missing cache by a single bar and falling back to IBKR historical unnecessarily
+  - this improves `read_write` and `replay` validation reliability without pretending materially older data is current
+- The fallback stays intentionally conservative:
+  - prior-only, never future
+  - one-bar gap only
+  - same lookback only
+- Added focused coverage in:
+  - `src/tests/validation-candle-cache.test.ts`

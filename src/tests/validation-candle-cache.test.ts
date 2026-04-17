@@ -67,10 +67,13 @@ test("ValidationCachedCandleFetchService writes through on first fetch and reuse
   const second = await service.fetchCandles(request);
 
   assert.equal(callCount, 1);
-  assert.deepEqual(first, response);
-  assert.deepEqual(second, response);
-
   const normalizedEndTime = Math.floor(request.endTimeMs! / (5 * 60 * 1000)) * 5 * 60 * 1000;
+  assert.equal(first.provider, response.provider);
+  assert.deepEqual(first.candles, response.candles);
+  assert.equal(first.requestedEndTimestamp, normalizedEndTime);
+  assert.equal(first.requestedStartTimestamp, normalizedEndTime - request.lookbackBars * 5 * 60 * 1000);
+  assert.deepEqual(second, first);
+
   const cachePath = join(tempDir, "stub", "GXAI", "5m", `20-${normalizedEndTime}.json`);
   assert.equal(existsSync(cachePath), true);
   const cachedFiles = readFileSync(cachePath, "utf8");
@@ -97,6 +100,92 @@ test("ValidationCachedCandleFetchService replay mode errors on cache miss", asyn
   await assert.rejects(
     service.fetchCandles(request),
     /Validation candle cache miss/,
+  );
+});
+
+test("ValidationCachedCandleFetchService reuses the nearest prior cached file within one bar", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "validation-candle-cache-"));
+  const response = buildResponse();
+  const baseRequest: HistoricalFetchRequest = {
+    symbol: "GXAI",
+    timeframe: "5m",
+    lookbackBars: 20,
+    endTimeMs: Date.parse("2026-04-16T14:05:00Z"),
+  };
+  const laterRequest: HistoricalFetchRequest = {
+    ...baseRequest,
+    endTimeMs: Date.parse("2026-04-16T14:10:00Z"),
+  };
+  let callCount = 0;
+  const delegate = {
+    getProviderName: () => "stub" as const,
+    fetchCandles: async () => {
+      callCount += 1;
+      return response;
+    },
+  };
+
+  const service = new ValidationCachedCandleFetchService(delegate, {
+    cacheDirectoryPath: tempDir,
+    mode: "read_write",
+  });
+
+  await service.fetchCandles(baseRequest);
+  const reused = await service.fetchCandles(laterRequest);
+
+  assert.equal(callCount, 1);
+  assert.equal(
+    reused.requestedEndTimestamp,
+    Math.floor(laterRequest.endTimeMs! / (5 * 60 * 1000)) * 5 * 60 * 1000,
+  );
+  assert.equal(
+    reused.requestedStartTimestamp,
+    reused.requestedEndTimestamp - laterRequest.lookbackBars * 5 * 60 * 1000,
+  );
+});
+
+test("ValidationCachedCandleFetchService replay mode can reuse the nearest prior cached file within one bar", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "validation-candle-cache-"));
+  const response = buildResponse();
+  const baseRequest: HistoricalFetchRequest = {
+    symbol: "GXAI",
+    timeframe: "5m",
+    lookbackBars: 20,
+    endTimeMs: Date.parse("2026-04-16T14:05:00Z"),
+  };
+  const laterRequest: HistoricalFetchRequest = {
+    ...baseRequest,
+    endTimeMs: Date.parse("2026-04-16T14:10:00Z"),
+  };
+  const writer = new ValidationCachedCandleFetchService(
+    {
+      getProviderName: () => "stub" as const,
+      fetchCandles: async () => response,
+    },
+    {
+      cacheDirectoryPath: tempDir,
+      mode: "read_write",
+    },
+  );
+  await writer.fetchCandles(baseRequest);
+
+  const replayService = new ValidationCachedCandleFetchService(
+    {
+      getProviderName: () => "stub" as const,
+      fetchCandles: async () => {
+        throw new Error("delegate should not be called in replay mode");
+      },
+    },
+    {
+      cacheDirectoryPath: tempDir,
+      mode: "replay",
+    },
+  );
+
+  const reused = await replayService.fetchCandles(laterRequest);
+  assert.equal(
+    reused.requestedEndTimestamp,
+    Math.floor(laterRequest.endTimeMs! / (5 * 60 * 1000)) * 5 * 60 * 1000,
   );
 });
 
