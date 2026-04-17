@@ -522,6 +522,13 @@ Interpretation reminder for future Codex work:
   to distinguish:
   - a bucket that sat too far below the realized path
   - from a bucket that price nearly reached but did not quite touch
+- if support bucket closest approach is also `0.0000`, also check:
+  - `Support bucket evaluated`
+  or the per-symbol:
+  - `supportBucketEval=daily/4h/5m`
+  to distinguish:
+  - a truly touched bucket
+  - from a timeframe that had no surfaced support bucket at all
 - when using cached validation candles:
   - prefer `read_write` before `refresh` during repeated evidence passes
   - the validation cache can now reuse the nearest prior compatible candle file

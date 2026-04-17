@@ -203,6 +203,9 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
   assert.equal(summary.averageSupportBucketTouchRate.daily, 0.5);
   assert.equal(summary.averageSupportBucketTouchRate["4h"], 0.5);
   assert.equal(summary.averageSupportBucketTouchRate["5m"], 0.5);
+  assert.equal(summary.totalSupportBucketEvaluated.daily, 1);
+  assert.equal(summary.totalSupportBucketEvaluated["4h"], 2);
+  assert.equal(summary.totalSupportBucketEvaluated["5m"], 2);
   assert.equal(summary.averageSupportBucketClosestApproachPct.daily, 0);
   assert.equal(summary.averageSupportBucketClosestApproachPct["4h"], 0.01);
   assert.equal(summary.averageSupportBucketClosestApproachPct["5m"], 0.015);
@@ -309,47 +312,51 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
   );
   assert.equal(
     lines[9],
-    "[LevelValidation] Support bucket usefulness | daily=1.0000 | 4h=0.0000 | 5m=0.0000",
+    "[LevelValidation] Support bucket evaluated | daily=1 | 4h=0 | 5m=0",
   );
   assert.equal(
     lines[10],
-    "[LevelValidation] Support bucket touch | daily=1.0000 | 4h=0.0000 | 5m=0.0000",
+    "[LevelValidation] Support bucket usefulness | daily=1.0000 | 4h=0.0000 | 5m=0.0000",
   );
   assert.equal(
     lines[11],
-    "[LevelValidation] Support bucket useful when touched | daily=1.0000 | 4h=0.0000 | 5m=0.0000",
+    "[LevelValidation] Support bucket touch | daily=1.0000 | 4h=0.0000 | 5m=0.0000",
   );
   assert.equal(
     lines[12],
-    "[LevelValidation] Support bucket closest approach | daily=0.0000 | 4h=0.0000 | 5m=0.0000",
+    "[LevelValidation] Support bucket useful when touched | daily=1.0000 | 4h=0.0000 | 5m=0.0000",
   );
   assert.equal(
     lines[13],
+    "[LevelValidation] Support bucket closest approach | daily=0.0000 | 4h=0.0000 | 5m=0.0000",
+  );
+  assert.equal(
+    lines[14],
     "[LevelValidation] Surfaced respect | support=1.0000 | resistance=0.1000",
   );
   assert.equal(
-    lines[15],
+    lines[16],
     "[LevelValidation] Distance usefulness | near=0.5000 | intermediate=0.5000 | far=0.0000",
   );
   assert.equal(
-    lines[16],
+    lines[17],
     "[LevelValidation] Distance touch | near=0.5000 | intermediate=1.0000 | far=0.0000",
   );
   assert.equal(
-    lines[17],
+    lines[18],
     "[LevelValidation] Distance useful when touched | near=1.0000 | intermediate=0.5000 | far=0.0000",
   );
   assert.equal(
-    lines[19],
+    lines[20],
     "[LevelValidation] Support bucket loose matches | daily=0.0000 | 4h=0.1000 | 5m=0.2500",
   );
   assert.equal(
-    lines[20],
+    lines[21],
     "[LevelValidation] Weakest usefulness areas | far=0.0000(1) | surfacedResistance=0.2500(2) | extensionResistance=0.3000(1)",
   );
   assert.equal(
-    lines[21],
-    "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | supportBuckets=1.0000/0.7500/0.5000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | supportBucketLoose=0.0000/0.1000/0.2500 | surfacedUseful=1.0000/0.2500 | surfacedTouchedUseful=1.0000/0.5000 | supportBucketUseful=1.0000/0.0000/0.0000 | supportBucketTouch=1.0000/0.0000/0.0000 | supportBucketApproach=0.0000/0.0000/0.0000 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000 | bandTouch=0.5000/1.0000/0.0000",
+    lines[22],
+    "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | supportBuckets=1.0000/0.7500/0.5000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | supportBucketLoose=0.0000/0.1000/0.2500 | surfacedUseful=1.0000/0.2500 | surfacedTouchedUseful=1.0000/0.5000 | supportBucketEval=1/0/0 | supportBucketUseful=1.0000/0.0000/0.0000 | supportBucketTouch=1.0000/0.0000/0.0000 | supportBucketApproach=0.0000/0.0000/0.0000 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000 | bandTouch=0.5000/1.0000/0.0000",
   );
 });
 

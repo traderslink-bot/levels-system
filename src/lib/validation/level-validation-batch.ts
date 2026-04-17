@@ -50,6 +50,11 @@ export type LevelValidationBatchSummary = {
     "4h": number;
     "5m": number;
   };
+  totalSupportBucketEvaluated: {
+    daily: number;
+    "4h": number;
+    "5m": number;
+  };
   averageSupportBucketUsefulnessRate: {
     daily: number;
     "4h": number;
@@ -284,6 +289,26 @@ export function summarizeLevelValidationBatch(
         completed.map((result) => result.forwardReactionReport!.bySurfacedSupportBucket["5m"].touchRate),
       ),
     },
+    totalSupportBucketEvaluated: {
+      daily: Math.round(
+        completed.reduce(
+          (sum, result) => sum + result.forwardReactionReport!.bySurfacedSupportBucket.daily.evaluated,
+          0,
+        ),
+      ),
+      "4h": Math.round(
+        completed.reduce(
+          (sum, result) => sum + result.forwardReactionReport!.bySurfacedSupportBucket["4h"].evaluated,
+          0,
+        ),
+      ),
+      "5m": Math.round(
+        completed.reduce(
+          (sum, result) => sum + result.forwardReactionReport!.bySurfacedSupportBucket["5m"].evaluated,
+          0,
+        ),
+      ),
+    },
     averageSupportBucketUsefulnessRate: {
       daily: average(
         completed.map(
@@ -373,6 +398,7 @@ export function formatLevelValidationBatchSummary(
     `[LevelValidation] Extension usefulness | support=${summary.averageExtensionSupportUsefulnessRate.toFixed(4)} | resistance=${summary.averageExtensionResistanceUsefulnessRate.toFixed(4)}`,
     `[LevelValidation] Surfaced useful when touched | support=${summary.averageSurfacedSupportUsefulWhenTouchedRate.toFixed(4)} | resistance=${summary.averageSurfacedResistanceUsefulWhenTouchedRate.toFixed(4)}`,
     `[LevelValidation] Extension useful when touched | support=${summary.averageExtensionSupportUsefulWhenTouchedRate.toFixed(4)} | resistance=${summary.averageExtensionResistanceUsefulWhenTouchedRate.toFixed(4)}`,
+    `[LevelValidation] Support bucket evaluated | daily=${summary.totalSupportBucketEvaluated.daily} | 4h=${summary.totalSupportBucketEvaluated["4h"]} | 5m=${summary.totalSupportBucketEvaluated["5m"]}`,
     `[LevelValidation] Support bucket usefulness | daily=${summary.averageSupportBucketUsefulnessRate.daily.toFixed(4)} | 4h=${summary.averageSupportBucketUsefulnessRate["4h"].toFixed(4)} | 5m=${summary.averageSupportBucketUsefulnessRate["5m"].toFixed(4)}`,
     `[LevelValidation] Support bucket touch | daily=${summary.averageSupportBucketTouchRate.daily.toFixed(4)} | 4h=${summary.averageSupportBucketTouchRate["4h"].toFixed(4)} | 5m=${summary.averageSupportBucketTouchRate["5m"].toFixed(4)}`,
     `[LevelValidation] Support bucket useful when touched | daily=${summary.averageSupportBucketUsefulWhenTouchedRate.daily.toFixed(4)} | 4h=${summary.averageSupportBucketUsefulWhenTouchedRate["4h"].toFixed(4)} | 5m=${summary.averageSupportBucketUsefulWhenTouchedRate["5m"].toFixed(4)}`,
@@ -395,7 +421,7 @@ export function formatLevelValidationBatchSummary(
       ? `surfacedPersist=${result.persistenceReport.averageSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageResistancePersistenceRate.toFixed(4)} | supportBuckets=${result.persistenceReport.averageSupportBucketPersistenceRate.daily.toFixed(4)}/${result.persistenceReport.averageSupportBucketPersistenceRate["4h"].toFixed(4)}/${result.persistenceReport.averageSupportBucketPersistenceRate["5m"].toFixed(4)} | extensionPersist=${result.persistenceReport.averageExtensionSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageExtensionResistancePersistenceRate.toFixed(4)} | loose=${result.persistenceReport.averageSupportLooseMatchRate.toFixed(4)}/${result.persistenceReport.averageResistanceLooseMatchRate.toFixed(4)} | supportBucketLoose=${result.persistenceReport.averageSupportBucketLooseMatchRate.daily.toFixed(4)}/${result.persistenceReport.averageSupportBucketLooseMatchRate["4h"].toFixed(4)}/${result.persistenceReport.averageSupportBucketLooseMatchRate["5m"].toFixed(4)}`
       : "persistence=unavailable";
     const forward = result.forwardReactionReport
-      ? `surfacedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulnessRate.toFixed(4)} | surfacedTouchedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulWhenTouchedRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulWhenTouchedRate.toFixed(4)} | supportBucketUseful=${result.forwardReactionReport.bySurfacedSupportBucket.daily.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].usefulnessRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].usefulnessRate.toFixed(4)} | supportBucketTouch=${result.forwardReactionReport.bySurfacedSupportBucket.daily.touchRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].touchRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].touchRate.toFixed(4)} | supportBucketApproach=${result.forwardReactionReport.bySurfacedSupportBucket.daily.closestApproachPct.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].closestApproachPct.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].closestApproachPct.toFixed(4)} | extensionUseful=${result.forwardReactionReport.byKindSource.extensionSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.extensionResistance.usefulnessRate.toFixed(4)} | bands=${result.forwardReactionReport.byDistanceBand.near.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.usefulnessRate.toFixed(4)} | bandTouch=${result.forwardReactionReport.byDistanceBand.near.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.touchRate.toFixed(4)}`
+      ? `surfacedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulnessRate.toFixed(4)} | surfacedTouchedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulWhenTouchedRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulWhenTouchedRate.toFixed(4)} | supportBucketEval=${result.forwardReactionReport.bySurfacedSupportBucket.daily.evaluated}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].evaluated}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].evaluated} | supportBucketUseful=${result.forwardReactionReport.bySurfacedSupportBucket.daily.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].usefulnessRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].usefulnessRate.toFixed(4)} | supportBucketTouch=${result.forwardReactionReport.bySurfacedSupportBucket.daily.touchRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].touchRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].touchRate.toFixed(4)} | supportBucketApproach=${result.forwardReactionReport.bySurfacedSupportBucket.daily.closestApproachPct.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].closestApproachPct.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].closestApproachPct.toFixed(4)} | extensionUseful=${result.forwardReactionReport.byKindSource.extensionSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.extensionResistance.usefulnessRate.toFixed(4)} | bands=${result.forwardReactionReport.byDistanceBand.near.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.usefulnessRate.toFixed(4)} | bandTouch=${result.forwardReactionReport.byDistanceBand.near.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.touchRate.toFixed(4)}`
       : "forward=unavailable";
     const failure = result.errorMessage ? ` | error=${result.errorMessage}` : "";
 

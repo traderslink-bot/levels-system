@@ -1798,6 +1798,30 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `src/tests/forward-reaction-validator.test.ts`
   - `src/tests/level-validation-batch.test.ts`
 
+## 2026-04-18 12:05 AM America/Toronto
+
+### Support bucket output now exposes evaluated counts
+
+- Refined `src/lib/validation/forward-reaction-validator.ts` and `src/lib/validation/level-validation-batch.ts`.
+- Forward output now prints:
+  - `Support bucket evaluated`
+- Batch output now also carries:
+  - summary-level `Support bucket evaluated`
+  - per-symbol `supportBucketEval=daily/4h/5m`
+- Why this matters:
+  - `supportBucketApproach=0.0000` was still ambiguous
+  - it could mean:
+    - the bucket was touched
+    - or there was no surfaced support bucket for that timeframe on that symbol
+- The new evaluated counts remove that ambiguity.
+- Live replay read after the change:
+  - `PMNT` showed `supportBucketEval=4/5/0`
+  - `FAMI` showed `supportBucketEval=1/1/0`
+  - `EFOI` showed `supportBucketEval=3/1/0`
+  - so those names did not have a surfaced `5m` support bucket in the first place, which explains some prior `0.0000` lines more honestly
+- Added focused coverage in:
+  - `src/tests/level-validation-batch.test.ts`
+
 ## 2026-04-17 11:25 PM America/Toronto
 
 ### Validation candle cache now reuses the nearest prior matching window
