@@ -82,22 +82,28 @@ function stageRank(type: InterpretationType): number {
   }
 }
 
+function resolveOpportunityEventType(opportunity: AdaptedOpportunity): string {
+  return opportunity.eventType ?? opportunity.type;
+}
+
 function resolveZoneLabel(opportunity: AdaptedOpportunity): "support" | "resistance" | "level" {
+  const eventType = resolveOpportunityEventType(opportunity);
+
   if (
-    opportunity.type === "breakdown" ||
-    opportunity.type === "rejection" ||
-    opportunity.type === "fake_breakout" ||
+    eventType === "breakdown" ||
+    eventType === "rejection" ||
+    eventType === "fake_breakout" ||
     opportunity.bias === "bearish"
   ) {
     return "resistance";
   }
 
   if (
-    opportunity.type === "breakout" ||
-    opportunity.type === "reclaim" ||
-    opportunity.type === "fake_breakdown" ||
-    opportunity.type === "level_touch" ||
-    opportunity.type === "compression" ||
+    eventType === "breakout" ||
+    eventType === "reclaim" ||
+    eventType === "fake_breakdown" ||
+    eventType === "level_touch" ||
+    eventType === "compression" ||
     opportunity.bias !== "bearish"
   ) {
     return "support";
@@ -108,27 +114,28 @@ function resolveZoneLabel(opportunity: AdaptedOpportunity): "support" | "resista
 
 function resolveBaseType(context: OpportunityInterpretationContext): InterpretationType {
   const { opportunity, adaptiveState, structure } = context;
+  const eventType = resolveOpportunityEventType(opportunity);
 
   if (adaptiveState.weakStreak > 0 && adaptiveState.adaptiveMultiplier < 1) {
     return "weakening";
   }
 
-  if (opportunity.type === "breakout" && structure.type === "breakout_setup") {
+  if (eventType === "breakout" && structure.type === "breakout_setup") {
     return "breakout_context";
   }
 
   if (
-    opportunity.type === "breakout" ||
-    (opportunity.type === "compression" && opportunity.bias !== "bearish")
+    eventType === "breakout" ||
+    (eventType === "compression" && opportunity.bias !== "bearish")
   ) {
     return "pre_zone";
   }
 
-  if (opportunity.type === "level_touch") {
+  if (eventType === "level_touch") {
     return "in_zone";
   }
 
-  if (opportunity.type === "rejection" || opportunity.type === "reclaim") {
+  if (eventType === "rejection" || eventType === "reclaim") {
     return "confirmation";
   }
 
@@ -166,7 +173,7 @@ function buildTags(
 ): string[] {
   return [
     type,
-    context.opportunity.type,
+    resolveOpportunityEventType(context.opportunity),
     context.levels.zoneLabel,
     context.structure.type ?? "no_structure",
   ];
@@ -201,7 +208,7 @@ export class OpportunityInterpretationLayer {
   private readonly lastBySymbolType = new Map<string, number>();
 
   private buildOpportunityKey(opportunity: AdaptedOpportunity): string {
-    return `${opportunity.symbol}|${opportunity.type}|${round(opportunity.level, 4)}`;
+    return `${opportunity.symbol}|${resolveOpportunityEventType(opportunity)}|${round(opportunity.level, 4)}`;
   }
 
   private buildContext(opportunity: AdaptedOpportunity, weakStreak: number): OpportunityInterpretationContext {

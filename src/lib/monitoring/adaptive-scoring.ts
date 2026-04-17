@@ -63,6 +63,10 @@ function round(value: number, decimals: number = 4): number {
   return Math.round(value * factor) / factor;
 }
 
+function resolveAdaptiveEventType(opportunity: RankedOpportunity): string {
+  return opportunity.eventType ?? opportunity.type;
+}
+
 function normalizeExpectancy(expectancy: number): number {
   return clamp(expectancy / 2, -1, 1);
 }
@@ -118,7 +122,7 @@ export function buildAdaptiveTargetState(
   summary: OpportunityEvaluationSummary,
   config: AdaptiveScoringConfig = DEFAULT_CONFIG,
 ): AdaptiveTargetState {
-  const eventTypes = new Set(opportunities.map((opportunity) => opportunity.type));
+  const eventTypes = new Set(opportunities.map((opportunity) => resolveAdaptiveEventType(opportunity)));
 
   return {
     targetGlobalMultiplier: buildGlobalTargetMultiplier(summary, config),
@@ -181,10 +185,11 @@ export class AdaptiveScoringEngine {
 
     const adapted = opportunities
       .map((opportunity) => {
-        const eventTypeTarget = targetState.eventTypeTargets[opportunity.type];
+        const eventType = resolveAdaptiveEventType(opportunity);
+        const eventTypeTarget = targetState.eventTypeTargets[eventType];
         const eventTypeExpectancy = eventTypeTarget?.expectancy ?? round(summary.expectancy);
-        const eventTypeMultiplier = stability.appliedEventTypeMultipliers[opportunity.type] ?? 1;
-        const disabledState = stability.disabledEventTypes[opportunity.type] ?? {
+        const eventTypeMultiplier = stability.appliedEventTypeMultipliers[eventType] ?? 1;
+        const disabledState = stability.disabledEventTypes[eventType] ?? {
           disabled: false,
           disableReason: null,
         };

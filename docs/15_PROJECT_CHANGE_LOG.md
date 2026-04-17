@@ -18,6 +18,26 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-17 11:59 PM America/Toronto
+
+### Interpretation runtime now uses canonical monitoring event types
+
+- Refined the opportunity interpretation/runtime path so it no longer relies only on alert labels like `consolidation` when deciding interpretation behavior.
+- `src/lib/monitoring/opportunity-engine.ts` now carries canonical monitoring `eventType` alongside the user-facing alert `type`.
+- `src/lib/monitoring/adaptive-scoring.ts`, `src/lib/monitoring/opportunity-evaluator.ts`, and `src/lib/monitoring/opportunity-interpretation.ts` now prefer canonical `eventType` when:
+  - grouping adaptive expectancy state
+  - tracking evaluator outcomes
+  - choosing interpretation type and zone label
+- Why this matters:
+  - the interpretation layer should reason from true monitoring events, not only from downstream alert wording
+  - this especially fixes the `compression -> consolidation` alias path so deterministic message mapping stays correct in the live runtime
+- `src/lib/monitoring/opportunity-runtime-controller.ts` now also returns generated interpretations on the runtime snapshot instead of only printing them to console.
+- Added focused coverage in:
+  - `src/tests/opportunity-interpretation.test.ts`
+  - `src/tests/opportunity-runtime-integration.test.ts`
+
+---
+
 ## 2026-04-17 11:55 PM America/Toronto
 
 ### Batch validation availability is now split by report type

@@ -11,12 +11,16 @@ import {
   type EvaluatedOpportunity,
   type OpportunityEvaluationSummary,
 } from "./opportunity-evaluator.js";
-import { OpportunityInterpretationLayer } from "./opportunity-interpretation.js";
+import {
+  OpportunityInterpretationLayer,
+  type OpportunityInterpretation,
+} from "./opportunity-interpretation.js";
 
 export type OpportunityRuntimeSnapshot = {
   ranked: RankedOpportunity[];
   adapted: AdaptedOpportunity[];
   top: AdaptedOpportunity[];
+  interpretations: OpportunityInterpretation[];
   summary: OpportunityEvaluationSummary;
   adaptiveDiagnostics: OpportunityRuntimeAdaptiveDiagnostics;
   newOpportunity?: AdaptedOpportunity;
@@ -137,23 +141,30 @@ export class OpportunityRuntimeController {
       ranked,
       adapted: adaptiveResult.opportunities,
       top,
+      interpretations: [],
       summary,
       adaptiveDiagnostics: this.buildAdaptiveDiagnostics(adaptiveResult.diagnostics),
       completedEvaluations,
     };
   }
 
-  private emitInterpretations(snapshot: OpportunityRuntimeSnapshot): void {
+  private emitInterpretations(snapshot: OpportunityRuntimeSnapshot): OpportunityInterpretation[] {
+    const interpretations: OpportunityInterpretation[] = [];
+
     for (const opportunity of snapshot.top) {
-      const weakStreak = snapshot.adaptiveDiagnostics.eventTypes[opportunity.type]?.weakUpdateStreak ?? 0;
+      const eventType = opportunity.eventType ?? opportunity.type;
+      const weakStreak = snapshot.adaptiveDiagnostics.eventTypes[eventType]?.weakUpdateStreak ?? 0;
       const interpretation = this.interpretationLayer.interpret(opportunity, weakStreak);
 
       if (!interpretation) {
         continue;
       }
 
+      interpretations.push(interpretation);
       console.log(this.interpretationLayer.formatForConsole(interpretation));
     }
+
+    return interpretations;
   }
 
   processMonitoringEvent(event: MonitoringEvent): OpportunityRuntimeSnapshot {
@@ -176,10 +187,11 @@ export class OpportunityRuntimeController {
       this.trackedOpportunityKeys.add(opportunityKey);
     }
 
-    this.emitInterpretations(snapshot);
+    const interpretations = this.emitInterpretations(snapshot);
 
     return {
       ...snapshot,
+      interpretations,
       summary: this.evaluator.getSummary(),
       newOpportunity,
     };
@@ -198,9 +210,12 @@ export class OpportunityRuntimeController {
 
     this.pruneEvents(update.timestamp);
     const snapshot = this.buildSnapshot(completedEvaluations);
-    this.emitInterpretations(snapshot);
+    const interpretations = this.emitInterpretations(snapshot);
     this.adaptiveStatePersistence?.save(this.adaptiveScoringEngine.getState());
-    return snapshot;
+    return {
+      ...snapshot,
+      interpretations,
+    };
   }
 
   getSummary(): OpportunityEvaluationSummary {

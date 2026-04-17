@@ -13,6 +13,7 @@ function makeOpportunity(overrides: Partial<AdaptedOpportunity> = {}): AdaptedOp
   return {
     symbol: "ALBT",
     type: "level_touch",
+    eventType: "level_touch",
     level: 2.4,
     strength: 0.7,
     confidence: 0.65,
@@ -86,6 +87,7 @@ describe("opportunity interpretation", () => {
     const breakoutPreZone = interpretOpportunity({
       opportunity: makeOpportunity({
         type: "breakout",
+        eventType: "breakout",
       }),
       levels: {
         referenceLevel: 2.4,
@@ -103,6 +105,7 @@ describe("opportunity interpretation", () => {
     const compressionPreZone = interpretOpportunity({
       opportunity: makeOpportunity({
         type: "compression",
+        eventType: "compression",
       }),
       levels: {
         referenceLevel: 2.4,
@@ -124,11 +127,43 @@ describe("opportunity interpretation", () => {
     assert.equal(compressionPreZone.message, "watching pullback into support near 2.40");
   });
 
+  it("uses canonical event types when alert labels differ from monitoring events", () => {
+    const interpretation = interpretOpportunity({
+      opportunity: makeOpportunity({
+        type: "consolidation",
+        eventType: "compression",
+        timestamp: 1_000_200,
+      }),
+      levels: {
+        referenceLevel: 2.4,
+        zoneLabel: "support",
+      },
+      structure: {
+        type: null,
+        strength: 0.6,
+      },
+      adaptiveState: {
+        adaptiveMultiplier: 1.02,
+        weakStreak: 0,
+      },
+    });
+
+    assert.equal(interpretation.type, "pre_zone");
+    assert.equal(interpretation.message, "watching pullback into support near 2.40");
+    assert.deepEqual(interpretation.tags, [
+      "pre_zone",
+      "compression",
+      "support",
+      "no_structure",
+    ]);
+  });
+
   it("uses the exact confirmation and breakout-context phrases", () => {
     const rejectionConfirmation = interpretOpportunity({
       opportunity: makeOpportunity({
         symbol: "BIRD",
         type: "rejection",
+        eventType: "rejection",
       }),
       levels: {
         referenceLevel: 3.15,
@@ -147,6 +182,7 @@ describe("opportunity interpretation", () => {
       opportunity: makeOpportunity({
         symbol: "HUBC",
         type: "reclaim",
+        eventType: "reclaim",
       }),
       levels: {
         referenceLevel: 1.18,
@@ -165,6 +201,7 @@ describe("opportunity interpretation", () => {
       opportunity: makeOpportunity({
         symbol: "IMMP",
         type: "breakout",
+        eventType: "breakout",
       }),
       levels: {
         referenceLevel: 0.88,
@@ -202,6 +239,7 @@ describe("opportunity interpretation", () => {
     const confirmation = layer.interpret(makeOpportunity({
       symbol: "IMMP",
       type: "reclaim",
+      eventType: "reclaim",
       timestamp: 1_010_000,
     }), 0);
 
@@ -234,6 +272,7 @@ describe("opportunity interpretation", () => {
       opportunity: makeOpportunity({
         symbol: "IMMP",
         type: "breakout",
+        eventType: "breakout",
         level: 0.88,
         timestamp: 1_400_000,
       }),
@@ -263,7 +302,7 @@ describe("opportunity interpretation", () => {
         expectedType: "pre_zone",
         level: 2.4,
         interpretation: interpretOpportunity({
-          opportunity: makeOpportunity({ type: "compression", timestamp: 1_500_000 }),
+          opportunity: makeOpportunity({ type: "compression", eventType: "compression", timestamp: 1_500_000 }),
           levels: { referenceLevel: 2.4, zoneLabel: "support" },
           structure: { type: null, strength: 0.4 },
           adaptiveState: { adaptiveMultiplier: 1.02, weakStreak: 0 },
@@ -273,7 +312,7 @@ describe("opportunity interpretation", () => {
         expectedType: "in_zone",
         level: 2.4,
         interpretation: interpretOpportunity({
-          opportunity: makeOpportunity({ type: "level_touch", timestamp: 1_500_100 }),
+          opportunity: makeOpportunity({ type: "level_touch", eventType: "level_touch", timestamp: 1_500_100 }),
           levels: { referenceLevel: 2.4, zoneLabel: "support" },
           structure: { type: null, strength: 0.4 },
           adaptiveState: { adaptiveMultiplier: 1.02, weakStreak: 0 },
@@ -283,7 +322,7 @@ describe("opportunity interpretation", () => {
         expectedType: "confirmation",
         level: 2.4,
         interpretation: interpretOpportunity({
-          opportunity: makeOpportunity({ type: "reclaim", timestamp: 1_500_200 }),
+          opportunity: makeOpportunity({ type: "reclaim", eventType: "reclaim", timestamp: 1_500_200 }),
           levels: { referenceLevel: 2.4, zoneLabel: "support" },
           structure: { type: null, strength: 0.4 },
           adaptiveState: { adaptiveMultiplier: 1.02, weakStreak: 0 },
@@ -295,6 +334,7 @@ describe("opportunity interpretation", () => {
         interpretation: interpretOpportunity({
           opportunity: makeOpportunity({
             type: "reclaim",
+            eventType: "reclaim",
             adaptiveMultiplier: 0.95,
             timestamp: 1_500_300,
           }),
@@ -307,7 +347,7 @@ describe("opportunity interpretation", () => {
         expectedType: "breakout_context",
         level: 0.88,
         interpretation: interpretOpportunity({
-          opportunity: makeOpportunity({ type: "breakout", level: 0.88, timestamp: 1_500_400 }),
+          opportunity: makeOpportunity({ type: "breakout", eventType: "breakout", level: 0.88, timestamp: 1_500_400 }),
           levels: { referenceLevel: 0.88, zoneLabel: "support" },
           structure: { type: "breakout_setup", strength: 0.8 },
           adaptiveState: { adaptiveMultiplier: 1.04, weakStreak: 0 },
@@ -319,6 +359,7 @@ describe("opportunity interpretation", () => {
         interpretation: interpretOpportunity({
           opportunity: makeOpportunity({
             type: "fake_breakout",
+            eventType: "fake_breakout",
             bias: "bearish",
             timestamp: 1_500_500,
           }),

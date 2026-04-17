@@ -16,6 +16,7 @@ function makeSnapshot(): OpportunityRuntimeSnapshot {
       {
         symbol: "AAPL",
         type: "breakout",
+        eventType: "breakout",
         level: 100,
         strength: 0.8,
         confidence: 0.75,
@@ -39,6 +40,7 @@ function makeSnapshot(): OpportunityRuntimeSnapshot {
       {
         symbol: "AAPL",
         type: "breakout",
+        eventType: "breakout",
         level: 100,
         strength: 0.8,
         confidence: 0.75,
@@ -56,6 +58,16 @@ function makeSnapshot(): OpportunityRuntimeSnapshot {
         eventTypeExpectancy: 0.2,
         disabled: false,
         disableReason: null,
+      },
+    ],
+    interpretations: [
+      {
+        symbol: "AAPL",
+        message: "watching pullback into support near 100.00",
+        type: "pre_zone",
+        confidence: 0.79,
+        tags: ["pre_zone", "breakout", "support", "no_structure"],
+        timestamp: 1_000_000,
       },
     ],
     summary: {
@@ -107,6 +119,7 @@ function makeSnapshot(): OpportunityRuntimeSnapshot {
     newOpportunity: {
       symbol: "AAPL",
       type: "breakout",
+      eventType: "breakout",
       level: 100,
       strength: 0.8,
       confidence: 0.75,

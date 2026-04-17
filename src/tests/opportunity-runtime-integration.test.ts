@@ -72,6 +72,8 @@ describe("opportunity runtime integration", () => {
 
     assert.ok(firstSnapshot.newOpportunity);
     assert.ok(firstSnapshot.top.length >= 1);
+    assert.ok(firstSnapshot.interpretations.length >= 1);
+    assert.equal(firstSnapshot.interpretations[0]?.type, "pre_zone");
     assert.ok(firstSnapshot.adaptiveDiagnostics.targetGlobalMultiplier >= 0.4);
     assert.ok(firstSnapshot.adaptiveDiagnostics.appliedGlobalMultiplier >= 0.4);
     assert.equal(noCompletion, null);
@@ -80,6 +82,29 @@ describe("opportunity runtime integration", () => {
     assert.equal(completed?.summary.totalEvaluated, 1);
     assert.ok(completed?.summary.expectancy > 0);
     assert.ok(completed?.adaptiveDiagnostics.eventTypes.breakout);
+  });
+
+  it("uses canonical monitoring event types for interpretation when alert labels differ", () => {
+    const controller = new OpportunityRuntimeController({
+      evaluator: new OpportunityEvaluator(60_000, false, 10, 0.3, 10, 2),
+      topLimit: 3,
+    });
+
+    const snapshot = controller.processMonitoringEvent(
+      makeEvent({
+        timestamp: 1_500_000,
+        type: "consolidation",
+        eventType: "compression",
+      }),
+    );
+
+    assert.ok(snapshot.interpretations.length >= 1);
+    assert.equal(snapshot.interpretations[0]?.type, "pre_zone");
+    assert.equal(
+      snapshot.interpretations[0]?.message,
+      "watching pullback into support near 100.00",
+    );
+    assert.ok(snapshot.adaptiveDiagnostics.eventTypes.compression);
   });
 
   it("uses stabilized adaptive state and does not disable on the first weak cycle", () => {

@@ -5,6 +5,7 @@ export type OpportunityClassification = "high_conviction" | "medium" | "low";
 export type RankedOpportunity = {
   symbol: string;
   type: string;
+  eventType?: string;
   level: number;
   strength: number;
   confidence: number;
@@ -200,6 +201,7 @@ export class OpportunityEngine {
       return {
         symbol: event.symbol,
         type: event.type,
+        eventType: event.eventType,
         level: event.level,
         strength: event.strength,
         confidence: event.confidence,

@@ -76,6 +76,10 @@ function round(value: number, decimals: number = 4): number {
   return Math.round(value * factor) / factor;
 }
 
+function resolveOpportunityEventType(opportunity: RankedOpportunity): string {
+  return opportunity.eventType ?? opportunity.type;
+}
+
 function isBullishType(type: string): boolean {
   return type === "breakout" || type === "reclaim" || type === "fake_breakdown";
 }
@@ -85,7 +89,7 @@ function isBearishType(type: string): boolean {
 }
 
 function buildTrackedId(opportunity: RankedOpportunity): string {
-  return `${opportunity.symbol}|${opportunity.type}|${opportunity.timestamp}|${opportunity.level}`;
+  return `${opportunity.symbol}|${resolveOpportunityEventType(opportunity)}|${opportunity.timestamp}|${opportunity.level}`;
 }
 
 function computeReturnPct(entryPrice: number, outcomePrice: number): number {
@@ -101,11 +105,13 @@ function determineSuccessWithThreshold(
   returnPct: number,
   successThresholdPct: number,
 ): boolean {
-  if (isBullishType(opportunity.type)) {
+  const eventType = resolveOpportunityEventType(opportunity);
+
+  if (isBullishType(eventType)) {
     return returnPct >= successThresholdPct;
   }
 
-  if (isBearishType(opportunity.type)) {
+  if (isBearishType(eventType)) {
     return returnPct <= -successThresholdPct;
   }
 
@@ -117,11 +123,13 @@ function shouldExitEarly(
   returnPct: number,
   exitThresholdPct: number,
 ): boolean {
-  if (isBullishType(opportunity.type)) {
+  const eventType = resolveOpportunityEventType(opportunity);
+
+  if (isBullishType(eventType)) {
     return returnPct >= exitThresholdPct || returnPct <= -exitThresholdPct;
   }
 
-  if (isBearishType(opportunity.type)) {
+  if (isBearishType(eventType)) {
     return returnPct <= -exitThresholdPct || returnPct >= exitThresholdPct;
   }
 
@@ -133,11 +141,13 @@ function approximateDrawdownPct(pending: PendingOpportunity): number {
     return 0;
   }
 
-  if (isBullishType(pending.opportunity.type)) {
+  const eventType = resolveOpportunityEventType(pending.opportunity);
+
+  if (isBullishType(eventType)) {
     return ((pending.troughPrice - pending.entryPrice) / pending.entryPrice) * 100;
   }
 
-  if (isBearishType(pending.opportunity.type)) {
+  if (isBearishType(eventType)) {
     return ((pending.entryPrice - pending.peakPrice) / pending.entryPrice) * 100;
   }
 
@@ -310,7 +320,7 @@ export class OpportunityEvaluator {
           returnPct,
           this.successThresholdPct,
         ),
-        eventType: pending.opportunity.type,
+        eventType: resolveOpportunityEventType(pending.opportunity),
       };
 
       this.evaluated.push(evaluatedOpportunity);
