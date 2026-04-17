@@ -161,6 +161,11 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
   assert.equal(summary.averageSurfacedResistanceUsefulnessRate, 0.175);
   assert.equal(summary.averageExtensionResistanceUsefulnessRate, 0.1);
   assert.equal(summary.byDistanceBand.far.usefulnessRate, 0);
+  assert.deepEqual(summary.weakestUsefulnessAreas, [
+    { label: "far", usefulnessRate: 0, evaluated: 5 },
+    { label: "extensionResistance", usefulnessRate: 0.1, evaluated: 2 },
+    { label: "surfacedResistance", usefulnessRate: 0.175, evaluated: 9 },
+  ]);
 });
 
 test("formatLevelValidationBatchSummary produces deterministic readable lines", () => {
@@ -231,6 +236,10 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
   );
   assert.equal(
     lines[10],
+    "[LevelValidation] Weakest usefulness areas | far=0.0000(1) | surfacedResistance=0.2500(2) | extensionResistance=0.3000(1)",
+  );
+  assert.equal(
+    lines[11],
     "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | surfacedUseful=1.0000/0.2500 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000",
   );
 });

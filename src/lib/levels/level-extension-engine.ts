@@ -27,11 +27,29 @@ function sortResistance(zones: FinalLevelZone[]): FinalLevelZone[] {
 function extensionUsefulnessScore(zone: FinalLevelZone): number {
   const freshnessBonus =
     zone.freshness === "fresh" ? 0.25 : zone.freshness === "aging" ? 0.1 : -0.15;
+  const decisionQualityBonus =
+    zone.rejectionScore * 7 +
+    zone.displacementScore * 5 +
+    zone.reactionQualityScore * 4 +
+    timeframeBiasRank(zone) * 1.5 +
+    Math.min(zone.confluenceCount, 2) * 1.25;
+  const weakIntradayPenalty =
+    zone.timeframeSources.length === 1 &&
+    zone.timeframeSources[0] === "5m" &&
+    zone.rejectionScore < 0.35 &&
+    zone.displacementScore < 0.5 &&
+    zone.reactionQualityScore < 0.6 &&
+    zone.confluenceCount <= 1
+      ? 6
+      : 0;
+
   return (
     zone.strengthScore +
-    zone.followThroughScore * 10 +
-    (zone.gapContinuationScore ?? 0) * 4 +
-    freshnessBonus
+    zone.followThroughScore * 8 +
+    (zone.gapContinuationScore ?? 0) * 2 +
+    decisionQualityBonus +
+    freshnessBonus -
+    weakIntradayPenalty
   );
 }
 
@@ -48,6 +66,17 @@ function distanceFromBoundaryPct(boundary: number, price: number): number {
 
 function normalizedDistancePct(leftPrice: number, rightPrice: number): number {
   return Math.abs(leftPrice - rightPrice) / Math.max(Math.max(leftPrice, rightPrice), 0.0001);
+}
+
+function isActionableForwardCandidate(zone: FinalLevelZone): boolean {
+  return (
+    zone.rejectionScore >= 0.38 ||
+    zone.displacementScore >= 0.5 ||
+    zone.reactionQualityScore >= 0.62 ||
+    zone.followThroughScore >= 0.5 ||
+    timeframeBiasRank(zone) >= 2 ||
+    zone.confluenceCount >= 2
+  );
 }
 
 function shouldPreferForwardStructuralCandidate(params: {
@@ -84,6 +113,10 @@ function shouldPreferForwardStructuralCandidate(params: {
     params.challenger.rejectionScore >= params.candidate.rejectionScore + 0.12;
   const strongerFollowThrough =
     params.challenger.followThroughScore >= params.candidate.followThroughScore + 0.12;
+
+  if (isActionableForwardCandidate(params.candidate)) {
+    return false;
+  }
 
   return strongerTimeframe || strongerRejection || strongerFollowThrough;
 }
@@ -137,6 +170,37 @@ function selectBestCandidate(
   )[0]!;
 }
 
+function selectNearContinuityCandidate(
+  candidates: FinalLevelZone[],
+  boundary: number,
+): FinalLevelZone | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const closestCandidate = [...candidates].sort(
+    (a, b) =>
+      distanceFromBoundaryPct(boundary, a.representativePrice) -
+        distanceFromBoundaryPct(boundary, b.representativePrice) ||
+      extensionUsefulnessScore(b) - extensionUsefulnessScore(a),
+  )[0]!;
+  const bestCandidate = selectBestCandidate(candidates, boundary);
+  if (!bestCandidate) {
+    return closestCandidate;
+  }
+
+  const closestActionable =
+    isActionableForwardCandidate(closestCandidate);
+  const scoreGap =
+    extensionUsefulnessScore(bestCandidate) - extensionUsefulnessScore(closestCandidate);
+
+  if (closestActionable && scoreGap <= 6) {
+    return closestCandidate;
+  }
+
+  return bestCandidate;
+}
+
 function removeSelectedNeighborhood(
   candidates: FinalLevelZone[],
   selected: FinalLevelZone,
@@ -184,7 +248,7 @@ function selectContinuityAwareResistanceExtensions(params: {
       !Number.isFinite(startBoundary) ||
       distanceFromBoundaryPct(startBoundary, candidate.representativePrice) <= params.searchWindowPct,
   );
-  const nearCandidate = selectBestCandidate(
+  const nearCandidate = selectNearContinuityCandidate(
     nearFrontier.length > 0 ? nearFrontier : remaining.slice(0, 1),
     startBoundary,
   );

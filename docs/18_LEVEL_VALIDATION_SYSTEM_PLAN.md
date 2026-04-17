@@ -502,3 +502,10 @@ Minimum expectation for future Codex work:
   - `npm test`
   - `npm run build`
 - then run the level-validation workflow before declaring a structural-tuning pass complete
+
+Evidence-first reminder for future structural passes:
+
+- if validation says persistence is strong but usefulness is weak, do not spend the next pass on more stability work
+- prefer the smallest live batch that can complete cleanly on IBKR, even a single symbol, over a larger timeout-prone batch
+- when `near` usefulness survives but `intermediate` / `far` or `extension` usefulness collapses, inspect `level-extension-engine.ts` before touching broader scoring or clustering
+- do not mix a broad validation expansion and a broad level-engine tuning pass in the same change unless there is no smaller path

@@ -1525,3 +1525,21 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `docs/17_REPO_REVIEW_IMPLEMENTATION_DIRECTIVE.md`
   - `docs/18_LEVEL_VALIDATION_SYSTEM_PLAN.md`
   so future tuning stays validation-first.
+
+## 2026-04-16 08:35 PM America/Toronto
+
+### Evidence-led extension selection refinement
+
+- Used the improved validation stack in small live IBKR passes on `GXAI` and `PBM` instead of making another guess-driven structural change.
+- Confirmed:
+  - persistence is still honest and strong
+  - `near` usefulness can work
+  - `intermediate` / `far` usefulness remains weaker
+  - extension usefulness remains the weakest consistent area
+- Narrowly refined `src/lib/levels/level-extension-engine.ts` so forward resistance selection now:
+  - rewards decision quality more explicitly
+  - penalizes weak `5m` continuation leftovers more directly
+  - preserves an actionable near continuation step instead of pruning it too early
+- Added focused tests proving:
+  - a decisive forward resistance can outrank a weak intraday leftover
+  - near / intermediate / far continuity still survives when the near step is genuinely actionable

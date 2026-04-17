@@ -146,6 +146,62 @@ test("validation scenario: forward ladder keeps near, intermediate, and far resi
   );
 });
 
+test("validation scenario: extension selection favors decisive forward structure over weak local continuation leftovers", () => {
+  const surfacedResistance = [
+    buildValidationZone({
+      id: "visible",
+      symbol: "GXAI",
+      kind: "resistance",
+      representativePrice: 1.49,
+      strengthScore: 18,
+    }),
+  ];
+
+  const resistanceZones = [
+    ...surfacedResistance,
+    buildValidationZone({
+      id: "weak-leftover",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "5m",
+      timeframeSources: ["5m"],
+      representativePrice: 1.54,
+      strengthScore: 27,
+      reactionQualityScore: 0.54,
+      rejectionScore: 0.24,
+      displacementScore: 0.34,
+      followThroughScore: 0.57,
+      confluenceCount: 1,
+    }),
+    buildValidationZone({
+      id: "decisive-forward",
+      symbol: "GXAI",
+      kind: "resistance",
+      timeframeBias: "4h",
+      timeframeSources: ["4h"],
+      representativePrice: 1.6,
+      strengthScore: 23,
+      reactionQualityScore: 0.74,
+      rejectionScore: 0.53,
+      displacementScore: 0.66,
+      followThroughScore: 0.44,
+      confluenceCount: 2,
+    }),
+  ];
+
+  const extensions = buildLevelExtensions({
+    supportZones: [],
+    resistanceZones,
+    surfacedSupport: [],
+    surfacedResistance,
+    spacingPct: 0.01,
+    searchWindowPct: 0.08,
+    maxExtensionPerSide: 1,
+  });
+
+  assert.deepEqual(extensions.resistance.map((zone) => zone.id), ["decisive-forward"]);
+});
+
 test("validation scenario: recycled intraday resistance loses to a stronger decisive nearby anchor", () => {
   const scoredResistance = scoreLevelZones(
     [

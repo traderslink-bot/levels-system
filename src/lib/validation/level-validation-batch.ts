@@ -35,7 +35,18 @@ export type LevelValidationBatchSummary = {
   averageSurfacedResistanceRespectRate: number;
   averageExtensionSupportRespectRate: number;
   averageExtensionResistanceRespectRate: number;
+  byKindSource: {
+    surfacedSupport: ForwardReactionSummary;
+    surfacedResistance: ForwardReactionSummary;
+    extensionSupport: ForwardReactionSummary;
+    extensionResistance: ForwardReactionSummary;
+  };
   byDistanceBand: Record<ForwardReactionDistanceBand, ForwardReactionSummary>;
+  weakestUsefulnessAreas: Array<{
+    label: string;
+    usefulnessRate: number;
+    evaluated: number;
+  }>;
   symbolResults: SymbolLevelValidationBatchResult[];
 };
 
@@ -78,6 +89,53 @@ export function summarizeLevelValidationBatch(
   const completed = symbolResults.filter(
     (result) => result.persistenceReport && result.forwardReactionReport,
   );
+  const byKindSource = {
+    surfacedSupport: summarizeForward(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedSupport),
+    ),
+    surfacedResistance: summarizeForward(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.surfacedResistance),
+    ),
+    extensionSupport: summarizeForward(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionSupport),
+    ),
+    extensionResistance: summarizeForward(
+      completed.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance),
+    ),
+  };
+  const byDistanceBand = {
+    near: summarizeForward(
+      completed.map((result) => result.forwardReactionReport!.byDistanceBand.near),
+    ),
+    intermediate: summarizeForward(
+      completed.map((result) => result.forwardReactionReport!.byDistanceBand.intermediate),
+    ),
+    far: summarizeForward(
+      completed.map((result) => result.forwardReactionReport!.byDistanceBand.far),
+    ),
+  };
+  const weakestUsefulnessAreas = [
+    { label: "surfacedSupport", ...byKindSource.surfacedSupport },
+    { label: "surfacedResistance", ...byKindSource.surfacedResistance },
+    { label: "extensionSupport", ...byKindSource.extensionSupport },
+    { label: "extensionResistance", ...byKindSource.extensionResistance },
+    { label: "near", ...byDistanceBand.near },
+    { label: "intermediate", ...byDistanceBand.intermediate },
+    { label: "far", ...byDistanceBand.far },
+  ]
+    .filter((entry) => entry.evaluated > 0)
+    .sort(
+      (left, right) =>
+        left.usefulnessRate - right.usefulnessRate ||
+        left.evaluated - right.evaluated ||
+        left.label.localeCompare(right.label),
+    )
+    .slice(0, 3)
+    .map((entry) => ({
+      label: entry.label,
+      usefulnessRate: entry.usefulnessRate,
+      evaluated: entry.evaluated,
+    }));
 
   return {
     totalSymbols: symbolResults.length,
@@ -128,17 +186,9 @@ export function summarizeLevelValidationBatch(
     averageExtensionResistanceRespectRate: average(
       completed.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance.respectRate),
     ),
-    byDistanceBand: {
-      near: summarizeForward(
-        completed.map((result) => result.forwardReactionReport!.byDistanceBand.near),
-      ),
-      intermediate: summarizeForward(
-        completed.map((result) => result.forwardReactionReport!.byDistanceBand.intermediate),
-      ),
-      far: summarizeForward(
-        completed.map((result) => result.forwardReactionReport!.byDistanceBand.far),
-      ),
-    },
+    byKindSource,
+    byDistanceBand,
+    weakestUsefulnessAreas,
     symbolResults,
   };
 }
@@ -157,6 +207,9 @@ export function formatLevelValidationBatchSummary(
     `[LevelValidation] Extension respect | support=${summary.averageExtensionSupportRespectRate.toFixed(4)} | resistance=${summary.averageExtensionResistanceRespectRate.toFixed(4)}`,
     `[LevelValidation] Distance usefulness | near=${summary.byDistanceBand.near.usefulnessRate.toFixed(4)} | intermediate=${summary.byDistanceBand.intermediate.usefulnessRate.toFixed(4)} | far=${summary.byDistanceBand.far.usefulnessRate.toFixed(4)}`,
     `[LevelValidation] Loose persistence matches | support=${summary.averageSupportLooseMatchRate.toFixed(4)} | resistance=${summary.averageResistanceLooseMatchRate.toFixed(4)}`,
+    `[LevelValidation] Weakest usefulness areas | ${summary.weakestUsefulnessAreas
+      .map((entry) => `${entry.label}=${entry.usefulnessRate.toFixed(4)}(${entry.evaluated})`)
+      .join(" | ")}`,
   ];
 
   for (const result of summary.symbolResults) {
