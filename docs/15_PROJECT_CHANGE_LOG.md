@@ -1919,3 +1919,36 @@ This document tracks concrete implementation changes made to the `levels-system`
   by turning prior 5m cache misses into completed replay-mode forward validation runs.
 - Added focused coverage in:
   - `src/tests/validation-candle-cache.test.ts`
+
+## 2026-04-17 10:20 PM America/Toronto
+
+### Added a production-oriented level strength scoring and ranking layer
+
+- Added the new scoring modules:
+  - `src/lib/levels/level-score-config.ts`
+  - `src/lib/levels/level-zone-utils.ts`
+  - `src/lib/levels/level-touch-analysis.ts`
+  - `src/lib/levels/level-clustering.ts`
+  - `src/lib/levels/level-state-engine.ts`
+  - `src/lib/levels/level-structural-scoring.ts`
+  - `src/lib/levels/level-active-scoring.ts`
+  - `src/lib/levels/level-ranking.ts`
+  - `src/lib/levels/level-score-explainer.ts`
+- Extended `src/lib/levels/level-types.ts` with the shared contracts for:
+  - level states
+  - touch records
+  - score breakdowns
+  - ranked outputs
+  - scoring context
+- The new layer scores levels by confluence rather than raw touch count, combining:
+  - structural strength
+  - active relevance
+  - duplicate-cluster penalties
+  - deterministic state
+  - confidence
+  - explanation output
+- Added focused coverage in:
+  - `src/tests/level-strength-ranking.test.ts`
+- Added implementation tracking documentation:
+  - `docs/20_LEVEL_STRENGTH_SCORING_IMPLEMENTATION_PLAN.md`
+  - and a pointer in `docs/level-strength-scoring-blueprint.md`
