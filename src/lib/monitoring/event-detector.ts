@@ -17,6 +17,26 @@ import {
 } from "./monitoring-event-scoring.js";
 import { isAboveZone, isBelowZone, isInsideZone } from "./zone-utils.js";
 
+function hasInteractionBackfill(state: ZoneInteractionState): boolean {
+  return (
+    state.phase === "touching" ||
+    state.phase === "testing" ||
+    state.phase === "breaking" ||
+    state.updatesNearZone >= 2
+  );
+}
+
+function hasRecentBreakAttempt(
+  state: ZoneInteractionState,
+  timestamp: number,
+  fakeoutWindowMs: number,
+): boolean {
+  return (
+    state.breakAttemptAt !== undefined &&
+    timestamp - state.breakAttemptAt <= fakeoutWindowMs
+  );
+}
+
 function buildMonitoringEventContext(
   zone: FinalLevelZone,
   symbolState: SymbolMonitoringState,
@@ -182,11 +202,13 @@ export function detectMonitoringEvents(params: {
       previousPrice !== undefined
         ? !isAboveZone(previousPrice, zone)
         : breakoutDistancePct <= config.breakoutConfirmPct * 1.5;
+    const forcefulBreakout = breakoutDistancePct >= config.breakoutConfirmPct * 2;
     const confirmedBreakout =
       above &&
       freshBreakoutCross &&
       breakoutDistancePct >= config.breakoutConfirmPct &&
-      breakoutDistancePct <= config.maxConfirmDistancePct;
+      breakoutDistancePct <= config.maxConfirmDistancePct &&
+      (hasInteractionBackfill(previousState) || forcefulBreakout);
 
     if (previousState.phase !== "confirmed" && confirmedBreakout) {
       pushEventIfRelevant(events, {
@@ -298,11 +320,13 @@ export function detectMonitoringEvents(params: {
       previousPrice !== undefined
         ? !isBelowZone(previousPrice, zone)
         : breakdownDistancePct <= config.breakoutConfirmPct * 1.5;
+    const forcefulBreakdown = breakdownDistancePct >= config.breakoutConfirmPct * 2;
     const confirmedBreakdown =
       below &&
       freshBreakdownCross &&
       breakdownDistancePct >= config.breakoutConfirmPct &&
-      breakdownDistancePct <= config.maxConfirmDistancePct;
+      breakdownDistancePct <= config.maxConfirmDistancePct &&
+      (hasInteractionBackfill(previousState) || forcefulBreakdown);
 
     if (previousState.phase !== "confirmed" && confirmedBreakdown) {
       pushEventIfRelevant(events, {
@@ -320,12 +344,14 @@ export function detectMonitoringEvents(params: {
       });
     }
 
+    const reclaimedAboveSupport = update.lastPrice > zone.zoneHigh;
     const fakeBreakdown =
       previousState.breakAttemptAt !== undefined &&
       update.timestamp - previousState.breakAttemptAt <= config.fakeoutWindowMs &&
       (inside ||
-        (update.lastPrice - zone.zoneLow) / Math.max(zone.zoneLow, 0.0001) >=
-          config.failureReturnPct);
+        (!reclaimedAboveSupport &&
+          (update.lastPrice - zone.zoneLow) / Math.max(zone.zoneLow, 0.0001) >=
+            config.failureReturnPct));
 
     if (previousState.phase === "breaking" && fakeBreakdown) {
       pushEventIfRelevant(events, {
@@ -343,10 +369,15 @@ export function detectMonitoringEvents(params: {
       });
     }
 
+    const reclaimDistancePct =
+      (update.lastPrice - zone.zoneHigh) / Math.max(zone.zoneHigh, 0.0001);
     const reclaim =
       previousPrice !== undefined &&
       previousPrice < zone.zoneLow &&
-      update.lastPrice > zone.zoneHigh;
+      reclaimedAboveSupport &&
+      reclaimDistancePct >= config.breakoutConfirmPct &&
+      reclaimDistancePct <= config.maxConfirmDistancePct &&
+      hasRecentBreakAttempt(previousState, update.timestamp, config.fakeoutWindowMs);
 
     if (reclaim) {
       pushEventIfRelevant(events, {
