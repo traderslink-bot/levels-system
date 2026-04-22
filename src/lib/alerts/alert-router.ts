@@ -39,6 +39,9 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       severity: alert.severity,
       confidence: alert.confidence,
       score: alert.score,
+      clearanceLabel: alert.nextBarrier?.clearanceLabel,
+      nextBarrierSide: alert.nextBarrier?.side,
+      nextBarrierDistancePct: alert.nextBarrier?.distancePct,
     },
   };
 }

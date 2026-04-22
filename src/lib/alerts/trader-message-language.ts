@@ -35,6 +35,26 @@ function formatZoneRange(zone: FinalLevelZone): string {
   return `${formatLevel(zone.zoneLow)}-${formatLevel(zone.zoneHigh)}`;
 }
 
+function clearanceDirectionForSide(side: "support" | "resistance"): string {
+  return side === "resistance" ? "overhead" : "downside";
+}
+
+function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
+  const pctText = `${nextBarrier.side === "resistance" ? "+" : "-"}${(nextBarrier.distancePct * 100).toFixed(1)}%`;
+  const sideText = clearanceDirectionForSide(nextBarrier.side);
+
+  switch (nextBarrier.clearanceLabel) {
+    case "tight":
+      return `room: tight ${sideText} into next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
+    case "limited":
+      return `room: limited ${sideText} into next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
+    case "open":
+      return `room: open ${sideText} path to next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
+    default:
+      return `room: next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
+  }
+}
+
 function describeZonePlacement(
   event: MonitoringEvent,
 ): string | null {
@@ -158,7 +178,7 @@ export function buildTraderAlertBody(
   }
 
   const roomLine = nextBarrier
-    ? `room: next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${nextBarrier.side === "resistance" ? "+" : "-"}${(nextBarrier.distancePct * 100).toFixed(1)}%)`
+    ? describeBarrierRoom(nextBarrier)
     : null;
 
   return [

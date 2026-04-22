@@ -49,6 +49,9 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       score: 108.68,
       postingFamily: "bullish_resolution",
       postingDecisionReason: "posted",
+      clearanceLabel: "limited",
+      nextBarrierSide: "resistance",
+      nextBarrierDistancePct: 0.024,
     },
   });
   await audited.sendLevelSnapshot("thread-1", {
@@ -72,6 +75,9 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.symbol, "ALBT");
   assert.equal(lines[1]?.eventType, "breakout");
   assert.equal(lines[1]?.postingFamily, "bullish_resolution");
+  assert.equal(lines[1]?.clearanceLabel, "limited");
+  assert.equal(lines[1]?.nextBarrierSide, "resistance");
+  assert.equal(lines[1]?.nextBarrierDistancePct, 0.024);
   assert.equal(lines[2]?.supportCount, 1);
   assert.equal(lines[2]?.resistanceCount, 1);
   assert.equal(capturedEntries.length, 3);
@@ -117,6 +123,9 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
         score: 108.68,
         postingFamily: "bullish_resolution",
         postingDecisionReason: "posted",
+        clearanceLabel: "tight",
+        nextBarrierSide: "support",
+        nextBarrierDistancePct: 0.011,
       },
     }),
     /Discord rejected post/,
@@ -128,5 +137,8 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.gatewayMode, "local");
   assert.equal(line.eventType, "breakout");
   assert.equal(line.postingFamily, "bullish_resolution");
+  assert.equal(line.clearanceLabel, "tight");
+  assert.equal(line.nextBarrierSide, "support");
+  assert.equal(line.nextBarrierDistancePct, 0.011);
   assert.match(line.error, /Discord rejected post/);
 });

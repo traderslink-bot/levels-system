@@ -405,7 +405,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
     [
       "dip-buy test at heavy support 97.80-98.20",
       "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
-      "room: next resistance 100.50 (+2.4%)",
+      "room: limited overhead into next resistance 100.50 (+2.4%)",
       "watch: buyers defend 97.80-98.20 before momentum fades",
     ].join("\n"),
   );

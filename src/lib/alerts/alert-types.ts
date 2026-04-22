@@ -2,7 +2,10 @@
 // Downstream alert types for routing and Phase 3 alert intelligence.
 
 import type { FinalLevelZone } from "../levels/level-types.js";
-import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
+import type {
+  BarrierClearanceLabel,
+  MonitoringEvent,
+} from "../monitoring/monitoring-types.js";
 
 export type AlertSeverity = "low" | "medium" | "high" | "critical";
 
@@ -19,6 +22,9 @@ export type AlertPayload = {
     score?: number;
     postingFamily?: AlertPostingFamily;
     postingDecisionReason?: AlertPostingDecisionReason;
+    clearanceLabel?: BarrierClearanceLabel;
+    nextBarrierSide?: "support" | "resistance";
+    nextBarrierDistancePct?: number;
   };
 };
 
@@ -26,6 +32,7 @@ export type TraderNextBarrierContext = {
   side: "support" | "resistance";
   price: number;
   distancePct: number;
+  clearanceLabel?: BarrierClearanceLabel;
 };
 
 export type DiscordThread = {

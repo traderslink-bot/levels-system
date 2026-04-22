@@ -439,6 +439,13 @@ function Build-ThreadSummaryRecord {
     if ($SymbolSummary.lastAlert.score -ne $null) {
       $latestAlertSummary += ("score=" + ([double]$SymbolSummary.lastAlert.score).ToString("0.00"))
     }
+    if ($SymbolSummary.lastAlert.clearanceLabel) {
+      $latestAlertSummary += ("room=" + [string]$SymbolSummary.lastAlert.clearanceLabel)
+    }
+    if ($SymbolSummary.lastAlert.nextBarrierSide -and $SymbolSummary.lastAlert.nextBarrierDistancePct -ne $null) {
+      $distancePct = ([double]$SymbolSummary.lastAlert.nextBarrierDistancePct * 100).ToString("0.0")
+      $latestAlertSummary += ([string]$SymbolSummary.lastAlert.nextBarrierSide + "=" + $distancePct + "%")
+    }
     $latestAlertSummary = $latestAlertSummary | Where-Object { $_ }
   }
 
@@ -745,6 +752,9 @@ function Update-SummaryFromLine {
           score = $parsed.details.score
           family = $parsed.details.family
           reason = $parsed.details.reason
+          clearanceLabel = $parsed.details.clearanceLabel
+          nextBarrierSide = $parsed.details.nextBarrierSide
+          nextBarrierDistancePct = $parsed.details.nextBarrierDistancePct
         }
       }
     }

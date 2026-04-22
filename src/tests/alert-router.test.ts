@@ -169,6 +169,12 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
     tags: [],
     scoreComponents: {},
     event: samplePayload.event,
+    nextBarrier: {
+      side: "resistance",
+      price: 2.5,
+      distancePct: 0.036,
+      clearanceLabel: "limited",
+    },
   });
 
   assert.equal(payload.title, "ALBT breakout");
@@ -180,6 +186,9 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       "trigger 2.41",
     ].join("\n"),
   );
+  assert.equal(payload.metadata?.clearanceLabel, "limited");
+  assert.equal(payload.metadata?.nextBarrierSide, "resistance");
+  assert.equal(payload.metadata?.nextBarrierDistancePct, 0.036);
 });
 
 test("formatLevelSnapshotMessage uses deterministic formatting", () => {

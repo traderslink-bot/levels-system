@@ -33,6 +33,9 @@ export type DiscordDeliveryAuditEntry = {
   score?: number;
   postingFamily?: string;
   postingDecisionReason?: string;
+  clearanceLabel?: string;
+  nextBarrierSide?: string;
+  nextBarrierDistancePct?: number;
   supportCount?: number;
   resistanceCount?: number;
   side?: string;
@@ -151,6 +154,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         score: payload.metadata?.score,
         postingFamily: payload.metadata?.postingFamily,
         postingDecisionReason: payload.metadata?.postingDecisionReason,
+        clearanceLabel: payload.metadata?.clearanceLabel,
+        nextBarrierSide: payload.metadata?.nextBarrierSide,
+        nextBarrierDistancePct: payload.metadata?.nextBarrierDistancePct,
       });
     } catch (error) {
       this.recordFailed("post_alert", error, {
@@ -164,6 +170,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         score: payload.metadata?.score,
         postingFamily: payload.metadata?.postingFamily,
         postingDecisionReason: payload.metadata?.postingDecisionReason,
+        clearanceLabel: payload.metadata?.clearanceLabel,
+        nextBarrierSide: payload.metadata?.nextBarrierSide,
+        nextBarrierDistancePct: payload.metadata?.nextBarrierDistancePct,
       });
     }
   }

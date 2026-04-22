@@ -2,6 +2,8 @@
 // Phase 3 alert intelligence engine that enriches, scores, filters, formats, and applies delivery policy.
 
 import type { FinalLevelZone, LevelEngineOutput } from "../levels/level-types.js";
+import { DEFAULT_MONITORING_CONFIG } from "../monitoring/monitoring-config.js";
+import { deriveBarrierClearanceLabel } from "../monitoring/monitoring-event-scoring.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import { DEFAULT_ALERT_INTELLIGENCE_CONFIG, type AlertIntelligenceConfig } from "./alert-config.js";
 import { shouldSuppressAlert } from "./alert-filter.js";
@@ -100,6 +102,7 @@ export class AlertIntelligenceEngine {
         side: event.eventContext.nextBarrierKind,
         price: event.eventContext.nextBarrierLevel,
         distancePct: event.eventContext.nextBarrierDistancePct,
+        clearanceLabel: event.eventContext.clearanceLabel,
       };
     }
 
@@ -132,6 +135,11 @@ export class AlertIntelligenceEngine {
       distancePct:
         Math.abs(nextBarrier.representativePrice - event.triggerPrice) /
         Math.max(event.triggerPrice, 0.0001),
+      clearanceLabel: deriveBarrierClearanceLabel(
+        Math.abs(nextBarrier.representativePrice - event.triggerPrice) /
+          Math.max(event.triggerPrice, 0.0001),
+        DEFAULT_MONITORING_CONFIG,
+      ),
     };
   }
 

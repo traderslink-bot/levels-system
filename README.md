@@ -29,7 +29,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
   - a compact severity / confidence / score line plus trigger price
   - a `watch` / invalidation line
-  - nearby barrier context when the next support or resistance is known
+  - nearby barrier context when the next support or resistance is known, including whether room is `tight`, `limited`, or `open`
 - Support and resistance ranking is now durability-aware, so levels that are structurally important but getting tired can be described more conservatively than freshly defended levels.
 - Monitoring events and opportunity ranking now carry barrier-clearance context, so cramped upside or downside room can reduce setup quality before the message layer ever formats it.
 - Long-run session summaries now track alert-posting families and suppression reasons, so noisy symbols and repetitive low-value alert patterns are easier to spot after a live run.

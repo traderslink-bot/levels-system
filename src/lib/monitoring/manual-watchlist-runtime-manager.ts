@@ -690,6 +690,9 @@ export class ManualWatchlistRuntimeManager {
               score: alertResult.rawAlert.score,
               family: alertResult.delivery.family ?? null,
               reason: alertResult.delivery.reason,
+              clearanceLabel: alertResult.rawAlert.nextBarrier?.clearanceLabel ?? null,
+              nextBarrierSide: alertResult.rawAlert.nextBarrier?.side ?? null,
+              nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
             },
           });
         })
@@ -716,6 +719,9 @@ export class ManualWatchlistRuntimeManager {
           score: alertResult.rawAlert.score,
           family: alertResult.delivery.family ?? null,
           reason: alertResult.delivery.reason,
+          clearanceLabel: alertResult.rawAlert.nextBarrier?.clearanceLabel ?? null,
+          nextBarrierSide: alertResult.rawAlert.nextBarrier?.side ?? null,
+          nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
         },
       });
     }

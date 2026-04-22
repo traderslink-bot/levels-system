@@ -332,7 +332,7 @@ It gives each active symbol a compact narrative such as:
 - how many snapshots and alerts were posted
 - which alert families dominated
 - which suppression reasons dominated
-- what the latest posted alert looked like
+- what the latest posted alert looked like, including whether room was `tight`, `limited`, or `open`
 - whether delivery or runtime failures showed up
 
 This is meant to answer the practical question:

@@ -1375,6 +1375,10 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
       ladderPosition: "outermost",
       zoneStrengthLabel: "strong",
       sourceGeneratedAt: 1,
+      nextBarrierKind: "resistance",
+      nextBarrierLevel: 2.58,
+      nextBarrierDistancePct: 0.0238,
+      clearanceLabel: "limited",
     },
     timestamp: 10,
     notes: ["Breakout through outermost resistance."],
@@ -1388,8 +1392,9 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
     [
       "bullish breakout through heavy resistance 2.40-2.50",
       "context: heavy resistance | outermost | fresh | 5m driven | recently refreshed",
+      "room: limited overhead into next resistance 2.58 (+2.4%)",
       "watch: hold above 2.50; invalidates back below 2.40",
-      "severity CRITICAL | confidence HIGH | score 108.68",
+      "severity CRITICAL | confidence HIGH | score 103.68",
       "trigger 2.52",
     ].join("\n"),
   );
