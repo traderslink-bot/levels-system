@@ -512,6 +512,14 @@ function Build-EndOfSessionSummary {
     return "$Symbol received positive human review feedback, which is a good sign that the thread was adding value to the end user."
   }
 
+  if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.tacticalRead -eq "tired") {
+    return "$Symbol ended with a tactically tired alert context, so the thread may still matter structurally but deserves more caution on follow-through."
+  }
+
+  if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.tacticalRead -eq "firm") {
+    return "$Symbol ended with a firm alert context, which is a better sign that the underlying zone still had real structure behind it."
+  }
+
   if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.clearanceLabel) {
     return "$Symbol ended with a $($SymbolSummary.lastAlert.clearanceLabel) room alert context, which should shape how aggressively the latest setup is interpreted."
   }
@@ -567,6 +575,9 @@ function Build-ThreadSummaryRecord {
     }
     if ($SymbolSummary.lastAlert.clearanceLabel) {
       $latestAlertSummary += ("room=" + [string]$SymbolSummary.lastAlert.clearanceLabel)
+    }
+    if ($SymbolSummary.lastAlert.tacticalRead) {
+      $latestAlertSummary += ("zone=" + [string]$SymbolSummary.lastAlert.tacticalRead)
     }
     if ($SymbolSummary.lastAlert.nextBarrierSide -and $SymbolSummary.lastAlert.nextBarrierDistancePct -ne $null) {
       $distancePct = ([double]$SymbolSummary.lastAlert.nextBarrierDistancePct * 100).ToString("0.0")
@@ -893,6 +904,7 @@ function Update-SummaryFromLine {
           clearanceLabel = $parsed.details.clearanceLabel
           nextBarrierSide = $parsed.details.nextBarrierSide
           nextBarrierDistancePct = $parsed.details.nextBarrierDistancePct
+          tacticalRead = $parsed.details.tacticalRead
         }
       }
     }

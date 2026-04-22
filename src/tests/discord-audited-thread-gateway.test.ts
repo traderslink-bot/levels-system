@@ -52,6 +52,7 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       clearanceLabel: "limited",
       nextBarrierSide: "resistance",
       nextBarrierDistancePct: 0.024,
+      tacticalRead: "firm",
     },
   });
   await audited.sendLevelSnapshot("thread-1", {
@@ -78,6 +79,7 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.clearanceLabel, "limited");
   assert.equal(lines[1]?.nextBarrierSide, "resistance");
   assert.equal(lines[1]?.nextBarrierDistancePct, 0.024);
+  assert.equal(lines[1]?.tacticalRead, "firm");
   assert.equal(lines[2]?.supportCount, 1);
   assert.equal(lines[2]?.resistanceCount, 1);
   assert.equal(capturedEntries.length, 3);
@@ -126,6 +128,7 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
         clearanceLabel: "tight",
         nextBarrierSide: "support",
         nextBarrierDistancePct: 0.011,
+        tacticalRead: "tired",
       },
     }),
     /Discord rejected post/,
@@ -140,5 +143,6 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.clearanceLabel, "tight");
   assert.equal(line.nextBarrierSide, "support");
   assert.equal(line.nextBarrierDistancePct, 0.011);
+  assert.equal(line.tacticalRead, "tired");
   assert.match(line.error, /Discord rejected post/);
 });

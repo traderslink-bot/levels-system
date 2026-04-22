@@ -3,7 +3,10 @@
 
 import type { FinalLevelZone } from "../levels/level-types.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
-import type { TraderNextBarrierContext } from "./alert-types.js";
+import type {
+  TraderNextBarrierContext,
+  TraderZoneTacticalRead,
+} from "./alert-types.js";
 
 function formatLevel(level: number): string {
   return level >= 1 ? level.toFixed(2) : level.toFixed(4);
@@ -29,6 +32,38 @@ export function describeZoneStrengthWithKind(
   zoneKind: "support" | "resistance",
 ): string {
   return `${describeZoneStrength(strengthLabel)} ${zoneKind}`;
+}
+
+export function deriveTraderZoneTacticalRead(
+  zone?: FinalLevelZone,
+  freshnessOverride?: FinalLevelZone["freshness"],
+): TraderZoneTacticalRead | undefined {
+  if (!zone) {
+    return undefined;
+  }
+
+  const freshness = freshnessOverride ?? zone.freshness;
+  const lowFollowThrough = zone.followThroughScore < 0.42;
+  const lowReactionQuality = zone.reactionQualityScore < 0.58;
+  const heavyRetestPressure = zone.touchCount >= 5 && zone.rejectionScore < 0.45;
+  if (
+    freshness === "stale" ||
+    (lowFollowThrough && lowReactionQuality) ||
+    heavyRetestPressure
+  ) {
+    return "tired";
+  }
+
+  if (
+    freshness === "fresh" &&
+    zone.followThroughScore >= 0.68 &&
+    zone.reactionQualityScore >= 0.7 &&
+    zone.rejectionScore >= 0.48
+  ) {
+    return "firm";
+  }
+
+  return "balanced";
 }
 
 function formatZoneRange(zone: FinalLevelZone): string {
@@ -92,6 +127,22 @@ function describeZoneContext(event: MonitoringEvent, zone: FinalLevelZone): stri
   ]
     .filter((value): value is string => Boolean(value))
     .join(" | ");
+}
+
+function buildTacticalReadLine(zone: FinalLevelZone): string | null {
+  const tacticalRead = deriveTraderZoneTacticalRead(zone, zone.freshness);
+  switch (tacticalRead) {
+    case "firm":
+      return zone.kind === "support"
+        ? "quality: support still looks firm with healthy follow-through"
+        : "quality: resistance still looks firm, so a clean break matters more";
+    case "tired":
+      return zone.kind === "support"
+        ? "quality: support looks structurally important but tactically tired"
+        : "quality: resistance looked tactically tired before this test";
+    default:
+      return null;
+  }
 }
 
 function buildLeadLine(event: MonitoringEvent, zone?: FinalLevelZone): string {
@@ -184,6 +235,10 @@ export function buildTraderAlertBody(
   return [
     buildLeadLine(event, zone),
     `context: ${describeZoneContext(event, zone)}`,
+    buildTacticalReadLine({
+      ...zone,
+      freshness: event.eventContext.zoneFreshness,
+    }),
     roomLine,
     buildWatchLine(event, zone),
   ]

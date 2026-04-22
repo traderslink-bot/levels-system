@@ -68,6 +68,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Improved trader-facing clearance wording so alerts now say when overhead or downside room is `tight`, `limited`, or `open` instead of only listing the next barrier numerically.
 - Added a human review loop backed by `human-review-feedback.jsonl` plus `scripts/add-long-run-review-feedback.ps1`, and surfaced that feedback in the long-run summary artifacts.
 - Added deterministic end-of-session thread summaries so each symbol now gets a clearer plain-English wrap-up instead of only raw counts.
+- Added tactical `firm` / `tired` zone reads to trader-facing alerts and long-run review summaries so structurally important but fading zones are described more honestly.
 
 ## Active Backlog
 
@@ -129,7 +130,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 ## Next Recommended Implementation Steps
 
-1. Use human review feedback to tune heavy/light support-resistance wording against real alert outcomes.
+1. Use human review feedback to tune heavy/light and firm/tired wording against real alert outcomes.
 2. Add AI commentary on top of the cleaned deterministic signal stream for the highest-priority symbols.
-3. Add follow-through and exhaustion awareness so strong-looking support/resistance can still be downgraded when it is tactically tired.
+3. Add stronger follow-through and exhaustion penalties so tactically tired zones are not only described better but also ranked more conservatively.
 4. Add stronger end-of-session summaries for symbols that materially changed state multiple times across the same run.

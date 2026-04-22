@@ -2,6 +2,7 @@
 // Config for Phase 3 alert intelligence.
 
 import type { MonitoringEventType } from "../monitoring/monitoring-types.js";
+import type { TraderZoneTacticalRead } from "./alert-types.js";
 
 export type AlertIntelligenceConfig = {
   eventBaseScores: Record<MonitoringEventType, number>;
@@ -56,6 +57,7 @@ export type AlertIntelligenceConfig = {
     limited: number;
     open: number;
   };
+  tacticalReadScores: Record<TraderZoneTacticalRead, number>;
   structureStrengthScale: number;
   postingWindowsMs: {
     zone_context: number;
@@ -127,6 +129,11 @@ export const DEFAULT_ALERT_INTELLIGENCE_CONFIG: AlertIntelligenceConfig = {
     tight: -12,
     limited: -5,
     open: 4,
+  },
+  tacticalReadScores: {
+    firm: 4,
+    balanced: 0,
+    tired: -6,
   },
   structureStrengthScale: 10,
   postingWindowsMs: {

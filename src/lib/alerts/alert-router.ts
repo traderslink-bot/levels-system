@@ -42,6 +42,7 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       clearanceLabel: alert.nextBarrier?.clearanceLabel,
       nextBarrierSide: alert.nextBarrier?.side,
       nextBarrierDistancePct: alert.nextBarrier?.distancePct,
+      tacticalRead: alert.tacticalRead,
     },
   };
 }

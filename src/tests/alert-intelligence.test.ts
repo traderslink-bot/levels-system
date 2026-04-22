@@ -156,11 +156,14 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
     [
       "bullish breakout through major resistance 100.00-101.00",
       "context: major resistance | outermost | fresh | 5m/4h/daily confluence | recently refreshed",
+      "quality: resistance still looks firm, so a clean break matters more",
       "watch: hold above 101.00; invalidates back below 100.00",
     ].join("\n"),
   );
+  assert.equal(result.rawAlert.tacticalRead, "firm");
   assert.ok(result.rawAlert.tags.includes("outermost"));
   assert.ok(result.rawAlert.scoreComponents.ladderPosition > 0);
+  assert.equal(result.rawAlert.scoreComponents.tacticalRead, 4);
 });
 
 test("AlertIntelligenceEngine suppresses weak low-confidence compression alerts", () => {
@@ -405,8 +408,77 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
     [
       "dip-buy test at heavy support 97.80-98.20",
       "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
+      "quality: support still looks firm with healthy follow-through",
       "room: limited overhead into next resistance 100.50 (+2.4%)",
       "watch: buyers defend 97.80-98.20 before momentum fades",
+    ].join("\n"),
+  );
+  assert.equal(result.rawAlert.tacticalRead, "firm");
+  assert.equal(result.rawAlert.scoreComponents.tacticalRead, 4);
+});
+
+test("AlertIntelligenceEngine calls out tired structure when a strong-looking zone is tactically fading", () => {
+  const engine = new AlertIntelligenceEngine();
+  const tiredLevels: LevelEngineOutput = {
+    ...levels,
+    majorResistance: [
+      {
+        ...levels.majorResistance[0]!,
+        id: "zone-tired-resistance",
+        strengthLabel: "strong",
+        touchCount: 6,
+        reactionQualityScore: 0.46,
+        rejectionScore: 0.32,
+        followThroughScore: 0.24,
+        freshness: "aging",
+      },
+    ],
+  };
+  const event: MonitoringEvent = {
+    id: "evt-tired-breakout",
+    episodeId: "evt-tired-breakout-episode",
+    symbol: "ALBT",
+    type: "breakout",
+    eventType: "breakout",
+    zoneId: "zone-tired-resistance",
+    zoneKind: "resistance",
+    level: 100.5,
+    triggerPrice: 101.08,
+    strength: 0.71,
+    confidence: 0.69,
+    priority: 74,
+    bias: "bullish",
+    pressureScore: 0.58,
+    eventContext: {
+      monitoredZoneId: "monitored-zone-tired-resistance",
+      canonicalZoneId: "zone-tired-resistance",
+      zoneFreshness: "aging",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["legacy-zone-tired-resistance"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 28,
+    notes: ["Breakout through tiring resistance."],
+  };
+
+  const result = engine.processEvent(event, tiredLevels);
+
+  assert.ok(result.formatted);
+  assert.equal(result.rawAlert.tacticalRead, "tired");
+  assert.equal(result.rawAlert.scoreComponents.tacticalRead, -6);
+  assert.equal(
+    result.formatted?.body,
+    [
+      "bullish breakout through heavy resistance 100.00-101.00",
+      "context: heavy resistance | outermost | aging | 5m/4h/daily confluence",
+      "quality: resistance looked tactically tired before this test",
+      "watch: hold above 101.00; invalidates back below 100.00",
     ].join("\n"),
   );
 });

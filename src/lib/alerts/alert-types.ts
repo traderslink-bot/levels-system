@@ -11,6 +11,8 @@ export type AlertSeverity = "low" | "medium" | "high" | "critical";
 
 export type AlertConfidence = "low" | "medium" | "high";
 
+export type TraderZoneTacticalRead = "firm" | "balanced" | "tired";
+
 export type AlertPayload = {
   title: string;
   body: string;
@@ -25,6 +27,7 @@ export type AlertPayload = {
     clearanceLabel?: BarrierClearanceLabel;
     nextBarrierSide?: "support" | "resistance";
     nextBarrierDistancePct?: number;
+    tacticalRead?: TraderZoneTacticalRead;
   };
 };
 
@@ -88,6 +91,7 @@ export type IntelligentAlert = {
   event: MonitoringEvent;
   zone?: FinalLevelZone;
   nextBarrier?: TraderNextBarrierContext | null;
+  tacticalRead?: TraderZoneTacticalRead;
 };
 
 export type AlertPostingFamily =

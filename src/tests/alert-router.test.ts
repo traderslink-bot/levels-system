@@ -175,6 +175,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       distancePct: 0.036,
       clearanceLabel: "limited",
     },
+    tacticalRead: "firm",
   });
 
   assert.equal(payload.title, "ALBT breakout");
@@ -189,6 +190,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.clearanceLabel, "limited");
   assert.equal(payload.metadata?.nextBarrierSide, "resistance");
   assert.equal(payload.metadata?.nextBarrierDistancePct, 0.036);
+  assert.equal(payload.metadata?.tacticalRead, "firm");
 });
 
 test("formatLevelSnapshotMessage uses deterministic formatting", () => {

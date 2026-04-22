@@ -693,6 +693,7 @@ export class ManualWatchlistRuntimeManager {
               clearanceLabel: alertResult.rawAlert.nextBarrier?.clearanceLabel ?? null,
               nextBarrierSide: alertResult.rawAlert.nextBarrier?.side ?? null,
               nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
+              tacticalRead: alertResult.rawAlert.tacticalRead ?? null,
             },
           });
         })
@@ -722,6 +723,7 @@ export class ManualWatchlistRuntimeManager {
           clearanceLabel: alertResult.rawAlert.nextBarrier?.clearanceLabel ?? null,
           nextBarrierSide: alertResult.rawAlert.nextBarrier?.side ?? null,
           nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
+          tacticalRead: alertResult.rawAlert.tacticalRead ?? null,
         },
       });
     }

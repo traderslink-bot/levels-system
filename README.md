@@ -28,6 +28,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
 - Trader-facing Discord alerts now include:
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
+  - a tactical read of `firm` versus `tired` structure when the zone evidence clearly supports that distinction
   - a compact severity / confidence / score line plus trigger price
   - a `watch` / invalidation line
   - nearby barrier context when the next support or resistance is known, including whether room is `tight`, `limited`, or `open`

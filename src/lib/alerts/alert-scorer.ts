@@ -10,7 +10,10 @@ import type {
   TraderNextBarrierContext,
 } from "./alert-types.js";
 import type { AlertIntelligenceConfig } from "./alert-config.js";
-import { buildTraderAlertBody } from "./trader-message-language.js";
+import {
+  buildTraderAlertBody,
+  deriveTraderZoneTacticalRead,
+} from "./trader-message-language.js";
 
 function severityForScore(score: number, config: AlertIntelligenceConfig): AlertSeverity {
   if (score >= config.severityThresholds.critical) {
@@ -95,6 +98,7 @@ function contextContributions(
 ): Record<string, number> {
   const context = event.eventContext;
   const lowValueInnerZone = context.ladderPosition === "inner" && context.zoneStrengthLabel === "weak";
+  const tacticalRead = deriveTraderZoneTacticalRead(zone, context.zoneFreshness);
   const clearanceScore =
     context.clearanceLabel
       ? config.clearanceScores[context.clearanceLabel]
@@ -118,6 +122,7 @@ function contextContributions(
         : 0,
     dataQuality: context.dataQualityDegraded ? -config.dataQualityPenalty : 0,
     clearance: clearanceScore,
+    tacticalRead: tacticalRead ? config.tacticalReadScores[tacticalRead] : 0,
     lowValueInnerTouch:
       event.eventType === "level_touch" && lowValueInnerZone ? -config.lowValueInnerTouchPenalty : 0,
     lowValueInnerCompression:
@@ -197,5 +202,6 @@ export function scoreMonitoringEventToAlert(params: {
     event,
     zone,
     nextBarrier,
+    tacticalRead: deriveTraderZoneTacticalRead(zone, event.eventContext.zoneFreshness),
   };
 }

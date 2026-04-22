@@ -339,6 +339,7 @@ It gives each active symbol a compact narrative such as:
 - which alert families dominated
 - which suppression reasons dominated
 - what the latest posted alert looked like, including whether room was `tight`, `limited`, or `open`
+- whether the latest alert came from a `firm` or `tired` zone context
 - what the end-of-session summary says about the thread overall
 - whether any human review feedback was already recorded
 - whether delivery or runtime failures showed up
