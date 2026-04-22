@@ -7,6 +7,7 @@ import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import type {
   TraderMovementContext,
   TraderNextBarrierContext,
+  TraderTradeMapContext,
   TraderZoneTacticalRead,
 } from "./alert-types.js";
 
@@ -69,6 +70,16 @@ function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
 
 function formatPct(pct: number): string {
   return `${(pct * 100).toFixed(1)}%`;
+}
+
+function ratioLabel(ratio: number): TraderTradeMapContext["label"] {
+  if (ratio >= 2) {
+    return "favorable";
+  }
+  if (ratio >= 1) {
+    return "workable";
+  }
+  return "tight";
 }
 
 function movementStageLine(
@@ -341,6 +352,78 @@ export function deriveTraderMovementContext(
   }
 }
 
+export function deriveTraderTradeMapContext(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+  nextBarrier?: TraderNextBarrierContext | null,
+): TraderTradeMapContext | null {
+  if (!zone || event.eventType === "compression") {
+    return null;
+  }
+
+  const triggerPrice = Math.max(event.triggerPrice, 0.0001);
+  let invalidationLevel: number | null = null;
+  let preferredBarrierSide: "support" | "resistance" | null = null;
+
+  switch (event.eventType) {
+    case "breakout":
+    case "reclaim":
+    case "fake_breakdown":
+      invalidationLevel = zone.zoneLow;
+      preferredBarrierSide = "resistance";
+      break;
+    case "breakdown":
+    case "fake_breakout":
+      invalidationLevel = zone.zoneHigh;
+      preferredBarrierSide = "support";
+      break;
+    case "rejection":
+    case "level_touch":
+      if (zone.kind === "support") {
+        invalidationLevel = zone.zoneLow;
+        preferredBarrierSide = "resistance";
+      } else {
+        invalidationLevel = zone.zoneHigh;
+        preferredBarrierSide = "support";
+      }
+      break;
+    default:
+      return null;
+  }
+
+  if (!Number.isFinite(invalidationLevel) || invalidationLevel === null) {
+    return null;
+  }
+
+  const riskPct = Math.abs(triggerPrice - invalidationLevel) / triggerPrice;
+  const roomPct =
+    nextBarrier && nextBarrier.side === preferredBarrierSide
+      ? nextBarrier.distancePct
+      : null;
+
+  if (roomPct === null) {
+    return {
+      label: "workable",
+      riskPct,
+      roomPct: null,
+      roomToRiskRatio: null,
+      line: `trade map: risk to invalidation is about ${formatPct(riskPct)}; next directional barrier still needs confirmation`,
+    };
+  }
+
+  const roomToRiskRatio = roomPct / Math.max(riskPct, 0.0001);
+  const label = ratioLabel(roomToRiskRatio);
+  return {
+    label,
+    riskPct,
+    roomPct,
+    roomToRiskRatio,
+    line:
+      `trade map: risk to invalidation ${formatPct(riskPct)}; room to next ${preferredBarrierSide} ${formatPct(roomPct)} ` +
+      `(~${roomToRiskRatio.toFixed(1)}x, ${label} skew)`,
+  };
+}
+
 function buildWatchLine(event: MonitoringEvent, zone?: FinalLevelZone): string | null {
   if (!zone) {
     return null;
@@ -390,6 +473,7 @@ export function buildTraderAlertBody(
     ? describeBarrierRoom(nextBarrier)
     : null;
   const movement = deriveTraderMovementContext(event, zone);
+  const tradeMap = deriveTraderTradeMapContext(event, zone, nextBarrier);
 
   return [
     buildLeadLine(event, zone),
@@ -401,6 +485,7 @@ export function buildTraderAlertBody(
       freshness: event.eventContext.zoneFreshness,
     }),
     roomLine,
+    tradeMap?.line ?? null,
     buildWatchLine(event, zone),
   ]
     .filter((value): value is string => Boolean(value))

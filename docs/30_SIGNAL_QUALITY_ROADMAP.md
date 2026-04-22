@@ -75,6 +75,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added alert/evaluation alignment summaries to thread review so a symbol's latest posted setup can be compared against how that same setup family has actually been performing.
 - Added dynamic-symbol and outcome-disagreement review so long-run sessions can flag symbols whose repeated state changes or weak follow-through make the thread less trustworthy than its raw alert count.
 - Added movement-aware trader wording and audit metadata so alerts now say how far price has already pushed through or back into the zone when they fire.
+- Added trade-map wording and audit metadata so alerts now quantify room-to-next-barrier versus risk-to-invalidation for directional setups.
 
 ## Active Backlog
 
@@ -143,3 +144,4 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 5. Use the new event-type evaluation buckets to identify families that need tighter posting thresholds or better wording before adding AI commentary on top.
 6. Use the new dynamic-symbol and disagreement summaries to decide whether activation churn, reactivation behavior, or symbol-specific noise suppression needs more tuning.
 7. Use the new movement labels to learn whether early alerts outperform stretched alerts before tightening posting rules further.
+8. Use the new trade-map labels to learn whether favorable-skew alerts actually outperform tight-skew alerts before tightening posting rules further.

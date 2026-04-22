@@ -39,6 +39,9 @@ export type DiscordDeliveryAuditEntry = {
   tacticalRead?: string;
   movementLabel?: string;
   movementPct?: number;
+  tradeMapLabel?: string;
+  riskPct?: number;
+  roomToRiskRatio?: number;
   supportCount?: number;
   resistanceCount?: number;
   side?: string;
@@ -163,6 +166,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         tacticalRead: payload.metadata?.tacticalRead,
         movementLabel: payload.metadata?.movementLabel,
         movementPct: payload.metadata?.movementPct,
+        tradeMapLabel: payload.metadata?.tradeMapLabel,
+        riskPct: payload.metadata?.riskPct,
+        roomToRiskRatio: payload.metadata?.roomToRiskRatio,
       });
     } catch (error) {
       this.recordFailed("post_alert", error, {
@@ -182,6 +188,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         tacticalRead: payload.metadata?.tacticalRead,
         movementLabel: payload.metadata?.movementLabel,
         movementPct: payload.metadata?.movementPct,
+        tradeMapLabel: payload.metadata?.tradeMapLabel,
+        riskPct: payload.metadata?.riskPct,
+        roomToRiskRatio: payload.metadata?.roomToRiskRatio,
       });
     }
   }

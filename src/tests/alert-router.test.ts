@@ -181,6 +181,13 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       movementPct: 0.008,
       line: "movement: price is pushing farther above the zone high and follow-through is building (0.8%)",
     },
+    tradeMap: {
+      label: "favorable",
+      riskPct: 0.012,
+      roomPct: 0.036,
+      roomToRiskRatio: 3,
+      line: "trade map: risk to invalidation 1.2%; room to next resistance 3.6% (~3.0x, favorable skew)",
+    },
   });
 
   assert.equal(payload.title, "ALBT breakout");
@@ -198,6 +205,9 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.tacticalRead, "firm");
   assert.equal(payload.metadata?.movementLabel, "building");
   assert.equal(payload.metadata?.movementPct, 0.008);
+  assert.equal(payload.metadata?.tradeMapLabel, "favorable");
+  assert.equal(payload.metadata?.riskPct, 0.012);
+  assert.equal(payload.metadata?.roomToRiskRatio, 3);
 });
 
 test("formatLevelSnapshotMessage uses deterministic formatting", () => {

@@ -159,6 +159,7 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
       "movement: price is still just above the zone high, so the breakout is early (0.4%)",
       "context: major resistance | outermost | fresh | 5m/4h/daily confluence | recently refreshed",
       "quality: resistance still looks firm, so a clean break matters more",
+      "trade map: risk to invalidation is about 1.4%; next directional barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
     ].join("\n"),
   );
@@ -289,6 +290,7 @@ test("AlertIntelligenceEngine preserves promoted extension significance without 
       "why now: price is back at resistance where sellers need to prove control",
       "movement: price is testing inside resistance below the upper edge (1.2%)",
       "context: heavy resistance | promoted extension | fresh | 5m/4h confluence",
+      "trade map: risk to invalidation is about 1.2%; next directional barrier still needs confirmation",
       "watch: sellers defend 3.25-3.35 before breakout pressure builds",
     ].join("\n"),
   );
@@ -351,6 +353,7 @@ test("AlertIntelligenceEngine penalizes degraded data quality and preserves rema
       "why now: buyers got price back above the zone after a real break attempt",
       "movement: price is back just above the zone high, so the reclaim is still early (0.2%)",
       "context: major resistance | outermost | aging | 5m/4h/daily confluence | recently refreshed",
+      "trade map: risk to invalidation is about 1.2%; next directional barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
     ].join("\n"),
   );
@@ -418,6 +421,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
       "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
       "quality: support still looks firm with healthy follow-through",
       "room: limited overhead into next resistance 100.50 (+2.4%)",
+      "trade map: risk to invalidation 0.3%; room to next resistance 2.4% (~6.9x, favorable skew)",
       "watch: buyers defend 97.80-98.20 before momentum fades",
     ].join("\n"),
   );
@@ -488,6 +492,7 @@ test("AlertIntelligenceEngine calls out tired structure when a strong-looking zo
       "movement: price is still just above the zone high, so the breakout is early (0.1%)",
       "context: heavy resistance | outermost | aging | 5m/4h/daily confluence",
       "quality: resistance looked tactically tired before this test",
+      "trade map: risk to invalidation is about 1.1%; next directional barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
     ].join("\n"),
   );

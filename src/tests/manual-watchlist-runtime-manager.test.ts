@@ -1395,6 +1395,7 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
       "movement: price is pushing farther above the zone high and follow-through is building (0.8%)",
       "context: heavy resistance | outermost | fresh | 5m driven | recently refreshed",
       "room: limited overhead into next resistance 2.58 (+2.4%)",
+      "trade map: risk to invalidation 4.8%; room to next resistance 2.4% (~0.5x, tight skew)",
       "watch: hold above 2.50; invalidates back below 2.40",
       "severity CRITICAL | confidence HIGH | score 103.68",
       "trigger 2.52",

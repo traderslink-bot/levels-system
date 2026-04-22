@@ -19,6 +19,39 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 07:20 PM America/Toronto
+
+### Added trade-map alert context for room versus invalidation risk
+
+- Updated trader-facing alert formatting in:
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - directional alerts now include a deterministic `trade map:` line that compares risk-to-invalidation against room-to-next-barrier
+  - trade-map output now labels setups as `favorable`, `workable`, or `tight` based on room-to-risk skew
+  - alert payload metadata and Discord delivery audit rows now carry `tradeMapLabel`, `riskPct`, and `roomToRiskRatio`
+- Why this matters:
+  - traders can see more quickly whether a setup still has usable upside or downside before the next barrier
+  - this makes the alert stream more actionable by quantifying both opportunity and invalidation, not just describing structure
+  - long-run review can now compare whether favorable-skew setups actually outperform tight-skew ones
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 07:05 PM America/Toronto
 
 ### Added movement-aware trader alerts and audit metadata
