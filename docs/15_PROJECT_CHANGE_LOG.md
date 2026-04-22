@@ -19,6 +19,36 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 03:25 PM America/Toronto
+
+### Improved trader-facing `why now` wording and made long-run review less diagnostic-biased
+
+- Updated trader-facing alert wording in:
+  - `src/lib/alerts/trader-message-language.ts`
+- Updated long-run review and summary logic in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+  - `docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md`
+- What changed:
+  - trader-facing alerts now include a deterministic `why now:` line for breakout, breakdown, reclaim, rejection, compression, fakeout, and level-touch setups
+  - long-run thread summaries now include latest evaluation context, not just the last alert and last opportunity
+  - long-run quality heuristics now incorporate evaluated follow-through wins/losses
+  - noisiest-symbol scoring now caps raw diagnostic pressure so a healthy but chatty symbol does not look artificially bad
+  - end-of-session summaries now use evaluated outcome context before falling back to generic room/tactical wording
+- Why this matters:
+  - end users get a faster explanation of what changed right now instead of only seeing a setup label
+  - runtime review is less likely to confuse detector verbosity with genuinely noisy trader-facing output
+  - symbols like `AKAN` now produce more honest post-run summaries when they have mixed or positive evaluated follow-through
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts`
+  - `npm run build`
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+
+---
+
 ## 2026-04-22 05:50 PM America/Toronto
 
 ### Added usefulness/noise heuristics to long-run session review

@@ -159,6 +159,46 @@ function buildLeadLine(event: MonitoringEvent, zone?: FinalLevelZone): string {
   }
 }
 
+function buildWhyNowLine(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+): string | null {
+  if (!zone) {
+    return null;
+  }
+
+  switch (event.eventType) {
+    case "breakout":
+      return event.eventContext.ladderPosition === "outermost"
+        ? "why now: price cleared the outermost resistance instead of stalling underneath it"
+        : "why now: price pushed through resistance instead of stalling under the zone";
+    case "breakdown":
+      return event.eventContext.ladderPosition === "outermost"
+        ? "why now: price lost the outermost support instead of bouncing cleanly off it"
+        : "why now: price slipped through support instead of holding the zone";
+    case "reclaim":
+      return zone.kind === "support"
+        ? "why now: buyers got price back above support after a real break attempt"
+        : "why now: buyers got price back above the zone after a real break attempt";
+    case "fake_breakout":
+      return "why now: breakout pressure failed and price slipped back into resistance";
+    case "fake_breakdown":
+      return "why now: breakdown pressure failed and buyers reclaimed support quickly";
+    case "rejection":
+      return zone.kind === "resistance"
+        ? "why now: sellers responded at resistance before breakout acceptance could build"
+        : "why now: buyers responded at support before breakdown acceptance could build";
+    case "compression":
+      return "why now: repeated near-zone tests are tightening the range into a decision point";
+    case "level_touch":
+      return zone.kind === "support"
+        ? "why now: price came back into defended support instead of drifting mid-range"
+        : "why now: price is back at resistance where sellers need to prove control";
+    default:
+      return null;
+  }
+}
+
 function buildWatchLine(event: MonitoringEvent, zone?: FinalLevelZone): string | null {
   if (!zone) {
     return null;
@@ -210,6 +250,7 @@ export function buildTraderAlertBody(
 
   return [
     buildLeadLine(event, zone),
+    buildWhyNowLine(event, zone),
     `context: ${describeZoneContext(event, zone)}`,
     buildTacticalReadLine({
       ...zone,

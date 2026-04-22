@@ -66,6 +66,15 @@ $summary = [ordered]@{
   diagnosticEntries = 0
   opportunitySnapshots = 0
   evaluationUpdates = 0
+  evaluation = @{
+    total = 0
+    wins = 0
+    losses = 0
+    lastReturnPct = $null
+    lastEventType = $null
+    bestReturnPct = $null
+    worstReturnPct = $null
+  }
   quality = @{
     score = 0
     verdict = "unknown"
@@ -129,6 +138,15 @@ function Ensure-SymbolSummary {
       diagnosticEntries = 0
       opportunitySnapshots = 0
       evaluationUpdates = 0
+      evaluation = @{
+        total = 0
+        wins = 0
+        losses = 0
+        lastReturnPct = $null
+        lastEventType = $null
+        bestReturnPct = $null
+        worstReturnPct = $null
+      }
       lastLifecycleEvent = $null
       lastAlert = $null
       lastOpportunity = $null
@@ -245,6 +263,10 @@ function Evaluate-QualityHeuristics {
   $discordFailed = [int](Get-HashtableValue -Table $Metrics -Key "discordFailed" -Default 0)
   $diagnostics = [int](Get-HashtableValue -Table $Metrics -Key "diagnosticEntries" -Default 0)
   $opportunitySnapshots = [int](Get-HashtableValue -Table $Metrics -Key "opportunitySnapshots" -Default 0)
+  $evaluationUpdates = [int](Get-HashtableValue -Table $Metrics -Key "evaluationUpdates" -Default 0)
+  $evaluationTotal = [int](Get-HashtableValue -Table $Metrics -Key "evaluationTotal" -Default 0)
+  $evaluationWins = [int](Get-HashtableValue -Table $Metrics -Key "evaluationWins" -Default 0)
+  $evaluationLosses = [int](Get-HashtableValue -Table $Metrics -Key "evaluationLosses" -Default 0)
   $postedFamiliesTable = [hashtable](Get-HashtableValue -Table $Metrics -Key "alertPostedByFamily" -Default @{})
   $suppressedReasonsTable = [hashtable](Get-HashtableValue -Table $Metrics -Key "alertSuppressedByReason" -Default @{})
   $families = [int]$postedFamiliesTable.Count
@@ -286,6 +308,22 @@ function Evaluate-QualityHeuristics {
   if ($opportunitySnapshots -gt 0) {
     $score += 4
     $rationale += "produced opportunity snapshots"
+  }
+
+  if ($evaluationUpdates -gt 0) {
+    $score += [Math]::Min($evaluationUpdates * 2, 6)
+    $rationale += "captured post-alert outcome evaluations"
+  }
+
+  if ($evaluationTotal -gt 0) {
+    if ($evaluationWins -gt $evaluationLosses) {
+      $score += [Math]::Min(($evaluationWins - $evaluationLosses) * 4, 10)
+      $rationale += "recent evaluated follow-through leaned positive"
+    } elseif ($evaluationLosses -gt $evaluationWins) {
+      $score -= [Math]::Min(($evaluationLosses - $evaluationWins) * 5, 12)
+      $rationale += "recent evaluated follow-through leaned negative"
+      $recommendations += "review the latest evaluated alert before trusting similar setups"
+    }
   }
 
   if ($failureTotal -gt 0) {
@@ -352,6 +390,46 @@ function Evaluate-QualityHeuristics {
   }
 }
 
+function Get-DiagnosticNoiseWeight {
+  param(
+    [hashtable]$SymbolSummary
+  )
+
+  $diagnostics = [int]$SymbolSummary.diagnosticEntries
+  if ($diagnostics -le 0) {
+    return 0
+  }
+
+  $suppressionPressure = [int]$SymbolSummary.alertSuppressed
+  $failurePressure =
+    [int]$SymbolSummary.failures.activation +
+    [int]$SymbolSummary.failures.restore +
+    [int]$SymbolSummary.failures.seed +
+    [int]$SymbolSummary.failures.ibkr
+
+  if ($failurePressure -gt 0 -or $suppressionPressure -gt 0) {
+    return [Math]::Min(12, [int][Math]::Ceiling($diagnostics / 20))
+  }
+
+  if ([int]$SymbolSummary.alertPosted -eq 0) {
+    return [Math]::Min(8, [int][Math]::Ceiling($diagnostics / 35))
+  }
+
+  return [Math]::Min(3, [int][Math]::Floor($diagnostics / 80))
+}
+
+function Get-SymbolNoiseScore {
+  param(
+    [hashtable]$SymbolSummary
+  )
+
+  return (
+    [int]$SymbolSummary.alertSuppressed * 3 +
+    (Get-DiagnosticNoiseWeight -SymbolSummary $SymbolSummary) +
+    [int]$SymbolSummary.discordFailed * 4
+  )
+}
+
 function Build-SessionQualitySummary {
   $symbolScores = @(
     $summary.perSymbol.GetEnumerator() |
@@ -371,6 +449,10 @@ function Build-SessionQualitySummary {
     discordFailed = $summary.discordAudit.failed
     diagnosticEntries = $summary.diagnosticEntries
     opportunitySnapshots = $summary.opportunitySnapshots
+    evaluationUpdates = $summary.evaluationUpdates
+    evaluationTotal = [int](Get-HashtableValue -Table $summary.evaluation -Key "total" -Default 0)
+    evaluationWins = [int](Get-HashtableValue -Table $summary.evaluation -Key "wins" -Default 0)
+    evaluationLosses = [int](Get-HashtableValue -Table $summary.evaluation -Key "losses" -Default 0)
     alertPostedByFamily = $summary.alerting.postedByFamily
     alertSuppressedByReason = $summary.alerting.suppressedByReason
     failures = $summary.failures
@@ -389,18 +471,13 @@ function Get-NoisiestSymbols {
     $summary.perSymbol.GetEnumerator() |
       Sort-Object -Property @{
         Expression = {
-          [int]$_.Value.alertSuppressed +
-          [int]$_.Value.diagnosticEntries +
-          [int]$_.Value.discordFailed * 4
+          Get-SymbolNoiseScore -SymbolSummary $_.Value
         }
         Descending = $true
       }, @{ Expression = "Key"; Descending = $false } |
       Select-Object -First $Top |
       ForEach-Object {
-        $noiseScore =
-          [int]$_.Value.alertSuppressed +
-          [int]$_.Value.diagnosticEntries +
-          [int]$_.Value.discordFailed * 4
+        $noiseScore = Get-SymbolNoiseScore -SymbolSummary $_.Value
         if ($noiseScore -gt 0) {
           "$($_.Key) noise=$noiseScore"
         }
@@ -488,6 +565,9 @@ function Build-EndOfSessionSummary {
     [int]$SymbolSummary.failures.ibkr
   $families = Get-TopSummaryKeys -Table $SymbolSummary.alertPostedByFamily -Top 2
   $reviewVerdict = $SymbolSummary.humanReview.latestVerdict
+  $evaluationTotal = [int]$SymbolSummary.evaluation.total
+  $evaluationWins = [int]$SymbolSummary.evaluation.wins
+  $evaluationLosses = [int]$SymbolSummary.evaluation.losses
 
   if ($failureTotal -gt 0) {
     return "$Symbol hit $failureTotal runtime failure(s) during the session and needs operational cleanup before trusting the thread."
@@ -513,6 +593,18 @@ function Build-EndOfSessionSummary {
     return "$Symbol received positive human review feedback, which is a good sign that the thread was adding value to the end user."
   }
 
+  if ($evaluationTotal -ge 2 -and $evaluationWins -gt 0 -and $evaluationLosses -gt 0) {
+    return "$Symbol produced mixed evaluated follow-through, so the thread looks informative but still uneven rather than cleanly actionable."
+  }
+
+  if ($evaluationWins -gt 0 -and $evaluationLosses -eq 0) {
+    return "$Symbol produced evaluated follow-through that leaned positive, which is a better sign that the latest thread logic is aligning with price action."
+  }
+
+  if ($evaluationLosses -gt 0 -and $evaluationWins -eq 0) {
+    return "$Symbol produced evaluated follow-through that leaned negative, so the latest setup quality needs more caution before trusting similar alerts."
+  }
+
   if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.tacticalRead -eq "tired") {
     return "$Symbol ended with a tactically tired alert context, so the thread may still matter structurally but deserves more caution on follow-through."
   }
@@ -522,7 +614,7 @@ function Build-EndOfSessionSummary {
   }
 
   if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.clearanceLabel) {
-    return "$Symbol ended with a $($SymbolSummary.lastAlert.clearanceLabel) room alert context, which should shape how aggressively the latest setup is interpreted."
+    return "$Symbol ended with an $($SymbolSummary.lastAlert.clearanceLabel)-room alert context, which should shape how aggressively the latest setup is interpreted."
   }
 
   return "$Symbol remained $($SymbolSummary.quality.verdict) overall, and the thread should be reviewed alongside its latest alert and suppression mix."
@@ -605,6 +697,22 @@ function Build-ThreadSummaryRecord {
     $latestOpportunitySummary = $latestOpportunitySummary | Where-Object { $_ }
   }
 
+  $latestEvaluationSummary = $null
+  if ($SymbolSummary.evaluation.total -gt 0) {
+    $latestEvaluationSummary = @(
+      "evaluations=$($SymbolSummary.evaluation.total)",
+      "wins=$($SymbolSummary.evaluation.wins)",
+      "losses=$($SymbolSummary.evaluation.losses)"
+    )
+    if ($SymbolSummary.evaluation.lastEventType) {
+      $latestEvaluationSummary += ("last=" + [string]$SymbolSummary.evaluation.lastEventType)
+    }
+    if ($SymbolSummary.evaluation.lastReturnPct -ne $null) {
+      $latestEvaluationSummary += ("return=" + ([double]$SymbolSummary.evaluation.lastReturnPct).ToString("0.00") + "%")
+    }
+    $latestEvaluationSummary = $latestEvaluationSummary | Where-Object { $_ }
+  }
+
   return [ordered]@{
     symbol = $Symbol
     status = $status
@@ -622,6 +730,7 @@ function Build-ThreadSummaryRecord {
     latestAlertSummary = if ($latestAlertSummary) { $latestAlertSummary -join " | " } else { $null }
     latestOpportunity = $SymbolSummary.lastOpportunity
     latestOpportunitySummary = if ($latestOpportunitySummary) { $latestOpportunitySummary -join " | " } else { $null }
+    latestEvaluationSummary = if ($latestEvaluationSummary) { $latestEvaluationSummary -join " | " } else { $null }
     lastSnapshot = $SymbolSummary.lastSnapshot
     lastExtension = $SymbolSummary.lastExtension
     discordPosted = $SymbolSummary.discordPosted
@@ -735,6 +844,7 @@ function Build-SessionReviewLines {
       "- Lifecycle highlights: $(Join-DisplayList -Items $thread.lifecycleHighlights)",
       "- Latest alert summary: $(if ($thread.latestAlertSummary) { $thread.latestAlertSummary } else { 'none' })",
       "- Latest opportunity summary: $(if ($thread.latestOpportunitySummary) { $thread.latestOpportunitySummary } else { 'none' })",
+      "- Latest evaluation summary: $(if ($thread.latestEvaluationSummary) { $thread.latestEvaluationSummary } else { 'none' })",
       "- Human review: $(if ($thread.humanReview.total -gt 0) { ('latest=' + $thread.humanReview.latestVerdict + '; total=' + $thread.humanReview.total) } else { 'none yet' })",
       "- Discord posted: $($thread.discordPosted)",
       "- Discord failed: $($thread.discordFailed)",
@@ -1008,6 +1118,49 @@ function Update-SummaryFromLine {
           tacticalRead = $parsed.opportunity.tacticalRead
         }
       }
+
+      if ($parsed.completedEvaluations) {
+        foreach ($evaluation in @($parsed.completedEvaluations)) {
+          $summary.evaluation.total += 1
+          $opportunitySymbolSummary.evaluation.total += 1
+          $returnPct = if ($evaluation.returnPct -ne $null) { [double]$evaluation.returnPct } else { $null }
+          $eventType = if ($evaluation.eventType) { [string]$evaluation.eventType } else { $null }
+          $success = $false
+          if ($evaluation.success -ne $null) {
+            $success = [bool]$evaluation.success
+          } elseif ($returnPct -ne $null) {
+            $success = $returnPct -gt 0
+          }
+
+          if ($success) {
+            $summary.evaluation.wins += 1
+            $opportunitySymbolSummary.evaluation.wins += 1
+          } else {
+            $summary.evaluation.losses += 1
+            $opportunitySymbolSummary.evaluation.losses += 1
+          }
+
+          $summary.evaluation.lastReturnPct = $returnPct
+          $summary.evaluation.lastEventType = $eventType
+          $opportunitySymbolSummary.evaluation.lastReturnPct = $returnPct
+          $opportunitySymbolSummary.evaluation.lastEventType = $eventType
+
+          if ($returnPct -ne $null) {
+            if ($summary.evaluation.bestReturnPct -eq $null -or $returnPct -gt [double]$summary.evaluation.bestReturnPct) {
+              $summary.evaluation.bestReturnPct = $returnPct
+            }
+            if ($summary.evaluation.worstReturnPct -eq $null -or $returnPct -lt [double]$summary.evaluation.worstReturnPct) {
+              $summary.evaluation.worstReturnPct = $returnPct
+            }
+            if ($opportunitySymbolSummary.evaluation.bestReturnPct -eq $null -or $returnPct -gt [double]$opportunitySymbolSummary.evaluation.bestReturnPct) {
+              $opportunitySymbolSummary.evaluation.bestReturnPct = $returnPct
+            }
+            if ($opportunitySymbolSummary.evaluation.worstReturnPct -eq $null -or $returnPct -lt [double]$opportunitySymbolSummary.evaluation.worstReturnPct) {
+              $opportunitySymbolSummary.evaluation.worstReturnPct = $returnPct
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -1022,6 +1175,10 @@ function Save-SessionSummary {
       discordFailed = $symbolSummary.discordFailed
       diagnosticEntries = $symbolSummary.diagnosticEntries
       opportunitySnapshots = $symbolSummary.opportunitySnapshots
+      evaluationUpdates = $symbolSummary.evaluationUpdates
+      evaluationTotal = $symbolSummary.evaluation.total
+      evaluationWins = $symbolSummary.evaluation.wins
+      evaluationLosses = $symbolSummary.evaluation.losses
       alertPostedByFamily = $symbolSummary.alertPostedByFamily
       alertSuppressedByReason = $symbolSummary.alertSuppressedByReason
       failures = $symbolSummary.failures

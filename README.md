@@ -28,6 +28,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
 - Trader-facing Discord alerts now include:
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
+  - a `why now` line so the user sees why the setup matters at this moment instead of only getting the label
   - a tactical read of `firm` versus `tired` structure when the zone evidence clearly supports that distinction
   - directional tactical scoring so tired support is penalized for support-hold ideas while tired resistance can help a real breakout case
   - a compact severity / confidence / score line plus trigger price
@@ -36,6 +37,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Support and resistance ranking is now durability-aware, so levels that are structurally important but getting tired can be described more conservatively than freshly defended levels.
 - Monitoring events and opportunity ranking now carry barrier-clearance context, so cramped upside or downside room can reduce setup quality before the message layer ever formats it.
 - Long-run session summaries now track alert-posting families and suppression reasons, so noisy symbols and repetitive low-value alert patterns are easier to spot after a live run.
+- Long-run review now tracks evaluated follow-through and downweights pure diagnostic chatter when a symbol is otherwise acting normally, so a session like `AKAN` is less likely to look noisier than it really was.
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
 - Signal-quality ideas, priorities, and progress are tracked in [docs/30_SIGNAL_QUALITY_ROADMAP.md](docs/30_SIGNAL_QUALITY_ROADMAP.md).

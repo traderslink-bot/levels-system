@@ -91,6 +91,7 @@ The session review will then show:
 - verdict counts
 - symbols that were reviewed
 - latest human review per symbol
+- how that human review sits beside the latest evaluated follow-through instead of only the raw posted alert
 
 ## Best Practice
 

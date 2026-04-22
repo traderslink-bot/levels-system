@@ -106,6 +106,7 @@ Inside that folder:
 - `thread-summaries.json`
   - live-updated per-symbol review artifact
   - turns session activity into a compact trader-facing summary for each active symbol
+  - now includes latest evaluation context so a symbol can be reviewed by what recently worked or failed, not only by what was posted
 - `session-review.md`
   - live-updated human-readable review artifact
   - summarizes the session verdict, noisiest areas, and what each symbol thread looked like without needing raw JSON
@@ -326,6 +327,7 @@ This is useful when you want a quick answer like:
 - was this session mostly quiet or extremely diagnostic-heavy
 - which alert families became the noisiest
 - whether the session looked broadly useful, mixed, noisy, or in need of attention
+- whether recent evaluated follow-through was confirming or undermining the posted setups
 
 ## What The Thread Summaries Are For
 
@@ -341,6 +343,7 @@ It gives each active symbol a compact narrative such as:
 - what the latest posted alert looked like, including whether room was `tight`, `limited`, or `open`
 - whether the latest alert came from a `firm` or `tired` zone context
 - whether tactical zone fatigue was helping or hurting the setup instead of only being described textually
+- what the latest evaluated follow-through looked like when the runtime already has outcome data
 - what the end-of-session summary says about the thread overall
 - whether any human review feedback was already recorded
 - whether delivery or runtime failures showed up

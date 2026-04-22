@@ -1391,6 +1391,7 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
     discordAlertRouter.routed[0]?.payload.body,
     [
       "bullish breakout through heavy resistance 2.40-2.50",
+      "why now: price cleared the outermost resistance instead of stalling underneath it",
       "context: heavy resistance | outermost | fresh | 5m driven | recently refreshed",
       "room: limited overhead into next resistance 2.58 (+2.4%)",
       "watch: hold above 2.50; invalidates back below 2.40",

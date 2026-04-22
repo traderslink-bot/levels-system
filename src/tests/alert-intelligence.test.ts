@@ -155,6 +155,7 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
     result.formatted?.body,
     [
       "bullish breakout through major resistance 100.00-101.00",
+      "why now: price cleared the outermost resistance instead of stalling underneath it",
       "context: major resistance | outermost | fresh | 5m/4h/daily confluence | recently refreshed",
       "quality: resistance still looks firm, so a clean break matters more",
       "watch: hold above 101.00; invalidates back below 100.00",
@@ -284,6 +285,7 @@ test("AlertIntelligenceEngine preserves promoted extension significance without 
     extensionResult.formatted?.body,
     [
       "price testing heavy resistance 3.25-3.35",
+      "why now: price is back at resistance where sellers need to prove control",
       "context: heavy resistance | promoted extension | fresh | 5m/4h confluence",
       "watch: sellers defend 3.25-3.35 before breakout pressure builds",
     ].join("\n"),
@@ -344,6 +346,7 @@ test("AlertIntelligenceEngine penalizes degraded data quality and preserves rema
     cleanResult.formatted?.body,
     [
       "reclaim back above major resistance 100.00-101.00",
+      "why now: buyers got price back above the zone after a real break attempt",
       "context: major resistance | outermost | aging | 5m/4h/daily confluence | recently refreshed",
       "watch: hold above 101.00; invalidates back below 100.00",
     ].join("\n"),
@@ -407,6 +410,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
     result.formatted?.body,
     [
       "dip-buy test at heavy support 97.80-98.20",
+      "why now: price came back into defended support instead of drifting mid-range",
       "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
       "quality: support still looks firm with healthy follow-through",
       "room: limited overhead into next resistance 100.50 (+2.4%)",
@@ -476,6 +480,7 @@ test("AlertIntelligenceEngine calls out tired structure when a strong-looking zo
     result.formatted?.body,
     [
       "bullish breakout through heavy resistance 100.00-101.00",
+      "why now: price cleared the outermost resistance instead of stalling underneath it",
       "context: heavy resistance | outermost | aging | 5m/4h/daily confluence",
       "quality: resistance looked tactically tired before this test",
       "watch: hold above 101.00; invalidates back below 100.00",
