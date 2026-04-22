@@ -5,6 +5,7 @@ import type { FinalLevelZone } from "../levels/level-types.js";
 import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import type {
+  TraderFailureRiskContext,
   TraderMovementContext,
   TraderNextBarrierContext,
   TraderPressureContext,
@@ -260,6 +261,96 @@ export function deriveTraderTriggerQualityContext(params: {
   return {
     label: "workable",
     line: `trigger quality: workable trigger with ${pressureText}, but follow-through still needs to prove itself`,
+  };
+}
+
+export function deriveTraderFailureRiskContext(params: {
+  event: MonitoringEvent;
+  zone?: FinalLevelZone;
+  pressure: TraderPressureContext;
+  triggerQuality?: TraderTriggerQualityContext | null;
+  nextBarrier?: TraderNextBarrierContext | null;
+}): TraderFailureRiskContext | null {
+  const { event, zone, pressure, triggerQuality, nextBarrier } = params;
+  if (!zone || event.eventType === "compression") {
+    return null;
+  }
+
+  const reasons: string[] = [];
+  let riskScore = 0;
+  const tacticalRead = deriveTraderZoneTacticalRead(zone, event.eventContext.zoneFreshness);
+  const directionalResolution =
+    event.eventType === "breakout" ||
+    event.eventType === "breakdown" ||
+    event.eventType === "reclaim" ||
+    event.eventType === "fake_breakout" ||
+    event.eventType === "fake_breakdown";
+
+  if (triggerQuality?.label === "late") {
+    reasons.push("late trigger");
+    riskScore += 2;
+  } else if (triggerQuality?.label === "crowded") {
+    reasons.push("crowded trigger");
+    riskScore += 1;
+  }
+
+  if (nextBarrier?.clearanceLabel === "tight") {
+    reasons.push("tight room");
+    riskScore += 1;
+  }
+
+  if (pressure.label === "tentative") {
+    reasons.push("tentative control");
+    riskScore += 1;
+  } else if (pressure.label === "balanced") {
+    reasons.push("balanced control");
+    riskScore += 1;
+  }
+
+  if (tacticalRead === "tired") {
+    reasons.push("tired structure");
+    riskScore += 1;
+  }
+
+  if (event.eventContext.dataQualityDegraded) {
+    reasons.push("degraded data");
+    riskScore += 1;
+  }
+
+  if (directionalResolution && event.eventContext.ladderPosition === "inner") {
+    reasons.push("inner setup");
+    riskScore += 1;
+  }
+
+  if (riskScore <= 0) {
+    return {
+      label: "contained",
+      reasons,
+      line: "failure risk: still relatively contained while price holds this area",
+    };
+  }
+
+  const reasonText = reasons.join(", ");
+  if (riskScore === 1) {
+    return {
+      label: "watchful",
+      reasons,
+      line: `failure risk: watchful because ${reasonText}`,
+    };
+  }
+
+  if (riskScore === 2) {
+    return {
+      label: "elevated",
+      reasons,
+      line: `failure risk: elevated because ${reasonText}`,
+    };
+  }
+
+  return {
+    label: "high",
+    reasons,
+    line: `failure risk: high because ${reasonText}`,
   };
 }
 
@@ -624,6 +715,13 @@ export function buildTraderAlertBody(
     pressure,
     nextBarrier,
   });
+  const failureRisk = deriveTraderFailureRiskContext({
+    event,
+    zone,
+    pressure,
+    triggerQuality,
+    nextBarrier,
+  });
   const tradeMap = deriveTraderTradeMapContext(event, zone, nextBarrier);
 
   return [
@@ -639,6 +737,7 @@ export function buildTraderAlertBody(
     roomLine,
     target?.line ?? null,
     triggerQuality?.line ?? null,
+    failureRisk?.line ?? null,
     tradeMap?.line ?? null,
     buildWatchLine(event, zone),
   ]

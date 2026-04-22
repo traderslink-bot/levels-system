@@ -48,6 +48,7 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       pressureLabel: alert.pressure?.label,
       pressureScore: alert.pressure?.pressureScore,
       triggerQualityLabel: alert.triggerQuality?.label,
+      failureRiskLabel: alert.failureRisk?.label,
       tradeMapLabel: alert.tradeMap?.label,
       riskPct: alert.tradeMap?.riskPct,
       roomToRiskRatio: alert.tradeMap?.roomToRiskRatio ?? undefined,

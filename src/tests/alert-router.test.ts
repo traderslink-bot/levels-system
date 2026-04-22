@@ -190,6 +190,11 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       label: "clean",
       line: "trigger quality: clean trigger with early participation, strong control, and limited room",
     },
+    failureRisk: {
+      label: "contained",
+      reasons: [],
+      line: "failure risk: still relatively contained while price holds this area",
+    },
     target: {
       side: "resistance",
       price: 2.5,
@@ -223,6 +228,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.pressureLabel, "strong");
   assert.equal(payload.metadata?.pressureScore, 0.74);
   assert.equal(payload.metadata?.triggerQualityLabel, "clean");
+  assert.equal(payload.metadata?.failureRiskLabel, "contained");
   assert.equal(payload.metadata?.tradeMapLabel, "favorable");
   assert.equal(payload.metadata?.riskPct, 0.012);
   assert.equal(payload.metadata?.roomToRiskRatio, 3);

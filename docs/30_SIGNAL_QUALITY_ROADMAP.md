@@ -78,6 +78,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added explicit first-target wording and audit metadata so directional alerts now name the first support or resistance objective when the next barrier is known.
 - Added explicit pressure wording and audit metadata so trader alerts now say whether buyers or sellers still have strong, workable, tentative, or balanced control behind the move.
 - Added deterministic trigger-quality wording and audit metadata so trader alerts now say whether the setup still looks clean, workable, crowded, or late.
+- Added deterministic failure-risk wording and audit metadata so trader alerts now say whether the setup still looks contained or is already carrying elevated failure risk from tight room, weak control, tired structure, or degraded context.
 - Tightened directional alert scoring so crowded, late, tentative-pressure, and degraded-data breakouts are less likely to be overstated after live review.
 - Added trade-map wording and audit metadata so alerts now quantify room-to-next-barrier versus risk-to-invalidation for directional setups.
 - Added distance-aware snapshot formatting so support and resistance ladders now show signed distance from current price instead of only bare levels.
@@ -95,6 +96,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Use the new target metadata to learn whether alerts with clear nearby objectives are materially more trader-useful than alerts without a confirmed first barrier.
 - Use the new pressure metadata to learn whether strong-control alerts materially outperform tentative-control alerts and whether weak-pressure setups should be downgraded more aggressively.
 - Use the new trigger-quality metadata to learn whether `clean` entries materially outperform `crowded` or `late` ones and whether posting thresholds should tighten around stretched moves.
+- Use the new failure-risk metadata to learn whether elevated-risk setups should be downgraded or suppressed more aggressively before they reach Discord.
 - Keep using live long-run examples like `YCBD` to verify that severity and confidence stay aligned with the trader-facing wording when structure and participation disagree.
 - Use the new follow-through grades to decide whether certain alert families are failing late versus stalling harmlessly, and tighten the most trader-costly cases first.
 

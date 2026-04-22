@@ -13,6 +13,7 @@ import type { AlertIntelligenceConfig } from "./alert-config.js";
 import { resolveZoneTacticalBias } from "../levels/zone-tactical-read.js";
 import {
   buildTraderAlertBody,
+  deriveTraderFailureRiskContext,
   deriveTraderMovementContext,
   deriveTraderPressureContext,
   deriveTraderTriggerQualityContext,
@@ -251,6 +252,13 @@ export function scoreMonitoringEventToAlert(params: {
     pressure,
     nextBarrier,
   });
+  const failureRisk = deriveTraderFailureRiskContext({
+    event,
+    zone,
+    pressure,
+    triggerQuality,
+    nextBarrier,
+  });
   const confidence = applyConfidenceCaps({
     confidence: confidenceForScore(totalScore, config),
     pressure,
@@ -275,6 +283,7 @@ export function scoreMonitoringEventToAlert(params: {
     movement,
     pressure,
     triggerQuality,
+    failureRisk,
     target: deriveTraderTargetContext(event, zone, nextBarrier),
     tradeMap: deriveTraderTradeMapContext(event, zone, nextBarrier),
   };

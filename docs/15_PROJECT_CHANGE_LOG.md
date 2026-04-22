@@ -19,6 +19,38 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 10:20 PM America/Toronto
+
+### Added deterministic failure-risk context to trader alerts and audit metadata
+
+- Updated trader-facing alert formatting in:
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - trader-facing alerts now include a deterministic `failure risk:` line
+  - failure risk is classified from contained / watchful / elevated / high using room, trigger timing, pressure, tired structure, degraded data, and compromised inner directional context
+  - alert payload metadata and Discord delivery audit rows now carry `failureRiskLabel`
+- Why this matters:
+  - traders can see more quickly when a setup still looks acceptable versus when it is already carrying multiple reasons to fail
+  - long-run review can now compare whether elevated-risk alerts should be downgraded or suppressed more aggressively before AI commentary is layered on top
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 09:55 PM America/Toronto
 
 ### Added deterministic follow-through grading to long-run review artifacts
