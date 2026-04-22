@@ -83,6 +83,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added distance-aware snapshot formatting so support and resistance ladders now show signed distance from current price instead of only bare levels.
 - Added nearest-support / nearest-resistance snapshot map summaries so the snapshot immediately shows which side is tighter before the trader scans the full ladder.
 - Added snapshot room classification so the map line now describes the nearby balance as `bullish room`, `bearish room`, or `balanced room` when possible.
+- Added deterministic follow-through grading to long-run session artifacts so completed evaluations are now labeled `strong`, `working`, `stalled`, or `failed` instead of living only as raw win/loss counts and return percentages.
 
 ## Active Backlog
 
@@ -95,6 +96,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Use the new pressure metadata to learn whether strong-control alerts materially outperform tentative-control alerts and whether weak-pressure setups should be downgraded more aggressively.
 - Use the new trigger-quality metadata to learn whether `clean` entries materially outperform `crowded` or `late` ones and whether posting thresholds should tighten around stretched moves.
 - Keep using live long-run examples like `YCBD` to verify that severity and confidence stay aligned with the trader-facing wording when structure and participation disagree.
+- Use the new follow-through grades to decide whether certain alert families are failing late versus stalling harmlessly, and tighten the most trader-costly cases first.
 
 ### Detection and ranking improvements
 
@@ -149,7 +151,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 ## Next Recommended Implementation Steps
 
 1. Use human review feedback to tune heavy/light and firm/tired wording against real alert outcomes.
-2. Add AI commentary on top of the cleaned deterministic signal stream for the highest-priority symbols.
+2. Add AI commentary on top of the cleaned deterministic signal stream for the highest-priority symbols, using the new follow-through grades as part of the structured evidence.
 3. Use human review feedback to tune when tired zones should still be treated as real break tailwinds versus just noisy damage.
 4. Add stronger end-of-session summaries for symbols that materially changed state multiple times across the same run, especially when alerts and evaluated outcomes disagree.
 5. Use the new event-type evaluation buckets to identify families that need tighter posting thresholds or better wording before adding AI commentary on top.

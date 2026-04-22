@@ -19,6 +19,30 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 09:55 PM America/Toronto
+
+### Added deterministic follow-through grading to long-run review artifacts
+
+- Updated the long-run launcher in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - completed evaluations are now classified into follow-through grades of `strong`, `working`, `stalled`, or `failed`
+  - `session-summary.json` now tracks session-level and per-symbol follow-through grade counts instead of only raw wins, losses, and return percentages
+  - `thread-summaries.json` now includes the latest follow-through summary so each symbol's newest completed setup can be reviewed quickly
+  - `session-review.md` now shows the session's follow-through-grade mix alongside the strongest and weakest evaluated event types
+- Why this matters:
+  - post-run review can now answer whether a setup actually kept moving the right way after the alert without manually translating bullish versus bearish return signs
+  - this gives us a cleaner deterministic base before AI commentary is layered on top of the session artifacts
+- Verification completed:
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 09:20 PM America/Toronto
 
 ### Tightened directional alert scoring after live YCBD review

@@ -105,10 +105,12 @@ Inside that folder:
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
   - now also carries evaluated follow-through buckets by alert event type plus strongest/weakest evaluated event-type highlights
+  - now also carries follow-through grade counts like `strong`, `working`, `stalled`, and `failed`
 - `thread-summaries.json`
   - live-updated per-symbol review artifact
   - turns session activity into a compact trader-facing summary for each active symbol
   - now includes latest evaluation context plus alert/evaluation alignment so a symbol can be reviewed by what recently worked or failed, not only by what was posted
+  - now includes the latest follow-through grade summary so the newest completed setup can be judged quickly without translating raw return signs by hand
   - now also includes state-change and outcome-disagreement summaries so a repeatedly reactivated symbol can be judged more honestly
 - `session-review.md`
   - live-updated human-readable review artifact
@@ -149,6 +151,10 @@ The summary artifacts now answer a third question too:
 And now a fourth:
 
 - operationally over time, which symbols were repeatedly churning through state changes and whether that churn produced useful follow-through
+
+And now a fifth:
+
+- did the latest posted setup actually stay strong, keep working, stall out, or fail after the alert
 
 ## Recommended Testing Process During A Session
 
@@ -355,6 +361,7 @@ It gives each active symbol a compact narrative such as:
 - whether the latest alert came from a `firm` or `tired` zone context
 - whether tactical zone fatigue was helping or hurting the setup instead of only being described textually
 - what the latest evaluated follow-through looked like when the runtime already has outcome data
+- whether the latest evaluated setup finished `strong`, `working`, `stalled`, or `failed`
 - what the end-of-session summary says about the thread overall
 - whether any human review feedback was already recorded
 - whether delivery or runtime failures showed up

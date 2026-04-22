@@ -72,8 +72,10 @@ $summary = [ordered]@{
     losses = 0
     lastReturnPct = $null
     lastEventType = $null
+    lastFollowThrough = $null
     bestReturnPct = $null
     worstReturnPct = $null
+    byFollowThrough = @{}
     byEventType = @{}
   }
   quality = @{
@@ -145,8 +147,10 @@ function Ensure-SymbolSummary {
         losses = 0
         lastReturnPct = $null
         lastEventType = $null
+        lastFollowThrough = $null
         bestReturnPct = $null
         worstReturnPct = $null
+        byFollowThrough = @{}
         byEventType = @{}
       }
       lastLifecycleEvent = $null
@@ -485,6 +489,101 @@ function Update-EvaluationBucketStats {
   }
 }
 
+function Get-DirectionalReturnPct {
+  param(
+    [string]$EventType,
+    $ReturnPct
+  )
+
+  if ($null -eq $ReturnPct) {
+    return $null
+  }
+
+  if ($EventType -in @("breakout", "reclaim", "fake_breakdown")) {
+    return [double]$ReturnPct
+  }
+
+  if ($EventType -in @("breakdown", "rejection", "fake_breakout")) {
+    return -1 * [double]$ReturnPct
+  }
+
+  return [Math]::Abs([double]$ReturnPct)
+}
+
+function Get-FollowThroughLabel {
+  param(
+    [string]$EventType,
+    $ReturnPct,
+    [bool]$Success
+  )
+
+  $directionalReturnPct = Get-DirectionalReturnPct -EventType $EventType -ReturnPct $ReturnPct
+  if ($null -eq $directionalReturnPct) {
+    return "unknown"
+  }
+
+  if ($Success -and $directionalReturnPct -ge 1.0) {
+    return "strong"
+  }
+
+  if ($Success -and $directionalReturnPct -ge 0.3) {
+    return "working"
+  }
+
+  if ($directionalReturnPct -ge -0.2) {
+    return "stalled"
+  }
+
+  return "failed"
+}
+
+function New-FollowThroughRecord {
+  param(
+    [string]$EventType,
+    $ReturnPct,
+    [bool]$Success
+  )
+
+  $directionalReturnPct = Get-DirectionalReturnPct -EventType $EventType -ReturnPct $ReturnPct
+  $label = Get-FollowThroughLabel -EventType $EventType -ReturnPct $ReturnPct -Success $Success
+
+  return @{
+    label = $label
+    eventType = $EventType
+    success = $Success
+    rawReturnPct = $ReturnPct
+    directionalReturnPct = $directionalReturnPct
+  }
+}
+
+function Format-FollowThroughSummary {
+  param(
+    [hashtable]$FollowThrough
+  )
+
+  if (-not $FollowThrough) {
+    return $null
+  }
+
+  $parts = @(
+    [string]$FollowThrough.label
+  )
+
+  if ($FollowThrough.eventType) {
+    $parts += [string]$FollowThrough.eventType
+  }
+
+  if ($FollowThrough.directionalReturnPct -ne $null) {
+    $parts += ("directional=" + ([double]$FollowThrough.directionalReturnPct).ToString("0.00") + "%")
+  }
+
+  if ($FollowThrough.rawReturnPct -ne $null) {
+    $parts += ("raw=" + ([double]$FollowThrough.rawReturnPct).ToString("0.00") + "%")
+  }
+
+  return ($parts | Where-Object { $_ }) -join " | "
+}
+
 function Build-EvaluationAlignmentSummary {
   param(
     [hashtable]$SymbolSummary
@@ -522,6 +621,38 @@ function Build-EvaluationAlignmentSummary {
   }
 
   return "$eventType evaluations are evenly split so far ($wins wins / $losses losses)."
+}
+
+function Build-FollowThroughSummary {
+  param(
+    [hashtable]$Evaluation
+  )
+
+  if (-not $Evaluation -or [int]$Evaluation.total -eq 0 -or -not $Evaluation.lastFollowThrough) {
+    return $null
+  }
+
+  $latest = $Evaluation.lastFollowThrough
+  $label = [string]$latest.label
+  $eventType = if ($latest.eventType) { [string]$latest.eventType } else { "latest setup" }
+
+  switch ($label) {
+    "strong" {
+      return "$eventType follow-through stayed strong after the alert."
+    }
+    "working" {
+      return "$eventType follow-through stayed positive after the alert."
+    }
+    "stalled" {
+      return "$eventType follow-through stalled after the alert and did not separate cleanly."
+    }
+    "failed" {
+      return "$eventType follow-through turned against the alert after trigger."
+    }
+    default {
+      return "$eventType follow-through is not classified yet."
+    }
+  }
 }
 
 function Get-EvaluationEventTypeHighlights {
@@ -827,6 +958,7 @@ function Build-EndOfSessionSummary {
   $evaluationTotal = [int]$SymbolSummary.evaluation.total
   $evaluationWins = [int]$SymbolSummary.evaluation.wins
   $evaluationLosses = [int]$SymbolSummary.evaluation.losses
+  $followThroughSummary = Build-FollowThroughSummary -Evaluation $SymbolSummary.evaluation
   $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
   $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
 
@@ -868,6 +1000,10 @@ function Build-EndOfSessionSummary {
 
   if ($stateChangeSummary) {
     return $stateChangeSummary
+  }
+
+  if ($followThroughSummary) {
+    return "$Symbol review update: $followThroughSummary"
   }
 
   $alignmentSummary = Build-EvaluationAlignmentSummary -SymbolSummary $SymbolSummary
@@ -992,6 +1128,9 @@ function Build-ThreadSummaryRecord {
     if ($SymbolSummary.evaluation.lastReturnPct -ne $null) {
       $latestEvaluationSummary += ("return=" + ([double]$SymbolSummary.evaluation.lastReturnPct).ToString("0.00") + "%")
     }
+    if ($SymbolSummary.evaluation.lastFollowThrough) {
+      $latestEvaluationSummary += ("follow-through=" + (Format-FollowThroughSummary -FollowThrough $SymbolSummary.evaluation.lastFollowThrough))
+    }
     $latestEvaluationSummary = $latestEvaluationSummary | Where-Object { $_ }
   }
 
@@ -1080,6 +1219,7 @@ function Build-SessionReviewLines {
     "- Most dynamic symbols: $(Join-DisplayList -Items $dynamicSymbols)",
     "- Strongest evaluated event types: $(Join-DisplayList -Items $evaluationHighlights.strongest)",
     "- Weakest evaluated event types: $(Join-DisplayList -Items $evaluationHighlights.weakest)",
+    "- Follow-through grades: $(Join-DisplayList -Items (Get-TopSummaryKeys -Table $summary.evaluation.byFollowThrough -Top 4))",
     "",
     "### Rationale",
     ""
@@ -1442,6 +1582,13 @@ function Update-SummaryFromLine {
           $summary.evaluation.lastEventType = $eventType
           $opportunitySymbolSummary.evaluation.lastReturnPct = $returnPct
           $opportunitySymbolSummary.evaluation.lastEventType = $eventType
+          $followThrough = New-FollowThroughRecord -EventType $eventType -ReturnPct $returnPct -Success $success
+          $summary.evaluation.lastFollowThrough = $followThrough
+          $opportunitySymbolSummary.evaluation.lastFollowThrough = $followThrough
+          if ($followThrough.label) {
+            Increment-SummaryCount -Table $summary.evaluation.byFollowThrough -Key ([string]$followThrough.label)
+            Increment-SummaryCount -Table $opportunitySymbolSummary.evaluation.byFollowThrough -Key ([string]$followThrough.label)
+          }
 
           $sessionEventTypeBucket = Ensure-EvaluationBucket -EvaluationTable $summary.evaluation.byEventType -EventType $eventType
           $symbolEventTypeBucket = Ensure-EvaluationBucket -EvaluationTable $opportunitySymbolSummary.evaluation.byEventType -EventType $eventType
