@@ -509,6 +509,63 @@ test("AlertIntelligenceEngine calls out tired structure when a strong-looking zo
   );
 });
 
+test("AlertIntelligenceEngine downgrades crowded low-pressure breakouts instead of escalating them to critical", () => {
+  const engine = new AlertIntelligenceEngine();
+  const crowdedEvent: MonitoringEvent = {
+    id: "evt-crowded-breakout",
+    episodeId: "evt-crowded-breakout-episode",
+    symbol: "ALBT",
+    type: "breakout",
+    eventType: "breakout",
+    zoneId: "zone-major-resistance",
+    zoneKind: "resistance",
+    level: 100.5,
+    triggerPrice: 101.25,
+    strength: 0.72,
+    confidence: 0.69,
+    priority: 78,
+    bias: "bullish",
+    pressureScore: 0.31,
+    eventContext: {
+      monitoredZoneId: "monitored-crowded-breakout",
+      canonicalZoneId: "zone-major-resistance",
+      zoneFreshness: "stale",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["legacy-crowded-breakout"],
+      dataQualityDegraded: true,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "moderate",
+      sourceGeneratedAt: 1,
+      nextBarrierKind: "resistance",
+      nextBarrierLevel: 107,
+      nextBarrierDistancePct: 0.0568,
+      clearanceLabel: "open",
+    },
+    timestamp: 38,
+    notes: ["Crowded breakout with weak participation."],
+  };
+
+  const result = engine.processEvent(crowdedEvent, levels);
+
+  assert.ok(result.formatted);
+  assert.equal(result.rawAlert.pressure?.label, "tentative");
+  assert.equal(result.rawAlert.triggerQuality?.label, "crowded");
+  assert.ok(result.rawAlert.score < 64);
+  assert.notEqual(result.rawAlert.severity, "critical");
+  assert.notEqual(result.rawAlert.confidence, "high");
+  assert.equal(result.rawAlert.scoreComponents.pressureQuality, -20);
+  assert.equal(result.rawAlert.scoreComponents.triggerQuality, -16);
+  assert.equal(result.rawAlert.scoreComponents.degradedDirectionalRisk, -8);
+  assert.equal(result.rawAlert.scoreComponents.innerDirectionalRisk, -8);
+  assert.match(
+    result.formatted?.body ?? "",
+    /trigger quality: crowded trigger with tentative control and open room/,
+  );
+});
+
 test("AlertIntelligenceEngine suppresses near-duplicate alerts for the same structural situation", () => {
   const engine = new AlertIntelligenceEngine();
   const firstEvent: MonitoringEvent = {

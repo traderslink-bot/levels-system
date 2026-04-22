@@ -1400,7 +1400,7 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
       "trigger quality: clean trigger with early participation, strong control, and limited room",
       "trade map: risk to invalidation 4.8%; room to next resistance 2.4% (~0.5x, tight skew)",
       "watch: hold above 2.50; invalidates back below 2.40",
-      "severity CRITICAL | confidence HIGH | score 103.68",
+      "severity CRITICAL | confidence HIGH | score 111.68",
       "trigger 2.52",
     ].join("\n"),
   );

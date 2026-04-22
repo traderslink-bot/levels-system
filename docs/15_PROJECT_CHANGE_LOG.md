@@ -19,6 +19,34 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 09:20 PM America/Toronto
+
+### Tightened directional alert scoring after live YCBD review
+
+- Reviewed live long-run artifacts from:
+  - `artifacts/long-run/2026-04-22_19-10-28`
+- Updated alert scoring in:
+  - `src/lib/alerts/alert-config.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+- What changed:
+  - directional alerts now take extra penalties when a breakout / breakdown / reclaim-style setup is both inner and not backed by strong pressure
+  - degraded-data directional setups are now penalized more explicitly instead of letting high structural scores dominate the final severity
+  - confidence is now capped away from `high` when the trigger itself is already `crowded` or `late`, or when pressure is still only tentative
+- Why this matters:
+  - live evidence from `YCBD` showed a breakout message whose wording correctly admitted tentative pressure and tired structure, but whose score still escalated it too aggressively
+  - the score and confidence layer now agrees better with the trader-facing wording instead of overstating compromised entries
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts`
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 09:00 PM America/Toronto
 
 ### Added deterministic trader trigger-quality context and audit metadata
