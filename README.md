@@ -16,6 +16,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Diagnostic logging is intentionally filtered:
   - emitted decisions always log
   - suppressed decisions only log when they are near the threshold, carry meaningful state, change reason, or recur after cooldown
+- For multi-hour manual testing on Windows, use `scripts/start-manual-watchlist-long-run.ps1` so each session gets a timestamped full log plus a smaller filtered review log under `artifacts/long-run/`.
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
 

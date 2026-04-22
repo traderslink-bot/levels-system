@@ -40,3 +40,4 @@ This folder contains the full plan for the candle-based levels system, including
 26. `26_LEVEL_RUNTIME_FLAG_EXPLORATION_PLAN.md`
 27. `27_LEVEL_RUNTIME_COMPARE_REVIEW_PLAN.md`
 28. `28_RUNTIME_HANDOFF_2026-04-21.md`
+29. `29_LONG_RUN_TESTING_WORKFLOW.md`

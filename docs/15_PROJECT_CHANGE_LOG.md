@@ -19,6 +19,31 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 10:05 AM America/Toronto
+
+### Added a long-run manual testing launcher with timestamped logs and a filtered review stream
+
+- Added a Windows long-run launcher in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Added long-run workflow documentation in:
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+- Updated:
+  - `README.md`
+  - `docs/00_DOC_INDEX.md`
+- What this setup now provides:
+  - timestamped session directories under `artifacts/long-run/`
+  - one full runtime log per session
+  - one filtered review log per session
+  - lightweight session metadata for later review
+  - automatic browser open for the local UI
+  - automatic stop of an older manual runtime already using `127.0.0.1:3010`
+- Why this matters:
+  - multi-hour manual testing no longer depends on terminal scrollback
+  - activation and IBKR issues can be reviewed after the fact instead of being lost in noisy live output
+  - collaboration is easier because the filtered log is now the main artifact to share when something odd happens
+
+---
+
 ## 2026-04-21 10:35 PM America/Toronto
 
 ### Verified the compare-mode fix live, refined breakout/reclaim quality, and added filtered runtime diagnostics
