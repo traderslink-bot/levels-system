@@ -58,6 +58,9 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Improved level snapshot wording so support and resistance ladders now expose strength descriptors instead of only bare prices.
 - Added event-context barrier-clearance tracking so monitoring events know the next meaningful opposing barrier and whether room is `tight`, `limited`, or `open`.
 - Added opportunity-ranking penalties and bonuses based on barrier clearance so cramped setups are downgraded before they reach the trader.
+- Added durability-aware level scoring so the ranking layer now distinguishes more clearly between reinforced / durable levels and fragile over-retested ones.
+- Threaded durability through level confidence, explanations, surfaced-selection wording, compare output metadata, and the runtime compatibility adapter.
+- Adjusted runtime-facing strength labels so fragile levels are less likely to be overstated as `heavy` or `major` support / resistance.
 
 ## Active Backlog
 
@@ -70,11 +73,6 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 ### Detection and ranking improvements
 
-- Add support durability scoring that distinguishes:
-  - strong defended support
-  - over-tested support that is getting fragile
-  - reclaimed support after failed breakdown
-- Add resistance durability scoring with the same idea on the bearish side.
 - Add overhead-clearance awareness so dip-buy style support signals are downgraded when there is very little room to the next meaningful resistance.
 - Add more explicit heavy/light support and resistance logic based on:
   - structural score
@@ -82,6 +80,10 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
   - time-frame confluence
   - failed-break versus clean-break balance
   - current active pressure
+- Add stronger separation between:
+  - fresh but lightly evidenced levels
+  - durable defended levels
+  - structurally strong but now fragile levels
 - Improve breakout quality by checking whether the move is:
   - fresh
   - accepted
@@ -118,10 +120,11 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
   - what happened
   - what must happen next for the idea to remain valid
 - Some false-positive dip-buy ideas are probably caused by poor overhead-clearance awareness rather than weak support ranking alone.
+- Some false-positive heavy-support / heavy-resistance reads are probably caused by structurally strong but durability-fragile levels being described too aggressively.
 
 ## Next Recommended Implementation Steps
 
-1. Add alert-family counts and “noisiest family” detection into `session-summary.json` so review gets even faster.
+1. Add alert-family counts and "noisiest family" detection into `session-summary.json` so review gets even faster.
 2. Add trader-facing thread summaries for active symbols.
-3. Add stronger support-durability / resistance-durability scoring so over-tested levels are separated from truly defended levels.
+3. Add stronger clearance-aware message wording so tight-room setups are explained more bluntly to the trader.
 4. Add an AI commentary layer on top of the cleaned deterministic signal stream.

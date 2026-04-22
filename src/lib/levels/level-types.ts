@@ -127,6 +127,12 @@ export type LevelState =
   | "reclaimed"
   | "flipped";
 
+export type LevelDurabilityLabel =
+  | "fragile"
+  | "tested"
+  | "durable"
+  | "reinforced";
+
 export type LevelReactionType =
   | "tap"
   | "rejection"
@@ -204,6 +210,8 @@ export type LevelScoreBreakdown = {
   roleFlipScore: number;
   defenseScore: number;
   recencyScore: number;
+  durabilityScore?: number;
+  durabilityAdjustment?: number;
   breakDamagePenalty: number;
   overtestPenalty: number;
   clusterPenalty: number;
@@ -248,6 +256,7 @@ export type RankedLevel = {
   rank: number;
   confidence: number;
   state: LevelState;
+  durabilityLabel?: LevelDurabilityLabel;
   isClusterRepresentative: boolean;
   clusterId: string | null;
   explanation: string;

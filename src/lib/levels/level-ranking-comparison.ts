@@ -16,6 +16,7 @@ import { detectSwingPoints } from "./swing-detector.js";
 import type {
   FinalLevelZone,
   LevelCandidate,
+  LevelDurabilityLabel,
   LevelEngineOutput,
   LevelScoringContext,
   LevelState,
@@ -38,6 +39,7 @@ export type ComparableLevelSummary = {
   strengthLabel?: string;
   confidence?: number;
   state?: LevelState;
+  durabilityLabel?: LevelDurabilityLabel;
   explanation?: string;
   bucket?: "major" | "intermediate" | "intraday";
   clusterRepresentative?: boolean;
@@ -445,6 +447,7 @@ export function normalizeNewPathOutput(
       score: level.score,
       confidence: level.confidence,
       state: level.state,
+      durabilityLabel: level.durabilityLabel,
       explanation: level.explanation,
       clusterRepresentative: level.isClusterRepresentative,
       clusterId: level.clusterId,
@@ -465,6 +468,7 @@ export function normalizeNewPathOutput(
       score: level.score,
       confidence: level.confidence,
       state: level.state,
+      durabilityLabel: level.durabilityLabel,
       explanation: level.explanation,
       clusterRepresentative: level.isClusterRepresentative,
       clusterId: level.clusterId,
@@ -509,6 +513,7 @@ export function normalizeSurfacedSelectionOutput(
       score: level.surfacedSelectionScore,
       confidence: level.confidence,
       state: level.state,
+      durabilityLabel: level.durabilityLabel,
       explanation: level.surfacedSelectionExplanation,
       clusterRepresentative: level.isClusterRepresentative,
       clusterId: level.clusterId,
@@ -530,6 +535,7 @@ export function normalizeSurfacedSelectionOutput(
       score: level.surfacedSelectionScore,
       confidence: level.confidence,
       state: level.state,
+      durabilityLabel: level.durabilityLabel,
       explanation: level.surfacedSelectionExplanation,
       clusterRepresentative: level.isClusterRepresentative,
       clusterId: level.clusterId,
@@ -616,7 +622,7 @@ export function summarizeMigrationReadiness(params: {
     (consumer) => `${consumer.file}: ${consumer.dependency}`,
   );
 
-  improvements.push("The new path exposes confidence, state, explanation, and cluster representative metadata.");
+  improvements.push("The new path exposes confidence, state, durability, explanation, and cluster representative metadata.");
 
   if (params.differences.duplicateSuppressionImproved) {
     improvements.push("The new path reduced nearby duplicate levels in the compared surfaced subset.");
@@ -701,7 +707,7 @@ export function computeComparisonDifferences(params: {
     noteworthyDisagreements.push("The new path appears to suppress more nearby duplicates in the compared surfaced subset.");
   }
   if (newPath.topSupport?.state || newPath.topResistance?.state) {
-    noteworthyDisagreements.push("The new path adds state/confidence/explanation metadata that the old path cannot provide.");
+    noteworthyDisagreements.push("The new path adds state/confidence/durability/explanation metadata that the old path cannot provide.");
   }
   incompatibilities.push(
     "Old path emits bucketed LevelEngineOutput fields while the new path emits globally ranked supports/resistances.",

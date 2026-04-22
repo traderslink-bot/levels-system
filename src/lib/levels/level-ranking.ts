@@ -110,6 +110,14 @@ function buildConfidence(level: RankedLevel): number {
     confidence -= 20;
   }
 
+  if (level.durabilityLabel === "reinforced") {
+    confidence += 8;
+  } else if (level.durabilityLabel === "durable") {
+    confidence += 4;
+  } else if (level.durabilityLabel === "fragile") {
+    confidence -= 10;
+  }
+
   return clamp(confidence, 0, 100);
 }
 
@@ -160,6 +168,7 @@ export function rankLevels(
     return {
       ...level,
       structuralStrengthScore: structural.structuralStrengthScore,
+      durabilityLabel: structural.durabilityLabel,
       scoreBreakdown: structural.scoreBreakdown,
     };
   });
@@ -186,6 +195,7 @@ export function rankLevels(
       rank: 0,
       confidence: 0,
       state: "fresh",
+      durabilityLabel: structural.durabilityLabel,
       explanation: "",
       scoreBreakdown: mergedBreakdown,
     };

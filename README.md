@@ -28,6 +28,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - a compact severity / confidence / score line plus trigger price
   - a `watch` / invalidation line
   - nearby barrier context when the next support or resistance is known
+- Support and resistance ranking is now durability-aware, so levels that are structurally important but getting tired can be described more conservatively than freshly defended levels.
 - Monitoring events and opportunity ranking now carry barrier-clearance context, so cramped upside or downside room can reduce setup quality before the message layer ever formats it.
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).

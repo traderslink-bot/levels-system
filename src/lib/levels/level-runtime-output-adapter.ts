@@ -17,6 +17,7 @@ import type {
   FinalLevelZone,
   LevelCandidate,
   LevelDataFreshness,
+  LevelDurabilityLabel,
   LevelEngineOutput,
   LevelScoringContext,
   RawLevelCandidate,
@@ -140,14 +141,37 @@ function bucketForSurfacedLevel(level: SurfacedLevelSelection): RuntimeBucket {
   return "intraday";
 }
 
-function deriveStrengthLabel(score: number): FinalLevelZone["strengthLabel"] {
-  if (score >= 80) {
+function adjustedLabelScore(
+  score: number,
+  durabilityLabel?: LevelDurabilityLabel,
+): number {
+  if (durabilityLabel === "reinforced") {
+    return score + 4;
+  }
+
+  if (durabilityLabel === "tested") {
+    return score - 4;
+  }
+
+  if (durabilityLabel === "fragile") {
+    return score - 10;
+  }
+
+  return score;
+}
+
+function deriveStrengthLabel(
+  score: number,
+  durabilityLabel?: LevelDurabilityLabel,
+): FinalLevelZone["strengthLabel"] {
+  const labelScore = adjustedLabelScore(score, durabilityLabel);
+  if (labelScore >= 80) {
     return "major";
   }
-  if (score >= 64) {
+  if (labelScore >= 64) {
     return "strong";
   }
-  if (score >= 46) {
+  if (labelScore >= 46) {
     return "moderate";
   }
   return "weak";
@@ -236,7 +260,7 @@ function toRuntimeZone(
     strengthScore,
     // This label is an explicit approximation from the new surfaced-selection score,
     // not the old scorer's native label taxonomy.
-    strengthLabel: deriveStrengthLabel(strengthScore),
+    strengthLabel: deriveStrengthLabel(strengthScore, level.durabilityLabel),
     touchCount: level.touchCount,
     confluenceCount: Math.max(timeframeSources.length + level.roleFlipCount, 1),
     sourceTypes: deriveSourceTypes(level),
@@ -256,6 +280,7 @@ function toRuntimeZone(
     notes: [
       "runtime_compatibility_adapter:new_surfaced_selection",
       `state=${level.state}`,
+      `durability=${level.durabilityLabel ?? "tested"}`,
       `confidence=${level.confidence.toFixed(2)}`,
       level.surfacedSelectionExplanation,
       ...level.surfacedSelectionNotes,

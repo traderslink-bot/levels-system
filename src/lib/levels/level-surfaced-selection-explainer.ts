@@ -31,24 +31,41 @@ function sideLabel(side: LevelType): string {
 }
 
 function structuralDescriptor(level: RankedLevel): string {
+  const durabilityPrefix =
+    level.durabilityLabel === "reinforced"
+      ? "reinforced "
+      : level.durabilityLabel === "durable"
+        ? "durable "
+        : level.durabilityLabel === "fragile"
+          ? "fragile "
+          : "";
   if (level.structuralStrengthScore >= 80) {
-    return "very strong structural score";
+    return `${durabilityPrefix}very strong structural score`;
   }
   if (level.structuralStrengthScore >= 65) {
-    return "strong structural score";
+    return `${durabilityPrefix}strong structural score`;
   }
   if (level.structuralStrengthScore >= 50) {
-    return "credible structural score";
+    return `${durabilityPrefix}credible structural score`;
   }
-  return "borderline structural score";
+  return `${durabilityPrefix}borderline structural score`;
 }
 
 function zoneBehaviorDescriptor(level: RankedLevel): string {
+  if (level.durabilityLabel === "reinforced") {
+    return "reinforced recent behavior";
+  }
+  if (level.durabilityLabel === "durable") {
+    return "durable recent behavior";
+  }
   if (level.state === "respected" || level.state === "reclaimed" || level.state === "flipped") {
     return "clean zone behavior";
   }
   if (level.state === "fresh") {
     return "fresh nearby context";
+  }
+  if (level.durabilityLabel === "fragile") {
+    return "fragile recent behavior";
   }
   if (level.state === "weakened") {
     return "despite weakened recent behavior";

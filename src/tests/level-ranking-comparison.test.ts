@@ -161,6 +161,7 @@ test("comparison module normalizes both paths and preserves new metadata", () =>
   assert.equal(result.newPath.topResistance?.sourcePath, "new");
   assert.ok(result.newPath.topResistance?.confidence !== undefined);
   assert.ok(result.newPath.topResistance?.state !== undefined);
+  assert.ok(result.newPath.topResistance?.durabilityLabel !== undefined);
   assert.ok(result.newPath.topResistance?.explanation);
 });
 

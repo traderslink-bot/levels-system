@@ -243,6 +243,61 @@ test("repeated shallow tests reduce structural score and overtest penalty is str
   assert.ok(weaklyOvertested.structuralStrengthScore < stronglyRetested.structuralStrengthScore);
 });
 
+test("durable defended level outranks similarly placed fragile level that is getting tired", () => {
+  const durable = rankLevels(
+    [
+      makeLevel({
+        id: "durable",
+        price: 10.04,
+        zoneLow: 10.01,
+        zoneHigh: 10.07,
+        touchCount: 5,
+        meaningfulTouchCount: 4,
+        rejectionCount: 3,
+        failedBreakCount: 2,
+        reclaimCount: 1,
+        cleanBreakCount: 0,
+        averageReactionMovePct: 0.042,
+        strongestReactionMovePct: 0.075,
+        barsSinceLastReaction: 2,
+      }),
+      makeLevel({
+        id: "fragile",
+        price: 10.06,
+        zoneLow: 10.03,
+        zoneHigh: 10.09,
+        touchCount: 7,
+        meaningfulTouchCount: 5,
+        rejectionCount: 1,
+        failedBreakCount: 0,
+        reclaimCount: 0,
+        cleanBreakCount: 2,
+        averageReactionMovePct: 0.011,
+        strongestReactionMovePct: 0.019,
+        barsSinceLastReaction: 2,
+        touches: [
+          makeTouch({ reactionMovePct: 0.03, reactionType: "rejection" }),
+          makeTouch({ reactionMovePct: 0.02, reactionType: "rejection" }),
+          makeTouch({ reactionMovePct: 0.012, reactionType: "rejection" }),
+          makeTouch({ reactionMovePct: 0.008, reactionType: "clean_break", closedAwayFromLevel: false }),
+          makeTouch({ reactionMovePct: 0.007, reactionType: "rejection", closedAwayFromLevel: false }),
+          makeTouch({ reactionMovePct: 0.006, reactionType: "clean_break", closedAwayFromLevel: false }),
+        ],
+      }),
+    ],
+    makeContext({ currentPrice: 10.1 }),
+  );
+
+  const top = durable.supports[0]!;
+  const runnerUp = durable.supports[1]!;
+
+  assert.equal(top.id, "durable");
+  assert.ok(top.durabilityLabel === "durable" || top.durabilityLabel === "reinforced");
+  assert.equal(runnerUp.durabilityLabel, "fragile");
+  assert.ok(top.structuralStrengthScore > runnerUp.structuralStrengthScore);
+  assert.ok(top.confidence > runnerUp.confidence);
+});
+
 test("nearby duplicate levels form one cluster and weaker duplicate receives a cluster penalty", () => {
   const stronger = {
     ...makeLevel({ id: "stronger", price: 10, zoneLow: 9.98, zoneHigh: 10.02, sourceTimeframes: ["daily"] }),
@@ -389,6 +444,8 @@ test("explanations mention actual drivers and weakened wording is appropriate", 
         sourceTimeframes: ["daily", "4h"],
         meaningfulTouchCount: 3,
         rejectionCount: 3,
+        failedBreakCount: 1,
+        reclaimCount: 1,
         bestVolumeRatio: 1.8,
         averageVolumeRatio: 1.45,
       }),
@@ -415,7 +472,8 @@ test("explanations mention actual drivers and weakened wording is appropriate", 
   const weakened = ranked.resistances.find((level) => level.id === "weakened")!;
 
   assert.match(explained.explanation, /daily/i);
-  assert.match(explained.explanation, /meaningful|volume|confluence/i);
+  assert.match(explained.explanation, /reinforced|durable|meaningful|volume|confluence/i);
   assert.match(weakened.explanation, /weakened/i);
   assert.match(explainLevelScore(weakened), /shallow tests/i);
+  assert.match(explainLevelScore(weakened), /fragile|durable|reinforced/i);
 });

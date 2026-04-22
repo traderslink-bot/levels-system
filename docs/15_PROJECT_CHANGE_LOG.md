@@ -19,6 +19,41 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 04:35 PM America/Toronto
+
+### Added durability-aware support and resistance scoring so defended levels separate more clearly from tired ones
+
+- Updated level-strength ranking and runtime projection in:
+  - `src/lib/levels/level-types.ts`
+  - `src/lib/levels/level-structural-scoring.ts`
+  - `src/lib/levels/level-ranking.ts`
+  - `src/lib/levels/level-score-explainer.ts`
+  - `src/lib/levels/level-surfaced-selection-explainer.ts`
+  - `src/lib/levels/level-runtime-output-adapter.ts`
+  - `src/lib/levels/level-ranking-comparison.ts`
+- Added focused coverage in:
+  - `src/tests/level-strength-ranking.test.ts`
+  - `src/tests/level-ranking-comparison.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - the structural scorer now derives a durability profile for each ranked level using defense evidence, reaction quality, retest fatigue, break damage, and recency
+  - ranked levels now carry a durability label such as `fragile`, `tested`, `durable`, or `reinforced`
+  - durability now influences structural score modestly, affects confidence, and shows up in trader-facing explanations
+  - surfaced-selection explanations now describe durable versus fragile recent behavior instead of only generic structural strength
+  - the runtime compatibility adapter now tempers the downstream `strengthLabel` when a level is structurally strong but durability-fragile, so trader-facing output is less likely to overstate tired levels as `heavy` / `major`
+  - comparison output now includes durability metadata alongside state, confidence, and explanation
+- Why this matters:
+  - the app can now tell the difference between strong defended support / resistance and levels that still look important on paper but are starting to wear out
+  - this gives the end user more honest support / resistance language and should reduce false confidence around over-tested zones
+- Verification completed:
+  - `npx tsx --test src/tests/level-strength-ranking.test.ts`
+  - `npx tsx --test src/tests/level-ranking-comparison.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 03:20 PM America/Toronto
 
 ### Added barrier-clearance awareness to monitoring and opportunity ranking, compacted opportunity diagnostics, and expanded long-run per-symbol summaries

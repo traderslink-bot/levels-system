@@ -3,7 +3,13 @@
 
 import type { LevelScoreConfig } from "./level-score-config.js";
 import { LEVEL_SCORE_CONFIG } from "./level-score-config.js";
-import type { LevelScoreBreakdown, RankedLevel, SourceTimeframe, LevelCandidate } from "./level-types.js";
+import type {
+  LevelDurabilityLabel,
+  LevelScoreBreakdown,
+  RankedLevel,
+  SourceTimeframe,
+  LevelCandidate,
+} from "./level-types.js";
 import { clamp, getZoneWidthPct, safeDivide } from "./level-zone-utils.js";
 
 type StructurallyScorableLevel = Pick<
@@ -210,6 +216,107 @@ function computeRecencyScore(barsSinceLastReaction: number, config: LevelScoreCo
   return 1;
 }
 
+function durabilityLabelForScore(score: number): LevelDurabilityLabel {
+  if (score >= 8) {
+    return "reinforced";
+  }
+
+  if (score >= 6) {
+    return "durable";
+  }
+
+  if (score >= 4) {
+    return "tested";
+  }
+
+  return "fragile";
+}
+
+function computeDurabilityProfile(
+  level: StructurallyScorableLevel,
+  config: LevelScoreConfig,
+): {
+  durabilityScore: number;
+  durabilityAdjustment: number;
+  durabilityLabel: LevelDurabilityLabel;
+} {
+  const latestMeaningfulTouch = [...level.touches]
+    .reverse()
+    .find((touch) => touch.reactionType !== "tap");
+  const recentMeaningfulReactions = level.touches
+    .filter((touch) => touch.reactionMovePct > 0)
+    .map((touch) => touch.reactionMovePct)
+    .slice(-3);
+  const shrinkingReactions =
+    recentMeaningfulReactions.length >= 3 &&
+    recentMeaningfulReactions[2]! <= recentMeaningfulReactions[1]! &&
+    recentMeaningfulReactions[1]! <= recentMeaningfulReactions[0]! * 1.05;
+  const defenseEvidence = clamp(
+    safeDivide(
+      level.failedBreakCount * 1.1 + level.reclaimCount * 1.35 + level.rejectionCount * 0.45,
+      Math.max(level.touchCount, 1),
+      0,
+    ),
+    0,
+    1.2,
+  );
+  const reactionStrength = clamp(
+    safeDivide(
+      level.averageReactionMovePct * 0.55 + level.strongestReactionMovePct * 0.45,
+      config.touchThresholds.minReactionMovePct * 3.8,
+      0,
+    ),
+    0,
+    1,
+  );
+  const recencyFactor =
+    level.barsSinceLastReaction <= config.recencyBars.recent
+      ? 1
+      : level.barsSinceLastReaction <= config.recencyBars.aging
+        ? 0.6
+        : 0.25;
+  const fatigueBase = clamp(safeDivide(Math.max(level.touchCount - 4, 0), 4, 0), 0, 1);
+  const qualityShield = clamp(defenseEvidence * 0.65 + reactionStrength * 0.35, 0, 1);
+  const fatiguePenalty = fatigueBase * (1 - qualityShield * 0.7);
+  const breakDamage = clamp(
+    safeDivide(level.cleanBreakCount - level.reclaimCount, Math.max(level.touchCount, 1), 0),
+    0,
+    1,
+  );
+  const latestBreakPenalty = latestMeaningfulTouch?.reactionType === "clean_break" ? 0.18 : 0;
+  const latestReclaimBonus = latestMeaningfulTouch?.reactionType === "reclaim" ? 0.08 : 0;
+  const stabilityFactor = shrinkingReactions ? 0.45 : 1;
+
+  const durabilityScore = clamp(
+    (defenseEvidence * 0.38 +
+      reactionStrength * 0.24 +
+      recencyFactor * 0.14 +
+      stabilityFactor * 0.12 +
+      latestReclaimBonus -
+      fatiguePenalty * 0.18 -
+      breakDamage * 0.24 -
+      latestBreakPenalty) *
+      10,
+    0,
+    10,
+  );
+  const durabilityLabel = durabilityLabelForScore(durabilityScore);
+  const durabilityAdjustment =
+    durabilityLabel === "reinforced"
+      ? 4
+      : durabilityLabel === "durable"
+        ? 2
+        : durabilityLabel === "tested"
+          ? 0
+          : -4;
+
+  return {
+    durabilityScore,
+    durabilityAdjustment,
+    durabilityLabel,
+  };
+}
+
 function computeOvertestPenalty(level: StructurallyScorableLevel): number {
   if (level.touchCount <= 4) {
     return 0;
@@ -249,7 +356,11 @@ function computeBreakDamagePenalty(level: StructurallyScorableLevel): number {
 export function computeStructuralStrengthScore(
   level: StructurallyScorableLevel,
   config: LevelScoreConfig = LEVEL_SCORE_CONFIG,
-): { structuralStrengthScore: number; scoreBreakdown: LevelScoreBreakdown } {
+): {
+  structuralStrengthScore: number;
+  scoreBreakdown: LevelScoreBreakdown;
+  durabilityLabel: LevelDurabilityLabel;
+} {
   const timeframeScore = computeTimeframeScore(level);
   const touchScore = computeTouchScore(level.meaningfulTouchCount);
   const reactionQualityScore = computeReactionQualityScore(level);
@@ -259,6 +370,7 @@ export function computeStructuralStrengthScore(
   const roleFlipScore = computeRoleFlipScore(level.roleFlipCount);
   const defenseScore = computeDefenseScore(level);
   const recencyScore = computeRecencyScore(level.barsSinceLastReaction, config);
+  const durabilityProfile = computeDurabilityProfile(level, config);
   const breakDamagePenalty = computeBreakDamagePenalty(level);
   const overtestPenalty = computeOvertestPenalty(level);
   const clusterPenalty = clamp(level.clusterPenalty ?? 0, -config.penalties.clusterMax, 0);
@@ -273,6 +385,7 @@ export function computeStructuralStrengthScore(
       roleFlipScore +
       defenseScore +
       recencyScore +
+      durabilityProfile.durabilityAdjustment +
       breakDamagePenalty +
       overtestPenalty +
       clusterPenalty,
@@ -292,6 +405,8 @@ export function computeStructuralStrengthScore(
       roleFlipScore,
       defenseScore,
       recencyScore,
+      durabilityScore: durabilityProfile.durabilityScore,
+      durabilityAdjustment: durabilityProfile.durabilityAdjustment,
       breakDamagePenalty,
       overtestPenalty,
       clusterPenalty,
@@ -304,5 +419,6 @@ export function computeStructuralStrengthScore(
       activeRelevanceScore: 0,
       finalLevelScore: 0,
     },
+    durabilityLabel: durabilityProfile.durabilityLabel,
   };
 }
