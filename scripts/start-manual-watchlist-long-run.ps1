@@ -131,6 +131,7 @@ function Ensure-SymbolSummary {
       evaluationUpdates = 0
       lastLifecycleEvent = $null
       lastAlert = $null
+      lastOpportunity = $null
       lastSnapshot = $null
       lastExtension = $null
       quality = @{
@@ -586,6 +587,24 @@ function Build-ThreadSummaryRecord {
     $latestAlertSummary = $latestAlertSummary | Where-Object { $_ }
   }
 
+  $latestOpportunitySummary = $null
+  if ($SymbolSummary.lastOpportunity) {
+    $latestOpportunitySummary = @(
+      [string]$SymbolSummary.lastOpportunity.type,
+      [string]$SymbolSummary.lastOpportunity.classification
+    )
+    if ($SymbolSummary.lastOpportunity.adaptiveScore -ne $null) {
+      $latestOpportunitySummary += ("adaptive=" + ([double]$SymbolSummary.lastOpportunity.adaptiveScore).ToString("0.00"))
+    }
+    if ($SymbolSummary.lastOpportunity.clearanceLabel) {
+      $latestOpportunitySummary += ("room=" + [string]$SymbolSummary.lastOpportunity.clearanceLabel)
+    }
+    if ($SymbolSummary.lastOpportunity.tacticalRead) {
+      $latestOpportunitySummary += ("zone=" + [string]$SymbolSummary.lastOpportunity.tacticalRead)
+    }
+    $latestOpportunitySummary = $latestOpportunitySummary | Where-Object { $_ }
+  }
+
   return [ordered]@{
     symbol = $Symbol
     status = $status
@@ -601,6 +620,8 @@ function Build-ThreadSummaryRecord {
     lifecycleHighlights = Get-TopSummaryKeys -Table $SymbolSummary.lifecycleCounts
     latestAlert = $SymbolSummary.lastAlert
     latestAlertSummary = if ($latestAlertSummary) { $latestAlertSummary -join " | " } else { $null }
+    latestOpportunity = $SymbolSummary.lastOpportunity
+    latestOpportunitySummary = if ($latestOpportunitySummary) { $latestOpportunitySummary -join " | " } else { $null }
     lastSnapshot = $SymbolSummary.lastSnapshot
     lastExtension = $SymbolSummary.lastExtension
     discordPosted = $SymbolSummary.discordPosted
@@ -713,6 +734,7 @@ function Build-SessionReviewLines {
       "- Top suppression reasons: $(Join-DisplayList -Items $thread.topSuppressionReasons)",
       "- Lifecycle highlights: $(Join-DisplayList -Items $thread.lifecycleHighlights)",
       "- Latest alert summary: $(if ($thread.latestAlertSummary) { $thread.latestAlertSummary } else { 'none' })",
+      "- Latest opportunity summary: $(if ($thread.latestOpportunitySummary) { $thread.latestOpportunitySummary } else { 'none' })",
       "- Human review: $(if ($thread.humanReview.total -gt 0) { ('latest=' + $thread.humanReview.latestVerdict + '; total=' + $thread.humanReview.total) } else { 'none yet' })",
       "- Discord posted: $($thread.discordPosted)",
       "- Discord failed: $($thread.discordFailed)",
@@ -972,6 +994,19 @@ function Update-SummaryFromLine {
         $opportunitySymbolSummary.opportunitySnapshots += 1
       } else {
         $opportunitySymbolSummary.evaluationUpdates += 1
+      }
+
+      if ($parsed.opportunity) {
+        $opportunitySymbolSummary.lastOpportunity = @{
+          timestamp = $parsed.timestamp
+          type = $parsed.opportunity.type
+          classification = $parsed.opportunity.classification
+          adaptiveScore = $parsed.opportunity.adaptiveScore
+          adaptiveMultiplier = $parsed.opportunity.adaptiveMultiplier
+          clearanceLabel = $parsed.opportunity.clearanceLabel
+          nextBarrierDistancePct = $parsed.opportunity.nextBarrierDistancePct
+          tacticalRead = $parsed.opportunity.tacticalRead
+        }
       }
     }
   }

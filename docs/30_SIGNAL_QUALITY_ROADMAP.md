@@ -69,6 +69,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added a human review loop backed by `human-review-feedback.jsonl` plus `scripts/add-long-run-review-feedback.ps1`, and surfaced that feedback in the long-run summary artifacts.
 - Added deterministic end-of-session thread summaries so each symbol now gets a clearer plain-English wrap-up instead of only raw counts.
 - Added tactical `firm` / `tired` zone reads to trader-facing alerts and long-run review summaries so structurally important but fading zones are described more honestly.
+- Made tactical `firm` / `tired` reads directional in scoring so worn-out support is downgraded for dip-buy style ideas while tired resistance can act as a breakout tailwind.
 
 ## Active Backlog
 
@@ -132,5 +133,5 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 1. Use human review feedback to tune heavy/light and firm/tired wording against real alert outcomes.
 2. Add AI commentary on top of the cleaned deterministic signal stream for the highest-priority symbols.
-3. Add stronger follow-through and exhaustion penalties so tactically tired zones are not only described better but also ranked more conservatively.
-4. Add stronger end-of-session summaries for symbols that materially changed state multiple times across the same run.
+3. Add stronger end-of-session summaries for symbols that materially changed state multiple times across the same run.
+4. Use human review feedback to tune when tired zones should still be treated as real break tailwinds versus just noisy damage.

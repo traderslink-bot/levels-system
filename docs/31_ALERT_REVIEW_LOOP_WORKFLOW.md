@@ -110,7 +110,7 @@ This loop creates the evidence needed to improve:
 
 - alert posting thresholds
 - heavy/light support and resistance wording
-- `firm` versus `tired` zone wording
+- `firm` versus `tired` zone wording and whether that posture is acting as a tailwind or headwind for the setup
 - breakout quality filters
 - dip-buy usefulness
 - end-of-session summaries

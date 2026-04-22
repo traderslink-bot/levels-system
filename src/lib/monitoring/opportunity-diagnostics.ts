@@ -27,6 +27,7 @@ export type OpportunityDiagnosticsLogEntry = {
     classification: string;
     nextBarrierDistancePct?: number;
     clearanceLabel?: string;
+    tacticalRead?: string;
   }>;
   opportunity?: {
     symbol: string;
@@ -36,6 +37,7 @@ export type OpportunityDiagnosticsLogEntry = {
     classification: string;
     nextBarrierDistancePct?: number;
     clearanceLabel?: string;
+    tacticalRead?: string;
   };
   completedEvaluations?: EvaluatedOpportunity[];
 };
@@ -139,6 +141,7 @@ export function buildOpportunityDiagnosticsLogEntry(
       classification: opportunity.classification,
       nextBarrierDistancePct: opportunity.nextBarrierDistancePct,
       clearanceLabel: opportunity.clearanceLabel,
+      tacticalRead: opportunity.tacticalRead,
     })),
     opportunity: snapshot.newOpportunity
       ? {
@@ -149,6 +152,7 @@ export function buildOpportunityDiagnosticsLogEntry(
         classification: snapshot.newOpportunity.classification,
         nextBarrierDistancePct: snapshot.newOpportunity.nextBarrierDistancePct,
         clearanceLabel: snapshot.newOpportunity.clearanceLabel,
+        tacticalRead: snapshot.newOpportunity.tacticalRead,
       }
       : undefined,
     completedEvaluations: snapshot.completedEvaluations.length > 0

@@ -163,7 +163,7 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
   assert.equal(result.rawAlert.tacticalRead, "firm");
   assert.ok(result.rawAlert.tags.includes("outermost"));
   assert.ok(result.rawAlert.scoreComponents.ladderPosition > 0);
-  assert.equal(result.rawAlert.scoreComponents.tacticalRead, 4);
+  assert.equal(result.rawAlert.scoreComponents.tacticalRead, -6);
 });
 
 test("AlertIntelligenceEngine suppresses weak low-confidence compression alerts", () => {
@@ -471,7 +471,7 @@ test("AlertIntelligenceEngine calls out tired structure when a strong-looking zo
 
   assert.ok(result.formatted);
   assert.equal(result.rawAlert.tacticalRead, "tired");
-  assert.equal(result.rawAlert.scoreComponents.tacticalRead, -6);
+  assert.equal(result.rawAlert.scoreComponents.tacticalRead, 4);
   assert.equal(
     result.formatted?.body,
     [

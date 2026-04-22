@@ -29,6 +29,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Trader-facing Discord alerts now include:
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
   - a tactical read of `firm` versus `tired` structure when the zone evidence clearly supports that distinction
+  - directional tactical scoring so tired support is penalized for support-hold ideas while tired resistance can help a real breakout case
   - a compact severity / confidence / score line plus trigger price
   - a `watch` / invalidation line
   - nearby barrier context when the next support or resistance is known, including whether room is `tight`, `limited`, or `open`

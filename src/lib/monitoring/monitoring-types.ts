@@ -2,6 +2,7 @@
 // Shared monitoring types for Phase 2 watchlist monitoring.
 
 import type { FinalLevelZone, LevelDataFreshness } from "../levels/level-types.js";
+import type { ZoneTacticalRead } from "../levels/zone-tactical-read.js";
 
 export type MonitoringEventType =
   | "level_touch"
@@ -162,6 +163,7 @@ export type MonitoringEventContext = {
   nextBarrierLevel?: number;
   nextBarrierDistancePct?: number;
   clearanceLabel?: BarrierClearanceLabel;
+  tacticalRead?: ZoneTacticalRead;
 };
 
 export type MonitoringEvent = {

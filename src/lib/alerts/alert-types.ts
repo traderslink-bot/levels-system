@@ -2,6 +2,7 @@
 // Downstream alert types for routing and Phase 3 alert intelligence.
 
 import type { FinalLevelZone } from "../levels/level-types.js";
+import type { ZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type {
   BarrierClearanceLabel,
   MonitoringEvent,
@@ -11,7 +12,7 @@ export type AlertSeverity = "low" | "medium" | "high" | "critical";
 
 export type AlertConfidence = "low" | "medium" | "high";
 
-export type TraderZoneTacticalRead = "firm" | "balanced" | "tired";
+export type TraderZoneTacticalRead = ZoneTacticalRead;
 
 export type AlertPayload = {
   title: string;

@@ -10,6 +10,7 @@ import type {
   TraderNextBarrierContext,
 } from "./alert-types.js";
 import type { AlertIntelligenceConfig } from "./alert-config.js";
+import { resolveZoneTacticalBias } from "../levels/zone-tactical-read.js";
 import {
   buildTraderAlertBody,
   deriveTraderZoneTacticalRead,
@@ -99,6 +100,13 @@ function contextContributions(
   const context = event.eventContext;
   const lowValueInnerZone = context.ladderPosition === "inner" && context.zoneStrengthLabel === "weak";
   const tacticalRead = deriveTraderZoneTacticalRead(zone, context.zoneFreshness);
+  const tacticalBias = zone
+    ? resolveZoneTacticalBias({
+      zoneKind: zone.kind,
+      eventType: event.eventType,
+      tacticalRead,
+    })
+    : "neutral";
   const clearanceScore =
     context.clearanceLabel
       ? config.clearanceScores[context.clearanceLabel]
@@ -122,7 +130,7 @@ function contextContributions(
         : 0,
     dataQuality: context.dataQualityDegraded ? -config.dataQualityPenalty : 0,
     clearance: clearanceScore,
-    tacticalRead: tacticalRead ? config.tacticalReadScores[tacticalRead] : 0,
+    tacticalRead: config.tacticalBiasScores[tacticalBias],
     lowValueInnerTouch:
       event.eventType === "level_touch" && lowValueInnerZone ? -config.lowValueInnerTouchPenalty : 0,
     lowValueInnerCompression:

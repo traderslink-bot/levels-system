@@ -2,6 +2,7 @@
 // Trader-facing wording helpers so downstream alerts explain level quality and setup intent more clearly.
 
 import type { FinalLevelZone } from "../levels/level-types.js";
+import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import type {
   TraderNextBarrierContext,
@@ -38,32 +39,7 @@ export function deriveTraderZoneTacticalRead(
   zone?: FinalLevelZone,
   freshnessOverride?: FinalLevelZone["freshness"],
 ): TraderZoneTacticalRead | undefined {
-  if (!zone) {
-    return undefined;
-  }
-
-  const freshness = freshnessOverride ?? zone.freshness;
-  const lowFollowThrough = zone.followThroughScore < 0.42;
-  const lowReactionQuality = zone.reactionQualityScore < 0.58;
-  const heavyRetestPressure = zone.touchCount >= 5 && zone.rejectionScore < 0.45;
-  if (
-    freshness === "stale" ||
-    (lowFollowThrough && lowReactionQuality) ||
-    heavyRetestPressure
-  ) {
-    return "tired";
-  }
-
-  if (
-    freshness === "fresh" &&
-    zone.followThroughScore >= 0.68 &&
-    zone.reactionQualityScore >= 0.7 &&
-    zone.rejectionScore >= 0.48
-  ) {
-    return "firm";
-  }
-
-  return "balanced";
+  return deriveZoneTacticalRead(zone, freshnessOverride);
 }
 
 function formatZoneRange(zone: FinalLevelZone): string {

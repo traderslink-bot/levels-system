@@ -1,4 +1,5 @@
 import type { MonitoringEvent } from "./monitoring-types.js";
+import { resolveZoneTacticalBias } from "../levels/zone-tactical-read.js";
 
 export type OpportunityClassification = "high_conviction" | "medium" | "low";
 
@@ -20,6 +21,7 @@ export type RankedOpportunity = {
   classification: OpportunityClassification;
   nextBarrierDistancePct?: number;
   clearanceLabel?: "tight" | "limited" | "open";
+  tacticalRead?: "firm" | "balanced" | "tired";
 };
 
 type MonitoringEventWithStructure = MonitoringEvent & {
@@ -175,6 +177,24 @@ function clearanceAdjustment(event: MonitoringEvent): number {
   return 0;
 }
 
+function tacticalAdjustment(event: MonitoringEvent): number {
+  const tacticalBias = resolveZoneTacticalBias({
+    zoneKind: event.zoneKind,
+    eventType: event.eventType,
+    tacticalRead: event.eventContext.tacticalRead,
+  });
+
+  if (tacticalBias === "tailwind") {
+    return 0.05;
+  }
+
+  if (tacticalBias === "headwind") {
+    return -0.07;
+  }
+
+  return 0;
+}
+
 export class OpportunityEngine {
   constructor(private readonly debug: boolean = false) {}
 
@@ -209,6 +229,7 @@ export class OpportunityEngine {
       );
       const qualityWeight = 0.65 + clamp(event.strength) * 0.2 + clamp(event.confidence) * 0.15;
       const resolvedClearanceAdjustment = clearanceAdjustment(event);
+      const resolvedTacticalAdjustment = tacticalAdjustment(event);
 
       const score =
         nonlinearScore *
@@ -220,7 +241,8 @@ export class OpportunityEngine {
             resolvedBiasBoost +
             resolvedStackingBoost -
             conflictPenalty +
-            resolvedClearanceAdjustment,
+            resolvedClearanceAdjustment +
+            resolvedTacticalAdjustment,
         ) *
         typeWeight(event.eventType) *
         qualityWeight;
@@ -243,6 +265,7 @@ export class OpportunityEngine {
         classification: "low" as OpportunityClassification,
         nextBarrierDistancePct: event.eventContext.nextBarrierDistancePct,
         clearanceLabel: event.eventContext.clearanceLabel,
+        tacticalRead: event.eventContext.tacticalRead,
       };
     });
 

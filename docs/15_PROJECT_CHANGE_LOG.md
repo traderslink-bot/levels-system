@@ -50,6 +50,7 @@ This document tracks concrete implementation changes made to the `levels-system`
   - long-run sessions now support optional human review feedback through `human-review-feedback.jsonl`
   - each symbol thread now gets a deterministic end-of-session summary in the review artifacts
   - trader-facing alerts and long-run summaries now also classify zone posture as `firm`, `balanced`, or `tired` based on freshness, reaction quality, and follow-through
+  - tactical zone posture is now directional in scoring, so tired support is downgraded for support-hold setups while tired resistance can help a bullish breakout case
 - Why this matters:
   - long-run artifacts can now answer whether a session or symbol looked broadly useful versus just technically active
   - this creates a bridge between raw deterministic logging and the later AI commentary/review layer

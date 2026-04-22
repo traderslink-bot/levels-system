@@ -584,4 +584,75 @@ describe("opportunity decision integrity", () => {
     assert.equal(bySymbol.get("ALBT")?.clearanceLabel, "tight");
     assert.equal(bySymbol.get("BIRD")?.clearanceLabel, "open");
   });
+
+  it("downgrades bullish support-hold opportunities when the support already looks tired", () => {
+    const engine = new OpportunityEngine();
+    const now = 12_500_000;
+    const ranked = engine.rank([
+      {
+        ...makeEvent({
+          id: "tired-support",
+          symbol: "WEAK",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.64,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        zoneKind: "support",
+        eventContext: {
+          monitoredZoneId: "WEAK-zone",
+          canonicalZoneId: "WEAK-zone",
+          zoneFreshness: "stale",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          tacticalRead: "tired",
+        },
+      },
+      {
+        ...makeEvent({
+          id: "firm-support",
+          symbol: "FIRM",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.64,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        zoneKind: "support",
+        eventContext: {
+          monitoredZoneId: "FIRM-zone",
+          canonicalZoneId: "FIRM-zone",
+          zoneFreshness: "fresh",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          tacticalRead: "firm",
+        },
+      },
+    ]);
+
+    const bySymbol = new Map(ranked.map((opportunity) => [opportunity.symbol, opportunity]));
+
+    assert.ok(bySymbol.get("FIRM")!.score > bySymbol.get("WEAK")!.score);
+    assert.equal(bySymbol.get("WEAK")?.tacticalRead, "tired");
+    assert.equal(bySymbol.get("FIRM")?.tacticalRead, "firm");
+  });
 });

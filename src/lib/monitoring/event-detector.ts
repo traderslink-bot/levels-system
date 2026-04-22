@@ -2,6 +2,7 @@
 // Detect monitoring events from state transitions.
 
 import type { FinalLevelZone } from "../levels/level-types.js";
+import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type { MonitoringConfig } from "./monitoring-config.js";
 import type {
   LivePriceUpdate,
@@ -114,6 +115,10 @@ function buildMonitoringEventContext(
     nearestBarrier?.distancePct ?? null,
     config,
   );
+  const tacticalRead = deriveZoneTacticalRead(
+    zone,
+    zoneContext?.zoneFreshness ?? zone.freshness,
+  );
 
   if (zoneContext) {
     return {
@@ -133,6 +138,7 @@ function buildMonitoringEventContext(
       nextBarrierLevel: nearestBarrier?.level,
       nextBarrierDistancePct: nearestBarrier?.distancePct,
       clearanceLabel,
+      tacticalRead,
     };
   }
 
@@ -153,6 +159,7 @@ function buildMonitoringEventContext(
     nextBarrierLevel: nearestBarrier?.level,
     nextBarrierDistancePct: nearestBarrier?.distancePct,
     clearanceLabel,
+    tacticalRead,
   };
 }
 

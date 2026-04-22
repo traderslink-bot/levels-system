@@ -1,4 +1,8 @@
 import type { FinalLevelZone } from "../levels/level-types.js";
+import {
+  deriveZoneTacticalRead,
+  resolveZoneTacticalBias,
+} from "../levels/zone-tactical-read.js";
 import type { MonitoringConfig } from "./monitoring-config.js";
 import type {
   BarrierClearanceLabel,
@@ -257,6 +261,15 @@ export function scoreMonitoringEvent(params: {
     nearestBarrier?.distancePct ?? null,
     config,
   );
+  const tacticalRead = deriveZoneTacticalRead(
+    zone,
+    zoneContext?.zoneFreshness ?? zone.freshness,
+  );
+  const tacticalBias = resolveZoneTacticalBias({
+    zoneKind: zone.kind,
+    eventType,
+    tacticalRead,
+  });
   const directionAlignment =
     (eventType === "breakout" || eventType === "reclaim" || eventType === "fake_breakdown") &&
     context.bias === "bullish"
@@ -343,6 +356,10 @@ export function scoreMonitoringEvent(params: {
         ? 0.03
         : 0;
   const clearanceBonus = clearanceLabel === "open" ? 0.03 : 0;
+  const tacticalScale =
+    eventType === "level_touch" || eventType === "compression" ? 0.75 : 1;
+  const tacticalTailwindBonus = tacticalBias === "tailwind" ? 0.02 * tacticalScale : 0;
+  const tacticalHeadwindPenalty = tacticalBias === "headwind" ? 0.03 * tacticalScale : 0;
 
   const strength = clamp(
     proximityScore * 0.32 +
@@ -362,6 +379,8 @@ export function scoreMonitoringEvent(params: {
       extensionContext -
       clearancePenalty +
       clearanceBonus -
+      tacticalHeadwindPenalty +
+      tacticalTailwindBonus -
       dataQualityPenalty -
       staleContextPenalty -
       weakZonePenalty,
@@ -383,6 +402,8 @@ export function scoreMonitoringEvent(params: {
       extensionContext * 0.8 -
       clearancePenalty * 0.7 +
       clearanceBonus * 0.7 -
+      tacticalHeadwindPenalty * 0.85 +
+      tacticalTailwindBonus * 0.75 -
       dataQualityPenalty * 0.5 -
       staleContextPenalty * 0.75 -
       weakZonePenalty * 0.6,
