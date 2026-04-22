@@ -74,6 +74,7 @@ $summary = [ordered]@{
     lastEventType = $null
     bestReturnPct = $null
     worstReturnPct = $null
+    byEventType = @{}
   }
   quality = @{
     score = 0
@@ -146,6 +147,7 @@ function Ensure-SymbolSummary {
         lastEventType = $null
         bestReturnPct = $null
         worstReturnPct = $null
+        byEventType = @{}
       }
       lastLifecycleEvent = $null
       lastAlert = $null
@@ -430,6 +432,162 @@ function Get-SymbolNoiseScore {
   )
 }
 
+function Ensure-EvaluationBucket {
+  param(
+    [hashtable]$EvaluationTable,
+    [string]$EventType
+  )
+
+  if ([string]::IsNullOrWhiteSpace($EventType)) {
+    return $null
+  }
+
+  if (-not $EvaluationTable.ContainsKey($EventType)) {
+    $EvaluationTable[$EventType] = @{
+      total = 0
+      wins = 0
+      losses = 0
+      lastReturnPct = $null
+      bestReturnPct = $null
+      worstReturnPct = $null
+    }
+  }
+
+  return $EvaluationTable[$EventType]
+}
+
+function Update-EvaluationBucketStats {
+  param(
+    [hashtable]$Bucket,
+    $ReturnPct,
+    [bool]$Success
+  )
+
+  if ($null -eq $Bucket) {
+    return
+  }
+
+  $Bucket.total += 1
+  if ($Success) {
+    $Bucket.wins += 1
+  } else {
+    $Bucket.losses += 1
+  }
+
+  $Bucket.lastReturnPct = $ReturnPct
+  if ($ReturnPct -ne $null) {
+    if ($Bucket.bestReturnPct -eq $null -or $ReturnPct -gt [double]$Bucket.bestReturnPct) {
+      $Bucket.bestReturnPct = $ReturnPct
+    }
+    if ($Bucket.worstReturnPct -eq $null -or $ReturnPct -lt [double]$Bucket.worstReturnPct) {
+      $Bucket.worstReturnPct = $ReturnPct
+    }
+  }
+}
+
+function Build-EvaluationAlignmentSummary {
+  param(
+    [hashtable]$SymbolSummary
+  )
+
+  $lastAlert = $SymbolSummary.lastAlert
+  if ($null -eq $lastAlert -or [string]::IsNullOrWhiteSpace([string]$lastAlert.eventType)) {
+    return $null
+  }
+
+  $bucket = Get-HashtableValue -Table $SymbolSummary.evaluation.byEventType -Key ([string]$lastAlert.eventType) -Default $null
+  if ($null -eq $bucket -or [int]$bucket.total -eq 0) {
+    return $null
+  }
+
+  $wins = [int]$bucket.wins
+  $losses = [int]$bucket.losses
+  $total = [int]$bucket.total
+  $eventType = [string]$lastAlert.eventType
+
+  if ($wins -gt 0 -and $losses -eq 0) {
+    return "$eventType evaluations have held up cleanly so far ($wins/$total positive)."
+  }
+
+  if ($losses -gt 0 -and $wins -eq 0) {
+    return "$eventType evaluations have leaned negative so far ($losses/$total negative)."
+  }
+
+  if ($wins -gt $losses) {
+    return "$eventType evaluations are mixed but leaning positive ($wins wins / $losses losses)."
+  }
+
+  if ($losses -gt $wins) {
+    return "$eventType evaluations are mixed but leaning negative ($wins wins / $losses losses)."
+  }
+
+  return "$eventType evaluations are evenly split so far ($wins wins / $losses losses)."
+}
+
+function Get-EvaluationEventTypeHighlights {
+  param(
+    [hashtable]$EvaluationTable
+  )
+
+  $default = @{
+    strongest = @()
+    weakest = @()
+  }
+
+  if (-not $EvaluationTable -or $EvaluationTable.Count -eq 0) {
+    return $default
+  }
+
+  $ranked = @(
+    $EvaluationTable.GetEnumerator() |
+      Where-Object { [int]$_.Value.total -gt 0 } |
+      ForEach-Object {
+        $bucket = $_.Value
+        $total = [int]$bucket.total
+        $wins = [int]$bucket.wins
+        $losses = [int]$bucket.losses
+        $net = $wins - $losses
+        $winRate =
+          if ($total -gt 0) {
+            [double]$wins / [double]$total
+          } else {
+            0
+          }
+
+        [pscustomobject]@{
+          EventType = [string]$_.Key
+          Total = $total
+          Wins = $wins
+          Losses = $losses
+          Net = $net
+          WinRate = $winRate
+        }
+      }
+  )
+
+  if ($ranked.Count -eq 0) {
+    return $default
+  }
+
+  $strongest = @(
+    $ranked |
+      Sort-Object -Property @{ Expression = "Net"; Descending = $true }, @{ Expression = "WinRate"; Descending = $true }, @{ Expression = "Total"; Descending = $true }, @{ Expression = "EventType"; Descending = $false } |
+      Select-Object -First 2 |
+      ForEach-Object { "$($_.EventType) ($($_.Wins)W/$($_.Losses)L)" }
+  )
+  $weakest = @(
+    $ranked |
+      Sort-Object -Property @{ Expression = "Net"; Descending = $false }, @{ Expression = "WinRate"; Descending = $false }, @{ Expression = "Total"; Descending = $true }, @{ Expression = "EventType"; Descending = $false } |
+      Select-Object -First 2 |
+      ForEach-Object { "$($_.EventType) ($($_.Wins)W/$($_.Losses)L)" }
+  )
+
+  return @{
+    strongest = $strongest
+    weakest = $weakest
+  }
+}
+
 function Build-SessionQualitySummary {
   $symbolScores = @(
     $summary.perSymbol.GetEnumerator() |
@@ -593,6 +751,11 @@ function Build-EndOfSessionSummary {
     return "$Symbol received positive human review feedback, which is a good sign that the thread was adding value to the end user."
   }
 
+  $alignmentSummary = Build-EvaluationAlignmentSummary -SymbolSummary $SymbolSummary
+  if ($alignmentSummary) {
+    return "$Symbol is currently alignment-aware: $alignmentSummary"
+  }
+
   if ($evaluationTotal -ge 2 -and $evaluationWins -gt 0 -and $evaluationLosses -gt 0) {
     return "$Symbol produced mixed evaluated follow-through, so the thread looks informative but still uneven rather than cleanly actionable."
   }
@@ -713,6 +876,8 @@ function Build-ThreadSummaryRecord {
     $latestEvaluationSummary = $latestEvaluationSummary | Where-Object { $_ }
   }
 
+  $evaluationAlignmentSummary = Build-EvaluationAlignmentSummary -SymbolSummary $SymbolSummary
+
   return [ordered]@{
     symbol = $Symbol
     status = $status
@@ -731,6 +896,7 @@ function Build-ThreadSummaryRecord {
     latestOpportunity = $SymbolSummary.lastOpportunity
     latestOpportunitySummary = if ($latestOpportunitySummary) { $latestOpportunitySummary -join " | " } else { $null }
     latestEvaluationSummary = if ($latestEvaluationSummary) { $latestEvaluationSummary -join " | " } else { $null }
+    evaluationAlignmentSummary = $evaluationAlignmentSummary
     lastSnapshot = $SymbolSummary.lastSnapshot
     lastExtension = $SymbolSummary.lastExtension
     discordPosted = $SymbolSummary.discordPosted
@@ -768,6 +934,7 @@ function Build-SessionReviewLines {
   )
 
   $quality = $summary.quality
+  $evaluationHighlights = Get-EvaluationEventTypeHighlights -EvaluationTable $summary.evaluation.byEventType
   $lines = @(
     "# Long-Run Session Review",
     "",
@@ -786,6 +953,8 @@ function Build-SessionReviewLines {
     "- Discord failed: $($summary.discordAudit.failed)",
     "- Noisiest families: $(Join-DisplayList -Items $summary.alerting.noisiestFamilies)",
     "- Noisiest symbols: $(Join-DisplayList -Items $summary.alerting.noisiestSymbols)",
+    "- Strongest evaluated event types: $(Join-DisplayList -Items $evaluationHighlights.strongest)",
+    "- Weakest evaluated event types: $(Join-DisplayList -Items $evaluationHighlights.weakest)",
     "",
     "### Rationale",
     ""
@@ -845,6 +1014,7 @@ function Build-SessionReviewLines {
       "- Latest alert summary: $(if ($thread.latestAlertSummary) { $thread.latestAlertSummary } else { 'none' })",
       "- Latest opportunity summary: $(if ($thread.latestOpportunitySummary) { $thread.latestOpportunitySummary } else { 'none' })",
       "- Latest evaluation summary: $(if ($thread.latestEvaluationSummary) { $thread.latestEvaluationSummary } else { 'none' })",
+      "- Alert/evaluation alignment: $(if ($thread.evaluationAlignmentSummary) { $thread.evaluationAlignmentSummary } else { 'none yet' })",
       "- Human review: $(if ($thread.humanReview.total -gt 0) { ('latest=' + $thread.humanReview.latestVerdict + '; total=' + $thread.humanReview.total) } else { 'none yet' })",
       "- Discord posted: $($thread.discordPosted)",
       "- Discord failed: $($thread.discordFailed)",
@@ -1121,8 +1291,6 @@ function Update-SummaryFromLine {
 
       if ($parsed.completedEvaluations) {
         foreach ($evaluation in @($parsed.completedEvaluations)) {
-          $summary.evaluation.total += 1
-          $opportunitySymbolSummary.evaluation.total += 1
           $returnPct = if ($evaluation.returnPct -ne $null) { [double]$evaluation.returnPct } else { $null }
           $eventType = if ($evaluation.eventType) { [string]$evaluation.eventType } else { $null }
           $success = $false
@@ -1131,6 +1299,9 @@ function Update-SummaryFromLine {
           } elseif ($returnPct -ne $null) {
             $success = $returnPct -gt 0
           }
+
+          $summary.evaluation.total += 1
+          $opportunitySymbolSummary.evaluation.total += 1
 
           if ($success) {
             $summary.evaluation.wins += 1
@@ -1144,6 +1315,11 @@ function Update-SummaryFromLine {
           $summary.evaluation.lastEventType = $eventType
           $opportunitySymbolSummary.evaluation.lastReturnPct = $returnPct
           $opportunitySymbolSummary.evaluation.lastEventType = $eventType
+
+          $sessionEventTypeBucket = Ensure-EvaluationBucket -EvaluationTable $summary.evaluation.byEventType -EventType $eventType
+          $symbolEventTypeBucket = Ensure-EvaluationBucket -EvaluationTable $opportunitySymbolSummary.evaluation.byEventType -EventType $eventType
+          Update-EvaluationBucketStats -Bucket $sessionEventTypeBucket -ReturnPct $returnPct -Success $success
+          Update-EvaluationBucketStats -Bucket $symbolEventTypeBucket -ReturnPct $returnPct -Success $success
 
           if ($returnPct -ne $null) {
             if ($summary.evaluation.bestReturnPct -eq $null -or $returnPct -gt [double]$summary.evaluation.bestReturnPct) {
@@ -1189,6 +1365,7 @@ function Save-SessionSummary {
     -Primary $summary.alerting.postedByFamily `
     -Secondary $summary.alerting.suppressedByFamily)
   $summary.alerting.noisiestSymbols = Get-NoisiestSymbols
+  $summary.evaluation.highlights = Get-EvaluationEventTypeHighlights -EvaluationTable $summary.evaluation.byEventType
   $summary.quality = Build-SessionQualitySummary
   Apply-HumanReviewFeedbackFromFile
   $threadSummaries = Build-ThreadSummaries

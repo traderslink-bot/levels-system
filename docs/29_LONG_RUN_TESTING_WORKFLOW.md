@@ -103,13 +103,14 @@ Inside that folder:
   - includes both successful and failed downstream posts
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
+  - now also carries evaluated follow-through buckets by alert event type plus strongest/weakest evaluated event-type highlights
 - `thread-summaries.json`
   - live-updated per-symbol review artifact
   - turns session activity into a compact trader-facing summary for each active symbol
-  - now includes latest evaluation context so a symbol can be reviewed by what recently worked or failed, not only by what was posted
+  - now includes latest evaluation context plus alert/evaluation alignment so a symbol can be reviewed by what recently worked or failed, not only by what was posted
 - `session-review.md`
   - live-updated human-readable review artifact
-  - summarizes the session verdict, noisiest areas, and what each symbol thread looked like without needing raw JSON
+  - summarizes the session verdict, noisiest areas, strongest/weakest evaluated alert families, and what each symbol thread looked like without needing raw JSON
 - `human-review-feedback.jsonl`
   - optional human feedback file for marking symbols or alerts as `useful`, `strong`, `noisy`, `late`, or `wrong`
 - `session-info.txt`
@@ -138,6 +139,10 @@ That split makes it much easier to answer two different questions:
 
 - operationally, what did the app do
 - diagnostically, why did a specific event fire or stay suppressed
+
+The summary artifacts now answer a third question too:
+
+- evaluationally, which alert families have actually been holding up after they fired
 
 ## Recommended Testing Process During A Session
 

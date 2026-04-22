@@ -38,6 +38,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Monitoring events and opportunity ranking now carry barrier-clearance context, so cramped upside or downside room can reduce setup quality before the message layer ever formats it.
 - Long-run session summaries now track alert-posting families and suppression reasons, so noisy symbols and repetitive low-value alert patterns are easier to spot after a live run.
 - Long-run review now tracks evaluated follow-through and downweights pure diagnostic chatter when a symbol is otherwise acting normally, so a session like `AKAN` is less likely to look noisier than it really was.
+- Long-run review now also tracks evaluated follow-through by alert event type, so `session-summary.json`, `thread-summaries.json`, and `session-review.md` can show which alert families are holding up cleanly versus leaning negative.
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
 - Signal-quality ideas, priorities, and progress are tracked in [docs/30_SIGNAL_QUALITY_ROADMAP.md](docs/30_SIGNAL_QUALITY_ROADMAP.md).

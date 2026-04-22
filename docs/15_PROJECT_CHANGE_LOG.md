@@ -19,6 +19,31 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 06:20 PM America/Toronto
+
+### Added event-type evaluation alignment to long-run review artifacts
+
+- Updated the long-run launcher in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - long-run session summaries now keep completed evaluation stats bucketed by alert event type, not just in one session-wide win/loss pool
+  - `session-summary.json` now carries strongest and weakest evaluated alert-family highlights derived from those event-type buckets
+  - per-symbol thread summaries now surface alert/evaluation alignment for the latest alert family when enough evaluated follow-through exists
+  - `session-review.md` now shows strongest and weakest evaluated event types so the review tells us which alert families are actually earning trust
+- Why this matters:
+  - sessions can now answer whether `breakout`, `reclaim`, `compression`, or other alert families are validating cleanly instead of only telling us that "some alerts won and some lost"
+  - a symbol's latest alert can be judged against the real recent behavior of that same setup family, which is much more useful than a generic thread verdict
+  - this gives us a better deterministic base before we layer in AI commentary or broader tuning decisions
+- Verification completed:
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 03:25 PM America/Toronto
 
 ### Improved trader-facing `why now` wording and made long-run review less diagnostic-biased

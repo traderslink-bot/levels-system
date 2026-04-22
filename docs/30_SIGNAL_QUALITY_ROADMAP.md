@@ -71,6 +71,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added tactical `firm` / `tired` zone reads to trader-facing alerts and long-run review summaries so structurally important but fading zones are described more honestly.
 - Made tactical `firm` / `tired` reads directional in scoring so worn-out support is downgraded for dip-buy style ideas while tired resistance can act as a breakout tailwind.
 - Added deterministic `why now` trader wording and evaluation-aware long-run review so live sessions are judged more by useful outcomes than by raw diagnostic volume.
+- Added evaluation-by-event-type tracking to long-run summaries so each session can now show which alert families are validating cleanly versus leaning negative.
+- Added alert/evaluation alignment summaries to thread review so a symbol's latest posted setup can be compared against how that same setup family has actually been performing.
 
 ## Active Backlog
 
@@ -136,3 +138,4 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 2. Add AI commentary on top of the cleaned deterministic signal stream for the highest-priority symbols.
 3. Use human review feedback to tune when tired zones should still be treated as real break tailwinds versus just noisy damage.
 4. Add stronger end-of-session summaries for symbols that materially changed state multiple times across the same run, especially when alerts and evaluated outcomes disagree.
+5. Use the new event-type evaluation buckets to identify families that need tighter posting thresholds or better wording before adding AI commentary on top.
