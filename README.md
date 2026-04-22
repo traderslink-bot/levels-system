@@ -23,6 +23,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - `manual-watchlist-diagnostics.log` for `monitoring_event_diagnostic` reasoning
   - `session-summary.json` for a quick session-level and per-symbol rollup
   - `thread-summaries.json` for a compact trader-facing story per active symbol
+  - `session-review.md` for the fastest human-readable verdict on whether the run looked useful, noisy, or in need of attention
 - The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
 - Trader-facing Discord alerts now include:
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`

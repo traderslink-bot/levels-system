@@ -106,6 +106,9 @@ Inside that folder:
 - `thread-summaries.json`
   - live-updated per-symbol review artifact
   - turns session activity into a compact trader-facing summary for each active symbol
+- `session-review.md`
+  - live-updated human-readable review artifact
+  - summarizes the session verdict, noisiest areas, and what each symbol thread looked like without needing raw JSON
 - `session-info.txt`
   - start time, end time, log paths, and runtime URL
 
@@ -211,18 +214,21 @@ If the app behaves oddly:
 4. check:
    - `manual-watchlist-operational.log`
 5. check:
-- `session-summary.json`
-  for a fast high-level view of the session
-- check:
-  - `thread-summaries.json`
-  when you want the shortest per-symbol explanation of what each thread actually did
-6. only check:
+   - `session-summary.json`
+   for a fast high-level view of the session
+6. check:
+   - `thread-summaries.json`
+   when you want the shortest per-symbol explanation of what each thread actually did
+7. check:
+   - `session-review.md`
+   when you want the fastest human-readable verdict on whether the run looked useful or noisy
+8. only check:
    - `manual-watchlist-diagnostics.log`
    when the question is specifically about breakout / reclaim / fakeout reasoning
-7. only check:
+9. only check:
    - `manual-watchlist-full.log`
    if the operational and diagnostic logs still do not explain enough
-8. check:
+10. check:
    - `discord-delivery-audit.jsonl`
    when you want to confirm exactly what Discord received or whether a post failed downstream
 
@@ -236,6 +242,7 @@ When asking me to review a long-run failure, the most useful things to send are:
 - the newest `manual-watchlist-operational.log`
 - `session-summary.json` when you want a quick top-level review first
 - `thread-summaries.json` when you want the quickest per-symbol usefulness review
+- `session-review.md` when you want the fastest readable summary first
 - `manual-watchlist-diagnostics.log` when the question is about detector reasoning
 - `discord-delivery-audit.jsonl` when the question is about missing, noisy, or confusing Discord output
 - optionally `session-info.txt`
@@ -303,6 +310,8 @@ It keeps a rolling view of things like:
 - activation / restore / seed / IBKR failure counts
 - compare entry count
 - diagnostic entry volume
+- session-level usefulness score and verdict
+- noisiest symbols by combined suppression / diagnostic pressure
 
 This is useful when you want a quick answer like:
 
@@ -310,6 +319,7 @@ This is useful when you want a quick answer like:
 - was Discord posting healthy
 - was this session mostly quiet or extremely diagnostic-heavy
 - which alert families became the noisiest
+- whether the session looked broadly useful, mixed, noisy, or in need of attention
 
 ## What The Thread Summaries Are For
 
@@ -318,6 +328,7 @@ This is useful when you want a quick answer like:
 It gives each active symbol a compact narrative such as:
 
 - whether the symbol ended active or inactive
+- a usefulness score and verdict
 - how many snapshots and alerts were posted
 - which alert families dominated
 - which suppression reasons dominated
@@ -327,6 +338,17 @@ It gives each active symbol a compact narrative such as:
 This is meant to answer the practical question:
 
 - if I opened this Discord thread later, would it look useful or mostly noisy
+
+## What The Session Review Is For
+
+`session-review.md` is the fastest artifact to read after a long run.
+
+It turns the JSON summary and thread summaries into a short human-readable review so you can answer:
+
+- did this session look broadly useful or mostly noisy
+- which symbols were the most promising
+- which symbols need attention before trusting them
+- what should we review next without reading raw JSON first
 
 ## What The Discord Audit File Is For
 

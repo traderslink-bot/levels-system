@@ -14,6 +14,7 @@ $diagnosticLogPath = Join-Path $sessionDirectory "manual-watchlist-diagnostics.l
 $discordAuditPath = Join-Path $sessionDirectory "discord-delivery-audit.jsonl"
 $sessionSummaryPath = Join-Path $sessionDirectory "session-summary.json"
 $threadSummaryPath = Join-Path $sessionDirectory "thread-summaries.json"
+$sessionReviewPath = Join-Path $sessionDirectory "session-review.md"
 $sessionInfoPath = Join-Path $sessionDirectory "session-info.txt"
 $operationalPattern =
   "Manual watchlist server running|" +
@@ -47,6 +48,7 @@ $summary = [ordered]@{
     suppressedByReason = @{}
     suppressedByFamily = @{}
     noisiestFamilies = @()
+    noisiestSymbols = @()
   }
   discordAudit = @{
     posted = 0
@@ -63,6 +65,12 @@ $summary = [ordered]@{
   diagnosticEntries = 0
   opportunitySnapshots = 0
   evaluationUpdates = 0
+  quality = @{
+    score = 0
+    verdict = "unknown"
+    rationale = @()
+    recommendations = @()
+  }
   perSymbol = @{}
 }
 
@@ -118,6 +126,12 @@ function Ensure-SymbolSummary {
       lastAlert = $null
       lastSnapshot = $null
       lastExtension = $null
+      quality = @{
+        score = 0
+        verdict = "unknown"
+        rationale = @()
+        recommendations = @()
+      }
       failures = @{
         activation = 0
         restore = 0
@@ -173,6 +187,212 @@ function Merge-CountTables {
   return $merged
 }
 
+function Sum-CountTable {
+  param(
+    [hashtable]$Table
+  )
+
+  if (-not $Table) {
+    return 0
+  }
+
+  $total = 0
+  foreach ($entry in $Table.GetEnumerator()) {
+    $total += [int]$entry.Value
+  }
+
+  return $total
+}
+
+function Get-HashtableValue {
+  param(
+    [hashtable]$Table,
+    [string]$Key,
+    $Default
+  )
+
+  if ($null -ne $Table -and $Table.ContainsKey($Key) -and $null -ne $Table[$Key]) {
+    return $Table[$Key]
+  }
+
+  return $Default
+}
+
+function Evaluate-QualityHeuristics {
+  param(
+    [hashtable]$Metrics
+  )
+
+  $posted = [int](Get-HashtableValue -Table $Metrics -Key "alertPosted" -Default 0)
+  $suppressed = [int](Get-HashtableValue -Table $Metrics -Key "alertSuppressed" -Default 0)
+  $snapshots = [int](Get-HashtableValue -Table $Metrics -Key "snapshotPosts" -Default 0)
+  $discordFailed = [int](Get-HashtableValue -Table $Metrics -Key "discordFailed" -Default 0)
+  $diagnostics = [int](Get-HashtableValue -Table $Metrics -Key "diagnosticEntries" -Default 0)
+  $opportunitySnapshots = [int](Get-HashtableValue -Table $Metrics -Key "opportunitySnapshots" -Default 0)
+  $postedFamiliesTable = [hashtable](Get-HashtableValue -Table $Metrics -Key "alertPostedByFamily" -Default @{})
+  $suppressedReasonsTable = [hashtable](Get-HashtableValue -Table $Metrics -Key "alertSuppressedByReason" -Default @{})
+  $families = [int]$postedFamiliesTable.Count
+  $reasons = [int]$suppressedReasonsTable.Count
+  $failureTotal =
+    [int]$Metrics.failures.activation +
+    [int]$Metrics.failures.restore +
+    [int]$Metrics.failures.seed +
+    [int]$Metrics.failures.ibkr
+
+  $suppressionRatio =
+    if (($posted + $suppressed) -gt 0) {
+      [double]$suppressed / [double]($posted + $suppressed)
+    } else {
+      0
+    }
+
+  $score = 45
+  $rationale = @()
+  $recommendations = @()
+
+  if ($snapshots -gt 0) {
+    $score += [Math]::Min($snapshots * 4, 12)
+    $rationale += "posted snapshots"
+  }
+
+  if ($posted -gt 0) {
+    $score += [Math]::Min($posted * 6, 18)
+    $rationale += "posted trader-facing alerts"
+  }
+
+  if ($families -ge 2) {
+    $score += 6
+    $rationale += "showed multiple alert families"
+  } elseif ($families -eq 1 -and $posted -gt 0) {
+    $score += 2
+  }
+
+  if ($opportunitySnapshots -gt 0) {
+    $score += 4
+    $rationale += "produced opportunity snapshots"
+  }
+
+  if ($failureTotal -gt 0) {
+    $score -= [Math]::Min($failureTotal * 12, 36)
+    $rationale += "hit runtime failures"
+    $recommendations += "check activation/seed/restore failures first"
+  }
+
+  if ($discordFailed -gt 0) {
+    $score -= [Math]::Min($discordFailed * 10, 20)
+    $rationale += "had Discord delivery failures"
+    $recommendations += "review discord-delivery-audit.jsonl for failed posts"
+  }
+
+  if ($suppressionRatio -ge 0.75 -and ($posted + $suppressed) -ge 4) {
+    $score -= 18
+    $rationale += "was mostly suppression-heavy"
+    $recommendations += "consider whether this symbol or alert family is too noisy"
+  } elseif ($suppressionRatio -ge 0.5 -and ($posted + $suppressed) -ge 4) {
+    $score -= 10
+    $rationale += "showed moderate suppression pressure"
+  }
+
+  if ($diagnostics -ge 20 -and $posted -eq 0) {
+    $score -= 10
+    $rationale += "generated diagnostics without trader-facing output"
+    $recommendations += "review whether detector chatter is producing value"
+  }
+
+  if ($posted -eq 0 -and $snapshots -eq 0 -and $failureTotal -eq 0) {
+    $score -= 8
+    $rationale += "did not produce meaningful visible output"
+  }
+
+  $score = [Math]::Max(0, [Math]::Min(100, [int][Math]::Round($score)))
+  $verdict =
+    if ($failureTotal -gt 0 -or $discordFailed -gt 1) {
+      "needs_attention"
+    } elseif ($score -ge 75) {
+      "high_signal"
+    } elseif ($score -ge 60) {
+      "useful"
+    } elseif ($score -ge 45) {
+      "mixed"
+    } else {
+      "noisy"
+    }
+
+  if ($recommendations.Count -eq 0) {
+    if ($verdict -eq "high_signal" -or $verdict -eq "useful") {
+      $recommendations += "keep this symbol in the live test mix"
+    } elseif ($verdict -eq "mixed") {
+      $recommendations += "review thread-summaries.json and discord-delivery-audit.jsonl together"
+    } else {
+      $recommendations += "review suppression reasons and alert family balance before trusting this thread"
+    }
+  }
+
+  return @{
+    score = $score
+    verdict = $verdict
+    rationale = @($rationale | Select-Object -Unique)
+    recommendations = @($recommendations | Select-Object -Unique)
+  }
+}
+
+function Build-SessionQualitySummary {
+  $symbolScores = @(
+    $summary.perSymbol.GetEnumerator() |
+      ForEach-Object { [int]$_.Value.quality.score }
+  )
+  $averageScore =
+    if ($symbolScores.Count -gt 0) {
+      [int][Math]::Round(($symbolScores | Measure-Object -Average).Average)
+    } else {
+      0
+    }
+
+  $sessionMetrics = @{
+    alertPosted = $summary.alerting.posted
+    alertSuppressed = $summary.alerting.suppressed
+    snapshotPosts = [int](Get-HashtableValue -Table $summary.lifecycleCounts -Key "snapshot_posted" -Default 0)
+    discordFailed = $summary.discordAudit.failed
+    diagnosticEntries = $summary.diagnosticEntries
+    opportunitySnapshots = $summary.opportunitySnapshots
+    alertPostedByFamily = $summary.alerting.postedByFamily
+    alertSuppressedByReason = $summary.alerting.suppressedByReason
+    failures = $summary.failures
+  }
+  $quality = Evaluate-QualityHeuristics -Metrics $sessionMetrics
+  $quality.averageSymbolScore = $averageScore
+  return $quality
+}
+
+function Get-NoisiestSymbols {
+  param(
+    [int]$Top = 3
+  )
+
+  return @(
+    $summary.perSymbol.GetEnumerator() |
+      Sort-Object -Property @{
+        Expression = {
+          [int]$_.Value.alertSuppressed +
+          [int]$_.Value.diagnosticEntries +
+          [int]$_.Value.discordFailed * 4
+        }
+        Descending = $true
+      }, @{ Expression = "Key"; Descending = $false } |
+      Select-Object -First $Top |
+      ForEach-Object {
+        $noiseScore =
+          [int]$_.Value.alertSuppressed +
+          [int]$_.Value.diagnosticEntries +
+          [int]$_.Value.discordFailed * 4
+        if ($noiseScore -gt 0) {
+          "$($_.Key) noise=$noiseScore"
+        }
+      } |
+      Where-Object { $_ }
+  )
+}
+
 function Build-ThreadSummaryRecord {
   param(
     [string]$Symbol,
@@ -225,7 +445,11 @@ function Build-ThreadSummaryRecord {
   return [ordered]@{
     symbol = $Symbol
     status = $status
+    verdict = $SymbolSummary.quality.verdict
+    score = $SymbolSummary.quality.score
     headline = ($headlineParts -join " | ")
+    rationale = $SymbolSummary.quality.rationale
+    recommendations = $SymbolSummary.quality.recommendations
     topPostedFamilies = Get-TopSummaryKeys -Table $SymbolSummary.alertPostedByFamily
     topSuppressionReasons = Get-TopSummaryKeys -Table $SymbolSummary.alertSuppressedByReason
     lifecycleHighlights = Get-TopSummaryKeys -Table $SymbolSummary.lifecycleCounts
@@ -247,6 +471,123 @@ function Build-ThreadSummaries {
   }
 
   return $records
+}
+
+function Join-DisplayList {
+  param(
+    [object[]]$Items,
+    [string]$Fallback = "none"
+  )
+
+  if (-not $Items -or $Items.Count -eq 0) {
+    return $Fallback
+  }
+
+  return (($Items | Where-Object { $_ }) -join ", ")
+}
+
+function Build-SessionReviewLines {
+  param(
+    [object[]]$ThreadSummaries
+  )
+
+  $quality = $summary.quality
+  $lines = @(
+    "# Long-Run Session Review",
+    "",
+    "## Session Verdict",
+    "",
+    "- Verdict: $($quality.verdict)",
+    "- Score: $($quality.score)",
+    "- Average symbol score: $($quality.averageSymbolScore)",
+    "- Started: $($summary.startedAt)",
+    "- Ended: $($summary.endedAt)",
+    "- Diagnostics enabled: $($summary.diagnosticsEnabled)",
+    "- Active symbols tracked: $($summary.perSymbol.Count)",
+    "- Alerts posted: $($summary.alerting.posted)",
+    "- Alerts suppressed: $($summary.alerting.suppressed)",
+    "- Discord posted: $($summary.discordAudit.posted)",
+    "- Discord failed: $($summary.discordAudit.failed)",
+    "- Noisiest families: $(Join-DisplayList -Items $summary.alerting.noisiestFamilies)",
+    "- Noisiest symbols: $(Join-DisplayList -Items $summary.alerting.noisiestSymbols)",
+    "",
+    "### Rationale",
+    ""
+  )
+
+  foreach ($reason in @($quality.rationale)) {
+    $lines += "- $reason"
+  }
+
+  if ($quality.rationale.Count -eq 0) {
+    $lines += "- none recorded yet"
+  }
+
+  $lines += @(
+    "",
+    "### Recommendations",
+    ""
+  )
+
+  foreach ($recommendation in @($quality.recommendations)) {
+    $lines += "- $recommendation"
+  }
+
+  if ($quality.recommendations.Count -eq 0) {
+    $lines += "- none recorded yet"
+  }
+
+  $lines += @(
+    "",
+    "## Symbol Threads",
+    ""
+  )
+
+  if (-not $ThreadSummaries -or $ThreadSummaries.Count -eq 0) {
+    $lines += "- No symbol activity recorded yet."
+    return $lines
+  }
+
+  foreach ($thread in $ThreadSummaries) {
+    $lines += @(
+      "### $($thread.symbol)",
+      "",
+      "- Verdict: $($thread.verdict) ($($thread.score))",
+      "- Headline: $($thread.headline)",
+      "- Top posted families: $(Join-DisplayList -Items $thread.topPostedFamilies)",
+      "- Top suppression reasons: $(Join-DisplayList -Items $thread.topSuppressionReasons)",
+      "- Lifecycle highlights: $(Join-DisplayList -Items $thread.lifecycleHighlights)",
+      "- Latest alert summary: $(if ($thread.latestAlertSummary) { $thread.latestAlertSummary } else { 'none' })",
+      "- Discord posted: $($thread.discordPosted)",
+      "- Discord failed: $($thread.discordFailed)",
+      ""
+    )
+
+    $lines += "#### Why this verdict"
+    $lines += ""
+    foreach ($reason in @($thread.rationale)) {
+      $lines += "- $reason"
+    }
+    if ($thread.rationale.Count -eq 0) {
+      $lines += "- none recorded yet"
+    }
+
+    $lines += @(
+      "",
+      "#### What to do next",
+      ""
+    )
+    foreach ($recommendation in @($thread.recommendations)) {
+      $lines += "- $recommendation"
+    }
+    if ($thread.recommendations.Count -eq 0) {
+      $lines += "- none recorded yet"
+    }
+
+    $lines += ""
+  }
+
+  return $lines
 }
 
 function Resolve-SymbolFromLine {
@@ -477,11 +818,30 @@ function Update-SummaryFromLine {
 }
 
 function Save-SessionSummary {
+  foreach ($symbol in $summary.perSymbol.Keys) {
+    $symbolSummary = $summary.perSymbol[$symbol]
+    $symbolSummary.quality = Evaluate-QualityHeuristics -Metrics @{
+      alertPosted = $symbolSummary.alertPosted
+      alertSuppressed = $symbolSummary.alertSuppressed
+      snapshotPosts = $symbolSummary.snapshotPosts
+      discordFailed = $symbolSummary.discordFailed
+      diagnosticEntries = $symbolSummary.diagnosticEntries
+      opportunitySnapshots = $symbolSummary.opportunitySnapshots
+      alertPostedByFamily = $symbolSummary.alertPostedByFamily
+      alertSuppressedByReason = $symbolSummary.alertSuppressedByReason
+      failures = $symbolSummary.failures
+    }
+  }
+
   $summary.alerting.noisiestFamilies = Get-TopSummaryKeys -Table (Merge-CountTables `
     -Primary $summary.alerting.postedByFamily `
     -Secondary $summary.alerting.suppressedByFamily)
+  $summary.alerting.noisiestSymbols = Get-NoisiestSymbols
+  $summary.quality = Build-SessionQualitySummary
+  $threadSummaries = Build-ThreadSummaries
   Set-Content -LiteralPath $sessionSummaryPath -Value ($summary | ConvertTo-Json -Depth 10)
-  Set-Content -LiteralPath $threadSummaryPath -Value ((Build-ThreadSummaries) | ConvertTo-Json -Depth 8)
+  Set-Content -LiteralPath $threadSummaryPath -Value ($threadSummaries | ConvertTo-Json -Depth 8)
+  Set-Content -LiteralPath $sessionReviewPath -Value ((Build-SessionReviewLines -ThreadSummaries $threadSummaries) -join [Environment]::NewLine)
 }
 
 function Write-RuntimeLine {
@@ -542,6 +902,7 @@ Write-SessionInfo "diagnostic_log=$diagnosticLogPath"
 Write-SessionInfo "discord_audit_log=$discordAuditPath"
 Write-SessionInfo "session_summary=$sessionSummaryPath"
 Write-SessionInfo "thread_summaries=$threadSummaryPath"
+Write-SessionInfo "session_review=$sessionReviewPath"
 Write-SessionInfo "runtime_url=$runtimeUrl"
 
 Write-Host "Long-run session directory: $sessionDirectory"

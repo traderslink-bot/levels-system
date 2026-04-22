@@ -19,6 +19,30 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 05:50 PM America/Toronto
+
+### Added usefulness/noise heuristics to long-run session review
+
+- Updated the long-run launcher in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated:
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - `session-summary.json` now includes a session-level quality block with score, verdict, rationale, recommendations, and noisiest symbols
+  - each symbol summary now includes a quality score and verdict such as `high_signal`, `useful`, `mixed`, `noisy`, or `needs_attention`
+  - the heuristic layer uses alert-post volume, suppression pressure, failure counts, Discord delivery failures, diagnostics pressure, and snapshot/opportunity activity to classify review quality
+  - `thread-summaries.json` now surfaces those verdicts directly for faster end-user usefulness review
+  - `session-review.md` now turns the JSON summaries into a fast human-readable run review with verdicts, rationale, noisiest areas, and per-symbol next steps
+- Why this matters:
+  - long-run artifacts can now answer whether a session or symbol looked broadly useful versus just technically active
+  - this creates a bridge between raw deterministic logging and the later AI commentary/review layer
+- Verification completed:
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 05:25 PM America/Toronto
 
 ### Added alert-family / suppression tracking and per-symbol thread summaries for long-run session review

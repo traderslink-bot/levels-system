@@ -63,6 +63,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Adjusted runtime-facing strength labels so fragile levels are less likely to be overstated as `heavy` or `major` support / resistance.
 - Added structured alert-posting family and suppression tracking to long-run session summaries.
 - Added `thread-summaries.json` so each symbol now gets a compact narrative of what the trader-facing thread actually did during a session.
+- Added session-level and per-symbol usefulness / noise heuristics so long-run review can now classify runs as `high_signal`, `useful`, `mixed`, `noisy`, or `needs_attention`.
+- Added `session-review.md` so long-run runs now produce a fast human-readable review instead of forcing every review through raw JSON artifacts.
 
 ## Active Backlog
 
@@ -124,7 +126,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 ## Next Recommended Implementation Steps
 
-1. Add alert-family counts and "noisiest family" detection into `session-summary.json` so review gets even faster.
-2. Add session-level useful-vs-noisy scoring heuristics on top of the new family and suppression counts.
-3. Add stronger clearance-aware message wording so tight-room setups are explained more bluntly to the trader.
+1. Add stronger clearance-aware message wording so tight-room setups are explained more bluntly to the trader.
+2. Add a human review loop that records whether an alert was useful, noisy, late, or wrong.
+3. Add end-of-session summaries for symbols that produced multiple alerts and materially changed state.
 4. Add an AI commentary layer on top of the cleaned deterministic signal stream.
