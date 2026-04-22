@@ -92,14 +92,25 @@ function normalizeLevel(level: LevelCandidate, context: LevelScoringContext, con
 }
 
 function buildConfidence(level: RankedLevel): number {
-  return clamp(
+  let confidence =
     level.meaningfulTouchCount * 12 +
-      level.sourceTimeframes.length * 10 +
-      level.scoreBreakdown.cleanlinessScore * 3 -
-      Math.abs(level.scoreBreakdown.clusterPenalty) * 4,
-    0,
-    100,
-  );
+    level.sourceTimeframes.length * 10 +
+    level.scoreBreakdown.cleanlinessScore * 3 -
+    Math.abs(level.scoreBreakdown.clusterPenalty) * 4;
+
+  if (level.sourceTimeframes.length === 1 && level.sourceTimeframes[0] === "5m") {
+    confidence -= 8;
+  }
+
+  if (level.state === "heavily_tested") {
+    confidence -= 6;
+  } else if (level.state === "weakened") {
+    confidence -= 12;
+  } else if (level.state === "broken") {
+    confidence -= 20;
+  }
+
+  return clamp(confidence, 0, 100);
 }
 
 function mergeBreakdowns(
@@ -179,7 +190,10 @@ export function rankLevels(
       scoreBreakdown: mergedBreakdown,
     };
     const state = deriveLevelState(provisional, config);
-    const confidence = buildConfidence(provisional);
+    const confidence = buildConfidence({
+      ...provisional,
+      state,
+    });
 
     const finalized: RankedLevel = {
       ...provisional,

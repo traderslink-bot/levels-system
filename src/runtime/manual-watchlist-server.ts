@@ -151,7 +151,9 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         const item = document.createElement("li");
         const meta = document.createElement("div");
         const noteText = entry.note ? " | note: " + entry.note : "";
-        meta.innerHTML = "<strong>" + entry.symbol + "</strong><div class=\\"meta\\">thread: " + (entry.discordThreadId || "none") + noteText + "</div>";
+        const lifecycleText = entry.lifecycle ? " | state: " + entry.lifecycle : "";
+        const lastPostText = entry.lastLevelPostAt ? " | last snapshot: " + new Date(entry.lastLevelPostAt).toLocaleTimeString() : "";
+        meta.innerHTML = "<strong>" + entry.symbol + "</strong><div class=\\"meta\\">thread: " + (entry.discordThreadId || "pending") + lifecycleText + lastPostText + noteText + "</div>";
 
         const button = document.createElement("button");
         button.textContent = "Deactivate";
@@ -198,7 +200,17 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setStatus(payload.error || "Activate failed", true);
         return;
       }
-      setStatus("Activated " + payload.entry.symbol + " in thread " + payload.entry.discordThreadId);
+      if (payload.queued) {
+        setStatus(
+          "Activation started for " +
+            payload.entry.symbol +
+            " in thread " +
+            (payload.entry.discordThreadId || "pending") +
+            ". IBKR seeding can take a minute if the symbol is slow.",
+        );
+      } else {
+        setStatus("Activated " + payload.entry.symbol + " in thread " + payload.entry.discordThreadId);
+      }
       symbolEl.value = "";
       noteEl.value = "";
       await loadEntries();
@@ -207,6 +219,11 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     loadEntries().catch((error) => {
       setStatus(String(error), true);
     });
+    setInterval(() => {
+      loadEntries().catch((error) => {
+        setStatus(String(error), true);
+      });
+    }, 5000);
   </script>
 </body>
 </html>
@@ -296,10 +313,11 @@ async function main(): Promise<void> {
           return;
         }
 
-        const entry = await manager.activateSymbol({ symbol, note });
-        sendJson(response, 200, { entry });
+        const entry = await manager.queueActivation({ symbol, note });
+        sendJson(response, 202, { entry, queued: true });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Activation failed: ${message}`);
         sendJson(response, 500, { error: message });
       }
       return;

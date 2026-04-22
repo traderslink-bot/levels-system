@@ -204,6 +204,7 @@ export type LevelScoreBreakdown = {
   roleFlipScore: number;
   defenseScore: number;
   recencyScore: number;
+  breakDamagePenalty: number;
   overtestPenalty: number;
   clusterPenalty: number;
   structuralStrengthScore: number;

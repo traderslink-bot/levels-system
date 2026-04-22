@@ -186,6 +186,7 @@ test("ManualWatchlistRuntimeManager loads persisted active entries and starts mo
       discordThreadId: "thread-bird",
       lifecycle: "active",
       refreshPending: false,
+      activatedAt: monitor.startCalls[0]?.[0]?.activatedAt,
       lastLevelPostAt: monitor.startCalls[0]?.[0]?.lastLevelPostAt,
     },
   ]);
@@ -200,6 +201,126 @@ test("ManualWatchlistRuntimeManager loads persisted active entries and starts mo
     { representativePrice: 2.45 },
   ]);
   assert.equal(typeof discordAlertRouter.levelSnapshots[0]?.payload.timestamp, "number");
+});
+
+test("ManualWatchlistRuntimeManager skips a persisted symbol that cannot restore levels on startup", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  persistence.storedEntries = [
+    {
+      symbol: "BBGI",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      note: "slow restore",
+      discordThreadId: "thread-BBGI",
+      lifecycle: "active",
+      refreshPending: false,
+    },
+    {
+      symbol: "CANG",
+      active: true,
+      priority: 2,
+      tags: ["manual"],
+      note: "healthy restore",
+      discordThreadId: "thread-CANG",
+      lifecycle: "active",
+      refreshPending: false,
+    },
+  ];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      if (symbol === "BBGI") {
+        throw new Error("Historical candles unavailable for BBGI");
+      }
+
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [buildZone({ id: `${symbol}-S1`, symbol, kind: "support" })],
+        intradayResistance: [buildZone({ id: `${symbol}-R1`, symbol, kind: "resistance" })],
+      }));
+    },
+  });
+
+  await manager.start();
+
+  assert.equal(discordAlertRouter.levelSnapshots.length, 1);
+  assert.equal(discordAlertRouter.levelSnapshots[0]?.payload.symbol, "CANG");
+  assert.deepEqual(monitor.startCalls.at(-1)?.map((entry) => entry.symbol), ["CANG"]);
+
+  const bbgiEntry = manager.getActiveEntries().find((entry) => entry.symbol === "BBGI");
+  assert.equal(bbgiEntry?.lifecycle, "refresh_pending");
+  assert.equal(bbgiEntry?.refreshPending, true);
+});
+
+test("ManualWatchlistRuntimeManager revalidates persisted thread ids on startup before posting snapshots", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  persistence.storedEntries = [
+    {
+      symbol: "GXAI",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      note: "persisted",
+      discordThreadId: "GXAI",
+      lifecycle: "active",
+      refreshPending: false,
+    },
+  ];
+  discordAlertRouter.ensureThread = async (symbol: string, storedThreadId?: string | null) => {
+    discordAlertRouter.ensured.push({ symbol, storedThreadId });
+    return {
+      threadId: "thread-GXAI",
+      reused: false,
+      recovered: true,
+      created: false,
+    };
+  };
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({ id: "S1", symbol, kind: "support" }),
+        ],
+        intradayResistance: [
+          buildZone({ id: "R1", symbol, kind: "resistance" }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+
+  assert.deepEqual(discordAlertRouter.ensured, [
+    {
+      symbol: "GXAI",
+      storedThreadId: "GXAI",
+    },
+  ]);
+  assert.equal(discordAlertRouter.levelSnapshots.length, 1);
+  assert.equal(discordAlertRouter.levelSnapshots[0]?.threadId, "thread-GXAI");
+  assert.equal(manager.getActiveEntries()[0]?.discordThreadId, "thread-GXAI");
+  assert.equal(persistence.storedEntries[0]?.discordThreadId, "thread-GXAI");
 });
 
 test("ManualWatchlistRuntimeManager reuses entries on reactivation and does not create duplicate active records", async () => {
@@ -282,6 +403,160 @@ test("ManualWatchlistRuntimeManager deactivates symbols and keeps stored thread 
   assert.equal(persistence.storedEntries[0]?.discordThreadId, "thread-HUBC");
 });
 
+test("ManualWatchlistRuntimeManager does not create a thread when activation fails before levels are generated", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async () => {
+      throw new Error("Historical candles unavailable for TEST");
+    },
+  });
+
+  await manager.start();
+
+  await assert.rejects(
+    manager.activateSymbol({ symbol: "TEST" }),
+    /Historical candles unavailable for TEST/,
+  );
+
+  assert.equal(discordAlertRouter.ensured.length, 0);
+  assert.equal(manager.getActiveEntries().length, 0);
+  assert.deepEqual(persistence.storedEntries, []);
+});
+
+test("ManualWatchlistRuntimeManager rolls back activation state when snapshot posting fails", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  discordAlertRouter.routeLevelSnapshot = async () => {
+    throw new Error("Discord snapshot post failed");
+  };
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+
+  await assert.rejects(
+    manager.activateSymbol({ symbol: "FAIL" }),
+    /Discord snapshot post failed/,
+  );
+
+  assert.equal(manager.getActiveEntries().length, 0);
+  assert.deepEqual(persistence.storedEntries, []);
+});
+
+test("ManualWatchlistRuntimeManager retries the first snapshot once after creating a new thread", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  let snapshotAttempts = 0;
+  discordAlertRouter.routeLevelSnapshot = async (threadId: string, payload: any) => {
+    snapshotAttempts += 1;
+    if (snapshotAttempts === 1) {
+      throw new Error("Thread not ready yet");
+    }
+    discordAlertRouter.levelSnapshots.push({ threadId, payload });
+  };
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  const activated = await manager.activateSymbol({ symbol: "CANG" });
+
+  assert.equal(snapshotAttempts, 2);
+  assert.equal(activated.symbol, "CANG");
+  assert.equal(discordAlertRouter.levelSnapshots.length, 1);
+  assert.equal(discordAlertRouter.levelSnapshots[0]?.threadId, "thread-CANG");
+  assert.equal(manager.getActiveEntries()[0]?.symbol, "CANG");
+});
+
+test("ManualWatchlistRuntimeManager queues activation immediately, creates the thread, and completes in the background", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  let releaseSeed: () => void = () => {};
+  const seedGate = new Promise<void>((resolve) => {
+    releaseSeed = resolve;
+  });
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      await seedGate;
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+
+  const queued = await manager.queueActivation({ symbol: "BMGL", note: "slow seed" });
+  assert.equal(queued.symbol, "BMGL");
+  assert.equal(queued.lifecycle, "activating");
+  assert.equal(queued.refreshPending, true);
+  assert.equal(queued.discordThreadId, "thread-BMGL");
+  assert.equal(manager.getActiveEntries()[0]?.symbol, "BMGL");
+  assert.equal(manager.getActiveEntries()[0]?.lifecycle, "activating");
+  assert.equal(manager.getActiveEntries()[0]?.discordThreadId, "thread-BMGL");
+  assert.equal(discordAlertRouter.ensured.length, 1);
+  assert.equal(discordAlertRouter.ensured[0]?.symbol, "BMGL");
+
+  releaseSeed();
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+
+  const activated = manager.getActiveEntries()[0];
+  assert.equal(activated?.symbol, "BMGL");
+  assert.equal(activated?.lifecycle, "active");
+  assert.equal(activated?.refreshPending, false);
+  assert.equal(discordAlertRouter.levelSnapshots[0]?.threadId, "thread-BMGL");
+});
+
 test("ManualWatchlistRuntimeManager refreshes and reposts level snapshot when price approaches the highest posted resistance", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
@@ -349,6 +624,144 @@ test("ManualWatchlistRuntimeManager refreshes and reposts level snapshot when pr
       timestamp: 1000,
     },
   });
+});
+
+test("ManualWatchlistRuntimeManager keeps earlier symbols live after a newer symbol is activated", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      if (symbol === "ALBT") {
+        levelStore.setLevels(buildLevelOutput(symbol, {
+          intradaySupport: [
+            buildZone({ id: "S1", symbol, kind: "support" }),
+          ],
+          intradayResistance: [
+            buildZone({
+              id: "R1",
+              symbol,
+              kind: "resistance",
+              zoneLow: 2.45,
+              zoneHigh: 2.5,
+              representativePrice: 2.48,
+            }),
+          ],
+          extensionLevels: {
+            support: [],
+            resistance: [
+              buildZone({
+                id: "XR1",
+                symbol,
+                kind: "resistance",
+                zoneLow: 2.7,
+                zoneHigh: 2.75,
+                representativePrice: 2.72,
+                isExtension: true,
+              }),
+            ],
+          },
+        }));
+        return;
+      }
+
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({ id: "S1", symbol, kind: "support" }),
+        ],
+        intradayResistance: [
+          buildZone({ id: "R1", symbol, kind: "resistance" }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  await manager.activateSymbol({ symbol: "BIRD" });
+
+  const latestStart = monitor.startCalls.at(-1);
+  assert.equal(latestStart?.length, 2);
+  assert.deepEqual(
+    latestStart?.map((entry) => entry.symbol),
+    ["ALBT", "BIRD"],
+  );
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 1000,
+    lastPrice: 2.46,
+  });
+  await waitForAsyncWork();
+
+  assert.deepEqual(discordAlertRouter.levelExtensions.at(-1), {
+    threadId: "thread-ALBT",
+    payload: {
+      symbol: "ALBT",
+      side: "resistance",
+      levels: [2.72],
+      timestamp: 1000,
+    },
+  });
+});
+
+test("ManualWatchlistRuntimeManager does not block a new activation when another active symbol fails reseeding during restart", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  let failBbgiRefresh = false;
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      if (symbol === "BBGI" && failBbgiRefresh) {
+        throw new Error("Historical candles unavailable for BBGI");
+      }
+
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [buildZone({ id: `${symbol}-S1`, symbol, kind: "support" })],
+        intradayResistance: [buildZone({ id: `${symbol}-R1`, symbol, kind: "resistance" })],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "BBGI" });
+
+  (levelStore as any).levels.delete("BBGI");
+  (levelStore as any).activeSupportZones.delete("BBGI");
+  (levelStore as any).activeResistanceZones.delete("BBGI");
+  failBbgiRefresh = true;
+
+  const activated = await manager.activateSymbol({ symbol: "CANG" });
+
+  assert.equal(activated.symbol, "CANG");
+  assert.equal(activated.lifecycle, "active");
+  assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.symbol, "CANG");
+
+  const bbgiEntry = manager.getActiveEntries().find((entry) => entry.symbol === "BBGI");
+  assert.equal(bbgiEntry?.lifecycle, "refresh_pending");
+  assert.equal(bbgiEntry?.refreshPending, true);
+
+  const latestStart = monitor.startCalls.at(-1);
+  assert.deepEqual(latestStart?.map((entry) => entry.symbol), ["CANG"]);
 });
 
 test("ManualWatchlistRuntimeManager snapshots partition displayed levels relative to snapshot price", async () => {

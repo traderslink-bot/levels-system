@@ -127,6 +127,20 @@ test("DiscordAlertRouter creates a new symbol-named thread when no reusable thre
   assert.equal(gateway.threads.get("thread-1")?.name, "HUBC");
 });
 
+test("DiscordAlertRouter recovers an exact-name thread even without a stored thread id", async () => {
+  const gateway = new FakeDiscordThreadGateway();
+  gateway.threads.set("thread-7", { id: "thread-7", name: "CANG" });
+  const router = new DiscordAlertRouter(gateway);
+
+  const result = await router.ensureThread("cang");
+  assert.deepEqual(result, {
+    threadId: "thread-7",
+    reused: false,
+    recovered: true,
+    created: false,
+  });
+});
+
 test("DiscordAlertRouter routes alerts through the gateway without changing payload", async () => {
   const gateway = new FakeDiscordThreadGateway();
   const router = new DiscordAlertRouter(gateway);

@@ -1,5 +1,6 @@
 import { CandleFetchService } from "../market-data/candle-fetch-service.js";
 import { LevelEngine } from "../levels/level-engine.js";
+import { resolveLevelRuntimeSettings } from "../levels/level-runtime-mode.js";
 import type { FinalLevelZone } from "../levels/level-types.js";
 import { decideLevelRefresh } from "../levels/level-refresh-policy.js";
 import { AlertIntelligenceEngine } from "../alerts/alert-intelligence-engine.js";
@@ -56,6 +57,7 @@ type ActiveLevelSnapshotState = {
 
 const LEVEL_REFRESH_THRESHOLD_PCT = 0.01;
 const LEVEL_REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
+const INITIAL_SNAPSHOT_RETRY_DELAY_MS = 1000;
 const SNAPSHOT_PRICE_TOLERANCE_PCT = 0.001;
 const SNAPSHOT_PRICE_TOLERANCE_ABSOLUTE = 0.001;
 const SNAPSHOT_DISPLAY_COMPACTION_PCT = 0.0075;
@@ -196,16 +198,30 @@ function buildSnapshotDisplayZones(
   }));
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class ManualWatchlistRuntimeManager {
   private readonly levelEngine: LevelEngine;
   private readonly watchlistStore: WatchlistStore;
   private readonly watchlistStatePersistence: WatchlistStatePersistence;
   private readonly alertIntelligenceEngine = new AlertIntelligenceEngine();
   private readonly activeSnapshotState = new Map<string, ActiveLevelSnapshotState>();
+  private readonly pendingActivations = new Map<string, Promise<void>>();
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
-    this.levelEngine = new LevelEngine(options.candleFetchService);
+    const runtimeSettings = resolveLevelRuntimeSettings();
+    this.levelEngine = new LevelEngine(options.candleFetchService, undefined, {
+      runtimeMode: runtimeSettings.mode,
+      compareActivePath: runtimeSettings.compareActivePath,
+      onComparisonLog: runtimeSettings.compareLoggingEnabled
+        ? (entry) => {
+            console.log(JSON.stringify(entry));
+          }
+        : undefined,
+    });
     this.watchlistStore = options.watchlistStore ?? new WatchlistStore();
     this.watchlistStatePersistence =
       options.watchlistStatePersistence ?? new WatchlistStatePersistence();
@@ -560,7 +576,9 @@ export class ManualWatchlistRuntimeManager {
     }
   }
 
-  private async ensureLevelsForActiveEntries(entries: WatchlistEntry[]): Promise<void> {
+  private async ensureLevelsForActiveEntries(entries: WatchlistEntry[]): Promise<WatchlistEntry[]> {
+    const startableEntries: WatchlistEntry[] = [];
+
     for (const entry of entries) {
       if (!entry.active) {
         continue;
@@ -571,9 +589,25 @@ export class ManualWatchlistRuntimeManager {
           lifecycle: "refresh_pending",
           refreshPending: true,
         });
-        await this.seedLevelsForSymbol(entry.symbol);
+
+        try {
+          await this.seedLevelsForSymbol(entry.symbol);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(
+            `[ManualWatchlistRuntimeManager] Failed to seed levels for ${entry.symbol} during monitoring restart: ${message}`,
+          );
+          continue;
+        }
+      }
+
+      const refreshedEntry = this.watchlistStore.getEntry(entry.symbol);
+      if (refreshedEntry) {
+        startableEntries.push(refreshedEntry);
       }
     }
+
+    return startableEntries;
   }
 
   private handleMonitoringEvent = (event: MonitoringEvent): void => {
@@ -640,9 +674,13 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    await this.ensureLevelsForActiveEntries(activeEntries);
+    const startableEntries = await this.ensureLevelsForActiveEntries(activeEntries);
+    if (startableEntries.length === 0) {
+      return;
+    }
+
     await this.options.monitor.start(
-      activeEntries,
+      startableEntries,
       this.handleMonitoringEvent,
       this.handlePriceUpdate,
     );
@@ -660,26 +698,34 @@ export class ManualWatchlistRuntimeManager {
 
     const activeEntries = this.watchlistStore.getActiveEntries();
     for (const entry of activeEntries) {
-      if (!entry.discordThreadId) {
-        const thread = await this.options.discordAlertRouter.ensureThread(entry.symbol);
-        this.watchlistStore.upsertManualEntry({
-          symbol: entry.symbol,
-          note: entry.note,
-          discordThreadId: thread.threadId,
-          active: true,
-          lifecycle: "activating",
-          activatedAt: entry.activatedAt ?? Date.now(),
-          refreshPending: true,
-        });
-      }
+      const thread = await this.options.discordAlertRouter.ensureThread(
+        entry.symbol,
+        entry.discordThreadId,
+      );
+      this.watchlistStore.upsertManualEntry({
+        symbol: entry.symbol,
+        note: entry.note,
+        discordThreadId: thread.threadId,
+        active: true,
+        lifecycle: "activating",
+        activatedAt: entry.activatedAt ?? Date.now(),
+        refreshPending: true,
+      });
     }
-    for (const entry of activeEntries) {
+    for (const entry of this.watchlistStore.getActiveEntries()) {
       if (entry.discordThreadId) {
-        await this.refreshLevelsIfNeeded(entry.symbol, Date.now());
-        if (!this.options.levelStore.getLevels(entry.symbol)) {
-          await this.seedLevelsForSymbol(entry.symbol);
+        try {
+          await this.refreshLevelsIfNeeded(entry.symbol, Date.now());
+          if (!this.options.levelStore.getLevels(entry.symbol)) {
+            await this.seedLevelsForSymbol(entry.symbol);
+          }
+          await this.postLevelSnapshot(entry.symbol, entry.discordThreadId, Date.now());
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(
+            `[ManualWatchlistRuntimeManager] Failed to restore active symbol ${entry.symbol} on startup: ${message}`,
+          );
         }
-        await this.postLevelSnapshot(entry.symbol, entry.discordThreadId, Date.now());
       }
     }
 
@@ -697,29 +743,117 @@ export class ManualWatchlistRuntimeManager {
     return this.watchlistStore.getActiveEntries();
   }
 
-  async activateSymbol(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
+  private async performActivation(
+    input: ManualWatchlistActivationInput,
+    rollbackEntries: WatchlistEntry[],
+    preparedThreadId?: string | null,
+  ): Promise<WatchlistEntry> {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.watchlistStore.getEntry(symbol);
+
+    try {
+      await this.seedLevelsForSymbol(symbol);
+      const threadId =
+        preparedThreadId ??
+        (
+          await this.options.discordAlertRouter.ensureThread(
+            symbol,
+            existing?.discordThreadId,
+          )
+        ).threadId;
+
+      const entry = this.watchlistStore.upsertManualEntry({
+        symbol,
+        note: input.note,
+        discordThreadId: threadId,
+        active: true,
+        lifecycle: "activating",
+        activatedAt: Date.now(),
+        refreshPending: true,
+      });
+
+      try {
+        await this.postLevelSnapshot(symbol, threadId, Date.now());
+      } catch (error) {
+        if (preparedThreadId) {
+          throw error;
+        }
+
+        await delay(INITIAL_SNAPSHOT_RETRY_DELAY_MS);
+        await this.postLevelSnapshot(symbol, threadId, Date.now());
+      }
+      this.persistWatchlist();
+      await this.restartMonitoring();
+      return this.watchlistStore.getEntry(symbol) ?? entry;
+    } catch (error) {
+      this.watchlistStore.setEntries(rollbackEntries);
+      this.activeSnapshotState.delete(symbol);
+      this.persistWatchlist();
+      throw error;
+    }
+  }
+
+  async activateSymbol(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
+    return this.performActivation(input, this.watchlistStore.getEntries());
+  }
+
+  async queueActivation(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
+    const symbol = normalizeSymbol(input.symbol);
+    const existing = this.watchlistStore.getEntry(symbol);
+    const pending = this.pendingActivations.get(symbol);
+
+    if (pending) {
+      return (
+        existing ??
+        this.watchlistStore.upsertManualEntry({
+          symbol,
+          note: input.note,
+          active: true,
+          lifecycle: "activating",
+          activatedAt: Date.now(),
+          refreshPending: true,
+        })
+      );
+    }
+
+    if (existing?.active && existing.lifecycle === "active") {
+      return existing;
+    }
+
+    const rollbackEntries = this.watchlistStore.getEntries();
     const thread = await this.options.discordAlertRouter.ensureThread(
       symbol,
       existing?.discordThreadId,
     );
-
-    const entry = this.watchlistStore.upsertManualEntry({
+    const queuedEntry = this.watchlistStore.upsertManualEntry({
       symbol,
       note: input.note,
       discordThreadId: thread.threadId,
       active: true,
       lifecycle: "activating",
-      activatedAt: Date.now(),
+      activatedAt: existing?.activatedAt ?? Date.now(),
       refreshPending: true,
     });
-
-    await this.seedLevelsForSymbol(symbol);
-    await this.postLevelSnapshot(symbol, thread.threadId, Date.now());
     this.persistWatchlist();
-    await this.restartMonitoring();
-    return this.watchlistStore.getEntry(symbol) ?? entry;
+
+    const activationTask = this.performActivation(
+      { symbol, note: input.note },
+      rollbackEntries,
+      thread.threadId,
+    )
+      .then(() => undefined)
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(
+          `[ManualWatchlistRuntimeManager] Background activation failed for ${symbol}: ${message}`,
+        );
+      })
+      .finally(() => {
+        this.pendingActivations.delete(symbol);
+      });
+
+    this.pendingActivations.set(symbol, activationTask);
+    return queuedEntry;
   }
 
   async deactivateSymbol(symbol: string): Promise<WatchlistEntry | null> {

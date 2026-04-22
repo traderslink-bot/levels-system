@@ -111,6 +111,16 @@ export class DiscordAlertRouter {
       }
     }
 
+    const recoveredThread = await this.gateway.findThreadByName(normalizedSymbol);
+    if (recoveredThread) {
+      return {
+        threadId: recoveredThread.id,
+        reused: false,
+        recovered: true,
+        created: false,
+      };
+    }
+
     const createdThread = await this.gateway.createThread(normalizedSymbol);
     return {
       threadId: createdThread.id,

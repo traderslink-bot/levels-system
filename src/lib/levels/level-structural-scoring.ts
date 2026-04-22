@@ -19,6 +19,7 @@ type StructurallyScorableLevel = Pick<
   | "cleanlinessStdDevPct"
   | "roleFlipCount"
   | "failedBreakCount"
+  | "cleanBreakCount"
   | "reclaimCount"
   | "rejectionCount"
   | "barsSinceLastReaction"
@@ -80,29 +81,54 @@ function computeReactionQualityScore(level: StructurallyScorableLevel): number {
     return 0;
   }
 
-  const meaningfulTouches = level.touches.filter(
+  const positiveReactionTouches = level.touches.filter(
     (touch) =>
-      touch.reactionType !== "tap" || touch.closedAwayFromLevel || touch.wickRejectStrength >= 0.4 || touch.bodyRejectStrength >= 0.4,
+      touch.reactionType !== "tap" &&
+      touch.reactionType !== "clean_break" &&
+      (touch.closedAwayFromLevel ||
+        touch.wickRejectStrength >= 0.4 ||
+        touch.bodyRejectStrength >= 0.4 ||
+        touch.reactionType === "failed_break" ||
+        touch.reactionType === "reclaim"),
   );
 
-  if (meaningfulTouches.length === 0) {
+  if (positiveReactionTouches.length === 0) {
     return 0;
   }
 
   const closeAwayRate =
-    meaningfulTouches.filter((touch) => touch.closedAwayFromLevel).length / meaningfulTouches.length;
+    positiveReactionTouches.filter((touch) => touch.closedAwayFromLevel).length /
+    positiveReactionTouches.length;
   const averageWickStrength =
-    meaningfulTouches.reduce((sum, touch) => sum + touch.wickRejectStrength, 0) / meaningfulTouches.length;
+    positiveReactionTouches.reduce((sum, touch) => sum + touch.wickRejectStrength, 0) /
+    positiveReactionTouches.length;
   const averageBodyStrength =
-    meaningfulTouches.reduce((sum, touch) => sum + touch.bodyRejectStrength, 0) / meaningfulTouches.length;
+    positiveReactionTouches.reduce((sum, touch) => sum + touch.bodyRejectStrength, 0) /
+    positiveReactionTouches.length;
+  const breakDominance = clamp(
+    safeDivide(level.cleanBreakCount - level.reclaimCount, Math.max(level.touchCount, 1), 0),
+    0,
+    1,
+  );
   const defenseSignal = clamp(
     safeDivide(level.failedBreakCount * 1.1 + level.reclaimCount * 1.35, Math.max(level.touchCount, 1), 0),
     0,
     1,
   );
+  const latestMeaningfulTouch = [...level.touches]
+    .reverse()
+    .find((touch) => touch.reactionType !== "tap");
+  const latestBreakPenalty =
+    latestMeaningfulTouch?.reactionType === "clean_break" ? 2.5 : 0;
 
   return clamp(
-    (closeAwayRate * 0.35 + averageWickStrength * 0.25 + averageBodyStrength * 0.2 + defenseSignal * 0.2) * 15,
+    (closeAwayRate * 0.35 +
+      averageWickStrength * 0.25 +
+      averageBodyStrength * 0.2 +
+      defenseSignal * 0.2) *
+      15 -
+      breakDominance * 3 -
+      latestBreakPenalty,
     0,
     15,
   );
@@ -153,8 +179,15 @@ function computeRoleFlipScore(roleFlipCount: number): number {
 }
 
 function computeDefenseScore(level: StructurallyScorableLevel): number {
-  const defenseEvidence = level.failedBreakCount * 1.15 + level.reclaimCount * 1.5 + level.rejectionCount * 0.45;
-  return clamp(Math.min(defenseEvidence, 4) / 4 * 8, 0, 8);
+  const defenseEvidence =
+    level.failedBreakCount * 1.15 + level.reclaimCount * 1.5 + level.rejectionCount * 0.45;
+  const baseScore = clamp((Math.min(defenseEvidence, 4) / 4) * 8, 0, 8);
+  const breakDominance = clamp(
+    safeDivide(level.cleanBreakCount - level.reclaimCount, Math.max(level.cleanBreakCount, 1), 0),
+    0,
+    1,
+  );
+  return clamp(baseScore * (1 - breakDominance * 0.65), 0, 8);
 }
 
 function computeRecencyScore(barsSinceLastReaction: number, config: LevelScoreConfig): number {
@@ -194,6 +227,25 @@ function computeOvertestPenalty(level: StructurallyScorableLevel): number {
   return -clamp(excessTouches * (1.45 + weaknessFactor * 1.75), 0, 10);
 }
 
+function computeBreakDamagePenalty(level: StructurallyScorableLevel): number {
+  if (level.cleanBreakCount <= level.reclaimCount) {
+    return 0;
+  }
+
+  const breakDominance = clamp(
+    safeDivide(level.cleanBreakCount - level.reclaimCount, Math.max(level.cleanBreakCount, 1), 0),
+    0,
+    1,
+  );
+  const weakReactionFactor = 1 - clamp(
+    safeDivide(level.averageReactionMovePct + level.strongestReactionMovePct, 0.09, 0),
+    0,
+    1,
+  );
+
+  return -clamp(6 + breakDominance * 2.5 + weakReactionFactor * 1.5, 0, 10);
+}
+
 export function computeStructuralStrengthScore(
   level: StructurallyScorableLevel,
   config: LevelScoreConfig = LEVEL_SCORE_CONFIG,
@@ -207,6 +259,7 @@ export function computeStructuralStrengthScore(
   const roleFlipScore = computeRoleFlipScore(level.roleFlipCount);
   const defenseScore = computeDefenseScore(level);
   const recencyScore = computeRecencyScore(level.barsSinceLastReaction, config);
+  const breakDamagePenalty = computeBreakDamagePenalty(level);
   const overtestPenalty = computeOvertestPenalty(level);
   const clusterPenalty = clamp(level.clusterPenalty ?? 0, -config.penalties.clusterMax, 0);
 
@@ -220,6 +273,7 @@ export function computeStructuralStrengthScore(
       roleFlipScore +
       defenseScore +
       recencyScore +
+      breakDamagePenalty +
       overtestPenalty +
       clusterPenalty,
     0,
@@ -238,6 +292,7 @@ export function computeStructuralStrengthScore(
       roleFlipScore,
       defenseScore,
       recencyScore,
+      breakDamagePenalty,
       overtestPenalty,
       clusterPenalty,
       structuralStrengthScore,

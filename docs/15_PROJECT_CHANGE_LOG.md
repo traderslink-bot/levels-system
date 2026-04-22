@@ -9,12 +9,222 @@ This document tracks concrete implementation changes made to the `levels-system`
 - IBKR is the active provider being used to test the system end-to-end right now.
 - The current IBKR integration should be treated as the testing/integration provider for this phase.
 - Provider abstraction remains intentional because the data provider may be switched after testing.
+- Reminder: run live-market grading and compare-mode testing on Monday, April 20, 2026 once the market is open.
 
 ## Format
 
 - Use Eastern time where practical, matching the rest of the project notes.
 - Add entries in reverse chronological order.
 - Keep each entry focused on shipped code, verification, and follow-up risk.
+
+---
+
+## 2026-04-21 08:55 PM America/Toronto
+
+### Compare-mode handoff update after live IBKR runtime testing
+
+- Narrowly refined compare-output normalization in:
+  - `src/lib/levels/level-ranking-comparison.ts`
+- Added focused regression coverage in:
+  - `src/tests/level-ranking-comparison.test.ts`
+- Added a dedicated handoff note for the next chat:
+  - `docs/28_RUNTIME_HANDOFF_2026-04-21.md`
+- What changed:
+  - `normalizeSurfacedSelectionOutput(...)` no longer folds deeper anchors into the same comparable surfaced list as actionable levels
+  - this means a deep context anchor should no longer appear as the compare-mode `topResistance` / `topSupport` when there is no real actionable level there
+  - the runtime compatibility adapter still keeps deeper anchors in `extensionLevels`, so live extension behavior was not intentionally changed
+- Why this mattered:
+  - live compare testing on low-priced names exposed a bad observational read where `ASBP` could log `alternateTopResistance: 23.98` even though that level was only a deeper anchor and not a practical trader-facing resistance
+  - the fix was intentionally narrow so it would clean up compare-mode interpretation without reopening the broader surfaced-selection calibration
+- Verification completed:
+  - `npm test -- --test src/tests/level-ranking-comparison.test.ts`
+  - `npm test -- --test src/tests/level-surfaced-selection.test.ts`
+- Important live findings from the same testing session:
+  - multi-symbol activation is still operationally slow because IBKR historical seeding remains the bottleneck
+  - adaptive diagnostics now show `level_touch` and especially `reclaim` under sustained negative expectancy pressure
+  - `compression` is currently the healthiest event family in live testing
+  - `breakdown` currently looks acceptable and remains enabled
+- Remaining follow-up risk:
+  - the user later pasted compare logs that still showed `ASBP -> 23.98`; those logs were likely produced by a process that had not restarted after the normalization change
+  - the first check in the next chat should be one fresh post-restart `level_runtime_compare` line for `ASBP`
+
+---
+
+## 2026-04-18 09:30 AM America/Toronto
+
+### Added a compare-mode runtime log review tool for old-vs-new surfaced-output differences
+
+- Added the review aggregation module:
+  - `src/lib/levels/level-runtime-compare-review.ts`
+- Added the review runner:
+  - `src/scripts/run-level-runtime-compare-review.ts`
+- Added focused review coverage in:
+  - `src/tests/level-runtime-compare-review.test.ts`
+- Added review workflow documentation:
+  - `docs/27_LEVEL_RUNTIME_COMPARE_REVIEW_PLAN.md`
+- What this pass now adds:
+  - parsing for compare-mode JSON objects, arrays, and newline-delimited logs
+  - malformed compare-entry tracking instead of silent failure
+  - aggregate counts for support/resistance changes and ladder-count changes
+  - recurring disagreement grouping by symbol and category
+  - explicit tracking for broken-level recurrence and approximation-related recurrence
+  - a prioritized manual review queue for the most important runtime disagreements
+- Why this matters:
+  - compare-mode evidence can now be reviewed in batches instead of line by line
+  - recurring disagreement patterns are easier to spot before any broader rollout discussion
+  - the repo now has an operational review layer for real runtime experimentation, not just offline validation
+
+---
+
+## 2026-04-18 08:55 AM America/Toronto
+
+### Added a safe optional runtime flag for old/new/compare surfaced-output exploration
+
+- Added runtime mode resolution in:
+  - `src/lib/levels/level-runtime-mode.ts`
+- Added the runtime compatibility projection from the new surfaced adapter back into the legacy bucketed output contract in:
+  - `src/lib/levels/level-runtime-output-adapter.ts`
+- Added compact compare-mode logging in:
+  - `src/lib/levels/level-runtime-comparison-logger.ts`
+- Integrated the mode boundary into:
+  - `src/lib/levels/level-engine.ts`
+  - `src/runtime/main.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Added focused runtime-mode coverage in:
+  - `src/tests/level-runtime-mode.test.ts`
+- Added exploration tracking documentation:
+  - `docs/26_LEVEL_RUNTIME_FLAG_EXPLORATION_PLAN.md`
+- What this pass now enables:
+  - `old` remains the default runtime path
+  - `new` can be enabled explicitly through a compatibility adapter
+  - `compare` can keep one path active while computing the other observationally
+  - compare mode emits a compact labeled payload instead of mixing live behavior
+- Why this matters:
+  - the repo is now ready for controlled real-world experimentation with the new surfaced adapter
+  - rollback stays config-only
+  - downstream consumers keep receiving the legacy `LevelEngineOutput` shape while the new path is explored safely
+
+---
+
+## 2026-04-18 03:05 AM America/Toronto
+
+### Calibrated the surfaced adapter against the shadow-mode weak spots
+
+- Tightened surfaced-selection tuning in:
+  - `src/lib/levels/level-surfaced-selection-config.ts`
+  - `src/lib/levels/level-surfaced-selection.ts`
+  - `src/lib/levels/level-surfaced-selection-explainer.ts`
+- Tightened surfaced-validation scoring in:
+  - `src/lib/levels/level-surfaced-validation.ts`
+- Updated replayable shadow-case tuning and batch aggregation in:
+  - `src/lib/levels/level-surfaced-shadow-evaluation.ts`
+- Expanded regression coverage in:
+  - `src/tests/level-surfaced-selection.test.ts`
+- Added calibration tracking documentation:
+  - `docs/25_LEVEL_SURFACED_ADAPTER_CALIBRATION_PLAN.md`
+- What was calibrated:
+  - stronger default exclusion pressure against broken levels
+  - first actionable preference for credible practical-interaction levels
+  - weak near-price clutter escape logic
+  - tighter same-band ownership and anchor preference
+  - surfaced validation now discounts weak or broken close-by levels instead of rewarding proximity alone
+- Why this matters:
+  - the new surfaced adapter still keeps its structural sanity edge
+  - but the trader-facing metrics now give more honest credit to credible near-price levels and less credit to misleading close junk
+  - shadow-mode evidence is now materially stronger before any runtime-flag decision
+
+---
+
+## 2026-04-18 02:20 AM America/Toronto
+
+### Added replayable batch shadow evaluation for old surfaced output versus the new surfaced adapter
+
+- Added the batch shadow evaluation module:
+  - `src/lib/levels/level-surfaced-shadow-evaluation.ts`
+- Added a practical replay runner:
+  - `src/scripts/run-level-surfaced-shadow-evaluation.ts`
+- Added focused aggregation coverage in:
+  - `src/tests/level-surfaced-shadow-evaluation.test.ts`
+- Added implementation tracking documentation:
+  - `docs/24_LEVEL_SURFACED_SHADOW_EVALUATION_PLAN.md`
+- What this phase now adds on top of the earlier surfaced showdown:
+  - tagged replayable batch cases
+  - overall old/new winner counts across a broader sample
+  - category breakdowns by support, resistance, breakout, clutter, anchor, and broken-level cases
+  - practical metric win counts for:
+    - clutter reduction
+    - first interaction alignment
+    - actionable near-price usefulness
+    - structural sanity
+    - anchor usefulness
+  - manual review queue generation
+  - aggregate migration readiness guidance
+- Why this matters:
+  - the repo now has a broader shadow-mode evidence layer before any runtime flag discussion
+  - the old surfaced path can still be tracked honestly where it remains stronger
+  - calibration priorities are easier to spot from grouped results instead of one-off case reads
+
+---
+
+## 2026-04-18 01:35 AM America/Toronto
+
+### Added a surfaced usefulness validation showdown between old runtime output and the new surfaced adapter
+
+- Added the surfaced validation module:
+  - `src/lib/levels/level-surfaced-validation.ts`
+- Added a practical showdown runner:
+  - `src/scripts/run-level-surfaced-validation.ts`
+- Added focused coverage in:
+  - `src/tests/level-surfaced-validation.test.ts`
+- Added implementation tracking documentation:
+  - `docs/23_LEVEL_SURFACED_VALIDATION_SHOWDOWN_PLAN.md`
+- What this showdown now measures:
+  - actionable near-price quality
+  - ladder cleanliness
+  - forward interaction relevance
+  - first interaction alignment
+  - structural sanity
+  - anchor usefulness
+- First deterministic showdown read:
+  - total cases: `6`
+  - old wins: `1`
+  - new wins: `4`
+  - mixed: `1`
+  - inconclusive: `0`
+  - average validation score old: `66.96`
+  - average validation score new: `73.58`
+  - migration readiness: `ready_for_shadow_mode`
+- Why this matters:
+  - the repo now has evidence about surfaced trader usefulness instead of only architecture comparisons
+  - the new surfaced adapter looks promising enough for shadow-mode evaluation
+  - but one remaining old-path win means direct replacement would still be premature
+
+---
+
+## 2026-04-18 12:35 AM America/Toronto
+
+### Added a surfaced selection adapter on top of the new structural ranking layer
+
+- Added the surfaced-selection bridge modules:
+  - `src/lib/levels/level-surfaced-selection-config.ts`
+  - `src/lib/levels/level-surfaced-selection.ts`
+  - `src/lib/levels/level-surfaced-selection-explainer.ts`
+- Added focused surfaced-selection coverage in:
+  - `src/tests/level-surfaced-selection.test.ts`
+- Added a comparison-prep normalization hook in:
+  - `src/lib/levels/level-ranking-comparison.ts`
+  so the new surfaced adapter output can later be judged against the old surfaced runtime output without changing the live runtime contract.
+- Added migration tracking documentation:
+  - `docs/22_LEVEL_SURFACED_SELECTION_ADAPTER_PLAN.md`
+- What this bridge now does:
+  - starts from the new structurally ranked levels
+  - enforces minimum structural quality and confidence for surfaced eligibility
+  - favors near-price actionable levels over deeper structural levels when the near levels are still credible
+  - prevents weak same-band duplicates from cluttering the trader-facing ladder
+  - allows one deeper structural anchor for context when it materially helps
+- Why this matters:
+  - the comparison harness showed the new ranking layer was richer but often deeper than the current surfaced runtime output
+  - this adapter is the missing layer that makes the new structural truth more practical for trader-facing use without reverting to the old bucket logic
 
 ---
 
@@ -1952,3 +2162,27 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added implementation tracking documentation:
   - `docs/20_LEVEL_STRENGTH_SCORING_IMPLEMENTATION_PLAN.md`
   - and a pointer in `docs/level-strength-scoring-blueprint.md`
+
+## 2026-04-17 11:35 PM America/Toronto
+
+### Added side-by-side comparison harness for old and new level ranking paths
+
+- Added the comparison module:
+  - `src/lib/levels/level-ranking-comparison.ts`
+- Added a manual comparison script:
+  - `src/scripts/run-level-ranking-comparison.ts`
+- Added focused coverage in:
+  - `src/tests/level-ranking-comparison.test.ts`
+- Added migration tracking documentation:
+  - `docs/21_LEVEL_RANKING_COMPARISON_AND_MIGRATION_PLAN.md`
+- What this comparison pass now does:
+  - traces the current old runtime path from `LevelEngine.generateLevels(...)`
+  - runs the old bucketed surfaced-output path and the new strength ranking path on shared inputs
+  - normalizes both outputs into a comparable shape
+  - reports top-level changes, ordering shifts, duplicate suppression differences, and compatibility warnings
+  - produces a migration readiness summary instead of guessing whether the new layer is safe to replace the old path with
+- Initial deterministic fixture read from the comparison script:
+  - all `3/3` symbols changed top support
+  - `2/3` changed top resistance
+  - `0/3` showed better nearby duplicate suppression in the compared subset
+  - the new path was richer on metadata in every case, but direct replacement remains blocked by output compatibility because live consumers still expect bucketed `LevelEngineOutput`
