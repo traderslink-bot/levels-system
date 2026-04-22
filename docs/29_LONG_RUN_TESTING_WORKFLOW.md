@@ -88,8 +88,10 @@ Inside that folder:
 
 - `manual-watchlist-full.log`
   - complete runtime stdout/stderr
+  - written live during the session
 - `manual-watchlist-filtered.log`
   - smaller review log with the most useful lines
+  - written live during the session
 - `session-info.txt`
   - start time, end time, log paths, and runtime URL
 

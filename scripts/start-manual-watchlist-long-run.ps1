@@ -31,6 +31,19 @@ function Write-SessionInfo {
   Add-Content -LiteralPath $sessionInfoPath -Value $Line
 }
 
+function Write-RuntimeLine {
+  param(
+    [string]$Line
+  )
+
+  Add-Content -LiteralPath $fullLogPath -Value $Line
+
+  if ($Line -match $filterPattern) {
+    Add-Content -LiteralPath $filteredLogPath -Value $Line
+    Write-Host $Line
+  }
+}
+
 function Stop-ExistingManualRuntime {
   $listener = Get-NetTCPConnection -LocalPort 3010 -State Listen -ErrorAction SilentlyContinue |
     Select-Object -First 1
@@ -53,6 +66,8 @@ function Stop-ExistingManualRuntime {
 }
 
 New-Item -ItemType Directory -Path $sessionDirectory -Force | Out-Null
+New-Item -ItemType File -Path $fullLogPath -Force | Out-Null
+New-Item -ItemType File -Path $filteredLogPath -Force | Out-Null
 
 "Levels System long-run session" | Set-Content -LiteralPath $sessionInfoPath
 Write-SessionInfo "started_at=$(Get-Date -Format o)"
@@ -91,13 +106,9 @@ if (-not $DoNotOpenBrowser) {
 Push-Location $repoRoot
 try {
   & npm run watchlist:manual 2>&1 |
-    Tee-Object -FilePath $fullLogPath |
     ForEach-Object {
       $line = $_.ToString()
-      if ($line -match $filterPattern) {
-        Add-Content -LiteralPath $filteredLogPath -Value $line
-        Write-Host $line
-      }
+      Write-RuntimeLine $line
     }
 } finally {
   Pop-Location
