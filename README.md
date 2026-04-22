@@ -30,6 +30,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
   - a `why now` line so the user sees why the setup matters at this moment instead of only getting the label
   - a `movement` line so the user sees how far price has already pushed through or back into the zone when the alert fires
+  - a `pressure` line so the user sees whether buyers or sellers still have strong, workable, or tentative control behind the move
   - a `target` line so the user sees the first directional objective explicitly when the next barrier is known
   - a `trade map` line so the user sees rough room-to-next-barrier versus risk-to-invalidation before acting
   - a tactical read of `firm` versus `tired` structure when the zone evidence clearly supports that distinction
@@ -45,6 +46,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Long-run review now also tracks evaluated follow-through by alert event type, so `session-summary.json`, `thread-summaries.json`, and `session-review.md` can show which alert families are holding up cleanly versus leaning negative.
 - Long-run review now also flags the most dynamic symbols and calls out when repeated activate/deactivate churn or negative follow-through makes a symbol thread look less trustworthy than its raw alert count.
 - Alert payload metadata and Discord delivery audit rows now also carry explicit first-target context, so long-run review can compare whether alerts with clear nearby objectives are behaving better than vague ones.
+- Alert payload metadata and Discord delivery audit rows now also carry pressure labels and raw pressure score, so long-run review can compare whether strong-control alerts are behaving better than tentative ones.
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
 - Signal-quality ideas, priorities, and progress are tracked in [docs/30_SIGNAL_QUALITY_ROADMAP.md](docs/30_SIGNAL_QUALITY_ROADMAP.md).

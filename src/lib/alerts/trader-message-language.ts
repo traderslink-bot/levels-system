@@ -7,6 +7,7 @@ import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import type {
   TraderMovementContext,
   TraderNextBarrierContext,
+  TraderPressureContext,
   TraderTargetContext,
   TraderTradeMapContext,
   TraderZoneTacticalRead,
@@ -157,6 +158,48 @@ function movementStageLine(
     label: "extended",
     movementPct,
     line: `${extendedText} (${formatPct(movementPct)})`,
+  };
+}
+
+export function deriveTraderPressureContext(
+  event: MonitoringEvent,
+): TraderPressureContext {
+  const score = Math.max(0, Math.min(1, event.pressureScore));
+
+  if (event.bias === "neutral") {
+    return {
+      label: "balanced",
+      pressureScore: score,
+      line: `pressure: buying and selling pressure still look balanced (${score.toFixed(2)})`,
+    };
+  }
+
+  const actor = event.bias === "bullish" ? "buyers" : "sellers";
+  const direction =
+    event.bias === "bullish"
+      ? "backing the move"
+      : "pressing the move";
+
+  if (score >= 0.7) {
+    return {
+      label: "strong",
+      pressureScore: score,
+      line: `pressure: ${actor} still have strong control (${score.toFixed(2)}), ${direction}`,
+    };
+  }
+
+  if (score >= 0.45) {
+    return {
+      label: "moderate",
+      pressureScore: score,
+      line: `pressure: ${actor} still have workable control (${score.toFixed(2)}), but follow-through still matters`,
+    };
+  }
+
+  return {
+    label: "tentative",
+    pressureScore: score,
+    line: `pressure: ${actor} are present (${score.toFixed(2)}), but control still looks tentative`,
   };
 }
 
@@ -513,6 +556,7 @@ export function buildTraderAlertBody(
     ? describeBarrierRoom(nextBarrier)
     : null;
   const movement = deriveTraderMovementContext(event, zone);
+  const pressure = deriveTraderPressureContext(event);
   const target = deriveTraderTargetContext(event, zone, nextBarrier);
   const tradeMap = deriveTraderTradeMapContext(event, zone, nextBarrier);
 
@@ -520,6 +564,7 @@ export function buildTraderAlertBody(
     buildLeadLine(event, zone),
     buildWhyNowLine(event, zone),
     movement?.line ?? null,
+    pressure.line,
     `context: ${describeZoneContext(event, zone)}`,
     buildTacticalReadLine({
       ...zone,

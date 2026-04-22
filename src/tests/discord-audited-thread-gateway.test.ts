@@ -55,6 +55,8 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       tacticalRead: "firm",
       movementLabel: "building",
       movementPct: 0.008,
+      pressureLabel: "strong",
+      pressureScore: 0.74,
       tradeMapLabel: "favorable",
       riskPct: 0.012,
       roomToRiskRatio: 3,
@@ -90,6 +92,8 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.tacticalRead, "firm");
   assert.equal(lines[1]?.movementLabel, "building");
   assert.equal(lines[1]?.movementPct, 0.008);
+  assert.equal(lines[1]?.pressureLabel, "strong");
+  assert.equal(lines[1]?.pressureScore, 0.74);
   assert.equal(lines[1]?.tradeMapLabel, "favorable");
   assert.equal(lines[1]?.riskPct, 0.012);
   assert.equal(lines[1]?.roomToRiskRatio, 3);
@@ -147,6 +151,8 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
         tacticalRead: "tired",
         movementLabel: "back_inside",
         movementPct: 0.004,
+        pressureLabel: "tentative",
+        pressureScore: 0.34,
         tradeMapLabel: "tight",
         riskPct: 0.018,
         roomToRiskRatio: 0.6,
@@ -170,6 +176,8 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.tacticalRead, "tired");
   assert.equal(line.movementLabel, "back_inside");
   assert.equal(line.movementPct, 0.004);
+  assert.equal(line.pressureLabel, "tentative");
+  assert.equal(line.pressureScore, 0.34);
   assert.equal(line.tradeMapLabel, "tight");
   assert.equal(line.riskPct, 0.018);
   assert.equal(line.roomToRiskRatio, 0.6);

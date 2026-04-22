@@ -181,6 +181,11 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       movementPct: 0.008,
       line: "movement: price is pushing farther above the zone high and follow-through is building (0.8%)",
     },
+    pressure: {
+      label: "strong",
+      pressureScore: 0.74,
+      line: "pressure: buyers still have strong control (0.74), backing the move",
+    },
     target: {
       side: "resistance",
       price: 2.5,
@@ -211,6 +216,8 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.tacticalRead, "firm");
   assert.equal(payload.metadata?.movementLabel, "building");
   assert.equal(payload.metadata?.movementPct, 0.008);
+  assert.equal(payload.metadata?.pressureLabel, "strong");
+  assert.equal(payload.metadata?.pressureScore, 0.74);
   assert.equal(payload.metadata?.tradeMapLabel, "favorable");
   assert.equal(payload.metadata?.riskPct, 0.012);
   assert.equal(payload.metadata?.roomToRiskRatio, 3);

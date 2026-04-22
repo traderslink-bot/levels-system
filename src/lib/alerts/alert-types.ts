@@ -28,6 +28,18 @@ export type TraderMovementContext = {
   line: string;
 };
 
+export type TraderPressureLabel =
+  | "strong"
+  | "moderate"
+  | "tentative"
+  | "balanced";
+
+export type TraderPressureContext = {
+  label: TraderPressureLabel;
+  pressureScore: number;
+  line: string;
+};
+
 export type TraderTradeMapLabel =
   | "favorable"
   | "workable"
@@ -65,6 +77,8 @@ export type AlertPayload = {
     tacticalRead?: TraderZoneTacticalRead;
     movementLabel?: TraderMovementLabel;
     movementPct?: number;
+    pressureLabel?: TraderPressureLabel;
+    pressureScore?: number;
     tradeMapLabel?: TraderTradeMapLabel;
     riskPct?: number;
     roomToRiskRatio?: number;
@@ -136,6 +150,7 @@ export type IntelligentAlert = {
   nextBarrier?: TraderNextBarrierContext | null;
   tacticalRead?: TraderZoneTacticalRead;
   movement?: TraderMovementContext | null;
+  pressure?: TraderPressureContext | null;
   tradeMap?: TraderTradeMapContext | null;
   target?: TraderTargetContext | null;
 };

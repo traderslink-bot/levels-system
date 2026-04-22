@@ -19,6 +19,37 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 08:40 PM America/Toronto
+
+### Added explicit trader pressure context and audit metadata
+
+- Updated trader-facing alert formatting in:
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - trader-facing alerts now include a deterministic `pressure:` line driven by `bias` plus `pressureScore`
+  - the pressure line distinguishes `strong`, `workable`, `tentative`, and `balanced` control instead of leaving momentum context hidden in raw scores
+  - alert payload metadata and Discord delivery audit rows now carry `pressureLabel` and `pressureScore`
+- Why this matters:
+  - traders can tell more quickly whether a breakout, reclaim, or support test still has real directional pressure behind it
+  - long-run review can now compare whether strong-pressure alerts actually outperform tentative-pressure alerts before tightening posting rules further
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 08:20 PM America/Toronto
 
 ### Added explicit first-target trader context and audit metadata

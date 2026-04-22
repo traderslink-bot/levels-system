@@ -1393,6 +1393,7 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
       "bullish breakout through heavy resistance 2.40-2.50",
       "why now: price cleared the outermost resistance instead of stalling underneath it",
       "movement: price is pushing farther above the zone high and follow-through is building (0.8%)",
+      "pressure: buyers still have strong control (0.71), backing the move",
       "context: heavy resistance | outermost | fresh | 5m driven | recently refreshed",
       "room: limited overhead into next resistance 2.58 (+2.4%)",
       "target: first resistance objective 2.58 (+2.4%)",

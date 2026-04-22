@@ -14,6 +14,7 @@ import { resolveZoneTacticalBias } from "../levels/zone-tactical-read.js";
 import {
   buildTraderAlertBody,
   deriveTraderMovementContext,
+  deriveTraderPressureContext,
   deriveTraderTargetContext,
   deriveTraderTradeMapContext,
   deriveTraderZoneTacticalRead,
@@ -215,6 +216,7 @@ export function scoreMonitoringEventToAlert(params: {
     nextBarrier,
     tacticalRead: deriveTraderZoneTacticalRead(zone, event.eventContext.zoneFreshness),
     movement: deriveTraderMovementContext(event, zone),
+    pressure: deriveTraderPressureContext(event),
     target: deriveTraderTargetContext(event, zone, nextBarrier),
     tradeMap: deriveTraderTradeMapContext(event, zone, nextBarrier),
   };
