@@ -5,6 +5,7 @@ import type { DiscordThreadRoutingResult } from "../lib/alerts/alert-types.js";
 import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
 import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
+import type { ManualWatchlistLifecycleEvent } from "../lib/monitoring/manual-watchlist-runtime-events.js";
 import { WatchlistStore } from "../lib/monitoring/watchlist-store.js";
 import type { FinalLevelZone, LevelEngineOutput } from "../lib/levels/level-types.js";
 
@@ -195,10 +196,10 @@ test("ManualWatchlistRuntimeManager loads persisted active entries and starts mo
   assert.equal(discordAlertRouter.levelSnapshots[0]?.payload.symbol, "BIRD");
   assert.equal(discordAlertRouter.levelSnapshots[0]?.payload.currentPrice, 2.2);
   assert.deepEqual(discordAlertRouter.levelSnapshots[0]?.payload.supportZones, [
-    { representativePrice: 1.95 },
+    { representativePrice: 1.95, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
   assert.deepEqual(discordAlertRouter.levelSnapshots[0]?.payload.resistanceZones, [
-    { representativePrice: 2.45 },
+    { representativePrice: 2.45, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
   assert.equal(typeof discordAlertRouter.levelSnapshots[0]?.payload.timestamp, "number");
 });
@@ -557,6 +558,63 @@ test("ManualWatchlistRuntimeManager queues activation immediately, creates the t
   assert.equal(discordAlertRouter.levelSnapshots[0]?.threadId, "thread-BMGL");
 });
 
+test("ManualWatchlistRuntimeManager emits structured lifecycle events for activation and deactivation", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const lifecycleEvents: ManualWatchlistLifecycleEvent[] = [];
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    lifecycleListener: (event) => {
+      lifecycleEvents.push(event);
+    },
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.queueActivation({ symbol: "AGPU" });
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+  await manager.deactivateSymbol("AGPU");
+
+  assert.equal(
+    lifecycleEvents.some(
+      (event) => event.event === "activation_queued" && event.symbol === "AGPU",
+    ),
+    true,
+  );
+  assert.equal(
+    lifecycleEvents.some(
+      (event) => event.event === "snapshot_posted" && event.symbol === "AGPU",
+    ),
+    true,
+  );
+  assert.equal(
+    lifecycleEvents.some(
+      (event) => event.event === "activation_completed" && event.symbol === "AGPU",
+    ),
+    true,
+  );
+  assert.equal(
+    lifecycleEvents.some(
+      (event) => event.event === "deactivated" && event.symbol === "AGPU",
+    ),
+    true,
+  );
+});
+
 test("ManualWatchlistRuntimeManager refreshes and reposts level snapshot when price approaches the highest posted resistance", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
@@ -619,8 +677,8 @@ test("ManualWatchlistRuntimeManager refreshes and reposts level snapshot when pr
     payload: {
       symbol: "ALBT",
       currentPrice: 2.46,
-      supportZones: [{ representativePrice: 1.95 }],
-      resistanceZones: [{ representativePrice: 2.72 }],
+      supportZones: [{ representativePrice: 1.95, strengthLabel: "moderate", freshness: "fresh", isExtension: false }],
+      resistanceZones: [{ representativePrice: 2.72, strengthLabel: "moderate", freshness: "fresh", isExtension: false }],
       timestamp: 1000,
     },
   });
@@ -805,10 +863,10 @@ test("ManualWatchlistRuntimeManager snapshots partition displayed levels relativ
     symbol: "GXAI",
     currentPrice: 1.55,
     supportZones: [
-      { representativePrice: 1.33 },
+      { representativePrice: 1.33, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     ],
     resistanceZones: [
-      { representativePrice: 1.62 },
+      { representativePrice: 1.62, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     ],
     timestamp: discordAlertRouter.levelSnapshots.at(-1)?.payload.timestamp,
   });
@@ -852,10 +910,10 @@ test("ManualWatchlistRuntimeManager snapshot tolerance excludes near-price level
   await manager.activateSymbol({ symbol: "BIRD" });
 
   assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones, [
-    { representativePrice: 1.53 },
+    { representativePrice: 1.53, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
   assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
-    { representativePrice: 1.58 },
+    { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
 });
 
@@ -922,26 +980,26 @@ test("ManualWatchlistRuntimeManager removes exact duplicate displayed prices and
   await manager.activateSymbol({ symbol: "GXAI" });
 
   assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones, [
-    { representativePrice: 1.431 },
-    { representativePrice: 1.36 },
-    { representativePrice: 1.33 },
-    { representativePrice: 1.3 },
-    { representativePrice: 1.28 },
-    { representativePrice: 1.251 },
-    { representativePrice: 1.221 },
-    { representativePrice: 1.17 },
-    { representativePrice: 1.11 },
+    { representativePrice: 1.431, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.36, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.33, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.3, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.28, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.251, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.221, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.17, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.11, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
   assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
-    { representativePrice: 1.52 },
-    { representativePrice: 1.58 },
-    { representativePrice: 1.6 },
-    { representativePrice: 1.62 },
-    { representativePrice: 1.64 },
-    { representativePrice: 1.67 },
-    { representativePrice: 1.75 },
-    { representativePrice: 1.89 },
-    { representativePrice: 2.08 },
+    { representativePrice: 1.52, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.6, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.62, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.64, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.67, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.75, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 1.89, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 2.08, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
   ]);
   assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones.length, 9);
   assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones.length, 9);
@@ -1008,8 +1066,8 @@ test("ManualWatchlistRuntimeManager keeps the strongest representative when clos
   await manager.activateSymbol({ symbol: "ALBT" });
 
   assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
-    { representativePrice: 2.62 },
-    { representativePrice: 2.74 },
+    { representativePrice: 2.62, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 2.74, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
 });
 
@@ -1057,12 +1115,12 @@ test("ManualWatchlistRuntimeManager extends resistance snapshot coverage through
   await manager.activateSymbol({ symbol: "GXAI" });
 
   assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
-    { representativePrice: 1.47 },
-    { representativePrice: 1.53 },
-    { representativePrice: 1.58 },
-    { representativePrice: 1.72 },
-    { representativePrice: 1.84 },
-    { representativePrice: 2.05 },
+    { representativePrice: 1.47, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.53, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.72, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 1.84, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 2.05, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
   ]);
 });
 
@@ -1129,12 +1187,12 @@ test("ManualWatchlistRuntimeManager preserves near, intermediate, and far resist
   await manager.activateSymbol({ symbol: "GXAI" });
 
   assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
-    { representativePrice: 1.49 },
-    { representativePrice: 1.58 },
-    { representativePrice: 1.64 },
-    { representativePrice: 1.75 },
-    { representativePrice: 1.85 },
-    { representativePrice: 2.06 },
+    { representativePrice: 1.49, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.64, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.75, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 1.85, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 2.06, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
   ]);
   assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones.length, 6);
 });
@@ -1195,14 +1253,14 @@ test("ManualWatchlistRuntimeManager preserves a meaningful isolated intermediate
   await manager.activateSymbol({ symbol: "GXAI" });
 
   assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
-    { representativePrice: 1.49 },
-    { representativePrice: 1.58 },
-    { representativePrice: 1.64 },
-    { representativePrice: 1.72 },
-    { representativePrice: 1.75 },
-    { representativePrice: 1.85 },
-    { representativePrice: 1.95 },
-    { representativePrice: 2.05 },
+    { representativePrice: 1.49, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.64, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
+    { representativePrice: 1.72, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 1.75, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 1.85, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 1.95, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
+    { representativePrice: 2.05, strengthLabel: "moderate", freshness: "fresh", isExtension: true },
   ]);
   assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones.length, 8);
 });
@@ -1327,7 +1385,13 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
   assert.equal(discordAlertRouter.routed[0]?.payload.title, "ALBT breakout");
   assert.equal(
     discordAlertRouter.routed[0]?.payload.body,
-    "breakout resistance 2.40-2.50 | strong outermost | fresh | refreshed",
+    [
+      "bullish breakout through heavy resistance 2.40-2.50",
+      "context: heavy resistance | outermost | fresh | 5m driven | recently refreshed",
+      "watch: hold above 2.50; invalidates back below 2.40",
+      "severity CRITICAL | confidence HIGH | score 108.68",
+      "trigger 2.52",
+    ].join("\n"),
   );
 });
 

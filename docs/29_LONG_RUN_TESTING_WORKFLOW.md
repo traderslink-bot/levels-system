@@ -89,28 +89,45 @@ Inside that folder:
 - `manual-watchlist-full.log`
   - complete runtime stdout/stderr
   - written live during the session
+- `manual-watchlist-operational.log`
+  - the main high-signal review log
+  - includes lifecycle events, delivery audit events, compare output, and failures
 - `manual-watchlist-filtered.log`
-  - smaller review log with the most useful lines
+  - compatibility alias of the operational review stream
   - written live during the session
+- `manual-watchlist-diagnostics.log`
+  - dedicated diagnostic reasoning log
+  - mostly `monitoring_event_diagnostic` entries
+- `discord-delivery-audit.jsonl`
+  - append-only local record of thread creation plus snapshot / alert / extension delivery attempts
+  - includes both successful and failed downstream posts
+- `session-summary.json`
+  - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, and diagnostic volume
 - `session-info.txt`
   - start time, end time, log paths, and runtime URL
 
 ## What Appears In The Filtered Log
 
-The filtered log is the main review artifact.
+The operational log is now the main review artifact.
 
 It is intended to capture:
 
 - server startup confirmation
 - provider-path confirmation
+- structured `manual_watchlist_lifecycle` events
+- structured `discord_delivery_audit` events
 - compare-mode output
-- filtered monitoring diagnostics
 - activation failures
 - seeding failures
 - symbol-restore failures
 - IBKR errors
 
-This file is much better for review than the raw terminal output.
+The dedicated diagnostics log is where event-detector reasoning now goes.
+
+That split makes it much easier to answer two different questions:
+
+- operationally, what did the app do
+- diagnostically, why did a specific event fire or stay suppressed
 
 ## Recommended Testing Process During A Session
 
@@ -188,10 +205,19 @@ If the app behaves oddly:
 3. open the newest folder under:
    - `artifacts/long-run/`
 4. check:
-   - `manual-watchlist-filtered.log`
-5. only check:
+   - `manual-watchlist-operational.log`
+5. check:
+   - `session-summary.json`
+   for a fast high-level view of the session
+6. only check:
+   - `manual-watchlist-diagnostics.log`
+   when the question is specifically about breakout / reclaim / fakeout reasoning
+7. only check:
    - `manual-watchlist-full.log`
-   if the filtered log does not explain enough
+   if the operational and diagnostic logs still do not explain enough
+8. check:
+   - `discord-delivery-audit.jsonl`
+   when you want to confirm exactly what Discord received or whether a post failed downstream
 
 ## What To Share When You Want Help
 
@@ -200,10 +226,72 @@ When asking me to review a long-run failure, the most useful things to send are:
 - the symbol
 - what you tried to do
 - what the UI showed
-- the newest `manual-watchlist-filtered.log`
+- the newest `manual-watchlist-operational.log`
+- `session-summary.json` when you want a quick top-level review first
+- `manual-watchlist-diagnostics.log` when the question is about detector reasoning
+- `discord-delivery-audit.jsonl` when the question is about missing, noisy, or confusing Discord output
 - optionally `session-info.txt`
 
 That is usually enough for me to reconstruct the issue without needing the entire noisy runtime console.
+
+## What The New Lifecycle Events Mean
+
+The filtered log now includes structured lifecycle markers such as:
+
+- `activation_queued`
+- `activation_started`
+- `levels_seeded`
+- `thread_ready`
+- `snapshot_posted`
+- `extension_posted`
+- `alert_posted`
+- `activation_completed`
+- `deactivated`
+- `restore_failed`
+
+These are meant to answer operational questions quickly:
+
+- did the app really start activation
+- did IBKR seeding complete
+- did a snapshot post happen
+- did an alert actually get routed
+- did deactivation complete cleanly
+
+This makes the testing process much less dependent on scrolling back through raw terminal noise.
+
+## What The Session Summary Is For
+
+The session summary is the fastest way to see the shape of a run.
+
+It keeps a rolling view of things like:
+
+- active symbol count
+- lifecycle event counts
+- Discord delivery posted vs failed
+- per-operation delivery counts
+- activation / restore / seed / IBKR failure counts
+- compare entry count
+- diagnostic entry volume
+
+This is useful when you want a quick answer like:
+
+- did this session have any real failures
+- was Discord posting healthy
+- was this session mostly quiet or extremely diagnostic-heavy
+
+## What The Discord Audit File Is For
+
+The Discord audit file is the local proof of downstream delivery.
+
+Use it when you want to answer questions like:
+
+- was the thread newly created or reused
+- did the initial level snapshot really post
+- did a trader-facing alert get sent
+- did an extension post happen
+- was there a downstream Discord failure even though the runtime stayed alive
+
+This is especially useful when judging whether Discord output is helpful or too noisy for the end user, because it gives a clean record of what was actually sent instead of only what the runtime evaluated.
 
 ## What This Process Does Not Replace
 
@@ -225,5 +313,6 @@ The simplest good routine is:
 1. start the desktop long-run launcher
 2. use the app normally through the day or through a longer test block
 3. if something weird happens, note the symbol and time
-4. later review the newest filtered log
-5. bring me that filtered log when you want help diagnosing it
+4. later review `session-summary.json` and `manual-watchlist-operational.log`
+5. only open `manual-watchlist-diagnostics.log` if the question is about event logic
+6. bring me those artifacts when you want help diagnosing it

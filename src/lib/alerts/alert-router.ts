@@ -11,6 +11,7 @@ import type {
   DiscordThreadRoutingResult,
   IntelligentAlert,
 } from "./alert-types.js";
+import { describeZoneStrength } from "./trader-message-language.js";
 
 export function formatMonitoringEventAsAlert(event: MonitoringEvent): AlertPayload {
   return {
@@ -21,9 +22,17 @@ export function formatMonitoringEventAsAlert(event: MonitoringEvent): AlertPaylo
 }
 
 export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertPayload {
+  const severityText = alert.severity.toUpperCase();
+  const confidenceText = alert.confidence.toUpperCase();
+  const scoreText = alert.score.toFixed(2);
+
   return {
     title: alert.title,
-    body: alert.body,
+    body: [
+      alert.body,
+      `severity ${severityText} | confidence ${confidenceText} | score ${scoreText}`,
+      `trigger ${alert.event.triggerPrice >= 1 ? alert.event.triggerPrice.toFixed(2) : alert.event.triggerPrice.toFixed(4)}`,
+    ].join("\n"),
     event: alert.event,
   };
 }
@@ -45,8 +54,18 @@ function formatLevel(level: number): string {
   return level >= 1 ? level.toFixed(2) : level.toFixed(4);
 }
 
-function formatSnapshotDisplayZone(zone: LevelSnapshotDisplayZone): string {
-  return formatLevel(zone.representativePrice);
+function formatSnapshotDisplayZone(
+  zone: LevelSnapshotDisplayZone,
+): string {
+  const descriptor = zone.strengthLabel ? describeZoneStrength(zone.strengthLabel) : null;
+  const extension = zone.isExtension ? "extension" : null;
+  const suffix = [descriptor, extension].filter((value): value is string => Boolean(value)).join(" ");
+
+  if (!suffix) {
+    return formatLevel(zone.representativePrice);
+  }
+
+  return `${formatLevel(zone.representativePrice)} (${suffix})`;
 }
 
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {

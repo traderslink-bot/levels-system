@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DiscordAlertRouter,
+  formatIntelligentAlertAsPayload,
   formatLevelExtensionMessage,
   formatLevelSnapshotMessage,
 } from "../lib/alerts/alert-router.js";
@@ -155,26 +156,52 @@ test("DiscordAlertRouter routes alerts through the gateway without changing payl
   ]);
 });
 
+test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () => {
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-1",
+    symbol: "ALBT",
+    title: "ALBT breakout",
+    body: "breakout resistance 2.40-2.50 | strong outermost | fresh",
+    severity: "high",
+    confidence: "medium",
+    score: 52.345,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: samplePayload.event,
+  });
+
+  assert.equal(payload.title, "ALBT breakout");
+  assert.equal(
+    payload.body,
+    [
+      "breakout resistance 2.40-2.50 | strong outermost | fresh",
+      "severity HIGH | confidence MEDIUM | score 52.34",
+      "trigger 2.41",
+    ].join("\n"),
+  );
+});
+
 test("formatLevelSnapshotMessage uses deterministic formatting", () => {
   assert.equal(
     formatLevelSnapshotMessage({
       symbol: "ALBT",
       currentPrice: 2.51,
       supportZones: [
-        { representativePrice: 2.4 },
-        { representativePrice: 2.25, lowPrice: 2.2, highPrice: 2.28 },
+        { representativePrice: 2.4, strengthLabel: "strong" },
+        { representativePrice: 2.25, lowPrice: 2.2, highPrice: 2.28, strengthLabel: "weak" },
       ],
       resistanceZones: [
-        { representativePrice: 2.6, lowPrice: 2.58, highPrice: 2.62 },
-        { representativePrice: 2.75 },
+        { representativePrice: 2.6, lowPrice: 2.58, highPrice: 2.62, strengthLabel: "major" },
+        { representativePrice: 2.75, strengthLabel: "moderate", isExtension: true },
       ],
       timestamp: 1,
     }),
     [
       "LEVEL SNAPSHOT: ALBT",
       "PRICE: 2.51",
-      "SUPPORT: 2.40, 2.25",
-      "RESISTANCE: 2.60, 2.75",
+      "SUPPORT: 2.40 (heavy), 2.25 (light)",
+      "RESISTANCE: 2.60 (major), 2.75 (moderate extension)",
     ].join("\n"),
   );
 });

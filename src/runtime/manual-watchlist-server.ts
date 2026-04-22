@@ -11,6 +11,7 @@ import {
   AdaptiveScoringEngine,
   DEFAULT_ADAPTIVE_SCORING_CONFIG,
 } from "../lib/monitoring/adaptive-scoring.js";
+import { createConsoleManualWatchlistLifecycleListener } from "../lib/monitoring/manual-watchlist-runtime-events.js";
 import { AdaptiveStatePersistence } from "../lib/monitoring/adaptive-state-persistence.js";
 import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
 import { createMonitoringEventDiagnosticListener } from "../lib/monitoring/monitoring-event-diagnostic-logger.js";
@@ -29,6 +30,7 @@ import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
 
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
 const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
+const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
 
 function isTruthyEnv(value: string | undefined): boolean {
   if (!value) {
@@ -78,7 +80,9 @@ async function main(): Promise<void> {
     discordAlertRouter: createDiscordAlertRouter(),
     opportunityRuntimeController,
     watchlistStatePersistence: new WatchlistStatePersistence(),
+    lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
   });
+  const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
 
   await waitForIbkrConnection(ib);
   console.log(
@@ -104,6 +108,16 @@ async function main(): Promise<void> {
     if (request.method === "GET" && url.pathname === "/api/watchlist") {
       sendJson(response, 200, {
         activeEntries: manager.getActiveEntries(),
+      });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/runtime/status") {
+      sendJson(response, 200, {
+        providerName: candleService.getProviderName(),
+        diagnosticsEnabled: monitoringEventDiagnosticsEnabled,
+        activeSymbolCount: manager.getActiveEntries().length,
+        sessionDirectory,
       });
       return;
     }

@@ -12,7 +12,11 @@ import {
   prunePostedAlertHistory,
 } from "./posting-policy.js";
 import { scoreMonitoringEventToAlert } from "./alert-scorer.js";
-import type { AlertPostingDecision, IntelligentAlert } from "./alert-types.js";
+import type {
+  AlertPostingDecision,
+  IntelligentAlert,
+  TraderNextBarrierContext,
+} from "./alert-types.js";
 
 type PostedAlertRecord = {
   alert: IntelligentAlert;
@@ -56,6 +60,69 @@ export class AlertIntelligenceEngine {
     );
   }
 
+  private resolveNextBarrierSide(event: MonitoringEvent): "support" | "resistance" {
+    if (
+      event.eventType === "breakout" ||
+      event.eventType === "reclaim" ||
+      event.eventType === "fake_breakdown"
+    ) {
+      return "resistance";
+    }
+
+    if (
+      event.eventType === "breakdown" ||
+      event.eventType === "fake_breakout"
+    ) {
+      return "support";
+    }
+
+    if (event.eventType === "level_touch" || event.eventType === "rejection") {
+      return event.zoneKind === "support" ? "resistance" : "support";
+    }
+
+    if (event.eventType === "compression") {
+      return event.zoneKind === "support" ? "resistance" : "support";
+    }
+
+    return event.bias === "bearish" ? "support" : "resistance";
+  }
+
+  private findNextBarrier(
+    event: MonitoringEvent,
+    levels: LevelEngineOutput | undefined,
+  ): TraderNextBarrierContext | null {
+    if (!levels || event.triggerPrice <= 0) {
+      return null;
+    }
+
+    const barrierSide = this.resolveNextBarrierSide(event);
+    const candidates = allZones(levels)
+      .filter((zone) => zone.kind === barrierSide)
+      .filter((zone) =>
+        barrierSide === "resistance"
+          ? zone.representativePrice > event.triggerPrice
+          : zone.representativePrice < event.triggerPrice,
+      )
+      .sort((left, right) =>
+        barrierSide === "resistance"
+          ? left.representativePrice - right.representativePrice
+          : right.representativePrice - left.representativePrice,
+      );
+
+    const nextBarrier = candidates[0];
+    if (!nextBarrier) {
+      return null;
+    }
+
+    return {
+      side: barrierSide,
+      price: nextBarrier.representativePrice,
+      distancePct:
+        Math.abs(nextBarrier.representativePrice - event.triggerPrice) /
+        Math.max(event.triggerPrice, 0.0001),
+    };
+  }
+
   processEvent(
     event: MonitoringEvent,
     levels: LevelEngineOutput | undefined,
@@ -65,9 +132,11 @@ export class AlertIntelligenceEngine {
     delivery: AlertPostingDecision;
   } {
     const zone = this.findZoneForEvent(event, levels);
+    const nextBarrier = this.findNextBarrier(event, levels);
     const rawAlert = scoreMonitoringEventToAlert({
       event,
       zone,
+      nextBarrier,
       config: this.config,
     });
     this.postedAlertHistory = prunePostedAlertHistory(

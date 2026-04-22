@@ -16,6 +16,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     li:first-child { border-top: 0; }
     .meta { color: #4b5563; font-size: 13px; }
     .status { min-height: 20px; font-size: 14px; margin-bottom: 12px; color: #1d4ed8; }
+    .runtime-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .runtime-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
+    .runtime-label { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+    .runtime-value { font-size: 14px; word-break: break-word; }
     .danger { background: #b91c1c; }
   </style>
 </head>
@@ -36,11 +40,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       <h2>Active Tickers</h2>
       <ul id="active-list"></ul>
     </section>
+
+    <section>
+      <h2>Runtime Status</h2>
+      <div class="runtime-grid" id="runtime-grid"></div>
+    </section>
   </main>
 
   <script>
     const statusEl = document.getElementById("status");
     const listEl = document.getElementById("active-list");
+    const runtimeGridEl = document.getElementById("runtime-grid");
     const formEl = document.getElementById("watchlist-form");
     const symbolEl = document.getElementById("symbol");
     const noteEl = document.getElementById("note");
@@ -78,6 +88,39 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       meta.appendChild(title);
       meta.appendChild(details);
       return meta;
+    }
+
+    function createRuntimeCard(label, value) {
+      const card = document.createElement("div");
+      const labelEl = document.createElement("div");
+      const valueEl = document.createElement("div");
+
+      card.className = "runtime-card";
+      labelEl.className = "runtime-label";
+      valueEl.className = "runtime-value";
+      labelEl.textContent = label;
+      valueEl.textContent = value || "n/a";
+      card.appendChild(labelEl);
+      card.appendChild(valueEl);
+      return card;
+    }
+
+    function renderRuntimeStatus(status) {
+      runtimeGridEl.innerHTML = "";
+
+      const cards = [
+        ["Provider", status.providerName],
+        ["Diagnostics", status.diagnosticsEnabled ? "on" : "off"],
+        ["Active Count", String(status.activeSymbolCount ?? 0)],
+        ["Session Folder", status.sessionDirectory],
+        ["Review Log", "manual-watchlist-operational.log"],
+        ["Diagnostic Log", "manual-watchlist-diagnostics.log"],
+        ["Discord Audit", "discord-delivery-audit.jsonl"],
+      ];
+
+      for (const [label, value] of cards) {
+        runtimeGridEl.appendChild(createRuntimeCard(label, value));
+      }
     }
 
     function renderEntries(entries) {
@@ -123,6 +166,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderEntries(payload.activeEntries || []);
     }
 
+    async function loadRuntimeStatus() {
+      const response = await fetch("/api/runtime/status");
+      const payload = await response.json();
+      renderRuntimeStatus(payload);
+    }
+
     formEl.addEventListener("submit", async (event) => {
       event.preventDefault();
       const response = await fetch("/api/watchlist/activate", {
@@ -154,11 +203,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       await loadEntries();
     });
 
-    loadEntries().catch((error) => {
+    Promise.all([loadEntries(), loadRuntimeStatus()]).catch((error) => {
       setStatus(String(error), true);
     });
     setInterval(() => {
-      loadEntries().catch((error) => {
+      Promise.all([loadEntries(), loadRuntimeStatus()]).catch((error) => {
         setStatus(String(error), true);
       });
     }, 5000);

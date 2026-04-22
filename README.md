@@ -17,8 +17,20 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - emitted decisions always log
   - suppressed decisions only log when they are near the threshold, carry meaningful state, change reason, or recur after cooldown
 - For multi-hour manual testing on Windows, use `scripts/start-manual-watchlist-long-run.ps1` so each session gets a timestamped full log plus a smaller filtered review log under `artifacts/long-run/`.
+- Long-run sessions now also emit structured `manual_watchlist_lifecycle` JSON lines and a local `discord-delivery-audit.jsonl` file so activation/deactivation, snapshot posting, alert posting, and downstream Discord delivery can be reviewed after the fact.
+- Long-run sessions now split review surfaces:
+  - `manual-watchlist-operational.log` for lifecycle, failures, compare output, and Discord delivery
+  - `manual-watchlist-diagnostics.log` for `monitoring_event_diagnostic` reasoning
+  - `session-summary.json` for a quick session-level rollup
+- The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
+- Trader-facing Discord alerts now include:
+  - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
+  - a compact severity / confidence / score line plus trigger price
+  - a `watch` / invalidation line
+  - nearby barrier context when the next support or resistance is known
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
+- Signal-quality ideas, priorities, and progress are tracked in [docs/30_SIGNAL_QUALITY_ROADMAP.md](docs/30_SIGNAL_QUALITY_ROADMAP.md).
 
 ## Current capabilities
 

@@ -27,6 +27,14 @@ test("manual watchlist page builds entry metadata without innerHTML interpolatio
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /meta\.innerHTML/);
 });
 
+test("manual watchlist page shows runtime status and separate review surfaces", () => {
+  assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Status/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-operational\.log/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-diagnostics\.log/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /discord-delivery-audit\.jsonl/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /fetch\("\/api\/runtime\/status"\)/);
+});
+
 test("readJsonBody parses valid JSON requests", async () => {
   const body = await readJsonBody(buildRequest('{"symbol":"ALBT","note":"watch"}'));
 

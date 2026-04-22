@@ -22,6 +22,10 @@ import { formatInterpretationForConsole } from "./opportunity-interpretation.js"
 import { WatchlistMonitor } from "./watchlist-monitor.js";
 import { WatchlistStatePersistence } from "./watchlist-state-persistence.js";
 import { WatchlistStore } from "./watchlist-store.js";
+import type {
+  ManualWatchlistLifecycleEventName,
+  ManualWatchlistLifecycleListener,
+} from "./manual-watchlist-runtime-events.js";
 
 export type ManualWatchlistRuntimeManagerOptions = {
   candleFetchService: CandleFetchService;
@@ -32,6 +36,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   watchlistStore?: WatchlistStore;
   watchlistStatePersistence?: WatchlistStatePersistence;
   seedSymbolLevels?: (symbol: string) => Promise<void>;
+  lifecycleListener?: ManualWatchlistLifecycleListener;
 };
 
 export type ManualWatchlistActivationInput = {
@@ -195,6 +200,9 @@ function buildSnapshotDisplayZones(
 ): LevelSnapshotDisplayZone[] {
   return sortSnapshotZones(zones, side).map((zone) => ({
     representativePrice: zone.representativePrice,
+    strengthLabel: zone.strengthLabel,
+    freshness: zone.freshness,
+    isExtension: zone.isExtension,
   }));
 }
 
@@ -225,6 +233,24 @@ export class ManualWatchlistRuntimeManager {
     this.watchlistStore = options.watchlistStore ?? new WatchlistStore();
     this.watchlistStatePersistence =
       options.watchlistStatePersistence ?? new WatchlistStatePersistence();
+  }
+
+  private emitLifecycle(
+    event: ManualWatchlistLifecycleEventName,
+    payload: {
+      symbol?: string;
+      threadId?: string | null;
+      details?: Record<string, string | number | boolean | null>;
+    } = {},
+  ): void {
+    this.options.lifecycleListener?.({
+      type: "manual_watchlist_lifecycle",
+      event,
+      timestamp: Date.now(),
+      symbol: payload.symbol,
+      threadId: payload.threadId,
+      details: payload.details,
+    });
   }
 
   private persistWatchlist(): void {
@@ -340,6 +366,15 @@ export class ManualWatchlistRuntimeManager {
     }
 
     await this.options.discordAlertRouter.routeLevelSnapshot(threadId, payload);
+    this.emitLifecycle("snapshot_posted", {
+      symbol,
+      threadId,
+      details: {
+        supportCount: payload.supportZones.length,
+        resistanceCount: payload.resistanceZones.length,
+        currentPrice: payload.currentPrice,
+      },
+    });
     this.activeSnapshotState.set(symbol, {
       lastSnapshot: snapshotKey,
       highestResistance: payload.resistanceZones[0]?.representativePrice ?? null,
@@ -380,6 +415,14 @@ export class ManualWatchlistRuntimeManager {
     }
 
     await this.options.discordAlertRouter.routeLevelExtension(threadId, payload);
+    this.emitLifecycle("extension_posted", {
+      symbol,
+      threadId,
+      details: {
+        side,
+        levelCount: payload.levels.length,
+      },
+    });
     this.options.levelStore.activateExtensionLevels(symbol, side);
     this.activeSnapshotState.set(symbol, {
       lastSnapshot: existingState?.lastSnapshot ?? "",
@@ -553,6 +596,9 @@ export class ManualWatchlistRuntimeManager {
   private async seedLevelsForSymbol(symbol: string): Promise<void> {
     if (this.options.seedSymbolLevels) {
       await this.options.seedSymbolLevels(symbol);
+      this.emitLifecycle("levels_seeded", {
+        symbol,
+      });
       return;
     }
 
@@ -566,6 +612,12 @@ export class ManualWatchlistRuntimeManager {
     });
 
     this.options.levelStore.setLevels(output);
+    this.emitLifecycle("levels_seeded", {
+      symbol,
+      details: {
+        generatedAt: output.generatedAt,
+      },
+    });
   }
 
   private emitTraderFacingInterpretations(
@@ -620,10 +672,32 @@ export class ManualWatchlistRuntimeManager {
     const alertResult = this.alertIntelligenceEngine.processEvent(event, levels);
     if (alertResult.formatted) {
       const alert = formatIntelligentAlertAsPayload(alertResult.rawAlert);
-      void this.options.discordAlertRouter.routeAlert(entry.discordThreadId, alert).catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`[ManualWatchlistRuntimeManager] Failed to route Discord alert: ${message}`);
-      });
+      void this.options.discordAlertRouter
+        .routeAlert(entry.discordThreadId, alert)
+        .then(() => {
+          this.emitLifecycle("alert_posted", {
+            symbol: event.symbol,
+            threadId: entry.discordThreadId,
+            details: {
+              eventType: event.eventType,
+              severity: alertResult.rawAlert.severity,
+              confidence: alertResult.rawAlert.confidence,
+              score: alertResult.rawAlert.score,
+            },
+          });
+        })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.emitLifecycle("alert_post_failed", {
+            symbol: event.symbol,
+            threadId: entry.discordThreadId,
+            details: {
+              eventType: event.eventType,
+              error: message,
+            },
+          });
+          console.error(`[ManualWatchlistRuntimeManager] Failed to route Discord alert: ${message}`);
+        });
     }
 
     const snapshot = this.options.opportunityRuntimeController.processMonitoringEvent(event);
@@ -671,11 +745,23 @@ export class ManualWatchlistRuntimeManager {
     const activeEntries = this.watchlistStore.getActiveEntries();
 
     if (activeEntries.length === 0) {
+      this.emitLifecycle("monitor_restart_completed", {
+        details: {
+          activeSymbolCount: 0,
+          startableSymbolCount: 0,
+        },
+      });
       return;
     }
 
     const startableEntries = await this.ensureLevelsForActiveEntries(activeEntries);
     if (startableEntries.length === 0) {
+      this.emitLifecycle("monitor_restart_completed", {
+        details: {
+          activeSymbolCount: activeEntries.length,
+          startableSymbolCount: 0,
+        },
+      });
       return;
     }
 
@@ -684,6 +770,12 @@ export class ManualWatchlistRuntimeManager {
       this.handleMonitoringEvent,
       this.handlePriceUpdate,
     );
+    this.emitLifecycle("monitor_restart_completed", {
+      details: {
+        activeSymbolCount: activeEntries.length,
+        startableSymbolCount: startableEntries.length,
+      },
+    });
   }
 
   async start(): Promise<void> {
@@ -702,6 +794,16 @@ export class ManualWatchlistRuntimeManager {
         entry.symbol,
         entry.discordThreadId,
       );
+      this.emitLifecycle("thread_ready", {
+        symbol: entry.symbol,
+        threadId: thread.threadId,
+        details: {
+          reused: thread.reused,
+          recovered: thread.recovered,
+          created: thread.created,
+          source: "startup",
+        },
+      });
       this.watchlistStore.upsertManualEntry({
         symbol: entry.symbol,
         note: entry.note,
@@ -722,6 +824,13 @@ export class ManualWatchlistRuntimeManager {
           await this.postLevelSnapshot(entry.symbol, entry.discordThreadId, Date.now());
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
+          this.emitLifecycle("restore_failed", {
+            symbol: entry.symbol,
+            threadId: entry.discordThreadId ?? null,
+            details: {
+              error: message,
+            },
+          });
           console.error(
             `[ManualWatchlistRuntimeManager] Failed to restore active symbol ${entry.symbol} on startup: ${message}`,
           );
@@ -732,6 +841,11 @@ export class ManualWatchlistRuntimeManager {
     this.persistWatchlist();
     await this.restartMonitoring();
     this.isStarted = true;
+    this.emitLifecycle("runtime_started", {
+      details: {
+        activeSymbolCount: this.watchlistStore.getActiveEntries().length,
+      },
+    });
   }
 
   async stop(): Promise<void> {
@@ -752,6 +866,10 @@ export class ManualWatchlistRuntimeManager {
     const existing = this.watchlistStore.getEntry(symbol);
 
     try {
+      this.emitLifecycle("activation_started", {
+        symbol,
+        threadId: preparedThreadId ?? existing?.discordThreadId ?? null,
+      });
       await this.seedLevelsForSymbol(symbol);
       const threadId =
         preparedThreadId ??
@@ -761,6 +879,18 @@ export class ManualWatchlistRuntimeManager {
             existing?.discordThreadId,
           )
         ).threadId;
+      if (!preparedThreadId) {
+        this.emitLifecycle("thread_ready", {
+          symbol,
+          threadId,
+          details: {
+            reused: Boolean(existing?.discordThreadId),
+            recovered: false,
+            created: !existing?.discordThreadId,
+            source: "activation",
+          },
+        });
+      }
 
       const entry = this.watchlistStore.upsertManualEntry({
         symbol,
@@ -784,11 +914,23 @@ export class ManualWatchlistRuntimeManager {
       }
       this.persistWatchlist();
       await this.restartMonitoring();
+      this.emitLifecycle("activation_completed", {
+        symbol,
+        threadId,
+      });
       return this.watchlistStore.getEntry(symbol) ?? entry;
     } catch (error) {
       this.watchlistStore.setEntries(rollbackEntries);
       this.activeSnapshotState.delete(symbol);
       this.persistWatchlist();
+      const message = error instanceof Error ? error.message : String(error);
+      this.emitLifecycle("activation_failed", {
+        symbol,
+        threadId: preparedThreadId ?? existing?.discordThreadId ?? null,
+        details: {
+          error: message,
+        },
+      });
       throw error;
     }
   }
@@ -825,6 +967,16 @@ export class ManualWatchlistRuntimeManager {
       symbol,
       existing?.discordThreadId,
     );
+    this.emitLifecycle("thread_ready", {
+      symbol,
+      threadId: thread.threadId,
+      details: {
+        reused: thread.reused,
+        recovered: thread.recovered,
+        created: thread.created,
+        source: "queue",
+      },
+    });
     const queuedEntry = this.watchlistStore.upsertManualEntry({
       symbol,
       note: input.note,
@@ -835,6 +987,10 @@ export class ManualWatchlistRuntimeManager {
       refreshPending: true,
     });
     this.persistWatchlist();
+    this.emitLifecycle("activation_queued", {
+      symbol,
+      threadId: thread.threadId,
+    });
 
     const activationTask = this.performActivation(
       { symbol, note: input.note },
@@ -865,6 +1021,10 @@ export class ManualWatchlistRuntimeManager {
     this.activeSnapshotState.delete(normalizeSymbol(symbol));
     this.persistWatchlist();
     await this.restartMonitoring();
+    this.emitLifecycle("deactivated", {
+      symbol: entry.symbol,
+      threadId: entry.discordThreadId ?? null,
+    });
     return entry;
   }
 }

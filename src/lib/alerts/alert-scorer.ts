@@ -3,8 +3,14 @@
 
 import type { FinalLevelZone } from "../levels/level-types.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
-import type { AlertConfidence, AlertSeverity, IntelligentAlert } from "./alert-types.js";
+import type {
+  AlertConfidence,
+  AlertSeverity,
+  IntelligentAlert,
+  TraderNextBarrierContext,
+} from "./alert-types.js";
 import type { AlertIntelligenceConfig } from "./alert-config.js";
+import { buildTraderAlertBody } from "./trader-message-language.js";
 
 function severityForScore(score: number, config: AlertIntelligenceConfig): AlertSeverity {
   if (score >= config.severityThresholds.critical) {
@@ -147,48 +153,21 @@ function buildHumanTitle(event: MonitoringEvent): string {
   return `${event.symbol} ${event.eventType.replaceAll("_", " ")}`;
 }
 
-function buildHumanBody(event: MonitoringEvent, zone?: FinalLevelZone): string {
-  if (!zone) {
-    return `${event.eventType.replaceAll("_", " ")} at ${event.triggerPrice.toFixed(2)}`;
-  }
-
-  const context = event.eventContext;
-  const zoneText =
-    zone.zoneLow >= 1 && zone.zoneHigh >= 1
-      ? `${zone.zoneLow.toFixed(2)}-${zone.zoneHigh.toFixed(2)}`
-      : `${zone.zoneLow.toFixed(4)}-${zone.zoneHigh.toFixed(4)}`;
-  const ladderText =
-    context.zoneOrigin === "promoted_extension"
-      ? "promoted extension"
-      : context.ladderPosition === "outermost"
-        ? "outermost"
-        : "inner";
-  const freshnessText = context.zoneFreshness;
-  const remapText =
-    context.remapStatus === "new" || context.remapStatus === "preserved"
-      ? null
-      : context.remapStatus.replaceAll("_", " ");
-  const refreshText = context.recentlyRefreshed ? "refreshed" : null;
-  const qualityText = context.dataQualityDegraded ? "data quality degraded" : null;
-
-  return [
-    `${event.eventType.replaceAll("_", " ")} ${event.zoneKind} ${zoneText}`,
-    `${zone.strengthLabel} ${ladderText}`,
-    freshnessText,
-    remapText,
-    refreshText,
-    qualityText,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" | ");
+function buildHumanBody(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+  nextBarrier?: TraderNextBarrierContext | null,
+): string {
+  return buildTraderAlertBody(event, zone, nextBarrier);
 }
 
 export function scoreMonitoringEventToAlert(params: {
   event: MonitoringEvent;
   zone?: FinalLevelZone;
+  nextBarrier?: TraderNextBarrierContext | null;
   config: AlertIntelligenceConfig;
 }): IntelligentAlert {
-  const { event, zone, config } = params;
+  const { event, zone, nextBarrier, config } = params;
   const scoreComponents = contextContributions(event, zone, config);
   const totalScore = clampScore(
     Object.values(scoreComponents).reduce((sum, value) => sum + value, 0),
@@ -200,7 +179,7 @@ export function scoreMonitoringEventToAlert(params: {
     id: `${event.id}-intelligent`,
     symbol: event.symbol,
     title: buildHumanTitle(event),
-    body: buildHumanBody(event, zone),
+    body: buildHumanBody(event, zone, nextBarrier),
     severity,
     confidence,
     score: totalScore,
@@ -209,5 +188,6 @@ export function scoreMonitoringEventToAlert(params: {
     scoreComponents,
     event,
     zone,
+    nextBarrier,
   };
 }

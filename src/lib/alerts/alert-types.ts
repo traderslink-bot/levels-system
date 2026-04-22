@@ -14,6 +14,12 @@ export type AlertPayload = {
   event: MonitoringEvent;
 };
 
+export type TraderNextBarrierContext = {
+  side: "support" | "resistance";
+  price: number;
+  distancePct: number;
+};
+
 export type DiscordThread = {
   id: string;
   name: string;
@@ -33,6 +39,9 @@ export type LevelSnapshotDisplayZone = {
   representativePrice: number;
   lowPrice?: number;
   highPrice?: number;
+  strengthLabel?: FinalLevelZone["strengthLabel"];
+  freshness?: FinalLevelZone["freshness"];
+  isExtension?: boolean;
 };
 
 export type LevelSnapshotPayload = {
@@ -63,6 +72,7 @@ export type IntelligentAlert = {
   scoreComponents: Record<string, number>;
   event: MonitoringEvent;
   zone?: FinalLevelZone;
+  nextBarrier?: TraderNextBarrierContext | null;
 };
 
 export type AlertPostingFamily =

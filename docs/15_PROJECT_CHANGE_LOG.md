@@ -19,6 +19,100 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 02:20 PM America/Toronto
+
+### Added a signal-quality roadmap and upgraded trader-facing level language with stronger support/resistance and barrier context
+
+- Added ongoing roadmap tracking in:
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- Added trader-facing language helpers in:
+  - `src/lib/alerts/trader-message-language.ts`
+- Updated trader-facing alert and snapshot output in:
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-intelligence-engine.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/00_DOC_INDEX.md`
+- What changed for end-user output:
+  - alert messages now use trader-facing strength descriptors such as `light`, `heavy`, and `major` support / resistance instead of only the raw internal score label
+  - breakout, breakdown, reclaim, failed-move, and level-touch messages now describe the setup in plainer English and include a clear `watch` / invalidation line
+  - strong support touches now surface as dip-buy style tests instead of generic level touches
+  - alerts now include nearby barrier context when a next support or resistance level is known
+  - level snapshot ladders now expose strength and extension hints instead of only bare prices
+- Why this matters:
+  - the app is now better at telling the trader not only what happened, but how important the level is and what needs to happen next
+  - end-user usefulness is now being tracked explicitly in the repo, not only discussed ad hoc in chat
+
+---
+
+## 2026-04-22 12:55 PM America/Toronto
+
+### Split long-run review into operational and diagnostic surfaces, added a live session summary, and exposed runtime status in the UI
+
+- Updated the long-run launcher in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated the manual UI and runtime entrypoint in:
+  - `src/runtime/manual-watchlist-page.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+- Added and updated focused coverage in:
+  - `src/tests/manual-watchlist-server.test.ts`
+  - `src/tests/alert-router.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+- What changed:
+  - long-run sessions now write:
+    - `manual-watchlist-operational.log`
+    - `manual-watchlist-diagnostics.log`
+    - `session-summary.json`
+  - `manual-watchlist-filtered.log` now acts as the compatibility review stream while operational review is kept intentionally separate from detector-noise review
+  - the session summary is updated live and tracks lifecycle counts, delivery counts, failure counts, compare entries, and diagnostic volume
+  - the manual UI now exposes runtime status such as provider path, diagnostics mode, active symbol count, session folder, and the main review artifacts
+- Why this matters:
+  - long-run operational review is no longer buried under detector chatter
+  - the app now helps the operator find the right artifacts instead of relying on memory of file names
+  - it is easier to tell whether a problem was operational, downstream-delivery-related, or purely event-logic-related
+
+---
+
+## 2026-04-22 12:20 PM America/Toronto
+
+### Added structured manual-runtime lifecycle logs, local Discord delivery audit, and richer trader-facing alert text
+
+- Added structured lifecycle event support in:
+  - `src/lib/monitoring/manual-watchlist-runtime-events.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+- Added a downstream Discord audit wrapper in:
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+  - `src/runtime/manual-watchlist-discord.ts`
+- Updated the long-run launcher in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Added focused coverage in:
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+- What changed operationally:
+  - the runtime now emits structured `manual_watchlist_lifecycle` JSON lines for key milestones such as queue, seed, snapshot post, alert post, activation completion, deactivation, and restore failures
+  - each long-run session now writes `discord-delivery-audit.jsonl` inside the session folder so downstream Discord delivery can be reviewed locally after the fact
+  - the filtered session log now captures lifecycle and Discord-audit events alongside compare logs, diagnostics, and failures
+- What changed for the end user:
+  - trader-facing Discord alerts now include severity, confidence, score, and trigger-price context instead of only the structural body line
+- Why this matters:
+  - long-run testing is now much better at answering not only whether the app stayed alive, but also what it actually did
+  - Discord usefulness and noise can now be reviewed from concrete evidence instead of memory or terminal scrollback
+
+---
+
 ## 2026-04-22 10:05 AM America/Toronto
 
 ### Added a long-run manual testing launcher with timestamped logs and a filtered review stream

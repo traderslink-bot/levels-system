@@ -153,7 +153,11 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
   assert.equal(result.formatted?.title, "ALBT breakout");
   assert.equal(
     result.formatted?.body,
-    "breakout resistance 100.00-101.00 | major outermost | fresh | refreshed",
+    [
+      "bullish breakout through major resistance 100.00-101.00",
+      "context: major resistance | outermost | fresh | 5m/4h/daily confluence | recently refreshed",
+      "watch: hold above 101.00; invalidates back below 100.00",
+    ].join("\n"),
   );
   assert.ok(result.rawAlert.tags.includes("outermost"));
   assert.ok(result.rawAlert.scoreComponents.ladderPosition > 0);
@@ -275,7 +279,11 @@ test("AlertIntelligenceEngine preserves promoted extension significance without 
   assert.ok(extensionResult.formatted);
   assert.equal(
     extensionResult.formatted?.body,
-    "level touch resistance 3.25-3.35 | strong promoted extension | fresh",
+    [
+      "price testing heavy resistance 3.25-3.35",
+      "context: heavy resistance | promoted extension | fresh | 5m/4h confluence",
+      "watch: sellers defend 3.25-3.35 before breakout pressure builds",
+    ].join("\n"),
   );
   assert.ok(extensionResult.rawAlert.tags.includes("promoted_extension"));
 });
@@ -331,10 +339,76 @@ test("AlertIntelligenceEngine penalizes degraded data quality and preserves rema
   assert.ok(cleanResult.formatted);
   assert.equal(
     cleanResult.formatted?.body,
-    "reclaim resistance 100.00-101.00 | major outermost | aging | merged | refreshed",
+    [
+      "reclaim back above major resistance 100.00-101.00",
+      "context: major resistance | outermost | aging | 5m/4h/daily confluence | recently refreshed",
+      "watch: hold above 101.00; invalidates back below 100.00",
+    ].join("\n"),
   );
   assert.ok(cleanResult.formatted?.meta.context.includes("remap:merged"));
   assert.ok(degradedResult.formatted?.meta.context.includes("data_quality_degraded"));
+});
+
+test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", () => {
+  const engine = new AlertIntelligenceEngine();
+  const event: MonitoringEvent = {
+    id: "evt-dip-buy",
+    episodeId: "evt-dip-buy-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "zone-major-support",
+    zoneKind: "support",
+    level: 98.1,
+    triggerPrice: 98.14,
+    strength: 0.74,
+    confidence: 0.7,
+    priority: 76,
+    bias: "bullish",
+    pressureScore: 0.51,
+    eventContext: {
+      monitoredZoneId: "zone-major-support",
+      canonicalZoneId: "zone-major-support",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 18,
+    notes: ["Support touch."],
+  };
+  const supportLevels: LevelEngineOutput = {
+    ...levels,
+    majorSupport: [
+      {
+        ...levels.majorResistance[0]!,
+        id: "zone-major-support",
+        kind: "support",
+        zoneLow: 97.8,
+        zoneHigh: 98.2,
+        representativePrice: 98.1,
+        strengthLabel: "strong",
+      },
+    ],
+  };
+
+  const result = engine.processEvent(event, supportLevels);
+
+  assert.equal(
+    result.formatted?.body,
+    [
+      "dip-buy test at heavy support 97.80-98.20",
+      "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
+      "room: next resistance 100.50 (+2.4%)",
+      "watch: buyers defend 97.80-98.20 before momentum fades",
+    ].join("\n"),
+  );
 });
 
 test("AlertIntelligenceEngine suppresses near-duplicate alerts for the same structural situation", () => {

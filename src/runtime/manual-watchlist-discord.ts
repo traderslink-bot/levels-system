@@ -1,4 +1,5 @@
 import { DiscordAlertRouter } from "../lib/alerts/alert-router.js";
+import { DiscordAuditedThreadGateway } from "../lib/alerts/discord-audited-thread-gateway.js";
 import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
 import { LocalDiscordThreadGateway } from "../lib/alerts/local-discord-thread-gateway.js";
 
@@ -30,6 +31,28 @@ function logDiscordRuntimeDiagnostics(env: DiscordRuntimeEnv, mode: "real" | "fa
   );
 }
 
+function resolveDiscordAuditFilePath(): string | undefined {
+  const sessionDirectory = process.env.LEVEL_MANUAL_SESSION_DIRECTORY?.trim();
+  if (!sessionDirectory) {
+    return undefined;
+  }
+
+  return `${sessionDirectory}\\discord-delivery-audit.jsonl`;
+}
+
+function createAuditedGateway(
+  gatewayMode: "real" | "local",
+  gateway: DiscordRestThreadGateway | LocalDiscordThreadGateway,
+) {
+  return new DiscordAuditedThreadGateway(gateway, {
+    gatewayMode,
+    auditFilePath: resolveDiscordAuditFilePath(),
+    auditListener: (entry) => {
+      console.log(JSON.stringify(entry));
+    },
+  });
+}
+
 export function createDiscordAlertRouter(): DiscordAlertRouter {
   const env = readDiscordRuntimeEnv();
   const hasAnyDiscordConfig = Boolean(env.botToken || env.watchlistChannelId || env.guildId);
@@ -50,11 +73,14 @@ export function createDiscordAlertRouter(): DiscordAlertRouter {
     }
 
     return new DiscordAlertRouter(
-      new DiscordRestThreadGateway({
-        botToken: env.botToken!,
-        watchlistChannelId: env.watchlistChannelId!,
-        guildId: env.guildId ?? undefined,
-      }),
+      createAuditedGateway(
+        "real",
+        new DiscordRestThreadGateway({
+          botToken: env.botToken!,
+          watchlistChannelId: env.watchlistChannelId!,
+          guildId: env.guildId ?? undefined,
+        }),
+      ),
     );
   }
 
@@ -62,5 +88,5 @@ export function createDiscordAlertRouter(): DiscordAlertRouter {
   console.log(
     "[ManualWatchlistRuntime] Set DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID in .env for real Discord posting.",
   );
-  return new DiscordAlertRouter(new LocalDiscordThreadGateway());
+  return new DiscordAlertRouter(createAuditedGateway("local", new LocalDiscordThreadGateway()));
 }
