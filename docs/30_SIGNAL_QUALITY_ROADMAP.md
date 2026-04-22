@@ -76,6 +76,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added dynamic-symbol and outcome-disagreement review so long-run sessions can flag symbols whose repeated state changes or weak follow-through make the thread less trustworthy than its raw alert count.
 - Added movement-aware trader wording and audit metadata so alerts now say how far price has already pushed through or back into the zone when they fire.
 - Added trade-map wording and audit metadata so alerts now quantify room-to-next-barrier versus risk-to-invalidation for directional setups.
+- Added distance-aware snapshot formatting so support and resistance ladders now show signed distance from current price instead of only bare levels.
 
 ## Active Backlog
 
@@ -145,3 +146,4 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 6. Use the new dynamic-symbol and disagreement summaries to decide whether activation churn, reactivation behavior, or symbol-specific noise suppression needs more tuning.
 7. Use the new movement labels to learn whether early alerts outperform stretched alerts before tightening posting rules further.
 8. Use the new trade-map labels to learn whether favorable-skew alerts actually outperform tight-skew alerts before tightening posting rules further.
+9. Use the distance-aware snapshot ladder to decide whether the default number of displayed support/resistance zones is still optimal for traders.

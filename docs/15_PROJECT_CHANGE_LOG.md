@@ -19,6 +19,30 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 07:35 PM America/Toronto
+
+### Added distance-aware trader snapshot formatting
+
+- Updated snapshot formatting in:
+  - `src/lib/alerts/alert-router.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-rest-thread-gateway.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - Discord level snapshots now include signed percentage distance from the current price beside each support and resistance level
+  - snapshot ladders still keep strength and extension descriptors when available, but now lead with how near or far the level is from price
+- Why this matters:
+  - a trader can scan snapshot ladders faster without manually estimating how much room exists to the nearest support or resistance
+  - this makes snapshot posts more useful for active movement tracking instead of acting like static level dumps
+- Verification completed:
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/discord-rest-thread-gateway.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 07:20 PM America/Toronto
 
 ### Added trade-map alert context for room versus invalidation risk

@@ -228,8 +228,8 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
     [
       "LEVEL SNAPSHOT: ALBT",
       "PRICE: 2.51",
-      "SUPPORT: 2.40 (heavy), 2.25 (light)",
-      "RESISTANCE: 2.60 (major), 2.75 (moderate extension)",
+      "SUPPORT: 2.40 (-4.4%, heavy), 2.25 (-10.4%, light)",
+      "RESISTANCE: 2.60 (+3.6%, major), 2.75 (+9.6%, moderate extension)",
     ].join("\n"),
   );
 });

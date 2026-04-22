@@ -36,6 +36,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - a compact severity / confidence / score line plus trigger price
   - a `watch` / invalidation line
   - nearby barrier context when the next support or resistance is known, including whether room is `tight`, `limited`, or `open`
+- Discord level snapshots now include signed distance-from-price context beside each support and resistance level, so the ladder reads more like a usable map than a bare price list.
 - Support and resistance ranking is now durability-aware, so levels that are structurally important but getting tired can be described more conservatively than freshly defended levels.
 - Monitoring events and opportunity ranking now carry barrier-clearance context, so cramped upside or downside room can reduce setup quality before the message layer ever formats it.
 - Long-run session summaries now track alert-posting families and suppression reasons, so noisy symbols and repetitive low-value alert patterns are easier to spot after a live run.

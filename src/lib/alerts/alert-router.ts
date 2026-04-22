@@ -69,12 +69,25 @@ function formatLevel(level: number): string {
   return level >= 1 ? level.toFixed(2) : level.toFixed(4);
 }
 
+function formatDistancePctFromPrice(level: number, currentPrice: number): string | null {
+  if (!Number.isFinite(level) || !Number.isFinite(currentPrice) || currentPrice <= 0) {
+    return null;
+  }
+
+  const distancePct = (level - currentPrice) / currentPrice;
+  const sign = distancePct >= 0 ? "+" : "-";
+  return `${sign}${(Math.abs(distancePct) * 100).toFixed(1)}%`;
+}
+
 function formatSnapshotDisplayZone(
   zone: LevelSnapshotDisplayZone,
+  currentPrice: number,
 ): string {
+  const distance = formatDistancePctFromPrice(zone.representativePrice, currentPrice);
   const descriptor = zone.strengthLabel ? describeZoneStrength(zone.strengthLabel) : null;
   const extension = zone.isExtension ? "extension" : null;
-  const suffix = [descriptor, extension].filter((value): value is string => Boolean(value)).join(" ");
+  const descriptorText = [descriptor, extension].filter((value): value is string => Boolean(value)).join(" ");
+  const suffix = [distance, descriptorText].filter((value): value is string => Boolean(value)).join(", ");
 
   if (!suffix) {
     return formatLevel(zone.representativePrice);
@@ -86,11 +99,11 @@ function formatSnapshotDisplayZone(
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
   const supportLine =
     payload.supportZones.length > 0
-      ? payload.supportZones.map((zone) => formatSnapshotDisplayZone(zone)).join(", ")
+      ? payload.supportZones.map((zone) => formatSnapshotDisplayZone(zone, payload.currentPrice)).join(", ")
       : "none";
   const resistanceLine =
     payload.resistanceZones.length > 0
-      ? payload.resistanceZones.map((zone) => formatSnapshotDisplayZone(zone)).join(", ")
+      ? payload.resistanceZones.map((zone) => formatSnapshotDisplayZone(zone, payload.currentPrice)).join(", ")
       : "none";
 
   return [

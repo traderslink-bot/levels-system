@@ -142,8 +142,8 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
     [
       "LEVEL SNAPSHOT: ALBT",
       "PRICE: 2.51",
-      "SUPPORT: 2.40, 2.25",
-      "RESISTANCE: 2.60, 2.75",
+      "SUPPORT: 2.40 (-4.4%), 2.25 (-10.4%)",
+      "RESISTANCE: 2.60 (+3.6%), 2.75 (+9.6%)",
     ].join("\n"),
   );
 });
