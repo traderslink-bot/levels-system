@@ -228,7 +228,7 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
     [
       "LEVEL SNAPSHOT: ALBT",
       "PRICE: 2.51",
-      "MAP: nearest support 2.40 (-4.4%) | nearest resistance 2.60 (+3.6%) | tighter overhead",
+      "MAP: nearest support 2.40 (-4.4%) | nearest resistance 2.60 (+3.6%) | balanced room",
       "SUPPORT: 2.40 (-4.4%, heavy), 2.25 (-10.4%, light)",
       "RESISTANCE: 2.60 (+3.6%, major), 2.75 (+9.6%, moderate extension)",
     ].join("\n"),

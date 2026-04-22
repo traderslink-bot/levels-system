@@ -19,6 +19,30 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 07:55 PM America/Toronto
+
+### Added bullish / bearish / balanced room classification to snapshot maps
+
+- Updated snapshot formatting in:
+  - `src/lib/alerts/alert-router.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-rest-thread-gateway.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - the snapshot `MAP:` line now classifies nearby room as `bullish room`, `bearish room`, or `balanced room` instead of only saying which side is tighter
+  - snapshots still show the exact nearest support and resistance distances, but now also give a faster directional read
+- Why this matters:
+  - traders get a more natural read on whether the nearby map favors upside, downside, or neither without doing the comparison themselves
+  - this is a better bridge between raw level data and trader interpretation
+- Verification completed:
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/discord-rest-thread-gateway.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 07:45 PM America/Toronto
 
 ### Added nearest-level map summaries to trader snapshots

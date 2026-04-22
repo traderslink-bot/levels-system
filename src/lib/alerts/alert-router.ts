@@ -133,15 +133,18 @@ function buildSnapshotMapLine(payload: LevelSnapshotPayload): string {
   if (nearestSupport && nearestResistance) {
     const supportDistance = Math.abs(nearestSupport.representativePrice - payload.currentPrice) / Math.max(payload.currentPrice, 0.0001);
     const resistanceDistance = Math.abs(nearestResistance.representativePrice - payload.currentPrice) / Math.max(payload.currentPrice, 0.0001);
-    if (resistanceDistance < supportDistance) {
-      skew = "tighter overhead";
-    } else if (supportDistance < resistanceDistance) {
-      skew = "tighter downside";
+    const ratio = resistanceDistance / Math.max(supportDistance, 0.0001);
+    if (ratio <= 0.8) {
+      skew = "bearish room";
+    } else if (ratio >= 1.2) {
+      skew = "bullish room";
+    } else {
+      skew = "balanced room";
     }
   } else if (nearestResistance) {
-    skew = "overhead defined";
+    skew = "bearish room";
   } else if (nearestSupport) {
-    skew = "downside defined";
+    skew = "bullish room";
   } else {
     skew = "no nearby ladder";
   }
