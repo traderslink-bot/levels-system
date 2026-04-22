@@ -19,6 +19,37 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 08:20 PM America/Toronto
+
+### Added explicit first-target trader context and audit metadata
+
+- Updated trader-facing alert formatting in:
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - directional alerts now include a deterministic `target:` line when the next meaningful directional barrier is known
+  - the target line explicitly names the first support or resistance objective instead of forcing the trader to infer it from the `room:` line
+  - alert payload metadata and Discord delivery audit rows now carry `targetSide`, `targetPrice`, and `targetDistancePct`
+- Why this matters:
+  - traders can see the first obvious objective faster without translating room language back into a price target themselves
+  - long-run review can now compare whether alerts with clean nearby objectives are more useful than alerts where the next directional barrier is still unclear
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 07:55 PM America/Toronto
 
 ### Added bullish / bearish / balanced room classification to snapshot maps

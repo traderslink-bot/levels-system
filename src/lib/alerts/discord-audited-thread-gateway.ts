@@ -42,6 +42,9 @@ export type DiscordDeliveryAuditEntry = {
   tradeMapLabel?: string;
   riskPct?: number;
   roomToRiskRatio?: number;
+  targetSide?: string;
+  targetPrice?: number;
+  targetDistancePct?: number;
   supportCount?: number;
   resistanceCount?: number;
   side?: string;
@@ -169,6 +172,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         tradeMapLabel: payload.metadata?.tradeMapLabel,
         riskPct: payload.metadata?.riskPct,
         roomToRiskRatio: payload.metadata?.roomToRiskRatio,
+        targetSide: payload.metadata?.targetSide,
+        targetPrice: payload.metadata?.targetPrice,
+        targetDistancePct: payload.metadata?.targetDistancePct,
       });
     } catch (error) {
       this.recordFailed("post_alert", error, {
@@ -191,6 +197,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         tradeMapLabel: payload.metadata?.tradeMapLabel,
         riskPct: payload.metadata?.riskPct,
         roomToRiskRatio: payload.metadata?.roomToRiskRatio,
+        targetSide: payload.metadata?.targetSide,
+        targetPrice: payload.metadata?.targetPrice,
+        targetDistancePct: payload.metadata?.targetDistancePct,
       });
     }
   }

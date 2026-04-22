@@ -421,6 +421,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
       "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
       "quality: support still looks firm with healthy follow-through",
       "room: limited overhead into next resistance 100.50 (+2.4%)",
+      "target: first resistance objective 100.50 (+2.4%)",
       "trade map: risk to invalidation 0.3%; room to next resistance 2.4% (~6.9x, favorable skew)",
       "watch: buyers defend 97.80-98.20 before momentum fades",
     ].join("\n"),

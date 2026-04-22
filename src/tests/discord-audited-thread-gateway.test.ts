@@ -58,6 +58,9 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       tradeMapLabel: "favorable",
       riskPct: 0.012,
       roomToRiskRatio: 3,
+      targetSide: "resistance",
+      targetPrice: 2.5,
+      targetDistancePct: 0.024,
     },
   });
   await audited.sendLevelSnapshot("thread-1", {
@@ -90,6 +93,9 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.tradeMapLabel, "favorable");
   assert.equal(lines[1]?.riskPct, 0.012);
   assert.equal(lines[1]?.roomToRiskRatio, 3);
+  assert.equal(lines[1]?.targetSide, "resistance");
+  assert.equal(lines[1]?.targetPrice, 2.5);
+  assert.equal(lines[1]?.targetDistancePct, 0.024);
   assert.equal(lines[2]?.supportCount, 1);
   assert.equal(lines[2]?.resistanceCount, 1);
   assert.equal(capturedEntries.length, 3);
@@ -144,6 +150,9 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
         tradeMapLabel: "tight",
         riskPct: 0.018,
         roomToRiskRatio: 0.6,
+        targetSide: "support",
+        targetPrice: 2.38,
+        targetDistancePct: 0.011,
       },
     }),
     /Discord rejected post/,
@@ -164,5 +173,8 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.tradeMapLabel, "tight");
   assert.equal(line.riskPct, 0.018);
   assert.equal(line.roomToRiskRatio, 0.6);
+  assert.equal(line.targetSide, "support");
+  assert.equal(line.targetPrice, 2.38);
+  assert.equal(line.targetDistancePct, 0.011);
   assert.match(line.error, /Discord rejected post/);
 });

@@ -48,6 +48,9 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       tradeMapLabel: alert.tradeMap?.label,
       riskPct: alert.tradeMap?.riskPct,
       roomToRiskRatio: alert.tradeMap?.roomToRiskRatio ?? undefined,
+      targetSide: alert.target?.side,
+      targetPrice: alert.target?.price,
+      targetDistancePct: alert.target?.distancePct,
     },
   };
 }

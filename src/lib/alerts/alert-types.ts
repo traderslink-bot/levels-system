@@ -41,6 +41,13 @@ export type TraderTradeMapContext = {
   line: string;
 };
 
+export type TraderTargetContext = {
+  side: "support" | "resistance";
+  price: number;
+  distancePct: number;
+  line: string;
+};
+
 export type AlertPayload = {
   title: string;
   body: string;
@@ -61,6 +68,9 @@ export type AlertPayload = {
     tradeMapLabel?: TraderTradeMapLabel;
     riskPct?: number;
     roomToRiskRatio?: number;
+    targetSide?: "support" | "resistance";
+    targetPrice?: number;
+    targetDistancePct?: number;
   };
 };
 
@@ -127,6 +137,7 @@ export type IntelligentAlert = {
   tacticalRead?: TraderZoneTacticalRead;
   movement?: TraderMovementContext | null;
   tradeMap?: TraderTradeMapContext | null;
+  target?: TraderTargetContext | null;
 };
 
 export type AlertPostingFamily =

@@ -181,6 +181,12 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       movementPct: 0.008,
       line: "movement: price is pushing farther above the zone high and follow-through is building (0.8%)",
     },
+    target: {
+      side: "resistance",
+      price: 2.5,
+      distancePct: 0.036,
+      line: "target: first resistance objective 2.50 (+3.6%)",
+    },
     tradeMap: {
       label: "favorable",
       riskPct: 0.012,
@@ -208,6 +214,9 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.tradeMapLabel, "favorable");
   assert.equal(payload.metadata?.riskPct, 0.012);
   assert.equal(payload.metadata?.roomToRiskRatio, 3);
+  assert.equal(payload.metadata?.targetSide, "resistance");
+  assert.equal(payload.metadata?.targetPrice, 2.5);
+  assert.equal(payload.metadata?.targetDistancePct, 0.036);
 });
 
 test("formatLevelSnapshotMessage uses deterministic formatting", () => {

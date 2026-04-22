@@ -7,6 +7,7 @@ import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import type {
   TraderMovementContext,
   TraderNextBarrierContext,
+  TraderTargetContext,
   TraderTradeMapContext,
   TraderZoneTacticalRead,
 } from "./alert-types.js";
@@ -52,8 +53,15 @@ function clearanceDirectionForSide(side: "support" | "resistance"): string {
   return side === "resistance" ? "overhead" : "downside";
 }
 
+function formatBarrierPct(
+  side: "support" | "resistance",
+  distancePct: number,
+): string {
+  return `${side === "resistance" ? "+" : "-"}${(distancePct * 100).toFixed(1)}%`;
+}
+
 function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
-  const pctText = `${nextBarrier.side === "resistance" ? "+" : "-"}${(nextBarrier.distancePct * 100).toFixed(1)}%`;
+  const pctText = formatBarrierPct(nextBarrier.side, nextBarrier.distancePct);
   const sideText = clearanceDirectionForSide(nextBarrier.side);
 
   switch (nextBarrier.clearanceLabel) {
@@ -65,6 +73,47 @@ function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
       return `room: open ${sideText} path to next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
     default:
       return `room: next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
+  }
+}
+
+function deriveDirectionalTradePlan(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+): {
+  invalidationLevel: number;
+  preferredBarrierSide: "support" | "resistance";
+} | null {
+  if (!zone) {
+    return null;
+  }
+
+  switch (event.eventType) {
+    case "breakout":
+    case "reclaim":
+    case "fake_breakdown":
+      return {
+        invalidationLevel: zone.zoneLow,
+        preferredBarrierSide: "resistance",
+      };
+    case "breakdown":
+    case "fake_breakout":
+      return {
+        invalidationLevel: zone.zoneHigh,
+        preferredBarrierSide: "support",
+      };
+    case "rejection":
+    case "level_touch":
+      return zone.kind === "support"
+        ? {
+            invalidationLevel: zone.zoneLow,
+            preferredBarrierSide: "resistance",
+          }
+        : {
+            invalidationLevel: zone.zoneHigh,
+            preferredBarrierSide: "support",
+          };
+    default:
+      return null;
   }
 }
 
@@ -362,42 +411,14 @@ export function deriveTraderTradeMapContext(
   }
 
   const triggerPrice = Math.max(event.triggerPrice, 0.0001);
-  let invalidationLevel: number | null = null;
-  let preferredBarrierSide: "support" | "resistance" | null = null;
-
-  switch (event.eventType) {
-    case "breakout":
-    case "reclaim":
-    case "fake_breakdown":
-      invalidationLevel = zone.zoneLow;
-      preferredBarrierSide = "resistance";
-      break;
-    case "breakdown":
-    case "fake_breakout":
-      invalidationLevel = zone.zoneHigh;
-      preferredBarrierSide = "support";
-      break;
-    case "rejection":
-    case "level_touch":
-      if (zone.kind === "support") {
-        invalidationLevel = zone.zoneLow;
-        preferredBarrierSide = "resistance";
-      } else {
-        invalidationLevel = zone.zoneHigh;
-        preferredBarrierSide = "support";
-      }
-      break;
-    default:
-      return null;
-  }
-
-  if (!Number.isFinite(invalidationLevel) || invalidationLevel === null) {
+  const tradePlan = deriveDirectionalTradePlan(event, zone);
+  if (!tradePlan || !Number.isFinite(tradePlan.invalidationLevel)) {
     return null;
   }
 
-  const riskPct = Math.abs(triggerPrice - invalidationLevel) / triggerPrice;
+  const riskPct = Math.abs(triggerPrice - tradePlan.invalidationLevel) / triggerPrice;
   const roomPct =
-    nextBarrier && nextBarrier.side === preferredBarrierSide
+    nextBarrier && nextBarrier.side === tradePlan.preferredBarrierSide
       ? nextBarrier.distancePct
       : null;
 
@@ -419,8 +440,27 @@ export function deriveTraderTradeMapContext(
     roomPct,
     roomToRiskRatio,
     line:
-      `trade map: risk to invalidation ${formatPct(riskPct)}; room to next ${preferredBarrierSide} ${formatPct(roomPct)} ` +
+      `trade map: risk to invalidation ${formatPct(riskPct)}; room to next ${tradePlan.preferredBarrierSide} ${formatPct(roomPct)} ` +
       `(~${roomToRiskRatio.toFixed(1)}x, ${label} skew)`,
+  };
+}
+
+export function deriveTraderTargetContext(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+  nextBarrier?: TraderNextBarrierContext | null,
+): TraderTargetContext | null {
+  const tradePlan = deriveDirectionalTradePlan(event, zone);
+  if (!tradePlan || !nextBarrier || nextBarrier.side !== tradePlan.preferredBarrierSide) {
+    return null;
+  }
+
+  const pctText = formatBarrierPct(nextBarrier.side, nextBarrier.distancePct);
+  return {
+    side: nextBarrier.side,
+    price: nextBarrier.price,
+    distancePct: nextBarrier.distancePct,
+    line: `target: first ${nextBarrier.side} objective ${formatLevel(nextBarrier.price)} (${pctText})`,
   };
 }
 
@@ -473,6 +513,7 @@ export function buildTraderAlertBody(
     ? describeBarrierRoom(nextBarrier)
     : null;
   const movement = deriveTraderMovementContext(event, zone);
+  const target = deriveTraderTargetContext(event, zone, nextBarrier);
   const tradeMap = deriveTraderTradeMapContext(event, zone, nextBarrier);
 
   return [
@@ -485,6 +526,7 @@ export function buildTraderAlertBody(
       freshness: event.eventContext.zoneFreshness,
     }),
     roomLine,
+    target?.line ?? null,
     tradeMap?.line ?? null,
     buildWatchLine(event, zone),
   ]

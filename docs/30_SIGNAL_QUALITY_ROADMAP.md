@@ -75,6 +75,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added alert/evaluation alignment summaries to thread review so a symbol's latest posted setup can be compared against how that same setup family has actually been performing.
 - Added dynamic-symbol and outcome-disagreement review so long-run sessions can flag symbols whose repeated state changes or weak follow-through make the thread less trustworthy than its raw alert count.
 - Added movement-aware trader wording and audit metadata so alerts now say how far price has already pushed through or back into the zone when they fire.
+- Added explicit first-target wording and audit metadata so directional alerts now name the first support or resistance objective when the next barrier is known.
 - Added trade-map wording and audit metadata so alerts now quantify room-to-next-barrier versus risk-to-invalidation for directional setups.
 - Added distance-aware snapshot formatting so support and resistance ladders now show signed distance from current price instead of only bare levels.
 - Added nearest-support / nearest-resistance snapshot map summaries so the snapshot immediately shows which side is tighter before the trader scans the full ladder.
@@ -87,6 +88,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Add end-of-session summaries for symbols that produced multiple alerts.
 - Add explicit `why now` and `what changed` wording for higher-priority alerts.
 - Improve low-priced-symbol phrasing so tiny decimal moves remain readable and not misleading.
+- Use the new target metadata to learn whether alerts with clear nearby objectives are materially more trader-useful than alerts without a confirmed first barrier.
 
 ### Detection and ranking improvements
 
@@ -148,5 +150,6 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 6. Use the new dynamic-symbol and disagreement summaries to decide whether activation churn, reactivation behavior, or symbol-specific noise suppression needs more tuning.
 7. Use the new movement labels to learn whether early alerts outperform stretched alerts before tightening posting rules further.
 8. Use the new trade-map labels to learn whether favorable-skew alerts actually outperform tight-skew alerts before tightening posting rules further.
-9. Use the distance-aware snapshot ladder to decide whether the default number of displayed support/resistance zones is still optimal for traders.
-10. Use the new snapshot room classification to decide whether the thresholds for `bullish`, `bearish`, and `balanced` room need tuning against real trading usefulness.
+9. Use the new target metadata to learn whether traders respond better when a first objective is available and whether unclear-objective setups should be downgraded more aggressively.
+10. Use the distance-aware snapshot ladder to decide whether the default number of displayed support/resistance zones is still optimal for traders.
+11. Use the new snapshot room classification to decide whether the thresholds for `bullish`, `bearish`, and `balanced` room need tuning against real trading usefulness.
