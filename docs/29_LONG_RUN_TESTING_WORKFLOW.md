@@ -102,7 +102,7 @@ Inside that folder:
   - append-only local record of thread creation plus snapshot / alert / extension delivery attempts
   - includes both successful and failed downstream posts
 - `session-summary.json`
-  - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, and diagnostic volume
+  - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
 - `session-info.txt`
   - start time, end time, log paths, and runtime URL
 
@@ -116,6 +116,7 @@ It is intended to capture:
 - provider-path confirmation
 - structured `manual_watchlist_lifecycle` events
 - structured `discord_delivery_audit` events
+- compact `opportunity_snapshot` and `evaluation_update` lines
 - compare-mode output
 - activation failures
 - seeding failures
@@ -258,6 +259,21 @@ These are meant to answer operational questions quickly:
 - did deactivation complete cleanly
 
 This makes the testing process much less dependent on scrolling back through raw terminal noise.
+
+## What The Session Summary Tracks Per Symbol
+
+`session-summary.json` now keeps a `perSymbol` section so it is easier to answer:
+
+- which symbols were activated most often
+- which symbols produced Discord posts
+- which symbols generated the most diagnostics
+- which symbols hit activation, seed, or restore failures
+- which symbols produced opportunity snapshots and evaluation updates
+
+That means a long session can now be reviewed both:
+
+- at the whole-session level
+- at the individual-symbol level
 
 ## What The Session Summary Is For
 

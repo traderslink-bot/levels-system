@@ -1,6 +1,7 @@
 import type { FinalLevelZone } from "../levels/level-types.js";
 import type { MonitoringConfig } from "./monitoring-config.js";
 import type {
+  BarrierClearanceLabel,
   LivePriceUpdate,
   MonitoringAlertType,
   MonitoringEventType,
@@ -27,6 +28,100 @@ function timeframeImportance(zone: FinalLevelZone): number {
 
 function freshnessImportance(zone: FinalLevelZone): number {
   return zone.freshness === "fresh" ? 1 : zone.freshness === "aging" ? 0.72 : 0.45;
+}
+
+export function deriveBarrierClearanceLabel(
+  distancePct: number | null,
+  config: MonitoringConfig,
+): BarrierClearanceLabel | undefined {
+  if (distancePct === null || !Number.isFinite(distancePct)) {
+    return undefined;
+  }
+
+  if (distancePct <= config.tightClearancePct) {
+    return "tight";
+  }
+
+  if (distancePct <= config.limitedClearancePct) {
+    return "limited";
+  }
+
+  return "open";
+}
+
+function barrierSideForEvent(
+  eventType: MonitoringEventType,
+  zone: FinalLevelZone,
+  bias: SymbolMonitoringState["bias"],
+): "support" | "resistance" {
+  if (
+    eventType === "breakout" ||
+    eventType === "reclaim" ||
+    eventType === "fake_breakdown"
+  ) {
+    return "resistance";
+  }
+
+  if (
+    eventType === "breakdown" ||
+    eventType === "fake_breakout" ||
+    eventType === "rejection"
+  ) {
+    return "support";
+  }
+
+  if (eventType === "level_touch" || eventType === "compression") {
+    return zone.kind === "support" ? "resistance" : "support";
+  }
+
+  return bias === "bearish" ? "support" : "resistance";
+}
+
+export function findNearestRelevantBarrier(params: {
+  eventType: MonitoringEventType;
+  zone: FinalLevelZone;
+  symbolState: SymbolMonitoringState;
+  triggerPrice: number;
+}): {
+  kind: "support" | "resistance";
+  level: number;
+  distancePct: number;
+} | null {
+  const { eventType, zone, symbolState, triggerPrice } = params;
+  if (!Number.isFinite(triggerPrice) || triggerPrice <= 0) {
+    return null;
+  }
+
+  const barrierKind = barrierSideForEvent(eventType, zone, symbolState.bias ?? "neutral");
+  const candidateZones =
+    barrierKind === "resistance"
+      ? symbolState.resistanceZones
+      : symbolState.supportZones;
+  const candidates = candidateZones
+    .filter((candidate) => candidate.id !== zone.id)
+    .filter((candidate) =>
+      barrierKind === "resistance"
+        ? candidate.representativePrice > triggerPrice
+        : candidate.representativePrice < triggerPrice,
+    )
+    .sort((left, right) =>
+      barrierKind === "resistance"
+        ? left.representativePrice - right.representativePrice
+        : right.representativePrice - left.representativePrice,
+    );
+  const nextBarrier = candidates[0];
+
+  if (!nextBarrier) {
+    return null;
+  }
+
+  return {
+    kind: barrierKind,
+    level: nextBarrier.representativePrice,
+    distancePct:
+      Math.abs(nextBarrier.representativePrice - triggerPrice) /
+      Math.max(triggerPrice, 0.0001),
+  };
 }
 
 function standardizedTypeForEvent(eventType: MonitoringEventType): MonitoringAlertType {
@@ -152,6 +247,16 @@ export function scoreMonitoringEvent(params: {
   const episodeScore = clamp(
     currentState.updatesNearZone / Math.max(config.compressionMinUpdates, 1),
   );
+  const nearestBarrier = findNearestRelevantBarrier({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+  });
+  const clearanceLabel = deriveBarrierClearanceLabel(
+    nearestBarrier?.distancePct ?? null,
+    config,
+  );
   const directionAlignment =
     (eventType === "breakout" || eventType === "reclaim" || eventType === "fake_breakdown") &&
     context.bias === "bullish"
@@ -231,6 +336,13 @@ export function scoreMonitoringEvent(params: {
     (eventType === "level_touch" || eventType === "compression")
       ? 0.04
       : 0;
+  const clearancePenalty =
+    clearanceLabel === "tight"
+      ? 0.08
+      : clearanceLabel === "limited"
+        ? 0.03
+        : 0;
+  const clearanceBonus = clearanceLabel === "open" ? 0.03 : 0;
 
   const strength = clamp(
     proximityScore * 0.32 +
@@ -248,6 +360,8 @@ export function scoreMonitoringEvent(params: {
       outermostContext +
       refreshedContext +
       extensionContext -
+      clearancePenalty +
+      clearanceBonus -
       dataQualityPenalty -
       staleContextPenalty -
       weakZonePenalty,
@@ -267,6 +381,8 @@ export function scoreMonitoringEvent(params: {
       outermostContext * 0.9 +
       refreshedContext * 0.8 +
       extensionContext * 0.8 -
+      clearancePenalty * 0.7 +
+      clearanceBonus * 0.7 -
       dataQualityPenalty * 0.5 -
       staleContextPenalty * 0.75 -
       weakZonePenalty * 0.6,

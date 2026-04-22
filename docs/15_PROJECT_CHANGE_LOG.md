@@ -19,6 +19,43 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 03:20 PM America/Toronto
+
+### Added barrier-clearance awareness to monitoring and opportunity ranking, compacted opportunity diagnostics, and expanded long-run per-symbol summaries
+
+- Updated monitoring and opportunity layers in:
+  - `src/lib/monitoring/monitoring-config.ts`
+  - `src/lib/monitoring/monitoring-types.ts`
+  - `src/lib/monitoring/monitoring-event-scoring.ts`
+  - `src/lib/monitoring/event-detector.ts`
+  - `src/lib/monitoring/opportunity-engine.ts`
+  - `src/lib/monitoring/opportunity-diagnostics.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated alert scoring in:
+  - `src/lib/alerts/alert-config.ts`
+  - `src/lib/alerts/alert-intelligence-engine.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+- Updated long-run session review in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Added focused coverage in:
+  - `src/tests/opportunity-decision-integrity.test.ts`
+  - `src/tests/watchlist-monitor.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - emitted monitoring events now carry the next meaningful opposing barrier plus a clearance label of `tight`, `limited`, or `open`
+  - opportunity ranking now penalizes cramped bullish / bearish setups and gives modest credit to cleaner open-space setups
+  - alert intelligence can now use barrier context directly from the event layer, not only by re-deriving it from full level output
+  - opportunity diagnostics are now emitted as single-line JSON so long-run tooling can parse them cleanly
+  - long-run session summaries now keep a per-symbol rollup for lifecycle counts, delivery activity, diagnostics, failures, compare entries, and opportunity updates
+- Why this matters:
+  - the system is now better at distinguishing a technically valid setup from a setup that actually has room to work
+  - long-run review is now better at answering which symbols were useful, noisy, or fragile over time
+
+---
+
 ## 2026-04-22 02:20 PM America/Toronto
 
 ### Added a signal-quality roadmap and upgraded trader-facing level language with stronger support/resistance and barrier context

@@ -509,4 +509,79 @@ describe("opportunity decision integrity", () => {
       ranked.findIndex((opportunity) => opportunity.symbol === "AAPL"));
     assert.ok(tieCandidates.length >= 1);
   });
+
+  it("penalizes otherwise similar bullish setups when upside clearance is tight", () => {
+    const engine = new OpportunityEngine();
+    const now = 11_000_000;
+    const ranked = engine.rank([
+      {
+        ...makeEvent({
+          id: "tight-room",
+          symbol: "ALBT",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.64,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        eventContext: {
+          monitoredZoneId: "ALBT-zone",
+          canonicalZoneId: "ALBT-zone",
+          zoneFreshness: "fresh",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          nextBarrierKind: "resistance",
+          nextBarrierLevel: 10.12,
+          nextBarrierDistancePct: 0.012,
+          clearanceLabel: "tight",
+        },
+      },
+      {
+        ...makeEvent({
+          id: "open-room",
+          symbol: "BIRD",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.64,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        eventContext: {
+          monitoredZoneId: "BIRD-zone",
+          canonicalZoneId: "BIRD-zone",
+          zoneFreshness: "fresh",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          nextBarrierKind: "resistance",
+          nextBarrierLevel: 10.7,
+          nextBarrierDistancePct: 0.07,
+          clearanceLabel: "open",
+        },
+      },
+    ]);
+
+    const bySymbol = new Map(ranked.map((opportunity) => [opportunity.symbol, opportunity]));
+
+    assert.ok(bySymbol.get("BIRD")!.score > bySymbol.get("ALBT")!.score);
+    assert.equal(bySymbol.get("ALBT")?.clearanceLabel, "tight");
+    assert.equal(bySymbol.get("BIRD")?.clearanceLabel, "open");
+  });
 });

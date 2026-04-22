@@ -25,6 +25,8 @@ export type OpportunityDiagnosticsLogEntry = {
     adaptiveScore: number;
     adaptiveMultiplier: number;
     classification: string;
+    nextBarrierDistancePct?: number;
+    clearanceLabel?: string;
   }>;
   opportunity?: {
     symbol: string;
@@ -32,6 +34,8 @@ export type OpportunityDiagnosticsLogEntry = {
     adaptiveScore: number;
     adaptiveMultiplier: number;
     classification: string;
+    nextBarrierDistancePct?: number;
+    clearanceLabel?: string;
   };
   completedEvaluations?: EvaluatedOpportunity[];
 };
@@ -133,6 +137,8 @@ export function buildOpportunityDiagnosticsLogEntry(
       adaptiveScore: opportunity.adaptiveScore,
       adaptiveMultiplier: opportunity.adaptiveMultiplier,
       classification: opportunity.classification,
+      nextBarrierDistancePct: opportunity.nextBarrierDistancePct,
+      clearanceLabel: opportunity.clearanceLabel,
     })),
     opportunity: snapshot.newOpportunity
       ? {
@@ -141,6 +147,8 @@ export function buildOpportunityDiagnosticsLogEntry(
         adaptiveScore: snapshot.newOpportunity.adaptiveScore,
         adaptiveMultiplier: snapshot.newOpportunity.adaptiveMultiplier,
         classification: snapshot.newOpportunity.classification,
+        nextBarrierDistancePct: snapshot.newOpportunity.nextBarrierDistancePct,
+        clearanceLabel: snapshot.newOpportunity.clearanceLabel,
       }
       : undefined,
     completedEvaluations: snapshot.completedEvaluations.length > 0

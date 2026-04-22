@@ -51,6 +51,11 @@ export type AlertIntelligenceConfig = {
   dataQualityPenalty: number;
   lowValueInnerTouchPenalty: number;
   lowValueInnerCompressionPenalty: number;
+  clearanceScores: {
+    tight: number;
+    limited: number;
+    open: number;
+  };
   structureStrengthScale: number;
   postingWindowsMs: {
     zone_context: number;
@@ -118,6 +123,11 @@ export const DEFAULT_ALERT_INTELLIGENCE_CONFIG: AlertIntelligenceConfig = {
   dataQualityPenalty: 12,
   lowValueInnerTouchPenalty: 10,
   lowValueInnerCompressionPenalty: 14,
+  clearanceScores: {
+    tight: -12,
+    limited: -5,
+    open: 4,
+  },
   structureStrengthScale: 10,
   postingWindowsMs: {
     zone_context: 5 * 60 * 1000,

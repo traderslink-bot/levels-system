@@ -91,9 +91,16 @@ function contextContributions(
   event: MonitoringEvent,
   zone: FinalLevelZone | undefined,
   config: AlertIntelligenceConfig,
+  nextBarrier?: TraderNextBarrierContext | null,
 ): Record<string, number> {
   const context = event.eventContext;
   const lowValueInnerZone = context.ladderPosition === "inner" && context.zoneStrengthLabel === "weak";
+  const clearanceScore =
+    context.clearanceLabel
+      ? config.clearanceScores[context.clearanceLabel]
+      : nextBarrier && nextBarrier.distancePct >= 0.06
+        ? config.clearanceScores.open
+        : 0;
 
   return {
     baseEvent: config.eventBaseScores[event.eventType],
@@ -110,6 +117,7 @@ function contextContributions(
         ? config.promotedExtensionBonus
         : 0,
     dataQuality: context.dataQualityDegraded ? -config.dataQualityPenalty : 0,
+    clearance: clearanceScore,
     lowValueInnerTouch:
       event.eventType === "level_touch" && lowValueInnerZone ? -config.lowValueInnerTouchPenalty : 0,
     lowValueInnerCompression:
@@ -168,7 +176,7 @@ export function scoreMonitoringEventToAlert(params: {
   config: AlertIntelligenceConfig;
 }): IntelligentAlert {
   const { event, zone, nextBarrier, config } = params;
-  const scoreComponents = contextContributions(event, zone, config);
+  const scoreComponents = contextContributions(event, zone, config, nextBarrier);
   const totalScore = clampScore(
     Object.values(scoreComponents).reduce((sum, value) => sum + value, 0),
   );

@@ -21,13 +21,14 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Long-run sessions now split review surfaces:
   - `manual-watchlist-operational.log` for lifecycle, failures, compare output, and Discord delivery
   - `manual-watchlist-diagnostics.log` for `monitoring_event_diagnostic` reasoning
-  - `session-summary.json` for a quick session-level rollup
+  - `session-summary.json` for a quick session-level and per-symbol rollup
 - The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
 - Trader-facing Discord alerts now include:
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
   - a compact severity / confidence / score line plus trigger price
   - a `watch` / invalidation line
   - nearby barrier context when the next support or resistance is known
+- Monitoring events and opportunity ranking now carry barrier-clearance context, so cramped upside or downside room can reduce setup quality before the message layer ever formats it.
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
 - Signal-quality ideas, priorities, and progress are tracked in [docs/30_SIGNAL_QUALITY_ROADMAP.md](docs/30_SIGNAL_QUALITY_ROADMAP.md).

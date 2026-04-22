@@ -15,6 +15,8 @@ import type {
 } from "./monitoring-types.js";
 import {
   buildInteractionEpisodeId,
+  deriveBarrierClearanceLabel,
+  findNearestRelevantBarrier,
   scoreMonitoringEvent,
   shouldFilterMonitoringEvent,
 } from "./monitoring-event-scoring.js";
@@ -97,8 +99,21 @@ function hasRecentBreakAttempt(
 function buildMonitoringEventContext(
   zone: FinalLevelZone,
   symbolState: SymbolMonitoringState,
+  update: LivePriceUpdate,
+  eventType: MonitoringEvent["eventType"],
+  config: MonitoringConfig,
 ): MonitoringEventContext {
   const zoneContext = symbolState.zoneContexts[zone.id];
+  const nearestBarrier = findNearestRelevantBarrier({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+  });
+  const clearanceLabel = deriveBarrierClearanceLabel(
+    nearestBarrier?.distancePct ?? null,
+    config,
+  );
 
   if (zoneContext) {
     return {
@@ -114,6 +129,10 @@ function buildMonitoringEventContext(
       ladderPosition: zoneContext.ladderPosition,
       zoneStrengthLabel: zoneContext.zoneStrengthLabel,
       sourceGeneratedAt: zoneContext.sourceGeneratedAt,
+      nextBarrierKind: nearestBarrier?.kind,
+      nextBarrierLevel: nearestBarrier?.level,
+      nextBarrierDistancePct: nearestBarrier?.distancePct,
+      clearanceLabel,
     };
   }
 
@@ -130,6 +149,10 @@ function buildMonitoringEventContext(
     ladderPosition: zone.isExtension ? "extension" as const : "inner" as const,
     zoneStrengthLabel: zone.strengthLabel,
     sourceGeneratedAt: symbolState.levelGeneratedAt,
+    nextBarrierKind: nearestBarrier?.kind,
+    nextBarrierLevel: nearestBarrier?.level,
+    nextBarrierDistancePct: nearestBarrier?.distancePct,
+    clearanceLabel,
   };
 }
 
@@ -169,7 +192,7 @@ function buildEvent(
     priority: signal.priority,
     bias: signal.bias ?? "neutral",
     pressureScore: signal.pressureScore,
-    eventContext: buildMonitoringEventContext(zone, symbolState),
+    eventContext: buildMonitoringEventContext(zone, symbolState, update, eventType, config),
     timestamp: update.timestamp,
     notes,
   };

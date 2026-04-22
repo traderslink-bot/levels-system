@@ -69,6 +69,11 @@ export type LadderPositionContext =
   | "outermost"
   | "extension";
 
+export type BarrierClearanceLabel =
+  | "tight"
+  | "limited"
+  | "open";
+
 export type MonitoringZoneContext = {
   monitoredZoneId: string;
   canonicalZoneId: string;
@@ -153,6 +158,10 @@ export type MonitoringEventContext = {
   ladderPosition: LadderPositionContext;
   zoneStrengthLabel: FinalLevelZone["strengthLabel"];
   sourceGeneratedAt?: number;
+  nextBarrierKind?: "support" | "resistance";
+  nextBarrierLevel?: number;
+  nextBarrierDistancePct?: number;
+  clearanceLabel?: BarrierClearanceLabel;
 };
 
 export type MonitoringEvent = {

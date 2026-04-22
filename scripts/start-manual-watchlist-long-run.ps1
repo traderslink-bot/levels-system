@@ -26,6 +26,8 @@ $operationalPattern =
   "IBKR error|" +
   "manual_watchlist_lifecycle|" +
   "discord_delivery_audit|" +
+  "opportunity_snapshot|" +
+  "evaluation_update|" +
   "level_runtime_compare"
 $diagnosticPattern = "monitoring_event_diagnostic"
 
@@ -49,6 +51,9 @@ $summary = [ordered]@{
   }
   compareEntries = 0
   diagnosticEntries = 0
+  opportunitySnapshots = 0
+  evaluationUpdates = 0
+  perSymbol = @{}
 }
 
 function Write-SessionInfo {
@@ -74,6 +79,69 @@ function Increment-SummaryCount {
   }
 
   $Table[$Key] += 1
+}
+
+function Ensure-SymbolSummary {
+  param(
+    [string]$Symbol
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Symbol)) {
+    return $null
+  }
+
+  $normalized = $Symbol.Trim().ToUpperInvariant()
+  if (-not $summary.perSymbol.ContainsKey($normalized)) {
+    $summary.perSymbol[$normalized] = @{
+      lifecycleCounts = @{}
+      discordPosted = 0
+      discordFailed = 0
+      compareEntries = 0
+      diagnosticEntries = 0
+      opportunitySnapshots = 0
+      evaluationUpdates = 0
+      failures = @{
+        activation = 0
+        restore = 0
+        seed = 0
+        ibkr = 0
+      }
+    }
+  }
+
+  return $summary.perSymbol[$normalized]
+}
+
+function Resolve-SymbolFromLine {
+  param(
+    [string]$Line
+  )
+
+  if (-not $Line) {
+    return $null
+  }
+
+  if ($Line.TrimStart().StartsWith("{")) {
+    try {
+      $parsed = $Line | ConvertFrom-Json -ErrorAction Stop
+      if ($parsed.symbol) {
+        return [string]$parsed.symbol
+      }
+    } catch {
+    }
+  }
+
+  $symbolMatch = [regex]::Match($Line, "\bfor\s+([A-Z]{1,10})\b")
+  if ($symbolMatch.Success) {
+    return $symbolMatch.Groups[1].Value
+  }
+
+  $compareMatch = [regex]::Match($Line, '"symbol"\s*:\s*"([A-Z]{1,10})"')
+  if ($compareMatch.Success) {
+    return $compareMatch.Groups[1].Value
+  }
+
+  return $null
 }
 
 function Update-SummaryFromLine {
@@ -105,6 +173,34 @@ function Update-SummaryFromLine {
     $summary.diagnosticEntries += 1
   }
 
+  $lineSymbol = Resolve-SymbolFromLine -Line $Line
+  $symbolSummary = Ensure-SymbolSummary -Symbol $lineSymbol
+  if ($symbolSummary -ne $null) {
+    if ($Line -match "Background activation failed|Activation failed") {
+      $symbolSummary.failures.activation += 1
+    }
+
+    if ($Line -match "Failed to restore active symbol") {
+      $symbolSummary.failures.restore += 1
+    }
+
+    if ($Line -match "Failed to seed levels|Historical candles unavailable") {
+      $symbolSummary.failures.seed += 1
+    }
+
+    if ($Line -match "IBKR error") {
+      $symbolSummary.failures.ibkr += 1
+    }
+
+    if ($Line -match "level_runtime_compare") {
+      $symbolSummary.compareEntries += 1
+    }
+
+    if ($Line -match $diagnosticPattern) {
+      $symbolSummary.diagnosticEntries += 1
+    }
+  }
+
   if (-not $Line.TrimStart().StartsWith("{")) {
     return
   }
@@ -117,6 +213,10 @@ function Update-SummaryFromLine {
 
   if ($parsed.type -eq "manual_watchlist_lifecycle") {
     Increment-SummaryCount -Table $summary.lifecycleCounts -Key $parsed.event
+    $lifecycleSymbolSummary = Ensure-SymbolSummary -Symbol ([string]$parsed.symbol)
+    if ($lifecycleSymbolSummary -ne $null) {
+      Increment-SummaryCount -Table $lifecycleSymbolSummary.lifecycleCounts -Key ([string]$parsed.event)
+    }
 
     if ($parsed.event -eq "monitor_restart_completed" -and $parsed.details.activeSymbolCount -ne $null) {
       $summary.activeSymbolCount = [int]$parsed.details.activeSymbolCount
@@ -134,6 +234,34 @@ function Update-SummaryFromLine {
 
     if ($parsed.operation) {
       Increment-SummaryCount -Table $summary.discordAudit.byOperation -Key ([string]$parsed.operation)
+    }
+
+    $auditSymbolSummary = Ensure-SymbolSummary -Symbol ([string]$parsed.symbol)
+    if ($auditSymbolSummary -ne $null) {
+      if ($parsed.status -eq "posted") {
+        $auditSymbolSummary.discordPosted += 1
+      } elseif ($parsed.status -eq "failed") {
+        $auditSymbolSummary.discordFailed += 1
+      }
+    }
+
+    return
+  }
+
+  if ($parsed.type -eq "opportunity_snapshot" -or $parsed.type -eq "evaluation_update") {
+    if ($parsed.type -eq "opportunity_snapshot") {
+      $summary.opportunitySnapshots += 1
+    } else {
+      $summary.evaluationUpdates += 1
+    }
+
+    $opportunitySymbolSummary = Ensure-SymbolSummary -Symbol ([string]$parsed.symbol)
+    if ($opportunitySymbolSummary -ne $null) {
+      if ($parsed.type -eq "opportunity_snapshot") {
+        $opportunitySymbolSummary.opportunitySnapshots += 1
+      } else {
+        $opportunitySymbolSummary.evaluationUpdates += 1
+      }
     }
   }
 }

@@ -301,3 +301,51 @@ test("WatchlistMonitor emits breakout diagnostics for weak fly-by suppression wh
     breakoutDiagnostic?.reasons.includes("missing_prior_interaction_backfill"),
   );
 });
+
+test("WatchlistMonitor includes nearby barrier clearance in emitted event context", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+
+  levelStore.setLevels(buildLevelOutput("AGPU", {
+    intradaySupport: [
+      buildZone({
+        id: "S1",
+        symbol: "AGPU",
+        kind: "support",
+        zoneLow: 1.95,
+        zoneHigh: 2.0,
+        representativePrice: 1.98,
+        strengthLabel: "strong",
+      }),
+    ],
+    intradayResistance: [
+      buildZone({
+        id: "R1",
+        symbol: "AGPU",
+        kind: "resistance",
+        zoneLow: 2.01,
+        zoneHigh: 2.03,
+        representativePrice: 2.02,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "AGPU", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  liveProvider.listener?.({
+    symbol: "AGPU",
+    timestamp: 100,
+    lastPrice: 1.985,
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.eventType, "level_touch");
+  assert.equal(events[0]?.eventContext.nextBarrierKind, "resistance");
+  assert.equal(events[0]?.eventContext.nextBarrierLevel, 2.02);
+  assert.equal(events[0]?.eventContext.clearanceLabel, "limited");
+});

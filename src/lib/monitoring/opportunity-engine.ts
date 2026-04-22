@@ -18,6 +18,8 @@ export type RankedOpportunity = {
   score: number;
   normalizedScore: number;
   classification: OpportunityClassification;
+  nextBarrierDistancePct?: number;
+  clearanceLabel?: "tight" | "limited" | "open";
 };
 
 type MonitoringEventWithStructure = MonitoringEvent & {
@@ -150,6 +152,29 @@ function classifyOpportunity(score: number, confidence: number): OpportunityClas
   return "low";
 }
 
+function clearanceAdjustment(event: MonitoringEvent): number {
+  const clearanceLabel = event.eventContext.clearanceLabel;
+  const barrierDistancePct = event.eventContext.nextBarrierDistancePct;
+
+  if (clearanceLabel === "tight") {
+    return -0.16;
+  }
+
+  if (clearanceLabel === "limited") {
+    return -0.08;
+  }
+
+  if (clearanceLabel === "open") {
+    return 0.04;
+  }
+
+  if (typeof barrierDistancePct === "number" && barrierDistancePct >= 0.06) {
+    return 0.03;
+  }
+
+  return 0;
+}
+
 export class OpportunityEngine {
   constructor(private readonly debug: boolean = false) {}
 
@@ -183,6 +208,7 @@ export class OpportunityEngine {
         resolvedStructureType,
       );
       const qualityWeight = 0.65 + clamp(event.strength) * 0.2 + clamp(event.confidence) * 0.15;
+      const resolvedClearanceAdjustment = clearanceAdjustment(event);
 
       const score =
         nonlinearScore *
@@ -193,7 +219,8 @@ export class OpportunityEngine {
             resolvedStructureBoost +
             resolvedBiasBoost +
             resolvedStackingBoost -
-            conflictPenalty,
+            conflictPenalty +
+            resolvedClearanceAdjustment,
         ) *
         typeWeight(event.eventType) *
         qualityWeight;
@@ -214,6 +241,8 @@ export class OpportunityEngine {
         score: Number(score.toFixed(4)),
         normalizedScore: 0,
         classification: "low" as OpportunityClassification,
+        nextBarrierDistancePct: event.eventContext.nextBarrierDistancePct,
+        clearanceLabel: event.eventContext.clearanceLabel,
       };
     });
 

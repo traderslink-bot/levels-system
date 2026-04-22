@@ -708,8 +708,6 @@ export class ManualWatchlistRuntimeManager {
           symbol: event.symbol,
           timestamp: event.timestamp,
         }),
-        null,
-        2,
       ));
     }
   };
@@ -735,8 +733,6 @@ export class ManualWatchlistRuntimeManager {
         symbol: update.symbol,
         timestamp: update.timestamp,
       }),
-      null,
-      2,
     ));
   };
 

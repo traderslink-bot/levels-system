@@ -6,6 +6,8 @@ export type MonitoringConfig = {
   nearestZonesToEvaluate: number;
   breakoutConfirmPct: number;
   maxConfirmDistancePct: number;
+  tightClearancePct: number;
+  limitedClearancePct: number;
   failureReturnPct: number;
   compressionMaxDistancePct: number;
   compressionMinUpdates: number;
@@ -19,6 +21,8 @@ export const DEFAULT_MONITORING_CONFIG: MonitoringConfig = {
   nearestZonesToEvaluate: 3,
   breakoutConfirmPct: 0.0025,
   maxConfirmDistancePct: 0.01,
+  tightClearancePct: 0.015,
+  limitedClearancePct: 0.04,
   failureReturnPct: 0.0015,
   compressionMaxDistancePct: 0.0025,
   compressionMinUpdates: 4,

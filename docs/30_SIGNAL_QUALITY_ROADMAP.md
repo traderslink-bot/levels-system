@@ -46,6 +46,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added local Discord delivery audit files for long-run sessions.
 - Split long-run review into operational and diagnostic surfaces.
 - Added a live session summary for long-run testing.
+- Added per-symbol session-summary tracking for lifecycle, delivery, diagnostics, failures, and opportunity updates.
 - Added runtime-status visibility for the operator.
 - Improved trader-facing alert payloads with severity, confidence, score, and trigger.
 - Improved trader-facing alert wording so breakout, breakdown, reclaim, failed-move, and dip-buy style support tests are described in more useful language.
@@ -55,6 +56,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
   - `strong` -> `heavy`
   - `major` -> `major`
 - Improved level snapshot wording so support and resistance ladders now expose strength descriptors instead of only bare prices.
+- Added event-context barrier-clearance tracking so monitoring events know the next meaningful opposing barrier and whether room is `tight`, `limited`, or `open`.
+- Added opportunity-ranking penalties and bonuses based on barrier clearance so cramped setups are downgraded before they reach the trader.
 
 ## Active Backlog
 
@@ -118,7 +121,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 ## Next Recommended Implementation Steps
 
-1. Add overhead-clearance scoring to the opportunity and alert layers so dip-buy style setups are penalized when upside room is cramped.
-2. Add per-symbol session summaries that count alerts by family and identify the noisiest symbols and setups.
-3. Add trader-facing thread summaries for active symbols.
+1. Add alert-family counts and “noisiest family” detection into `session-summary.json` so review gets even faster.
+2. Add trader-facing thread summaries for active symbols.
+3. Add stronger support-durability / resistance-durability scoring so over-tested levels are separated from truly defended levels.
 4. Add an AI commentary layer on top of the cleaned deterministic signal stream.

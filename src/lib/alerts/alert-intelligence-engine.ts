@@ -91,6 +91,18 @@ export class AlertIntelligenceEngine {
     event: MonitoringEvent,
     levels: LevelEngineOutput | undefined,
   ): TraderNextBarrierContext | null {
+    if (
+      event.eventContext.nextBarrierKind &&
+      typeof event.eventContext.nextBarrierLevel === "number" &&
+      typeof event.eventContext.nextBarrierDistancePct === "number"
+    ) {
+      return {
+        side: event.eventContext.nextBarrierKind,
+        price: event.eventContext.nextBarrierLevel,
+        distancePct: event.eventContext.nextBarrierDistancePct,
+      };
+    }
+
     if (!levels || event.triggerPrice <= 0) {
       return null;
     }
