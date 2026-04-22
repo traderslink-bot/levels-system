@@ -32,6 +32,7 @@ test("manual watchlist page shows runtime status and separate review surfaces", 
   assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-operational\.log/);
   assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-diagnostics\.log/);
   assert.match(MANUAL_WATCHLIST_PAGE, /discord-delivery-audit\.jsonl/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /thread-summaries\.json/);
   assert.match(MANUAL_WATCHLIST_PAGE, /fetch\("\/api\/runtime\/status"\)/);
 });
 

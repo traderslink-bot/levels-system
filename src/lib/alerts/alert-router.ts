@@ -34,6 +34,12 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       `trigger ${alert.event.triggerPrice >= 1 ? alert.event.triggerPrice.toFixed(2) : alert.event.triggerPrice.toFixed(4)}`,
     ].join("\n"),
     event: alert.event,
+    metadata: {
+      eventType: alert.event.eventType,
+      severity: alert.severity,
+      confidence: alert.confidence,
+      score: alert.score,
+    },
   };
 }
 

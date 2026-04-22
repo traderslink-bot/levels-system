@@ -672,6 +672,11 @@ export class ManualWatchlistRuntimeManager {
     const alertResult = this.alertIntelligenceEngine.processEvent(event, levels);
     if (alertResult.formatted) {
       const alert = formatIntelligentAlertAsPayload(alertResult.rawAlert);
+      alert.metadata = {
+        ...alert.metadata,
+        postingFamily: alertResult.delivery.family,
+        postingDecisionReason: alertResult.delivery.reason,
+      };
       void this.options.discordAlertRouter
         .routeAlert(entry.discordThreadId, alert)
         .then(() => {
@@ -683,6 +688,8 @@ export class ManualWatchlistRuntimeManager {
               severity: alertResult.rawAlert.severity,
               confidence: alertResult.rawAlert.confidence,
               score: alertResult.rawAlert.score,
+              family: alertResult.delivery.family ?? null,
+              reason: alertResult.delivery.reason,
             },
           });
         })
@@ -698,6 +705,19 @@ export class ManualWatchlistRuntimeManager {
           });
           console.error(`[ManualWatchlistRuntimeManager] Failed to route Discord alert: ${message}`);
         });
+    } else {
+      this.emitLifecycle("alert_suppressed", {
+        symbol: event.symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          eventType: event.eventType,
+          severity: alertResult.rawAlert.severity,
+          confidence: alertResult.rawAlert.confidence,
+          score: alertResult.rawAlert.score,
+          family: alertResult.delivery.family ?? null,
+          reason: alertResult.delivery.reason,
+        },
+      });
     }
 
     const snapshot = this.options.opportunityRuntimeController.processMonitoringEvent(event);

@@ -1400,6 +1400,7 @@ test("ManualWatchlistRuntimeManager suppresses near-duplicate alert posts for th
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const persistence = new FakeWatchlistStatePersistence();
   const levelStore = new LevelStore();
+  const lifecycleEvents: ManualWatchlistLifecycleEvent[] = [];
   persistence.storedEntries = [];
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: {} as any,
@@ -1409,6 +1410,9 @@ test("ManualWatchlistRuntimeManager suppresses near-duplicate alert posts for th
     opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
     watchlistStore: new WatchlistStore(),
     watchlistStatePersistence: persistence as any,
+    lifecycleListener: (event) => {
+      lifecycleEvents.push(event);
+    },
     seedSymbolLevels: async (symbol: string) => {
       levelStore.setLevels(buildLevelOutput(symbol, {
         intradayResistance: [
@@ -1475,6 +1479,26 @@ test("ManualWatchlistRuntimeManager suppresses near-duplicate alert posts for th
   await waitForAsyncWork();
 
   assert.equal(discordAlertRouter.routed.length, 1);
+  assert.equal(
+    lifecycleEvents.some(
+      (event) =>
+        event.event === "alert_posted" &&
+        event.symbol === "ALBT" &&
+        event.details?.eventType === "level_touch" &&
+        event.details?.family === "zone_context",
+    ),
+    true,
+  );
+  assert.equal(
+    lifecycleEvents.some(
+      (event) =>
+        event.event === "alert_suppressed" &&
+        event.symbol === "ALBT" &&
+        event.details?.reason === "duplicate_context" &&
+        event.details?.family === "zone_context",
+    ),
+    true,
+  );
 });
 
 test("ManualWatchlistRuntimeManager emits deterministic trader-facing interpretation once and suppresses repeat spam", async () => {

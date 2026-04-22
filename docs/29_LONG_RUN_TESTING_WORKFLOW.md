@@ -103,6 +103,9 @@ Inside that folder:
   - includes both successful and failed downstream posts
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
+- `thread-summaries.json`
+  - live-updated per-symbol review artifact
+  - turns session activity into a compact trader-facing summary for each active symbol
 - `session-info.txt`
   - start time, end time, log paths, and runtime URL
 
@@ -208,8 +211,11 @@ If the app behaves oddly:
 4. check:
    - `manual-watchlist-operational.log`
 5. check:
-   - `session-summary.json`
-   for a fast high-level view of the session
+- `session-summary.json`
+  for a fast high-level view of the session
+- check:
+  - `thread-summaries.json`
+  when you want the shortest per-symbol explanation of what each thread actually did
 6. only check:
    - `manual-watchlist-diagnostics.log`
    when the question is specifically about breakout / reclaim / fakeout reasoning
@@ -229,6 +235,7 @@ When asking me to review a long-run failure, the most useful things to send are:
 - what the UI showed
 - the newest `manual-watchlist-operational.log`
 - `session-summary.json` when you want a quick top-level review first
+- `thread-summaries.json` when you want the quickest per-symbol usefulness review
 - `manual-watchlist-diagnostics.log` when the question is about detector reasoning
 - `discord-delivery-audit.jsonl` when the question is about missing, noisy, or confusing Discord output
 - optionally `session-info.txt`
@@ -246,6 +253,7 @@ The filtered log now includes structured lifecycle markers such as:
 - `snapshot_posted`
 - `extension_posted`
 - `alert_posted`
+- `alert_suppressed`
 - `activation_completed`
 - `deactivated`
 - `restore_failed`
@@ -256,6 +264,7 @@ These are meant to answer operational questions quickly:
 - did IBKR seeding complete
 - did a snapshot post happen
 - did an alert actually get routed
+- did an alert get intentionally suppressed because it was duplicate, filtered, or lower-value
 - did deactivation complete cleanly
 
 This makes the testing process much less dependent on scrolling back through raw terminal noise.
@@ -269,6 +278,8 @@ This makes the testing process much less dependent on scrolling back through raw
 - which symbols generated the most diagnostics
 - which symbols hit activation, seed, or restore failures
 - which symbols produced opportunity snapshots and evaluation updates
+- which alert families each symbol actually posted
+- which suppression reasons dominated for each symbol
 
 That means a long session can now be reviewed both:
 
@@ -283,6 +294,10 @@ It keeps a rolling view of things like:
 
 - active symbol count
 - lifecycle event counts
+- alert-post counts
+- alert-suppression counts
+- alert families by volume
+- suppression reasons by volume
 - Discord delivery posted vs failed
 - per-operation delivery counts
 - activation / restore / seed / IBKR failure counts
@@ -294,6 +309,24 @@ This is useful when you want a quick answer like:
 - did this session have any real failures
 - was Discord posting healthy
 - was this session mostly quiet or extremely diagnostic-heavy
+- which alert families became the noisiest
+
+## What The Thread Summaries Are For
+
+`thread-summaries.json` is the shortest useful artifact for end-user review.
+
+It gives each active symbol a compact narrative such as:
+
+- whether the symbol ended active or inactive
+- how many snapshots and alerts were posted
+- which alert families dominated
+- which suppression reasons dominated
+- what the latest posted alert looked like
+- whether delivery or runtime failures showed up
+
+This is meant to answer the practical question:
+
+- if I opened this Discord thread later, would it look useful or mostly noisy
 
 ## What The Discord Audit File Is For
 

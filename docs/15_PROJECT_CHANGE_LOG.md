@@ -19,6 +19,52 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 05:25 PM America/Toronto
+
+### Added alert-family / suppression tracking and per-symbol thread summaries for long-run session review
+
+- Updated the long-run launcher in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated alert payload / audit plumbing in:
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+- Updated manual-runtime lifecycle instrumentation in:
+  - `src/lib/monitoring/manual-watchlist-runtime-events.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated operator status surfacing in:
+  - `src/runtime/manual-watchlist-page.ts`
+- Added and expanded focused coverage in:
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/manual-watchlist-server.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - alert payloads now carry structured metadata such as event type, severity, confidence, score, posting family, and posting-decision reason
+  - the audited Discord gateway now records richer alert / snapshot / extension metadata into `discord-delivery-audit.jsonl`
+  - the manual runtime now emits `alert_suppressed` lifecycle events when alerts are filtered or intentionally held back by posting policy
+  - long-run session summaries now track:
+    - alert posts
+    - alert suppressions
+    - alert families by volume
+    - suppression reasons by volume
+    - symbol-level posted / suppressed family counts
+  - each long-run session now also writes `thread-summaries.json`, a compact per-symbol narrative of runtime state, posted families, suppression reasons, latest alert context, and failure counts
+- Why this matters:
+  - long-run testing can now answer whether the Discord output was coherent and useful, not just whether it technically posted
+  - noisy symbols and repetitive low-value alert patterns are much easier to identify after a real session
+- Verification completed:
+  - `npx tsx --test src/tests/discord-audited-thread-gateway.test.ts`
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npx tsx --test src/tests/manual-watchlist-server.test.ts`
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 04:35 PM America/Toronto
 
 ### Added durability-aware support and resistance scoring so defended levels separate more clearly from tired ones

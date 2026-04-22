@@ -42,6 +42,14 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       symbol: "ALBT",
       timestamp: 1,
     } as any,
+    metadata: {
+      eventType: "breakout",
+      severity: "critical",
+      confidence: "high",
+      score: 108.68,
+      postingFamily: "bullish_resolution",
+      postingDecisionReason: "posted",
+    },
   });
   await audited.sendLevelSnapshot("thread-1", {
     symbol: "ALBT",
@@ -62,6 +70,10 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[2]?.operation, "post_level_snapshot");
   assert.equal(lines[1]?.status, "posted");
   assert.equal(lines[1]?.symbol, "ALBT");
+  assert.equal(lines[1]?.eventType, "breakout");
+  assert.equal(lines[1]?.postingFamily, "bullish_resolution");
+  assert.equal(lines[2]?.supportCount, 1);
+  assert.equal(lines[2]?.resistanceCount, 1);
   assert.equal(capturedEntries.length, 3);
 });
 
@@ -98,6 +110,14 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
         symbol: "ALBT",
         timestamp: 1,
       } as any,
+      metadata: {
+        eventType: "breakout",
+        severity: "critical",
+        confidence: "high",
+        score: 108.68,
+        postingFamily: "bullish_resolution",
+        postingDecisionReason: "posted",
+      },
     }),
     /Discord rejected post/,
   );
@@ -106,5 +126,7 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.operation, "post_alert");
   assert.equal(line.status, "failed");
   assert.equal(line.gatewayMode, "local");
+  assert.equal(line.eventType, "breakout");
+  assert.equal(line.postingFamily, "bullish_resolution");
   assert.match(line.error, /Discord rejected post/);
 });

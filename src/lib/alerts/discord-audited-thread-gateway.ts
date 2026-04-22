@@ -27,6 +27,16 @@ export type DiscordDeliveryAuditEntry = {
   symbol?: string;
   title?: string;
   bodyPreview?: string;
+  eventType?: string;
+  severity?: string;
+  confidence?: string;
+  score?: number;
+  postingFamily?: string;
+  postingDecisionReason?: string;
+  supportCount?: number;
+  resistanceCount?: number;
+  side?: string;
+  levelCount?: number;
   error?: string;
 };
 
@@ -35,6 +45,11 @@ export type DiscordAuditedThreadGatewayOptions = {
   auditFilePath?: string;
   auditListener?: (entry: DiscordDeliveryAuditEntry) => void;
 };
+
+type DiscordDeliveryAuditPayload = Omit<
+  DiscordDeliveryAuditEntry,
+  "type" | "operation" | "status" | "gatewayMode" | "timestamp" | "error"
+>;
 
 const DEFAULT_AUDIT_FILE_PATH = resolve(
   process.cwd(),
@@ -65,12 +80,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
 
   private recordPosted(
     operation: DiscordDeliveryAuditOperation,
-    payload: {
-      threadId?: string;
-      symbol?: string;
-      title?: string;
-      bodyPreview?: string;
-    },
+    payload: DiscordDeliveryAuditPayload,
   ): void {
     this.writeAudit({
       type: "discord_delivery_audit",
@@ -85,12 +95,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
   private recordFailed(
     operation: DiscordDeliveryAuditOperation,
     error: unknown,
-    payload: {
-      threadId?: string;
-      symbol?: string;
-      title?: string;
-      bodyPreview?: string;
-    },
+    payload: DiscordDeliveryAuditPayload,
   ): never {
     const message = error instanceof Error ? error.message : String(error);
     this.writeAudit({
@@ -140,6 +145,12 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         symbol: payload.event.symbol,
         title: payload.title,
         bodyPreview: previewBody(payload.body),
+        eventType: payload.metadata?.eventType,
+        severity: payload.metadata?.severity,
+        confidence: payload.metadata?.confidence,
+        score: payload.metadata?.score,
+        postingFamily: payload.metadata?.postingFamily,
+        postingDecisionReason: payload.metadata?.postingDecisionReason,
       });
     } catch (error) {
       this.recordFailed("post_alert", error, {
@@ -147,6 +158,12 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         symbol: payload.event.symbol,
         title: payload.title,
         bodyPreview: previewBody(payload.body),
+        eventType: payload.metadata?.eventType,
+        severity: payload.metadata?.severity,
+        confidence: payload.metadata?.confidence,
+        score: payload.metadata?.score,
+        postingFamily: payload.metadata?.postingFamily,
+        postingDecisionReason: payload.metadata?.postingDecisionReason,
       });
     }
   }
@@ -163,6 +180,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         symbol: payload.symbol,
         title: `LEVEL SNAPSHOT: ${payload.symbol}`,
         bodyPreview,
+        supportCount: payload.supportZones.length,
+        resistanceCount: payload.resistanceZones.length,
       });
     } catch (error) {
       this.recordFailed("post_level_snapshot", error, {
@@ -170,6 +189,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         symbol: payload.symbol,
         title: `LEVEL SNAPSHOT: ${payload.symbol}`,
         bodyPreview,
+        supportCount: payload.supportZones.length,
+        resistanceCount: payload.resistanceZones.length,
       });
     }
   }
@@ -184,6 +205,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         symbol: payload.symbol,
         title: `NEXT LEVELS: ${payload.symbol}`,
         bodyPreview: previewBody(bodyPreview),
+        side: payload.side,
+        levelCount: payload.levels.length,
       });
     } catch (error) {
       this.recordFailed("post_level_extension", error, {
@@ -191,6 +214,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         symbol: payload.symbol,
         title: `NEXT LEVELS: ${payload.symbol}`,
         bodyPreview: previewBody(bodyPreview),
+        side: payload.side,
+        levelCount: payload.levels.length,
       });
     }
   }

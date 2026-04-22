@@ -12,6 +12,14 @@ export type AlertPayload = {
   title: string;
   body: string;
   event: MonitoringEvent;
+  metadata?: {
+    eventType?: MonitoringEvent["eventType"];
+    severity?: AlertSeverity;
+    confidence?: AlertConfidence;
+    score?: number;
+    postingFamily?: AlertPostingFamily;
+    postingDecisionReason?: AlertPostingDecisionReason;
+  };
 };
 
 export type TraderNextBarrierContext = {

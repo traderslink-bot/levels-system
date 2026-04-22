@@ -10,6 +10,7 @@ export type ManualWatchlistLifecycleEventName =
   | "snapshot_posted"
   | "extension_posted"
   | "alert_posted"
+  | "alert_suppressed"
   | "alert_post_failed"
   | "deactivated"
   | "restore_failed";

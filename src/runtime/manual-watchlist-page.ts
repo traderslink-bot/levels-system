@@ -116,6 +116,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Review Log", "manual-watchlist-operational.log"],
         ["Diagnostic Log", "manual-watchlist-diagnostics.log"],
         ["Discord Audit", "discord-delivery-audit.jsonl"],
+        ["Thread Summary", "thread-summaries.json"],
       ];
 
       for (const [label, value] of cards) {

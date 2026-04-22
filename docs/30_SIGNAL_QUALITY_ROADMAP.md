@@ -61,12 +61,13 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added durability-aware level scoring so the ranking layer now distinguishes more clearly between reinforced / durable levels and fragile over-retested ones.
 - Threaded durability through level confidence, explanations, surfaced-selection wording, compare output metadata, and the runtime compatibility adapter.
 - Adjusted runtime-facing strength labels so fragile levels are less likely to be overstated as `heavy` or `major` support / resistance.
+- Added structured alert-posting family and suppression tracking to long-run session summaries.
+- Added `thread-summaries.json` so each symbol now gets a compact narrative of what the trader-facing thread actually did during a session.
 
 ## Active Backlog
 
 ### End-user output improvements
 
-- Add per-symbol thread summaries so a Discord thread tells a story instead of only isolated messages.
 - Add end-of-session summaries for symbols that produced multiple alerts.
 - Add explicit `why now` and `what changed` wording for higher-priority alerts.
 - Improve low-priced-symbol phrasing so tiny decimal moves remain readable and not misleading.
@@ -96,7 +97,6 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 ### Noise-control improvements
 
-- Track per-family post counts and suppression counts in session summaries.
 - Add a usefulness review loop for alerts:
   - useful
   - noisy
@@ -125,6 +125,6 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 ## Next Recommended Implementation Steps
 
 1. Add alert-family counts and "noisiest family" detection into `session-summary.json` so review gets even faster.
-2. Add trader-facing thread summaries for active symbols.
+2. Add session-level useful-vs-noisy scoring heuristics on top of the new family and suppression counts.
 3. Add stronger clearance-aware message wording so tight-room setups are explained more bluntly to the trader.
 4. Add an AI commentary layer on top of the cleaned deterministic signal stream.
