@@ -109,6 +109,8 @@ Inside that folder:
 - `session-review.md`
   - live-updated human-readable review artifact
   - summarizes the session verdict, noisiest areas, and what each symbol thread looked like without needing raw JSON
+- `human-review-feedback.jsonl`
+  - optional human feedback file for marking symbols or alerts as `useful`, `strong`, `noisy`, `late`, or `wrong`
 - `session-info.txt`
   - start time, end time, log paths, and runtime URL
 
@@ -155,6 +157,8 @@ During the session, do real testing such as:
 - add a second symbol while another one is active
 - leave the app running while the market moves
 - note anything that looks wrong in the UI
+- if a thread is clearly useful, noisy, late, wrong, or especially strong, record feedback with:
+  - `scripts/add-long-run-review-feedback.ps1`
 
 ### 3. Keep Simple Notes
 
@@ -243,6 +247,7 @@ When asking me to review a long-run failure, the most useful things to send are:
 - `session-summary.json` when you want a quick top-level review first
 - `thread-summaries.json` when you want the quickest per-symbol usefulness review
 - `session-review.md` when you want the fastest readable summary first
+- `human-review-feedback.jsonl` when you already marked alerts as useful, noisy, late, wrong, or strong
 - `manual-watchlist-diagnostics.log` when the question is about detector reasoning
 - `discord-delivery-audit.jsonl` when the question is about missing, noisy, or confusing Discord output
 - optionally `session-info.txt`
@@ -287,6 +292,7 @@ This makes the testing process much less dependent on scrolling back through raw
 - which symbols produced opportunity snapshots and evaluation updates
 - which alert families each symbol actually posted
 - which suppression reasons dominated for each symbol
+- what human review feedback has already been recorded
 
 That means a long session can now be reviewed both:
 
@@ -333,6 +339,8 @@ It gives each active symbol a compact narrative such as:
 - which alert families dominated
 - which suppression reasons dominated
 - what the latest posted alert looked like, including whether room was `tight`, `limited`, or `open`
+- what the end-of-session summary says about the thread overall
+- whether any human review feedback was already recorded
 - whether delivery or runtime failures showed up
 
 This is meant to answer the practical question:
@@ -349,6 +357,30 @@ It turns the JSON summary and thread summaries into a short human-readable revie
 - which symbols were the most promising
 - which symbols need attention before trusting them
 - what should we review next without reading raw JSON first
+
+## How The Human Review Loop Fits In
+
+The long-run workflow now supports optional human review feedback through:
+
+- `scripts/add-long-run-review-feedback.ps1`
+
+That script appends entries to:
+
+- `human-review-feedback.jsonl`
+
+When the session is still running, the launcher will fold those entries into:
+
+- `session-summary.json`
+- `thread-summaries.json`
+- `session-review.md`
+
+Use that loop when you want to mark a thread or alert as:
+
+- useful
+- strong
+- noisy
+- late
+- wrong
 
 ## What The Discord Audit File Is For
 

@@ -66,6 +66,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added session-level and per-symbol usefulness / noise heuristics so long-run review can now classify runs as `high_signal`, `useful`, `mixed`, `noisy`, or `needs_attention`.
 - Added `session-review.md` so long-run runs now produce a fast human-readable review instead of forcing every review through raw JSON artifacts.
 - Improved trader-facing clearance wording so alerts now say when overhead or downside room is `tight`, `limited`, or `open` instead of only listing the next barrier numerically.
+- Added a human review loop backed by `human-review-feedback.jsonl` plus `scripts/add-long-run-review-feedback.ps1`, and surfaced that feedback in the long-run summary artifacts.
+- Added deterministic end-of-session thread summaries so each symbol now gets a clearer plain-English wrap-up instead of only raw counts.
 
 ## Active Backlog
 
@@ -127,7 +129,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 ## Next Recommended Implementation Steps
 
-1. Add a human review loop that records whether an alert was useful, noisy, late, or wrong.
-2. Add end-of-session summaries for symbols that produced multiple alerts and materially changed state.
-3. Add AI commentary on top of the cleaned deterministic signal stream for the highest-priority symbols.
-4. Use review feedback to tune heavy/light support-resistance wording against real alert outcomes.
+1. Use human review feedback to tune heavy/light support-resistance wording against real alert outcomes.
+2. Add AI commentary on top of the cleaned deterministic signal stream for the highest-priority symbols.
+3. Add follow-through and exhaustion awareness so strong-looking support/resistance can still be downgraded when it is tactically tired.
+4. Add stronger end-of-session summaries for symbols that materially changed state multiple times across the same run.

@@ -25,6 +25,8 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 - Updated the long-run launcher in:
   - `scripts/start-manual-watchlist-long-run.ps1`
+- Added the human review helper script:
+  - `scripts/add-long-run-review-feedback.ps1`
 - Updated trader-facing alert wording and alert metadata in:
   - `src/lib/alerts/trader-message-language.ts`
   - `src/lib/alerts/alert-intelligence-engine.ts`
@@ -33,8 +35,10 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
 - Updated:
   - `README.md`
+  - `docs/00_DOC_INDEX.md`
   - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
   - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+  - `docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md`
 - What changed:
   - `session-summary.json` now includes a session-level quality block with score, verdict, rationale, recommendations, and noisiest symbols
   - each symbol summary now includes a quality score and verdict such as `high_signal`, `useful`, `mixed`, `noisy`, or `needs_attention`
@@ -43,12 +47,16 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `session-review.md` now turns the JSON summaries into a fast human-readable run review with verdicts, rationale, noisiest areas, and per-symbol next steps
   - trader-facing alert bodies now describe barrier room as `tight`, `limited`, or `open` instead of only listing the next barrier price
   - alert payload metadata, Discord delivery audit rows, lifecycle events, and long-run thread summaries now carry room/clearance context for faster post-run review
+  - long-run sessions now support optional human review feedback through `human-review-feedback.jsonl`
+  - each symbol thread now gets a deterministic end-of-session summary in the review artifacts
 - Why this matters:
   - long-run artifacts can now answer whether a session or symbol looked broadly useful versus just technically active
   - this creates a bridge between raw deterministic logging and the later AI commentary/review layer
   - tight-room breakouts and dip-buy tests are now easier for the end user to interpret correctly
+  - the project now has a real feedback path for labeling live alerts as useful, noisy, late, wrong, or strong
 - Verification completed:
   - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+  - PowerShell parse check for `scripts/add-long-run-review-feedback.ps1`
   - `npx tsx --test src/tests/alert-intelligence.test.ts`
   - `npx tsx --test src/tests/alert-router.test.ts`
   - `npx tsx --test src/tests/discord-audited-thread-gateway.test.ts`

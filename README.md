@@ -24,6 +24,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - `session-summary.json` for a quick session-level and per-symbol rollup
   - `thread-summaries.json` for a compact trader-facing story per active symbol
   - `session-review.md` for the fastest human-readable verdict on whether the run looked useful, noisy, or in need of attention
+- Long-run sessions can also collect human review feedback in `human-review-feedback.jsonl` via `scripts/add-long-run-review-feedback.ps1`, and the live session summaries will fold that feedback into the review artifacts.
 - The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
 - Trader-facing Discord alerts now include:
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
@@ -36,6 +37,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
 - Signal-quality ideas, priorities, and progress are tracked in [docs/30_SIGNAL_QUALITY_ROADMAP.md](docs/30_SIGNAL_QUALITY_ROADMAP.md).
+- The human alert-feedback workflow is documented in [docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md](docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md).
 
 ## Current capabilities
 

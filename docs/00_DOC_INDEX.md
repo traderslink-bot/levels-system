@@ -42,3 +42,4 @@ This folder contains the full plan for the candle-based levels system, including
 28. `28_RUNTIME_HANDOFF_2026-04-21.md`
 29. `29_LONG_RUN_TESTING_WORKFLOW.md`
 30. `30_SIGNAL_QUALITY_ROADMAP.md`
+31. `31_ALERT_REVIEW_LOOP_WORKFLOW.md`

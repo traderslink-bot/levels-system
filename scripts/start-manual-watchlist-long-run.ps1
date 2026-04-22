@@ -15,6 +15,7 @@ $discordAuditPath = Join-Path $sessionDirectory "discord-delivery-audit.jsonl"
 $sessionSummaryPath = Join-Path $sessionDirectory "session-summary.json"
 $threadSummaryPath = Join-Path $sessionDirectory "thread-summaries.json"
 $sessionReviewPath = Join-Path $sessionDirectory "session-review.md"
+$feedbackPath = Join-Path $sessionDirectory "human-review-feedback.jsonl"
 $sessionInfoPath = Join-Path $sessionDirectory "session-info.txt"
 $operationalPattern =
   "Manual watchlist server running|" +
@@ -70,6 +71,12 @@ $summary = [ordered]@{
     verdict = "unknown"
     rationale = @()
     recommendations = @()
+  }
+  humanReview = @{
+    total = 0
+    byVerdict = @{}
+    symbolsReviewed = 0
+    latestAt = $null
   }
   perSymbol = @{}
 }
@@ -131,6 +138,14 @@ function Ensure-SymbolSummary {
         verdict = "unknown"
         rationale = @()
         recommendations = @()
+      }
+      humanReview = @{
+        total = 0
+        byVerdict = @{}
+        latestVerdict = $null
+        latestEventType = $null
+        latestNotes = $null
+        latestAt = $null
       }
       failures = @{
         activation = 0
@@ -393,6 +408,117 @@ function Get-NoisiestSymbols {
   )
 }
 
+function Reset-HumanReviewSummary {
+  $summary.humanReview = @{
+    total = 0
+    byVerdict = @{}
+    symbolsReviewed = 0
+    latestAt = $null
+  }
+
+  foreach ($symbol in $summary.perSymbol.Keys) {
+    $summary.perSymbol[$symbol].humanReview = @{
+      total = 0
+      byVerdict = @{}
+      latestVerdict = $null
+      latestEventType = $null
+      latestNotes = $null
+      latestAt = $null
+    }
+  }
+}
+
+function Apply-HumanReviewFeedbackFromFile {
+  if (-not (Test-Path -LiteralPath $feedbackPath)) {
+    Reset-HumanReviewSummary
+    return
+  }
+
+  Reset-HumanReviewSummary
+  $reviewedSymbols = @{}
+
+  foreach ($line in (Get-Content -LiteralPath $feedbackPath -ErrorAction SilentlyContinue)) {
+    if ([string]::IsNullOrWhiteSpace($line)) {
+      continue
+    }
+
+    try {
+      $parsed = $line | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+      continue
+    }
+
+    $symbol = if ($parsed.symbol) { [string]$parsed.symbol } else { $null }
+    $verdict = if ($parsed.verdict) { [string]$parsed.verdict } else { "unclassified" }
+    $symbolSummary = Ensure-SymbolSummary -Symbol $symbol
+
+    $summary.humanReview.total += 1
+    Increment-SummaryCount -Table $summary.humanReview.byVerdict -Key $verdict
+    if ($parsed.timestamp -and (-not $summary.humanReview.latestAt -or [string]$parsed.timestamp -gt [string]$summary.humanReview.latestAt)) {
+      $summary.humanReview.latestAt = [string]$parsed.timestamp
+    }
+
+    if ($symbolSummary -ne $null) {
+      $reviewedSymbols[$symbol.ToUpperInvariant()] = $true
+      $symbolSummary.humanReview.total += 1
+      Increment-SummaryCount -Table $symbolSummary.humanReview.byVerdict -Key $verdict
+      if ($parsed.timestamp -and (-not $symbolSummary.humanReview.latestAt -or [string]$parsed.timestamp -gt [string]$symbolSummary.humanReview.latestAt)) {
+        $symbolSummary.humanReview.latestAt = [string]$parsed.timestamp
+        $symbolSummary.humanReview.latestVerdict = $verdict
+        $symbolSummary.humanReview.latestEventType = if ($parsed.eventType) { [string]$parsed.eventType } else { $null }
+        $symbolSummary.humanReview.latestNotes = if ($parsed.notes) { [string]$parsed.notes } else { $null }
+      }
+    }
+  }
+
+  $summary.humanReview.symbolsReviewed = $reviewedSymbols.Count
+}
+
+function Build-EndOfSessionSummary {
+  param(
+    [string]$Symbol,
+    [hashtable]$SymbolSummary
+  )
+
+  $failureTotal =
+    [int]$SymbolSummary.failures.activation +
+    [int]$SymbolSummary.failures.restore +
+    [int]$SymbolSummary.failures.seed +
+    [int]$SymbolSummary.failures.ibkr
+  $families = Get-TopSummaryKeys -Table $SymbolSummary.alertPostedByFamily -Top 2
+  $reviewVerdict = $SymbolSummary.humanReview.latestVerdict
+
+  if ($failureTotal -gt 0) {
+    return "$Symbol hit $failureTotal runtime failure(s) during the session and needs operational cleanup before trusting the thread."
+  }
+
+  if ($reviewVerdict -eq "wrong" -or $reviewVerdict -eq "late") {
+    return "$Symbol has explicit human review feedback of $reviewVerdict, so this thread should be treated cautiously until the underlying alert quality is tuned."
+  }
+
+  if ($SymbolSummary.alertPosted -ge 2 -and $SymbolSummary.quality.verdict -in @("high_signal", "useful")) {
+    return "$Symbol produced multiple posted alerts and held a $($SymbolSummary.quality.verdict) verdict; families: $(Join-DisplayList -Items $families)."
+  }
+
+  if ($SymbolSummary.alertSuppressed -gt $SymbolSummary.alertPosted -and $SymbolSummary.alertSuppressed -ge 3) {
+    return "$Symbol spent more time suppressing alerts than posting them, which points to repetitive or low-value conditions rather than a clean thread."
+  }
+
+  if ($SymbolSummary.snapshotPosts -gt 0 -and $SymbolSummary.alertPosted -eq 0) {
+    return "$Symbol stayed mostly observational: snapshots posted, but no trader-facing alerts cleared the posting bar."
+  }
+
+  if ($reviewVerdict -eq "useful" -or $reviewVerdict -eq "strong") {
+    return "$Symbol received positive human review feedback, which is a good sign that the thread was adding value to the end user."
+  }
+
+  if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.clearanceLabel) {
+    return "$Symbol ended with a $($SymbolSummary.lastAlert.clearanceLabel) room alert context, which should shape how aggressively the latest setup is interpreted."
+  }
+
+  return "$Symbol remained $($SymbolSummary.quality.verdict) overall, and the thread should be reviewed alongside its latest alert and suppression mix."
+}
+
 function Build-ThreadSummaryRecord {
   param(
     [string]$Symbol,
@@ -454,9 +580,11 @@ function Build-ThreadSummaryRecord {
     status = $status
     verdict = $SymbolSummary.quality.verdict
     score = $SymbolSummary.quality.score
+    endOfSessionSummary = Build-EndOfSessionSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
     headline = ($headlineParts -join " | ")
     rationale = $SymbolSummary.quality.rationale
     recommendations = $SymbolSummary.quality.recommendations
+    humanReview = $SymbolSummary.humanReview
     topPostedFamilies = Get-TopSummaryKeys -Table $SymbolSummary.alertPostedByFamily
     topSuppressionReasons = Get-TopSummaryKeys -Table $SymbolSummary.alertSuppressedByReason
     lifecycleHighlights = Get-TopSummaryKeys -Table $SymbolSummary.lifecycleCounts
@@ -546,6 +674,14 @@ function Build-SessionReviewLines {
 
   $lines += @(
     "",
+    "## Human Review",
+    "",
+    "- Total feedback entries: $($summary.humanReview.total)",
+    "- Symbols reviewed: $($summary.humanReview.symbolsReviewed)",
+    "- Review verdicts: $(Join-DisplayList -Items (Get-TopSummaryKeys -Table $summary.humanReview.byVerdict -Top 5))",
+    "- Latest feedback at: $(if ($summary.humanReview.latestAt) { $summary.humanReview.latestAt } else { 'none yet' })",
+    "",
+    "",
     "## Symbol Threads",
     ""
   )
@@ -561,10 +697,12 @@ function Build-SessionReviewLines {
       "",
       "- Verdict: $($thread.verdict) ($($thread.score))",
       "- Headline: $($thread.headline)",
+      "- End-of-session summary: $($thread.endOfSessionSummary)",
       "- Top posted families: $(Join-DisplayList -Items $thread.topPostedFamilies)",
       "- Top suppression reasons: $(Join-DisplayList -Items $thread.topSuppressionReasons)",
       "- Lifecycle highlights: $(Join-DisplayList -Items $thread.lifecycleHighlights)",
       "- Latest alert summary: $(if ($thread.latestAlertSummary) { $thread.latestAlertSummary } else { 'none' })",
+      "- Human review: $(if ($thread.humanReview.total -gt 0) { ('latest=' + $thread.humanReview.latestVerdict + '; total=' + $thread.humanReview.total) } else { 'none yet' })",
       "- Discord posted: $($thread.discordPosted)",
       "- Discord failed: $($thread.discordFailed)",
       ""
@@ -848,6 +986,7 @@ function Save-SessionSummary {
     -Secondary $summary.alerting.suppressedByFamily)
   $summary.alerting.noisiestSymbols = Get-NoisiestSymbols
   $summary.quality = Build-SessionQualitySummary
+  Apply-HumanReviewFeedbackFromFile
   $threadSummaries = Build-ThreadSummaries
   Set-Content -LiteralPath $sessionSummaryPath -Value ($summary | ConvertTo-Json -Depth 10)
   Set-Content -LiteralPath $threadSummaryPath -Value ($threadSummaries | ConvertTo-Json -Depth 8)
@@ -913,6 +1052,7 @@ Write-SessionInfo "discord_audit_log=$discordAuditPath"
 Write-SessionInfo "session_summary=$sessionSummaryPath"
 Write-SessionInfo "thread_summaries=$threadSummaryPath"
 Write-SessionInfo "session_review=$sessionReviewPath"
+Write-SessionInfo "human_review_feedback=$feedbackPath"
 Write-SessionInfo "runtime_url=$runtimeUrl"
 
 Write-Host "Long-run session directory: $sessionDirectory"
