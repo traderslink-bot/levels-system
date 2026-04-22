@@ -5,6 +5,7 @@ import type { FinalLevelZone } from "../levels/level-types.js";
 import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import type {
+  TraderMovementContext,
   TraderNextBarrierContext,
   TraderZoneTacticalRead,
 } from "./alert-types.js";
@@ -64,6 +65,39 @@ function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
     default:
       return `room: next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
   }
+}
+
+function formatPct(pct: number): string {
+  return `${(pct * 100).toFixed(1)}%`;
+}
+
+function movementStageLine(
+  movementPct: number,
+  earlyText: string,
+  buildingText: string,
+  extendedText: string,
+): TraderMovementContext {
+  if (movementPct <= 0.005) {
+    return {
+      label: "early",
+      movementPct,
+      line: `${earlyText} (${formatPct(movementPct)})`,
+    };
+  }
+
+  if (movementPct <= 0.015) {
+    return {
+      label: "building",
+      movementPct,
+      line: `${buildingText} (${formatPct(movementPct)})`,
+    };
+  }
+
+  return {
+    label: "extended",
+    movementPct,
+    line: `${extendedText} (${formatPct(movementPct)})`,
+  };
 }
 
 function describeZonePlacement(
@@ -199,6 +233,114 @@ function buildWhyNowLine(
   }
 }
 
+export function deriveTraderMovementContext(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+): TraderMovementContext | null {
+  if (!zone) {
+    return null;
+  }
+
+  const triggerPrice = Math.max(event.triggerPrice, 0.0001);
+  const zoneHigh = Math.max(zone.zoneHigh, 0.0001);
+  const zoneLow = Math.max(zone.zoneLow, 0.0001);
+
+  switch (event.eventType) {
+    case "breakout":
+      return movementStageLine(
+        Math.max(0, event.triggerPrice - zone.zoneHigh) / zoneHigh,
+        "movement: price is still just above the zone high, so the breakout is early",
+        "movement: price is pushing farther above the zone high and follow-through is building",
+        "movement: price is already well above the zone high and getting extended from the breakout zone",
+      );
+    case "breakdown":
+      return movementStageLine(
+        Math.max(0, zone.zoneLow - event.triggerPrice) / zoneLow,
+        "movement: price is still just below the zone low, so the breakdown is early",
+        "movement: price is slipping farther below the zone low and downside follow-through is building",
+        "movement: price is already well below the zone low and getting extended from the breakdown zone",
+      );
+    case "reclaim":
+      return movementStageLine(
+        Math.max(0, event.triggerPrice - zone.zoneHigh) / zoneHigh,
+        "movement: price is back just above the zone high, so the reclaim is still early",
+        "movement: price is climbing farther back above the zone high and reclaim follow-through is building",
+        "movement: price is well back above the zone high and the reclaim is already extended away from the band",
+      );
+    case "fake_breakout": {
+      const movementPct = Math.max(0, zone.zoneHigh - event.triggerPrice) / zoneHigh;
+      return {
+        label: "back_inside",
+        movementPct,
+        line: `movement: price is back under the zone high after the failed break (${formatPct(movementPct)})`,
+      };
+    }
+    case "fake_breakdown": {
+      const movementPct = Math.max(0, event.triggerPrice - zone.zoneLow) / zoneLow;
+      return {
+        label: "back_inside",
+        movementPct,
+        line: `movement: price is back above the zone low after the failed break (${formatPct(movementPct)})`,
+      };
+    }
+    case "rejection":
+      if (zone.kind === "resistance") {
+        const movementPct = Math.max(0, zone.zoneHigh - event.triggerPrice) / zoneHigh;
+        return {
+          label: "holding_from_edge",
+          movementPct,
+          line: `movement: price is fading below the resistance edge after the seller response (${formatPct(movementPct)})`,
+        };
+      }
+
+      return {
+        label: "holding_from_edge",
+        movementPct: Math.max(0, event.triggerPrice - zone.zoneLow) / zoneLow,
+        line: `movement: price is holding above the support floor after the buyer response (${formatPct(Math.max(0, event.triggerPrice - zone.zoneLow) / zoneLow)})`,
+      };
+    case "level_touch":
+    case "compression":
+      if (zone.kind === "support") {
+        if (event.triggerPrice < zone.zoneLow) {
+          const movementPct = Math.max(0, zone.zoneLow - event.triggerPrice) / zoneLow;
+          return {
+            label: "inside_band",
+            movementPct,
+            line: `movement: price is below the support band and trying to reclaim it (${formatPct(movementPct)})`,
+          };
+        }
+
+        const movementPct = Math.max(0, event.triggerPrice - zone.zoneLow) / zoneLow;
+        return {
+          label: "inside_band",
+          movementPct,
+          line: `movement: price is testing inside support above the lower edge (${formatPct(movementPct)})`,
+        };
+      }
+
+      if (event.triggerPrice > zone.zoneHigh) {
+        const movementPct = Math.max(0, event.triggerPrice - zone.zoneHigh) / zoneHigh;
+        return {
+          label: "inside_band",
+          movementPct,
+          line: `movement: price is above the resistance band while still near the test area (${formatPct(movementPct)})`,
+        };
+      }
+
+      return {
+        label: "inside_band",
+        movementPct: Math.max(0, zone.zoneHigh - event.triggerPrice) / zoneHigh,
+        line: `movement: price is testing inside resistance below the upper edge (${formatPct(Math.max(0, zone.zoneHigh - event.triggerPrice) / zoneHigh)})`,
+      };
+    default:
+      return {
+        label: "inside_band",
+        movementPct: Math.abs(event.triggerPrice - zone.representativePrice) / Math.max(zone.representativePrice, 0.0001),
+        line: `movement: price is active near the zone at ${formatLevel(triggerPrice)}`,
+      };
+  }
+}
+
 function buildWatchLine(event: MonitoringEvent, zone?: FinalLevelZone): string | null {
   if (!zone) {
     return null;
@@ -247,10 +389,12 @@ export function buildTraderAlertBody(
   const roomLine = nextBarrier
     ? describeBarrierRoom(nextBarrier)
     : null;
+  const movement = deriveTraderMovementContext(event, zone);
 
   return [
     buildLeadLine(event, zone),
     buildWhyNowLine(event, zone),
+    movement?.line ?? null,
     `context: ${describeZoneContext(event, zone)}`,
     buildTacticalReadLine({
       ...zone,

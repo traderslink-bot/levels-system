@@ -101,6 +101,7 @@ Inside that folder:
 - `discord-delivery-audit.jsonl`
   - append-only local record of thread creation plus snapshot / alert / extension delivery attempts
   - includes both successful and failed downstream posts
+  - alert rows now also carry movement labels and movement percentages so post-run review can separate early moves from already-stretched ones
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
   - now also carries evaluated follow-through buckets by alert event type plus strongest/weakest evaluated event-type highlights

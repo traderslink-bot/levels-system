@@ -176,6 +176,11 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       clearanceLabel: "limited",
     },
     tacticalRead: "firm",
+    movement: {
+      label: "building",
+      movementPct: 0.008,
+      line: "movement: price is pushing farther above the zone high and follow-through is building (0.8%)",
+    },
   });
 
   assert.equal(payload.title, "ALBT breakout");
@@ -191,6 +196,8 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.nextBarrierSide, "resistance");
   assert.equal(payload.metadata?.nextBarrierDistancePct, 0.036);
   assert.equal(payload.metadata?.tacticalRead, "firm");
+  assert.equal(payload.metadata?.movementLabel, "building");
+  assert.equal(payload.metadata?.movementPct, 0.008);
 });
 
 test("formatLevelSnapshotMessage uses deterministic formatting", () => {

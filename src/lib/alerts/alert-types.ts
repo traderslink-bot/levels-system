@@ -14,6 +14,20 @@ export type AlertConfidence = "low" | "medium" | "high";
 
 export type TraderZoneTacticalRead = ZoneTacticalRead;
 
+export type TraderMovementLabel =
+  | "early"
+  | "building"
+  | "extended"
+  | "inside_band"
+  | "back_inside"
+  | "holding_from_edge";
+
+export type TraderMovementContext = {
+  label: TraderMovementLabel;
+  movementPct: number;
+  line: string;
+};
+
 export type AlertPayload = {
   title: string;
   body: string;
@@ -29,6 +43,8 @@ export type AlertPayload = {
     nextBarrierSide?: "support" | "resistance";
     nextBarrierDistancePct?: number;
     tacticalRead?: TraderZoneTacticalRead;
+    movementLabel?: TraderMovementLabel;
+    movementPct?: number;
   };
 };
 
@@ -93,6 +109,7 @@ export type IntelligentAlert = {
   zone?: FinalLevelZone;
   nextBarrier?: TraderNextBarrierContext | null;
   tacticalRead?: TraderZoneTacticalRead;
+  movement?: TraderMovementContext | null;
 };
 
 export type AlertPostingFamily =

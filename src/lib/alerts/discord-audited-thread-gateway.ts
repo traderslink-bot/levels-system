@@ -37,6 +37,8 @@ export type DiscordDeliveryAuditEntry = {
   nextBarrierSide?: string;
   nextBarrierDistancePct?: number;
   tacticalRead?: string;
+  movementLabel?: string;
+  movementPct?: number;
   supportCount?: number;
   resistanceCount?: number;
   side?: string;
@@ -159,6 +161,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         nextBarrierSide: payload.metadata?.nextBarrierSide,
         nextBarrierDistancePct: payload.metadata?.nextBarrierDistancePct,
         tacticalRead: payload.metadata?.tacticalRead,
+        movementLabel: payload.metadata?.movementLabel,
+        movementPct: payload.metadata?.movementPct,
       });
     } catch (error) {
       this.recordFailed("post_alert", error, {
@@ -176,6 +180,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         nextBarrierSide: payload.metadata?.nextBarrierSide,
         nextBarrierDistancePct: payload.metadata?.nextBarrierDistancePct,
         tacticalRead: payload.metadata?.tacticalRead,
+        movementLabel: payload.metadata?.movementLabel,
+        movementPct: payload.metadata?.movementPct,
       });
     }
   }

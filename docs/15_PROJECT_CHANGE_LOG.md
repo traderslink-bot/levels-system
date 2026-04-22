@@ -19,6 +19,40 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 07:05 PM America/Toronto
+
+### Added movement-aware trader alerts and audit metadata
+
+- Updated trader-facing alert formatting in:
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - trader-facing alerts now include a deterministic `movement:` line that explains how far price has already moved through or back into the zone at trigger time
+  - breakout, breakdown, and reclaim alerts now distinguish between early, building, and already-extended movement states
+  - level-touch, compression, rejection, and fakeout-style alerts now explain whether price is still testing inside the band or has already moved back through the edge
+  - alert payload metadata and Discord delivery audit rows now carry `movementLabel` and `movementPct` for later review
+- Why this matters:
+  - traders can tell more quickly whether they are seeing an early move or something already getting stretched
+  - post-run review can later compare whether early alerts are more useful than already-extended ones
+  - this makes the app better at tracking price movement instead of only naming the setup type
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 06:40 PM America/Toronto
 
 ### Added dynamic-symbol and outcome-disagreement review to long-run artifacts
