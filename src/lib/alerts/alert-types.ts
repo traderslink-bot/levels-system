@@ -40,6 +40,17 @@ export type TraderPressureContext = {
   line: string;
 };
 
+export type TraderTriggerQualityLabel =
+  | "clean"
+  | "workable"
+  | "crowded"
+  | "late";
+
+export type TraderTriggerQualityContext = {
+  label: TraderTriggerQualityLabel;
+  line: string;
+};
+
 export type TraderTradeMapLabel =
   | "favorable"
   | "workable"
@@ -79,6 +90,7 @@ export type AlertPayload = {
     movementPct?: number;
     pressureLabel?: TraderPressureLabel;
     pressureScore?: number;
+    triggerQualityLabel?: TraderTriggerQualityLabel;
     tradeMapLabel?: TraderTradeMapLabel;
     riskPct?: number;
     roomToRiskRatio?: number;
@@ -151,6 +163,7 @@ export type IntelligentAlert = {
   tacticalRead?: TraderZoneTacticalRead;
   movement?: TraderMovementContext | null;
   pressure?: TraderPressureContext | null;
+  triggerQuality?: TraderTriggerQualityContext | null;
   tradeMap?: TraderTradeMapContext | null;
   target?: TraderTargetContext | null;
 };

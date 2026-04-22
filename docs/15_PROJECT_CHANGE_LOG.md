@@ -19,6 +19,37 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 09:00 PM America/Toronto
+
+### Added deterministic trader trigger-quality context and audit metadata
+
+- Updated trader-facing alert formatting in:
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - trader-facing alerts now include a deterministic `trigger quality:` line
+  - trigger quality is classified as `clean`, `workable`, `crowded`, or `late` based on movement stage, pressure, and nearby room
+  - alert payload metadata and Discord delivery audit rows now carry `triggerQualityLabel`
+- Why this matters:
+  - traders can tell more quickly whether the entry still looks timely or whether the setup is already crowded or stretched
+  - long-run review can now compare whether `clean` triggers actually outperform `crowded` or `late` ones before tightening posting thresholds further
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 08:40 PM America/Toronto
 
 ### Added explicit trader pressure context and audit metadata

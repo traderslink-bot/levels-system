@@ -15,6 +15,7 @@ import {
   buildTraderAlertBody,
   deriveTraderMovementContext,
   deriveTraderPressureContext,
+  deriveTraderTriggerQualityContext,
   deriveTraderTargetContext,
   deriveTraderTradeMapContext,
   deriveTraderZoneTacticalRead,
@@ -199,6 +200,8 @@ export function scoreMonitoringEventToAlert(params: {
   );
   const severity = severityForScore(totalScore, config);
   const confidence = confidenceForScore(totalScore, config);
+  const movement = deriveTraderMovementContext(event, zone);
+  const pressure = deriveTraderPressureContext(event);
 
   return {
     id: `${event.id}-intelligent`,
@@ -215,8 +218,14 @@ export function scoreMonitoringEventToAlert(params: {
     zone,
     nextBarrier,
     tacticalRead: deriveTraderZoneTacticalRead(zone, event.eventContext.zoneFreshness),
-    movement: deriveTraderMovementContext(event, zone),
-    pressure: deriveTraderPressureContext(event),
+    movement,
+    pressure,
+    triggerQuality: deriveTraderTriggerQualityContext({
+      event,
+      movement,
+      pressure,
+      nextBarrier,
+    }),
     target: deriveTraderTargetContext(event, zone, nextBarrier),
     tradeMap: deriveTraderTradeMapContext(event, zone, nextBarrier),
   };

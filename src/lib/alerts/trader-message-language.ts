@@ -8,6 +8,7 @@ import type {
   TraderMovementContext,
   TraderNextBarrierContext,
   TraderPressureContext,
+  TraderTriggerQualityContext,
   TraderTargetContext,
   TraderTradeMapContext,
   TraderZoneTacticalRead,
@@ -200,6 +201,65 @@ export function deriveTraderPressureContext(
     label: "tentative",
     pressureScore: score,
     line: `pressure: ${actor} are present (${score.toFixed(2)}), but control still looks tentative`,
+  };
+}
+
+export function deriveTraderTriggerQualityContext(params: {
+  event: MonitoringEvent;
+  movement?: TraderMovementContext | null;
+  pressure: TraderPressureContext;
+  nextBarrier?: TraderNextBarrierContext | null;
+}): TraderTriggerQualityContext | null {
+  const { event, movement, pressure, nextBarrier } = params;
+  if (event.eventType === "compression") {
+    return null;
+  }
+
+  const pressureText =
+    pressure.label === "strong"
+      ? "strong control"
+      : pressure.label === "moderate"
+        ? "workable control"
+        : pressure.label === "tentative"
+          ? "tentative control"
+          : "balanced control";
+
+  const roomText =
+    nextBarrier?.clearanceLabel === "open"
+      ? "open room"
+      : nextBarrier?.clearanceLabel === "limited"
+        ? "limited room"
+        : nextBarrier?.clearanceLabel === "tight"
+          ? "tight room"
+          : "unclear room";
+
+  if (movement?.label === "extended") {
+    return {
+      label: "late",
+      line: `trigger quality: late trigger because price is already extended and chase risk is higher`,
+    };
+  }
+
+  if (nextBarrier?.clearanceLabel === "tight" || pressure.label === "tentative") {
+    return {
+      label: "crowded",
+      line: `trigger quality: crowded trigger with ${pressureText} and ${roomText}`,
+    };
+  }
+
+  if (
+    (movement?.label === "early" || movement?.label === "building") &&
+    pressure.label === "strong"
+  ) {
+    return {
+      label: "clean",
+      line: `trigger quality: clean trigger with early participation, ${pressureText}, and ${roomText}`,
+    };
+  }
+
+  return {
+    label: "workable",
+    line: `trigger quality: workable trigger with ${pressureText}, but follow-through still needs to prove itself`,
   };
 }
 
@@ -558,6 +618,12 @@ export function buildTraderAlertBody(
   const movement = deriveTraderMovementContext(event, zone);
   const pressure = deriveTraderPressureContext(event);
   const target = deriveTraderTargetContext(event, zone, nextBarrier);
+  const triggerQuality = deriveTraderTriggerQualityContext({
+    event,
+    movement,
+    pressure,
+    nextBarrier,
+  });
   const tradeMap = deriveTraderTradeMapContext(event, zone, nextBarrier);
 
   return [
@@ -572,6 +638,7 @@ export function buildTraderAlertBody(
     }),
     roomLine,
     target?.line ?? null,
+    triggerQuality?.line ?? null,
     tradeMap?.line ?? null,
     buildWatchLine(event, zone),
   ]

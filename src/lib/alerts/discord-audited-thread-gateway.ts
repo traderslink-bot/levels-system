@@ -41,6 +41,7 @@ export type DiscordDeliveryAuditEntry = {
   movementPct?: number;
   pressureLabel?: string;
   pressureScore?: number;
+  triggerQualityLabel?: string;
   tradeMapLabel?: string;
   riskPct?: number;
   roomToRiskRatio?: number;
@@ -173,6 +174,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         movementPct: payload.metadata?.movementPct,
         pressureLabel: payload.metadata?.pressureLabel,
         pressureScore: payload.metadata?.pressureScore,
+        triggerQualityLabel: payload.metadata?.triggerQualityLabel,
         tradeMapLabel: payload.metadata?.tradeMapLabel,
         riskPct: payload.metadata?.riskPct,
         roomToRiskRatio: payload.metadata?.roomToRiskRatio,
@@ -200,6 +202,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         movementPct: payload.metadata?.movementPct,
         pressureLabel: payload.metadata?.pressureLabel,
         pressureScore: payload.metadata?.pressureScore,
+        triggerQualityLabel: payload.metadata?.triggerQualityLabel,
         tradeMapLabel: payload.metadata?.tradeMapLabel,
         riskPct: payload.metadata?.riskPct,
         roomToRiskRatio: payload.metadata?.roomToRiskRatio,

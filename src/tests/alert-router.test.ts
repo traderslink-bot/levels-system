@@ -186,6 +186,10 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       pressureScore: 0.74,
       line: "pressure: buyers still have strong control (0.74), backing the move",
     },
+    triggerQuality: {
+      label: "clean",
+      line: "trigger quality: clean trigger with early participation, strong control, and limited room",
+    },
     target: {
       side: "resistance",
       price: 2.5,
@@ -218,6 +222,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.movementPct, 0.008);
   assert.equal(payload.metadata?.pressureLabel, "strong");
   assert.equal(payload.metadata?.pressureScore, 0.74);
+  assert.equal(payload.metadata?.triggerQualityLabel, "clean");
   assert.equal(payload.metadata?.tradeMapLabel, "favorable");
   assert.equal(payload.metadata?.riskPct, 0.012);
   assert.equal(payload.metadata?.roomToRiskRatio, 3);
