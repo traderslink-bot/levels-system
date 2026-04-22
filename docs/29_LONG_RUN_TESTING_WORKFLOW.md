@@ -34,6 +34,25 @@ The launcher:
    - filtered high-signal output
    - simple session metadata
 
+## Existing Runtime Behavior
+
+Yes: the long-run launcher is intentionally designed to stop an older manual runtime that is already listening on:
+
+- `127.0.0.1:3010`
+
+It should do that.
+
+Why this is the right default:
+
+- it prevents `EADDRINUSE` port conflicts
+- it avoids accidentally testing against an older hidden runtime window
+- it keeps the new session logs aligned with the process you actually launched
+
+Safety note:
+
+- it only auto-stops the process when the command line looks like this app's manual runtime
+- if some different program is using `3010`, the launcher stops and tells you to handle that process manually instead of killing it blindly
+
 ## Session Files
 
 Each session writes:
