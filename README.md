@@ -12,6 +12,10 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 ## Runtime notes
 
 - `npm run watchlist:manual` starts the manual watchlist server on `127.0.0.1:3010` by default.
+- Set `LEVEL_MONITORING_EVENT_DIAGNOSTICS=1` before `npm run watchlist:manual` to emit filtered `monitoring_event_diagnostic` JSON lines for breakout / breakdown / fakeout / reclaim decisions.
+- Diagnostic logging is intentionally filtered:
+  - emitted decisions always log
+  - suppressed decisions only log when they are near the threshold, carry meaningful state, change reason, or recur after cooldown
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
 

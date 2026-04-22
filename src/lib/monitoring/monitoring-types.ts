@@ -13,6 +13,15 @@ export type MonitoringEventType =
   | "reclaim"
   | "compression";
 
+export type MonitoringDiagnosticEventType =
+  | "breakout"
+  | "breakdown"
+  | "fake_breakout"
+  | "fake_breakdown"
+  | "reclaim";
+
+export type MonitoringDiagnosticDecision = "emitted" | "suppressed";
+
 export type MonitoringAlertType =
   | "level_touch"
   | "breakout"
@@ -166,3 +175,26 @@ export type MonitoringEvent = {
   timestamp: number;
   notes: string[];
 };
+
+export type MonitoringEventDiagnostic = {
+  type: "monitoring_event_diagnostic";
+  symbol: string;
+  zoneId: string;
+  zoneKind: "support" | "resistance";
+  eventType: MonitoringDiagnosticEventType;
+  decision: MonitoringDiagnosticDecision;
+  reasons: string[];
+  timestamp: number;
+  triggerPrice: number;
+  previousPrice: number | null;
+  phaseBefore: InteractionPhase;
+  phaseAfter: InteractionPhase;
+  updatesNearZone: number;
+  nearestDistancePct: number;
+  breakAttemptAgeMs: number | null;
+  metrics: Record<string, number | boolean | null>;
+};
+
+export type MonitoringEventDiagnosticListener = (
+  diagnostic: MonitoringEventDiagnostic,
+) => void;

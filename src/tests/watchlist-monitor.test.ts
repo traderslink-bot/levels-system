@@ -5,7 +5,11 @@ import type { FinalLevelZone, LevelEngineOutput } from "../lib/levels/level-type
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import type { LivePriceListener, LivePriceProvider } from "../lib/monitoring/live-price-types.js";
-import type { MonitoringEvent, WatchlistEntry } from "../lib/monitoring/monitoring-types.js";
+import type {
+  MonitoringEvent,
+  MonitoringEventDiagnostic,
+  WatchlistEntry,
+} from "../lib/monitoring/monitoring-types.js";
 
 class FakeLivePriceProvider implements LivePriceProvider {
   public listener?: LivePriceListener;
@@ -237,4 +241,63 @@ test("WatchlistMonitor preserves monitored identity when a refreshed canonical z
   assert.equal(events[0]?.eventContext.canonicalZoneId, "R2");
   assert.equal(events[0]?.eventContext.remapStatus, "replaced");
   assert.equal(events[0]?.eventContext.zoneOrigin, "canonical");
+});
+
+test("WatchlistMonitor emits breakout diagnostics for weak fly-by suppression when enabled", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const diagnostics: MonitoringEventDiagnostic[] = [];
+  const monitor = new WatchlistMonitor(
+    levelStore,
+    liveProvider,
+    undefined,
+    {
+      diagnosticListener: (diagnostic) => diagnostics.push(diagnostic),
+    },
+  );
+
+  levelStore.setLevels(buildLevelOutput("AAPL", {
+    intradayResistance: [
+      buildZone({
+        id: "R1",
+        symbol: "AAPL",
+        kind: "resistance",
+        zoneLow: 100,
+        zoneHigh: 101,
+        representativePrice: 100.5,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "AAPL", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  liveProvider.listener?.({
+    symbol: "AAPL",
+    timestamp: 1,
+    lastPrice: 99.5,
+  });
+
+  liveProvider.listener?.({
+    symbol: "AAPL",
+    timestamp: 2,
+    lastPrice: 101.3,
+  });
+
+  assert.equal(events.some((event) => event.eventType === "breakout"), false);
+
+  const breakoutDiagnostic = diagnostics.find(
+    (diagnostic) =>
+      diagnostic.eventType === "breakout" &&
+      diagnostic.timestamp === 2,
+  );
+
+  assert.ok(breakoutDiagnostic);
+  assert.equal(breakoutDiagnostic?.decision, "suppressed");
+  assert.ok(
+    breakoutDiagnostic?.reasons.includes("missing_prior_interaction_backfill"),
+  );
 });

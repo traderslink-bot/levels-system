@@ -13,6 +13,7 @@ import {
 } from "../lib/monitoring/adaptive-scoring.js";
 import { AdaptiveStatePersistence } from "../lib/monitoring/adaptive-state-persistence.js";
 import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
+import { createMonitoringEventDiagnosticListener } from "../lib/monitoring/monitoring-event-diagnostic-logger.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
 import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
@@ -27,6 +28,15 @@ import {
 import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
 
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
+const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
+
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
 
 async function main(): Promise<void> {
   const ib = createIbkrClient();
@@ -34,7 +44,19 @@ async function main(): Promise<void> {
   const liveProvider = new IBKRLivePriceProvider(ib);
   const candleService = new CandleFetchService(historicalProvider);
   const levelStore = new LevelStore();
-  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+  const monitoringEventDiagnosticsEnabled = isTruthyEnv(
+    process.env[MONITORING_EVENT_DIAGNOSTICS_ENV],
+  );
+  const monitor = new WatchlistMonitor(
+    levelStore,
+    liveProvider,
+    undefined,
+    monitoringEventDiagnosticsEnabled
+      ? {
+          diagnosticListener: createMonitoringEventDiagnosticListener(),
+        }
+      : undefined,
+  );
   const adaptiveStatePersistence = new AdaptiveStatePersistence({
     minMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.minMultiplier,
     maxMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.maxMultiplier,
@@ -62,6 +84,11 @@ async function main(): Promise<void> {
   console.log(
     `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
   );
+  if (monitoringEventDiagnosticsEnabled) {
+    console.log(
+      `[ManualWatchlistRuntime] Monitoring event diagnostics enabled via ${MONITORING_EVENT_DIAGNOSTICS_ENV}.`,
+    );
+  }
   await manager.start();
 
   const server = createServer(async (request, response) => {

@@ -19,6 +19,43 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-21 10:35 PM America/Toronto
+
+### Verified the compare-mode fix live, refined breakout/reclaim quality, and added filtered runtime diagnostics
+
+- Confirmed the compare-mode normalization fix live after a clean runtime restart:
+  - `ASBP` no longer emitted the bad deep-anchor `23.98` value as `alternateTopResistance`
+  - the fresh compare log now keeps actionable compare output aligned with trader-facing intent
+- Refined event-quality gating in:
+  - `src/lib/monitoring/event-detector.ts`
+- Added focused coverage in:
+  - `src/tests/monitoring-events.test.ts`
+  - `src/tests/watchlist-monitor.test.ts`
+  - `src/tests/monitoring-event-diagnostic-logger.test.ts`
+- Added opt-in runtime diagnostics for monitoring-event decisions in:
+  - `src/lib/monitoring/monitoring-event-diagnostic-logger.ts`
+  - `src/lib/monitoring/monitoring-types.ts`
+  - `src/lib/monitoring/watchlist-monitor.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+- What changed in event quality:
+  - weak fly-by `breakout` / `breakdown` confirmations now stay suppressed unless there was meaningful prior interaction or the move is forceful enough to stand on its own
+  - full support `reclaim` now requires a recent observed break attempt instead of any raw jump back above support
+  - full reclaims no longer get mislabeled as `fake_breakdown`
+- What changed in diagnostics:
+  - setting `LEVEL_MONITORING_EVENT_DIAGNOSTICS=1` now enables structured `monitoring_event_diagnostic` JSON lines during `npm run watchlist:manual`
+  - emitted decisions always log
+  - suppressed decisions only log when they are near the decision boundary, carry meaningful state, change reason, or recur after cooldown
+  - far-away idle suppressions are intentionally dropped so the live log stays readable
+- Verification completed:
+  - `npm run build`
+  - `npm test`
+  - `npm run check`
+- Operational outcome:
+  - live diagnostics are now usable for real runtime observation instead of producing a wall of repeated idle suppressions
+  - the next practical runtime step is to let diagnostics run until a real breakout / reclaim edge case appears, then tune from that evidence instead of from guesswork
+
+---
+
 ## 2026-04-21 08:55 PM America/Toronto
 
 ### Compare-mode handoff update after live IBKR runtime testing

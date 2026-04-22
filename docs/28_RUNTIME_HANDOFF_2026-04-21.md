@@ -8,15 +8,18 @@ This note is for the next chat so runtime-testing context does not need to be re
 
 - Narrow compare-mode normalization fix shipped in:
   - `src/lib/levels/level-ranking-comparison.ts`
-- The compare normalizer no longer mixes:
-  - actionable surfaced levels
-  - deeper anchor context levels
-- Intended behavior now:
-  - actionable levels still drive comparable `topSupport` / `topResistance`
+- Breakout / breakdown / reclaim quality was refined in:
+  - `src/lib/monitoring/event-detector.ts`
+- Opt-in filtered runtime diagnostics were added in:
+  - `src/lib/monitoring/monitoring-event-diagnostic-logger.ts`
+  - `src/lib/monitoring/watchlist-monitor.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+- Current intended behavior now:
+  - actionable levels still drive compare-mode `topSupport` / `topResistance`
   - deeper anchors remain separate structural context
-  - runtime extension behavior remains handled through:
-    - `src/lib/levels/level-runtime-output-adapter.ts`
-    - legacy `extensionLevels`
+  - weak fly-by breakout confirmations stay suppressed unless there was real prior interaction or the move is forceful
+  - support reclaim requires a recent real break attempt
+  - runtime diagnostics can explain emitted and suppressed decisions without spamming the log
 
 ## Why The Fix Was Made
 
@@ -32,8 +35,41 @@ That `23.98` reading was not a good trader-facing actionable resistance. It was 
 
 - `npm test -- --test src/tests/level-ranking-comparison.test.ts`
 - `npm test -- --test src/tests/level-surfaced-selection.test.ts`
+- `npm run build`
+- `npm test`
+- `npm run check`
 
-Both passed.
+All passed.
+
+## Live Runtime Verification Already Completed
+
+- A clean compare-mode restart was run against live IBKR runtime state.
+- A fresh `level_runtime_compare` line for `ASBP` was captured.
+- Result:
+  - `23.98` no longer appeared as `alternateTopResistance`
+  - the compare-mode anchor leak now looks resolved after restart
+
+## Monitoring Diagnostics Workflow
+
+To enable filtered monitoring-event diagnostics during the manual runtime:
+
+```powershell
+$env:LEVEL_MONITORING_EVENT_DIAGNOSTICS = '1'
+npm run watchlist:manual
+```
+
+What now logs:
+
+- emitted `breakout`, `breakdown`, `fake_breakout`, `fake_breakdown`, and `reclaim` decisions
+- suppressed decisions only when they:
+  - are near the decision boundary
+  - carry meaningful state like prior interaction or a recent break attempt
+  - change reason/state
+  - recur after cooldown
+
+What no longer floods the log:
+
+- far-away idle suppressions on every tick for every zone
 
 ## Important Live Findings To Carry Forward
 
@@ -61,45 +97,39 @@ Current live pattern from the pasted runtime diagnostics:
   - looks acceptable
   - remains enabled
 
-### 3. Breakout / reclaim quality still looks like the next logic weakness
+### 3. Breakout / reclaim quality was tightened, but now needs real runtime evidence
 
-The level-quality system is much farther along than the breakout-quality system.
+- The level-quality system is still farther along than the breakout-quality system.
+- The newest breakout / reclaim gating pass is in place.
+- The next question is no longer "what should we guess-tune?"
+- The next question is "what do real emitted or near-emitted live decisions show?"
 
-If runtime activation speed is not the next job, the strongest logic candidate is:
+If runtime activation speed is not the next job, the strongest logic candidate remains:
 
 - reclaim / breakout refinement
 - not another broad level-strength rewrite
 
 ## First Check To Do In The Next Chat
 
-Do this before more analysis:
+Do this before new logic changes:
 
-1. Restart the runtime.
-2. Run compare mode again:
+1. Leave filtered diagnostics on during a short live runtime session.
+2. Capture the first real emitted or near-boundary diagnostic for:
+   - `breakout`
+   - `breakdown`
+   - `reclaim`
+3. Tune only from those live examples.
 
-```powershell
-$env:LEVEL_RUNTIME_MODE = 'compare'
-$env:LEVEL_RUNTIME_COMPARE_ACTIVE_PATH = 'old'
-npm run watchlist:manual
-```
+Good signals to look for:
 
-3. Capture one fresh `level_runtime_compare` line for `ASBP`.
-
-Expected result after the fix:
-
-- `23.98` should no longer appear as `alternateTopResistance` if it is only a deeper anchor.
-
-If `23.98` still appears after a clean restart:
-
-- trace the remaining path from:
-  - `src/lib/levels/level-runtime-output-adapter.ts`
-  - `src/lib/levels/level-runtime-comparison-logger.ts`
-  - any path feeding `ComparablePathOutput` for compare mode
+- repeated `missing_prior_interaction_backfill`
+- `no_recent_break_attempt`
+- distance-threshold suppressions that are very close to firing
+- any emitted reclaim that still feels trader-wrong in context
 
 ## Suggested Priority Order For The Next Chat
 
-1. Verify the fresh post-restart `ASBP` compare line.
-2. If fixed, move to reclaim / breakout-quality refinement.
-3. If not fixed, continue tracing compare-output construction until the anchor leak is fully removed.
-4. Separately, keep activation-latency work on the table as the main operational improvement area.
-
+1. Capture one or two real live diagnostic edge cases with the filtered logger on.
+2. If they reveal obvious threshold misses, make another narrow breakout / reclaim calibration pass.
+3. Separately, keep activation-latency work on the table as the main operational improvement area.
+4. Only return to compare-mode tracing if a fresh live compare regression appears again.
