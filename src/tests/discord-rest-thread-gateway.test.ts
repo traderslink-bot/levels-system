@@ -142,6 +142,7 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
     [
       "LEVEL SNAPSHOT: ALBT",
       "PRICE: 2.51",
+      "MAP: nearest support 2.40 (-4.4%) | nearest resistance 2.60 (+3.6%) | tighter overhead",
       "SUPPORT: 2.40 (-4.4%), 2.25 (-10.4%)",
       "RESISTANCE: 2.60 (+3.6%), 2.75 (+9.6%)",
     ].join("\n"),

@@ -19,6 +19,30 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 07:45 PM America/Toronto
+
+### Added nearest-level map summaries to trader snapshots
+
+- Updated snapshot formatting in:
+  - `src/lib/alerts/alert-router.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-rest-thread-gateway.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - Discord level snapshots now include a `MAP:` line that summarizes the nearest support, nearest resistance, and whether overhead or downside is tighter
+  - the existing distance-aware ladder remains intact underneath that summary line
+- Why this matters:
+  - traders can tell at a glance whether overhead or downside is the tighter side before reading the full ladder
+  - the snapshot now behaves more like a compact movement map than a list of detached levels
+- Verification completed:
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/discord-rest-thread-gateway.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 07:35 PM America/Toronto
 
 ### Added distance-aware trader snapshot formatting

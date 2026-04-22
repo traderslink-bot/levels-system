@@ -77,6 +77,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added movement-aware trader wording and audit metadata so alerts now say how far price has already pushed through or back into the zone when they fire.
 - Added trade-map wording and audit metadata so alerts now quantify room-to-next-barrier versus risk-to-invalidation for directional setups.
 - Added distance-aware snapshot formatting so support and resistance ladders now show signed distance from current price instead of only bare levels.
+- Added nearest-support / nearest-resistance snapshot map summaries so the snapshot immediately shows which side is tighter before the trader scans the full ladder.
 
 ## Active Backlog
 
@@ -147,3 +148,4 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 7. Use the new movement labels to learn whether early alerts outperform stretched alerts before tightening posting rules further.
 8. Use the new trade-map labels to learn whether favorable-skew alerts actually outperform tight-skew alerts before tightening posting rules further.
 9. Use the distance-aware snapshot ladder to decide whether the default number of displayed support/resistance zones is still optimal for traders.
+10. Use the nearest-level snapshot map to decide whether the app should also classify snapshot skew as bullish, bearish, or neutral for the end user.

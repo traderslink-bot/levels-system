@@ -96,6 +96,59 @@ function formatSnapshotDisplayZone(
   return `${formatLevel(zone.representativePrice)} (${suffix})`;
 }
 
+function nearestSnapshotLevel(
+  zones: LevelSnapshotDisplayZone[],
+  currentPrice: number,
+  side: "support" | "resistance",
+): LevelSnapshotDisplayZone | null {
+  const candidates = zones
+    .filter((zone) =>
+      side === "support"
+        ? zone.representativePrice < currentPrice
+        : zone.representativePrice > currentPrice,
+    )
+    .sort((left, right) =>
+      side === "support"
+        ? right.representativePrice - left.representativePrice
+        : left.representativePrice - right.representativePrice,
+    );
+
+  return candidates[0] ?? null;
+}
+
+function buildSnapshotMapLine(payload: LevelSnapshotPayload): string {
+  const nearestSupport = nearestSnapshotLevel(payload.supportZones, payload.currentPrice, "support");
+  const nearestResistance = nearestSnapshotLevel(payload.resistanceZones, payload.currentPrice, "resistance");
+
+  const supportText =
+    nearestSupport
+      ? `${formatLevel(nearestSupport.representativePrice)} (${formatDistancePctFromPrice(nearestSupport.representativePrice, payload.currentPrice)})`
+      : "none";
+  const resistanceText =
+    nearestResistance
+      ? `${formatLevel(nearestResistance.representativePrice)} (${formatDistancePctFromPrice(nearestResistance.representativePrice, payload.currentPrice)})`
+      : "none";
+
+  let skew = "balanced room";
+  if (nearestSupport && nearestResistance) {
+    const supportDistance = Math.abs(nearestSupport.representativePrice - payload.currentPrice) / Math.max(payload.currentPrice, 0.0001);
+    const resistanceDistance = Math.abs(nearestResistance.representativePrice - payload.currentPrice) / Math.max(payload.currentPrice, 0.0001);
+    if (resistanceDistance < supportDistance) {
+      skew = "tighter overhead";
+    } else if (supportDistance < resistanceDistance) {
+      skew = "tighter downside";
+    }
+  } else if (nearestResistance) {
+    skew = "overhead defined";
+  } else if (nearestSupport) {
+    skew = "downside defined";
+  } else {
+    skew = "no nearby ladder";
+  }
+
+  return `MAP: nearest support ${supportText} | nearest resistance ${resistanceText} | ${skew}`;
+}
+
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
   const supportLine =
     payload.supportZones.length > 0
@@ -109,6 +162,7 @@ export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): strin
   return [
     `LEVEL SNAPSHOT: ${payload.symbol}`,
     `PRICE: ${formatLevel(payload.currentPrice)}`,
+    buildSnapshotMapLine(payload),
     `SUPPORT: ${supportLine}`,
     `RESISTANCE: ${resistanceLine}`,
   ].join("\n");
