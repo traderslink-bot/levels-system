@@ -4,9 +4,6 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
-import { DiscordAlertRouter } from "../lib/alerts/alert-router.js";
-import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
-import { LocalDiscordThreadGateway } from "../lib/alerts/local-discord-thread-gateway.js";
 import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
@@ -20,234 +17,16 @@ import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
 import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
 import { createIbkrClient } from "../scripts/shared/ibkr-runtime.js";
+import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
+import {
+  LOCAL_BIND_HOST,
+  RequestBodyParseError,
+  readJsonBody,
+  sendJson,
+} from "./manual-watchlist-http.js";
+import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
 
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
-
-type DiscordRuntimeEnv = {
-  botToken: string | null;
-  watchlistChannelId: string | null;
-  guildId: string | null;
-};
-
-function readDiscordRuntimeEnv(): DiscordRuntimeEnv {
-  return {
-    botToken: process.env.DISCORD_BOT_TOKEN?.trim() || null,
-    watchlistChannelId: process.env.DISCORD_WATCHLIST_CHANNEL_ID?.trim() || null,
-    guildId: process.env.DISCORD_GUILD_ID?.trim() || null,
-  };
-}
-
-function logDiscordRuntimeDiagnostics(env: DiscordRuntimeEnv, mode: "real" | "fallback"): void {
-  console.log("[ManualWatchlistRuntime] Discord env diagnostics:");
-  console.log(`- DISCORD_BOT_TOKEN: ${env.botToken ? "present" : "missing"}`);
-  console.log(
-    `- DISCORD_WATCHLIST_CHANNEL_ID: ${env.watchlistChannelId ? "present" : "missing"}`,
-  );
-  console.log(`- DISCORD_GUILD_ID: ${env.guildId ? "present" : "missing"}`);
-  console.log(
-    `- Discord gateway mode: ${
-      mode === "real" ? "real Discord REST gateway" : "local persisted gateway fallback"
-    }`,
-  );
-}
-
-function createDiscordAlertRouter(): DiscordAlertRouter {
-  const env = readDiscordRuntimeEnv();
-  const hasAnyDiscordConfig = Boolean(env.botToken || env.watchlistChannelId || env.guildId);
-  const shouldUseRealDiscord = Boolean(env.botToken && env.watchlistChannelId);
-
-  if (hasAnyDiscordConfig && !shouldUseRealDiscord) {
-    throw new Error(
-      "Incomplete Discord runtime configuration. Set both DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID to use the real Discord gateway, or remove the partial Discord env values to use the local fallback.",
-    );
-  }
-
-  if (shouldUseRealDiscord) {
-    logDiscordRuntimeDiagnostics(env, "real");
-    if (!env.guildId) {
-      console.log(
-        "[ManualWatchlistRuntime] DISCORD_GUILD_ID is missing. Real Discord posting will still work, but exact-name thread recovery will be limited.",
-      );
-    }
-
-    return new DiscordAlertRouter(
-      new DiscordRestThreadGateway({
-        botToken: env.botToken!,
-        watchlistChannelId: env.watchlistChannelId!,
-        guildId: env.guildId ?? undefined,
-      }),
-    );
-  }
-
-  logDiscordRuntimeDiagnostics(env, "fallback");
-  console.log(
-    "[ManualWatchlistRuntime] Set DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID in .env for real Discord posting.",
-  );
-  return new DiscordAlertRouter(new LocalDiscordThreadGateway());
-}
-
-const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Manual Watchlist</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; background: #f5f7fb; color: #1f2937; }
-    main { max-width: 760px; margin: 0 auto; }
-    form, section { background: #fff; border: 1px solid #d7dee8; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    label { display: block; font-size: 14px; margin-bottom: 6px; }
-    input { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
-    button { padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; background: #1d4ed8; color: #fff; }
-    ul { list-style: none; padding: 0; margin: 0; }
-    li { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-top: 1px solid #e5e7eb; padding: 12px 0; }
-    li:first-child { border-top: 0; }
-    .meta { color: #4b5563; font-size: 13px; }
-    .status { min-height: 20px; font-size: 14px; margin-bottom: 12px; color: #1d4ed8; }
-    .danger { background: #b91c1c; }
-  </style>
-</head>
-<body>
-  <main>
-    <form id="watchlist-form">
-      <h1>Manual Watchlist</h1>
-      <div class="status" id="status"></div>
-      <label for="symbol">npm run watchlist:manual</label>
-      <label for="symbol">Symbol</label>
-      <input id="symbol" name="symbol" maxlength="10" required />
-      <label for="note">Note (optional)</label>
-      <input id="note" name="note" maxlength="200" />
-      <button type="submit">Add / Activate</button>
-    </form>
-
-    <section>
-      <h2>Active Tickers</h2>
-      <ul id="active-list"></ul>
-    </section>
-  </main>
-
-  <script>
-    const statusEl = document.getElementById("status");
-    const listEl = document.getElementById("active-list");
-    const formEl = document.getElementById("watchlist-form");
-    const symbolEl = document.getElementById("symbol");
-    const noteEl = document.getElementById("note");
-
-    function setStatus(message, isError = false) {
-      statusEl.textContent = message;
-      statusEl.style.color = isError ? "#b91c1c" : "#1d4ed8";
-    }
-
-    function renderEntries(entries) {
-      listEl.innerHTML = "";
-      if (entries.length === 0) {
-        const empty = document.createElement("li");
-        empty.textContent = "No active tickers";
-        listEl.appendChild(empty);
-        return;
-      }
-
-      for (const entry of entries) {
-        const item = document.createElement("li");
-        const meta = document.createElement("div");
-        const noteText = entry.note ? " | note: " + entry.note : "";
-        const lifecycleText = entry.lifecycle ? " | state: " + entry.lifecycle : "";
-        const lastPostText = entry.lastLevelPostAt ? " | last snapshot: " + new Date(entry.lastLevelPostAt).toLocaleTimeString() : "";
-        meta.innerHTML = "<strong>" + entry.symbol + "</strong><div class=\\"meta\\">thread: " + (entry.discordThreadId || "pending") + lifecycleText + lastPostText + noteText + "</div>";
-
-        const button = document.createElement("button");
-        button.textContent = "Deactivate";
-        button.className = "danger";
-        button.addEventListener("click", async () => {
-          const response = await fetch("/api/watchlist/deactivate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ symbol: entry.symbol }),
-          });
-          const payload = await response.json();
-          if (!response.ok) {
-            setStatus(payload.error || "Deactivate failed", true);
-            return;
-          }
-          setStatus("Deactivated " + payload.entry.symbol);
-          await loadEntries();
-        });
-
-        item.appendChild(meta);
-        item.appendChild(button);
-        listEl.appendChild(item);
-      }
-    }
-
-    async function loadEntries() {
-      const response = await fetch("/api/watchlist");
-      const payload = await response.json();
-      renderEntries(payload.activeEntries || []);
-    }
-
-    formEl.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const response = await fetch("/api/watchlist/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          symbol: symbolEl.value,
-          note: noteEl.value,
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setStatus(payload.error || "Activate failed", true);
-        return;
-      }
-      if (payload.queued) {
-        setStatus(
-          "Activation started for " +
-            payload.entry.symbol +
-            " in thread " +
-            (payload.entry.discordThreadId || "pending") +
-            ". IBKR seeding can take a minute if the symbol is slow.",
-        );
-      } else {
-        setStatus("Activated " + payload.entry.symbol + " in thread " + payload.entry.discordThreadId);
-      }
-      symbolEl.value = "";
-      noteEl.value = "";
-      await loadEntries();
-    });
-
-    loadEntries().catch((error) => {
-      setStatus(String(error), true);
-    });
-    setInterval(() => {
-      loadEntries().catch((error) => {
-        setStatus(String(error), true);
-      });
-    }, 5000);
-  </script>
-</body>
-</html>
-`;
-
-function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
-  response.statusCode = statusCode;
-  response.setHeader("Content-Type", "application/json; charset=utf-8");
-  response.end(`${JSON.stringify(payload)}\n`);
-}
-
-async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-
-  if (chunks.length === 0) {
-    return {};
-  }
-
-  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-}
 
 async function main(): Promise<void> {
   const ib = createIbkrClient();
@@ -286,7 +65,7 @@ async function main(): Promise<void> {
   await manager.start();
 
   const server = createServer(async (request, response) => {
-    const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+    const url = new URL(request.url ?? "/", `http://${LOCAL_BIND_HOST}`);
 
     if (request.method === "GET" && url.pathname === "/") {
       response.statusCode = 200;
@@ -316,6 +95,10 @@ async function main(): Promise<void> {
         const entry = await manager.queueActivation({ symbol, note });
         sendJson(response, 202, { entry, queued: true });
       } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[ManualWatchlistRuntime] Activation failed: ${message}`);
         sendJson(response, 500, { error: message });
@@ -341,6 +124,10 @@ async function main(): Promise<void> {
 
         sendJson(response, 200, { entry });
       } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
       }
@@ -374,7 +161,7 @@ async function main(): Promise<void> {
     void shutdown("SIGTERM").finally(() => process.exit(0));
   });
 
-  server.listen(PORT, () => {
+  server.listen(PORT, LOCAL_BIND_HOST, () => {
     console.log(`Manual watchlist server running at http://127.0.0.1:${PORT}`);
   });
 }
