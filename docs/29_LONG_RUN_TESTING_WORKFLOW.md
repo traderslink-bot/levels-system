@@ -108,9 +108,10 @@ Inside that folder:
   - live-updated per-symbol review artifact
   - turns session activity into a compact trader-facing summary for each active symbol
   - now includes latest evaluation context plus alert/evaluation alignment so a symbol can be reviewed by what recently worked or failed, not only by what was posted
+  - now also includes state-change and outcome-disagreement summaries so a repeatedly reactivated symbol can be judged more honestly
 - `session-review.md`
   - live-updated human-readable review artifact
-  - summarizes the session verdict, noisiest areas, strongest/weakest evaluated alert families, and what each symbol thread looked like without needing raw JSON
+  - summarizes the session verdict, noisiest areas, most dynamic symbols, strongest/weakest evaluated alert families, and what each symbol thread looked like without needing raw JSON
 - `human-review-feedback.jsonl`
   - optional human feedback file for marking symbols or alerts as `useful`, `strong`, `noisy`, `late`, or `wrong`
 - `session-info.txt`
@@ -143,6 +144,10 @@ That split makes it much easier to answer two different questions:
 The summary artifacts now answer a third question too:
 
 - evaluationally, which alert families have actually been holding up after they fired
+
+And now a fourth:
+
+- operationally over time, which symbols were repeatedly churning through state changes and whether that churn produced useful follow-through
 
 ## Recommended Testing Process During A Session
 

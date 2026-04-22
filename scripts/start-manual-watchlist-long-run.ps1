@@ -588,6 +588,107 @@ function Get-EvaluationEventTypeHighlights {
   }
 }
 
+function Get-SymbolStateChangeCount {
+  param(
+    [hashtable]$SymbolSummary
+  )
+
+  return (
+    [int](Get-HashtableValue -Table $SymbolSummary.lifecycleCounts -Key "activation_completed" -Default 0) +
+    [int](Get-HashtableValue -Table $SymbolSummary.lifecycleCounts -Key "deactivated" -Default 0) +
+    [int](Get-HashtableValue -Table $SymbolSummary.lifecycleCounts -Key "activation_failed" -Default 0) +
+    [int](Get-HashtableValue -Table $SymbolSummary.lifecycleCounts -Key "restore_failed" -Default 0)
+  )
+}
+
+function Build-StateChangeSummary {
+  param(
+    [string]$Symbol,
+    [hashtable]$SymbolSummary
+  )
+
+  $activations = [int](Get-HashtableValue -Table $SymbolSummary.lifecycleCounts -Key "activation_completed" -Default 0)
+  $deactivations = [int](Get-HashtableValue -Table $SymbolSummary.lifecycleCounts -Key "deactivated" -Default 0)
+  $activationFailures = [int](Get-HashtableValue -Table $SymbolSummary.lifecycleCounts -Key "activation_failed" -Default 0)
+  $restoreFailures = [int](Get-HashtableValue -Table $SymbolSummary.lifecycleCounts -Key "restore_failed" -Default 0)
+  $parts = @()
+
+  if ($activations -gt 0) {
+    $parts += "$activations activation cycle(s)"
+  }
+  if ($deactivations -gt 0) {
+    $parts += "$deactivations deactivation(s)"
+  }
+  if (($activationFailures + $restoreFailures) -gt 0) {
+    $parts += (($activationFailures + $restoreFailures).ToString() + " failed restart/restore event(s)")
+  }
+
+  if ($parts.Count -eq 0) {
+    return $null
+  }
+
+  if ((Get-SymbolStateChangeCount -SymbolSummary $SymbolSummary) -ge 3) {
+    return "$Symbol changed state repeatedly across the run: $(Join-DisplayList -Items $parts)."
+  }
+
+  if ($activations -gt 0 -and $deactivations -gt 0) {
+    return "$Symbol completed a full activate/deactivate cycle during the run: $(Join-DisplayList -Items $parts)."
+  }
+
+  if (($activationFailures + $restoreFailures) -gt 0) {
+    return "$Symbol saw meaningful runtime churn: $(Join-DisplayList -Items $parts)."
+  }
+
+  return $null
+}
+
+function Build-OutcomeDisagreementSummary {
+  param(
+    [string]$Symbol,
+    [hashtable]$SymbolSummary
+  )
+
+  $reviewVerdict = $SymbolSummary.humanReview.latestVerdict
+  $evaluationTotal = [int]$SymbolSummary.evaluation.total
+  $evaluationWins = [int]$SymbolSummary.evaluation.wins
+  $evaluationLosses = [int]$SymbolSummary.evaluation.losses
+
+  if ($reviewVerdict -in @("strong", "useful") -and $evaluationTotal -ge 2 -and $evaluationLosses -gt $evaluationWins) {
+    return "$Symbol received positive human review, but the measured follow-through leaned negative afterward."
+  }
+
+  if ($reviewVerdict -in @("wrong", "late", "noisy") -and $evaluationTotal -ge 2 -and $evaluationWins -gt $evaluationLosses) {
+    return "$Symbol received negative human review, but the measured follow-through leaned positive afterward."
+  }
+
+  if ($SymbolSummary.alertPosted -gt 0 -and $evaluationTotal -ge 2 -and $evaluationLosses -gt $evaluationWins) {
+    return "$Symbol posted trader-facing alerts, but the evaluated follow-through leaned weaker than the thread initially looked."
+  }
+
+  return $null
+}
+
+function Get-MostDynamicSymbols {
+  param(
+    [int]$Top = 3
+  )
+
+  return @(
+    $summary.perSymbol.GetEnumerator() |
+      ForEach-Object {
+        $count = Get-SymbolStateChangeCount -SymbolSummary $_.Value
+        [pscustomobject]@{
+          Symbol = [string]$_.Key
+          Count = [int]$count
+        }
+      } |
+      Where-Object { $_.Count -gt 0 } |
+      Sort-Object -Property @{ Expression = "Count"; Descending = $true }, @{ Expression = "Symbol"; Descending = $false } |
+      Select-Object -First $Top |
+      ForEach-Object { "$($_.Symbol) x$($_.Count)" }
+  )
+}
+
 function Build-SessionQualitySummary {
   $symbolScores = @(
     $summary.perSymbol.GetEnumerator() |
@@ -726,6 +827,8 @@ function Build-EndOfSessionSummary {
   $evaluationTotal = [int]$SymbolSummary.evaluation.total
   $evaluationWins = [int]$SymbolSummary.evaluation.wins
   $evaluationLosses = [int]$SymbolSummary.evaluation.losses
+  $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
+  $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
 
   if ($failureTotal -gt 0) {
     return "$Symbol hit $failureTotal runtime failure(s) during the session and needs operational cleanup before trusting the thread."
@@ -749,6 +852,22 @@ function Build-EndOfSessionSummary {
 
   if ($reviewVerdict -eq "useful" -or $reviewVerdict -eq "strong") {
     return "$Symbol received positive human review feedback, which is a good sign that the thread was adding value to the end user."
+  }
+
+  if ($stateChangeSummary -and $outcomeDisagreementSummary) {
+    return "$stateChangeSummary $outcomeDisagreementSummary"
+  }
+
+  if ($outcomeDisagreementSummary) {
+    return $outcomeDisagreementSummary
+  }
+
+  if ($stateChangeSummary -and $evaluationTotal -gt 0) {
+    return "$stateChangeSummary The thread should be judged more by its evaluated follow-through than by raw alert count."
+  }
+
+  if ($stateChangeSummary) {
+    return $stateChangeSummary
   }
 
   $alignmentSummary = Build-EvaluationAlignmentSummary -SymbolSummary $SymbolSummary
@@ -877,6 +996,8 @@ function Build-ThreadSummaryRecord {
   }
 
   $evaluationAlignmentSummary = Build-EvaluationAlignmentSummary -SymbolSummary $SymbolSummary
+  $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
+  $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
 
   return [ordered]@{
     symbol = $Symbol
@@ -897,6 +1018,8 @@ function Build-ThreadSummaryRecord {
     latestOpportunitySummary = if ($latestOpportunitySummary) { $latestOpportunitySummary -join " | " } else { $null }
     latestEvaluationSummary = if ($latestEvaluationSummary) { $latestEvaluationSummary -join " | " } else { $null }
     evaluationAlignmentSummary = $evaluationAlignmentSummary
+    stateChangeSummary = $stateChangeSummary
+    outcomeDisagreementSummary = $outcomeDisagreementSummary
     lastSnapshot = $SymbolSummary.lastSnapshot
     lastExtension = $SymbolSummary.lastExtension
     discordPosted = $SymbolSummary.discordPosted
@@ -935,6 +1058,7 @@ function Build-SessionReviewLines {
 
   $quality = $summary.quality
   $evaluationHighlights = Get-EvaluationEventTypeHighlights -EvaluationTable $summary.evaluation.byEventType
+  $dynamicSymbols = Get-MostDynamicSymbols
   $lines = @(
     "# Long-Run Session Review",
     "",
@@ -953,6 +1077,7 @@ function Build-SessionReviewLines {
     "- Discord failed: $($summary.discordAudit.failed)",
     "- Noisiest families: $(Join-DisplayList -Items $summary.alerting.noisiestFamilies)",
     "- Noisiest symbols: $(Join-DisplayList -Items $summary.alerting.noisiestSymbols)",
+    "- Most dynamic symbols: $(Join-DisplayList -Items $dynamicSymbols)",
     "- Strongest evaluated event types: $(Join-DisplayList -Items $evaluationHighlights.strongest)",
     "- Weakest evaluated event types: $(Join-DisplayList -Items $evaluationHighlights.weakest)",
     "",
@@ -1015,6 +1140,8 @@ function Build-SessionReviewLines {
       "- Latest opportunity summary: $(if ($thread.latestOpportunitySummary) { $thread.latestOpportunitySummary } else { 'none' })",
       "- Latest evaluation summary: $(if ($thread.latestEvaluationSummary) { $thread.latestEvaluationSummary } else { 'none' })",
       "- Alert/evaluation alignment: $(if ($thread.evaluationAlignmentSummary) { $thread.evaluationAlignmentSummary } else { 'none yet' })",
+      "- State-change summary: $(if ($thread.stateChangeSummary) { $thread.stateChangeSummary } else { 'stable run' })",
+      "- Outcome disagreement: $(if ($thread.outcomeDisagreementSummary) { $thread.outcomeDisagreementSummary } else { 'none flagged' })",
       "- Human review: $(if ($thread.humanReview.total -gt 0) { ('latest=' + $thread.humanReview.latestVerdict + '; total=' + $thread.humanReview.total) } else { 'none yet' })",
       "- Discord posted: $($thread.discordPosted)",
       "- Discord failed: $($thread.discordFailed)",

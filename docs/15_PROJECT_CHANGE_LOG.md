@@ -19,6 +19,31 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 06:40 PM America/Toronto
+
+### Added dynamic-symbol and outcome-disagreement review to long-run artifacts
+
+- Updated the long-run launcher in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - long-run thread summaries now include state-change summaries derived from activation, deactivation, and failure lifecycle events
+  - long-run review now highlights the most dynamic symbols in the session instead of only the noisiest ones
+  - thread summaries now flag outcome disagreement when a symbol posted alerts but evaluated follow-through leaned negative, or when human review and measured follow-through point in different directions
+  - end-of-session summaries now treat repeated activation/deactivation churn as a first-class signal when deciding whether a thread looked trustworthy
+- Why this matters:
+  - a busy symbol can now be recognized as truly dynamic instead of being mistaken for pure noise
+  - repeated reactivation churn is easier to separate from healthy alert flow
+  - symbols that sounded convincing in Discord but did not follow through are easier to spot after the run
+- Verification completed:
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 06:20 PM America/Toronto
 
 ### Added event-type evaluation alignment to long-run review artifacts
