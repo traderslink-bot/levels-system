@@ -297,6 +297,31 @@ function Get-HashtableValue {
   return $Default
 }
 
+function Test-ActivationPendingState {
+  param(
+    [string]$LastLifecycleEvent,
+    [int]$SnapshotPosts,
+    [int]$AlertPosted,
+    [int]$FailureTotal
+  )
+
+  if ($FailureTotal -gt 0) {
+    return $false
+  }
+
+  if ($SnapshotPosts -gt 0 -or $AlertPosted -gt 0) {
+    return $false
+  }
+
+  return $LastLifecycleEvent -in @(
+    "activation_queued",
+    "activation_started",
+    "thread_ready",
+    "levels_seeded",
+    "activation_completed"
+  )
+}
+
 function Evaluate-QualityHeuristics {
   param(
     [hashtable]$Metrics
@@ -329,11 +354,11 @@ function Evaluate-QualityHeuristics {
     } else {
       0
     }
-  $activationPending =
-    $lastLifecycleEvent -in @("activation_queued", "activation_started", "thread_ready") -and
-    $snapshots -eq 0 -and
-    $posted -eq 0 -and
-    $failureTotal -eq 0
+  $activationPending = Test-ActivationPendingState `
+    -LastLifecycleEvent $lastLifecycleEvent `
+    -SnapshotPosts $snapshots `
+    -AlertPosted $posted `
+    -FailureTotal $failureTotal
   $observationalThread =
     $snapshots -gt 0 -and
     $posted -eq 0 -and
@@ -420,7 +445,7 @@ function Evaluate-QualityHeuristics {
   } elseif ($observationalThread) {
     $rationale += "stayed observational without forcing trader-facing alerts"
   } elseif ($posted -eq 0 -and $snapshots -eq 0 -and $failureTotal -eq 0) {
-    $score -= 8
+    $score -= 4
     $rationale += "did not produce meaningful visible output"
   }
 
@@ -443,6 +468,8 @@ function Evaluate-QualityHeuristics {
       $recommendations += "keep this symbol in the live test mix"
     } elseif ($verdict -eq "mixed") {
       $recommendations += "review thread-summaries.json and discord-delivery-audit.jsonl together"
+    } elseif ($activationPending) {
+      $recommendations += "let activation finish before judging this thread"
     } else {
       $recommendations += "review suppression reasons and alert family balance before trusting this thread"
     }
@@ -1027,10 +1054,11 @@ function Build-EndOfSessionSummary {
     [string]$SymbolSummary.lastOpportunity.type -in @("level_touch", "compression")
   $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
   $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
-  $activationPending =
-    $SymbolSummary.lastLifecycleEvent -in @("activation_queued", "activation_started", "thread_ready") -and
-    [int]$SymbolSummary.snapshotPosts -eq 0 -and
-    [int]$SymbolSummary.alertPosted -eq 0
+  $activationPending = Test-ActivationPendingState `
+    -LastLifecycleEvent ([string]$SymbolSummary.lastLifecycleEvent) `
+    -SnapshotPosts ([int]$SymbolSummary.snapshotPosts) `
+    -AlertPosted ([int]$SymbolSummary.alertPosted) `
+    -FailureTotal $failureTotal
 
   if ($failureTotal -gt 0) {
     return "$Symbol hit $failureTotal runtime failure(s) during the session and needs operational cleanup before trusting the thread."
@@ -1324,9 +1352,16 @@ function Build-ThreadSummaryRecord {
 
   $status =
     if (
-      $SymbolSummary.lastLifecycleEvent -in @("activation_queued", "activation_started", "thread_ready") -and
-      [int]$SymbolSummary.snapshotPosts -eq 0 -and
-      [int]$SymbolSummary.alertPosted -eq 0
+      Test-ActivationPendingState `
+        -LastLifecycleEvent ([string]$SymbolSummary.lastLifecycleEvent) `
+        -SnapshotPosts ([int]$SymbolSummary.snapshotPosts) `
+        -AlertPosted ([int]$SymbolSummary.alertPosted) `
+        -FailureTotal (
+          [int]$SymbolSummary.failures.activation +
+          [int]$SymbolSummary.failures.restore +
+          [int]$SymbolSummary.failures.seed +
+          [int]$SymbolSummary.failures.ibkr
+        )
     ) {
       "activating"
     } elseif ($SymbolSummary.lastLifecycleEvent -eq "deactivated") {

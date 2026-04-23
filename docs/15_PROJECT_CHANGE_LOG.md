@@ -3266,6 +3266,17 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused regression coverage in:
   - `src/tests/manual-watchlist-runtime-manager.test.ts`
 
+## 2026-04-23 3:55 PM America/Toronto
+
+### Made startup-pending thread review more neutral
+
+- Refined `scripts/start-manual-watchlist-long-run.ps1` again:
+  - startup-pending review now uses a shared helper so quality verdicts, end-of-session summaries, and per-thread status all agree on what counts as `activating`
+  - symbols with no visible trader output yet now stay closer to neutral/activating instead of being pulled into `noisy` just because seeding or first-post startup has not finished
+  - the fallback penalty for truly no-output threads is now lighter, which keeps review tone more proportional when the runtime simply has not told its story yet
+- Verification:
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+
 ## 2026-04-23 11:35 AM America/Toronto
 
 ### Tightened reactive thread discipline and support-test tradeability

@@ -119,6 +119,7 @@ Inside that folder:
   - now includes the latest follow-through grade summary so the newest completed setup can be judged quickly without translating raw return signs by hand
   - now also includes state-change and outcome-disagreement summaries so a repeatedly reactivated symbol can be judged more honestly
   - now also distinguishes `activating` and clearly `observational` symbols from actually noisy ones, so quiet low-output threads are reviewed more fairly
+  - startup-pending symbols with no visible trader output yet are now treated more neutrally too, so a thread that is still seeding or waiting for its first visible post is less likely to be mislabeled as `noisy`
 - `thread-clutter-report.json`
   - live-updated deterministic clutter artifact
   - tracks total live posts, trader-critical versus trader-helpful optional posts, alert-to-context ratio, continuity density, recap density, live-state density, and clutter-risk heuristics per symbol
