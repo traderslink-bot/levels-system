@@ -88,6 +88,7 @@ async function main(): Promise<void> {
     aiCommentaryService,
     watchlistStatePersistence: new WatchlistStatePersistence(),
     lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
+    optionalPostSettleDelayMs: 250,
   });
   const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
   let startupState: "booting" | "ready" | "error" = "booting";

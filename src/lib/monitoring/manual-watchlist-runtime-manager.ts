@@ -46,6 +46,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   watchlistStatePersistence?: WatchlistStatePersistence;
   seedSymbolLevels?: (symbol: string) => Promise<void>;
   lifecycleListener?: ManualWatchlistLifecycleListener;
+  optionalPostSettleDelayMs?: number;
 };
 
 export type ManualWatchlistActivationInput = {
@@ -88,6 +89,8 @@ const OPTIONAL_LIVE_POST_KIND_LIMIT = 2;
 const NARRATION_BURST_WINDOW_MS = 90 * 1000;
 const NARRATION_RECAP_BURST_WINDOW_MS = 75 * 1000;
 const DELIVERY_FAILURE_BACKOFF_MS = 2 * 60 * 1000;
+const OPTIONAL_POST_SETTLE_DELAY_MS = 250;
+const OPTIONAL_POST_CRITICAL_PREEMPT_WINDOW_MS = 1500;
 
 type SymbolRecapState = {
   lastSignature: string | null;
@@ -300,6 +303,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly narrationBurstState = new Map<string, SymbolNarrationBurstState>();
   private readonly storyCriticalState = new Map<string, SymbolStoryCriticalState>();
   private readonly deliveryPressureState = new Map<string, SymbolDeliveryPressureState>();
+  private readonly optionalPostSettleDelayMs: number;
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
@@ -316,6 +320,7 @@ export class ManualWatchlistRuntimeManager {
     this.watchlistStore = options.watchlistStore ?? new WatchlistStore();
     this.watchlistStatePersistence =
       options.watchlistStatePersistence ?? new WatchlistStatePersistence();
+    this.optionalPostSettleDelayMs = Math.max(0, options.optionalPostSettleDelayMs ?? 0);
   }
 
   private emitLifecycle(
@@ -927,6 +932,41 @@ export class ManualWatchlistRuntimeManager {
     this.storyCriticalState.set(params.symbol, state);
   }
 
+  private shouldYieldOptionalPostToFreshCritical(params: {
+    symbol: string;
+    timestamp: number;
+    eventType?: string | null;
+  }): boolean {
+    const timestampForPrune = params.timestamp + OPTIONAL_POST_CRITICAL_PREEMPT_WINDOW_MS;
+    const recentStoryCritical = this.pruneStoryCriticalState(params.symbol, timestampForPrune);
+    if (
+      recentStoryCritical.some(
+        (entry) =>
+          entry.timestamp <= timestampForPrune &&
+          Math.abs(entry.timestamp - params.timestamp) <= OPTIONAL_POST_CRITICAL_PREEMPT_WINDOW_MS,
+      )
+    ) {
+      return true;
+    }
+
+    const recentCriticalPosts = this.pruneLiveThreadPosts(params.symbol, timestampForPrune).critical;
+    return recentCriticalPosts.some((entry) => {
+      if (entry.timestamp > timestampForPrune) {
+        return false;
+      }
+
+      if (Math.abs(entry.timestamp - params.timestamp) > OPTIONAL_POST_CRITICAL_PREEMPT_WINDOW_MS) {
+        return false;
+      }
+
+      if (params.eventType === null || params.eventType === undefined) {
+        return true;
+      }
+
+      return entry.eventType === null || entry.eventType === params.eventType;
+    });
+  }
+
   private shouldAllowNarrationBurst(params: {
     symbol: string;
     timestamp: number;
@@ -1416,9 +1456,32 @@ export class ManualWatchlistRuntimeManager {
       update,
     });
 
-    void this.options.discordAlertRouter
-      .routeAlert(entry.discordThreadId, payload)
-      .then(() => {
+    void (async (): Promise<boolean> => {
+      if (this.optionalPostSettleDelayMs > 0) {
+        await delay(this.optionalPostSettleDelayMs);
+        if (
+          this.shouldYieldOptionalPostToFreshCritical({
+            symbol: update.symbol,
+            timestamp: update.timestamp,
+            eventType: update.eventType ?? null,
+          })
+        ) {
+          if (previousState) {
+            this.continuityState.set(update.symbol, previousState);
+          } else {
+            this.continuityState.delete(update.symbol);
+          }
+          return false;
+        }
+      }
+
+      await this.options.discordAlertRouter.routeAlert(entry.discordThreadId!, payload);
+      return true;
+    })()
+      .then((posted) => {
+        if (!posted) {
+          return;
+        }
         this.recordLiveThreadPost({
           symbol: update.symbol,
           timestamp: update.timestamp,
@@ -1602,9 +1665,27 @@ export class ManualWatchlistRuntimeManager {
       currentPrice: progressUpdate.currentPrice,
     });
 
-    void this.options.discordAlertRouter
-      .routeAlert(entry.discordThreadId, payload)
-      .then(() => {
+    void (async (): Promise<boolean> => {
+      if (this.optionalPostSettleDelayMs > 0) {
+        await delay(this.optionalPostSettleDelayMs);
+        if (
+          this.shouldYieldOptionalPostToFreshCritical({
+            symbol: progressUpdate.symbol,
+            timestamp: progressUpdate.timestamp,
+            eventType: progressUpdate.eventType,
+          })
+        ) {
+          return false;
+        }
+      }
+
+      await this.options.discordAlertRouter.routeAlert(entry.discordThreadId!, payload);
+      return true;
+    })()
+      .then((posted) => {
+        if (!posted) {
+          return;
+        }
         this.recordLiveThreadPost({
           symbol: progressUpdate.symbol,
           timestamp: progressUpdate.timestamp,

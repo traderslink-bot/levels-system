@@ -129,6 +129,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Tightened reactive same-event narration one step further so in-flight optional posts are now considered before the first route resolves, closing the race that could still let both continuity and live-state escape together.
 - Tightened price-update ownership so completed follow-through now owns same-snapshot narration for the same symbol and event type, which suppresses weaker progress-driven continuity / live-state duplicates.
 - Added short optional-post backoff after recent Discord delivery failures, so delivery pressure is less likely to turn into a second wave of continuity / live-state / recap chatter on the same symbol.
+- Added a short runtime-only settle window for optional continuity / live-state posts so a fresh trader-critical alert can preempt weaker narration when both are about to hit the same symbol thread in the same moment.
 
 ## Active Backlog
 

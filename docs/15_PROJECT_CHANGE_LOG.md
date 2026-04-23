@@ -3335,6 +3335,19 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused regression coverage in:
   - `src/tests/manual-watchlist-runtime-manager.test.ts`
 
+## 2026-04-23 4:35 PM America/Toronto
+
+### Added a short runtime-only settle window so fresh critical alerts can preempt weaker optional narration
+
+- Updated `src/lib/monitoring/manual-watchlist-runtime-manager.ts`:
+  - continuity and live follow-through-state posts can now wait briefly in the real runtime before routing
+  - that short settle window lets a fresh trader-critical alert claim the story first when both are about to post in the same small window
+  - the settle delay is runtime-configured, so production gets the preemption behavior without slowing the existing unit-test suite
+- Updated `src/runtime/manual-watchlist-server.ts`:
+  - the manual runtime now opts into the optional-post settle delay explicitly
+- Added focused coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+
 ## 2026-04-17 10:20 PM America/Toronto
 
 ### Added a production-oriented level strength scoring and ranking layer
