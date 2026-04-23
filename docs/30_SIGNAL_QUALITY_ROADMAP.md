@@ -117,6 +117,9 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added stricter family-aware live-post discipline so `rejection`, `fake_breakout`, and `fake_breakdown` do not get the same optional continuity budget as cleaner breakout / breakdown / reclaim threads.
 - Tightened support-test tradeability so repeated testing plus layered or limited overhead push support touches toward `watch_only` or `poor` more aggressively in both alert scoring and opportunity ranking.
 - Refined clutter review again so controlled `level_touch` / `compression` watch-mode threads can read as intentionally reactive rather than just context-heavy.
+- Added short per-symbol narration burst control so continuity / recap / follow-through updates are less likely to pile up in the same window when one setup changes state rapidly.
+- Tightened extension dedupe so overlapping refresh paths are less likely to repost identical `NEXT LEVELS` payloads.
+- Refined review wording so delivery-choked threads can read as downstream-pressure problems instead of automatically looking like low-signal threads.
 
 ## Active Backlog
 
@@ -139,6 +142,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Keep validating live sessions like `AUUD` so support-test families can be tightened without accidentally flattening useful breakout/reclaim thread progression.
 - Keep validating live sessions so quiet low-output symbols are described honestly in review artifacts instead of being punished for simply not producing a setup yet.
 - Keep validating live sessions so reactive watch-mode threads only stay rich when they genuinely graduate into cleaner directional setups.
+- Keep validating live sessions like `AKAN` and `BURU` so delivery-choked or bursty threads can be separated from genuinely weak signal-quality threads.
 
 ### Detection and ranking improvements
 

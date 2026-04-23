@@ -67,6 +67,7 @@ type ActiveLevelSnapshotState = {
   lastRefreshTimestamp: number | null;
   lastExtensionPostKey: string | null;
   lastExtensionPostTimestamp: number | null;
+  extensionPostInFlightKey: string | null;
 };
 
 const LEVEL_REFRESH_THRESHOLD_PCT = 0.01;
@@ -84,6 +85,8 @@ const FOLLOW_THROUGH_STATE_UPDATE_COOLDOWN_MS = 4 * 60 * 1000;
 const OPTIONAL_LIVE_POST_WINDOW_MS = 15 * 60 * 1000;
 const OPTIONAL_LIVE_POST_DENSITY_LIMIT = 4;
 const OPTIONAL_LIVE_POST_KIND_LIMIT = 2;
+const NARRATION_BURST_WINDOW_MS = 90 * 1000;
+const NARRATION_RECAP_BURST_WINDOW_MS = 75 * 1000;
 
 type SymbolRecapState = {
   lastSignature: string | null;
@@ -116,6 +119,18 @@ type SymbolLiveThreadPostState = {
   critical: Array<{ kind: LiveThreadPostKind; timestamp: number }>;
   optional: Array<{ kind: LiveThreadPostKind; timestamp: number }>;
 };
+
+type NarrationBurstKind =
+  | "continuity"
+  | "follow_through_state"
+  | "recap"
+  | "follow_through";
+
+type SymbolNarrationBurstState = Array<{
+  kind: NarrationBurstKind;
+  eventType: string | null;
+  timestamp: number;
+}>;
 
 function uniqueSortedLevels(levels: number[], direction: "asc" | "desc"): number[] {
   const unique = [...new Set(levels.filter((level) => Number.isFinite(level) && level > 0))];
@@ -269,6 +284,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly continuityState = new Map<string, SymbolContinuityState>();
   private readonly followThroughStatePosts = new Map<string, SymbolFollowThroughStatePost>();
   private readonly liveThreadPostState = new Map<string, SymbolLiveThreadPostState>();
+  private readonly narrationBurstState = new Map<string, SymbolNarrationBurstState>();
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
@@ -443,6 +459,7 @@ export class ManualWatchlistRuntimeManager {
       lastRefreshTimestamp: timestamp,
       lastExtensionPostKey: null,
       lastExtensionPostTimestamp: null,
+      extensionPostInFlightKey: null,
     });
     this.watchlistStore.patchEntry(symbol, {
       lifecycle: "active",
@@ -456,38 +473,29 @@ export class ManualWatchlistRuntimeManager {
     threadId: string,
     side: LevelExtensionSide,
     timestamp: number,
-  ): Promise<boolean> {
+  ): Promise<"posted" | "duplicate" | "unavailable"> {
     const payload = this.buildLevelExtensionPayload(symbol, side, timestamp);
     if (!payload) {
-      return false;
+      return "unavailable";
     }
 
-    const extensionKey = JSON.stringify(payload);
+    const extensionKey = JSON.stringify({
+      symbol: payload.symbol,
+      side: payload.side,
+      levels: payload.levels,
+    });
     const existingState = this.activeSnapshotState.get(symbol);
     if (
-      existingState?.lastExtensionPostKey === extensionKey &&
-      existingState.lastExtensionPostTimestamp !== null &&
-      timestamp - existingState.lastExtensionPostTimestamp < LEVEL_REFRESH_COOLDOWN_MS
+      existingState?.extensionPostInFlightKey === extensionKey ||
+      (
+        existingState?.lastExtensionPostKey === extensionKey &&
+        existingState.lastExtensionPostTimestamp !== null &&
+        timestamp - existingState.lastExtensionPostTimestamp < LEVEL_REFRESH_COOLDOWN_MS
+      )
     ) {
-      return false;
+      return "duplicate";
     }
 
-    await this.options.discordAlertRouter.routeLevelExtension(threadId, payload);
-    this.recordLiveThreadPost({
-      symbol,
-      timestamp,
-      kind: "extension",
-      critical: true,
-    });
-    this.emitLifecycle("extension_posted", {
-      symbol,
-      threadId,
-      details: {
-        side,
-        levelCount: payload.levels.length,
-      },
-    });
-    this.options.levelStore.activateExtensionLevels(symbol, side);
     this.activeSnapshotState.set(symbol, {
       lastSnapshot: existingState?.lastSnapshot ?? "",
       highestResistance: existingState?.highestResistance ?? null,
@@ -496,14 +504,60 @@ export class ManualWatchlistRuntimeManager {
       lastRefreshTriggerResistance: existingState?.lastRefreshTriggerResistance ?? null,
       lastRefreshTriggerSupport: existingState?.lastRefreshTriggerSupport ?? null,
       lastRefreshTimestamp: existingState?.lastRefreshTimestamp ?? null,
-      lastExtensionPostKey: extensionKey,
-      lastExtensionPostTimestamp: timestamp,
+      lastExtensionPostKey: existingState?.lastExtensionPostKey ?? null,
+      lastExtensionPostTimestamp: existingState?.lastExtensionPostTimestamp ?? null,
+      extensionPostInFlightKey: extensionKey,
     });
-    this.watchlistStore.patchEntry(symbol, {
-      lifecycle: "active",
-      lastExtensionPostAt: timestamp,
-    });
-    return true;
+
+    try {
+      await this.options.discordAlertRouter.routeLevelExtension(threadId, payload);
+      this.recordLiveThreadPost({
+        symbol,
+        timestamp,
+        kind: "extension",
+        critical: true,
+      });
+      this.emitLifecycle("extension_posted", {
+        symbol,
+        threadId,
+        details: {
+          side,
+          levelCount: payload.levels.length,
+        },
+      });
+      this.options.levelStore.activateExtensionLevels(symbol, side);
+      this.activeSnapshotState.set(symbol, {
+        lastSnapshot: existingState?.lastSnapshot ?? "",
+        highestResistance: existingState?.highestResistance ?? null,
+        lowestSupport: existingState?.lowestSupport ?? null,
+        referencePrice: existingState?.referencePrice ?? null,
+        lastRefreshTriggerResistance: existingState?.lastRefreshTriggerResistance ?? null,
+        lastRefreshTriggerSupport: existingState?.lastRefreshTriggerSupport ?? null,
+        lastRefreshTimestamp: existingState?.lastRefreshTimestamp ?? null,
+        lastExtensionPostKey: extensionKey,
+        lastExtensionPostTimestamp: timestamp,
+        extensionPostInFlightKey: null,
+      });
+      this.watchlistStore.patchEntry(symbol, {
+        lifecycle: "active",
+        lastExtensionPostAt: timestamp,
+      });
+      return "posted";
+    } catch (error) {
+      this.activeSnapshotState.set(symbol, {
+        lastSnapshot: existingState?.lastSnapshot ?? "",
+        highestResistance: existingState?.highestResistance ?? null,
+        lowestSupport: existingState?.lowestSupport ?? null,
+        referencePrice: existingState?.referencePrice ?? null,
+        lastRefreshTriggerResistance: existingState?.lastRefreshTriggerResistance ?? null,
+        lastRefreshTriggerSupport: existingState?.lastRefreshTriggerSupport ?? null,
+        lastRefreshTimestamp: existingState?.lastRefreshTimestamp ?? null,
+        lastExtensionPostKey: existingState?.lastExtensionPostKey ?? null,
+        lastExtensionPostTimestamp: existingState?.lastExtensionPostTimestamp ?? null,
+        extensionPostInFlightKey: null,
+      });
+      throw error;
+    }
   }
 
   private async refreshLevelsIfNeeded(symbol: string, timestamp: number): Promise<boolean> {
@@ -616,17 +670,17 @@ export class ManualWatchlistRuntimeManager {
       lifecycle: "extension_pending",
     });
 
-    let extensionPosted = await this.postLevelExtension(
+    let extensionResult = await this.postLevelExtension(
       symbol,
       entry.discordThreadId,
       side,
       update.timestamp,
     );
 
-    if (!extensionPosted) {
+    if (extensionResult === "unavailable") {
       await this.seedLevelsForSymbol(symbol);
       await this.postLevelSnapshot(symbol, entry.discordThreadId, update.timestamp, update.lastPrice);
-      extensionPosted = await this.postLevelExtension(
+      extensionResult = await this.postLevelExtension(
         symbol,
         entry.discordThreadId,
         side,
@@ -648,9 +702,11 @@ export class ManualWatchlistRuntimeManager {
       lastExtensionPostKey: refreshedState?.lastExtensionPostKey ?? snapshotState.lastExtensionPostKey,
       lastExtensionPostTimestamp:
         refreshedState?.lastExtensionPostTimestamp ?? snapshotState.lastExtensionPostTimestamp,
+      extensionPostInFlightKey:
+        refreshedState?.extensionPostInFlightKey ?? snapshotState.extensionPostInFlightKey,
     });
 
-    if (!extensionPosted) {
+    if (extensionResult !== "posted") {
       this.watchlistStore.patchEntry(symbol, {
         lifecycle: "active",
       });
@@ -738,6 +794,80 @@ export class ManualWatchlistRuntimeManager {
       kind: params.kind,
       timestamp: params.timestamp,
     });
+  }
+
+  private getNarrationBurstState(symbol: string): SymbolNarrationBurstState {
+    const existing = this.narrationBurstState.get(symbol);
+    if (existing) {
+      return existing;
+    }
+
+    const created: SymbolNarrationBurstState = [];
+    this.narrationBurstState.set(symbol, created);
+    return created;
+  }
+
+  private pruneNarrationBurstState(symbol: string, timestamp: number): SymbolNarrationBurstState {
+    const state = this.getNarrationBurstState(symbol).filter(
+      (entry) => timestamp - entry.timestamp <= NARRATION_BURST_WINDOW_MS,
+    );
+    this.narrationBurstState.set(symbol, state);
+    return state;
+  }
+
+  private recordNarrationAttempt(params: {
+    symbol: string;
+    timestamp: number;
+    kind: NarrationBurstKind;
+    eventType?: string | null;
+  }): void {
+    const state = this.pruneNarrationBurstState(params.symbol, params.timestamp);
+    state.push({
+      kind: params.kind,
+      eventType: params.eventType ?? null,
+      timestamp: params.timestamp,
+    });
+    this.narrationBurstState.set(params.symbol, state);
+  }
+
+  private shouldAllowNarrationBurst(params: {
+    symbol: string;
+    timestamp: number;
+    kind: NarrationBurstKind;
+    eventType?: string | null;
+  }): boolean {
+    const state = this.pruneNarrationBurstState(params.symbol, params.timestamp);
+    const recentKind = state.filter((entry) => entry.kind === params.kind);
+    const reactiveEvent =
+      params.eventType !== undefined &&
+      params.eventType !== null &&
+      ["level_touch", "compression"].includes(params.eventType);
+    const fragileDirectionalEvent =
+      params.eventType !== undefined &&
+      params.eventType !== null &&
+      ["fake_breakout", "fake_breakdown", "rejection"].includes(params.eventType);
+    const burstLimit = reactiveEvent || fragileDirectionalEvent ? 2 : 3;
+
+    if (state.length >= burstLimit) {
+      return false;
+    }
+
+    if (
+      params.kind === "recap" &&
+      state.some((entry) => params.timestamp - entry.timestamp <= NARRATION_RECAP_BURST_WINDOW_MS)
+    ) {
+      return false;
+    }
+
+    if (
+      params.kind !== "continuity" &&
+      recentKind.length >= 1 &&
+      recentKind.some((entry) => params.timestamp - entry.timestamp <= CONTINUITY_UPDATE_COOLDOWN_MS)
+    ) {
+      return false;
+    }
+
+    return true;
   }
 
   private shouldAllowOptionalLivePost(params: {
@@ -1076,6 +1206,24 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
+    if (
+      !this.shouldAllowNarrationBurst({
+        symbol: update.symbol,
+        timestamp: update.timestamp,
+        kind: "continuity",
+        eventType: update.eventType ?? null,
+      })
+    ) {
+      return;
+    }
+
+    this.recordNarrationAttempt({
+      symbol: update.symbol,
+      timestamp: update.timestamp,
+      kind: "continuity",
+      eventType: update.eventType ?? null,
+    });
+
     const payload = formatContinuityUpdateAsPayload({
       update,
     });
@@ -1184,6 +1332,24 @@ export class ManualWatchlistRuntimeManager {
     ) {
       return;
     }
+
+    if (
+      !this.shouldAllowNarrationBurst({
+        symbol: progressUpdate.symbol,
+        timestamp: progressUpdate.timestamp,
+        kind: "follow_through_state",
+        eventType: progressUpdate.eventType,
+      })
+    ) {
+      return;
+    }
+
+    this.recordNarrationAttempt({
+      symbol: progressUpdate.symbol,
+      timestamp: progressUpdate.timestamp,
+      kind: "follow_through_state",
+      eventType: progressUpdate.eventType,
+    });
 
     const payload = formatFollowThroughStateUpdateAsPayload({
       symbol: progressUpdate.symbol,
@@ -1502,6 +1668,32 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
+    if (
+      !this.shouldAllowNarrationBurst({
+        symbol: params.symbol,
+        timestamp: params.timestamp,
+        kind: "recap",
+        eventType:
+          params.evaluation?.eventType ??
+          params.progressUpdate?.eventType ??
+          params.interpretation?.eventType ??
+          null,
+      })
+    ) {
+      return;
+    }
+
+    this.recordNarrationAttempt({
+      symbol: params.symbol,
+      timestamp: params.timestamp,
+      kind: "recap",
+      eventType:
+        params.evaluation?.eventType ??
+        params.progressUpdate?.eventType ??
+        params.interpretation?.eventType ??
+        null,
+    });
+
     void this.maybeBuildRecapBodyWithAI({
       symbol: params.symbol,
       deterministicBody,
@@ -1695,6 +1887,24 @@ export class ManualWatchlistRuntimeManager {
     if (!entry?.active || !entry.discordThreadId) {
       return;
     }
+
+    if (
+      !this.shouldAllowNarrationBurst({
+        symbol: evaluation.symbol,
+        timestamp: evaluation.evaluatedAt,
+        kind: "follow_through",
+        eventType: evaluation.eventType,
+      })
+    ) {
+      return;
+    }
+
+    this.recordNarrationAttempt({
+      symbol: evaluation.symbol,
+      timestamp: evaluation.evaluatedAt,
+      kind: "follow_through",
+      eventType: evaluation.eventType,
+    });
 
     const followThrough = deriveTraderFollowThroughContext({
       eventType: evaluation.eventType,
@@ -2079,6 +2289,7 @@ export class ManualWatchlistRuntimeManager {
     this.continuityState.delete(normalizeSymbol(symbol));
     this.followThroughStatePosts.delete(normalizeSymbol(symbol));
     this.liveThreadPostState.delete(normalizeSymbol(symbol));
+    this.narrationBurstState.delete(normalizeSymbol(symbol));
     this.persistWatchlist();
     await this.restartMonitoring();
     this.emitLifecycle("deactivated", {

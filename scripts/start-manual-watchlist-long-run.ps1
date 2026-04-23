@@ -394,6 +394,11 @@ function Evaluate-QualityHeuristics {
     $recommendations += "review discord-delivery-audit.jsonl for failed posts"
   }
 
+  if ($discordFailed -ge 3 -and $posted -ge 1 -and $evaluationWins -ge $evaluationLosses) {
+    $rationale += "delivery failures likely interrupted an otherwise working thread"
+    $recommendations += "tighten per-symbol live post bursts before downgrading the signal logic itself"
+  }
+
   if ($suppressionRatio -ge 0.75 -and ($posted + $suppressed) -ge 4) {
     $score -= 18
     $rationale += "was mostly suppression-heavy"
@@ -1039,6 +1044,10 @@ function Build-EndOfSessionSummary {
     return "$Symbol has explicit human review feedback of $reviewVerdict, so this thread should be treated cautiously until the underlying alert quality is tuned."
   }
 
+  if ($SymbolSummary.discordFailed -ge 3 -and $evaluationWins -ge $evaluationLosses -and $SymbolSummary.alertPosted -ge 1) {
+    return "$Symbol was materially disrupted by downstream delivery failures, so this thread currently looks more bursty or rate-limited than structurally unhelpful."
+  }
+
   if ($SymbolSummary.alertPosted -ge 2 -and $SymbolSummary.quality.verdict -in @("high_signal", "useful")) {
     return "$Symbol produced multiple posted alerts and held a $($SymbolSummary.quality.verdict) verdict; families: $(Join-DisplayList -Items $families)."
   }
@@ -1238,6 +1247,9 @@ function Build-ThreadClutterRecord {
   if ([int]$SymbolSummary.followThroughStatePosts -ge 3) {
     $riskReasons += "live follow-through state posting stayed elevated"
   }
+  if ([int]$SymbolSummary.discordFailed -ge 3 -and $totalLivePosts -ge 6) {
+    $riskReasons += "delivery failures amplified a live post burst"
+  }
   if ($traderHelpfulOptionalPosts -ge 2 -and $SymbolSummary.quality.verdict -in @("noisy", "needs_attention")) {
     $riskReasons += "symbol quality verdict leaned noisy"
   }
@@ -1250,6 +1262,8 @@ function Build-ThreadClutterRecord {
       ($SymbolSummary.quality.verdict -in @("high_signal", "useful") -or $SymbolSummary.humanReview.latestVerdict -in @("useful", "strong"))
     ) {
       "context_helping"
+    } elseif ([int]$SymbolSummary.discordFailed -ge 3 -and $traderHelpfulOptionalPosts -gt 0) {
+      "delivery_choked"
     } elseif ($traderHelpfulOptionalPosts -gt 0 -and $SymbolSummary.quality.verdict -in @("noisy", "needs_attention")) {
       "context_heavy"
     } elseif ($traderHelpfulOptionalPosts -gt 0) {
@@ -1276,6 +1290,8 @@ function Build-ThreadClutterRecord {
 
   if ($contextValueSignal -eq "context_heavy") {
     $recommendations += "prefer artifact review over extra live narration for this symbol"
+  } elseif ($contextValueSignal -eq "delivery_choked") {
+    $recommendations += "review discord-delivery-audit.jsonl first; delivery pressure may be distorting the apparent thread quality"
   } elseif ($contextValueSignal -eq "reactive_watch") {
     $recommendations += "reactive monitoring looks controlled; keep judging it by whether it graduates into a cleaner directional setup"
   } elseif ($contextValueSignal -eq "context_helping") {

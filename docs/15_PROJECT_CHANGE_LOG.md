@@ -3219,6 +3219,20 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `src/tests/manual-watchlist-runtime-manager.test.ts`
   - `src/tests/opportunity-decision-integrity.test.ts`
 
+## 2026-04-23 12:20 PM America/Toronto
+
+### Added burst control and stronger extension dedupe from live `AKAN` / `BURU` evidence
+
+- Tightened live thread behavior again in `src/lib/monitoring/manual-watchlist-runtime-manager.ts`:
+  - continuity, follow-through-state, recap, and follow-through posts now share a short per-symbol narration burst budget
+  - directional continuity progression still works, but same-window narration cascades are now cut down before they hit Discord
+  - overlapping refresh paths now dedupe identical `NEXT LEVELS` payloads more reliably by keying on stable content instead of timestamped payload JSON
+- Refined long-run review heuristics in `scripts/start-manual-watchlist-long-run.ps1`:
+  - symbols with multiple Discord delivery failures and still-positive outcomes are more likely to read as delivery-choked or bursty instead of automatically low-signal
+  - clutter review now has better guidance when downstream delivery pressure is distorting the live thread
+- Added focused coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+
 ## 2026-04-17 10:20 PM America/Toronto
 
 ### Added a production-oriented level strength scoring and ranking layer
