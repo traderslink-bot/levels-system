@@ -29,7 +29,10 @@ export type OpportunityDiagnosticsLogEntry = {
     clearanceLabel?: string;
     barrierClutterLabel?: string;
     nearbyBarrierCount?: number;
+    pathQualityLabel?: string;
+    pathBarrierCount?: number;
     tacticalRead?: string;
+    exhaustionLabel?: string;
   }>;
   opportunity?: {
     symbol: string;
@@ -41,7 +44,10 @@ export type OpportunityDiagnosticsLogEntry = {
     clearanceLabel?: string;
     barrierClutterLabel?: string;
     nearbyBarrierCount?: number;
+    pathQualityLabel?: string;
+    pathBarrierCount?: number;
     tacticalRead?: string;
+    exhaustionLabel?: string;
   };
   completedEvaluations?: EvaluatedOpportunity[];
 };
@@ -147,7 +153,10 @@ export function buildOpportunityDiagnosticsLogEntry(
       clearanceLabel: opportunity.clearanceLabel,
       barrierClutterLabel: opportunity.barrierClutterLabel,
       nearbyBarrierCount: opportunity.nearbyBarrierCount,
+      pathQualityLabel: opportunity.pathQualityLabel,
+      pathBarrierCount: opportunity.pathBarrierCount,
       tacticalRead: opportunity.tacticalRead,
+      exhaustionLabel: opportunity.exhaustionLabel,
     })),
     opportunity: snapshot.newOpportunity
       ? {
@@ -160,7 +169,10 @@ export function buildOpportunityDiagnosticsLogEntry(
         clearanceLabel: snapshot.newOpportunity.clearanceLabel,
         barrierClutterLabel: snapshot.newOpportunity.barrierClutterLabel,
         nearbyBarrierCount: snapshot.newOpportunity.nearbyBarrierCount,
+        pathQualityLabel: snapshot.newOpportunity.pathQualityLabel,
+        pathBarrierCount: snapshot.newOpportunity.pathBarrierCount,
         tacticalRead: snapshot.newOpportunity.tacticalRead,
+        exhaustionLabel: snapshot.newOpportunity.exhaustionLabel,
       }
       : undefined,
     completedEvaluations: snapshot.completedEvaluations.length > 0

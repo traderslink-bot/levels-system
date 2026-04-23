@@ -10,7 +10,9 @@ import type {
   LivePriceUpdate,
   MonitoringAlertType,
   MonitoringEventType,
+  PathQualityLabel,
   SymbolMonitoringState,
+  ZoneExhaustionLabel,
   ZoneInteractionState,
 } from "./monitoring-types.js";
 import { buildSymbolContext } from "./symbol-state.js";
@@ -123,6 +125,88 @@ function relevantBarriers(params: {
     }));
 
   return candidates;
+}
+
+export function derivePathQuality(params: {
+  eventType: MonitoringEventType;
+  zone: FinalLevelZone;
+  symbolState: SymbolMonitoringState;
+  triggerPrice: number;
+  config: MonitoringConfig;
+}): {
+  label: PathQualityLabel;
+  barrierCount: number;
+} | null {
+  const barriers = relevantBarriers(params);
+  if (barriers.length === 0) {
+    return null;
+  }
+
+  const pathWindowPct = Math.max(params.config.limitedClearancePct * 3, 0.1);
+  const pathBarriers = barriers.filter((barrier) => barrier.distancePct <= pathWindowPct);
+  const barrierCount = pathBarriers.length;
+
+  if (barrierCount <= 1) {
+    return {
+      label: "clean",
+      barrierCount,
+    };
+  }
+
+  const considered = pathBarriers.slice(0, Math.min(barrierCount, 4));
+  const gaps = considered
+    .slice(1)
+    .map((barrier, index) => barrier.distancePct - considered[index]!.distancePct);
+  const averageGap =
+    gaps.length === 0
+      ? considered[0]!.distancePct
+      : gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+
+  if (barrierCount >= 3 && averageGap <= Math.max(params.config.tightClearancePct, 0.015)) {
+    return {
+      label: "choppy",
+      barrierCount,
+    };
+  }
+
+  if (barrierCount >= 2 && averageGap <= Math.max(params.config.limitedClearancePct, 0.03)) {
+    return {
+      label: "layered",
+      barrierCount,
+    };
+  }
+
+  return {
+    label: "clean",
+    barrierCount,
+  };
+}
+
+export function deriveZoneExhaustion(params: {
+  zone: FinalLevelZone;
+  zoneFreshness: FinalLevelZone["freshness"];
+  tacticalRead: ReturnType<typeof deriveZoneTacticalRead>;
+}): ZoneExhaustionLabel {
+  const { zone, zoneFreshness, tacticalRead } = params;
+  const touchCount = zone.touchCount;
+  const weakReaction =
+    zone.followThroughScore < 0.45 ||
+    zone.reactionQualityScore < 0.42;
+  const stale = zoneFreshness === "stale";
+
+  if ((touchCount >= 8 && (stale || tacticalRead === "tired")) || (touchCount >= 6 && stale && weakReaction)) {
+    return "spent";
+  }
+
+  if (touchCount >= 5 || tacticalRead === "tired" || stale) {
+    return "worn";
+  }
+
+  if (touchCount >= 3) {
+    return "tested";
+  }
+
+  return "fresh";
 }
 
 export function findNearestRelevantBarrier(params: {
@@ -312,6 +396,13 @@ export function scoreMonitoringEvent(params: {
     triggerPrice: update.lastPrice,
     config,
   });
+  const pathQuality = derivePathQuality({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+    config,
+  });
   const clearanceLabel = deriveBarrierClearanceLabel(
     nearestBarrier?.distancePct ?? null,
     config,
@@ -320,6 +411,11 @@ export function scoreMonitoringEvent(params: {
     zone,
     zoneContext?.zoneFreshness ?? zone.freshness,
   );
+  const exhaustionLabel = deriveZoneExhaustion({
+    zone,
+    zoneFreshness: zoneContext?.zoneFreshness ?? zone.freshness,
+    tacticalRead,
+  });
   const tacticalBias = resolveZoneTacticalBias({
     zoneKind: zone.kind,
     eventType,
@@ -423,23 +519,34 @@ export function scoreMonitoringEvent(params: {
       (zone.kind === "support" && eventType === "breakdown"))
       ? 0.02
       : 0;
+  const pathQualityPenalty =
+    pathQuality?.label === "choppy"
+      ? 0.08
+      : pathQuality?.label === "layered"
+        ? 0.04
+        : 0;
+  const pathQualityBonus = pathQuality?.label === "clean" ? 0.02 : 0;
   const tacticalScale =
     eventType === "level_touch" || eventType === "compression" ? 0.75 : 1;
   const tacticalTailwindBonus = tacticalBias === "tailwind" ? 0.02 * tacticalScale : 0;
   const tacticalHeadwindPenalty = tacticalBias === "headwind" ? 0.03 * tacticalScale : 0;
   const exhaustionPenalty =
-    tacticalRead === "tired" &&
+    (exhaustionLabel === "worn" || exhaustionLabel === "spent") &&
     ((zone.kind === "support" &&
       (eventType === "level_touch" || eventType === "reclaim" || eventType === "fake_breakdown")) ||
       (zone.kind === "resistance" &&
         (eventType === "level_touch" || eventType === "rejection" || eventType === "fake_breakout")))
-      ? 0.05
+      ? exhaustionLabel === "spent"
+        ? 0.08
+        : 0.05
       : 0;
   const exhaustionTailwind =
-    tacticalRead === "tired" &&
+    (exhaustionLabel === "worn" || exhaustionLabel === "spent") &&
     ((zone.kind === "resistance" && eventType === "breakout") ||
       (zone.kind === "support" && eventType === "breakdown"))
-      ? 0.03
+      ? exhaustionLabel === "spent"
+        ? 0.05
+        : 0.03
       : 0;
 
   const strength = clamp(
@@ -462,6 +569,8 @@ export function scoreMonitoringEvent(params: {
       clearanceBonus -
       clutterPenalty +
       clutterTailwind -
+      pathQualityPenalty +
+      pathQualityBonus -
       tacticalHeadwindPenalty +
       tacticalTailwindBonus -
       exhaustionPenalty +
@@ -489,6 +598,8 @@ export function scoreMonitoringEvent(params: {
       clearanceBonus * 0.7 -
       clutterPenalty * 0.85 +
       clutterTailwind * 0.75 -
+      pathQualityPenalty * 0.8 +
+      pathQualityBonus * 0.7 -
       tacticalHeadwindPenalty * 0.85 +
       tacticalTailwindBonus * 0.75 -
       exhaustionPenalty * 0.9 +

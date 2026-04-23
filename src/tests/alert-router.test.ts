@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  formatContinuityUpdateAsPayload,
   DiscordAlertRouter,
+  formatFollowThroughStateUpdateAsPayload,
   formatFollowThroughUpdateAsPayload,
   formatIntelligentAlertAsPayload,
   formatLevelExtensionMessage,
@@ -191,9 +193,18 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
     },
     triggerQuality: {
       label: "clean",
-      line: "trigger quality: clean trigger with early participation, strong control, and limited room",
+      line: "trigger quality: clean trigger with early movement, strong control, and limited room",
+    },
+    pathQuality: {
+      label: "layered",
+      barrierCount: 2,
+      line: "path quality: layered path with 2 nearby barriers, so the move may need to work through steps",
     },
     dipBuyQuality: null,
+    exhaustion: {
+      label: "tested",
+      line: "support exhaustion: tested a few times but still intact structurally",
+    },
     setupState: {
       label: "continuation",
       line: "setup state: continuation, so the move has started and now needs follow-through",
@@ -238,7 +249,9 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.pressureLabel, "strong");
   assert.equal(payload.metadata?.pressureScore, 0.74);
   assert.equal(payload.metadata?.triggerQualityLabel, "clean");
+  assert.equal(payload.metadata?.pathQualityLabel, "layered");
   assert.equal(payload.metadata?.dipBuyQualityLabel, undefined);
+  assert.equal(payload.metadata?.exhaustionLabel, "tested");
   assert.equal(payload.metadata?.setupStateLabel, "continuation");
   assert.equal(payload.metadata?.failureRiskLabel, "contained");
   assert.equal(payload.metadata?.tradeMapLabel, "favorable");
@@ -247,6 +260,40 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.targetSide, "resistance");
   assert.equal(payload.metadata?.targetPrice, 2.5);
   assert.equal(payload.metadata?.targetDistancePct, 0.036);
+});
+
+test("formatFollowThroughStateUpdateAsPayload adds live progress metadata", () => {
+  const payload = formatFollowThroughStateUpdateAsPayload({
+    symbol: "ALBT",
+    timestamp: 11,
+    eventType: "breakout",
+    progressLabel: "improving",
+    directionalReturnPct: 0.42,
+    entryPrice: 2.41,
+    currentPrice: 2.46,
+  });
+
+  assert.equal(payload.metadata?.messageKind, "follow_through_state_update");
+  assert.equal(payload.metadata?.progressLabel, "improving");
+  assert.equal(payload.metadata?.directionalReturnPct, 0.42);
+  assert.match(payload.body, /improving since the alert/);
+});
+
+test("formatContinuityUpdateAsPayload adds continuity metadata", () => {
+  const payload = formatContinuityUpdateAsPayload({
+    interpretation: {
+      symbol: "ALBT",
+      message: "buyers reacting at support near 2.40",
+      type: "confirmation",
+      confidence: 0.82,
+      tags: [],
+      timestamp: 12,
+    },
+  });
+
+  assert.equal(payload.metadata?.messageKind, "continuity_update");
+  assert.equal(payload.metadata?.continuityType, "confirmation");
+  assert.match(payload.body, /buyers reacting at support near 2.40/);
 });
 
 test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through context", () => {

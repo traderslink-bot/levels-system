@@ -43,3 +43,4 @@ This folder contains the full plan for the candle-based levels system, including
 29. `29_LONG_RUN_TESTING_WORKFLOW.md`
 30. `30_SIGNAL_QUALITY_ROADMAP.md`
 31. `31_ALERT_REVIEW_LOOP_WORKFLOW.md`
+32. `32_AI_COMMENTARY_WORKFLOW.md`

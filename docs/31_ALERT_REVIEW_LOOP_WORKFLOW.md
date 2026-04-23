@@ -93,6 +93,7 @@ The session review will then show:
 - symbols that were reviewed
 - latest human review per symbol
 - how that human review sits beside the latest evaluated follow-through instead of only the raw posted alert
+- how that human review sits beside the latest live follow-through state update, continuity update, and recap when those exist
 
 ## Best Practice
 
@@ -116,6 +117,7 @@ This loop creates the evidence needed to improve:
 - breakout quality filters
 - dip-buy usefulness
 - end-of-session summaries
+- in-session continuity and recap posting thresholds
 - future AI commentary layers
 
 ## Recommended Companion Artifacts
@@ -127,5 +129,6 @@ When reviewing or recording feedback, look at:
 - `thread-summaries.json`
 - `discord-delivery-audit.jsonl`
 - `manual-watchlist-operational.log`
+- `session-ai-review.md` if you generated the optional AI session summary and want to compare human review against it
 
 That usually gives enough context to decide whether a thread was useful or not.

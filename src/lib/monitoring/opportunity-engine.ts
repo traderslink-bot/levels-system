@@ -23,7 +23,10 @@ export type RankedOpportunity = {
   clearanceLabel?: "tight" | "limited" | "open";
   barrierClutterLabel?: "clear" | "stacked" | "dense";
   nearbyBarrierCount?: number;
+  pathQualityLabel?: "clean" | "layered" | "choppy";
+  pathBarrierCount?: number;
   tacticalRead?: "firm" | "balanced" | "tired";
+  exhaustionLabel?: "fresh" | "tested" | "worn" | "spent";
 };
 
 type MonitoringEventWithStructure = MonitoringEvent & {
@@ -211,6 +214,48 @@ function clutterAdjustment(event: MonitoringEvent): number {
   return 0;
 }
 
+function pathQualityAdjustment(event: MonitoringEvent): number {
+  const label = event.eventContext.pathQualityLabel;
+
+  if (label === "choppy") {
+    return -0.08;
+  }
+
+  if (label === "layered") {
+    return -0.04;
+  }
+
+  if (label === "clean") {
+    return 0.02;
+  }
+
+  return 0;
+}
+
+function exhaustionAdjustment(event: MonitoringEvent): number {
+  const label = event.eventContext.exhaustionLabel;
+
+  if (
+    (label === "worn" || label === "spent") &&
+    ((event.zoneKind === "support" &&
+      (event.eventType === "level_touch" || event.eventType === "reclaim")) ||
+      (event.zoneKind === "resistance" &&
+        (event.eventType === "level_touch" || event.eventType === "rejection")))
+  ) {
+    return label === "spent" ? -0.08 : -0.04;
+  }
+
+  if (
+    (label === "worn" || label === "spent") &&
+    ((event.zoneKind === "resistance" && event.eventType === "breakout") ||
+      (event.zoneKind === "support" && event.eventType === "breakdown"))
+  ) {
+    return label === "spent" ? 0.04 : 0.02;
+  }
+
+  return 0;
+}
+
 export class OpportunityEngine {
   constructor(private readonly debug: boolean = false) {}
 
@@ -246,7 +291,9 @@ export class OpportunityEngine {
       const qualityWeight = 0.65 + clamp(event.strength) * 0.2 + clamp(event.confidence) * 0.15;
       const resolvedClearanceAdjustment = clearanceAdjustment(event);
       const resolvedClutterAdjustment = clutterAdjustment(event);
+      const resolvedPathQualityAdjustment = pathQualityAdjustment(event);
       const resolvedTacticalAdjustment = tacticalAdjustment(event);
+      const resolvedExhaustionAdjustment = exhaustionAdjustment(event);
 
       const score =
         nonlinearScore *
@@ -260,7 +307,9 @@ export class OpportunityEngine {
             conflictPenalty +
             resolvedClearanceAdjustment +
             resolvedClutterAdjustment +
-            resolvedTacticalAdjustment,
+            resolvedPathQualityAdjustment +
+            resolvedTacticalAdjustment +
+            resolvedExhaustionAdjustment,
         ) *
         typeWeight(event.eventType) *
         qualityWeight;
@@ -285,7 +334,10 @@ export class OpportunityEngine {
         clearanceLabel: event.eventContext.clearanceLabel,
         barrierClutterLabel: event.eventContext.barrierClutterLabel,
         nearbyBarrierCount: event.eventContext.nearbyBarrierCount,
+        pathQualityLabel: event.eventContext.pathQualityLabel,
+        pathBarrierCount: event.eventContext.pathBarrierCount,
         tacticalRead: event.eventContext.tacticalRead,
+        exhaustionLabel: event.eventContext.exhaustionLabel,
       };
     });
 

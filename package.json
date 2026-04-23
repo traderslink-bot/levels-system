@@ -12,6 +12,7 @@
     "alert:test": "tsx src/scripts/run-alert-intelligence-sample.ts",
     "watchlist:alerts:test": "tsx src/scripts/run-watchlist-alerts-sample.ts",
     "watchlist:manual": "tsx src/runtime/manual-watchlist-server.ts",
+    "longrun:ai:summary": "tsx src/scripts/generate-ai-long-run-summary.ts",
     "validation:levels:live": "tsx src/scripts/run-level-candle-health-check.ts",
     "validation:levels:persistence": "tsx src/scripts/run-level-persistence-validation.ts",
     "validation:levels:forward": "tsx src/scripts/run-forward-reaction-validation.ts",

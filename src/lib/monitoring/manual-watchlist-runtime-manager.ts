@@ -5,10 +5,14 @@ import type { FinalLevelZone } from "../levels/level-types.js";
 import { decideLevelRefresh } from "../levels/level-refresh-policy.js";
 import { AlertIntelligenceEngine } from "../alerts/alert-intelligence-engine.js";
 import {
+  formatContinuityUpdateAsPayload,
+  formatFollowThroughStateUpdateAsPayload,
   formatFollowThroughUpdateAsPayload,
   formatIntelligentAlertAsPayload,
+  formatSymbolRecapAsPayload,
   type DiscordAlertRouter,
 } from "../alerts/alert-router.js";
+import type { TraderCommentaryService } from "../ai/trader-commentary-service.js";
 import type {
   LevelExtensionPayload,
   LevelExtensionSide,
@@ -20,8 +24,8 @@ import { LevelStore } from "./level-store.js";
 import type { LivePriceUpdate, MonitoringEvent, WatchlistEntry } from "./monitoring-types.js";
 import { buildOpportunityDiagnosticsLogEntry } from "./opportunity-diagnostics.js";
 import { OpportunityRuntimeController } from "./opportunity-runtime-controller.js";
-import { formatInterpretationForConsole } from "./opportunity-interpretation.js";
-import type { EvaluatedOpportunity } from "./opportunity-evaluator.js";
+import type { OpportunityInterpretation } from "./opportunity-interpretation.js";
+import type { EvaluatedOpportunity, OpportunityProgressUpdate } from "./opportunity-evaluator.js";
 import { WatchlistMonitor } from "./watchlist-monitor.js";
 import { WatchlistStatePersistence } from "./watchlist-state-persistence.js";
 import { WatchlistStore } from "./watchlist-store.js";
@@ -36,6 +40,8 @@ export type ManualWatchlistRuntimeManagerOptions = {
   monitor: WatchlistMonitor;
   discordAlertRouter: DiscordAlertRouter;
   opportunityRuntimeController: OpportunityRuntimeController;
+  aiCommentaryService?: TraderCommentaryService | null;
+  symbolRecapCooldownMs?: number;
   watchlistStore?: WatchlistStore;
   watchlistStatePersistence?: WatchlistStatePersistence;
   seedSymbolLevels?: (symbol: string) => Promise<void>;
@@ -71,6 +77,13 @@ const SNAPSHOT_PRICE_TOLERANCE_ABSOLUTE = 0.001;
 const SNAPSHOT_DISPLAY_COMPACTION_PCT = 0.0075;
 const SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE = 0.01;
 const SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 0.5;
+const SYMBOL_RECAP_COOLDOWN_MS = 12 * 60 * 1000;
+
+type SymbolRecapState = {
+  lastSignature: string | null;
+  lastPostedAt: number | null;
+  lastAiBody: string | null;
+};
 
 function uniqueSortedLevels(levels: number[], direction: "asc" | "desc"): number[] {
   const unique = [...new Set(levels.filter((level) => Number.isFinite(level) && level > 0))];
@@ -220,6 +233,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly alertIntelligenceEngine = new AlertIntelligenceEngine();
   private readonly activeSnapshotState = new Map<string, ActiveLevelSnapshotState>();
   private readonly pendingActivations = new Map<string, Promise<void>>();
+  private readonly recapState = new Map<string, SymbolRecapState>();
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
@@ -623,12 +637,328 @@ export class ManualWatchlistRuntimeManager {
     });
   }
 
+  private recapCooldownMs(): number {
+    return this.options.symbolRecapCooldownMs ?? SYMBOL_RECAP_COOLDOWN_MS;
+  }
+
+  private postContinuityUpdate(interpretation: OpportunityInterpretation): void {
+    const entry = this.watchlistStore.getEntry(interpretation.symbol);
+    if (!entry?.active || !entry.discordThreadId) {
+      return;
+    }
+
+    const payload = formatContinuityUpdateAsPayload({
+      interpretation,
+    });
+
+    void this.options.discordAlertRouter
+      .routeAlert(entry.discordThreadId, payload)
+      .then(() => {
+        this.emitLifecycle("continuity_posted", {
+          symbol: interpretation.symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            continuityType: interpretation.type,
+            confidence: interpretation.confidence,
+          },
+        });
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.emitLifecycle("continuity_post_failed", {
+          symbol: interpretation.symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            continuityType: interpretation.type,
+            error: message,
+          },
+        });
+        console.error(`[ManualWatchlistRuntimeManager] Failed to route continuity update: ${message}`);
+      });
+  }
+
   private emitTraderFacingInterpretations(
     interpretations?: ReturnType<OpportunityRuntimeController["processMonitoringEvent"]>["interpretations"],
   ): void {
     for (const interpretation of interpretations ?? []) {
-      console.log(formatInterpretationForConsole(interpretation));
+      console.log(JSON.stringify({
+        type: "trader_continuity_interpretation",
+        symbol: interpretation.symbol,
+        continuityType: interpretation.type,
+        confidence: interpretation.confidence,
+        message: interpretation.message,
+        timestamp: interpretation.timestamp,
+      }));
+      this.postContinuityUpdate(interpretation);
     }
+  }
+
+  private postFollowThroughStateUpdate(progressUpdate: OpportunityProgressUpdate): void {
+    const entry = this.watchlistStore.getEntry(progressUpdate.symbol);
+    if (!entry?.active || !entry.discordThreadId) {
+      return;
+    }
+
+    const payload = formatFollowThroughStateUpdateAsPayload({
+      symbol: progressUpdate.symbol,
+      timestamp: progressUpdate.timestamp,
+      eventType: progressUpdate.eventType,
+      progressLabel: progressUpdate.progressLabel,
+      directionalReturnPct: progressUpdate.directionalReturnPct,
+      entryPrice: progressUpdate.entryPrice,
+      currentPrice: progressUpdate.currentPrice,
+    });
+
+    void this.options.discordAlertRouter
+      .routeAlert(entry.discordThreadId, payload)
+      .then(() => {
+        this.emitLifecycle("follow_through_state_posted", {
+          symbol: progressUpdate.symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: progressUpdate.eventType,
+            progressLabel: progressUpdate.progressLabel,
+            directionalReturnPct: progressUpdate.directionalReturnPct,
+          },
+        });
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.emitLifecycle("follow_through_state_post_failed", {
+          symbol: progressUpdate.symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: progressUpdate.eventType,
+            error: message,
+          },
+        });
+        console.error(`[ManualWatchlistRuntimeManager] Failed to route follow-through state update: ${message}`);
+      });
+  }
+
+  private buildSymbolRecapBody(params: {
+    symbol: string;
+    timestamp: number;
+    snapshot: ReturnType<OpportunityRuntimeController["processMonitoringEvent"]>;
+    interpretation?: OpportunityInterpretation;
+    progressUpdate?: OpportunityProgressUpdate;
+    evaluation?: EvaluatedOpportunity;
+  }): string | null {
+    const topOpportunity = (params.snapshot.top ?? []).find((opportunity) => opportunity.symbol === params.symbol);
+    const parts: string[] = [];
+
+    if (topOpportunity) {
+      const eventType = (topOpportunity.eventType ?? topOpportunity.type).replaceAll("_", " ");
+      const level = topOpportunity.level >= 1 ? topOpportunity.level.toFixed(2) : topOpportunity.level.toFixed(4);
+      parts.push(
+        `state recap: ${eventType} is still the lead idea near ${level} with ${topOpportunity.classification.replaceAll("_", " ")} quality.`,
+      );
+
+      const pathLine =
+        topOpportunity.pathQualityLabel === "choppy"
+          ? "Path still looks messy beyond the first barrier, so chop risk remains high."
+          : topOpportunity.pathQualityLabel === "layered"
+            ? "Path is still layered beyond the first barrier, so follow-through may need to stair-step."
+            : topOpportunity.clearanceLabel === "open"
+              ? "Room still looks open enough for clean follow-through if the move holds."
+              : topOpportunity.clearanceLabel === "limited"
+                ? "Room still looks limited, so the move needs tighter follow-through."
+                : null;
+      if (pathLine) {
+        parts.push(pathLine);
+      }
+
+      if (topOpportunity.exhaustionLabel === "worn" || topOpportunity.exhaustionLabel === "spent") {
+        parts.push(
+          `The active level still matters structurally, but it now looks ${topOpportunity.exhaustionLabel}, so reactions there are less trustworthy than fresh ones.`,
+        );
+      }
+    }
+
+    if (params.interpretation) {
+      parts.push(`Continuity: ${params.interpretation.message}.`);
+    }
+
+    if (params.progressUpdate) {
+      parts.push(
+        `Live follow-through is ${params.progressUpdate.progressLabel}, with directional progress ${
+          params.progressUpdate.directionalReturnPct === null
+            ? "still unclear"
+            : `${params.progressUpdate.directionalReturnPct >= 0 ? "+" : "-"}${Math.abs(params.progressUpdate.directionalReturnPct).toFixed(2)}%`
+        }.`,
+      );
+    } else if (params.evaluation) {
+      parts.push(
+        `Latest tracked follow-through finished ${params.evaluation.followThroughLabel} at ${
+          params.evaluation.directionalReturnPct === null
+            ? "n/a"
+            : `${params.evaluation.directionalReturnPct >= 0 ? "+" : "-"}${Math.abs(params.evaluation.directionalReturnPct).toFixed(2)}%`
+        } directional return.`,
+      );
+    }
+
+    if (parts.length === 0) {
+      return null;
+    }
+
+    return parts.join("\n");
+  }
+
+  private buildRecapSignature(params: {
+    snapshot: ReturnType<OpportunityRuntimeController["processMonitoringEvent"]>;
+    symbol: string;
+    interpretation?: OpportunityInterpretation;
+    progressUpdate?: OpportunityProgressUpdate;
+    evaluation?: EvaluatedOpportunity;
+  }): string {
+    const topOpportunity = (params.snapshot.top ?? []).find((opportunity) => opportunity.symbol === params.symbol);
+    return JSON.stringify({
+      topEventType: topOpportunity?.eventType ?? topOpportunity?.type ?? null,
+      classification: topOpportunity?.classification ?? null,
+      clearance: topOpportunity?.clearanceLabel ?? null,
+      pathQuality: topOpportunity?.pathQualityLabel ?? null,
+      exhaustion: topOpportunity?.exhaustionLabel ?? null,
+      interpretationType: params.interpretation?.type ?? null,
+      progressLabel: params.progressUpdate?.progressLabel ?? null,
+      followThroughLabel: params.evaluation?.followThroughLabel ?? null,
+    });
+  }
+
+  private async maybeBuildRecapBodyWithAI(params: {
+    symbol: string;
+    deterministicBody: string;
+    snapshot: ReturnType<OpportunityRuntimeController["processMonitoringEvent"]>;
+    progressUpdate?: OpportunityProgressUpdate;
+    evaluation?: EvaluatedOpportunity;
+  }): Promise<{
+    body: string;
+    aiGenerated: boolean;
+  }> {
+    const aiCommentaryService = this.options.aiCommentaryService;
+    if (!aiCommentaryService) {
+      return {
+        body: params.deterministicBody,
+        aiGenerated: false,
+      };
+    }
+
+    try {
+      const commentary = await aiCommentaryService.enhanceSymbolRecap({
+        symbol: params.symbol,
+        deterministicRecap: params.deterministicBody,
+        topOpportunity: (params.snapshot.top ?? []).find((opportunity) => opportunity.symbol === params.symbol) ?? null,
+        latestProgress: params.progressUpdate ?? null,
+        latestEvaluation: params.evaluation ?? null,
+      });
+
+      if (!commentary?.text) {
+        return {
+          body: params.deterministicBody,
+          aiGenerated: false,
+        };
+      }
+
+      this.emitLifecycle("ai_commentary_generated", {
+        symbol: params.symbol,
+        details: {
+          model: commentary.model,
+        },
+      });
+
+      return {
+        body: `${params.deterministicBody}\nAI note: ${commentary.text}`,
+        aiGenerated: true,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.emitLifecycle("ai_commentary_failed", {
+        symbol: params.symbol,
+        details: {
+          error: message,
+        },
+      });
+      console.error(`[ManualWatchlistRuntimeManager] Failed to build AI recap commentary: ${message}`);
+      return {
+        body: params.deterministicBody,
+        aiGenerated: false,
+      };
+    }
+  }
+
+  private maybePostSymbolRecap(params: {
+    symbol: string;
+    timestamp: number;
+    snapshot: ReturnType<OpportunityRuntimeController["processMonitoringEvent"]>;
+    interpretation?: OpportunityInterpretation;
+    progressUpdate?: OpportunityProgressUpdate;
+    evaluation?: EvaluatedOpportunity;
+  }): void {
+    const entry = this.watchlistStore.getEntry(params.symbol);
+    if (!entry?.active || !entry.discordThreadId) {
+      return;
+    }
+
+    const deterministicBody = this.buildSymbolRecapBody(params);
+    if (!deterministicBody) {
+      return;
+    }
+
+    const signature = this.buildRecapSignature(params);
+    const recapState = this.recapState.get(params.symbol) ?? {
+      lastSignature: null,
+      lastPostedAt: null,
+      lastAiBody: null,
+    };
+    const recentlyPosted =
+      recapState.lastPostedAt !== null &&
+      params.timestamp - recapState.lastPostedAt < this.recapCooldownMs();
+
+    if (recentlyPosted && recapState.lastSignature === signature) {
+      return;
+    }
+
+    void this.maybeBuildRecapBodyWithAI({
+      symbol: params.symbol,
+      deterministicBody,
+      snapshot: params.snapshot,
+      progressUpdate: params.progressUpdate,
+      evaluation: params.evaluation,
+    }).then(({ body, aiGenerated }) => {
+      const payload = formatSymbolRecapAsPayload({
+        symbol: params.symbol,
+        timestamp: params.timestamp,
+        body,
+        aiGenerated,
+      });
+
+      void this.options.discordAlertRouter
+        .routeAlert(entry.discordThreadId!, payload)
+        .then(() => {
+          this.recapState.set(params.symbol, {
+            lastSignature: signature,
+            lastPostedAt: params.timestamp,
+            lastAiBody: aiGenerated ? body : null,
+          });
+          this.emitLifecycle("recap_posted", {
+            symbol: params.symbol,
+            threadId: entry.discordThreadId,
+            details: {
+              aiGenerated,
+            },
+          });
+        })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.emitLifecycle("recap_post_failed", {
+            symbol: params.symbol,
+            threadId: entry.discordThreadId,
+            details: {
+              error: message,
+            },
+          });
+          console.error(`[ManualWatchlistRuntimeManager] Failed to route symbol recap: ${message}`);
+        });
+    });
   }
 
   private async ensureLevelsForActiveEntries(entries: WatchlistEntry[]): Promise<WatchlistEntry[]> {
@@ -699,7 +1029,9 @@ export class ManualWatchlistRuntimeManager {
               nextBarrierSide: alertResult.rawAlert.nextBarrier?.side ?? null,
               nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
               tacticalRead: alertResult.rawAlert.tacticalRead ?? null,
+              pathQualityLabel: alertResult.rawAlert.pathQuality?.label ?? null,
               dipBuyQualityLabel: alertResult.rawAlert.dipBuyQuality?.label ?? null,
+              exhaustionLabel: alertResult.rawAlert.exhaustion?.label ?? null,
             },
           });
         })
@@ -732,7 +1064,9 @@ export class ManualWatchlistRuntimeManager {
           nextBarrierSide: alertResult.rawAlert.nextBarrier?.side ?? null,
           nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
           tacticalRead: alertResult.rawAlert.tacticalRead ?? null,
+          pathQualityLabel: alertResult.rawAlert.pathQuality?.label ?? null,
           dipBuyQualityLabel: alertResult.rawAlert.dipBuyQuality?.label ?? null,
+          exhaustionLabel: alertResult.rawAlert.exhaustion?.label ?? null,
         },
       });
     }
@@ -747,6 +1081,12 @@ export class ManualWatchlistRuntimeManager {
         }),
       ));
     }
+    this.maybePostSymbolRecap({
+      symbol: event.symbol,
+      timestamp: event.timestamp,
+      snapshot,
+      interpretation: (snapshot.interpretations ?? []).find((interpretation) => interpretation.symbol === event.symbol),
+    });
   };
 
   private postFollowThroughUpdate(evaluation: EvaluatedOpportunity): void {
@@ -809,19 +1149,38 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.emitTraderFacingInterpretations(snapshot.interpretations);
-    if (snapshot.completedEvaluations.length === 0) {
-      return;
+    if (
+      snapshot.completedEvaluations.length > 0 ||
+      snapshot.progressUpdates.length > 0
+    ) {
+      console.log(JSON.stringify(
+        buildOpportunityDiagnosticsLogEntry("evaluation_update", snapshot, {
+          symbol: update.symbol,
+          timestamp: update.timestamp,
+        }),
+      ));
     }
 
-    console.log(JSON.stringify(
-      buildOpportunityDiagnosticsLogEntry("evaluation_update", snapshot, {
-        symbol: update.symbol,
-        timestamp: update.timestamp,
-      }),
-    ));
+    for (const progressUpdate of snapshot.progressUpdates) {
+      this.postFollowThroughStateUpdate(progressUpdate);
+      this.maybePostSymbolRecap({
+        symbol: progressUpdate.symbol,
+        timestamp: progressUpdate.timestamp,
+        snapshot,
+        progressUpdate,
+        interpretation: (snapshot.interpretations ?? []).find((interpretation) => interpretation.symbol === progressUpdate.symbol),
+      });
+    }
 
     for (const evaluation of snapshot.completedEvaluations) {
       this.postFollowThroughUpdate(evaluation);
+      this.maybePostSymbolRecap({
+        symbol: evaluation.symbol,
+        timestamp: evaluation.evaluatedAt,
+        snapshot,
+        evaluation,
+        interpretation: (snapshot.interpretations ?? []).find((interpretation) => interpretation.symbol === evaluation.symbol),
+      });
     }
   };
 
@@ -1104,6 +1463,7 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.activeSnapshotState.delete(normalizeSymbol(symbol));
+    this.recapState.delete(normalizeSymbol(symbol));
     this.persistWatchlist();
     await this.restartMonitoring();
     this.emitLifecycle("deactivated", {

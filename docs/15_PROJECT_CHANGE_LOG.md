@@ -19,6 +19,68 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 11:59 PM America/Toronto
+
+### Added live state changes, path-quality / exhaustion context, in-session recaps, and the first AI recap layer
+
+- Updated alert and commentary contracts in:
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-intelligence-engine.ts`
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+- Updated monitoring and runtime flow in:
+  - `src/lib/monitoring/monitoring-types.ts`
+  - `src/lib/monitoring/monitoring-event-scoring.ts`
+  - `src/lib/monitoring/event-detector.ts`
+  - `src/lib/monitoring/opportunity-engine.ts`
+  - `src/lib/monitoring/opportunity-diagnostics.ts`
+  - `src/lib/monitoring/opportunity-evaluator.ts`
+  - `src/lib/monitoring/opportunity-runtime-controller.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-events.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Added optional AI recap tooling in:
+  - `src/lib/ai/trader-commentary-service.ts`
+  - `src/scripts/generate-ai-long-run-summary.ts`
+- Updated runtime startup plumbing in:
+  - `src/runtime/manual-watchlist-server.ts`
+  - `package.json`
+- Updated long-run artifact generation in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated focused coverage in:
+  - `src/tests/trader-commentary-service.test.ts`
+  - `src/tests/opportunity-evaluator.test.ts`
+  - `src/tests/opportunity-runtime-integration.test.ts`
+  - `src/tests/opportunity-diagnostics.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/alert-intelligence.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+  - `docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md`
+  - `docs/32_AI_COMMENTARY_WORKFLOW.md`
+  - `docs/00_DOC_INDEX.md`
+- What changed:
+  - active setups can now post live follow-through state changes like `improving`, `stalling`, or `degrading` before the final evaluation window closes
+  - active symbol threads can now post continuity updates such as `setup forming`, `confirmation`, `continuation`, `weakening`, or `failed`
+  - long-lived symbols can now post in-session recap messages instead of forcing the trader to reconstruct the story from a pile of alerts
+  - monitoring events, opportunity ranking, and trader-facing alerts now carry multi-barrier `path quality` plus explicit zone `exhaustion` context
+  - support-test alerts now use that new context to separate cleaner actionable dip-buy tests from structurally real but tactically worn-out bounces
+  - the optional AI layer can now enhance in-session symbol recaps and generate a post-run `session-ai-review.md` from deterministic session artifacts when `OPENAI_API_KEY` is available
+  - the roadmap now explicitly parks the future volume/activity storytelling idea so that work is not lost while deterministic continuity and recap work takes priority
+- Why this matters:
+  - the trader-facing thread can now behave more like an evolving story instead of a set of disconnected setup alerts
+  - layered nearby barriers and worn-out zones are now penalized earlier, which should help keep tactically messy setups from being overstated
+  - the first AI layer stays safely on the explanation/summarization side instead of replacing deterministic signal detection
+- Verification completed:
+  - `npm test`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 11:55 PM America/Toronto
 
 ### Added live follow-through updates, clutter-aware pathing, and richer trader recaps

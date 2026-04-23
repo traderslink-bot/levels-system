@@ -139,6 +139,7 @@ function makeSnapshot(): OpportunityRuntimeSnapshot {
       disableReason: null,
     },
     completedEvaluations: [],
+    progressUpdates: [],
   };
 }
 

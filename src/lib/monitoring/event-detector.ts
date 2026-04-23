@@ -18,6 +18,8 @@ import {
   deriveBarrierClutter,
   buildInteractionEpisodeId,
   deriveBarrierClearanceLabel,
+  derivePathQuality,
+  deriveZoneExhaustion,
   findNearestRelevantBarrier,
   scoreMonitoringEvent,
   shouldFilterMonitoringEvent,
@@ -119,6 +121,13 @@ function buildMonitoringEventContext(
     triggerPrice: update.lastPrice,
     config,
   });
+  const pathQuality = derivePathQuality({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+    config,
+  });
   const clearanceLabel = deriveBarrierClearanceLabel(
     nearestBarrier?.distancePct ?? null,
     config,
@@ -127,6 +136,11 @@ function buildMonitoringEventContext(
     zone,
     zoneContext?.zoneFreshness ?? zone.freshness,
   );
+  const exhaustionLabel = deriveZoneExhaustion({
+    zone,
+    zoneFreshness: zoneContext?.zoneFreshness ?? zone.freshness,
+    tacticalRead,
+  });
 
   if (zoneContext) {
     return {
@@ -148,7 +162,10 @@ function buildMonitoringEventContext(
       clearanceLabel,
       barrierClutterLabel: barrierClutter?.label,
       nearbyBarrierCount: barrierClutter?.nearbyBarrierCount,
+      pathQualityLabel: pathQuality?.label,
+      pathBarrierCount: pathQuality?.barrierCount,
       tacticalRead,
+      exhaustionLabel,
     };
   }
 
@@ -171,7 +188,10 @@ function buildMonitoringEventContext(
     clearanceLabel,
     barrierClutterLabel: barrierClutter?.label,
     nearbyBarrierCount: barrierClutter?.nearbyBarrierCount,
+    pathQualityLabel: pathQuality?.label,
+    pathBarrierCount: pathQuality?.barrierCount,
     tacticalRead,
+    exhaustionLabel,
   };
 }
 

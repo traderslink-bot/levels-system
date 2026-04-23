@@ -7,6 +7,8 @@ import type {
   BarrierClutterLabel,
   BarrierClearanceLabel,
   MonitoringEvent,
+  PathQualityLabel,
+  ZoneExhaustionLabel,
 } from "../monitoring/monitoring-types.js";
 
 export type AlertSeverity = "low" | "medium" | "high" | "critical";
@@ -52,6 +54,14 @@ export type TraderTriggerQualityContext = {
   line: string;
 };
 
+export type TraderPathQualityLabel = PathQualityLabel;
+
+export type TraderPathQualityContext = {
+  label: TraderPathQualityLabel;
+  barrierCount: number;
+  line: string;
+};
+
 export type TraderDipBuyQualityLabel =
   | "actionable"
   | "watch_only"
@@ -59,6 +69,13 @@ export type TraderDipBuyQualityLabel =
 
 export type TraderDipBuyQualityContext = {
   label: TraderDipBuyQualityLabel;
+  line: string;
+};
+
+export type TraderExhaustionLabel = ZoneExhaustionLabel;
+
+export type TraderExhaustionContext = {
+  label: TraderExhaustionLabel;
   line: string;
 };
 
@@ -129,7 +146,12 @@ export type AlertPayload = {
   timestamp?: number;
   metadata?: {
     eventType?: MonitoringEvent["eventType"];
-    messageKind?: "intelligent_alert" | "follow_through_update";
+    messageKind?:
+      | "intelligent_alert"
+      | "follow_through_update"
+      | "follow_through_state_update"
+      | "continuity_update"
+      | "symbol_recap";
     severity?: AlertSeverity;
     confidence?: AlertConfidence;
     score?: number;
@@ -146,7 +168,9 @@ export type AlertPayload = {
     pressureLabel?: TraderPressureLabel;
     pressureScore?: number;
     triggerQualityLabel?: TraderTriggerQualityLabel;
+    pathQualityLabel?: TraderPathQualityLabel;
     dipBuyQualityLabel?: TraderDipBuyQualityLabel;
+    exhaustionLabel?: TraderExhaustionLabel;
     setupStateLabel?: TraderSetupStateLabel;
     failureRiskLabel?: TraderFailureRiskLabel;
     tradeMapLabel?: TraderTradeMapLabel;
@@ -156,6 +180,9 @@ export type AlertPayload = {
     targetPrice?: number;
     targetDistancePct?: number;
     followThroughLabel?: TraderFollowThroughLabel;
+    progressLabel?: "improving" | "stalling" | "degrading";
+    continuityType?: string;
+    aiGenerated?: boolean;
     directionalReturnPct?: number | null;
     rawReturnPct?: number | null;
   };
@@ -168,6 +195,8 @@ export type TraderNextBarrierContext = {
   clearanceLabel?: BarrierClearanceLabel;
   clutterLabel?: BarrierClutterLabel;
   nearbyBarrierCount?: number;
+  pathQualityLabel?: TraderPathQualityLabel;
+  pathBarrierCount?: number;
 };
 
 export type DiscordThread = {
@@ -227,7 +256,9 @@ export type IntelligentAlert = {
   movement?: TraderMovementContext | null;
   pressure?: TraderPressureContext | null;
   triggerQuality?: TraderTriggerQualityContext | null;
+  pathQuality?: TraderPathQualityContext | null;
   dipBuyQuality?: TraderDipBuyQualityContext | null;
+  exhaustion?: TraderExhaustionContext | null;
   setupState?: TraderSetupStateContext | null;
   failureRisk?: TraderFailureRiskContext | null;
   tradeMap?: TraderTradeMapContext | null;

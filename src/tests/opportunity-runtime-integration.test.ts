@@ -76,7 +76,10 @@ describe("opportunity runtime integration", () => {
     assert.equal(firstSnapshot.interpretations[0]?.type, "pre_zone");
     assert.ok(firstSnapshot.adaptiveDiagnostics.targetGlobalMultiplier >= 0.4);
     assert.ok(firstSnapshot.adaptiveDiagnostics.appliedGlobalMultiplier >= 0.4);
-    assert.equal(noCompletion, null);
+    assert.ok(noCompletion);
+    assert.equal(noCompletion?.completedEvaluations.length, 0);
+    assert.equal(noCompletion?.progressUpdates.length, 1);
+    assert.equal(noCompletion?.progressUpdates[0]?.progressLabel, "stalling");
     assert.ok(completed);
     assert.equal(completed?.completedEvaluations.length, 1);
     assert.equal(completed?.summary.totalEvaluated, 1);

@@ -101,7 +101,7 @@ Inside that folder:
 - `discord-delivery-audit.jsonl`
   - append-only local record of thread creation plus snapshot / alert / extension delivery attempts
   - includes both successful and failed downstream posts
-  - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, dip-buy-quality labels, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, and compare the original alert against what happened afterward
+  - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, path-quality labels, exhaustion labels, dip-buy-quality labels, continuity metadata, AI-origin flags, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, compare fresh zones against worn ones, and compare the original alert against what happened afterward
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
   - now also carries evaluated follow-through buckets by alert event type plus strongest/weakest evaluated event-type highlights
@@ -115,6 +115,10 @@ Inside that folder:
 - `trader-thread-recaps.md`
   - live-updated readable recap artifact
   - gives each symbol a short summary with latest alert, latest follow-through, and end-of-session context without needing JSON
+- `session-ai-review.md`
+  - optional post-run AI summary artifact
+  - generated with `npm run longrun:ai:summary -- <session-folder>` when `OPENAI_API_KEY` is set
+  - turns the deterministic session artifacts into a short operator/trader commentary pass
 - `session-review.md`
   - live-updated human-readable review artifact
   - summarizes the session verdict, noisiest areas, most dynamic symbols, strongest/weakest evaluated alert families, and what each symbol thread looked like without needing raw JSON
@@ -139,6 +143,9 @@ It is intended to capture:
 - seeding failures
 - symbol-restore failures
 - IBKR errors
+- posted continuity updates
+- posted live follow-through state changes
+- posted symbol recaps
 
 The dedicated diagnostics log is where event-detector reasoning now goes.
 
@@ -250,13 +257,16 @@ If the app behaves oddly:
 8. check:
    - `session-review.md`
    when you want the fastest human-readable verdict on whether the run looked useful or noisy
-9. only check:
+9. optionally run:
+   - `npm run longrun:ai:summary -- <session-folder>`
+   when you want a post-run AI commentary layer over the deterministic artifacts
+10. only check:
    - `manual-watchlist-diagnostics.log`
    when the question is specifically about breakout / reclaim / fakeout reasoning
-10. only check:
+11. only check:
    - `manual-watchlist-full.log`
    if the operational and diagnostic logs still do not explain enough
-11. check:
+12. check:
    - `discord-delivery-audit.jsonl`
    when you want to confirm exactly what Discord received or whether a post failed downstream
 
@@ -273,6 +283,7 @@ When asking me to review a long-run failure, the most useful things to send are:
 - `trader-thread-recaps.md` when you want the shortest readable per-symbol recap
 - `session-review.md` when you want the fastest readable summary first
 - `human-review-feedback.jsonl` when you already marked alerts as useful, noisy, late, wrong, or strong
+- `session-ai-review.md` when you generated the optional AI recap layer and want me to review it too
 - `manual-watchlist-diagnostics.log` when the question is about detector reasoning
 - `discord-delivery-audit.jsonl` when the question is about missing, noisy, or confusing Discord output
 - optionally `session-info.txt`
@@ -292,6 +303,9 @@ The filtered log now includes structured lifecycle markers such as:
 - `alert_posted`
 - `alert_suppressed`
 - `follow_through_posted`
+- `follow_through_state_posted`
+- `continuity_posted`
+- `recap_posted`
 - `activation_completed`
 - `deactivated`
 - `restore_failed`
@@ -302,7 +316,9 @@ These are meant to answer operational questions quickly:
 - did IBKR seeding complete
 - did a snapshot post happen
 - did an alert actually get routed
-- did a completed setup later get a live follow-through update
+- did a setup later get a live follow-through state update or completed follow-through verdict
+- did the runtime explain the thread's continuity as the story evolved
+- did the runtime emit a recap worth reading instead of forcing raw thread reconstruction
 - did an alert get intentionally suppressed because it was duplicate, filtered, or lower-value
 - did deactivation complete cleanly
 
@@ -315,6 +331,8 @@ This makes the testing process much less dependent on scrolling back through raw
 - which symbols were activated most often
 - which symbols produced Discord posts
 - which symbols produced live follow-through updates in-thread
+- which symbols produced live follow-through state changes and continuity posts
+- which symbols produced in-session recaps
 - which symbols generated the most diagnostics
 - which symbols hit activation, seed, or restore failures
 - which symbols produced opportunity snapshots and evaluation updates
@@ -355,6 +373,7 @@ This is useful when you want a quick answer like:
 - which alert families became the noisiest
 - whether the session looked broadly useful, mixed, noisy, or in need of attention
 - whether recent evaluated follow-through was confirming or undermining the posted setups
+- whether the runtime was adding enough continuity and recap context during the session instead of only at the end
 
 ## What The Thread Summaries Are For
 
@@ -368,10 +387,14 @@ It gives each active symbol a compact narrative such as:
 - which alert families dominated
 - which suppression reasons dominated
 - what the latest posted alert looked like, including whether room was `tight`, `limited`, or `open`
+- what the latest posted alert looked like, including whether path quality stayed `clean`, `layered`, or `choppy`
+- whether the latest zone context still looked `fresh`, `tested`, `worn`, or `spent`
 - whether the latest alert came from a `firm` or `tired` zone context
 - whether tactical zone fatigue was helping or hurting the setup instead of only being described textually
 - what the latest evaluated follow-through looked like when the runtime already has outcome data
 - whether the latest evaluated setup finished `strong`, `working`, `stalled`, or `failed`
+- what the latest live follow-through state update said while the setup was still developing
+- what the latest continuity update said about the thread lifecycle
 - what the latest live follow-through post told the trader after the original alert
 - what the end-of-session summary says about the thread overall
 - whether any human review feedback was already recorded
@@ -406,6 +429,7 @@ When the session is still running, the launcher will fold those entries into:
 
 - `session-summary.json`
 - `thread-summaries.json`
+- `trader-thread-recaps.md`
 - `session-review.md`
 
 Use that loop when you want to mark a thread or alert as:

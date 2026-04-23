@@ -3,6 +3,7 @@ import "dotenv/config";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
+import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-commentary-service.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
 import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
@@ -31,6 +32,7 @@ import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
 const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
 const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
+const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
 
 function isTruthyEnv(value: string | undefined): boolean {
   if (!value) {
@@ -73,12 +75,17 @@ async function main(): Promise<void> {
     adaptiveScoringEngine,
     adaptiveStatePersistence,
   });
+  const aiCommentaryEnabled = isTruthyEnv(process.env[AI_COMMENTARY_ENV]);
+  const aiCommentaryService = aiCommentaryEnabled
+    ? createOpenAITraderCommentaryServiceFromEnv()
+    : null;
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: candleService,
     levelStore,
     monitor,
     discordAlertRouter: createDiscordAlertRouter(),
     opportunityRuntimeController,
+    aiCommentaryService,
     watchlistStatePersistence: new WatchlistStatePersistence(),
     lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
   });
@@ -91,6 +98,11 @@ async function main(): Promise<void> {
   if (monitoringEventDiagnosticsEnabled) {
     console.log(
       `[ManualWatchlistRuntime] Monitoring event diagnostics enabled via ${MONITORING_EVENT_DIAGNOSTICS_ENV}.`,
+    );
+  }
+  if (aiCommentaryEnabled) {
+    console.log(
+      `[ManualWatchlistRuntime] AI commentary ${aiCommentaryService ? "enabled" : "requested but OPENAI_API_KEY is missing"}.`,
     );
   }
   await manager.start();
@@ -116,6 +128,7 @@ async function main(): Promise<void> {
       sendJson(response, 200, {
         providerName: candleService.getProviderName(),
         diagnosticsEnabled: monitoringEventDiagnosticsEnabled,
+        aiCommentaryEnabled: aiCommentaryService !== null,
         activeSymbolCount: manager.getActiveEntries().length,
         sessionDirectory,
       });

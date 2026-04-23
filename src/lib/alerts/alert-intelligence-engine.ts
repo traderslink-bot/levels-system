@@ -105,6 +105,8 @@ export class AlertIntelligenceEngine {
         clearanceLabel: event.eventContext.clearanceLabel,
         clutterLabel: event.eventContext.barrierClutterLabel,
         nearbyBarrierCount: event.eventContext.nearbyBarrierCount,
+        pathQualityLabel: event.eventContext.pathQualityLabel,
+        pathBarrierCount: event.eventContext.pathBarrierCount,
       };
     }
 
@@ -155,6 +157,13 @@ export class AlertIntelligenceEngine {
       ),
       clutterLabel,
       nearbyBarrierCount,
+      pathQualityLabel:
+        nearbyBarrierCount >= 3
+          ? "choppy"
+          : nearbyBarrierCount >= 2
+            ? "layered"
+            : "clean",
+      pathBarrierCount: nearbyBarrierCount,
     };
   }
 

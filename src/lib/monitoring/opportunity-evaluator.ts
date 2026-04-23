@@ -7,6 +7,21 @@ export type OpportunityFollowThroughLabel =
   | "failed"
   | "unknown";
 
+export type OpportunityProgressLabel =
+  | "improving"
+  | "stalling"
+  | "degrading";
+
+export type OpportunityProgressUpdate = {
+  symbol: string;
+  eventType: string;
+  timestamp: number;
+  entryPrice: number;
+  currentPrice: number;
+  directionalReturnPct: number | null;
+  progressLabel: OpportunityProgressLabel;
+};
+
 export type EvaluatedOpportunity = {
   symbol: string;
   timestamp: number;
@@ -69,6 +84,9 @@ type PendingOpportunity = {
   evaluateAt: number;
   peakPrice: number;
   troughPrice: number;
+  lastProgressLabel?: OpportunityProgressLabel;
+  lastProgressDirectionalReturnPct?: number | null;
+  lastProgressUpdatedAt?: number;
 };
 
 const DEFAULT_EVALUATION_WINDOW_MS = 15 * 60 * 1000;
@@ -149,6 +167,26 @@ function deriveFollowThroughLabel(
   }
 
   return "failed";
+}
+
+function deriveProgressLabel(
+  eventType: string,
+  returnPct: number,
+): OpportunityProgressLabel {
+  const directional = directionalReturnPct(eventType, returnPct);
+  if (directional === null) {
+    return "stalling";
+  }
+
+  if (directional >= 0.3) {
+    return "improving";
+  }
+
+  if (directional <= -0.2) {
+    return "degrading";
+  }
+
+  return "stalling";
 }
 
 function determineSuccessWithThreshold(
@@ -333,12 +371,19 @@ export class OpportunityEvaluator {
       evaluateAt: opportunity.timestamp + this.evaluationWindowMs,
       peakPrice: normalizedEntry,
       troughPrice: normalizedEntry,
+      lastProgressLabel: undefined,
+      lastProgressDirectionalReturnPct: null,
+      lastProgressUpdatedAt: undefined,
     });
   }
 
-  updatePrice(symbol: string, price: number, timestamp: number): EvaluatedOpportunity[] {
+  updatePrice(symbol: string, price: number, timestamp: number): {
+    completed: EvaluatedOpportunity[];
+    progressUpdates: OpportunityProgressUpdate[];
+  } {
     const normalizedPrice = round(price);
     const completed: EvaluatedOpportunity[] = [];
+    const progressUpdates: OpportunityProgressUpdate[] = [];
 
     for (const [id, pending] of this.pending) {
       if (pending.opportunity.symbol !== symbol) {
@@ -349,6 +394,33 @@ export class OpportunityEvaluator {
       pending.troughPrice = Math.min(pending.troughPrice, normalizedPrice);
 
       const returnPct = round(computeReturnPct(pending.entryPrice, normalizedPrice));
+      const resolvedEventType = resolveOpportunityEventType(pending.opportunity);
+      const directional = directionalReturnPct(resolvedEventType, returnPct);
+      const progressLabel = deriveProgressLabel(resolvedEventType, returnPct);
+      const shouldEmitProgress =
+        (pending.lastProgressLabel === undefined ||
+          progressLabel !== pending.lastProgressLabel ||
+          (directional !== null &&
+            pending.lastProgressDirectionalReturnPct != null &&
+            Math.abs(directional - pending.lastProgressDirectionalReturnPct) >= 0.4)) &&
+        (pending.lastProgressUpdatedAt === undefined ||
+          timestamp - pending.lastProgressUpdatedAt >= 60 * 1000);
+
+      if (shouldEmitProgress) {
+        progressUpdates.push({
+          symbol: pending.opportunity.symbol,
+          eventType: resolvedEventType,
+          timestamp,
+          entryPrice: pending.entryPrice,
+          currentPrice: normalizedPrice,
+          directionalReturnPct: directional,
+          progressLabel,
+        });
+        pending.lastProgressLabel = progressLabel;
+        pending.lastProgressDirectionalReturnPct = directional;
+        pending.lastProgressUpdatedAt = timestamp;
+      }
+
       const reachedMaxWindow = timestamp >= pending.evaluateAt;
       const reachedEarlyExit = shouldExitEarly(
         pending.opportunity,
@@ -360,7 +432,6 @@ export class OpportunityEvaluator {
         continue;
       }
 
-      const resolvedEventType = resolveOpportunityEventType(pending.opportunity);
       const success = determineSuccessWithThreshold(
         pending.opportunity,
         returnPct,
@@ -398,7 +469,10 @@ export class OpportunityEvaluator {
       this.logSummary();
     }
 
-    return completed;
+    return {
+      completed,
+      progressUpdates,
+    };
   }
 
   getPendingCount(): number {

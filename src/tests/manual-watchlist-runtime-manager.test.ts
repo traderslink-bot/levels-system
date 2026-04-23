@@ -1385,10 +1385,13 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
   });
   await waitForAsyncWork();
 
-  assert.equal(discordAlertRouter.routed.length, 1);
-  assert.equal(discordAlertRouter.routed[0]?.payload.title, "ALBT breakout");
+  const intelligentAlerts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "intelligent_alert" || !entry.payload.metadata?.messageKind,
+  );
+  assert.equal(intelligentAlerts.length, 1);
+  assert.equal(intelligentAlerts[0]?.payload.title, "ALBT breakout");
   assert.equal(
-    discordAlertRouter.routed[0]?.payload.body,
+    intelligentAlerts[0]?.payload.body,
     [
       "bullish breakout through heavy resistance 2.40-2.50",
       "why now: price cleared the outermost resistance instead of stalling underneath it",
@@ -1397,7 +1400,7 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
       "context: heavy resistance | outermost | fresh | 5m driven | recently refreshed",
       "room: limited overhead into next resistance 2.58 (+2.4%)",
       "target: first resistance objective 2.58 (+2.4%)",
-      "trigger quality: clean trigger with early participation, strong control, and limited room",
+      "trigger quality: clean trigger with early movement, strong control, and limited room",
       "setup state: continuation, so the move has started and now needs follow-through",
       "failure risk: still relatively contained while price holds this area",
       "trade map: risk to invalidation 4.8%; room to next resistance 2.4% (~0.5x, tight skew)",
@@ -1440,6 +1443,7 @@ test("ManualWatchlistRuntimeManager posts follow-through updates when evaluation
             eventTypes: {},
           },
           completedEvaluations: [],
+          progressUpdates: [],
         };
       },
       processPriceUpdate() {
@@ -1462,6 +1466,7 @@ test("ManualWatchlistRuntimeManager posts follow-through updates when evaluation
             driftDampeningActive: false,
             eventTypes: {},
           },
+          progressUpdates: [],
           completedEvaluations: [
             {
               symbol: "ALBT",
@@ -1510,18 +1515,21 @@ test("ManualWatchlistRuntimeManager posts follow-through updates when evaluation
   });
   await waitForAsyncWork();
 
-  assert.equal(discordAlertRouter.routed.length, 1);
-  assert.equal(discordAlertRouter.routed[0]?.payload.title, "ALBT breakout follow-through");
+  const followThroughPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "follow_through_update",
+  );
+  assert.equal(followThroughPosts.length, 1);
+  assert.equal(followThroughPosts[0]?.payload.title, "ALBT breakout follow-through");
   assert.equal(
-    discordAlertRouter.routed[0]?.payload.body,
+    followThroughPosts[0]?.payload.body,
     [
       "follow-through: breakout stayed strong after the alert",
       "status: strong | directional +2.38% | raw +2.38%",
       "path: tracked from 2.52 to 2.58",
     ].join("\n"),
   );
-  assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.messageKind, "follow_through_update");
-  assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.followThroughLabel, "strong");
+  assert.equal(followThroughPosts[0]?.payload.metadata?.messageKind, "follow_through_update");
+  assert.equal(followThroughPosts[0]?.payload.metadata?.followThroughLabel, "strong");
 });
 
 test("ManualWatchlistRuntimeManager suppresses near-duplicate alert posts for the same structural state", async () => {
@@ -1607,7 +1615,10 @@ test("ManualWatchlistRuntimeManager suppresses near-duplicate alert posts for th
   });
   await waitForAsyncWork();
 
-  assert.equal(discordAlertRouter.routed.length, 1);
+  const intelligentAlerts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "intelligent_alert" || !entry.payload.metadata?.messageKind,
+  );
+  assert.equal(intelligentAlerts.length, 1);
   assert.equal(
     lifecycleEvents.some(
       (event) =>
@@ -1665,72 +1676,57 @@ test("ManualWatchlistRuntimeManager emits deterministic trader-facing interpreta
   await manager.start();
   await manager.activateSymbol({ symbol: "ALBT" });
 
-  const originalConsoleLog = console.log;
-  const capturedLogs: string[] = [];
-  console.log = (...args: unknown[]) => {
-    capturedLogs.push(args.map((arg) => String(arg)).join(" "));
+  const baseEvent = {
+    episodeId: "evt-interpret-episode",
+    symbol: "ALBT",
+    type: "breakout" as const,
+    eventType: "breakout" as const,
+    zoneId: "ALBT-resistance-monitored-1",
+    zoneKind: "resistance" as const,
+    level: 2.45,
+    triggerPrice: 2.52,
+    strength: 0.82,
+    confidence: 0.79,
+    priority: 86,
+    bias: "bullish" as const,
+    pressureScore: 0.71,
+    eventContext: {
+      monitoredZoneId: "ALBT-resistance-monitored-1",
+      canonicalZoneId: "R1",
+      zoneFreshness: "fresh" as const,
+      zoneOrigin: "canonical" as const,
+      remapStatus: "preserved" as const,
+      remappedFromZoneIds: ["ALBT-resistance-monitored-legacy"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost" as const,
+      zoneStrengthLabel: "strong" as const,
+      sourceGeneratedAt: 1,
+    },
+    notes: ["Breakout through outermost resistance."],
   };
 
-  try {
-    const baseEvent = {
-      episodeId: "evt-interpret-episode",
-      symbol: "ALBT",
-      type: "breakout" as const,
-      eventType: "breakout" as const,
-      zoneId: "ALBT-resistance-monitored-1",
-      zoneKind: "resistance" as const,
-      level: 2.45,
-      triggerPrice: 2.52,
-      strength: 0.82,
-      confidence: 0.79,
-      priority: 86,
-      bias: "bullish" as const,
-      pressureScore: 0.71,
-      eventContext: {
-        monitoredZoneId: "ALBT-resistance-monitored-1",
-        canonicalZoneId: "R1",
-        zoneFreshness: "fresh" as const,
-        zoneOrigin: "canonical" as const,
-        remapStatus: "preserved" as const,
-        remappedFromZoneIds: ["ALBT-resistance-monitored-legacy"],
-        dataQualityDegraded: false,
-        recentlyRefreshed: true,
-        recentlyPromotedExtension: false,
-        ladderPosition: "outermost" as const,
-        zoneStrengthLabel: "strong" as const,
-        sourceGeneratedAt: 1,
-      },
-      notes: ["Breakout through outermost resistance."],
-    };
+  monitor.listener?.({
+    id: "evt-interpret-1",
+    timestamp: 10,
+    ...baseEvent,
+  });
+  await waitForAsyncWork();
 
-    monitor.listener?.({
-      id: "evt-interpret-1",
-      timestamp: 10,
-      ...baseEvent,
-    });
-    await waitForAsyncWork();
+  monitor.listener?.({
+    id: "evt-interpret-2",
+    timestamp: 40,
+    ...baseEvent,
+  });
+  await waitForAsyncWork();
 
-    monitor.listener?.({
-      id: "evt-interpret-2",
-      timestamp: 40,
-      ...baseEvent,
-    });
-    await waitForAsyncWork();
-  } finally {
-    console.log = originalConsoleLog;
-  }
-
-  const expectedInterpretation = [
-    "SYMBOL: ALBT",
-    "TYPE: pre_zone",
-    "MESSAGE: watching pullback into support near 2.45",
-    "CONFIDENCE: 0.82",
-  ].join("\n");
-
-  assert.equal(
-    capturedLogs.filter((entry) => entry === expectedInterpretation).length,
-    1,
+  const continuityPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "continuity_update",
   );
+  assert.equal(continuityPosts.length, 1);
+  assert.equal(continuityPosts[0]?.payload.title, "ALBT setup update");
+  assert.equal(continuityPosts[0]?.payload.metadata?.continuityType, "pre_zone");
 });
 
 test("ManualWatchlistRuntimeManager posts next support levels when price approaches the lowest surfaced support", async () => {

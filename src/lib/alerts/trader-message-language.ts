@@ -6,10 +6,12 @@ import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import type {
   TraderDipBuyQualityContext,
+  TraderExhaustionContext,
   TraderFailureRiskContext,
   TraderFollowThroughContext,
   TraderMovementContext,
   TraderNextBarrierContext,
+  TraderPathQualityContext,
   TraderPressureContext,
   TraderSetupStateContext,
   TraderTriggerQualityContext,
@@ -267,7 +269,7 @@ export function deriveTraderTriggerQualityContext(params: {
   ) {
     return {
       label: "clean",
-      line: `trigger quality: clean trigger with early participation, ${pressureText}, and ${roomText}`,
+      line: `trigger quality: clean trigger with early movement, ${pressureText}, and ${roomText}`,
     };
   }
 
@@ -430,24 +432,30 @@ export function deriveTraderDipBuyQualityContext(params: {
   }
 
   const tacticalRead = deriveTraderZoneTacticalRead(zone, event.eventContext.zoneFreshness);
+  const exhaustion = deriveTraderExhaustionContext(event, zone);
   if (
     tacticalRead === "tired" ||
+    exhaustion?.label === "worn" ||
+    exhaustion?.label === "spent" ||
     nextBarrier?.clearanceLabel === "tight" ||
-    nextBarrier?.clutterLabel === "dense"
+    nextBarrier?.clutterLabel === "dense" ||
+    nextBarrier?.pathQualityLabel === "choppy"
   ) {
     return {
       label: "poor",
-      line: "dip-buy quality: tactically poor while support looks tired or the upside path is crowded",
+      line: "dip-buy quality: tactically poor while support looks worn or the upside path is too messy",
     };
   }
 
   if (
     (zone.strengthLabel === "strong" || zone.strengthLabel === "major") &&
     tacticalRead === "firm" &&
+    exhaustion?.label !== "tested" &&
     pressure.label !== "tentative" &&
     pressure.label !== "balanced" &&
     nextBarrier?.clearanceLabel === "open" &&
-    nextBarrier?.clutterLabel !== "stacked"
+    nextBarrier?.clutterLabel !== "stacked" &&
+    nextBarrier?.pathQualityLabel !== "layered"
   ) {
     return {
       label: "actionable",
@@ -457,8 +465,76 @@ export function deriveTraderDipBuyQualityContext(params: {
 
   return {
     label: "watch_only",
-    line: "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead",
+    line: "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
   };
+}
+
+export function deriveTraderPathQualityContext(
+  nextBarrier?: TraderNextBarrierContext | null,
+): TraderPathQualityContext | null {
+  if (!nextBarrier?.pathQualityLabel || !nextBarrier.pathBarrierCount) {
+    return null;
+  }
+
+  if (nextBarrier.pathQualityLabel === "clean") {
+    return {
+      label: "clean",
+      barrierCount: nextBarrier.pathBarrierCount,
+      line: "path quality: cleaner path beyond the first barrier, so follow-through has room to trend",
+    };
+  }
+
+  if (nextBarrier.pathQualityLabel === "layered") {
+    return {
+      label: "layered",
+      barrierCount: nextBarrier.pathBarrierCount,
+      line: `path quality: layered path with ${nextBarrier.pathBarrierCount} nearby barriers, so the move may need to work through steps`,
+    };
+  }
+
+  return {
+    label: "choppy",
+    barrierCount: nextBarrier.pathBarrierCount,
+    line: `path quality: choppy path with ${nextBarrier.pathBarrierCount} nearby barriers, so price may chop even if the first barrier clears`,
+  };
+}
+
+export function deriveTraderExhaustionContext(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+): TraderExhaustionContext | null {
+  if (!zone) {
+    return null;
+  }
+
+  const exhaustion = event.eventContext.exhaustionLabel;
+  if (!exhaustion) {
+    return null;
+  }
+
+  const noun = zone.kind;
+  switch (exhaustion) {
+    case "fresh":
+      return {
+        label: "fresh",
+        line: `${noun} exhaustion: still relatively fresh and not overworked yet`,
+      };
+    case "tested":
+      return {
+        label: "tested",
+        line: `${noun} exhaustion: tested a few times but still intact structurally`,
+      };
+    case "worn":
+      return {
+        label: "worn",
+        line: `${noun} exhaustion: this level still matters structurally, but repeated tests are wearing it down`,
+      };
+    case "spent":
+      return {
+        label: "spent",
+        line: `${noun} exhaustion: this level looks spent tactically, so it is easier to break than to trust for a fresh reaction`,
+      };
+  }
 }
 
 export function deriveTraderFollowThroughContext(params: {
@@ -842,6 +918,7 @@ export function buildTraderAlertBody(
     : null;
   const movement = deriveTraderMovementContext(event, zone);
   const pressure = deriveTraderPressureContext(event);
+  const pathQuality = deriveTraderPathQualityContext(nextBarrier);
   const target = deriveTraderTargetContext(event, zone, nextBarrier);
   const triggerQuality = deriveTraderTriggerQualityContext({
     event,
@@ -855,6 +932,7 @@ export function buildTraderAlertBody(
     pressure,
     nextBarrier,
   });
+  const exhaustion = deriveTraderExhaustionContext(event, zone);
   const setupState = deriveTraderSetupStateContext({
     event,
     movement,
@@ -879,6 +957,8 @@ export function buildTraderAlertBody(
       freshness: event.eventContext.zoneFreshness,
     }),
     roomLine,
+    pathQuality?.line ?? null,
+    exhaustion?.line ?? null,
     target?.line ?? null,
     triggerQuality?.line ?? null,
     dipBuyQuality?.line ?? null,

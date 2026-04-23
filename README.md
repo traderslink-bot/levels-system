@@ -25,7 +25,9 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - `thread-summaries.json` for a compact trader-facing story per active symbol
   - `session-review.md` for the fastest human-readable verdict on whether the run looked useful, noisy, or in need of attention
   - `trader-thread-recaps.md` for short end-of-session symbol recaps that are easier to skim than JSON
+- Long-run sessions now also post in-thread continuity updates and symbol recaps, so active symbols can explain what changed during the session instead of only relying on isolated setup alerts.
 - Long-run sessions can also collect human review feedback in `human-review-feedback.jsonl` via `scripts/add-long-run-review-feedback.ps1`, and the live session summaries will fold that feedback into the review artifacts.
+- Optional AI commentary can be enabled with `LEVEL_AI_COMMENTARY=1` plus `OPENAI_API_KEY`; the runtime will then enhance eligible in-session recaps and `npm run longrun:ai:summary -- <session-folder>` can generate a post-run `session-ai-review.md`.
 - The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
 - Trader-facing Discord alerts now include:
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
@@ -35,6 +37,8 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - a `target` line so the user sees the first directional objective explicitly when the next barrier is known
   - a `trigger quality` line so the user can tell whether the setup looks `clean`, `workable`, `crowded`, or `late`
   - a `dip-buy quality` line on support-test alerts so the user can tell whether a bounce looks actionable, watch-only, or tactically poor
+  - a `path quality` line so the user can tell whether the move has a cleaner route or is likely to chop through layered nearby barriers
+  - a `support/resistance exhaustion` line so the user can tell when a level still matters structurally but is getting worn out tactically
   - a `setup state` line so the user can tell whether the idea is still building, confirming, continuing, weakening, or already failed
   - a `failure risk` line so the user can see whether the setup still looks contained or is already carrying elevated failure risk from tight room, weak control, tired structure, or degraded context
   - a `trade map` line so the user sees rough room-to-next-barrier versus risk-to-invalidation before acting
@@ -45,25 +49,29 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - nearby barrier context when the next support or resistance is known, including whether room is `tight`, `limited`, or `open`
   - nearby pathing context when overhead or downside gets `stacked` or `dense` beyond the first barrier
 - Completed opportunity evaluations now post live thread follow-through updates, so the trader can see whether a setup stayed `strong`, kept `working`, `stalled`, or `failed` after the original alert.
+- In-flight evaluations can now also post live follow-through state changes such as `improving`, `stalling`, or `degrading` before the final evaluation window closes.
 - Discord level snapshots now include a nearest support/resistance map line plus signed distance-from-price context beside each ladder level, and that map line now classifies the room as `bullish`, `bearish`, or `balanced` when possible.
 - Support and resistance ranking is now durability-aware, so levels that are structurally important but getting tired can be described more conservatively than freshly defended levels.
 - Monitoring events and opportunity ranking now carry barrier-clearance context, so cramped upside or downside room can reduce setup quality before the message layer ever formats it.
+- Monitoring events and opportunity ranking now also carry multi-barrier `path quality` plus explicit zone `exhaustion` context, so layered pathing and over-tested zones can reduce setup quality before they reach Discord.
 - Long-run session summaries now track alert-posting families and suppression reasons, so noisy symbols and repetitive low-value alert patterns are easier to spot after a live run.
 - Long-run review now tracks evaluated follow-through and downweights pure diagnostic chatter when a symbol is otherwise acting normally, so a session like `AKAN` is less likely to look noisier than it really was.
 - Long-run review now also tracks evaluated follow-through by alert event type, so `session-summary.json`, `thread-summaries.json`, and `session-review.md` can show which alert families are holding up cleanly versus leaning negative.
 - Long-run review now also classifies the latest evaluated follow-through as `strong`, `working`, `stalled`, or `failed`, so session artifacts can say whether a posted setup actually kept moving the right way instead of only showing raw return percentages.
+- Long-run review now also tracks live continuity posts, live follow-through state updates, and recap posts per symbol, so a thread can be judged as an evolving story instead of just a stack of alerts.
 - Long-run review now also flags the most dynamic symbols and calls out when repeated activate/deactivate churn or negative follow-through makes a symbol thread look less trustworthy than its raw alert count.
 - Alert payload metadata and Discord delivery audit rows now also carry explicit first-target context, so long-run review can compare whether alerts with clear nearby objectives are behaving better than vague ones.
 - Alert payload metadata and Discord delivery audit rows now also carry pressure labels and raw pressure score, so long-run review can compare whether strong-control alerts are behaving better than tentative ones.
 - Alert payload metadata and Discord delivery audit rows now also carry trigger-quality labels, so long-run review can compare whether `clean` entries actually outperform `crowded` or `late` ones.
 - Alert payload metadata and Discord delivery audit rows now also carry setup-state labels, so long-run review can compare whether building, confirmation, continuation, weakening, or failed setups are being posted at the right times.
 - Alert payload metadata and Discord delivery audit rows now also carry failure-risk labels, so long-run review can compare whether contained setups behave better than elevated-risk ones.
-- Alert payload metadata and Discord delivery audit rows now also carry barrier-clutter, dip-buy-quality, and follow-through metadata, so long-run review can compare clear paths versus crowded ones and initial alerts versus what happened afterward.
+- Alert payload metadata and Discord delivery audit rows now also carry barrier-clutter, path-quality, exhaustion, dip-buy-quality, continuity, recap, AI-origin, and follow-through metadata, so long-run review can compare clean paths versus crowded ones, fresh zones versus worn ones, human-written recaps versus AI-enhanced recaps, and initial alerts versus what happened afterward.
 - Directional alert scoring is now more conservative when a setup is `crowded` or `late`, when pressure is only tentative, or when an inner breakout also carries degraded data quality.
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
 - Signal-quality ideas, priorities, and progress are tracked in [docs/30_SIGNAL_QUALITY_ROADMAP.md](docs/30_SIGNAL_QUALITY_ROADMAP.md).
 - The human alert-feedback workflow is documented in [docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md](docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md).
+- The optional AI commentary workflow is documented in [docs/32_AI_COMMENTARY_WORKFLOW.md](docs/32_AI_COMMENTARY_WORKFLOW.md).
 
 ## Current capabilities
 
@@ -84,6 +92,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - `npm run alert:test`
 - `npm run watchlist:alerts:test -- AAPL`
 - `npm run watchlist:manual`
+- `npm run longrun:ai:summary -- <session-folder>`
 
 ## Docs
 

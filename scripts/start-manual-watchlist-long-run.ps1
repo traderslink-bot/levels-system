@@ -139,6 +139,9 @@ function Ensure-SymbolSummary {
       snapshotPosts = 0
       extensionPosts = 0
       followThroughPosts = 0
+      followThroughStatePosts = 0
+      continuityPosts = 0
+      recapPosts = 0
       compareEntries = 0
       diagnosticEntries = 0
       opportunitySnapshots = 0
@@ -158,6 +161,9 @@ function Ensure-SymbolSummary {
       lastLifecycleEvent = $null
       lastAlert = $null
       lastFollowThroughPost = $null
+      lastFollowThroughStatePost = $null
+      lastContinuityPost = $null
+      lastRecap = $null
       lastOpportunity = $null
       lastSnapshot = $null
       lastExtension = $null
@@ -1086,6 +1092,15 @@ function Build-ThreadSummaryRecord {
   if ($SymbolSummary.followThroughPosts -gt 0) {
     $headlineParts += "follow-through=$($SymbolSummary.followThroughPosts)"
   }
+  if ($SymbolSummary.followThroughStatePosts -gt 0) {
+    $headlineParts += "live-state=$($SymbolSummary.followThroughStatePosts)"
+  }
+  if ($SymbolSummary.continuityPosts -gt 0) {
+    $headlineParts += "continuity=$($SymbolSummary.continuityPosts)"
+  }
+  if ($SymbolSummary.recapPosts -gt 0) {
+    $headlineParts += "recaps=$($SymbolSummary.recapPosts)"
+  }
 
   $failureTotal =
     [int]$SymbolSummary.failures.activation +
@@ -1112,11 +1127,17 @@ function Build-ThreadSummaryRecord {
     if ($SymbolSummary.lastAlert.barrierClutterLabel) {
       $latestAlertSummary += ("path=" + [string]$SymbolSummary.lastAlert.barrierClutterLabel)
     }
+    if ($SymbolSummary.lastAlert.pathQualityLabel) {
+      $latestAlertSummary += ("path-quality=" + [string]$SymbolSummary.lastAlert.pathQualityLabel)
+    }
     if ($SymbolSummary.lastAlert.tacticalRead) {
       $latestAlertSummary += ("zone=" + [string]$SymbolSummary.lastAlert.tacticalRead)
     }
     if ($SymbolSummary.lastAlert.dipBuyQualityLabel) {
       $latestAlertSummary += ("dip-buy=" + [string]$SymbolSummary.lastAlert.dipBuyQualityLabel)
+    }
+    if ($SymbolSummary.lastAlert.exhaustionLabel) {
+      $latestAlertSummary += ("exhaustion=" + [string]$SymbolSummary.lastAlert.exhaustionLabel)
     }
     if ($SymbolSummary.lastAlert.nextBarrierSide -and $SymbolSummary.lastAlert.nextBarrierDistancePct -ne $null) {
       $distancePct = ([double]$SymbolSummary.lastAlert.nextBarrierDistancePct * 100).ToString("0.0")
@@ -1177,6 +1198,37 @@ function Build-ThreadSummaryRecord {
     $latestFollowThroughPostSummary = $latestFollowThroughPostSummary | Where-Object { $_ }
   }
 
+  $latestFollowThroughStateSummary = $null
+  if ($SymbolSummary.lastFollowThroughStatePost) {
+    $latestFollowThroughStateSummary = @(
+      [string]$SymbolSummary.lastFollowThroughStatePost.progressLabel,
+      [string]$SymbolSummary.lastFollowThroughStatePost.eventType
+    )
+    if ($SymbolSummary.lastFollowThroughStatePost.directionalReturnPct -ne $null) {
+      $latestFollowThroughStateSummary += ("directional=" + ([double]$SymbolSummary.lastFollowThroughStatePost.directionalReturnPct).ToString("0.00") + "%")
+    }
+    $latestFollowThroughStateSummary = $latestFollowThroughStateSummary | Where-Object { $_ }
+  }
+
+  $latestContinuitySummary = $null
+  if ($SymbolSummary.lastContinuityPost) {
+    $latestContinuitySummary = @(
+      [string]$SymbolSummary.lastContinuityPost.continuityType
+    )
+    if ($SymbolSummary.lastContinuityPost.confidence -ne $null) {
+      $latestContinuitySummary += ("confidence=" + ([double]$SymbolSummary.lastContinuityPost.confidence).ToString("0.00"))
+    }
+    $latestContinuitySummary = $latestContinuitySummary | Where-Object { $_ }
+  }
+
+  $latestRecapSummary = $null
+  if ($SymbolSummary.lastRecap) {
+    $latestRecapSummary = @("posted")
+    if ($SymbolSummary.lastRecap.aiGenerated -eq $true) {
+      $latestRecapSummary += "ai-assisted"
+    }
+  }
+
   $evaluationAlignmentSummary = Build-EvaluationAlignmentSummary -SymbolSummary $SymbolSummary
   $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
   $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
@@ -1201,6 +1253,12 @@ function Build-ThreadSummaryRecord {
     latestEvaluationSummary = if ($latestEvaluationSummary) { $latestEvaluationSummary -join " | " } else { $null }
     latestFollowThroughPost = $SymbolSummary.lastFollowThroughPost
     latestFollowThroughPostSummary = if ($latestFollowThroughPostSummary) { $latestFollowThroughPostSummary -join " | " } else { $null }
+    latestFollowThroughStatePost = $SymbolSummary.lastFollowThroughStatePost
+    latestFollowThroughStateSummary = if ($latestFollowThroughStateSummary) { $latestFollowThroughStateSummary -join " | " } else { $null }
+    latestContinuityPost = $SymbolSummary.lastContinuityPost
+    latestContinuitySummary = if ($latestContinuitySummary) { $latestContinuitySummary -join " | " } else { $null }
+    latestRecap = $SymbolSummary.lastRecap
+    latestRecapSummary = if ($latestRecapSummary) { $latestRecapSummary -join " | " } else { $null }
     evaluationAlignmentSummary = $evaluationAlignmentSummary
     stateChangeSummary = $stateChangeSummary
     outcomeDisagreementSummary = $outcomeDisagreementSummary
@@ -1245,6 +1303,15 @@ function Build-TraderThreadRecapLines {
     }
     if ($thread.latestFollowThroughPostSummary) {
       $lines += "- Latest follow-through: $($thread.latestFollowThroughPostSummary)"
+    }
+    if ($thread.latestFollowThroughStateSummary) {
+      $lines += "- Latest live state: $($thread.latestFollowThroughStateSummary)"
+    }
+    if ($thread.latestContinuitySummary) {
+      $lines += "- Latest continuity: $($thread.latestContinuitySummary)"
+    }
+    if ($thread.latestRecapSummary) {
+      $lines += "- Latest recap: $($thread.latestRecapSummary)"
     }
     if ($thread.latestEvaluationSummary) {
       $lines += "- Latest evaluation: $($thread.latestEvaluationSummary)"
@@ -1563,7 +1630,9 @@ function Update-SummaryFromLine {
           nextBarrierSide = $parsed.details.nextBarrierSide
           nextBarrierDistancePct = $parsed.details.nextBarrierDistancePct
           tacticalRead = $parsed.details.tacticalRead
+          pathQualityLabel = $parsed.details.pathQualityLabel
           dipBuyQualityLabel = $parsed.details.dipBuyQualityLabel
+          exhaustionLabel = $parsed.details.exhaustionLabel
         }
       }
     }
@@ -1577,6 +1646,39 @@ function Update-SummaryFromLine {
           followThroughLabel = $parsed.details.followThroughLabel
           directionalReturnPct = $parsed.details.directionalReturnPct
           rawReturnPct = $parsed.details.rawReturnPct
+        }
+      }
+    }
+
+    if ($parsed.event -eq "follow_through_state_posted") {
+      if ($lifecycleSymbolSummary -ne $null) {
+        $lifecycleSymbolSummary.followThroughStatePosts += 1
+        $lifecycleSymbolSummary.lastFollowThroughStatePost = @{
+          timestamp = $parsed.timestamp
+          eventType = $parsed.details.eventType
+          progressLabel = $parsed.details.progressLabel
+          directionalReturnPct = $parsed.details.directionalReturnPct
+        }
+      }
+    }
+
+    if ($parsed.event -eq "continuity_posted") {
+      if ($lifecycleSymbolSummary -ne $null) {
+        $lifecycleSymbolSummary.continuityPosts += 1
+        $lifecycleSymbolSummary.lastContinuityPost = @{
+          timestamp = $parsed.timestamp
+          continuityType = $parsed.details.continuityType
+          confidence = $parsed.details.confidence
+        }
+      }
+    }
+
+    if ($parsed.event -eq "recap_posted") {
+      if ($lifecycleSymbolSummary -ne $null) {
+        $lifecycleSymbolSummary.recapPosts += 1
+        $lifecycleSymbolSummary.lastRecap = @{
+          timestamp = $parsed.timestamp
+          aiGenerated = $parsed.details.aiGenerated
         }
       }
     }
@@ -1634,6 +1736,29 @@ function Update-SummaryFromLine {
           followThroughLabel = $parsed.followThroughLabel
           directionalReturnPct = $parsed.directionalReturnPct
           rawReturnPct = $parsed.rawReturnPct
+        }
+      }
+
+      if ($parsed.operation -eq "post_alert" -and $parsed.status -eq "posted" -and $parsed.messageKind -eq "follow_through_state_update") {
+        $auditSymbolSummary.lastFollowThroughStatePost = @{
+          timestamp = $parsed.timestamp
+          eventType = $parsed.eventType
+          progressLabel = $parsed.progressLabel
+          directionalReturnPct = $parsed.directionalReturnPct
+        }
+      }
+
+      if ($parsed.operation -eq "post_alert" -and $parsed.status -eq "posted" -and $parsed.messageKind -eq "continuity_update") {
+        $auditSymbolSummary.lastContinuityPost = @{
+          timestamp = $parsed.timestamp
+          continuityType = $parsed.continuityType
+        }
+      }
+
+      if ($parsed.operation -eq "post_alert" -and $parsed.status -eq "posted" -and $parsed.messageKind -eq "symbol_recap") {
+        $auditSymbolSummary.lastRecap = @{
+          timestamp = $parsed.timestamp
+          aiGenerated = $parsed.aiGenerated
         }
       }
     }

@@ -45,7 +45,9 @@ export type DiscordDeliveryAuditEntry = {
   pressureLabel?: string;
   pressureScore?: number;
   triggerQualityLabel?: string;
+  pathQualityLabel?: string;
   dipBuyQualityLabel?: string;
+  exhaustionLabel?: string;
   setupStateLabel?: string;
   failureRiskLabel?: string;
   tradeMapLabel?: string;
@@ -55,6 +57,9 @@ export type DiscordDeliveryAuditEntry = {
   targetPrice?: number;
   targetDistancePct?: number;
   followThroughLabel?: string;
+  progressLabel?: string;
+  continuityType?: string;
+  aiGenerated?: boolean;
   directionalReturnPct?: number | null;
   rawReturnPct?: number | null;
   supportCount?: number;
@@ -187,7 +192,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         pressureLabel: payload.metadata?.pressureLabel,
         pressureScore: payload.metadata?.pressureScore,
         triggerQualityLabel: payload.metadata?.triggerQualityLabel,
+        pathQualityLabel: payload.metadata?.pathQualityLabel,
         dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
+        exhaustionLabel: payload.metadata?.exhaustionLabel,
         setupStateLabel: payload.metadata?.setupStateLabel,
         failureRiskLabel: payload.metadata?.failureRiskLabel,
         tradeMapLabel: payload.metadata?.tradeMapLabel,
@@ -197,6 +204,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         targetPrice: payload.metadata?.targetPrice,
         targetDistancePct: payload.metadata?.targetDistancePct,
         followThroughLabel: payload.metadata?.followThroughLabel,
+        progressLabel: payload.metadata?.progressLabel,
+        continuityType: payload.metadata?.continuityType,
+        aiGenerated: payload.metadata?.aiGenerated,
         directionalReturnPct: payload.metadata?.directionalReturnPct,
         rawReturnPct: payload.metadata?.rawReturnPct,
       });
@@ -224,7 +234,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         pressureLabel: payload.metadata?.pressureLabel,
         pressureScore: payload.metadata?.pressureScore,
         triggerQualityLabel: payload.metadata?.triggerQualityLabel,
+        pathQualityLabel: payload.metadata?.pathQualityLabel,
         dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
+        exhaustionLabel: payload.metadata?.exhaustionLabel,
         setupStateLabel: payload.metadata?.setupStateLabel,
         failureRiskLabel: payload.metadata?.failureRiskLabel,
         tradeMapLabel: payload.metadata?.tradeMapLabel,
@@ -234,6 +246,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         targetPrice: payload.metadata?.targetPrice,
         targetDistancePct: payload.metadata?.targetDistancePct,
         followThroughLabel: payload.metadata?.followThroughLabel,
+        progressLabel: payload.metadata?.progressLabel,
+        continuityType: payload.metadata?.continuityType,
+        aiGenerated: payload.metadata?.aiGenerated,
         directionalReturnPct: payload.metadata?.directionalReturnPct,
         rawReturnPct: payload.metadata?.rawReturnPct,
       });

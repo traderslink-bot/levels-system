@@ -80,6 +80,17 @@ export type BarrierClutterLabel =
   | "stacked"
   | "dense";
 
+export type PathQualityLabel =
+  | "clean"
+  | "layered"
+  | "choppy";
+
+export type ZoneExhaustionLabel =
+  | "fresh"
+  | "tested"
+  | "worn"
+  | "spent";
+
 export type MonitoringZoneContext = {
   monitoredZoneId: string;
   canonicalZoneId: string;
@@ -170,7 +181,10 @@ export type MonitoringEventContext = {
   clearanceLabel?: BarrierClearanceLabel;
   barrierClutterLabel?: BarrierClutterLabel;
   nearbyBarrierCount?: number;
+  pathQualityLabel?: PathQualityLabel;
+  pathBarrierCount?: number;
   tacticalRead?: ZoneTacticalRead;
+  exhaustionLabel?: ZoneExhaustionLabel;
 };
 
 export type MonitoringEvent = {

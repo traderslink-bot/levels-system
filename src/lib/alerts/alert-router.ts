@@ -2,6 +2,7 @@
 // Alert formatting plus deterministic Discord thread routing.
 
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
+import type { OpportunityInterpretation } from "../monitoring/opportunity-interpretation.js";
 import type {
   AlertPayload,
   DiscordThread,
@@ -56,7 +57,9 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       pressureLabel: alert.pressure?.label,
       pressureScore: alert.pressure?.pressureScore,
       triggerQualityLabel: alert.triggerQuality?.label,
+      pathQualityLabel: alert.pathQuality?.label,
       dipBuyQualityLabel: alert.dipBuyQuality?.label,
+      exhaustionLabel: alert.exhaustion?.label,
       setupStateLabel: alert.setupState?.label,
       failureRiskLabel: alert.failureRisk?.label,
       tradeMapLabel: alert.tradeMap?.label,
@@ -106,6 +109,82 @@ export function formatFollowThroughUpdateAsPayload(params: {
       followThroughLabel: followThrough.label,
       directionalReturnPct: followThrough.directionalReturnPct,
       rawReturnPct: followThrough.rawReturnPct,
+    },
+  };
+}
+
+export function formatFollowThroughStateUpdateAsPayload(params: {
+  symbol: string;
+  timestamp: number;
+  eventType: string;
+  progressLabel: "improving" | "stalling" | "degrading";
+  directionalReturnPct: number | null;
+  entryPrice: number;
+  currentPrice: number;
+}): AlertPayload {
+  const { symbol, timestamp, eventType, progressLabel, directionalReturnPct, entryPrice, currentPrice } = params;
+  const directionalText =
+    directionalReturnPct === null
+      ? "n/a"
+      : formatPct(directionalReturnPct);
+  const line =
+    progressLabel === "improving"
+      ? `live follow-through: ${eventType.replaceAll("_", " ")} is improving since the alert`
+      : progressLabel === "stalling"
+        ? `live follow-through: ${eventType.replaceAll("_", " ")} is stalling and needs fresh follow-through`
+        : `live follow-through: ${eventType.replaceAll("_", " ")} is degrading and needs to stabilize quickly`;
+
+  return {
+    title: `${symbol} ${eventType.replaceAll("_", " ")} state update`,
+    body: [
+      line,
+      `status: ${progressLabel} | directional ${directionalText}`,
+      `path: ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} -> ${currentPrice >= 1 ? currentPrice.toFixed(2) : currentPrice.toFixed(4)}`,
+    ].join("\n"),
+    symbol,
+    timestamp,
+    metadata: {
+      messageKind: "follow_through_state_update",
+      eventType: eventType as MonitoringEvent["eventType"],
+      progressLabel,
+      directionalReturnPct,
+    },
+  };
+}
+
+export function formatContinuityUpdateAsPayload(params: {
+  interpretation: OpportunityInterpretation;
+}): AlertPayload {
+  const { interpretation } = params;
+  return {
+    title: `${interpretation.symbol} setup update`,
+    body: [
+      interpretation.message,
+      `continuity: ${interpretation.type.replaceAll("_", " ")} | confidence ${interpretation.confidence.toFixed(2)}`,
+    ].join("\n"),
+    symbol: interpretation.symbol,
+    timestamp: interpretation.timestamp,
+    metadata: {
+      messageKind: "continuity_update",
+      continuityType: interpretation.type,
+    },
+  };
+}
+
+export function formatSymbolRecapAsPayload(params: {
+  symbol: string;
+  timestamp: number;
+  body: string;
+  aiGenerated?: boolean;
+}): AlertPayload {
+  return {
+    title: `${params.symbol} state recap`,
+    body: params.body,
+    symbol: params.symbol,
+    timestamp: params.timestamp,
+    metadata: {
+      messageKind: "symbol_recap",
+      aiGenerated: params.aiGenerated ?? false,
     },
   };
 }

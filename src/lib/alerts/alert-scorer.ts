@@ -14,8 +14,10 @@ import { resolveZoneTacticalBias } from "../levels/zone-tactical-read.js";
 import {
   buildTraderAlertBody,
   deriveTraderDipBuyQualityContext,
+  deriveTraderExhaustionContext,
   deriveTraderFailureRiskContext,
   deriveTraderMovementContext,
+  deriveTraderPathQualityContext,
   deriveTraderPressureContext,
   deriveTraderSetupStateContext,
   deriveTraderTriggerQualityContext,
@@ -140,6 +142,8 @@ function contextContributions(
     pressure,
     nextBarrier,
   });
+  const exhaustion = deriveTraderExhaustionContext(event, zone);
+  const pathQuality = deriveTraderPathQualityContext(nextBarrier);
   const tacticalBias = zone
     ? resolveZoneTacticalBias({
       zoneKind: zone.kind,
@@ -188,6 +192,14 @@ function contextContributions(
           : 0,
     pressureQuality: config.pressureLabelScores[pressure.label],
     triggerQuality: triggerQuality ? config.triggerQualityScores[triggerQuality.label] : 0,
+    pathQuality:
+      pathQuality?.label === "clean"
+        ? 1.5
+        : pathQuality?.label === "layered"
+          ? -1.5
+          : pathQuality?.label === "choppy"
+            ? -4
+            : 0,
     dipBuyQuality:
       dipBuyQuality?.label === "actionable"
         ? 2
@@ -196,6 +208,16 @@ function contextContributions(
           : dipBuyQuality?.label === "poor"
             ? -4
             : 0,
+    exhaustion:
+      exhaustion?.label === "fresh"
+        ? 1
+        : exhaustion?.label === "tested"
+          ? -0.5
+          : exhaustion?.label === "worn"
+            ? -3
+            : exhaustion?.label === "spent"
+              ? -5
+              : 0,
     tacticalRead: config.tacticalBiasScores[tacticalBias],
     tiredStructureRisk:
       tacticalRead === "tired" &&
@@ -257,6 +279,14 @@ function tagsForAlert(event: MonitoringEvent, zone?: FinalLevelZone): string[] {
     tags.push(`clutter_${event.eventContext.barrierClutterLabel}`);
   }
 
+  if (event.eventContext.pathQualityLabel) {
+    tags.push(`path_${event.eventContext.pathQualityLabel}`);
+  }
+
+  if (event.eventContext.exhaustionLabel) {
+    tags.push(`exhaustion_${event.eventContext.exhaustionLabel}`);
+  }
+
   return [...new Set(tags)];
 }
 
@@ -298,6 +328,8 @@ export function scoreMonitoringEventToAlert(params: {
     pressure,
     nextBarrier,
   });
+  const pathQuality = deriveTraderPathQualityContext(nextBarrier);
+  const exhaustion = deriveTraderExhaustionContext(event, zone);
   const setupState = deriveTraderSetupStateContext({
     event,
     movement,
@@ -333,7 +365,9 @@ export function scoreMonitoringEventToAlert(params: {
     movement,
     pressure,
     triggerQuality,
+    pathQuality,
     dipBuyQuality,
+    exhaustion,
     setupState,
     failureRisk,
     target: deriveTraderTargetContext(event, zone, nextBarrier),
