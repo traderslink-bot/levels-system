@@ -105,7 +105,7 @@ describe("opportunity runtime integration", () => {
     assert.equal(snapshot.interpretations[0]?.type, "pre_zone");
     assert.equal(
       snapshot.interpretations[0]?.message,
-      "watching pullback into support near 100.00",
+      "watching pullback into resistance near 100.00",
     );
     assert.ok(snapshot.adaptiveDiagnostics.eventTypes.compression);
   });

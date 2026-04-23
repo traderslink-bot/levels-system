@@ -19,6 +19,32 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 1:05 PM America/Toronto
+
+### Tightened same-window continuity overlap and fixed event-side continuity mismatches
+
+- Updated runtime continuity behavior in:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/monitoring/opportunity-interpretation.ts`
+- Updated focused regression coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - same-window `follow_through_state` posts now suppress weaker `setup_forming`, `confirmation`, and `weakening` continuity more aggressively, so a state update is less likely to be followed by a near-duplicate optional narration beat
+  - monitoring-event continuity now only posts when the interpretation matches the triggering event's `eventType`, side, and near-enough level, which prevents support-style continuity wording from leaking into resistance-side threads when multiple same-symbol opportunities coexist
+  - added a runtime regression test that proves only the event-matching continuity beat is allowed through when both support-side and resistance-side interpretations exist for the same symbol
+- Why this matters:
+  - the live `AUUD` and `PAPL` sessions showed that the remaining clutter problem was no longer broad thread noise, but same-window overlap plus occasional wrong-side continuity wording
+  - this keeps the live thread closer to one coherent story: the alert or state post says what happened, and continuity only adds value when it is about that same event
+- Verification completed:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/opportunity-interpretation.test.ts src/tests/opportunity-runtime-integration.test.ts src/tests/alert-router.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-23 11:10 AM America/Toronto
 
 ### Made long-run review language more honest for activating and observational threads

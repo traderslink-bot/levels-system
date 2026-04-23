@@ -7,6 +7,7 @@ export type RankedOpportunity = {
   symbol: string;
   type: string;
   eventType?: string;
+  zoneKind?: "support" | "resistance";
   level: number;
   strength: number;
   confidence: number;
@@ -359,6 +360,7 @@ export class OpportunityEngine {
         symbol: event.symbol,
         type: event.type,
         eventType: event.eventType,
+        zoneKind: event.zoneKind,
         level: event.level,
         strength: event.strength,
         confidence: event.confidence,

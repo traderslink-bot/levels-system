@@ -121,6 +121,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Tightened extension dedupe so overlapping refresh paths are less likely to repost identical `NEXT LEVELS` payloads.
 - Refined review wording so delivery-choked threads can read as downstream-pressure problems instead of automatically looking like low-signal threads.
 - Tightened continuity again so setup-forming narration yields to fresh critical beats and same-label continuity updates collapse before in-flight routing can duplicate the story.
+- Tightened continuity overlap again so same-window `follow_through_state` posts now suppress weaker setup-forming / confirmation / weakening continuity more aggressively.
+- Matched monitoring-event continuity more strictly to the triggering event side and level, which prevents mixed same-symbol opportunity stacks from narrating support right after a resistance-side alert.
 
 ## Active Backlog
 

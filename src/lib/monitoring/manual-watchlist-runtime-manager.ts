@@ -1027,9 +1027,21 @@ export class ManualWatchlistRuntimeManager {
     const priorStoryCritical = this.pruneStoryCriticalState(params.symbol, params.timestamp).filter(
       (entry) => entry.timestamp < params.timestamp,
     );
+    const recentNarration = this.pruneNarrationBurstState(params.symbol, params.timestamp);
+    const recentFollowThroughState =
+      (params.label === "setup_forming" ||
+        params.label === "confirmation" ||
+        params.label === "weakening") &&
+      recentNarration.some(
+        (entry) =>
+          entry.kind === "follow_through_state" &&
+          params.timestamp - entry.timestamp <= CONTINUITY_UPDATE_COOLDOWN_MS &&
+          (params.eventType === null || params.eventType === undefined || entry.eventType === params.eventType),
+      );
     const existing = this.continuityState.get(params.symbol);
     if (!existing) {
       return !(
+        recentFollowThroughState ||
         params.label === "setup_forming" &&
         priorStoryCritical.length > 0
       );
@@ -1039,6 +1051,12 @@ export class ManualWatchlistRuntimeManager {
       existing.lastPostedAt === null ? Number.POSITIVE_INFINITY : params.timestamp - existing.lastPostedAt;
     const previousRank = this.continuityLabelRank(existing.lastLabel ?? "setup_forming");
     const nextRank = this.continuityLabelRank(params.label);
+
+    if (
+      recentFollowThroughState
+    ) {
+      return false;
+    }
 
     if (
       params.label === "setup_forming" &&
@@ -1126,6 +1144,8 @@ export class ManualWatchlistRuntimeManager {
     message: string;
     confidence: number;
     eventType: string;
+    level?: number;
+    zoneKind?: "support" | "resistance";
   } {
     const continuityType = this.mapInterpretationTypeToContinuityLabel(interpretation);
     return {
@@ -1134,6 +1154,8 @@ export class ManualWatchlistRuntimeManager {
       continuityType,
       confidence: interpretation.confidence,
       eventType: interpretation.eventType,
+      level: interpretation.level,
+      zoneKind: interpretation.zoneKind,
       message:
         continuityType === "setup_forming"
           ? `${interpretation.message}; the setup is still forming, so price still needs a cleaner decision.`
@@ -1241,6 +1263,8 @@ export class ManualWatchlistRuntimeManager {
     message: string;
     confidence?: number;
     eventType?: string | null;
+    level?: number;
+    zoneKind?: "support" | "resistance";
   }): boolean {
     if (
       !this.shouldPostContinuityUpdate({
@@ -1329,6 +1353,11 @@ export class ManualWatchlistRuntimeManager {
 
   private emitTraderFacingInterpretations(
     interpretations?: ReturnType<OpportunityRuntimeController["processMonitoringEvent"]>["interpretations"],
+    options?: {
+      suppressPosting?: boolean;
+      freshCriticalPosted?: boolean;
+      matchingEvent?: Pick<MonitoringEvent, "eventType" | "level" | "zoneKind">;
+    },
   ): void {
     for (const interpretation of interpretations ?? []) {
       console.log(JSON.stringify({
@@ -1339,8 +1368,51 @@ export class ManualWatchlistRuntimeManager {
         message: interpretation.message,
         timestamp: interpretation.timestamp,
       }));
-      this.postContinuityUpdate(this.buildContinuityUpdateFromInterpretation(interpretation));
+
+      const continuityUpdate = this.buildContinuityUpdateFromInterpretation(interpretation);
+      if (options?.suppressPosting) {
+        continue;
+      }
+
+      if (
+        options?.matchingEvent &&
+        !this.doesInterpretationMatchEvent(interpretation, options.matchingEvent)
+      ) {
+        continue;
+      }
+
+      if (
+        options?.freshCriticalPosted &&
+        (continuityUpdate.continuityType === "setup_forming" ||
+          continuityUpdate.continuityType === "weakening")
+      ) {
+        continue;
+      }
+
+      this.postContinuityUpdate(continuityUpdate);
     }
+  }
+
+  private doesInterpretationMatchEvent(
+    interpretation: OpportunityInterpretation,
+    event: Pick<MonitoringEvent, "eventType" | "level" | "zoneKind">,
+  ): boolean {
+    if (interpretation.eventType !== event.eventType) {
+      return false;
+    }
+
+    if (interpretation.zoneKind && interpretation.zoneKind !== event.zoneKind) {
+      return false;
+    }
+
+    if (
+      typeof interpretation.level === "number" &&
+      Math.abs(interpretation.level - event.level) > 0.02
+    ) {
+      return false;
+    }
+
+    return true;
   }
 
   private postFollowThroughStateUpdate(progressUpdate: OpportunityProgressUpdate): boolean {
@@ -1934,7 +2006,10 @@ export class ManualWatchlistRuntimeManager {
     }
 
     const snapshot = this.options.opportunityRuntimeController.processMonitoringEvent(event);
-    this.emitTraderFacingInterpretations(snapshot.interpretations);
+    this.emitTraderFacingInterpretations(snapshot.interpretations, {
+      freshCriticalPosted: Boolean(alertResult.formatted),
+      matchingEvent: event,
+    });
     if (snapshot.newOpportunity) {
       console.log(JSON.stringify(
         buildOpportunityDiagnosticsLogEntry("opportunity_snapshot", snapshot, {
@@ -2041,7 +2116,9 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    this.emitTraderFacingInterpretations(snapshot.interpretations);
+    this.emitTraderFacingInterpretations(snapshot.interpretations, {
+      suppressPosting: true,
+    });
     if (
       snapshot.completedEvaluations.length > 0 ||
       snapshot.progressUpdates.length > 0
