@@ -112,6 +112,10 @@ Inside that folder:
   - now includes latest evaluation context plus alert/evaluation alignment so a symbol can be reviewed by what recently worked or failed, not only by what was posted
   - now includes the latest follow-through grade summary so the newest completed setup can be judged quickly without translating raw return signs by hand
   - now also includes state-change and outcome-disagreement summaries so a repeatedly reactivated symbol can be judged more honestly
+- `thread-clutter-report.json`
+  - live-updated deterministic clutter artifact
+  - tracks total live posts, trader-critical versus trader-helpful optional posts, alert-to-context ratio, continuity density, recap density, live-state density, and clutter-risk heuristics per symbol
+  - makes thread clutter measurable instead of subjective
 - `trader-thread-recaps.md`
   - live-updated readable recap artifact
   - gives each symbol a short summary with latest alert, latest follow-through, and end-of-session context without needing JSON
@@ -174,6 +178,10 @@ And now a fifth:
 And now a sixth:
 
 - what mattered next for each still-live symbol and whether the recap/continuity flow stayed aligned with that evolving story
+
+And now a seventh:
+
+- which live thread post categories are trader-critical, which are trader-helpful but optional, and which belong in operator-only review artifacts instead of Discord
 
 ## Recommended Testing Process During A Session
 
@@ -264,12 +272,15 @@ If the app behaves oddly:
    - `trader-thread-recaps.md`
    when you want the shortest readable per-symbol recap without opening JSON
 8. check:
+   - `thread-clutter-report.json`
+   when you want the fastest deterministic answer to whether optional context is earning its place in the live symbol thread
+9. check:
    - `session-review.md`
    when you want the fastest human-readable verdict on whether the run looked useful or noisy
-9. optionally check:
+10. optionally check:
    - `thread-ai-recaps.md`
    when you generated the AI recap layer and want a per-symbol AI pass over the deterministic summaries
-10. optionally run:
+11. optionally run:
    - `npm run longrun:ai:summary -- <session-folder>`
    when you want a post-run AI commentary layer over the deterministic artifacts
 10. only check:

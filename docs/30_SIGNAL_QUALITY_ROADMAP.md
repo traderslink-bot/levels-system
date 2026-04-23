@@ -103,6 +103,10 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Tightened continuity posting so runtime continuity messages now prefer real lifecycle transitions over repeated low-value restatements.
 - Added deterministic `What matters next` recap guidance so in-session symbol recaps can tell the trader what continuation still requires.
 - Expanded the optional AI commentary layer so `npm run longrun:ai:summary` can now generate both `session-ai-review.md` and `thread-ai-recaps.md`, plus an AI noisy-family review.
+- Added deterministic `thread-clutter-report.json` output so long-run sessions now measure total live posts, optional-context density, and clutter-risk heuristics per symbol instead of guessing from thread feel.
+- Added explicit live-versus-operator output classification so thread summaries and session review can separate trader-critical posts from trader-helpful optional posts and operator-only artifacts.
+- Tightened recap posting so generic setup-forming narration is less likely to post live unless the thread is meaningfully evolving.
+- Consolidated trader-facing wording slightly by suppressing low-signal default lines when they are only restating the same benign idea.
 
 ## Active Backlog
 
@@ -119,6 +123,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Use the new follow-through grades to decide whether certain alert families are failing late versus stalling harmlessly, and tighten the most trader-costly cases first.
 - Use the new smarter live follow-through state posts to decide which setups deserve mid-flight continuity updates versus only final outcome posts.
 - Use the deeper path-quality, path-window, and exhaustion metadata to learn whether worn levels with layered early pathing should be suppressed more aggressively before they reach Discord.
+- Use the new clutter artifact to decide which optional live post classes are earning their place and which should stay richer only in operator artifacts.
 
 ### Detection and ranking improvements
 
@@ -155,6 +160,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
   - false positive
   - strong
 - Add stronger cooldown rules for repetitive context-only alerts.
+- Keep refining the line between trader-critical posts and trader-helpful optional posts without gutting useful thread continuity too early.
 
 ### AI ideas worth building later
 
@@ -190,5 +196,6 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 11. Use the new trigger-quality metadata to learn whether crowded or late entries should be suppressed more aggressively before they reach Discord.
 12. Use the distance-aware snapshot ladder to decide whether the default number of displayed support/resistance zones is still optimal for traders.
 13. Use the new snapshot room classification to decide whether the thresholds for `bullish`, `bearish`, and `balanced` room need tuning against real trading usefulness.
-14. Use the new per-thread AI recap and noisy-family review outputs to judge whether the AI layer is staying faithful to the deterministic artifacts before expanding it further.
-15. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.
+14. Use the new thread-clutter artifact and live/output classification to decide which optional post classes should tighten further before changing trader-critical posts.
+15. Use the new per-thread AI recap and noisy-family review outputs to judge whether the AI layer is staying faithful to the deterministic artifacts before expanding it further.
+16. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.

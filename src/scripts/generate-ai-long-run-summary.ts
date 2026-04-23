@@ -18,6 +18,7 @@ async function main(): Promise<void> {
   const sessionDirectory = resolve(sessionDirectoryArg);
   const sessionSummaryPath = resolve(sessionDirectory, "session-summary.json");
   const threadSummariesPath = resolve(sessionDirectory, "thread-summaries.json");
+  const threadClutterPath = resolve(sessionDirectory, "thread-clutter-report.json");
   const outputPath = resolve(sessionDirectory, "session-ai-review.md");
   const threadOutputPath = resolve(sessionDirectory, "thread-ai-recaps.md");
   const commentaryService = createOpenAITraderCommentaryServiceFromEnv();
@@ -29,9 +30,16 @@ async function main(): Promise<void> {
 
   const sessionSummary = await readJson(sessionSummaryPath) as Record<string, unknown>;
   const threadSummaries = await readJson(threadSummariesPath) as unknown[];
+  let threadClutterReport: Record<string, unknown> | unknown[] | null = null;
+  try {
+    threadClutterReport = await readJson(threadClutterPath);
+  } catch {
+    threadClutterReport = null;
+  }
   const input = {
     sessionSummary,
     threadSummaries,
+    threadClutterReport,
   };
   const [result, noisyFamilies] = await Promise.all([
     commentaryService.summarizeSession(input),

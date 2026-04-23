@@ -19,6 +19,46 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 01:10 AM America/Toronto
+
+### Tightened live-thread discipline, added deterministic clutter analysis, and kept AI review-only
+
+- Updated runtime gating in:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated trader-facing wording and consolidation rules in:
+  - `src/lib/alerts/trader-message-language.ts`
+- Expanded operator review and AI-summary plumbing in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+  - `src/lib/ai/trader-commentary-service.ts`
+  - `src/scripts/generate-ai-long-run-summary.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/00_DOC_INDEX.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+  - `docs/32_AI_COMMENTARY_WORKFLOW.md`
+- What changed:
+  - long-run sessions now write `thread-clutter-report.json`, which measures per-symbol live post totals, trader-critical versus trader-helpful optional post mix, alert-to-context ratio, context density, and clutter-risk heuristics
+  - session artifacts now classify output more explicitly into trader-critical live posts, trader-helpful but optional live posts, and operator-only artifacts
+  - live continuity posting is tighter, including stronger suppression of low-value setup-forming regression and weaker repeat narration
+  - live follow-through state posting is tighter, with cooldown and directional-delta checks so small oscillations do not keep re-posting
+  - recap posting is tighter, so routine setup-forming chatter is less likely to become live recap spam unless the thread is meaningfully evolving
+  - trader-facing wording is slightly more disciplined: benign default `contained` failure-risk lines, default `workable` trigger-quality lines, and fully clean one-barrier path-quality lines are now suppressed when they only restate the same non-problem
+  - the AI review layer now ingests `thread-clutter-report.json` when present so post-run AI summaries can stay review-focused without expanding live AI behavior
+- Why this matters:
+  - the project now measures thread clutter directly instead of only inferring it from long-run feel
+  - live Discord posts stay richer where it matters but are less likely to drift into narration for narration's sake
+  - AI remains downstream of deterministic facts and more clearly positioned as operator/review help instead of a source of live signal truth
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/manual-watchlist-runtime-manager.test.ts src/tests/trader-commentary-service.test.ts`
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 11:59 PM America/Toronto
 
 ### Tightened live thread continuity, deepened path / exhaustion tradeability, and expanded AI review outputs

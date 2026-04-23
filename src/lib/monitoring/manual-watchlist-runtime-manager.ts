@@ -79,6 +79,8 @@ const SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE = 0.01;
 const SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 0.5;
 const SYMBOL_RECAP_COOLDOWN_MS = 12 * 60 * 1000;
 const CONTINUITY_UPDATE_COOLDOWN_MS = 3 * 60 * 1000;
+const CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS = 8 * 60 * 1000;
+const FOLLOW_THROUGH_STATE_UPDATE_COOLDOWN_MS = 4 * 60 * 1000;
 
 type SymbolRecapState = {
   lastSignature: string | null;
@@ -90,6 +92,12 @@ type SymbolContinuityState = {
   lastLabel: string | null;
   lastPostedAt: number | null;
   lastMessage: string | null;
+};
+
+type SymbolFollowThroughStatePost = {
+  lastLabel: OpportunityProgressUpdate["progressLabel"] | null;
+  lastPostedAt: number | null;
+  lastDirectionalReturnPct: number | null;
 };
 
 function uniqueSortedLevels(levels: number[], direction: "asc" | "desc"): number[] {
@@ -242,6 +250,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly pendingActivations = new Map<string, Promise<void>>();
   private readonly recapState = new Map<string, SymbolRecapState>();
   private readonly continuityState = new Map<string, SymbolContinuityState>();
+  private readonly followThroughStatePosts = new Map<string, SymbolFollowThroughStatePost>();
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
@@ -649,6 +658,23 @@ export class ManualWatchlistRuntimeManager {
     return this.options.symbolRecapCooldownMs ?? SYMBOL_RECAP_COOLDOWN_MS;
   }
 
+  private continuityLabelRank(label: string): number {
+    switch (label) {
+      case "setup_forming":
+        return 0;
+      case "confirmation":
+        return 1;
+      case "continuation":
+        return 2;
+      case "weakening":
+        return 3;
+      case "failed":
+        return 4;
+      default:
+        return 0;
+    }
+  }
+
   private shouldPostContinuityUpdate(params: {
     symbol: string;
     label: string;
@@ -660,6 +686,35 @@ export class ManualWatchlistRuntimeManager {
       return true;
     }
 
+    const age =
+      existing.lastPostedAt === null ? Number.POSITIVE_INFINITY : params.timestamp - existing.lastPostedAt;
+    const previousRank = this.continuityLabelRank(existing.lastLabel ?? "setup_forming");
+    const nextRank = this.continuityLabelRank(params.label);
+
+    if (
+      params.label === "setup_forming" &&
+      previousRank >= this.continuityLabelRank("confirmation") &&
+      age < CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS
+    ) {
+      return false;
+    }
+
+    if (
+      params.label === "confirmation" &&
+      previousRank >= this.continuityLabelRank("continuation") &&
+      age < CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS
+    ) {
+      return false;
+    }
+
+    if (
+      params.label === "weakening" &&
+      existing.lastLabel === "failed" &&
+      age < CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS
+    ) {
+      return false;
+    }
+
     if (existing.lastLabel !== params.label) {
       return true;
     }
@@ -667,7 +722,7 @@ export class ManualWatchlistRuntimeManager {
     if (
       existing.lastMessage !== params.message &&
       existing.lastPostedAt !== null &&
-      params.timestamp - existing.lastPostedAt >= CONTINUITY_UPDATE_COOLDOWN_MS
+      params.timestamp - existing.lastPostedAt >= CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS
     ) {
       return true;
     }
@@ -726,10 +781,14 @@ export class ManualWatchlistRuntimeManager {
     timestamp: number;
     continuityType: string;
     message: string;
-  } {
+  } | null {
     const directional = progressUpdate.directionalReturnPct ?? 0;
 
     if (progressUpdate.progressLabel === "improving") {
+      if (directional < 0.2) {
+        return null;
+      }
+
       return {
         symbol: progressUpdate.symbol,
         timestamp: progressUpdate.timestamp,
@@ -742,6 +801,10 @@ export class ManualWatchlistRuntimeManager {
     }
 
     if (progressUpdate.progressLabel === "stalling") {
+      if (directional >= 0.15) {
+        return null;
+      }
+
       return {
         symbol: progressUpdate.symbol,
         timestamp: progressUpdate.timestamp,
@@ -872,6 +935,40 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
+    const existing = this.followThroughStatePosts.get(progressUpdate.symbol);
+    const age =
+      existing?.lastPostedAt === null || existing?.lastPostedAt === undefined
+        ? Number.POSITIVE_INFINITY
+        : progressUpdate.timestamp - existing.lastPostedAt;
+    const previousDirectional = existing?.lastDirectionalReturnPct ?? null;
+    const directionalDelta =
+      previousDirectional === null || progressUpdate.directionalReturnPct === null
+        ? Number.POSITIVE_INFINITY
+        : Math.abs(progressUpdate.directionalReturnPct - previousDirectional);
+    const minimumDelta =
+      progressUpdate.progressLabel === "improving"
+        ? 0.45
+        : progressUpdate.progressLabel === "stalling"
+          ? 0.35
+          : 0.25;
+
+    if (
+      existing &&
+      existing.lastLabel === progressUpdate.progressLabel &&
+      age < FOLLOW_THROUGH_STATE_UPDATE_COOLDOWN_MS
+    ) {
+      return;
+    }
+
+    if (
+      existing &&
+      existing.lastLabel !== progressUpdate.progressLabel &&
+      age < CONTINUITY_UPDATE_COOLDOWN_MS &&
+      directionalDelta < minimumDelta
+    ) {
+      return;
+    }
+
     const payload = formatFollowThroughStateUpdateAsPayload({
       symbol: progressUpdate.symbol,
       timestamp: progressUpdate.timestamp,
@@ -885,6 +982,11 @@ export class ManualWatchlistRuntimeManager {
     void this.options.discordAlertRouter
       .routeAlert(entry.discordThreadId, payload)
       .then(() => {
+        this.followThroughStatePosts.set(progressUpdate.symbol, {
+          lastLabel: progressUpdate.progressLabel,
+          lastPostedAt: progressUpdate.timestamp,
+          lastDirectionalReturnPct: progressUpdate.directionalReturnPct,
+        });
         this.emitLifecycle("follow_through_state_posted", {
           symbol: progressUpdate.symbol,
           threadId: entry.discordThreadId,
@@ -1121,6 +1223,15 @@ export class ManualWatchlistRuntimeManager {
 
     const deterministicBody = this.buildSymbolRecapBody(params);
     if (!deterministicBody) {
+      return;
+    }
+
+    if (
+      !params.progressUpdate &&
+      !params.evaluation &&
+      (!params.interpretation ||
+        (params.interpretation.type !== "confirmation" && params.interpretation.type !== "weakening"))
+    ) {
       return;
     }
 
@@ -1399,7 +1510,10 @@ export class ManualWatchlistRuntimeManager {
 
     for (const progressUpdate of snapshot.progressUpdates) {
       this.postFollowThroughStateUpdate(progressUpdate);
-      this.postContinuityUpdate(this.buildContinuityUpdateFromProgress(progressUpdate));
+      const continuityUpdate = this.buildContinuityUpdateFromProgress(progressUpdate);
+      if (continuityUpdate) {
+        this.postContinuityUpdate(continuityUpdate);
+      }
       this.maybePostSymbolRecap({
         symbol: progressUpdate.symbol,
         timestamp: progressUpdate.timestamp,
@@ -1703,6 +1817,7 @@ export class ManualWatchlistRuntimeManager {
     this.activeSnapshotState.delete(normalizeSymbol(symbol));
     this.recapState.delete(normalizeSymbol(symbol));
     this.continuityState.delete(normalizeSymbol(symbol));
+    this.followThroughStatePosts.delete(normalizeSymbol(symbol));
     this.persistWatchlist();
     await this.restartMonitoring();
     this.emitLifecycle("deactivated", {

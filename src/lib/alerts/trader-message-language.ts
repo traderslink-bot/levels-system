@@ -966,6 +966,37 @@ export function buildTraderAlertBody(
     nextBarrier,
   });
   const tradeMap = deriveTraderTradeMapContext(event, zone, nextBarrier);
+  const includePathQuality =
+    pathQuality &&
+    !(
+      pathQuality.label === "clean" &&
+      pathQuality.barrierCount <= 1 &&
+      nextBarrier &&
+      nextBarrier.clearanceLabel !== "tight" &&
+      nextBarrier.clutterLabel !== "dense" &&
+      nextBarrier.clutterLabel !== "stacked"
+    );
+  const includeTriggerQuality =
+    triggerQuality &&
+    !(
+      triggerQuality.label === "workable" &&
+      pressure.label === "moderate" &&
+      movement?.label !== "extended" &&
+      (!nextBarrier ||
+        (nextBarrier.clearanceLabel !== "tight" &&
+          nextBarrier.clutterLabel !== "dense" &&
+          nextBarrier.clutterLabel !== "stacked"))
+    );
+  const includeFailureRisk =
+    failureRisk &&
+    !(
+      failureRisk.label === "contained" &&
+      (!pathQuality || pathQuality.label === "clean") &&
+      (!triggerQuality ||
+        triggerQuality.label === "clean" ||
+        triggerQuality.label === "workable") &&
+      (!exhaustion || exhaustion.label === "fresh" || exhaustion.label === "tested")
+    );
 
   return [
     buildLeadLine(event, zone),
@@ -978,13 +1009,13 @@ export function buildTraderAlertBody(
       freshness: event.eventContext.zoneFreshness,
     }),
     roomLine,
-    pathQuality?.line ?? null,
+    includePathQuality ? pathQuality?.line ?? null : null,
     exhaustion?.line ?? null,
     target?.line ?? null,
-    triggerQuality?.line ?? null,
+    includeTriggerQuality ? triggerQuality?.line ?? null : null,
     dipBuyQuality?.line ?? null,
     setupState?.line ?? null,
-    failureRisk?.line ?? null,
+    includeFailureRisk ? failureRisk?.line ?? null : null,
     tradeMap?.line ?? null,
     buildWatchLine(event, zone),
   ]

@@ -14,6 +14,7 @@ $diagnosticLogPath = Join-Path $sessionDirectory "manual-watchlist-diagnostics.l
 $discordAuditPath = Join-Path $sessionDirectory "discord-delivery-audit.jsonl"
 $sessionSummaryPath = Join-Path $sessionDirectory "session-summary.json"
 $threadSummaryPath = Join-Path $sessionDirectory "thread-summaries.json"
+$threadClutterPath = Join-Path $sessionDirectory "thread-clutter-report.json"
 $sessionReviewPath = Join-Path $sessionDirectory "session-review.md"
 $traderRecapPath = Join-Path $sessionDirectory "trader-thread-recaps.md"
 $feedbackPath = Join-Path $sessionDirectory "human-review-feedback.jsonl"
@@ -34,6 +35,34 @@ $operationalPattern =
   "evaluation_update|" +
   "level_runtime_compare"
 $diagnosticPattern = "monitoring_event_diagnostic"
+$outputClassification = [ordered]@{
+  traderCritical = @(
+    "intelligent_alert",
+    "level_snapshot",
+    "level_extension",
+    "follow_through_update"
+  )
+  traderHelpfulOptional = @(
+    "continuity_update",
+    "follow_through_state_update",
+    "symbol_recap"
+  )
+  operatorOnly = @(
+    "manual_watchlist_lifecycle",
+    "discord_delivery_audit",
+    "opportunity_snapshot",
+    "evaluation_update",
+    "monitoring_event_diagnostic",
+    "session_summary",
+    "thread_summary",
+    "thread_clutter_report",
+    "session_review",
+    "trader_thread_recap",
+    "session_ai_review",
+    "thread_ai_recaps",
+    "human_review_feedback"
+  )
+}
 
 $summary = [ordered]@{
   sessionDirectory = $sessionDirectory
@@ -85,6 +114,7 @@ $summary = [ordered]@{
     rationale = @()
     recommendations = @()
   }
+  outputClassification = $outputClassification
   humanReview = @{
     total = 0
     byVerdict = @{}
@@ -1062,6 +1092,124 @@ function Build-EndOfSessionSummary {
   return "$Symbol remained $($SymbolSummary.quality.verdict) overall, and the thread should be reviewed alongside its latest alert and suppression mix."
 }
 
+function Build-ThreadClutterRecord {
+  param(
+    [string]$Symbol,
+    [hashtable]$SymbolSummary
+  )
+
+  $traderCriticalPosts =
+    [int]$SymbolSummary.alertPosted +
+    [int]$SymbolSummary.snapshotPosts +
+    [int]$SymbolSummary.extensionPosts +
+    [int]$SymbolSummary.followThroughPosts
+  $traderHelpfulOptionalPosts =
+    [int]$SymbolSummary.followThroughStatePosts +
+    [int]$SymbolSummary.continuityPosts +
+    [int]$SymbolSummary.recapPosts
+  $totalLivePosts = $traderCriticalPosts + $traderHelpfulOptionalPosts
+  $alertToContextRatio =
+    if ($traderHelpfulOptionalPosts -gt 0) {
+      [Math]::Round([double][int]$SymbolSummary.alertPosted / [double]$traderHelpfulOptionalPosts, 2)
+    } else {
+      $null
+    }
+  $contextDensity =
+    if ($totalLivePosts -gt 0) {
+      [Math]::Round([double]$traderHelpfulOptionalPosts / [double]$totalLivePosts, 2)
+    } else {
+      0
+    }
+  $followThroughDensity =
+    if ($totalLivePosts -gt 0) {
+      [Math]::Round(([double]$SymbolSummary.followThroughPosts + [double]$SymbolSummary.followThroughStatePosts) / [double]$totalLivePosts, 2)
+    } else {
+      0
+    }
+  $continuityDensity =
+    if ($totalLivePosts -gt 0) {
+      [Math]::Round([double]$SymbolSummary.continuityPosts / [double]$totalLivePosts, 2)
+    } else {
+      0
+    }
+  $recapDensity =
+    if ($totalLivePosts -gt 0) {
+      [Math]::Round([double]$SymbolSummary.recapPosts / [double]$totalLivePosts, 2)
+    } else {
+      0
+    }
+
+  $riskReasons = @()
+  if ($totalLivePosts -ge 8 -and $contextDensity -ge 0.55) {
+    $riskReasons += "context posts outweighed trader-critical posts"
+  }
+  if ([int]$SymbolSummary.continuityPosts -ge 3) {
+    $riskReasons += "continuity posting stayed elevated"
+  }
+  if ([int]$SymbolSummary.recapPosts -ge 2) {
+    $riskReasons += "recap posting stayed elevated"
+  }
+  if ([int]$SymbolSummary.followThroughStatePosts -ge 3) {
+    $riskReasons += "live follow-through state posting stayed elevated"
+  }
+  if ($SymbolSummary.quality.verdict -in @("noisy", "needs_attention")) {
+    $riskReasons += "symbol quality verdict leaned noisy"
+  }
+
+  $contextValueSignal =
+    if (
+      $traderHelpfulOptionalPosts -gt 0 -and
+      ($SymbolSummary.quality.verdict -in @("high_signal", "useful") -or $SymbolSummary.humanReview.latestVerdict -in @("useful", "strong"))
+    ) {
+      "context_helping"
+    } elseif ($traderHelpfulOptionalPosts -gt 0 -and $SymbolSummary.quality.verdict -in @("noisy", "needs_attention")) {
+      "context_heavy"
+    } elseif ($traderHelpfulOptionalPosts -gt 0) {
+      "mixed"
+    } else {
+      "minimal_context"
+    }
+
+  $clutterRisk =
+    if ($riskReasons.Count -ge 3 -or ($contextDensity -ge 0.65 -and $totalLivePosts -ge 6)) {
+      "high"
+    } elseif ($riskReasons.Count -ge 1 -or ($contextDensity -ge 0.45 -and $totalLivePosts -ge 5)) {
+      "moderate"
+    } else {
+      "low"
+    }
+
+  $recommendations = @()
+  if ($clutterRisk -eq "high") {
+    $recommendations += "tighten optional live posts for this symbol before adding more thread richness"
+  } elseif ($clutterRisk -eq "moderate") {
+    $recommendations += "review whether continuity or recap posts are earning their place"
+  }
+
+  if ($contextValueSignal -eq "context_heavy") {
+    $recommendations += "prefer artifact review over extra live narration for this symbol"
+  } elseif ($contextValueSignal -eq "context_helping") {
+    $recommendations += "extra context appears to be helping rather than crowding the thread"
+  }
+
+  return [ordered]@{
+    symbol = $Symbol
+    totalLivePosts = $totalLivePosts
+    traderCriticalPosts = $traderCriticalPosts
+    traderHelpfulOptionalPosts = $traderHelpfulOptionalPosts
+    alertToContextRatio = $alertToContextRatio
+    contextDensity = $contextDensity
+    followThroughDensity = $followThroughDensity
+    continuityDensity = $continuityDensity
+    recapDensity = $recapDensity
+    clutterRisk = $clutterRisk
+    contextValueSignal = $contextValueSignal
+    outputClassification = $outputClassification
+    reasons = @($riskReasons | Select-Object -Unique)
+    recommendations = @($recommendations | Select-Object -Unique)
+  }
+}
+
 function Build-ThreadSummaryRecord {
   param(
     [string]$Symbol,
@@ -1232,6 +1380,7 @@ function Build-ThreadSummaryRecord {
   $evaluationAlignmentSummary = Build-EvaluationAlignmentSummary -SymbolSummary $SymbolSummary
   $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
   $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
+  $clutterSummary = Build-ThreadClutterRecord -Symbol $Symbol -SymbolSummary $SymbolSummary
 
   return [ordered]@{
     symbol = $Symbol
@@ -1262,6 +1411,12 @@ function Build-ThreadSummaryRecord {
     evaluationAlignmentSummary = $evaluationAlignmentSummary
     stateChangeSummary = $stateChangeSummary
     outcomeDisagreementSummary = $outcomeDisagreementSummary
+    clutter = $clutterSummary
+    liveOutputClassification = [ordered]@{
+      traderCritical = @("alerts", "snapshots", "extensions", "completed_follow_through")
+      traderHelpfulOptional = @("continuity", "live_follow_through_state", "symbol_recap")
+      operatorOnly = @("lifecycle", "discord_delivery_audit", "opportunity_snapshots", "evaluations", "diagnostics", "review_artifacts", "ai_review")
+    }
     lastSnapshot = $SymbolSummary.lastSnapshot
     lastExtension = $SymbolSummary.lastExtension
     discordPosted = $SymbolSummary.discordPosted
@@ -1278,6 +1433,38 @@ function Build-ThreadSummaries {
   }
 
   return $records
+}
+
+function Build-ThreadClutterReport {
+  param(
+    [object[]]$ThreadSummaries
+  )
+
+  $records = @($ThreadSummaries | ForEach-Object { $_.clutter } | Where-Object { $_ })
+  $highRisk = @(
+    $records |
+      Where-Object { $_.clutterRisk -eq "high" } |
+      ForEach-Object { "$($_.symbol) context=$($_.traderHelpfulOptionalPosts)/$($_.totalLivePosts)" }
+  )
+  $helpfulContext = @(
+    $records |
+      Where-Object { $_.contextValueSignal -eq "context_helping" } |
+      ForEach-Object { "$($_.symbol) context=$($_.traderHelpfulOptionalPosts)/$($_.totalLivePosts)" }
+  )
+
+  return [ordered]@{
+    generatedAt = (Get-Date).ToString("o")
+    outputClassification = $outputClassification
+    totals = [ordered]@{
+      symbolsAnalyzed = $records.Count
+      highRiskThreads = @($records | Where-Object { $_.clutterRisk -eq "high" }).Count
+      moderateRiskThreads = @($records | Where-Object { $_.clutterRisk -eq "moderate" }).Count
+      lowRiskThreads = @($records | Where-Object { $_.clutterRisk -eq "low" }).Count
+    }
+    highestRiskThreads = $highRisk
+    contextHelpingThreads = $helpfulContext
+    perThread = $records
+  }
 }
 
 function Build-TraderThreadRecapLines {
@@ -1371,6 +1558,9 @@ function Build-SessionReviewLines {
     "- Noisiest families: $(Join-DisplayList -Items $summary.alerting.noisiestFamilies)",
     "- Noisiest symbols: $(Join-DisplayList -Items $summary.alerting.noisiestSymbols)",
     "- Most dynamic symbols: $(Join-DisplayList -Items $dynamicSymbols)",
+    "- Thread clutter risk: high=$($summary.threadClutter.highRiskThreads) | moderate=$($summary.threadClutter.moderateRiskThreads) | low=$($summary.threadClutter.lowRiskThreads)",
+    "- Highest-risk threads: $(Join-DisplayList -Items $summary.threadClutter.highestRiskThreads)",
+    "- Context-helping threads: $(Join-DisplayList -Items $summary.threadClutter.contextHelpingThreads)",
     "- Strongest evaluated event types: $(Join-DisplayList -Items $evaluationHighlights.strongest)",
     "- Weakest evaluated event types: $(Join-DisplayList -Items $evaluationHighlights.weakest)",
     "- Follow-through grades: $(Join-DisplayList -Items (Get-TopSummaryKeys -Table $summary.evaluation.byFollowThrough -Top 4))",
@@ -1430,6 +1620,7 @@ function Build-SessionReviewLines {
       "- Top posted families: $(Join-DisplayList -Items $thread.topPostedFamilies)",
       "- Top suppression reasons: $(Join-DisplayList -Items $thread.topSuppressionReasons)",
       "- Lifecycle highlights: $(Join-DisplayList -Items $thread.lifecycleHighlights)",
+      "- Thread clutter: $(if ($thread.clutter) { ($thread.clutter.clutterRisk + '; context=' + $thread.clutter.traderHelpfulOptionalPosts + '/' + $thread.clutter.totalLivePosts) } else { 'none' })",
       "- Latest alert summary: $(if ($thread.latestAlertSummary) { $thread.latestAlertSummary } else { 'none' })",
       "- Latest opportunity summary: $(if ($thread.latestOpportunitySummary) { $thread.latestOpportunitySummary } else { 'none' })",
       "- Latest evaluation summary: $(if ($thread.latestEvaluationSummary) { $thread.latestEvaluationSummary } else { 'none' })",
@@ -1437,6 +1628,7 @@ function Build-SessionReviewLines {
       "- State-change summary: $(if ($thread.stateChangeSummary) { $thread.stateChangeSummary } else { 'stable run' })",
       "- Outcome disagreement: $(if ($thread.outcomeDisagreementSummary) { $thread.outcomeDisagreementSummary } else { 'none flagged' })",
       "- Human review: $(if ($thread.humanReview.total -gt 0) { ('latest=' + $thread.humanReview.latestVerdict + '; total=' + $thread.humanReview.total) } else { 'none yet' })",
+      "- Live versus operator split: trader-critical=alerts/snapshots/extensions/follow-through | optional=continuity/live-state/recaps | operator-only=artifacts/audit/diagnostics",
       "- Discord posted: $($thread.discordPosted)",
       "- Discord failed: $($thread.discordFailed)",
       ""
@@ -1881,8 +2073,17 @@ function Save-SessionSummary {
   $summary.quality = Build-SessionQualitySummary
   Apply-HumanReviewFeedbackFromFile
   $threadSummaries = Build-ThreadSummaries
+  $threadClutterReport = Build-ThreadClutterReport -ThreadSummaries $threadSummaries
+  $summary.threadClutter = [ordered]@{
+    highRiskThreads = $threadClutterReport.totals.highRiskThreads
+    moderateRiskThreads = $threadClutterReport.totals.moderateRiskThreads
+    lowRiskThreads = $threadClutterReport.totals.lowRiskThreads
+    highestRiskThreads = $threadClutterReport.highestRiskThreads
+    contextHelpingThreads = $threadClutterReport.contextHelpingThreads
+  }
   Set-Content -LiteralPath $sessionSummaryPath -Value ($summary | ConvertTo-Json -Depth 10)
   Set-Content -LiteralPath $threadSummaryPath -Value ($threadSummaries | ConvertTo-Json -Depth 8)
+  Set-Content -LiteralPath $threadClutterPath -Value ($threadClutterReport | ConvertTo-Json -Depth 8)
   Set-Content -LiteralPath $sessionReviewPath -Value ((Build-SessionReviewLines -ThreadSummaries $threadSummaries) -join [Environment]::NewLine)
   Set-Content -LiteralPath $traderRecapPath -Value ((Build-TraderThreadRecapLines -ThreadSummaries $threadSummaries) -join [Environment]::NewLine)
 }
@@ -1946,6 +2147,7 @@ Write-SessionInfo "diagnostic_log=$diagnosticLogPath"
 Write-SessionInfo "discord_audit_log=$discordAuditPath"
 Write-SessionInfo "session_summary=$sessionSummaryPath"
 Write-SessionInfo "thread_summaries=$threadSummaryPath"
+Write-SessionInfo "thread_clutter_report=$threadClutterPath"
 Write-SessionInfo "session_review=$sessionReviewPath"
 Write-SessionInfo "human_review_feedback=$feedbackPath"
 Write-SessionInfo "runtime_url=$runtimeUrl"

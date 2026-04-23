@@ -44,3 +44,5 @@ This folder contains the full plan for the candle-based levels system, including
 30. `30_SIGNAL_QUALITY_ROADMAP.md`
 31. `31_ALERT_REVIEW_LOOP_WORKFLOW.md`
 32. `32_AI_COMMENTARY_WORKFLOW.md`
+33. `33_CODEX_RUNTIME_AND_SIGNAL_REVIEW_2026-04-23.md`
+34. `34_CODEX_EXECUTION_BRIEF_2026-04-23.md`

@@ -36,6 +36,7 @@ export type ThreadCommentaryInput = {
 export type SessionCommentaryInput = {
   sessionSummary: Record<string, unknown>;
   threadSummaries: unknown[];
+  threadClutterReport?: Record<string, unknown> | unknown[] | null;
 };
 
 export interface TraderCommentaryService {
@@ -190,7 +191,7 @@ export class OpenAITraderCommentaryService implements TraderCommentaryService {
     return this.requestCommentary({
       developerPrompt:
         "Summarize a trading-alert session for an operator. Return markdown with short sections: " +
-        "Overall read, Best symbols, Weak spots, Noisy families, and Next tuning ideas. " +
+        "Overall read, Best symbols, Weak spots, Thread clutter, Noisy families, and Next tuning ideas. " +
         "Be concise, deterministic-friendly, and do not invent facts beyond the provided JSON.",
       userPayload: input,
     });
@@ -199,8 +200,8 @@ export class OpenAITraderCommentaryService implements TraderCommentaryService {
   async identifyNoisyFamilies(input: SessionCommentaryInput): Promise<TraderCommentaryResult | null> {
     return this.requestCommentary({
       developerPrompt:
-        "Review trading-alert session artifacts and identify which alert families or symbol patterns look noisy. " +
-        "Return markdown bullets only with sections: Noisy families, Why they look noisy, and What to tune next. " +
+        "Review trading-alert session artifacts and identify which alert families, symbol patterns, or thread behaviors look noisy. " +
+        "Return markdown bullets only with sections: Noisy families, Thread clutter risks, Why they look noisy, and What to tune next. " +
         "Use only the provided deterministic facts.",
       userPayload: input,
     });

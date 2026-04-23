@@ -74,6 +74,7 @@ This reads the deterministic artifacts such as:
 
 - `session-summary.json`
 - `thread-summaries.json`
+- `thread-clutter-report.json` when present
 
 And writes:
 
@@ -90,6 +91,7 @@ That means:
 - deterministic alert scoring remains the source of truth
 - deterministic runtime and delivery artifacts remain reviewable even when AI is enabled
 - AI output should summarize, clarify, and explain, not invent new unsupported facts
+- AI should stay primarily in operator-review and recap territory, not as a default source of extra live thread narration
 
 ## Wording Direction
 
