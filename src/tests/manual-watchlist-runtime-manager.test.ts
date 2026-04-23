@@ -580,6 +580,54 @@ test("ManualWatchlistRuntimeManager queues activation immediately, creates the t
   assert.equal(discordAlertRouter.levelSnapshots[0]?.threadId, "thread-BMGL");
 });
 
+test("ManualWatchlistRuntimeManager times out a hung queued activation instead of leaving refresh_pending forever", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const lifecycleEvents: ManualWatchlistLifecycleEvent[] = [];
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    lifecycleListener: (event) => {
+      lifecycleEvents.push(event);
+    },
+    levelSeedTimeoutMs: 5,
+    seedSymbolLevels: async () => {
+      await new Promise<void>(() => {});
+    },
+  });
+
+  await manager.start();
+
+  const queued = await manager.queueActivation({ symbol: "INTC", note: "hung seed" });
+  assert.equal(queued.symbol, "INTC");
+  assert.equal(queued.lifecycle, "activating");
+  assert.equal(queued.refreshPending, true);
+
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+
+  assert.equal(manager.getActiveEntries().find((entry) => entry.symbol === "INTC"), undefined);
+  assert.equal(
+    lifecycleEvents.some(
+      (event) =>
+        event.event === "activation_failed" &&
+        event.symbol === "INTC" &&
+        String(event.details?.error ?? "").includes("timed out"),
+    ),
+    true,
+  );
+});
+
 test("ManualWatchlistRuntimeManager emits structured lifecycle events for activation and deactivation", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();

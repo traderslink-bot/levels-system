@@ -68,6 +68,7 @@ Important startup note:
 - the HTTP UI now binds immediately, before IBKR restore/seeding finishes
 - if persisted-symbol restore is still running, the UI should load and runtime status will show startup as `booting`
 - activate/deactivate requests are intentionally blocked with `503` until startup reaches `ready`
+- activation seeding is also timeout-bounded now, so a symbol that hangs in the seed/refresh path should fail explicitly instead of staying in `refresh_pending` forever
 
 ## Why It Stops An Older Runtime
 
@@ -121,6 +122,7 @@ Inside that folder:
   - now also distinguishes `activating` and clearly `observational` symbols from actually noisy ones, so quiet low-output threads are reviewed more fairly
   - startup-pending symbols with no visible trader output yet are now treated more neutrally too, so a thread that is still seeding or waiting for its first visible post is less likely to be mislabeled as `noisy`
   - startup-pending symbols now also get a neutral review floor, so the verdict is less likely to contradict the `activating` status when the runtime simply has not produced visible trader-facing output yet
+  - `refresh_pending` symbols with no visible trader output now also stay closer to a pending/neutral read instead of being mislabeled as noisy just because seeding or refresh has not completed yet
 - `thread-clutter-report.json`
   - live-updated deterministic clutter artifact
   - tracks total live posts, trader-critical versus trader-helpful optional posts, alert-to-context ratio, continuity density, recap density, live-state density, and clutter-risk heuristics per symbol

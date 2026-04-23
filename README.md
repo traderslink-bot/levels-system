@@ -14,6 +14,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - `npm run watchlist:manual` starts the manual watchlist server on `127.0.0.1:3010` by default.
 - The manual UI now binds immediately, even while IBKR connection and persisted-symbol restore are still booting in the background, so the browser should show the app instead of `ERR_CONNECTION_REFUSED` during long startup restores.
 - `/api/runtime/status` and `/api/watchlist` now expose `startupState` and `startupError`, and activate/deactivate requests return `503` until runtime startup is actually ready.
+- Manual activation seeding is now bounded by a timeout, so a symbol that hangs during level generation should fail explicitly instead of sitting in `refresh_pending` forever.
 - Set `LEVEL_MONITORING_EVENT_DIAGNOSTICS=1` before `npm run watchlist:manual` to emit filtered `monitoring_event_diagnostic` JSON lines for breakout / breakdown / fakeout / reclaim decisions.
 - Diagnostic logging is intentionally filtered:
   - emitted decisions always log
@@ -85,6 +86,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Thread-clutter review now treats truly low-context live threads as low clutter even when the underlying symbol was suppression-heavy internally, so quiet symbols like `AIXI` do not get mislabeled as context-heavy just because the detector kept rejecting setups.
 - Long-run thread review now also distinguishes `activating` and clearly `observational` symbols from genuinely noisy ones, so symbols like `AKAN` and `AIXI` read more honestly in review artifacts when they simply have not produced meaningful live trader output yet.
 - Long-run review now also treats startup-pending no-output threads more neutrally, so symbols that are still seeding or waiting for the first visible snapshot are less likely to be mislabeled as `noisy` just because runtime startup has not finished telling its story yet.
+- Long-run review now also treats `refresh_pending` no-output threads as pending work instead of noise, so symbols that are still waiting on a delayed refresh/seed read more honestly in the review artifacts.
 - Startup-pending threads now also get a neutral quality floor in review scoring, so an `activating` symbol with no visible output and no failures is less likely to contradict itself by showing `activating` in the headline but `noisy` in the verdict.
 - Long-run review now also recognizes controlled reactive watch-mode threads, so snapshot-led `level_touch` / `compression` monitoring is less likely to be mislabeled as clutter when it stayed gated and never turned into live alert spam.
 - Support-test tradeability is now stricter too: repeated testing plus layered or limited overhead push support touches toward `watch_only` or `tactically poor` more aggressively, and that tighter judgment also feeds opportunity ranking instead of living only in the wording layer.

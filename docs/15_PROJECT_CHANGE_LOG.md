@@ -19,6 +19,35 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 4:45 PM America/Toronto
+
+### Bounded hung manual activation seeds and made `refresh_pending` review language more honest
+
+- Updated manual activation / refresh seeding in:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated focused regression coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated long-run review heuristics in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - manual level seeding now uses a bounded timeout, so a symbol that hangs during activation fails explicitly instead of sitting in `refresh_pending` forever without a `levels_seeded` or `activation_failed` outcome
+  - refresh-triggered reseeds now revert back to `active` when older levels are still available but the refresh seed fails, instead of leaving the thread parked in `refresh_pending`
+  - added a regression test that reproduces a hung queued activation and proves it rolls back with an `activation_failed` lifecycle event
+  - long-run review now treats `refresh_pending` no-output symbols as pending work rather than falsely noisy
+- Why this matters:
+  - the live `INTC` session showed a real failure mode where activation reached `activation_started` and then stalled silently with no seed, snapshot, or explicit failure
+  - this keeps the runtime honest for the trader and the operator: either the symbol seeds, fails clearly, or stays on older usable levels, but it does not just hang invisibly
+- Verification completed:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run check`
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+
+---
+
 ## 2026-04-23 2:45 PM America/Toronto
 
 ### Bound the manual UI immediately so long startup restores no longer refuse the browser

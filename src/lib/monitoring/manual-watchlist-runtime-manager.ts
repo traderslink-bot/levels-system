@@ -47,6 +47,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   seedSymbolLevels?: (symbol: string) => Promise<void>;
   lifecycleListener?: ManualWatchlistLifecycleListener;
   optionalPostSettleDelayMs?: number;
+  levelSeedTimeoutMs?: number;
 };
 
 export type ManualWatchlistActivationInput = {
@@ -91,6 +92,7 @@ const NARRATION_RECAP_BURST_WINDOW_MS = 75 * 1000;
 const DELIVERY_FAILURE_BACKOFF_MS = 2 * 60 * 1000;
 const OPTIONAL_POST_SETTLE_DELAY_MS = 250;
 const OPTIONAL_POST_CRITICAL_PREEMPT_WINDOW_MS = 1500;
+const LEVEL_SEED_TIMEOUT_MS = 45 * 1000;
 
 type SymbolRecapState = {
   lastSignature: string | null;
@@ -289,6 +291,35 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => Error,
+): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(onTimeout());
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+class LevelSeedTimeoutError extends Error {
+  constructor(symbol: string, timeoutMs: number) {
+    super(`Level seeding timed out for ${symbol} after ${timeoutMs}ms.`);
+    this.name = "LevelSeedTimeoutError";
+  }
+}
+
 export class ManualWatchlistRuntimeManager {
   private readonly levelEngine: LevelEngine;
   private readonly watchlistStore: WatchlistStore;
@@ -304,6 +335,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly storyCriticalState = new Map<string, SymbolStoryCriticalState>();
   private readonly deliveryPressureState = new Map<string, SymbolDeliveryPressureState>();
   private readonly optionalPostSettleDelayMs: number;
+  private readonly levelSeedTimeoutMs: number;
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
@@ -321,6 +353,7 @@ export class ManualWatchlistRuntimeManager {
     this.watchlistStatePersistence =
       options.watchlistStatePersistence ?? new WatchlistStatePersistence();
     this.optionalPostSettleDelayMs = Math.max(0, options.optionalPostSettleDelayMs ?? 0);
+    this.levelSeedTimeoutMs = Math.max(0, options.levelSeedTimeoutMs ?? LEVEL_SEED_TIMEOUT_MS);
   }
 
   private emitLifecycle(
@@ -597,7 +630,18 @@ export class ManualWatchlistRuntimeManager {
       lifecycle: "refresh_pending",
       refreshPending: true,
     });
-    await this.seedLevelsForSymbol(symbol);
+    try {
+      await this.seedLevelsForSymbol(symbol);
+    } catch (error) {
+      const existingLevels = this.options.levelStore.getLevels(symbol);
+      if (existingLevels) {
+        this.watchlistStore.patchEntry(symbol, {
+          lifecycle: "active",
+          refreshPending: false,
+        });
+      }
+      throw error;
+    }
     return true;
   }
 
@@ -736,30 +780,43 @@ export class ManualWatchlistRuntimeManager {
   }
 
   private async seedLevelsForSymbol(symbol: string): Promise<void> {
-    if (this.options.seedSymbolLevels) {
-      await this.options.seedSymbolLevels(symbol);
+    const seedOperation = async (): Promise<void> => {
+      if (this.options.seedSymbolLevels) {
+        await this.options.seedSymbolLevels(symbol);
+        this.emitLifecycle("levels_seeded", {
+          symbol,
+        });
+        return;
+      }
+
+      const output = await this.levelEngine.generateLevels({
+        symbol,
+        historicalRequests: {
+          daily: { symbol, timeframe: "daily", lookbackBars: 220 },
+          "4h": { symbol, timeframe: "4h", lookbackBars: 180 },
+          "5m": { symbol, timeframe: "5m", lookbackBars: 100 },
+        },
+      });
+
+      this.options.levelStore.setLevels(output);
       this.emitLifecycle("levels_seeded", {
         symbol,
+        details: {
+          generatedAt: output.generatedAt,
+        },
       });
+    };
+
+    if (this.levelSeedTimeoutMs <= 0) {
+      await seedOperation();
       return;
     }
 
-    const output = await this.levelEngine.generateLevels({
-      symbol,
-      historicalRequests: {
-        daily: { symbol, timeframe: "daily", lookbackBars: 220 },
-        "4h": { symbol, timeframe: "4h", lookbackBars: 180 },
-        "5m": { symbol, timeframe: "5m", lookbackBars: 100 },
-      },
-    });
-
-    this.options.levelStore.setLevels(output);
-    this.emitLifecycle("levels_seeded", {
-      symbol,
-      details: {
-        generatedAt: output.generatedAt,
-      },
-    });
+    await withTimeout(
+      seedOperation(),
+      this.levelSeedTimeoutMs,
+      () => new LevelSeedTimeoutError(symbol, this.levelSeedTimeoutMs),
+    );
   }
 
   private recapCooldownMs(): number {

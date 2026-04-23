@@ -316,6 +316,7 @@ function Test-ActivationPendingState {
   return $LastLifecycleEvent -in @(
     "activation_queued",
     "activation_started",
+    "refresh_pending",
     "thread_ready",
     "levels_seeded",
     "activation_completed"

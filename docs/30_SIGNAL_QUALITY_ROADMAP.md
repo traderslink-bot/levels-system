@@ -130,6 +130,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Tightened price-update ownership so completed follow-through now owns same-snapshot narration for the same symbol and event type, which suppresses weaker progress-driven continuity / live-state duplicates.
 - Added short optional-post backoff after recent Discord delivery failures, so delivery pressure is less likely to turn into a second wave of continuity / live-state / recap chatter on the same symbol.
 - Added a short runtime-only settle window for optional continuity / live-state posts so a fresh trader-critical alert can preempt weaker narration when both are about to hit the same symbol thread in the same moment.
+- Added a bounded seed timeout for manual activation so a hung level-generation request now fails explicitly instead of leaving a symbol parked in `refresh_pending` forever.
+- Extended long-run review honesty so `refresh_pending` no-output threads are treated as pending work rather than falsely noisy.
 
 ## Active Backlog
 
