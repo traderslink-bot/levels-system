@@ -124,6 +124,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Tightened continuity overlap again so same-window `follow_through_state` posts now suppress weaker setup-forming / confirmation / weakening continuity more aggressively.
 - Matched monitoring-event continuity more strictly to the triggering event side and level, which prevents mixed same-symbol opportunity stacks from narrating support right after a resistance-side alert.
 - Tightened reactive same-event narration again so `level_touch` / `compression` setups now spend optional continuity / live-state beats more sparingly inside a short burst window.
+- Tightened reactive same-event narration one step further so in-flight optional posts are now considered before the first route resolves, closing the race that could still let both continuity and live-state escape together.
 - Tightened price-update ownership so completed follow-through now owns same-snapshot narration for the same symbol and event type, which suppresses weaker progress-driven continuity / live-state duplicates.
 - Added short optional-post backoff after recent Discord delivery failures, so delivery pressure is less likely to turn into a second wave of continuity / live-state / recap chatter on the same symbol.
 

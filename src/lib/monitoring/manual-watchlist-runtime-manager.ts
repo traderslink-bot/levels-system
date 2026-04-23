@@ -1004,20 +1004,41 @@ export class ManualWatchlistRuntimeManager {
     const recentSameEventFollowThroughState = recentSameEventOptional.filter(
       (entry) => entry.kind === "follow_through_state",
     ).length;
+    const recentSameEventOptionalAttempts = this.pruneNarrationBurstState(params.symbol, params.timestamp).filter(
+      (entry) =>
+        entry.eventType !== null &&
+        entry.eventType === (params.eventType ?? null) &&
+        (entry.kind === "continuity" || entry.kind === "follow_through_state" || entry.kind === "recap"),
+    );
+    const recentSameEventContinuityAttempts = recentSameEventOptionalAttempts.filter(
+      (entry) => entry.kind === "continuity",
+    ).length;
+    const recentSameEventFollowThroughStateAttempts = recentSameEventOptionalAttempts.filter(
+      (entry) => entry.kind === "follow_through_state",
+    ).length;
 
     if (this.isDeliveryBackoffActive(params.symbol, params.timestamp)) {
       return false;
     }
 
-    if ((reactiveEvent || fragileDirectionalEvent) && recentSameEventOptional.length >= 1) {
+    if (
+      (reactiveEvent || fragileDirectionalEvent) &&
+      (recentSameEventOptional.length >= 1 || recentSameEventOptionalAttempts.length >= 1)
+    ) {
       return false;
     }
 
-    if (params.kind === "follow_through_state" && recentSameEventContinuity >= 1) {
+    if (
+      params.kind === "follow_through_state" &&
+      (recentSameEventContinuity >= 1 || recentSameEventContinuityAttempts >= 1)
+    ) {
       return false;
     }
 
-    if (params.kind === "continuity" && recentSameEventFollowThroughState >= 1) {
+    if (
+      params.kind === "continuity" &&
+      (recentSameEventFollowThroughState >= 1 || recentSameEventFollowThroughStateAttempts >= 1)
+    ) {
       return false;
     }
 

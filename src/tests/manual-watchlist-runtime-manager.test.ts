@@ -150,6 +150,17 @@ class DelayedExtensionDiscordAlertRouter extends FakeDiscordAlertRouter {
   }
 }
 
+class DelayedAlertDiscordAlertRouter extends FakeDiscordAlertRouter {
+  constructor(private readonly delayMs: number) {
+    super();
+  }
+
+  override async routeAlert(threadId: string, payload: any): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+    return super.routeAlert(threadId, payload);
+  }
+}
+
 class FakeOpportunityRuntimeController {
   processMonitoringEvent() {
     return { newOpportunity: undefined };
@@ -2992,6 +3003,162 @@ test("ManualWatchlistRuntimeManager keeps reactive same-event narration to a sin
     timestamp: 20,
     lastPrice: 2.45,
   });
+  await waitForAsyncWork();
+
+  const optionalKinds = discordAlertRouter.routed
+    .map((entry) => entry.payload.metadata?.messageKind)
+    .filter((kind) => kind === "continuity_update" || kind === "follow_through_state_update");
+
+  assert.deepEqual(optionalKinds, ["continuity_update"]);
+});
+
+test("ManualWatchlistRuntimeManager blocks reactive same-event optional overlap even while the first post is still routing", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new DelayedAlertDiscordAlertRouter(30);
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: {
+      processMonitoringEvent() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [
+            {
+              symbol: "ALBT",
+              type: "in_zone",
+              eventType: "level_touch",
+              level: 2.45,
+              zoneKind: "support",
+              message: "price testing support near 2.45 - watching reaction",
+              confidence: 0.78,
+              tags: [],
+              timestamp: 10,
+            },
+          ],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [],
+        };
+      },
+      processPriceUpdate() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [
+            {
+              symbol: "ALBT",
+              timestamp: 20,
+              eventType: "level_touch",
+              progressLabel: "stalling",
+              directionalReturnPct: 0,
+              entryPrice: 2.45,
+              currentPrice: 2.45,
+            },
+          ],
+        };
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({
+            id: "S1",
+            symbol,
+            kind: "support",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+            strengthLabel: "strong",
+            strengthScore: 28,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  monitor.listener?.({
+    id: "evt-reactive-overlap-inflight",
+    episodeId: "evt-reactive-overlap-inflight-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "ALBT-support-monitored-1",
+    zoneKind: "support",
+    level: 2.45,
+    triggerPrice: 2.44,
+    strength: 0.42,
+    confidence: 0.38,
+    priority: 28,
+    bias: "bullish",
+    pressureScore: 0.22,
+    eventContext: {
+      monitoredZoneId: "ALBT-support-monitored-1",
+      canonicalZoneId: "S1",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+    },
+    notes: ["Reactive support touch used for in-flight overlap coverage."],
+    timestamp: 10,
+  });
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 20,
+    lastPrice: 2.45,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
   await waitForAsyncWork();
 
   const optionalKinds = discordAlertRouter.routed

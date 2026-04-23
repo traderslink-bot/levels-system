@@ -3256,6 +3256,16 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused regression coverage in:
   - `src/tests/manual-watchlist-runtime-manager.test.ts`
 
+## 2026-04-23 3:40 PM America/Toronto
+
+### Closed the in-flight reactive narration race
+
+- Refined `src/lib/monitoring/manual-watchlist-runtime-manager.ts` again:
+  - reactive same-event optional-post arbitration now looks at in-flight narration attempts before the first Discord route resolves
+  - this closes the race where `level_touch` / `compression` threads could still briefly post both a continuity update and a live-state update in the same short window
+- Added focused regression coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+
 ## 2026-04-23 11:35 AM America/Toronto
 
 ### Tightened reactive thread discipline and support-test tradeability
