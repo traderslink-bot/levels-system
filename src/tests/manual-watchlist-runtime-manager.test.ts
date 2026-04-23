@@ -1726,7 +1726,7 @@ test("ManualWatchlistRuntimeManager emits deterministic trader-facing interpreta
   );
   assert.equal(continuityPosts.length, 1);
   assert.equal(continuityPosts[0]?.payload.title, "ALBT setup update");
-  assert.equal(continuityPosts[0]?.payload.metadata?.continuityType, "pre_zone");
+  assert.equal(continuityPosts[0]?.payload.metadata?.continuityType, "setup_forming");
 });
 
 test("ManualWatchlistRuntimeManager posts next support levels when price approaches the lowest surfaced support", async () => {

@@ -216,17 +216,19 @@ function clutterAdjustment(event: MonitoringEvent): number {
 
 function pathQualityAdjustment(event: MonitoringEvent): number {
   const label = event.eventContext.pathQualityLabel;
+  const barrierCount = event.eventContext.pathBarrierCount ?? 0;
+  const pathWindowDistancePct = event.eventContext.pathWindowDistancePct ?? 0;
 
   if (label === "choppy") {
-    return -0.08;
+    return -0.08 - Math.max(0, barrierCount - 3) * 0.01;
   }
 
   if (label === "layered") {
-    return -0.04;
+    return -0.04 - Math.max(0, barrierCount - 2) * 0.01;
   }
 
   if (label === "clean") {
-    return 0.02;
+    return 0.02 + Math.min(0.02, Math.max(0, pathWindowDistancePct - 0.05) * 0.2);
   }
 
   return 0;
@@ -242,7 +244,7 @@ function exhaustionAdjustment(event: MonitoringEvent): number {
       (event.zoneKind === "resistance" &&
         (event.eventType === "level_touch" || event.eventType === "rejection")))
   ) {
-    return label === "spent" ? -0.08 : -0.04;
+    return label === "spent" ? -0.1 : -0.055;
   }
 
   if (
@@ -250,7 +252,7 @@ function exhaustionAdjustment(event: MonitoringEvent): number {
     ((event.zoneKind === "resistance" && event.eventType === "breakout") ||
       (event.zoneKind === "support" && event.eventType === "breakdown"))
   ) {
-    return label === "spent" ? 0.04 : 0.02;
+    return label === "spent" ? 0.045 : 0.025;
   }
 
   return 0;

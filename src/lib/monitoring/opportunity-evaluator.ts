@@ -84,6 +84,8 @@ type PendingOpportunity = {
   evaluateAt: number;
   peakPrice: number;
   troughPrice: number;
+  bestDirectionalReturnPct?: number | null;
+  worstDirectionalReturnPct?: number | null;
   lastProgressLabel?: OpportunityProgressLabel;
   lastProgressDirectionalReturnPct?: number | null;
   lastProgressUpdatedAt?: number;
@@ -172,18 +174,29 @@ function deriveFollowThroughLabel(
 function deriveProgressLabel(
   eventType: string,
   returnPct: number,
+  bestDirectionalReturnPct?: number | null,
 ): OpportunityProgressLabel {
   const directional = directionalReturnPct(eventType, returnPct);
   if (directional === null) {
     return "stalling";
   }
 
-  if (directional >= 0.3) {
-    return "improving";
+  const priorBest = bestDirectionalReturnPct ?? directional;
+  const retraceFromBest = priorBest - directional;
+
+  if (directional <= -0.25 || (priorBest >= 0.35 && retraceFromBest >= 0.75)) {
+    return "degrading";
   }
 
-  if (directional <= -0.2) {
-    return "degrading";
+  if (
+    (priorBest >= 0.35 && retraceFromBest >= 0.35) ||
+    (directional > -0.1 && directional < 0.2)
+  ) {
+    return "stalling";
+  }
+
+  if (directional >= 0.3) {
+    return "improving";
   }
 
   return "stalling";
@@ -371,6 +384,8 @@ export class OpportunityEvaluator {
       evaluateAt: opportunity.timestamp + this.evaluationWindowMs,
       peakPrice: normalizedEntry,
       troughPrice: normalizedEntry,
+      bestDirectionalReturnPct: null,
+      worstDirectionalReturnPct: null,
       lastProgressLabel: undefined,
       lastProgressDirectionalReturnPct: null,
       lastProgressUpdatedAt: undefined,
@@ -396,15 +411,32 @@ export class OpportunityEvaluator {
       const returnPct = round(computeReturnPct(pending.entryPrice, normalizedPrice));
       const resolvedEventType = resolveOpportunityEventType(pending.opportunity);
       const directional = directionalReturnPct(resolvedEventType, returnPct);
-      const progressLabel = deriveProgressLabel(resolvedEventType, returnPct);
+      const priorBestDirectional = pending.bestDirectionalReturnPct;
+      const progressLabel = deriveProgressLabel(
+        resolvedEventType,
+        returnPct,
+        priorBestDirectional,
+      );
+      if (directional !== null) {
+        pending.bestDirectionalReturnPct =
+          pending.bestDirectionalReturnPct === null || pending.bestDirectionalReturnPct === undefined
+            ? directional
+            : Math.max(pending.bestDirectionalReturnPct, directional);
+        pending.worstDirectionalReturnPct =
+          pending.worstDirectionalReturnPct === null || pending.worstDirectionalReturnPct === undefined
+            ? directional
+            : Math.min(pending.worstDirectionalReturnPct, directional);
+      }
       const shouldEmitProgress =
         (pending.lastProgressLabel === undefined ||
           progressLabel !== pending.lastProgressLabel ||
           (directional !== null &&
             pending.lastProgressDirectionalReturnPct != null &&
-            Math.abs(directional - pending.lastProgressDirectionalReturnPct) >= 0.4)) &&
+            Math.abs(directional - pending.lastProgressDirectionalReturnPct) >=
+              (progressLabel === "improving" ? 0.55 : progressLabel === "stalling" ? 0.45 : 0.35))) &&
         (pending.lastProgressUpdatedAt === undefined ||
-          timestamp - pending.lastProgressUpdatedAt >= 60 * 1000);
+          timestamp - pending.lastProgressUpdatedAt >=
+            (progressLabel === "stalling" ? 2 * 60 * 1000 : 60 * 1000));
 
       if (shouldEmitProgress) {
         progressUpdates.push({

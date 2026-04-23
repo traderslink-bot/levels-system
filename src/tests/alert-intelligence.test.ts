@@ -434,7 +434,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
       "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
       "quality: support still looks firm with healthy follow-through",
       "room: limited overhead into next resistance 100.50 (+2.4%)",
-      "path quality: cleaner path beyond the first barrier, so follow-through has room to trend",
+      "path quality: cleaner route with 1 nearby barrier inside the first 2.4%, so follow-through has room to trend",
       "target: first resistance objective 100.50 (+2.4%)",
       "trigger quality: workable trigger with workable control, but follow-through still needs to prove itself",
       "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead cleanly",

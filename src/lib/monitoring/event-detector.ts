@@ -190,6 +190,8 @@ function buildMonitoringEventContext(
     nearbyBarrierCount: barrierClutter?.nearbyBarrierCount,
     pathQualityLabel: pathQuality?.label,
     pathBarrierCount: pathQuality?.barrierCount,
+    pathConstraintScore: pathQuality?.constraintScore,
+    pathWindowDistancePct: pathQuality?.pathWindowDistancePct,
     tacticalRead,
     exhaustionLabel,
   };

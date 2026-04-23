@@ -95,7 +95,14 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added `trader-thread-recaps.md` so long-run sessions now produce a short readable recap artifact per symbol in addition to JSON summaries.
 - Added thread continuity posts so active symbol threads can now describe the lifecycle as `setup forming`, `confirmation`, `continuation`, `weakening`, or `failed` instead of relying only on isolated setup alerts.
 - Added in-session symbol recap posts so longer-lived symbols can periodically summarize the current state in one useful trader sentence.
-- Added an optional AI commentary layer for recap enhancement and post-run session summaries through `LEVEL_AI_COMMENTARY`, `OPENAI_API_KEY`, and `npm run longrun:ai:summary`.
+- Tightened live follow-through state-change posting so `improving`, `stalling`, and `degrading` updates now require more meaningful change and use longer cooldowns before reposting weaker states.
+- Deepened multi-barrier path scoring so the app now considers barrier density, barrier strength, and compressed gaps across the first path window instead of treating path quality as only a first-barrier problem.
+- Added explicit path-constraint and path-window metadata so review can compare technically open paths against routes that are still cramped or step-heavy early.
+- Tightened exhaustion wording so `tested`, `worn`, and `spent` levels are described more explicitly as structurally important but tactically less trustworthy.
+- Tightened dip-buy-quality wording so support-test alerts are more willing to downgrade layered / worn support into watch-only or tactically poor cases.
+- Tightened continuity posting so runtime continuity messages now prefer real lifecycle transitions over repeated low-value restatements.
+- Added deterministic `What matters next` recap guidance so in-session symbol recaps can tell the trader what continuation still requires.
+- Expanded the optional AI commentary layer so `npm run longrun:ai:summary` can now generate both `session-ai-review.md` and `thread-ai-recaps.md`, plus an AI noisy-family review.
 
 ## Active Backlog
 
@@ -110,8 +117,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Use the new failure-risk metadata to learn whether elevated-risk setups should be downgraded or suppressed more aggressively before they reach Discord.
 - Keep using live long-run examples like `YCBD` to verify that severity and confidence stay aligned with the trader-facing wording when structure and activity disagree.
 - Use the new follow-through grades to decide whether certain alert families are failing late versus stalling harmlessly, and tighten the most trader-costly cases first.
-- Use the new live follow-through state posts to decide which setups deserve mid-flight continuity updates versus only final outcome posts.
-- Use the new path-quality and exhaustion metadata to learn whether worn levels with layered pathing should be suppressed more aggressively before they reach Discord.
+- Use the new smarter live follow-through state posts to decide which setups deserve mid-flight continuity updates versus only final outcome posts.
+- Use the deeper path-quality, path-window, and exhaustion metadata to learn whether worn levels with layered early pathing should be suppressed more aggressively before they reach Discord.
 
 ### Detection and ranking improvements
 
@@ -153,6 +160,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 - AI-generated plain-English commentary for top deterministic alerts.
 - AI-generated session summaries from lifecycle, alert, and evaluation logs.
+- AI-generated per-symbol thread recaps from deterministic thread summaries.
 - AI-assisted review of noisy symbols and noisy alert families.
 - AI comparison between deterministic alert output and eventual trade outcome summaries.
 - AI-assisted recap enhancement that stays faithful to the deterministic facts and avoids inventing execution advice.
@@ -182,4 +190,5 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 11. Use the new trigger-quality metadata to learn whether crowded or late entries should be suppressed more aggressively before they reach Discord.
 12. Use the distance-aware snapshot ladder to decide whether the default number of displayed support/resistance zones is still optimal for traders.
 13. Use the new snapshot room classification to decide whether the thresholds for `bullish`, `bearish`, and `balanced` room need tuning against real trading usefulness.
-14. Expand the AI commentary layer carefully, starting with recap enhancement and session summaries, before considering top-alert commentary.
+14. Use the new per-thread AI recap and noisy-family review outputs to judge whether the AI layer is staying faithful to the deterministic artifacts before expanding it further.
+15. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.

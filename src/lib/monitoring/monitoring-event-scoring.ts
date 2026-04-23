@@ -91,6 +91,7 @@ function relevantBarriers(params: {
   triggerPrice: number;
 }): Array<{
   kind: "support" | "resistance";
+  zone: FinalLevelZone;
   level: number;
   distancePct: number;
 }> {
@@ -118,6 +119,7 @@ function relevantBarriers(params: {
     )
     .map((candidate) => ({
       kind: barrierKind,
+      zone: candidate,
       level: candidate.representativePrice,
       distancePct:
         Math.abs(candidate.representativePrice - triggerPrice) /
@@ -136,6 +138,8 @@ export function derivePathQuality(params: {
 }): {
   label: PathQualityLabel;
   barrierCount: number;
+  constraintScore: number;
+  pathWindowDistancePct: number;
 } | null {
   const barriers = relevantBarriers(params);
   if (barriers.length === 0) {
@@ -143,42 +147,90 @@ export function derivePathQuality(params: {
   }
 
   const pathWindowPct = Math.max(params.config.limitedClearancePct * 3, 0.1);
-  const pathBarriers = barriers.filter((barrier) => barrier.distancePct <= pathWindowPct);
+  const pathBarriers = barriers
+    .filter((barrier) => barrier.distancePct <= pathWindowPct)
+    .slice(0, 5);
   const barrierCount = pathBarriers.length;
+
+  if (barrierCount === 0) {
+    return null;
+  }
+
+  const strengthWeight = (zone: FinalLevelZone): number => {
+    switch (zone.strengthLabel) {
+      case "major":
+        return 1.35;
+      case "strong":
+        return 1.2;
+      case "moderate":
+        return 1;
+      default:
+        return 0.8;
+    }
+  };
+
+  const weightedDensity =
+    pathBarriers.reduce((sum, barrier) => {
+      const proximityWeight = Math.max(0, 1 - barrier.distancePct / pathWindowPct);
+      return sum + proximityWeight * strengthWeight(barrier.zone);
+    }, 0) / Math.max(barrierCount, 1);
 
   if (barrierCount <= 1) {
     return {
       label: "clean",
       barrierCount,
+      constraintScore: clamp(weightedDensity * 0.4),
+      pathWindowDistancePct: pathBarriers[0]!.distancePct,
     };
   }
 
-  const considered = pathBarriers.slice(0, Math.min(barrierCount, 4));
-  const gaps = considered
+  const gaps = pathBarriers
     .slice(1)
-    .map((barrier, index) => barrier.distancePct - considered[index]!.distancePct);
+    .map((barrier, index) => barrier.distancePct - pathBarriers[index]!.distancePct);
   const averageGap =
     gaps.length === 0
-      ? considered[0]!.distancePct
+      ? pathBarriers[0]!.distancePct
       : gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+  const compressionFactor = clamp(
+    1 - averageGap / Math.max(params.config.limitedClearancePct * 1.5, 0.03),
+  );
+  const barrierFactor = clamp((barrierCount - 1) / 4);
+  const constraintScore = clamp(
+    weightedDensity * 0.45 + compressionFactor * 0.3 + barrierFactor * 0.25,
+  );
+  const pathWindowDistancePct = pathBarriers[pathBarriers.length - 1]!.distancePct;
 
-  if (barrierCount >= 3 && averageGap <= Math.max(params.config.tightClearancePct, 0.015)) {
+  if (
+    constraintScore >= 0.72 ||
+    (barrierCount >= 4 && averageGap <= Math.max(params.config.limitedClearancePct, 0.025)) ||
+    (barrierCount >= 3 && averageGap <= Math.max(params.config.tightClearancePct, 0.015))
+  ) {
     return {
       label: "choppy",
       barrierCount,
+      constraintScore,
+      pathWindowDistancePct,
     };
   }
 
-  if (barrierCount >= 2 && averageGap <= Math.max(params.config.limitedClearancePct, 0.03)) {
+  if (
+    constraintScore >= 0.4 ||
+    barrierCount >= 3 ||
+    (barrierCount >= 2 && averageGap <= Math.max(params.config.limitedClearancePct, 0.03))
+  ) {
     return {
       label: "layered",
       barrierCount,
+      constraintScore,
+      pathWindowDistancePct,
     };
   }
 
   return {
     label: "clean",
     barrierCount,
+    constraintScore,
+    pathWindowDistancePct,
   };
 }
 
@@ -188,21 +240,40 @@ export function deriveZoneExhaustion(params: {
   tacticalRead: ReturnType<typeof deriveZoneTacticalRead>;
 }): ZoneExhaustionLabel {
   const { zone, zoneFreshness, tacticalRead } = params;
-  const touchCount = zone.touchCount;
-  const weakReaction =
-    zone.followThroughScore < 0.45 ||
-    zone.reactionQualityScore < 0.42;
-  const stale = zoneFreshness === "stale";
+  const touchStress = clamp((zone.touchCount - 1) / 7);
+  const weakReaction = clamp(
+    ((0.5 - Math.min(zone.followThroughScore, 0.5)) / 0.5) * 0.5 +
+      ((0.5 - Math.min(zone.reactionQualityScore, 0.5)) / 0.5) * 0.5,
+  );
+  const freshnessPenalty = zoneFreshness === "stale" ? 0.28 : zoneFreshness === "aging" ? 0.12 : 0;
+  const tacticalPenalty = tacticalRead === "tired" ? 0.24 : tacticalRead === "balanced" ? 0.08 : 0;
+  const durabilityOffset =
+    zone.strengthLabel === "major"
+      ? -0.08
+      : zone.strengthLabel === "strong"
+        ? -0.04
+        : 0;
+  const exhaustionScore = clamp(
+    touchStress * 0.45 +
+      weakReaction * 0.22 +
+      freshnessPenalty +
+      tacticalPenalty +
+      durabilityOffset,
+  );
 
-  if ((touchCount >= 8 && (stale || tacticalRead === "tired")) || (touchCount >= 6 && stale && weakReaction)) {
+  if (exhaustionScore >= 0.82 || (zone.touchCount >= 8 && tacticalRead === "tired")) {
     return "spent";
   }
 
-  if (touchCount >= 5 || tacticalRead === "tired" || stale) {
+  if (
+    exhaustionScore >= 0.52 ||
+    zone.touchCount >= 6 ||
+    (zone.touchCount >= 5 && tacticalRead === "tired")
+  ) {
     return "worn";
   }
 
-  if (touchCount >= 3) {
+  if (exhaustionScore >= 0.24 || zone.touchCount >= 3) {
     return "tested";
   }
 

@@ -198,12 +198,14 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
     pathQuality: {
       label: "layered",
       barrierCount: 2,
-      line: "path quality: layered path with 2 nearby barriers, so the move may need to work through steps",
+      pathConstraintScore: 0.53,
+      pathWindowDistancePct: 0.081,
+      line: "path quality: layered route with 2 nearby barriers inside the first 8.1%, so the move may need to work through steps",
     },
     dipBuyQuality: null,
     exhaustion: {
       label: "tested",
-      line: "support exhaustion: tested a few times but still intact structurally",
+      line: "support exhaustion: tested a few times, so it still matters but no longer behaves like untouched structure",
     },
     setupState: {
       label: "continuation",
@@ -250,6 +252,8 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.pressureScore, 0.74);
   assert.equal(payload.metadata?.triggerQualityLabel, "clean");
   assert.equal(payload.metadata?.pathQualityLabel, "layered");
+  assert.equal(payload.metadata?.pathConstraintScore, 0.53);
+  assert.equal(payload.metadata?.pathWindowDistancePct, 0.081);
   assert.equal(payload.metadata?.dipBuyQualityLabel, undefined);
   assert.equal(payload.metadata?.exhaustionLabel, "tested");
   assert.equal(payload.metadata?.setupStateLabel, "continuation");

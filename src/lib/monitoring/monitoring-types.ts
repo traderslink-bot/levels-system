@@ -183,6 +183,8 @@ export type MonitoringEventContext = {
   nearbyBarrierCount?: number;
   pathQualityLabel?: PathQualityLabel;
   pathBarrierCount?: number;
+  pathConstraintScore?: number;
+  pathWindowDistancePct?: number;
   tacticalRead?: ZoneTacticalRead;
   exhaustionLabel?: ZoneExhaustionLabel;
 };

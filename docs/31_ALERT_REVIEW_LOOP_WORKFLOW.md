@@ -128,6 +128,7 @@ When reviewing or recording feedback, look at:
 - `trader-thread-recaps.md`
 - `thread-summaries.json`
 - `discord-delivery-audit.jsonl`
+- `thread-ai-recaps.md` if you generated the optional AI per-symbol recap layer and want to compare it against the deterministic recap
 - `manual-watchlist-operational.log`
 - `session-ai-review.md` if you generated the optional AI session summary and want to compare human review against it
 

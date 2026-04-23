@@ -24,7 +24,10 @@ The current AI layer is intentionally narrow.
 It can:
 
 - enhance in-session symbol recap text when the manual runtime is running
+- explain structured signal facts in a stricter plain-English layer when called downstream of deterministic summaries
 - generate a post-run `session-ai-review.md` from deterministic session artifacts
+- generate post-run `thread-ai-recaps.md` per active symbol from deterministic thread summaries
+- generate an AI noisy-family review inside the session AI report
 
 It does not:
 
@@ -75,6 +78,7 @@ This reads the deterministic artifacts such as:
 And writes:
 
 - `session-ai-review.md`
+- `thread-ai-recaps.md`
 
 ## Safety Rules
 
@@ -119,7 +123,8 @@ When reviewing a long-run session:
 2. check `thread-summaries.json`
 3. check `session-review.md`
 4. optionally generate and review `session-ai-review.md`
-5. fall back to `manual-watchlist-operational.log` or `manual-watchlist-diagnostics.log` only when the summaries are not enough
+5. optionally review `thread-ai-recaps.md`
+6. fall back to `manual-watchlist-operational.log` or `manual-watchlist-diagnostics.log` only when the summaries are not enough
 
 ## Follow-Up Ideas
 
@@ -127,6 +132,7 @@ The safest next AI expansions are:
 
 - better in-session recap enhancement
 - better post-run session summaries
+- better per-symbol AI recaps that stay tightly grounded in deterministic thread summaries
 - AI-assisted review of noisy symbols and noisy alert families
 
 Ideas that should wait:

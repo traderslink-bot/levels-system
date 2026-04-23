@@ -21,6 +21,58 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-22 11:59 PM America/Toronto
 
+### Tightened live thread continuity, deepened path / exhaustion tradeability, and expanded AI review outputs
+
+- Updated alert and commentary contracts in:
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-intelligence-engine.ts`
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+- Updated monitoring and runtime flow in:
+  - `src/lib/monitoring/monitoring-types.ts`
+  - `src/lib/monitoring/monitoring-event-scoring.ts`
+  - `src/lib/monitoring/event-detector.ts`
+  - `src/lib/monitoring/opportunity-engine.ts`
+  - `src/lib/monitoring/opportunity-evaluator.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Expanded AI summary tooling in:
+  - `src/lib/ai/trader-commentary-service.ts`
+  - `src/scripts/generate-ai-long-run-summary.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/opportunity-evaluator.test.ts`
+  - `src/tests/trader-commentary-service.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+  - `docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md`
+  - `docs/32_AI_COMMENTARY_WORKFLOW.md`
+- What changed:
+  - live follow-through state changes now use smarter thresholds and longer cooldowns, so `improving`, `stalling`, and `degrading` posts reflect more meaningful movement instead of low-value churn
+  - continuity posts now prefer real lifecycle transitions and suppress repeat restatements more aggressively
+  - multi-barrier path quality now considers barrier density, barrier strength, and compressed gaps across the first path window instead of only the nearest obstacle
+  - alert metadata and Discord audit rows now carry `pathConstraintScore` and `pathWindowDistancePct` so review can compare cleaner continuation space against technically open but still cramped early paths
+  - exhaustion wording is more explicit about when a support or resistance level still matters structurally but has become tactically worn or spent
+  - dip-buy-quality wording now downgrades layered or worn support more decisively into watch-only or tactically poor cases
+  - in-session symbol recaps now include a deterministic `What matters next` line so longer-lived threads can summarize the current state and the next requirement for continuation
+  - the AI review layer now supports per-symbol thread summaries and noisy-family review, and `npm run longrun:ai:summary` now writes both `session-ai-review.md` and `thread-ai-recaps.md`
+- Why this matters:
+  - traders get cleaner mid-flight updates instead of a noisier stream of tiny progress changes
+  - layered, compressed, or early-cramped paths can now be penalized more honestly before they become trader-facing conviction
+  - per-symbol AI recaps and noisy-family review make the AI layer more useful for review while staying downstream of deterministic scoring
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/manual-watchlist-runtime-manager.test.ts src/tests/opportunity-evaluator.test.ts src/tests/trader-commentary-service.test.ts`
+  - `npm run check`
+
+---
+
+## 2026-04-22 11:59 PM America/Toronto
+
 ### Added live state changes, path-quality / exhaustion context, in-session recaps, and the first AI recap layer
 
 - Updated alert and commentary contracts in:

@@ -96,7 +96,7 @@ describe("opportunity evaluator", () => {
     evaluator.track(makeOpportunity({ timestamp: start, type: "breakout" }), 100);
 
     const first = evaluator.updatePrice("AAPL", 100.35, start + 70_000);
-    const second = evaluator.updatePrice("AAPL", 100.12, start + 140_000);
+    const second = evaluator.updatePrice("AAPL", 100.12, start + 220_000);
 
     assert.equal(first.completed.length, 0);
     assert.equal(first.progressUpdates.length, 1);

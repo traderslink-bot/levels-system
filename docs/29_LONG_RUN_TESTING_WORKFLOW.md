@@ -101,7 +101,7 @@ Inside that folder:
 - `discord-delivery-audit.jsonl`
   - append-only local record of thread creation plus snapshot / alert / extension delivery attempts
   - includes both successful and failed downstream posts
-  - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, path-quality labels, exhaustion labels, dip-buy-quality labels, continuity metadata, AI-origin flags, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, compare fresh zones against worn ones, and compare the original alert against what happened afterward
+  - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, path-quality labels, path-constraint scores, path-window distances, exhaustion labels, dip-buy-quality labels, continuity metadata, AI-origin flags, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, compare tighter first-path windows against cleaner continuation space, compare fresh zones against worn ones, and compare the original alert against what happened afterward
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
   - now also carries evaluated follow-through buckets by alert event type plus strongest/weakest evaluated event-type highlights
@@ -115,6 +115,10 @@ Inside that folder:
 - `trader-thread-recaps.md`
   - live-updated readable recap artifact
   - gives each symbol a short summary with latest alert, latest follow-through, and end-of-session context without needing JSON
+- `thread-ai-recaps.md`
+  - optional post-run AI per-symbol recap artifact
+  - generated with `npm run longrun:ai:summary -- <session-folder>` when `OPENAI_API_KEY` is set
+  - turns each deterministic thread summary into a short AI recap without changing the underlying deterministic artifacts
 - `session-ai-review.md`
   - optional post-run AI summary artifact
   - generated with `npm run longrun:ai:summary -- <session-folder>` when `OPENAI_API_KEY` is set
@@ -146,6 +150,7 @@ It is intended to capture:
 - posted continuity updates
 - posted live follow-through state changes
 - posted symbol recaps
+- AI-enhanced symbol recap attempts when that optional layer is enabled
 
 The dedicated diagnostics log is where event-detector reasoning now goes.
 
@@ -165,6 +170,10 @@ And now a fourth:
 And now a fifth:
 
 - did the latest posted setup actually stay strong, keep working, stall out, or fail after the alert
+
+And now a sixth:
+
+- what mattered next for each still-live symbol and whether the recap/continuity flow stayed aligned with that evolving story
 
 ## Recommended Testing Process During A Session
 
@@ -257,7 +266,10 @@ If the app behaves oddly:
 8. check:
    - `session-review.md`
    when you want the fastest human-readable verdict on whether the run looked useful or noisy
-9. optionally run:
+9. optionally check:
+   - `thread-ai-recaps.md`
+   when you generated the AI recap layer and want a per-symbol AI pass over the deterministic summaries
+10. optionally run:
    - `npm run longrun:ai:summary -- <session-folder>`
    when you want a post-run AI commentary layer over the deterministic artifacts
 10. only check:

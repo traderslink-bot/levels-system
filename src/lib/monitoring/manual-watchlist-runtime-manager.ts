@@ -78,11 +78,18 @@ const SNAPSHOT_DISPLAY_COMPACTION_PCT = 0.0075;
 const SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE = 0.01;
 const SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 0.5;
 const SYMBOL_RECAP_COOLDOWN_MS = 12 * 60 * 1000;
+const CONTINUITY_UPDATE_COOLDOWN_MS = 3 * 60 * 1000;
 
 type SymbolRecapState = {
   lastSignature: string | null;
   lastPostedAt: number | null;
   lastAiBody: string | null;
+};
+
+type SymbolContinuityState = {
+  lastLabel: string | null;
+  lastPostedAt: number | null;
+  lastMessage: string | null;
 };
 
 function uniqueSortedLevels(levels: number[], direction: "asc" | "desc"): number[] {
@@ -234,6 +241,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly activeSnapshotState = new Map<string, ActiveLevelSnapshotState>();
   private readonly pendingActivations = new Map<string, Promise<void>>();
   private readonly recapState = new Map<string, SymbolRecapState>();
+  private readonly continuityState = new Map<string, SymbolContinuityState>();
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
@@ -641,35 +649,200 @@ export class ManualWatchlistRuntimeManager {
     return this.options.symbolRecapCooldownMs ?? SYMBOL_RECAP_COOLDOWN_MS;
   }
 
-  private postContinuityUpdate(interpretation: OpportunityInterpretation): void {
-    const entry = this.watchlistStore.getEntry(interpretation.symbol);
+  private shouldPostContinuityUpdate(params: {
+    symbol: string;
+    label: string;
+    message: string;
+    timestamp: number;
+  }): boolean {
+    const existing = this.continuityState.get(params.symbol);
+    if (!existing) {
+      return true;
+    }
+
+    if (existing.lastLabel !== params.label) {
+      return true;
+    }
+
+    if (
+      existing.lastMessage !== params.message &&
+      existing.lastPostedAt !== null &&
+      params.timestamp - existing.lastPostedAt >= CONTINUITY_UPDATE_COOLDOWN_MS
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private mapInterpretationTypeToContinuityLabel(
+    interpretation: OpportunityInterpretation,
+  ): string {
+    switch (interpretation.type) {
+      case "pre_zone":
+      case "in_zone":
+        return "setup_forming";
+      case "confirmation":
+        return "confirmation";
+      case "breakout_context":
+        return "continuation";
+      case "weakening":
+        return "weakening";
+      default:
+        return "setup_forming";
+    }
+  }
+
+  private buildContinuityUpdateFromInterpretation(
+    interpretation: OpportunityInterpretation,
+  ): {
+    symbol: string;
+    timestamp: number;
+    continuityType: string;
+    message: string;
+    confidence: number;
+  } {
+    const continuityType = this.mapInterpretationTypeToContinuityLabel(interpretation);
+    return {
+      symbol: interpretation.symbol,
+      timestamp: interpretation.timestamp,
+      continuityType,
+      confidence: interpretation.confidence,
+      message:
+        continuityType === "setup_forming"
+          ? `${interpretation.message}; the setup is still forming, so price still needs a cleaner decision.`
+          : continuityType === "confirmation"
+            ? `${interpretation.message}; the setup is now moving into confirmation and needs acceptance to hold.`
+            : continuityType === "continuation"
+              ? `${interpretation.message}; the setup is now in continuation and follow-through matters more than fresh anticipation.`
+              : `${interpretation.message}; the setup is weakening and needs a better reaction quickly.`,
+    };
+  }
+
+  private buildContinuityUpdateFromProgress(
+    progressUpdate: OpportunityProgressUpdate,
+  ): {
+    symbol: string;
+    timestamp: number;
+    continuityType: string;
+    message: string;
+  } {
+    const directional = progressUpdate.directionalReturnPct ?? 0;
+
+    if (progressUpdate.progressLabel === "improving") {
+      return {
+        symbol: progressUpdate.symbol,
+        timestamp: progressUpdate.timestamp,
+        continuityType: directional >= 0.45 ? "continuation" : "confirmation",
+        message:
+          directional >= 0.45
+            ? `${progressUpdate.eventType.replaceAll("_", " ")} is still improving, so the thread has moved into continuation rather than just setup.`
+            : `${progressUpdate.eventType.replaceAll("_", " ")} is improving, so the setup is moving toward real confirmation.`,
+      };
+    }
+
+    if (progressUpdate.progressLabel === "stalling") {
+      return {
+        symbol: progressUpdate.symbol,
+        timestamp: progressUpdate.timestamp,
+        continuityType: "weakening",
+        message: `${progressUpdate.eventType.replaceAll("_", " ")} is stalling, so the setup is weakening and needs fresh follow-through.`,
+      };
+    }
+
+    return {
+      symbol: progressUpdate.symbol,
+      timestamp: progressUpdate.timestamp,
+      continuityType: "failed",
+      message: `${progressUpdate.eventType.replaceAll("_", " ")} is degrading enough that the setup is now close to failure unless it stabilizes quickly.`,
+    };
+  }
+
+  private buildContinuityUpdateFromEvaluation(
+    evaluation: EvaluatedOpportunity,
+  ): {
+    symbol: string;
+    timestamp: number;
+    continuityType: string;
+    message: string;
+  } {
+    if (evaluation.followThroughLabel === "strong" || evaluation.followThroughLabel === "working") {
+      return {
+        symbol: evaluation.symbol,
+        timestamp: evaluation.evaluatedAt,
+        continuityType: "continuation",
+        message: `${evaluation.eventType.replaceAll("_", " ")} kept working after the alert, so the thread stayed in continuation instead of fading immediately.`,
+      };
+    }
+
+    if (evaluation.followThroughLabel === "stalled") {
+      return {
+        symbol: evaluation.symbol,
+        timestamp: evaluation.evaluatedAt,
+        continuityType: "weakening",
+        message: `${evaluation.eventType.replaceAll("_", " ")} stalled after the alert, so the setup weakened instead of following through cleanly.`,
+      };
+    }
+
+    return {
+      symbol: evaluation.symbol,
+      timestamp: evaluation.evaluatedAt,
+      continuityType: "failed",
+      message: `${evaluation.eventType.replaceAll("_", " ")} failed after the alert, so the thread should now be treated as failed until a new setup forms.`,
+    };
+  }
+
+  private postContinuityUpdate(update: {
+    symbol: string;
+    timestamp: number;
+    continuityType: string;
+    message: string;
+    confidence?: number;
+  }): void {
+    if (
+      !this.shouldPostContinuityUpdate({
+        symbol: update.symbol,
+        label: update.continuityType,
+        message: update.message,
+        timestamp: update.timestamp,
+      })
+    ) {
+      return;
+    }
+
+    const entry = this.watchlistStore.getEntry(update.symbol);
     if (!entry?.active || !entry.discordThreadId) {
       return;
     }
 
     const payload = formatContinuityUpdateAsPayload({
-      interpretation,
+      update,
     });
 
     void this.options.discordAlertRouter
       .routeAlert(entry.discordThreadId, payload)
       .then(() => {
+        this.continuityState.set(update.symbol, {
+          lastLabel: update.continuityType,
+          lastPostedAt: update.timestamp,
+          lastMessage: update.message,
+        });
         this.emitLifecycle("continuity_posted", {
-          symbol: interpretation.symbol,
+          symbol: update.symbol,
           threadId: entry.discordThreadId,
           details: {
-            continuityType: interpretation.type,
-            confidence: interpretation.confidence,
+            continuityType: update.continuityType,
+            confidence: update.confidence ?? null,
           },
         });
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         this.emitLifecycle("continuity_post_failed", {
-          symbol: interpretation.symbol,
+          symbol: update.symbol,
           threadId: entry.discordThreadId,
           details: {
-            continuityType: interpretation.type,
+            continuityType: update.continuityType,
             error: message,
           },
         });
@@ -689,7 +862,7 @@ export class ManualWatchlistRuntimeManager {
         message: interpretation.message,
         timestamp: interpretation.timestamp,
       }));
-      this.postContinuityUpdate(interpretation);
+      this.postContinuityUpdate(this.buildContinuityUpdateFromInterpretation(interpretation));
     }
   }
 
@@ -736,6 +909,47 @@ export class ManualWatchlistRuntimeManager {
       });
   }
 
+  private maybeBypassRecapCooldown(params: {
+    interpretation?: OpportunityInterpretation;
+    progressUpdate?: OpportunityProgressUpdate;
+    evaluation?: EvaluatedOpportunity;
+  }): boolean {
+    return (
+      params.evaluation?.followThroughLabel === "failed" ||
+      params.evaluation?.followThroughLabel === "strong" ||
+      params.progressUpdate?.progressLabel === "degrading" ||
+      params.interpretation?.type === "weakening"
+    );
+  }
+
+  private describeWhatMattersNext(
+    topOpportunity:
+      | ReturnType<OpportunityRuntimeController["processMonitoringEvent"]>["top"][number]
+      | undefined,
+  ): string | null {
+    if (!topOpportunity) {
+      return null;
+    }
+
+    const eventType = (topOpportunity.eventType ?? topOpportunity.type).replaceAll("_", " ");
+    if (topOpportunity.clearanceLabel === "tight") {
+      return `What matters next: ${eventType} needs immediate follow-through because room still looks tight.`;
+    }
+
+    if (topOpportunity.pathQualityLabel === "choppy") {
+      return `What matters next: ${eventType} needs cleaner acceptance because the path ahead still looks choppy.`;
+    }
+
+    if (
+      topOpportunity.exhaustionLabel === "worn" ||
+      topOpportunity.exhaustionLabel === "spent"
+    ) {
+      return `What matters next: ${eventType} needs a decisive reaction because the active level is getting too worn to trust on weak follow-through.`;
+    }
+
+    return `What matters next: ${eventType} still needs clean acceptance so the thread can stay in continuation.`;
+  }
+
   private buildSymbolRecapBody(params: {
     symbol: string;
     timestamp: number;
@@ -772,6 +986,11 @@ export class ManualWatchlistRuntimeManager {
         parts.push(
           `The active level still matters structurally, but it now looks ${topOpportunity.exhaustionLabel}, so reactions there are less trustworthy than fresh ones.`,
         );
+      }
+
+      const nextStepLine = this.describeWhatMattersNext(topOpportunity);
+      if (nextStepLine) {
+        parts.push(nextStepLine);
       }
     }
 
@@ -843,7 +1062,7 @@ export class ManualWatchlistRuntimeManager {
     }
 
     try {
-      const commentary = await aiCommentaryService.enhanceSymbolRecap({
+      const commentary = await aiCommentaryService.summarizeSymbolThread({
         symbol: params.symbol,
         deterministicRecap: params.deterministicBody,
         topOpportunity: (params.snapshot.top ?? []).find((opportunity) => opportunity.symbol === params.symbol) ?? null,
@@ -862,6 +1081,7 @@ export class ManualWatchlistRuntimeManager {
         symbol: params.symbol,
         details: {
           model: commentary.model,
+          commentaryType: "symbol_thread_recap",
         },
       });
 
@@ -875,6 +1095,7 @@ export class ManualWatchlistRuntimeManager {
         symbol: params.symbol,
         details: {
           error: message,
+          commentaryType: "symbol_thread_recap",
         },
       });
       console.error(`[ManualWatchlistRuntimeManager] Failed to build AI recap commentary: ${message}`);
@@ -914,6 +1135,17 @@ export class ManualWatchlistRuntimeManager {
       params.timestamp - recapState.lastPostedAt < this.recapCooldownMs();
 
     if (recentlyPosted && recapState.lastSignature === signature) {
+      return;
+    }
+
+    if (
+      recentlyPosted &&
+      !this.maybeBypassRecapCooldown({
+        interpretation: params.interpretation,
+        progressUpdate: params.progressUpdate,
+        evaluation: params.evaluation,
+      })
+    ) {
       return;
     }
 
@@ -1030,6 +1262,8 @@ export class ManualWatchlistRuntimeManager {
               nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
               tacticalRead: alertResult.rawAlert.tacticalRead ?? null,
               pathQualityLabel: alertResult.rawAlert.pathQuality?.label ?? null,
+              pathConstraintScore: alertResult.rawAlert.pathQuality?.pathConstraintScore ?? null,
+              pathWindowDistancePct: alertResult.rawAlert.pathQuality?.pathWindowDistancePct ?? null,
               dipBuyQualityLabel: alertResult.rawAlert.dipBuyQuality?.label ?? null,
               exhaustionLabel: alertResult.rawAlert.exhaustion?.label ?? null,
             },
@@ -1065,6 +1299,8 @@ export class ManualWatchlistRuntimeManager {
           nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
           tacticalRead: alertResult.rawAlert.tacticalRead ?? null,
           pathQualityLabel: alertResult.rawAlert.pathQuality?.label ?? null,
+          pathConstraintScore: alertResult.rawAlert.pathQuality?.pathConstraintScore ?? null,
+          pathWindowDistancePct: alertResult.rawAlert.pathQuality?.pathWindowDistancePct ?? null,
           dipBuyQualityLabel: alertResult.rawAlert.dipBuyQuality?.label ?? null,
           exhaustionLabel: alertResult.rawAlert.exhaustion?.label ?? null,
         },
@@ -1163,6 +1399,7 @@ export class ManualWatchlistRuntimeManager {
 
     for (const progressUpdate of snapshot.progressUpdates) {
       this.postFollowThroughStateUpdate(progressUpdate);
+      this.postContinuityUpdate(this.buildContinuityUpdateFromProgress(progressUpdate));
       this.maybePostSymbolRecap({
         symbol: progressUpdate.symbol,
         timestamp: progressUpdate.timestamp,
@@ -1174,6 +1411,7 @@ export class ManualWatchlistRuntimeManager {
 
     for (const evaluation of snapshot.completedEvaluations) {
       this.postFollowThroughUpdate(evaluation);
+      this.postContinuityUpdate(this.buildContinuityUpdateFromEvaluation(evaluation));
       this.maybePostSymbolRecap({
         symbol: evaluation.symbol,
         timestamp: evaluation.evaluatedAt,
@@ -1464,6 +1702,7 @@ export class ManualWatchlistRuntimeManager {
 
     this.activeSnapshotState.delete(normalizeSymbol(symbol));
     this.recapState.delete(normalizeSymbol(symbol));
+    this.continuityState.delete(normalizeSymbol(symbol));
     this.persistWatchlist();
     await this.restartMonitoring();
     this.emitLifecycle("deactivated", {

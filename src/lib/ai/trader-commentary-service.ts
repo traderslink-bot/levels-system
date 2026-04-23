@@ -13,6 +13,26 @@ export type SymbolRecapCommentaryInput = {
   latestEvaluation?: Record<string, unknown> | null;
 };
 
+export type SignalCommentaryInput = {
+  symbol: string;
+  title: string;
+  deterministicBody: string;
+  eventType?: string;
+  severity?: string;
+  confidence?: string;
+  score?: number;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type ThreadCommentaryInput = {
+  symbol: string;
+  deterministicRecap: string;
+  threadSummary?: Record<string, unknown> | null;
+  topOpportunity?: Record<string, unknown> | null;
+  latestProgress?: Record<string, unknown> | null;
+  latestEvaluation?: Record<string, unknown> | null;
+};
+
 export type SessionCommentaryInput = {
   sessionSummary: Record<string, unknown>;
   threadSummaries: unknown[];
@@ -20,7 +40,10 @@ export type SessionCommentaryInput = {
 
 export interface TraderCommentaryService {
   enhanceSymbolRecap(input: SymbolRecapCommentaryInput): Promise<TraderCommentaryResult | null>;
+  explainSignal(input: SignalCommentaryInput): Promise<TraderCommentaryResult | null>;
+  summarizeSymbolThread(input: ThreadCommentaryInput): Promise<TraderCommentaryResult | null>;
   summarizeSession(input: SessionCommentaryInput): Promise<TraderCommentaryResult | null>;
+  identifyNoisyFamilies(input: SessionCommentaryInput): Promise<TraderCommentaryResult | null>;
 }
 
 export type OpenAITraderCommentaryServiceOptions = {
@@ -143,12 +166,42 @@ export class OpenAITraderCommentaryService implements TraderCommentaryService {
     });
   }
 
+  async explainSignal(input: SignalCommentaryInput): Promise<TraderCommentaryResult | null> {
+    return this.requestCommentary({
+      developerPrompt:
+        "Explain a deterministic trading signal in plain English. " +
+        "Be concise, cautious, and factual. Use 2 short sentences max. " +
+        "Do not give direct execution advice. Avoid the word participation.",
+      userPayload: input,
+    });
+  }
+
+  async summarizeSymbolThread(input: ThreadCommentaryInput): Promise<TraderCommentaryResult | null> {
+    return this.requestCommentary({
+      developerPrompt:
+        "Summarize a single trader-facing symbol thread. " +
+        "Return 2 short sentences max. Focus on the current state, what changed, and what matters next. " +
+        "Stay faithful to the provided deterministic facts and avoid direct trade instructions.",
+      userPayload: input,
+    });
+  }
+
   async summarizeSession(input: SessionCommentaryInput): Promise<TraderCommentaryResult | null> {
     return this.requestCommentary({
       developerPrompt:
         "Summarize a trading-alert session for an operator. Return markdown with short sections: " +
         "Overall read, Best symbols, Weak spots, Noisy families, and Next tuning ideas. " +
         "Be concise, deterministic-friendly, and do not invent facts beyond the provided JSON.",
+      userPayload: input,
+    });
+  }
+
+  async identifyNoisyFamilies(input: SessionCommentaryInput): Promise<TraderCommentaryResult | null> {
+    return this.requestCommentary({
+      developerPrompt:
+        "Review trading-alert session artifacts and identify which alert families or symbol patterns look noisy. " +
+        "Return markdown bullets only with sections: Noisy families, Why they look noisy, and What to tune next. " +
+        "Use only the provided deterministic facts.",
       userPayload: input,
     });
   }

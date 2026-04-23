@@ -433,17 +433,26 @@ export function deriveTraderDipBuyQualityContext(params: {
 
   const tacticalRead = deriveTraderZoneTacticalRead(zone, event.eventContext.zoneFreshness);
   const exhaustion = deriveTraderExhaustionContext(event, zone);
-  if (
+  const pathQuality = deriveTraderPathQualityContext(nextBarrier);
+  const crowdedRoute =
+    pathQuality?.label === "choppy" ||
+    (pathQuality?.label === "layered" && (pathQuality.barrierCount >= 3 || (pathQuality.pathConstraintScore ?? 0) >= 0.55));
+  const tooWorn =
     tacticalRead === "tired" ||
     exhaustion?.label === "worn" ||
-    exhaustion?.label === "spent" ||
+    exhaustion?.label === "spent";
+  if (
+    tooWorn ||
     nextBarrier?.clearanceLabel === "tight" ||
     nextBarrier?.clutterLabel === "dense" ||
-    nextBarrier?.pathQualityLabel === "choppy"
+    crowdedRoute
   ) {
     return {
       label: "poor",
-      line: "dip-buy quality: tactically poor while support looks worn or the upside path is too messy",
+      line:
+        tooWorn
+          ? "dip-buy quality: tactically poor because support is still on the chart but looks too worn to lean on"
+          : "dip-buy quality: tactically poor because the upside path is too messy for a clean support reaction",
     };
   }
 
@@ -455,7 +464,7 @@ export function deriveTraderDipBuyQualityContext(params: {
     pressure.label !== "balanced" &&
     nextBarrier?.clearanceLabel === "open" &&
     nextBarrier?.clutterLabel !== "stacked" &&
-    nextBarrier?.pathQualityLabel !== "layered"
+    pathQuality?.label === "clean"
   ) {
     return {
       label: "actionable",
@@ -476,11 +485,19 @@ export function deriveTraderPathQualityContext(
     return null;
   }
 
+  const barrierCountText = `${nextBarrier.pathBarrierCount} nearby barrier${nextBarrier.pathBarrierCount === 1 ? "" : "s"}`;
+  const pathWindowText =
+    typeof nextBarrier.pathWindowDistancePct === "number"
+      ? ` inside the first ${formatPct(nextBarrier.pathWindowDistancePct)}`
+      : "";
+
   if (nextBarrier.pathQualityLabel === "clean") {
     return {
       label: "clean",
       barrierCount: nextBarrier.pathBarrierCount,
-      line: "path quality: cleaner path beyond the first barrier, so follow-through has room to trend",
+      pathConstraintScore: nextBarrier.pathConstraintScore,
+      pathWindowDistancePct: nextBarrier.pathWindowDistancePct,
+      line: `path quality: cleaner route with ${barrierCountText}${pathWindowText}, so follow-through has room to trend`,
     };
   }
 
@@ -488,14 +505,18 @@ export function deriveTraderPathQualityContext(
     return {
       label: "layered",
       barrierCount: nextBarrier.pathBarrierCount,
-      line: `path quality: layered path with ${nextBarrier.pathBarrierCount} nearby barriers, so the move may need to work through steps`,
+      pathConstraintScore: nextBarrier.pathConstraintScore,
+      pathWindowDistancePct: nextBarrier.pathWindowDistancePct,
+      line: `path quality: layered route with ${barrierCountText}${pathWindowText}, so the move may need to work through steps`,
     };
   }
 
   return {
     label: "choppy",
     barrierCount: nextBarrier.pathBarrierCount,
-    line: `path quality: choppy path with ${nextBarrier.pathBarrierCount} nearby barriers, so price may chop even if the first barrier clears`,
+    pathConstraintScore: nextBarrier.pathConstraintScore,
+    pathWindowDistancePct: nextBarrier.pathWindowDistancePct,
+    line: `path quality: choppy route with ${barrierCountText}${pathWindowText}, so price may chop even if the first barrier clears`,
   };
 }
 
@@ -522,17 +543,17 @@ export function deriveTraderExhaustionContext(
     case "tested":
       return {
         label: "tested",
-        line: `${noun} exhaustion: tested a few times but still intact structurally`,
+        line: `${noun} exhaustion: tested a few times, so it still matters but no longer behaves like untouched structure`,
       };
     case "worn":
       return {
         label: "worn",
-        line: `${noun} exhaustion: this level still matters structurally, but repeated tests are wearing it down`,
+        line: `${noun} exhaustion: this level still matters structurally, but repeated tests are wearing down its tradeability`,
       };
     case "spent":
       return {
         label: "spent",
-        line: `${noun} exhaustion: this level looks spent tactically, so it is easier to break than to trust for a fresh reaction`,
+        line: `${noun} exhaustion: this level now looks spent tactically, so it is easier to watch than to trust for a fresh reaction`,
       };
   }
 }

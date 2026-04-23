@@ -194,11 +194,11 @@ function contextContributions(
     triggerQuality: triggerQuality ? config.triggerQualityScores[triggerQuality.label] : 0,
     pathQuality:
       pathQuality?.label === "clean"
-        ? 1.5
+        ? 1.5 + Math.min(0.75, Math.max(0, (pathQuality.pathWindowDistancePct ?? 0) - 0.05) * 8)
         : pathQuality?.label === "layered"
-          ? -1.5
+          ? -1.5 - Math.max(0, pathQuality.barrierCount - 2) * 0.75
           : pathQuality?.label === "choppy"
-            ? -4
+            ? -4 - Math.max(0, pathQuality.barrierCount - 3) * 0.5
             : 0,
     dipBuyQuality:
       dipBuyQuality?.label === "actionable"

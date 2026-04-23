@@ -107,6 +107,8 @@ export class AlertIntelligenceEngine {
         nearbyBarrierCount: event.eventContext.nearbyBarrierCount,
         pathQualityLabel: event.eventContext.pathQualityLabel,
         pathBarrierCount: event.eventContext.pathBarrierCount,
+        pathConstraintScore: event.eventContext.pathConstraintScore,
+        pathWindowDistancePct: event.eventContext.pathWindowDistancePct,
       };
     }
 
@@ -137,6 +139,13 @@ export class AlertIntelligenceEngine {
     const nearbyBarrierCount = candidates.filter((candidate) =>
       Math.abs(candidate.representativePrice - event.triggerPrice) / Math.max(event.triggerPrice, 0.0001) <= clusteredDistancePct
     ).length;
+    const pathWindowDistancePct =
+      candidates
+        .slice(0, Math.min(nearbyBarrierCount, 4))
+        .at(-1)
+        ? Math.abs(candidates.slice(0, Math.min(nearbyBarrierCount, 4)).at(-1)!.representativePrice - event.triggerPrice) /
+          Math.max(event.triggerPrice, 0.0001)
+        : undefined;
     const clutterLabel =
       nearbyBarrierCount >= 3
         ? "dense"
@@ -164,6 +173,13 @@ export class AlertIntelligenceEngine {
             ? "layered"
             : "clean",
       pathBarrierCount: nearbyBarrierCount,
+      pathConstraintScore:
+        nearbyBarrierCount >= 3
+          ? 0.8
+          : nearbyBarrierCount >= 2
+            ? 0.5
+            : 0.2,
+      pathWindowDistancePct,
     };
   }
 

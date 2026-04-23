@@ -46,6 +46,8 @@ export type DiscordDeliveryAuditEntry = {
   pressureScore?: number;
   triggerQualityLabel?: string;
   pathQualityLabel?: string;
+  pathConstraintScore?: number;
+  pathWindowDistancePct?: number;
   dipBuyQualityLabel?: string;
   exhaustionLabel?: string;
   setupStateLabel?: string;
@@ -193,6 +195,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         pressureScore: payload.metadata?.pressureScore,
         triggerQualityLabel: payload.metadata?.triggerQualityLabel,
         pathQualityLabel: payload.metadata?.pathQualityLabel,
+        pathConstraintScore: payload.metadata?.pathConstraintScore,
+        pathWindowDistancePct: payload.metadata?.pathWindowDistancePct,
         dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
         exhaustionLabel: payload.metadata?.exhaustionLabel,
         setupStateLabel: payload.metadata?.setupStateLabel,
@@ -235,6 +239,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         pressureScore: payload.metadata?.pressureScore,
         triggerQualityLabel: payload.metadata?.triggerQualityLabel,
         pathQualityLabel: payload.metadata?.pathQualityLabel,
+        pathConstraintScore: payload.metadata?.pathConstraintScore,
+        pathWindowDistancePct: payload.metadata?.pathWindowDistancePct,
         dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
         exhaustionLabel: payload.metadata?.exhaustionLabel,
         setupStateLabel: payload.metadata?.setupStateLabel,

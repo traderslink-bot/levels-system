@@ -59,6 +59,8 @@ export type TraderPathQualityLabel = PathQualityLabel;
 export type TraderPathQualityContext = {
   label: TraderPathQualityLabel;
   barrierCount: number;
+  pathConstraintScore?: number;
+  pathWindowDistancePct?: number;
   line: string;
 };
 
@@ -169,6 +171,8 @@ export type AlertPayload = {
     pressureScore?: number;
     triggerQualityLabel?: TraderTriggerQualityLabel;
     pathQualityLabel?: TraderPathQualityLabel;
+    pathConstraintScore?: number;
+    pathWindowDistancePct?: number;
     dipBuyQualityLabel?: TraderDipBuyQualityLabel;
     exhaustionLabel?: TraderExhaustionLabel;
     setupStateLabel?: TraderSetupStateLabel;
@@ -197,6 +201,8 @@ export type TraderNextBarrierContext = {
   nearbyBarrierCount?: number;
   pathQualityLabel?: TraderPathQualityLabel;
   pathBarrierCount?: number;
+  pathConstraintScore?: number;
+  pathWindowDistancePct?: number;
 };
 
 export type DiscordThread = {

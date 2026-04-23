@@ -58,6 +58,8 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       pressureScore: alert.pressure?.pressureScore,
       triggerQualityLabel: alert.triggerQuality?.label,
       pathQualityLabel: alert.pathQuality?.label,
+      pathConstraintScore: alert.pathQuality?.pathConstraintScore,
+      pathWindowDistancePct: alert.pathQuality?.pathWindowDistancePct,
       dipBuyQualityLabel: alert.dipBuyQuality?.label,
       exhaustionLabel: alert.exhaustion?.label,
       setupStateLabel: alert.setupState?.label,
@@ -153,9 +155,32 @@ export function formatFollowThroughStateUpdateAsPayload(params: {
 }
 
 export function formatContinuityUpdateAsPayload(params: {
-  interpretation: OpportunityInterpretation;
+  interpretation?: OpportunityInterpretation;
+  update?: {
+    symbol: string;
+    timestamp: number;
+    continuityType: string;
+    message: string;
+    confidence?: number;
+  };
 }): AlertPayload {
-  const { interpretation } = params;
+  const interpretation =
+    params.interpretation ??
+    (params.update
+      ? {
+          symbol: params.update.symbol,
+          timestamp: params.update.timestamp,
+          type: params.update.continuityType,
+          message: params.update.message,
+          confidence: params.update.confidence ?? 0.5,
+          tags: [],
+        }
+      : null);
+
+  if (!interpretation) {
+    throw new Error("formatContinuityUpdateAsPayload requires an interpretation or update.");
+  }
+
   return {
     title: `${interpretation.symbol} setup update`,
     body: [
