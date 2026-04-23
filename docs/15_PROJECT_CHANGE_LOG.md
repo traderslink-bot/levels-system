@@ -3277,6 +3277,16 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Verification:
   - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
 
+## 2026-04-23 4:00 PM America/Toronto
+
+### Aligned startup-pending verdicts with activating status
+
+- Refined `scripts/start-manual-watchlist-long-run.ps1` once more:
+  - startup-pending, failure-free threads now get a neutral quality floor in review scoring
+  - this prevents the review summary from showing `activating` in the headline while still assigning a `noisy` verdict just because no visible trader-facing output has happened yet
+- Verification:
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+
 ## 2026-04-23 11:35 AM America/Toronto
 
 ### Tightened reactive thread discipline and support-test tradeability

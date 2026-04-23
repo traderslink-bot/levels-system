@@ -115,6 +115,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Fixed continuity gating so event-family-aware optional-post rules now apply to meaningful label transitions too instead of only duplicate-state repost attempts.
 - Refined long-run review language so low-output or still-activating threads are more likely to read as `observational` / `activating` than falsely `noisy`.
 - Refined startup-pending review honesty further so symbols with no visible output yet now stay closer to neutral/activating instead of being pulled into `noisy` simply because the runtime has not finished producing its first visible trader-facing post.
+- Added a neutral score floor for startup-pending threads so the verdict no longer fights the `activating` status when there is no visible output and no sign of actual clutter or failure.
 - Added stricter family-aware live-post discipline so `rejection`, `fake_breakout`, and `fake_breakdown` do not get the same optional continuity budget as cleaner breakout / breakdown / reclaim threads.
 - Tightened support-test tradeability so repeated testing plus layered or limited overhead push support touches toward `watch_only` or `poor` more aggressively in both alert scoring and opportunity ranking.
 - Refined clutter review again so controlled `level_touch` / `compression` watch-mode threads can read as intentionally reactive rather than just context-heavy.

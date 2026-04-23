@@ -449,6 +449,10 @@ function Evaluate-QualityHeuristics {
     $rationale += "did not produce meaningful visible output"
   }
 
+  if ($activationPending -and $failureTotal -eq 0) {
+    $score = [Math]::Max($score, 45)
+  }
+
   $score = [Math]::Max(0, [Math]::Min(100, [int][Math]::Round($score)))
   $verdict =
     if ($failureTotal -gt 0 -or $discordFailed -gt 1) {
