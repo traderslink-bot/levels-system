@@ -111,6 +111,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added event-type context to trader continuity interpretations so live-post discipline can stay aware of directional versus non-directional story updates without flattening the interpretation layer.
 - Tightened optional live-post throttling again so context-heavy threads back off faster once optional narration starts outnumbering trader-critical beats.
 - Corrected the clutter-review heuristic so low-context threads are no longer penalized just because the symbol was suppression-heavy internally.
+- Added event-family-aware live-post discipline so `level_touch` and `compression` threads now get a narrower optional-narration path than breakout-style threads.
+- Fixed continuity gating so event-family-aware optional-post rules now apply to meaningful label transitions too instead of only duplicate-state repost attempts.
 
 ## Active Backlog
 
@@ -130,6 +132,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Use the new clutter artifact to decide which optional live post classes are earning their place and which should stay richer only in operator artifacts.
 - Use the new category-aware live-post gating to compare whether directional continuity deserves looser thresholds than non-directional narration in real sessions.
 - Keep validating live sessions like `BURU` and `AIXI` so optional-post throttling and clutter review stay grounded in what actually hit Discord rather than what only happened inside diagnostics.
+- Keep validating live sessions like `AUUD` so support-test families can be tightened without accidentally flattening useful breakout/reclaim thread progression.
 
 ### Detection and ranking improvements
 
@@ -205,5 +208,6 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 14. Use the new thread-clutter artifact and live/output classification to decide which optional post classes should tighten further before changing trader-critical posts.
 15. Use the new category-aware gating to compare whether recap, continuity, and follow-through-state thresholds should diverge further by event family instead of tightening globally.
 16. Use real-session thread clutter outcomes to decide whether context-heavy symbols should start auto-preferring artifact review over optional live narration even earlier.
-17. Use the new per-thread AI recap and noisy-family review outputs to judge whether the AI layer is staying faithful to the deterministic artifacts before expanding it further.
-18. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.
+17. Keep splitting optional-post thresholds further by event family where real sessions show that support tests, compression, and directional breakouts need different narration budgets.
+18. Use the new per-thread AI recap and noisy-family review outputs to judge whether the AI layer is staying faithful to the deterministic artifacts before expanding it further.
+19. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.

@@ -755,6 +755,10 @@ export class ManualWatchlistRuntimeManager {
     const recentCriticalAge =
       lastCriticalAt === null ? Number.POSITIVE_INFINITY : params.timestamp - lastCriticalAt;
     const optionalLead = recentOptional - recentCritical;
+    const reactiveEvent =
+      params.eventType !== undefined &&
+      params.eventType !== null &&
+      ["level_touch", "compression"].includes(params.eventType);
     const directionalEvent =
       params.eventType !== undefined &&
       params.eventType !== null &&
@@ -773,6 +777,18 @@ export class ManualWatchlistRuntimeManager {
     }
 
     if (optionalLead >= 2 && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
+      return false;
+    }
+
+    if (reactiveEvent && params.kind === "recap" && !params.majorChange) {
+      return false;
+    }
+
+    if (reactiveEvent && params.kind === "continuity" && recentKind >= 1) {
+      return false;
+    }
+
+    if (reactiveEvent && params.kind === "follow_through_state" && recentKind >= 1) {
       return false;
     }
 
@@ -859,22 +875,19 @@ export class ManualWatchlistRuntimeManager {
       return false;
     }
 
-    if (existing.lastLabel !== params.label) {
-      return true;
-    }
-
-    if (
-      existing.lastMessage !== params.message &&
-      existing.lastPostedAt !== null &&
-      params.timestamp - existing.lastPostedAt >= CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS
-    ) {
-      return true;
-    }
-
     const majorChange =
       params.label === "failed" ||
       params.label === "continuation" ||
       params.label === "weakening";
+    const labelChanged = existing.lastLabel !== params.label;
+    const meaningfullyReworded =
+      existing.lastMessage !== params.message &&
+      existing.lastPostedAt !== null &&
+      params.timestamp - existing.lastPostedAt >= CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS;
+    if (!labelChanged && !meaningfullyReworded) {
+      return false;
+    }
+
     if (
       !this.shouldAllowOptionalLivePost({
         symbol: params.symbol,
@@ -887,7 +900,7 @@ export class ManualWatchlistRuntimeManager {
       return false;
     }
 
-    return false;
+    return true;
   }
 
   private mapInterpretationTypeToContinuityLabel(

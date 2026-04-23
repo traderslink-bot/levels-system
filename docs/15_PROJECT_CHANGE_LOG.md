@@ -19,6 +19,34 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 10:55 AM America/Toronto
+
+### Added event-family-aware continuity gating so support-test threads narrate less freely than breakout threads
+
+- Updated runtime live-post discipline in:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated focused runtime coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - `level_touch` and `compression` families now get a stricter optional-post budget than directional families like `breakout`, `breakdown`, and `reclaim`
+  - reactive families now allow only a much narrower continuity / recap / live-state path, which reduces support-test narration drift
+  - continuity label changes no longer bypass optional-post gating, so event-family throttling now applies to real lifecycle transitions instead of only duplicate-state reposts
+  - paired regression tests now protect both sides of the behavior:
+    - reactive `level_touch` threads stay quieter
+    - directional breakout threads can still advance from setup-forming into confirmation
+- Why this matters:
+  - the live `AUUD` session showed that a support-test thread could still stack optional narration even after the broader clutter pass improved `BURU` and `AIXI`
+  - this pass keeps the thread story richer where directional progression matters while treating support-test narration as a scarcer resource
+- Verification completed:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/opportunity-interpretation.test.ts src/tests/alert-router.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-23 10:30 AM America/Toronto
 
 ### Tightened optional live-thread throttling again and fixed clutter review for quiet symbols
