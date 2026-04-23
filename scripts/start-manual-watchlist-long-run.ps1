@@ -19,6 +19,7 @@ $sessionReviewPath = Join-Path $sessionDirectory "session-review.md"
 $traderRecapPath = Join-Path $sessionDirectory "trader-thread-recaps.md"
 $feedbackPath = Join-Path $sessionDirectory "human-review-feedback.jsonl"
 $sessionInfoPath = Join-Path $sessionDirectory "session-info.txt"
+$discordAuditPollIntervalMs = 5000
 $operationalPattern =
   "Manual watchlist server running|" +
   "Candle provider path|" +
@@ -122,6 +123,23 @@ $summary = [ordered]@{
     latestAt = $null
   }
   perSymbol = @{}
+}
+$seenDiscordAuditLines = [System.Collections.Generic.HashSet[string]]::new()
+$discordAuditProcessedLineCount = 0
+$discordAuditTimer = $null
+
+function Remember-DiscordAuditLine {
+  param(
+    [string]$Line
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Line)) {
+    return
+  }
+
+  if ($Line -match '"type"\s*:\s*"discord_delivery_audit"' -or $Line -match '"type":"discord_delivery_audit"') {
+    [void]$seenDiscordAuditLines.Add($Line)
+  }
 }
 
 function Write-SessionInfo {
@@ -2247,6 +2265,7 @@ function Write-RuntimeLine {
 
   Add-Content -LiteralPath $fullLogPath -Value $Line
   Update-SummaryFromLine -Line $Line
+  Remember-DiscordAuditLine -Line $Line
 
   if ($Line -match $diagnosticPattern) {
     Add-Content -LiteralPath $diagnosticLogPath -Value $Line
@@ -2259,6 +2278,66 @@ function Write-RuntimeLine {
   }
 
   Save-SessionSummary
+}
+
+function Update-SummaryFromDiscordAuditFile {
+  if (-not (Test-Path -LiteralPath $discordAuditPath)) {
+    return $false
+  }
+
+  $lines = @(Get-Content -LiteralPath $discordAuditPath -ErrorAction SilentlyContinue)
+  if ($lines.Count -le $discordAuditProcessedLineCount) {
+    return $false
+  }
+
+  $newLines = $lines[$discordAuditProcessedLineCount..($lines.Count - 1)]
+  foreach ($line in $newLines) {
+    if ([string]::IsNullOrWhiteSpace($line)) {
+      continue
+    }
+
+    if ($seenDiscordAuditLines.Contains($line)) {
+      continue
+    }
+
+    [void]$seenDiscordAuditLines.Add($line)
+    Update-SummaryFromLine -Line $line
+  }
+
+  $discordAuditProcessedLineCount = $lines.Count
+  return $true
+}
+
+function Start-DiscordAuditSummaryRefresh {
+  if ($discordAuditTimer) {
+    return
+  }
+
+  $discordAuditTimer = [System.Timers.Timer]::new($discordAuditPollIntervalMs)
+  $discordAuditTimer.AutoReset = $true
+
+  Register-ObjectEvent -InputObject $discordAuditTimer -EventName Elapsed -SourceIdentifier "LevelsSystem.DiscordAuditPoll" -Action {
+    try {
+      if (Update-SummaryFromDiscordAuditFile) {
+        Save-SessionSummary
+      }
+    } catch {
+      Write-Host "[LongRunLauncher] Failed to refresh summary from discord audit: $($_.Exception.Message)"
+    }
+  } | Out-Null
+
+  $discordAuditTimer.Start()
+}
+
+function Stop-DiscordAuditSummaryRefresh {
+  if ($discordAuditTimer) {
+    $discordAuditTimer.Stop()
+    $discordAuditTimer.Dispose()
+    $discordAuditTimer = $null
+  }
+
+  Unregister-Event -SourceIdentifier "LevelsSystem.DiscordAuditPoll" -ErrorAction SilentlyContinue
+  Get-Job -Name "LevelsSystem.DiscordAuditPoll" -ErrorAction SilentlyContinue | Remove-Job -Force -ErrorAction SilentlyContinue
 }
 
 function Stop-ExistingManualRuntime {
@@ -2331,6 +2410,7 @@ if ($DisableDiagnostics) {
 
 $env:LEVEL_MANUAL_SESSION_DIRECTORY = $sessionDirectory
 Save-SessionSummary
+Start-DiscordAuditSummaryRefresh
 
 if (-not $DoNotOpenBrowser) {
   Start-Job -ScriptBlock {
@@ -2348,6 +2428,8 @@ try {
       Write-RuntimeLine $line
     }
 } finally {
+  Stop-DiscordAuditSummaryRefresh
+  [void](Update-SummaryFromDiscordAuditFile)
   Pop-Location
   Write-SessionInfo "ended_at=$(Get-Date -Format o)"
   $summary.endedAt = Get-Date -Format o

@@ -21,6 +21,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - suppressed decisions only log when they are near the threshold, carry meaningful state, change reason, or recur after cooldown
 - For multi-hour manual testing on Windows, use `scripts/start-manual-watchlist-long-run.ps1` so each session gets a timestamped full log plus a smaller filtered review log under `artifacts/long-run/`.
 - Long-run sessions now also emit structured `manual_watchlist_lifecycle` JSON lines and a local `discord-delivery-audit.jsonl` file so activation/deactivation, snapshot posting, alert posting, and downstream Discord delivery can be reviewed after the fact.
+- The long-run launcher now also refreshes summary artifacts from `discord-delivery-audit.jsonl`, so `session-summary.json`, `thread-summaries.json`, `thread-clutter-report.json`, `session-review.md`, and `trader-thread-recaps.md` keep updating even when runtime stdout goes quiet.
 - Long-run sessions now split review surfaces:
   - `manual-watchlist-operational.log` for lifecycle, failures, compare output, and Discord delivery
   - `manual-watchlist-diagnostics.log` for `monitoring_event_diagnostic` reasoning

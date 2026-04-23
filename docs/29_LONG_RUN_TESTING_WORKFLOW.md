@@ -111,10 +111,12 @@ Inside that folder:
   - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, path-quality labels, path-constraint scores, path-window distances, exhaustion labels, dip-buy-quality labels, continuity metadata, AI-origin flags, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, compare tighter first-path windows against cleaner continuation space, compare fresh zones against worn ones, and compare the original alert against what happened afterward
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
+  - now also refreshes from `discord-delivery-audit.jsonl`, so it should keep moving even after runtime stdout goes quiet
   - now also carries evaluated follow-through buckets by alert event type plus strongest/weakest evaluated event-type highlights
   - now also carries follow-through grade counts like `strong`, `working`, `stalled`, and `failed`
 - `thread-summaries.json`
   - live-updated per-symbol review artifact
+  - now also keeps refreshing from the delivery audit stream when Discord activity continues after console output quiets down
   - turns session activity into a compact trader-facing summary for each active symbol
   - now includes latest evaluation context plus alert/evaluation alignment so a symbol can be reviewed by what recently worked or failed, not only by what was posted
   - now includes the latest follow-through grade summary so the newest completed setup can be judged quickly without translating raw return signs by hand
@@ -125,6 +127,7 @@ Inside that folder:
   - `refresh_pending` symbols with no visible trader output now also stay closer to a pending/neutral read instead of being mislabeled as noisy just because seeding or refresh has not completed yet
 - `thread-clutter-report.json`
   - live-updated deterministic clutter artifact
+  - now also keeps refreshing from the delivery audit stream when live posting continues after console output quiets down
   - tracks total live posts, trader-critical versus trader-helpful optional posts, alert-to-context ratio, continuity density, recap density, live-state density, and clutter-risk heuristics per symbol
   - now also reflects category-aware optional-live gating, so recap, continuity, and follow-through-state classes can be reviewed separately instead of being treated as one generic context bucket
   - now also treats truly low-context threads as low clutter even if the symbol itself was suppression-heavy internally, so the report stays focused on what actually reached the trader
@@ -138,6 +141,7 @@ Inside that folder:
   - makes thread clutter measurable instead of subjective
 - `trader-thread-recaps.md`
   - live-updated readable recap artifact
+  - now also keeps refreshing when new Discord delivery rows arrive after stdout quiets down
   - gives each symbol a short summary with latest alert, latest follow-through, and end-of-session context without needing JSON
 - `thread-ai-recaps.md`
   - optional post-run AI per-symbol recap artifact
@@ -149,6 +153,7 @@ Inside that folder:
   - turns the deterministic session artifacts into a short operator/trader commentary pass
 - `session-review.md`
   - live-updated human-readable review artifact
+  - now also keeps refreshing from the delivery audit stream, so the human-readable review should not freeze early if the runtime stays quiet while Discord posting continues
   - summarizes the session verdict, noisiest areas, most dynamic symbols, strongest/weakest evaluated alert families, and what each symbol thread looked like without needing raw JSON
 - `human-review-feedback.jsonl`
   - optional human feedback file for marking symbols or alerts as `useful`, `strong`, `noisy`, `late`, or `wrong`
@@ -202,6 +207,11 @@ And now a sixth:
 And now a seventh:
 
 - which live thread post categories are trader-critical, which are trader-helpful but optional, and which belong in operator-only review artifacts instead of Discord
+
+Important launcher behavior note:
+
+- review artifacts are no longer tied only to new runtime stdout lines
+- if Discord delivery keeps happening after console output goes quiet, the launcher now refreshes summaries from `discord-delivery-audit.jsonl` so session review does not freeze early
 
 ## Recommended Testing Process During A Session
 

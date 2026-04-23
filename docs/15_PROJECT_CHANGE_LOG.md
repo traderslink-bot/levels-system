@@ -19,6 +19,28 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 7:05 PM America/Toronto
+
+### Kept long-run review artifacts updating after runtime stdout goes quiet
+
+- Updated long-run launcher summary refresh in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - the launcher now polls `discord-delivery-audit.jsonl` and feeds newly appended delivery rows back through the same summary pipeline
+  - `session-summary.json`, `thread-summaries.json`, `thread-clutter-report.json`, `session-review.md`, and `trader-thread-recaps.md` now keep refreshing even when runtime stdout stops producing lines
+  - the launcher also tracks already-seen audit rows so early delivery events that still appear on stdout do not get double-counted
+- Why this matters:
+  - the live post-market session showed the runtime and Discord audit continuing long after the review artifacts froze at the last console line
+  - long-run review should describe what actually reached Discord, not just what happened before the console went quiet
+- Verification completed:
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+
+---
+
 ## 2026-04-23 4:45 PM America/Toronto
 
 ### Bounded hung manual activation seeds and made `refresh_pending` review language more honest
