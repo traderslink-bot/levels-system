@@ -1728,6 +1728,131 @@ test("ManualWatchlistRuntimeManager emits deterministic trader-facing interpreta
   assert.equal(continuityPosts[0]?.payload.metadata?.continuityType, "setup_forming");
 });
 
+test("ManualWatchlistRuntimeManager keeps setup-forming narration out of live recap posts", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: {
+      processMonitoringEvent() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [
+            {
+              symbol: "ALBT",
+              type: "breakout",
+              eventType: "breakout",
+              level: 2.45,
+              classification: "high_conviction",
+              clearanceLabel: "limited",
+              pathQualityLabel: "clean",
+              exhaustionLabel: "fresh",
+            },
+          ],
+          interpretations: [
+            {
+              symbol: "ALBT",
+              type: "pre_zone",
+              eventType: "breakout",
+              message: "watching pullback into support near 2.45",
+              confidence: 0.82,
+              tags: [],
+              timestamp: 10,
+            },
+          ],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [],
+        };
+      },
+      processPriceUpdate() {
+        return null;
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+            strengthLabel: "strong",
+            strengthScore: 28,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  monitor.listener?.({
+    id: "evt-recap-pre-zone",
+    episodeId: "evt-recap-pre-zone-episode",
+    symbol: "ALBT",
+    type: "breakout",
+    eventType: "breakout",
+    zoneId: "ALBT-resistance-monitored-1",
+    zoneKind: "resistance",
+    level: 2.45,
+    triggerPrice: 2.52,
+    strength: 0.82,
+    confidence: 0.79,
+    priority: 86,
+    bias: "bullish",
+    pressureScore: 0.71,
+    eventContext: {
+      monitoredZoneId: "ALBT-resistance-monitored-1",
+      canonicalZoneId: "R1",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["ALBT-resistance-monitored-legacy"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 10,
+    notes: ["Breakout through outermost resistance."],
+  });
+  await waitForAsyncWork();
+
+  const recapPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "symbol_recap",
+  );
+  assert.equal(recapPosts.length, 0);
+});
+
 test("ManualWatchlistRuntimeManager posts next support levels when price approaches the lowest surfaced support", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();

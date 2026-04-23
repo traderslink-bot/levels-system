@@ -115,6 +115,7 @@ Inside that folder:
 - `thread-clutter-report.json`
   - live-updated deterministic clutter artifact
   - tracks total live posts, trader-critical versus trader-helpful optional posts, alert-to-context ratio, continuity density, recap density, live-state density, and clutter-risk heuristics per symbol
+  - now also reflects category-aware optional-live gating, so recap, continuity, and follow-through-state classes can be reviewed separately instead of being treated as one generic context bucket
   - makes thread clutter measurable instead of subjective
 - `trader-thread-recaps.md`
   - live-updated readable recap artifact
@@ -419,6 +420,7 @@ It gives each active symbol a compact narrative such as:
 - what the latest live follow-through state update said while the setup was still developing
 - what the latest continuity update said about the thread lifecycle
 - what the latest live follow-through post told the trader after the original alert
+- whether optional context was being posted because the story was genuinely evolving or just because the thread had not yet hit a generic cooldown
 - what the end-of-session summary says about the thread overall
 - whether any human review feedback was already recorded
 - whether delivery or runtime failures showed up

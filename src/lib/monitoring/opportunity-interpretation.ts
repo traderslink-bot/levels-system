@@ -28,6 +28,7 @@ export type OpportunityInterpretation = {
   symbol: string;
   message: string;
   type: InterpretationType;
+  eventType: string;
   confidence: number;
   tags: string[];
   timestamp: number;
@@ -196,6 +197,7 @@ export function interpretOpportunity(
     symbol: context.opportunity.symbol,
     message: buildMessage(resolvedType, context),
     type: resolvedType,
+    eventType: resolveOpportunityEventType(context.opportunity),
     confidence,
     tags: buildTags(resolvedType, context),
     timestamp: context.opportunity.timestamp,
@@ -208,6 +210,7 @@ export function formatInterpretationForConsole(
   return [
     `SYMBOL: ${interpretation.symbol}`,
     `TYPE: ${interpretation.type}`,
+    `EVENT: ${interpretation.eventType}`,
     `MESSAGE: ${interpretation.message}`,
     `CONFIDENCE: ${interpretation.confidence.toFixed(2)}`,
   ].join("\n");

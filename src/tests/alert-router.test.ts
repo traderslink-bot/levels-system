@@ -289,6 +289,7 @@ test("formatContinuityUpdateAsPayload adds continuity metadata", () => {
       symbol: "ALBT",
       message: "buyers reacting at support near 2.40",
       type: "confirmation",
+      eventType: "level_touch",
       confidence: 0.82,
       tags: [],
       timestamp: 12,

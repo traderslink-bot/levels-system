@@ -19,6 +19,39 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 02:10 AM America/Toronto
+
+### Made optional live-post gating category-aware so thread context stays rich without drifting into generic narration
+
+- Updated runtime live-post discipline in:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated interpretation contracts in:
+  - `src/lib/monitoring/opportunity-interpretation.ts`
+- Updated focused coverage in:
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/opportunity-diagnostics.test.ts`
+  - `src/tests/opportunity-interpretation.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - the runtime now tracks recent critical versus optional live thread posts per symbol and prunes them inside a rolling window instead of treating optional context as a stateless cooldown problem
+  - recap, continuity, and live follow-through-state posts now use category-aware gating rather than one generic optional-context rule
+  - recap posts are stricter than continuity posts, and non-directional optional narration is less likely to post when a thread is already context-heavy without recent critical movement
+  - trader continuity interpretations now carry canonical `eventType`, so live-post discipline can distinguish directional setups from weaker context-only narration without changing the deterministic wording itself
+  - setup-forming narration is now explicitly covered by a runtime-manager regression test so it does not quietly slip back into live recap spam
+- Why this matters:
+  - the thread can stay rich when the story is genuinely evolving, but optional context is less likely to pile on top of already-dense threads
+  - the system is now closer to per-category thread discipline instead of broad global suppression that could accidentally flatten useful continuity
+  - this keeps the recent tightening pass aligned with the review notes in `docs/33...` and `docs/34...`: richer where earned, quieter where repetition would dominate
+- Verification completed:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/opportunity-interpretation.test.ts src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-23 01:10 AM America/Toronto
 
 ### Tightened live-thread discipline, added deterministic clutter analysis, and kept AI review-only

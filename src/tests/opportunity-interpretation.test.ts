@@ -261,6 +261,7 @@ describe("opportunity interpretation", () => {
       [
         "SYMBOL: BIRD",
         "TYPE: in_zone",
+        "EVENT: level_touch",
         "MESSAGE: price testing support near 2.40 - watching reaction",
         "CONFIDENCE: 0.71",
       ].join("\n"),

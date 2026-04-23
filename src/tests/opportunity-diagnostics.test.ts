@@ -65,6 +65,7 @@ function makeSnapshot(): OpportunityRuntimeSnapshot {
         symbol: "AAPL",
         message: "watching pullback into support near 100.00",
         type: "pre_zone",
+        eventType: "breakout",
         confidence: 0.79,
         tags: ["pre_zone", "breakout", "support", "no_structure"],
         timestamp: 1_000_000,

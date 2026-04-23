@@ -81,6 +81,9 @@ const SYMBOL_RECAP_COOLDOWN_MS = 12 * 60 * 1000;
 const CONTINUITY_UPDATE_COOLDOWN_MS = 3 * 60 * 1000;
 const CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS = 8 * 60 * 1000;
 const FOLLOW_THROUGH_STATE_UPDATE_COOLDOWN_MS = 4 * 60 * 1000;
+const OPTIONAL_LIVE_POST_WINDOW_MS = 15 * 60 * 1000;
+const OPTIONAL_LIVE_POST_DENSITY_LIMIT = 4;
+const OPTIONAL_LIVE_POST_KIND_LIMIT = 2;
 
 type SymbolRecapState = {
   lastSignature: string | null;
@@ -98,6 +101,20 @@ type SymbolFollowThroughStatePost = {
   lastLabel: OpportunityProgressUpdate["progressLabel"] | null;
   lastPostedAt: number | null;
   lastDirectionalReturnPct: number | null;
+};
+
+type LiveThreadPostKind =
+  | "snapshot"
+  | "extension"
+  | "intelligent_alert"
+  | "follow_through"
+  | "continuity"
+  | "follow_through_state"
+  | "recap";
+
+type SymbolLiveThreadPostState = {
+  critical: Array<{ kind: LiveThreadPostKind; timestamp: number }>;
+  optional: Array<{ kind: LiveThreadPostKind; timestamp: number }>;
 };
 
 function uniqueSortedLevels(levels: number[], direction: "asc" | "desc"): number[] {
@@ -251,6 +268,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly recapState = new Map<string, SymbolRecapState>();
   private readonly continuityState = new Map<string, SymbolContinuityState>();
   private readonly followThroughStatePosts = new Map<string, SymbolFollowThroughStatePost>();
+  private readonly liveThreadPostState = new Map<string, SymbolLiveThreadPostState>();
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
@@ -400,6 +418,12 @@ export class ManualWatchlistRuntimeManager {
     }
 
     await this.options.discordAlertRouter.routeLevelSnapshot(threadId, payload);
+    this.recordLiveThreadPost({
+      symbol,
+      timestamp,
+      kind: "snapshot",
+      critical: true,
+    });
     this.emitLifecycle("snapshot_posted", {
       symbol,
       threadId,
@@ -449,6 +473,12 @@ export class ManualWatchlistRuntimeManager {
     }
 
     await this.options.discordAlertRouter.routeLevelExtension(threadId, payload);
+    this.recordLiveThreadPost({
+      symbol,
+      timestamp,
+      kind: "extension",
+      critical: true,
+    });
     this.emitLifecycle("extension_posted", {
       symbol,
       threadId,
@@ -675,11 +705,92 @@ export class ManualWatchlistRuntimeManager {
     }
   }
 
+  private getLiveThreadPostState(symbol: string): SymbolLiveThreadPostState {
+    const existing = this.liveThreadPostState.get(symbol);
+    if (existing) {
+      return existing;
+    }
+
+    const created: SymbolLiveThreadPostState = {
+      critical: [],
+      optional: [],
+    };
+    this.liveThreadPostState.set(symbol, created);
+    return created;
+  }
+
+  private pruneLiveThreadPosts(symbol: string, timestamp: number): SymbolLiveThreadPostState {
+    const state = this.getLiveThreadPostState(symbol);
+    state.critical = state.critical.filter((entry) => timestamp - entry.timestamp <= OPTIONAL_LIVE_POST_WINDOW_MS);
+    state.optional = state.optional.filter((entry) => timestamp - entry.timestamp <= OPTIONAL_LIVE_POST_WINDOW_MS);
+    return state;
+  }
+
+  private recordLiveThreadPost(params: {
+    symbol: string;
+    timestamp: number;
+    kind: LiveThreadPostKind;
+    critical: boolean;
+  }): void {
+    const state = this.pruneLiveThreadPosts(params.symbol, params.timestamp);
+    const target = params.critical ? state.critical : state.optional;
+    target.push({
+      kind: params.kind,
+      timestamp: params.timestamp,
+    });
+  }
+
+  private shouldAllowOptionalLivePost(params: {
+    symbol: string;
+    timestamp: number;
+    kind: "continuity" | "follow_through_state" | "recap";
+    majorChange: boolean;
+    eventType?: string | null;
+  }): boolean {
+    const state = this.pruneLiveThreadPosts(params.symbol, params.timestamp);
+    const recentOptional = state.optional.length;
+    const recentKind = state.optional.filter((entry) => entry.kind === params.kind).length;
+    const lastCriticalAt = state.critical.at(-1)?.timestamp ?? null;
+    const recentCriticalAge =
+      lastCriticalAt === null ? Number.POSITIVE_INFINITY : params.timestamp - lastCriticalAt;
+    const directionalEvent =
+      params.eventType !== undefined &&
+      params.eventType !== null &&
+      ["breakout", "breakdown", "reclaim", "fake_breakout", "fake_breakdown", "rejection"].includes(params.eventType);
+
+    if (params.majorChange) {
+      return true;
+    }
+
+    if (recentOptional >= OPTIONAL_LIVE_POST_DENSITY_LIMIT && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
+      return false;
+    }
+
+    if (recentKind >= OPTIONAL_LIVE_POST_KIND_LIMIT && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
+      return false;
+    }
+
+    if (params.kind === "recap" && recentOptional >= 2 && recentCriticalAge > CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS) {
+      return false;
+    }
+
+    if (params.kind === "continuity" && !directionalEvent && recentOptional >= 2 && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
+      return false;
+    }
+
+    if (params.kind === "follow_through_state" && !directionalEvent && recentOptional >= 2) {
+      return false;
+    }
+
+    return true;
+  }
+
   private shouldPostContinuityUpdate(params: {
     symbol: string;
     label: string;
     message: string;
     timestamp: number;
+    eventType?: string | null;
   }): boolean {
     const existing = this.continuityState.get(params.symbol);
     if (!existing) {
@@ -727,6 +838,22 @@ export class ManualWatchlistRuntimeManager {
       return true;
     }
 
+    const majorChange =
+      params.label === "failed" ||
+      params.label === "continuation" ||
+      params.label === "weakening";
+    if (
+      !this.shouldAllowOptionalLivePost({
+        symbol: params.symbol,
+        timestamp: params.timestamp,
+        kind: "continuity",
+        majorChange,
+        eventType: params.eventType ?? null,
+      })
+    ) {
+      return false;
+    }
+
     return false;
   }
 
@@ -756,6 +883,7 @@ export class ManualWatchlistRuntimeManager {
     continuityType: string;
     message: string;
     confidence: number;
+    eventType: string;
   } {
     const continuityType = this.mapInterpretationTypeToContinuityLabel(interpretation);
     return {
@@ -763,6 +891,7 @@ export class ManualWatchlistRuntimeManager {
       timestamp: interpretation.timestamp,
       continuityType,
       confidence: interpretation.confidence,
+      eventType: interpretation.eventType,
       message:
         continuityType === "setup_forming"
           ? `${interpretation.message}; the setup is still forming, so price still needs a cleaner decision.`
@@ -781,6 +910,7 @@ export class ManualWatchlistRuntimeManager {
     timestamp: number;
     continuityType: string;
     message: string;
+    eventType: string;
   } | null {
     const directional = progressUpdate.directionalReturnPct ?? 0;
 
@@ -793,6 +923,7 @@ export class ManualWatchlistRuntimeManager {
         symbol: progressUpdate.symbol,
         timestamp: progressUpdate.timestamp,
         continuityType: directional >= 0.45 ? "continuation" : "confirmation",
+        eventType: progressUpdate.eventType,
         message:
           directional >= 0.45
             ? `${progressUpdate.eventType.replaceAll("_", " ")} is still improving, so the thread has moved into continuation rather than just setup.`
@@ -809,6 +940,7 @@ export class ManualWatchlistRuntimeManager {
         symbol: progressUpdate.symbol,
         timestamp: progressUpdate.timestamp,
         continuityType: "weakening",
+        eventType: progressUpdate.eventType,
         message: `${progressUpdate.eventType.replaceAll("_", " ")} is stalling, so the setup is weakening and needs fresh follow-through.`,
       };
     }
@@ -817,6 +949,7 @@ export class ManualWatchlistRuntimeManager {
       symbol: progressUpdate.symbol,
       timestamp: progressUpdate.timestamp,
       continuityType: "failed",
+      eventType: progressUpdate.eventType,
       message: `${progressUpdate.eventType.replaceAll("_", " ")} is degrading enough that the setup is now close to failure unless it stabilizes quickly.`,
     };
   }
@@ -828,12 +961,14 @@ export class ManualWatchlistRuntimeManager {
     timestamp: number;
     continuityType: string;
     message: string;
+    eventType: string;
   } {
     if (evaluation.followThroughLabel === "strong" || evaluation.followThroughLabel === "working") {
       return {
         symbol: evaluation.symbol,
         timestamp: evaluation.evaluatedAt,
         continuityType: "continuation",
+        eventType: evaluation.eventType,
         message: `${evaluation.eventType.replaceAll("_", " ")} kept working after the alert, so the thread stayed in continuation instead of fading immediately.`,
       };
     }
@@ -843,6 +978,7 @@ export class ManualWatchlistRuntimeManager {
         symbol: evaluation.symbol,
         timestamp: evaluation.evaluatedAt,
         continuityType: "weakening",
+        eventType: evaluation.eventType,
         message: `${evaluation.eventType.replaceAll("_", " ")} stalled after the alert, so the setup weakened instead of following through cleanly.`,
       };
     }
@@ -851,6 +987,7 @@ export class ManualWatchlistRuntimeManager {
       symbol: evaluation.symbol,
       timestamp: evaluation.evaluatedAt,
       continuityType: "failed",
+      eventType: evaluation.eventType,
       message: `${evaluation.eventType.replaceAll("_", " ")} failed after the alert, so the thread should now be treated as failed until a new setup forms.`,
     };
   }
@@ -861,6 +998,7 @@ export class ManualWatchlistRuntimeManager {
     continuityType: string;
     message: string;
     confidence?: number;
+    eventType?: string | null;
   }): void {
     if (
       !this.shouldPostContinuityUpdate({
@@ -868,6 +1006,7 @@ export class ManualWatchlistRuntimeManager {
         label: update.continuityType,
         message: update.message,
         timestamp: update.timestamp,
+        eventType: update.eventType ?? null,
       })
     ) {
       return;
@@ -889,6 +1028,12 @@ export class ManualWatchlistRuntimeManager {
           lastLabel: update.continuityType,
           lastPostedAt: update.timestamp,
           lastMessage: update.message,
+        });
+        this.recordLiveThreadPost({
+          symbol: update.symbol,
+          timestamp: update.timestamp,
+          kind: "continuity",
+          critical: false,
         });
         this.emitLifecycle("continuity_posted", {
           symbol: update.symbol,
@@ -932,6 +1077,18 @@ export class ManualWatchlistRuntimeManager {
   private postFollowThroughStateUpdate(progressUpdate: OpportunityProgressUpdate): void {
     const entry = this.watchlistStore.getEntry(progressUpdate.symbol);
     if (!entry?.active || !entry.discordThreadId) {
+      return;
+    }
+
+    if (
+      !this.shouldAllowOptionalLivePost({
+        symbol: progressUpdate.symbol,
+        timestamp: progressUpdate.timestamp,
+        kind: "follow_through_state",
+        majorChange: progressUpdate.progressLabel === "degrading",
+        eventType: progressUpdate.eventType,
+      })
+    ) {
       return;
     }
 
@@ -982,6 +1139,12 @@ export class ManualWatchlistRuntimeManager {
     void this.options.discordAlertRouter
       .routeAlert(entry.discordThreadId, payload)
       .then(() => {
+        this.recordLiveThreadPost({
+          symbol: progressUpdate.symbol,
+          timestamp: progressUpdate.timestamp,
+          kind: "follow_through_state",
+          critical: false,
+        });
         this.followThroughStatePosts.set(progressUpdate.symbol, {
           lastLabel: progressUpdate.progressLabel,
           lastPostedAt: progressUpdate.timestamp,
@@ -1260,6 +1423,26 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
+    if (
+      !this.shouldAllowOptionalLivePost({
+        symbol: params.symbol,
+        timestamp: params.timestamp,
+        kind: "recap",
+        majorChange: this.maybeBypassRecapCooldown({
+          interpretation: params.interpretation,
+          progressUpdate: params.progressUpdate,
+          evaluation: params.evaluation,
+        }),
+        eventType:
+          params.evaluation?.eventType ??
+          params.progressUpdate?.eventType ??
+          params.interpretation?.eventType ??
+          null,
+      })
+    ) {
+      return;
+    }
+
     void this.maybeBuildRecapBodyWithAI({
       symbol: params.symbol,
       deterministicBody,
@@ -1277,12 +1460,18 @@ export class ManualWatchlistRuntimeManager {
       void this.options.discordAlertRouter
         .routeAlert(entry.discordThreadId!, payload)
         .then(() => {
-          this.recapState.set(params.symbol, {
-            lastSignature: signature,
-            lastPostedAt: params.timestamp,
-            lastAiBody: aiGenerated ? body : null,
-          });
-          this.emitLifecycle("recap_posted", {
+        this.recapState.set(params.symbol, {
+          lastSignature: signature,
+          lastPostedAt: params.timestamp,
+          lastAiBody: aiGenerated ? body : null,
+        });
+        this.recordLiveThreadPost({
+          symbol: params.symbol,
+          timestamp: params.timestamp,
+          kind: "recap",
+          critical: false,
+        });
+        this.emitLifecycle("recap_posted", {
             symbol: params.symbol,
             threadId: entry.discordThreadId,
             details: {
@@ -1354,9 +1543,15 @@ export class ManualWatchlistRuntimeManager {
         postingDecisionReason: alertResult.delivery.reason,
       };
       void this.options.discordAlertRouter
-        .routeAlert(entry.discordThreadId, alert)
-        .then(() => {
-          this.emitLifecycle("alert_posted", {
+      .routeAlert(entry.discordThreadId, alert)
+      .then(() => {
+        this.recordLiveThreadPost({
+          symbol: event.symbol,
+          timestamp: event.timestamp,
+          kind: "intelligent_alert",
+          critical: true,
+        });
+        this.emitLifecycle("alert_posted", {
             symbol: event.symbol,
             threadId: entry.discordThreadId,
             details: {
@@ -1459,6 +1654,12 @@ export class ManualWatchlistRuntimeManager {
     void this.options.discordAlertRouter
       .routeAlert(entry.discordThreadId, payload)
       .then(() => {
+        this.recordLiveThreadPost({
+          symbol: evaluation.symbol,
+          timestamp: evaluation.evaluatedAt,
+          kind: "follow_through",
+          critical: true,
+        });
         this.emitLifecycle("follow_through_posted", {
           symbol: evaluation.symbol,
           threadId: entry.discordThreadId,
@@ -1818,6 +2019,7 @@ export class ManualWatchlistRuntimeManager {
     this.recapState.delete(normalizeSymbol(symbol));
     this.continuityState.delete(normalizeSymbol(symbol));
     this.followThroughStatePosts.delete(normalizeSymbol(symbol));
+    this.liveThreadPostState.delete(normalizeSymbol(symbol));
     this.persistWatchlist();
     await this.restartMonitoring();
     this.emitLifecycle("deactivated", {
