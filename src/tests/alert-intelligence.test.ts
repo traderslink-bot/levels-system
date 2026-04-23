@@ -704,6 +704,57 @@ test("AlertIntelligenceEngine suppresses near-duplicate alerts for the same stru
   assert.equal(duplicateResult.delivery.reason, "duplicate_context");
 });
 
+test("AlertIntelligenceEngine suppresses same-zone resolution chatter even after ten minutes when the story has not materially changed", () => {
+  const engine = new AlertIntelligenceEngine();
+  const firstEvent: MonitoringEvent = {
+    id: "evt-slow-dup-1",
+    episodeId: "evt-slow-dup-episode",
+    symbol: "ALBT",
+    type: "breakout",
+    eventType: "breakout",
+    zoneId: "zone-major-resistance",
+    zoneKind: "resistance",
+    level: 100.5,
+    triggerPrice: 101.18,
+    strength: 0.77,
+    confidence: 0.73,
+    priority: 78,
+    bias: "bullish",
+    pressureScore: 0.57,
+    eventContext: {
+      monitoredZoneId: "monitored-slow-dup",
+      canonicalZoneId: "zone-major-resistance",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["legacy-slow-dup"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "major",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 1_000,
+    notes: ["Initial breakout."],
+  };
+  const repeatedEvent: MonitoringEvent = {
+    ...firstEvent,
+    id: "evt-slow-dup-2",
+    timestamp: 1_000 + 10 * 60 * 1000,
+    triggerPrice: 101.21,
+    pressureScore: 0.59,
+  };
+
+  const firstResult = engine.processEvent(firstEvent, levels);
+  const repeatedResult = engine.processEvent(repeatedEvent, levels);
+
+  assert.ok(firstResult.formatted);
+  assert.equal(firstResult.delivery.reason, "posted");
+  assert.equal(repeatedResult.formatted, null);
+  assert.equal(repeatedResult.delivery.reason, "duplicate_context");
+});
+
 test("AlertIntelligenceEngine preserves materially new remap state instead of suppressing it as a duplicate", () => {
   const engine = new AlertIntelligenceEngine();
   const preservedEvent: MonitoringEvent = {

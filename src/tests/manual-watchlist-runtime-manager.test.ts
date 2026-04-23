@@ -613,8 +613,7 @@ test("ManualWatchlistRuntimeManager times out a hung queued activation instead o
   assert.equal(queued.refreshPending, true);
 
   await waitForAsyncWork();
-  await waitForAsyncWork();
-  await waitForAsyncWork();
+  await new Promise((resolve) => setTimeout(resolve, 25));
 
   assert.equal(manager.getActiveEntries().find((entry) => entry.symbol === "INTC"), undefined);
   assert.equal(
@@ -3628,6 +3627,80 @@ test("ManualWatchlistRuntimeManager suppresses duplicate extension bursts when o
       symbol: "BIRD",
       side: "support",
       levels: [1.72],
+      timestamp: 1000,
+    },
+  });
+});
+
+test("ManualWatchlistRuntimeManager does not repost an identical extension payload after the cooldown window", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 1.88,
+            zoneHigh: 1.9,
+            representativePrice: 1.89,
+          }),
+        ],
+        extensionLevels: {
+          support: [],
+          resistance: [
+            buildZone({
+              id: "RX1",
+              symbol,
+              kind: "resistance",
+              zoneLow: 1.9,
+              zoneHigh: 1.92,
+              representativePrice: 1.9044,
+              isExtension: true,
+            }),
+          ],
+        },
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "AMST" });
+
+  const firstResult = await (manager as any).postLevelExtension(
+    "AMST",
+    "thread-AMST",
+    "resistance",
+    1000,
+  );
+  const repeatedResult = await (manager as any).postLevelExtension(
+    "AMST",
+    "thread-AMST",
+    "resistance",
+    1000 + 6 * 60 * 1000,
+  );
+
+  assert.equal(firstResult, "posted");
+  assert.equal(repeatedResult, "duplicate");
+  assert.equal(discordAlertRouter.levelExtensions.length, 1);
+  assert.deepEqual(discordAlertRouter.levelExtensions[0], {
+    threadId: "thread-AMST",
+    payload: {
+      symbol: "AMST",
+      side: "resistance",
+      levels: [1.9044],
       timestamp: 1000,
     },
   });

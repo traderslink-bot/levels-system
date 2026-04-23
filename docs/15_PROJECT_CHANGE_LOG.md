@@ -19,6 +19,36 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 8:10 PM America/Toronto
+
+### Reduced repetitive thread noise by hardening identical extension dedupe and lengthening same-scope alert repost windows
+
+- Updated identical extension dedupe in:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated alert repost policy defaults in:
+  - `src/lib/alerts/alert-config.ts`
+- Updated focused regression coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/alert-intelligence.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - identical `NEXT LEVELS` payloads now stay suppressed until the extension payload actually changes, instead of becoming eligible again after the normal refresh cooldown
+  - trader-facing alert repost windows are now longer across `zone_context`, `bullish_resolution`, `bearish_resolution`, and `failure` families
+  - same-scope reposts also now require a larger score delta before they count as materially new
+  - added a manual-runtime regression test proving an identical extension payload does not repost after the old cooldown window
+  - added an alert-intelligence regression test proving a same-zone directional story is still suppressed ten minutes later when the trader-facing situation has not materially changed
+- Why this matters:
+  - live Discord evidence showed symbols like `AMST` reposting the exact same extension ladder and symbols like `AIXI`, `ITOC`, and `TDIC` revisiting the same structural story too often for a trader-facing notification stream
+  - the goal is to keep Discord focused on actual structural progress, not repeated reminders that nothing new has happened yet
+- Verification completed:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npx tsx --test src/tests/alert-intelligence.test.ts`
+
+---
+
 ## 2026-04-23 7:05 PM America/Toronto
 
 ### Kept long-run review artifacts updating after runtime stdout goes quiet

@@ -541,11 +541,7 @@ export class ManualWatchlistRuntimeManager {
     const existingState = this.activeSnapshotState.get(symbol);
     if (
       existingState?.extensionPostInFlightKey === extensionKey ||
-      (
-        existingState?.lastExtensionPostKey === extensionKey &&
-        existingState.lastExtensionPostTimestamp !== null &&
-        timestamp - existingState.lastExtensionPostTimestamp < LEVEL_REFRESH_COOLDOWN_MS
-      )
+      existingState?.lastExtensionPostKey === extensionKey
     ) {
       return "duplicate";
     }

@@ -109,6 +109,7 @@ Inside that folder:
   - append-only local record of thread creation plus snapshot / alert / extension delivery attempts
   - includes both successful and failed downstream posts
   - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, path-quality labels, path-constraint scores, path-window distances, exhaustion labels, dip-buy-quality labels, continuity metadata, AI-origin flags, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, compare tighter first-path windows against cleaner continuation space, compare fresh zones against worn ones, and compare the original alert against what happened afterward
+  - repeated identical extension payloads should now stop after the first post until the extension ladder actually changes, which makes it easier to spot genuine extension movement instead of repeated `NEXT LEVELS` restatements
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
   - now also refreshes from `discord-delivery-audit.jsonl`, so it should keep moving even after runtime stdout goes quiet
@@ -134,6 +135,7 @@ Inside that folder:
   - event-family-aware runtime gating now means clutter review is especially useful for comparing `level_touch` / `compression` threads against cleaner directional families like `breakout`
   - now also recognizes controlled reactive watch-mode threads, so snapshot-led `level_touch` / `compression` monitoring can read as intentionally quiet instead of falsely cluttered
   - same-window overlap is now tighter too, so continuity is more likely to yield when live follow-through-state or fresh alert posts already told the trader the active story
+  - same-zone alert reposting is now intentionally stricter too, so the clutter report should trend down when a symbol keeps revisiting the same structural level without offering meaningfully new trader information
   - reactive same-event overlap is tighter too, so a `level_touch` or `compression` setup is less likely to spend multiple optional narration beats in the same short burst window
   - continuity now also matches the triggering event side more strictly, which helps prevent support-style continuity wording from showing up right after a resistance-side alert on the same symbol
   - completed follow-through now owns same-snapshot event narration, so progress-driven live-state / continuity beats are less likely to duplicate an evaluation that already resolved the same event

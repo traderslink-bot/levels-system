@@ -159,10 +159,10 @@ export const DEFAULT_ALERT_INTELLIGENCE_CONFIG: AlertIntelligenceConfig = {
   },
   structureStrengthScale: 10,
   postingWindowsMs: {
-    zone_context: 5 * 60 * 1000,
-    bullish_resolution: 8 * 60 * 1000,
-    bearish_resolution: 8 * 60 * 1000,
-    failure: 8 * 60 * 1000,
+    zone_context: 12 * 60 * 1000,
+    bullish_resolution: 15 * 60 * 1000,
+    bearish_resolution: 15 * 60 * 1000,
+    failure: 15 * 60 * 1000,
   },
-  materialScoreDeltaForRepost: 8,
+  materialScoreDeltaForRepost: 12,
 };
