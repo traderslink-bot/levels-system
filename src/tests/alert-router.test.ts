@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DiscordAlertRouter,
+  formatFollowThroughUpdateAsPayload,
   formatIntelligentAlertAsPayload,
   formatLevelExtensionMessage,
   formatLevelSnapshotMessage,
@@ -168,12 +169,14 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
     shouldNotify: true,
     tags: [],
     scoreComponents: {},
-    event: samplePayload.event,
+    event: samplePayload.event!,
     nextBarrier: {
       side: "resistance",
       price: 2.5,
       distancePct: 0.036,
       clearanceLabel: "limited",
+      clutterLabel: "stacked",
+      nearbyBarrierCount: 2,
     },
     tacticalRead: "firm",
     movement: {
@@ -190,6 +193,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       label: "clean",
       line: "trigger quality: clean trigger with early participation, strong control, and limited room",
     },
+    dipBuyQuality: null,
     setupState: {
       label: "continuation",
       line: "setup state: continuation, so the move has started and now needs follow-through",
@@ -224,6 +228,8 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
     ].join("\n"),
   );
   assert.equal(payload.metadata?.clearanceLabel, "limited");
+  assert.equal(payload.metadata?.barrierClutterLabel, "stacked");
+  assert.equal(payload.metadata?.nearbyBarrierCount, 2);
   assert.equal(payload.metadata?.nextBarrierSide, "resistance");
   assert.equal(payload.metadata?.nextBarrierDistancePct, 0.036);
   assert.equal(payload.metadata?.tacticalRead, "firm");
@@ -232,6 +238,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.pressureLabel, "strong");
   assert.equal(payload.metadata?.pressureScore, 0.74);
   assert.equal(payload.metadata?.triggerQualityLabel, "clean");
+  assert.equal(payload.metadata?.dipBuyQualityLabel, undefined);
   assert.equal(payload.metadata?.setupStateLabel, "continuation");
   assert.equal(payload.metadata?.failureRiskLabel, "contained");
   assert.equal(payload.metadata?.tradeMapLabel, "favorable");
@@ -240,6 +247,39 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.targetSide, "resistance");
   assert.equal(payload.metadata?.targetPrice, 2.5);
   assert.equal(payload.metadata?.targetDistancePct, 0.036);
+});
+
+test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through context", () => {
+  const payload = formatFollowThroughUpdateAsPayload({
+    symbol: "ALBT",
+    timestamp: 9,
+    entryPrice: 2.41,
+    outcomePrice: 2.48,
+    followThrough: {
+      label: "working",
+      eventType: "breakout",
+      directionalReturnPct: 2.9,
+      rawReturnPct: 2.9,
+      line: "follow-through: breakout is still working after the alert",
+    },
+  });
+
+  assert.equal(payload.title, "ALBT breakout follow-through");
+  assert.equal(
+    payload.body,
+    [
+      "follow-through: breakout is still working after the alert",
+      "status: working | directional +2.90% | raw +2.90%",
+      "path: tracked from 2.41 to 2.48",
+    ].join("\n"),
+  );
+  assert.equal(payload.symbol, "ALBT");
+  assert.equal(payload.timestamp, 9);
+  assert.equal(payload.metadata?.messageKind, "follow_through_update");
+  assert.equal(payload.metadata?.eventType, "breakout");
+  assert.equal(payload.metadata?.followThroughLabel, "working");
+  assert.equal(payload.metadata?.directionalReturnPct, 2.9);
+  assert.equal(payload.metadata?.rawReturnPct, 2.9);
 });
 
 test("formatLevelSnapshotMessage uses deterministic formatting", () => {

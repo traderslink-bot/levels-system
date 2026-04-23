@@ -19,6 +19,56 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-22 11:55 PM America/Toronto
+
+### Added live follow-through updates, clutter-aware pathing, and richer trader recaps
+
+- Updated trader-context and payload plumbing in:
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/alerts/alert-intelligence-engine.ts`
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+  - `src/lib/alerts/local-discord-thread-gateway.ts`
+- Updated monitoring and runtime flow in:
+  - `src/lib/monitoring/monitoring-types.ts`
+  - `src/lib/monitoring/monitoring-event-scoring.ts`
+  - `src/lib/monitoring/event-detector.ts`
+  - `src/lib/monitoring/opportunity-engine.ts`
+  - `src/lib/monitoring/opportunity-evaluator.ts`
+  - `src/lib/monitoring/opportunity-diagnostics.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-events.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated long-run recap generation in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/opportunity-diagnostics.test.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+  - `docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md`
+- What changed:
+  - completed opportunity evaluations now post live follow-through updates back into the symbol thread with deterministic `strong`, `working`, `stalled`, or `failed` language
+  - monitoring events now carry barrier-clutter context so the system can distinguish cleaner paths from `stacked` or `dense` overhead/downside pathing
+  - alert scoring, failure-risk wording, trigger quality, and room wording now account for nearby path clutter
+  - support-test alerts now include deterministic `dip-buy quality:` wording so traders can tell whether a bounce looks actionable, watch-only, or tactically poor
+  - long-run sessions now write `trader-thread-recaps.md` and capture live follow-through posts in the per-symbol recap flow
+- Why this matters:
+  - traders now get useful continuation feedback after the original alert instead of having to infer outcome from later price action alone
+  - crowded pathing and weak dip-buy situations are called out earlier and more explicitly before they become expensive false positives
+  - post-run review is easier because the session artifacts now have a shorter human-readable per-symbol recap layer in addition to the JSON summaries
+- Verification completed:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/manual-watchlist-runtime-manager.test.ts src/tests/opportunity-diagnostics.test.ts src/tests/opportunity-runtime-integration.test.ts`
+  - `npm run check`
+
+---
+
 ## 2026-04-22 10:40 PM America/Toronto
 
 ### Added deterministic setup-state context to trader alerts and audit metadata

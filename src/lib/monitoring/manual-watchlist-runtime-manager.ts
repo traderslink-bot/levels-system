@@ -5,6 +5,7 @@ import type { FinalLevelZone } from "../levels/level-types.js";
 import { decideLevelRefresh } from "../levels/level-refresh-policy.js";
 import { AlertIntelligenceEngine } from "../alerts/alert-intelligence-engine.js";
 import {
+  formatFollowThroughUpdateAsPayload,
   formatIntelligentAlertAsPayload,
   type DiscordAlertRouter,
 } from "../alerts/alert-router.js";
@@ -14,11 +15,13 @@ import type {
   LevelSnapshotDisplayZone,
   LevelSnapshotPayload,
 } from "../alerts/alert-types.js";
+import { deriveTraderFollowThroughContext } from "../alerts/trader-message-language.js";
 import { LevelStore } from "./level-store.js";
 import type { LivePriceUpdate, MonitoringEvent, WatchlistEntry } from "./monitoring-types.js";
 import { buildOpportunityDiagnosticsLogEntry } from "./opportunity-diagnostics.js";
 import { OpportunityRuntimeController } from "./opportunity-runtime-controller.js";
 import { formatInterpretationForConsole } from "./opportunity-interpretation.js";
+import type { EvaluatedOpportunity } from "./opportunity-evaluator.js";
 import { WatchlistMonitor } from "./watchlist-monitor.js";
 import { WatchlistStatePersistence } from "./watchlist-state-persistence.js";
 import { WatchlistStore } from "./watchlist-store.js";
@@ -691,9 +694,12 @@ export class ManualWatchlistRuntimeManager {
               family: alertResult.delivery.family ?? null,
               reason: alertResult.delivery.reason,
               clearanceLabel: alertResult.rawAlert.nextBarrier?.clearanceLabel ?? null,
+              barrierClutterLabel: alertResult.rawAlert.nextBarrier?.clutterLabel ?? null,
+              nearbyBarrierCount: alertResult.rawAlert.nextBarrier?.nearbyBarrierCount ?? null,
               nextBarrierSide: alertResult.rawAlert.nextBarrier?.side ?? null,
               nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
               tacticalRead: alertResult.rawAlert.tacticalRead ?? null,
+              dipBuyQualityLabel: alertResult.rawAlert.dipBuyQuality?.label ?? null,
             },
           });
         })
@@ -721,9 +727,12 @@ export class ManualWatchlistRuntimeManager {
           family: alertResult.delivery.family ?? null,
           reason: alertResult.delivery.reason,
           clearanceLabel: alertResult.rawAlert.nextBarrier?.clearanceLabel ?? null,
+          barrierClutterLabel: alertResult.rawAlert.nextBarrier?.clutterLabel ?? null,
+          nearbyBarrierCount: alertResult.rawAlert.nextBarrier?.nearbyBarrierCount ?? null,
           nextBarrierSide: alertResult.rawAlert.nextBarrier?.side ?? null,
           nextBarrierDistancePct: alertResult.rawAlert.nextBarrier?.distancePct ?? null,
           tacticalRead: alertResult.rawAlert.tacticalRead ?? null,
+          dipBuyQualityLabel: alertResult.rawAlert.dipBuyQuality?.label ?? null,
         },
       });
     }
@@ -739,6 +748,54 @@ export class ManualWatchlistRuntimeManager {
       ));
     }
   };
+
+  private postFollowThroughUpdate(evaluation: EvaluatedOpportunity): void {
+    const entry = this.watchlistStore.getEntry(evaluation.symbol);
+    if (!entry?.active || !entry.discordThreadId) {
+      return;
+    }
+
+    const followThrough = deriveTraderFollowThroughContext({
+      eventType: evaluation.eventType,
+      returnPct: evaluation.returnPct,
+      directionalReturnPct: evaluation.directionalReturnPct,
+      followThroughLabel: evaluation.followThroughLabel,
+    });
+    const payload = formatFollowThroughUpdateAsPayload({
+      symbol: evaluation.symbol,
+      timestamp: evaluation.evaluatedAt,
+      followThrough,
+      entryPrice: evaluation.entryPrice,
+      outcomePrice: evaluation.outcomePrice,
+    });
+
+    void this.options.discordAlertRouter
+      .routeAlert(entry.discordThreadId, payload)
+      .then(() => {
+        this.emitLifecycle("follow_through_posted", {
+          symbol: evaluation.symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: evaluation.eventType,
+            followThroughLabel: evaluation.followThroughLabel,
+            directionalReturnPct: evaluation.directionalReturnPct,
+            rawReturnPct: evaluation.returnPct,
+          },
+        });
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.emitLifecycle("follow_through_post_failed", {
+          symbol: evaluation.symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: evaluation.eventType,
+            error: message,
+          },
+        });
+        console.error(`[ManualWatchlistRuntimeManager] Failed to route follow-through update: ${message}`);
+      });
+  }
 
   private handlePriceUpdate = (update: LivePriceUpdate): void => {
     void this.maybeRefreshLevelSnapshot(update).catch((error) => {
@@ -762,6 +819,10 @@ export class ManualWatchlistRuntimeManager {
         timestamp: update.timestamp,
       }),
     ));
+
+    for (const evaluation of snapshot.completedEvaluations) {
+      this.postFollowThroughUpdate(evaluation);
+    }
   };
 
   private async restartMonitoring(): Promise<void> {

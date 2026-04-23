@@ -15,6 +15,7 @@ $discordAuditPath = Join-Path $sessionDirectory "discord-delivery-audit.jsonl"
 $sessionSummaryPath = Join-Path $sessionDirectory "session-summary.json"
 $threadSummaryPath = Join-Path $sessionDirectory "thread-summaries.json"
 $sessionReviewPath = Join-Path $sessionDirectory "session-review.md"
+$traderRecapPath = Join-Path $sessionDirectory "trader-thread-recaps.md"
 $feedbackPath = Join-Path $sessionDirectory "human-review-feedback.jsonl"
 $sessionInfoPath = Join-Path $sessionDirectory "session-info.txt"
 $operationalPattern =
@@ -137,6 +138,7 @@ function Ensure-SymbolSummary {
       alertSuppressedByFamily = @{}
       snapshotPosts = 0
       extensionPosts = 0
+      followThroughPosts = 0
       compareEntries = 0
       diagnosticEntries = 0
       opportunitySnapshots = 0
@@ -155,6 +157,7 @@ function Ensure-SymbolSummary {
       }
       lastLifecycleEvent = $null
       lastAlert = $null
+      lastFollowThroughPost = $null
       lastOpportunity = $null
       lastSnapshot = $null
       lastExtension = $null
@@ -959,6 +962,7 @@ function Build-EndOfSessionSummary {
   $evaluationWins = [int]$SymbolSummary.evaluation.wins
   $evaluationLosses = [int]$SymbolSummary.evaluation.losses
   $followThroughSummary = Build-FollowThroughSummary -Evaluation $SymbolSummary.evaluation
+  $latestFollowThroughPost = $SymbolSummary.lastFollowThroughPost
   $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
   $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
 
@@ -1006,6 +1010,12 @@ function Build-EndOfSessionSummary {
     return "$Symbol review update: $followThroughSummary"
   }
 
+  if ($latestFollowThroughPost -and $latestFollowThroughPost.followThroughLabel) {
+    $label = [string]$latestFollowThroughPost.followThroughLabel
+    $eventType = if ($latestFollowThroughPost.eventType) { [string]$latestFollowThroughPost.eventType } else { "latest setup" }
+    return "$Symbol latest follow-through post marked the $eventType setup as $label, which should anchor how the thread is read now."
+  }
+
   $alignmentSummary = Build-EvaluationAlignmentSummary -SymbolSummary $SymbolSummary
   if ($alignmentSummary) {
     return "$Symbol is currently alignment-aware: $alignmentSummary"
@@ -1029,6 +1039,14 @@ function Build-EndOfSessionSummary {
 
   if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.tacticalRead -eq "firm") {
     return "$Symbol ended with a firm alert context, which is a better sign that the underlying zone still had real structure behind it."
+  }
+
+  if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.dipBuyQualityLabel) {
+    return "$Symbol ended with a $($SymbolSummary.lastAlert.dipBuyQualityLabel) dip-buy read, which is useful context for deciding whether support tests were actually tradeable."
+  }
+
+  if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.barrierClutterLabel) {
+    return "$Symbol ended with a $($SymbolSummary.lastAlert.barrierClutterLabel) pathing context beyond the first barrier, which matters for how much follow-through room the thread really had."
   }
 
   if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.clearanceLabel) {
@@ -1065,6 +1083,10 @@ function Build-ThreadSummaryRecord {
     $headlineParts += "suppressed=$($SymbolSummary.alertSuppressed)"
   }
 
+  if ($SymbolSummary.followThroughPosts -gt 0) {
+    $headlineParts += "follow-through=$($SymbolSummary.followThroughPosts)"
+  }
+
   $failureTotal =
     [int]$SymbolSummary.failures.activation +
     [int]$SymbolSummary.failures.restore +
@@ -1087,8 +1109,14 @@ function Build-ThreadSummaryRecord {
     if ($SymbolSummary.lastAlert.clearanceLabel) {
       $latestAlertSummary += ("room=" + [string]$SymbolSummary.lastAlert.clearanceLabel)
     }
+    if ($SymbolSummary.lastAlert.barrierClutterLabel) {
+      $latestAlertSummary += ("path=" + [string]$SymbolSummary.lastAlert.barrierClutterLabel)
+    }
     if ($SymbolSummary.lastAlert.tacticalRead) {
       $latestAlertSummary += ("zone=" + [string]$SymbolSummary.lastAlert.tacticalRead)
+    }
+    if ($SymbolSummary.lastAlert.dipBuyQualityLabel) {
+      $latestAlertSummary += ("dip-buy=" + [string]$SymbolSummary.lastAlert.dipBuyQualityLabel)
     }
     if ($SymbolSummary.lastAlert.nextBarrierSide -and $SymbolSummary.lastAlert.nextBarrierDistancePct -ne $null) {
       $distancePct = ([double]$SymbolSummary.lastAlert.nextBarrierDistancePct * 100).ToString("0.0")
@@ -1134,6 +1162,21 @@ function Build-ThreadSummaryRecord {
     $latestEvaluationSummary = $latestEvaluationSummary | Where-Object { $_ }
   }
 
+  $latestFollowThroughPostSummary = $null
+  if ($SymbolSummary.lastFollowThroughPost) {
+    $latestFollowThroughPostSummary = @(
+      [string]$SymbolSummary.lastFollowThroughPost.followThroughLabel,
+      [string]$SymbolSummary.lastFollowThroughPost.eventType
+    )
+    if ($SymbolSummary.lastFollowThroughPost.directionalReturnPct -ne $null) {
+      $latestFollowThroughPostSummary += ("directional=" + ([double]$SymbolSummary.lastFollowThroughPost.directionalReturnPct).ToString("0.00") + "%")
+    }
+    if ($SymbolSummary.lastFollowThroughPost.rawReturnPct -ne $null) {
+      $latestFollowThroughPostSummary += ("raw=" + ([double]$SymbolSummary.lastFollowThroughPost.rawReturnPct).ToString("0.00") + "%")
+    }
+    $latestFollowThroughPostSummary = $latestFollowThroughPostSummary | Where-Object { $_ }
+  }
+
   $evaluationAlignmentSummary = Build-EvaluationAlignmentSummary -SymbolSummary $SymbolSummary
   $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
   $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
@@ -1156,6 +1199,8 @@ function Build-ThreadSummaryRecord {
     latestOpportunity = $SymbolSummary.lastOpportunity
     latestOpportunitySummary = if ($latestOpportunitySummary) { $latestOpportunitySummary -join " | " } else { $null }
     latestEvaluationSummary = if ($latestEvaluationSummary) { $latestEvaluationSummary -join " | " } else { $null }
+    latestFollowThroughPost = $SymbolSummary.lastFollowThroughPost
+    latestFollowThroughPostSummary = if ($latestFollowThroughPostSummary) { $latestFollowThroughPostSummary -join " | " } else { $null }
     evaluationAlignmentSummary = $evaluationAlignmentSummary
     stateChangeSummary = $stateChangeSummary
     outcomeDisagreementSummary = $outcomeDisagreementSummary
@@ -1175,6 +1220,48 @@ function Build-ThreadSummaries {
   }
 
   return $records
+}
+
+function Build-TraderThreadRecapLines {
+  param(
+    [object[]]$ThreadSummaries
+  )
+
+  $lines = @(
+    "# Trader Thread Recaps",
+    "",
+    "Short end-of-session recaps for each tracked symbol.",
+    ""
+  )
+
+  foreach ($thread in @($ThreadSummaries)) {
+    $lines += "## $($thread.symbol)"
+    $lines += ""
+    $lines += "- Status: $($thread.status)"
+    $lines += "- Headline: $($thread.headline)"
+    $lines += "- Recap: $($thread.endOfSessionSummary)"
+    if ($thread.latestAlertSummary) {
+      $lines += "- Latest alert: $($thread.latestAlertSummary)"
+    }
+    if ($thread.latestFollowThroughPostSummary) {
+      $lines += "- Latest follow-through: $($thread.latestFollowThroughPostSummary)"
+    }
+    if ($thread.latestEvaluationSummary) {
+      $lines += "- Latest evaluation: $($thread.latestEvaluationSummary)"
+    }
+    if ($thread.evaluationAlignmentSummary) {
+      $lines += "- Alignment: $($thread.evaluationAlignmentSummary)"
+    }
+    if ($thread.stateChangeSummary) {
+      $lines += "- State changes: $($thread.stateChangeSummary)"
+    }
+    if ($thread.outcomeDisagreementSummary) {
+      $lines += "- Disagreement watch: $($thread.outcomeDisagreementSummary)"
+    }
+    $lines += ""
+  }
+
+  return $lines
 }
 
 function Join-DisplayList {
@@ -1471,9 +1558,25 @@ function Update-SummaryFromLine {
           family = $parsed.details.family
           reason = $parsed.details.reason
           clearanceLabel = $parsed.details.clearanceLabel
+          barrierClutterLabel = $parsed.details.barrierClutterLabel
+          nearbyBarrierCount = $parsed.details.nearbyBarrierCount
           nextBarrierSide = $parsed.details.nextBarrierSide
           nextBarrierDistancePct = $parsed.details.nextBarrierDistancePct
           tacticalRead = $parsed.details.tacticalRead
+          dipBuyQualityLabel = $parsed.details.dipBuyQualityLabel
+        }
+      }
+    }
+
+    if ($parsed.event -eq "follow_through_posted") {
+      if ($lifecycleSymbolSummary -ne $null) {
+        $lifecycleSymbolSummary.followThroughPosts += 1
+        $lifecycleSymbolSummary.lastFollowThroughPost = @{
+          timestamp = $parsed.timestamp
+          eventType = $parsed.details.eventType
+          followThroughLabel = $parsed.details.followThroughLabel
+          directionalReturnPct = $parsed.details.directionalReturnPct
+          rawReturnPct = $parsed.details.rawReturnPct
         }
       }
     }
@@ -1522,6 +1625,16 @@ function Update-SummaryFromLine {
         $auditSymbolSummary.discordPosted += 1
       } elseif ($parsed.status -eq "failed") {
         $auditSymbolSummary.discordFailed += 1
+      }
+
+      if ($parsed.operation -eq "post_alert" -and $parsed.status -eq "posted" -and $parsed.messageKind -eq "follow_through_update") {
+        $auditSymbolSummary.lastFollowThroughPost = @{
+          timestamp = $parsed.timestamp
+          eventType = $parsed.eventType
+          followThroughLabel = $parsed.followThroughLabel
+          directionalReturnPct = $parsed.directionalReturnPct
+          rawReturnPct = $parsed.rawReturnPct
+        }
       }
     }
 
@@ -1646,6 +1759,7 @@ function Save-SessionSummary {
   Set-Content -LiteralPath $sessionSummaryPath -Value ($summary | ConvertTo-Json -Depth 10)
   Set-Content -LiteralPath $threadSummaryPath -Value ($threadSummaries | ConvertTo-Json -Depth 8)
   Set-Content -LiteralPath $sessionReviewPath -Value ((Build-SessionReviewLines -ThreadSummaries $threadSummaries) -join [Environment]::NewLine)
+  Set-Content -LiteralPath $traderRecapPath -Value ((Build-TraderThreadRecapLines -ThreadSummaries $threadSummaries) -join [Environment]::NewLine)
 }
 
 function Write-RuntimeLine {
@@ -1694,6 +1808,7 @@ New-Item -ItemType Directory -Path $sessionDirectory -Force | Out-Null
 New-Item -ItemType File -Path $fullLogPath -Force | Out-Null
 New-Item -ItemType File -Path $operationalLogPath -Force | Out-Null
 New-Item -ItemType File -Path $filteredLogPath -Force | Out-Null
+New-Item -ItemType File -Path $traderRecapPath -Force | Out-Null
 New-Item -ItemType File -Path $diagnosticLogPath -Force | Out-Null
 
 "Levels System long-run session" | Set-Content -LiteralPath $sessionInfoPath

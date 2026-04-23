@@ -169,9 +169,12 @@ describe("opportunity diagnostics", () => {
           {
             symbol: "AAPL",
             timestamp: 1_000_000,
+            evaluatedAt: 1_060_000,
             entryPrice: 100,
             outcomePrice: 100.5,
             returnPct: 0.5,
+            directionalReturnPct: 0.5,
+            followThroughLabel: "working",
             success: true,
             eventType: "breakout",
           },

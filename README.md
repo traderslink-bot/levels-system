@@ -24,6 +24,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - `session-summary.json` for a quick session-level and per-symbol rollup
   - `thread-summaries.json` for a compact trader-facing story per active symbol
   - `session-review.md` for the fastest human-readable verdict on whether the run looked useful, noisy, or in need of attention
+  - `trader-thread-recaps.md` for short end-of-session symbol recaps that are easier to skim than JSON
 - Long-run sessions can also collect human review feedback in `human-review-feedback.jsonl` via `scripts/add-long-run-review-feedback.ps1`, and the live session summaries will fold that feedback into the review artifacts.
 - The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
 - Trader-facing Discord alerts now include:
@@ -33,6 +34,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - a `pressure` line so the user sees whether buyers or sellers still have strong, workable, or tentative control behind the move
   - a `target` line so the user sees the first directional objective explicitly when the next barrier is known
   - a `trigger quality` line so the user can tell whether the setup looks `clean`, `workable`, `crowded`, or `late`
+  - a `dip-buy quality` line on support-test alerts so the user can tell whether a bounce looks actionable, watch-only, or tactically poor
   - a `setup state` line so the user can tell whether the idea is still building, confirming, continuing, weakening, or already failed
   - a `failure risk` line so the user can see whether the setup still looks contained or is already carrying elevated failure risk from tight room, weak control, tired structure, or degraded context
   - a `trade map` line so the user sees rough room-to-next-barrier versus risk-to-invalidation before acting
@@ -41,6 +43,8 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - a compact severity / confidence / score line plus trigger price
   - a `watch` / invalidation line
   - nearby barrier context when the next support or resistance is known, including whether room is `tight`, `limited`, or `open`
+  - nearby pathing context when overhead or downside gets `stacked` or `dense` beyond the first barrier
+- Completed opportunity evaluations now post live thread follow-through updates, so the trader can see whether a setup stayed `strong`, kept `working`, `stalled`, or `failed` after the original alert.
 - Discord level snapshots now include a nearest support/resistance map line plus signed distance-from-price context beside each ladder level, and that map line now classifies the room as `bullish`, `bearish`, or `balanced` when possible.
 - Support and resistance ranking is now durability-aware, so levels that are structurally important but getting tired can be described more conservatively than freshly defended levels.
 - Monitoring events and opportunity ranking now carry barrier-clearance context, so cramped upside or downside room can reduce setup quality before the message layer ever formats it.
@@ -54,6 +58,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Alert payload metadata and Discord delivery audit rows now also carry trigger-quality labels, so long-run review can compare whether `clean` entries actually outperform `crowded` or `late` ones.
 - Alert payload metadata and Discord delivery audit rows now also carry setup-state labels, so long-run review can compare whether building, confirmation, continuation, weakening, or failed setups are being posted at the right times.
 - Alert payload metadata and Discord delivery audit rows now also carry failure-risk labels, so long-run review can compare whether contained setups behave better than elevated-risk ones.
+- Alert payload metadata and Discord delivery audit rows now also carry barrier-clutter, dip-buy-quality, and follow-through metadata, so long-run review can compare clear paths versus crowded ones and initial alerts versus what happened afterward.
 - Directional alert scoring is now more conservative when a setup is `crowded` or `late`, when pressure is only tentative, or when an inner breakout also carries degraded data quality.
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
 - Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).

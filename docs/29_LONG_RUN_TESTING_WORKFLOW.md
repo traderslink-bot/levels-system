@@ -101,7 +101,7 @@ Inside that folder:
 - `discord-delivery-audit.jsonl`
   - append-only local record of thread creation plus snapshot / alert / extension delivery attempts
   - includes both successful and failed downstream posts
-  - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, and trade-map metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, and compare room versus invalidation risk
+  - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, dip-buy-quality labels, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, and compare the original alert against what happened afterward
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
   - now also carries evaluated follow-through buckets by alert event type plus strongest/weakest evaluated event-type highlights
@@ -112,6 +112,9 @@ Inside that folder:
   - now includes latest evaluation context plus alert/evaluation alignment so a symbol can be reviewed by what recently worked or failed, not only by what was posted
   - now includes the latest follow-through grade summary so the newest completed setup can be judged quickly without translating raw return signs by hand
   - now also includes state-change and outcome-disagreement summaries so a repeatedly reactivated symbol can be judged more honestly
+- `trader-thread-recaps.md`
+  - live-updated readable recap artifact
+  - gives each symbol a short summary with latest alert, latest follow-through, and end-of-session context without needing JSON
 - `session-review.md`
   - live-updated human-readable review artifact
   - summarizes the session verdict, noisiest areas, most dynamic symbols, strongest/weakest evaluated alert families, and what each symbol thread looked like without needing raw JSON
@@ -242,15 +245,18 @@ If the app behaves oddly:
    - `thread-summaries.json`
    when you want the shortest per-symbol explanation of what each thread actually did
 7. check:
+   - `trader-thread-recaps.md`
+   when you want the shortest readable per-symbol recap without opening JSON
+8. check:
    - `session-review.md`
    when you want the fastest human-readable verdict on whether the run looked useful or noisy
-8. only check:
+9. only check:
    - `manual-watchlist-diagnostics.log`
    when the question is specifically about breakout / reclaim / fakeout reasoning
-9. only check:
+10. only check:
    - `manual-watchlist-full.log`
    if the operational and diagnostic logs still do not explain enough
-10. check:
+11. check:
    - `discord-delivery-audit.jsonl`
    when you want to confirm exactly what Discord received or whether a post failed downstream
 
@@ -264,6 +270,7 @@ When asking me to review a long-run failure, the most useful things to send are:
 - the newest `manual-watchlist-operational.log`
 - `session-summary.json` when you want a quick top-level review first
 - `thread-summaries.json` when you want the quickest per-symbol usefulness review
+- `trader-thread-recaps.md` when you want the shortest readable per-symbol recap
 - `session-review.md` when you want the fastest readable summary first
 - `human-review-feedback.jsonl` when you already marked alerts as useful, noisy, late, wrong, or strong
 - `manual-watchlist-diagnostics.log` when the question is about detector reasoning
@@ -284,6 +291,7 @@ The filtered log now includes structured lifecycle markers such as:
 - `extension_posted`
 - `alert_posted`
 - `alert_suppressed`
+- `follow_through_posted`
 - `activation_completed`
 - `deactivated`
 - `restore_failed`
@@ -294,6 +302,7 @@ These are meant to answer operational questions quickly:
 - did IBKR seeding complete
 - did a snapshot post happen
 - did an alert actually get routed
+- did a completed setup later get a live follow-through update
 - did an alert get intentionally suppressed because it was duplicate, filtered, or lower-value
 - did deactivation complete cleanly
 
@@ -305,6 +314,7 @@ This makes the testing process much less dependent on scrolling back through raw
 
 - which symbols were activated most often
 - which symbols produced Discord posts
+- which symbols produced live follow-through updates in-thread
 - which symbols generated the most diagnostics
 - which symbols hit activation, seed, or restore failures
 - which symbols produced opportunity snapshots and evaluation updates
@@ -362,6 +372,7 @@ It gives each active symbol a compact narrative such as:
 - whether tactical zone fatigue was helping or hurting the setup instead of only being described textually
 - what the latest evaluated follow-through looked like when the runtime already has outcome data
 - whether the latest evaluated setup finished `strong`, `working`, `stalled`, or `failed`
+- what the latest live follow-through post told the trader after the original alert
 - what the end-of-session summary says about the thread overall
 - whether any human review feedback was already recorded
 - whether delivery or runtime failures showed up

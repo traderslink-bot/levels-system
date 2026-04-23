@@ -5,7 +5,9 @@ import type { FinalLevelZone } from "../levels/level-types.js";
 import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import type {
+  TraderDipBuyQualityContext,
   TraderFailureRiskContext,
+  TraderFollowThroughContext,
   TraderMovementContext,
   TraderNextBarrierContext,
   TraderPressureContext,
@@ -67,16 +69,22 @@ function formatBarrierPct(
 function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
   const pctText = formatBarrierPct(nextBarrier.side, nextBarrier.distancePct);
   const sideText = clearanceDirectionForSide(nextBarrier.side);
+  const clutterText =
+    nextBarrier.clutterLabel === "dense"
+      ? `; ${sideText} gets dense quickly (${nextBarrier.nearbyBarrierCount ?? 0} nearby levels)`
+      : nextBarrier.clutterLabel === "stacked"
+        ? `; ${sideText} is stacked just beyond the first barrier`
+        : "";
 
   switch (nextBarrier.clearanceLabel) {
     case "tight":
-      return `room: tight ${sideText} into next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
+      return `room: tight ${sideText} into next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
     case "limited":
-      return `room: limited ${sideText} into next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
+      return `room: limited ${sideText} into next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
     case "open":
-      return `room: open ${sideText} path to next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
+      return `room: open ${sideText} path to next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
     default:
-      return `room: next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})`;
+      return `room: next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
   }
 }
 
@@ -242,10 +250,14 @@ export function deriveTraderTriggerQualityContext(params: {
     };
   }
 
-  if (nextBarrier?.clearanceLabel === "tight" || pressure.label === "tentative") {
+  if (
+    nextBarrier?.clearanceLabel === "tight" ||
+    nextBarrier?.clutterLabel === "dense" ||
+    pressure.label === "tentative"
+  ) {
     return {
       label: "crowded",
-      line: `trigger quality: crowded trigger with ${pressureText} and ${roomText}`,
+      line: `trigger quality: crowded trigger with ${pressureText} and ${roomText}${nextBarrier?.clutterLabel === "dense" ? ", plus dense pathing" : ""}`,
     };
   }
 
@@ -343,6 +355,14 @@ export function deriveTraderFailureRiskContext(params: {
     riskScore += 1;
   }
 
+  if (nextBarrier?.clutterLabel === "dense") {
+    reasons.push("dense nearby barriers");
+    riskScore += 1;
+  } else if (nextBarrier?.clutterLabel === "stacked") {
+    reasons.push("stacked nearby barriers");
+    riskScore += 1;
+  }
+
   if (pressure.label === "tentative") {
     reasons.push("tentative control");
     riskScore += 1;
@@ -395,6 +415,76 @@ export function deriveTraderFailureRiskContext(params: {
     label: "high",
     reasons,
     line: `failure risk: high because ${reasonText}`,
+  };
+}
+
+export function deriveTraderDipBuyQualityContext(params: {
+  event: MonitoringEvent;
+  zone?: FinalLevelZone;
+  pressure: TraderPressureContext;
+  nextBarrier?: TraderNextBarrierContext | null;
+}): TraderDipBuyQualityContext | null {
+  const { event, zone, pressure, nextBarrier } = params;
+  if (!zone || event.eventType !== "level_touch" || zone.kind !== "support") {
+    return null;
+  }
+
+  const tacticalRead = deriveTraderZoneTacticalRead(zone, event.eventContext.zoneFreshness);
+  if (
+    tacticalRead === "tired" ||
+    nextBarrier?.clearanceLabel === "tight" ||
+    nextBarrier?.clutterLabel === "dense"
+  ) {
+    return {
+      label: "poor",
+      line: "dip-buy quality: tactically poor while support looks tired or the upside path is crowded",
+    };
+  }
+
+  if (
+    (zone.strengthLabel === "strong" || zone.strengthLabel === "major") &&
+    tacticalRead === "firm" &&
+    pressure.label !== "tentative" &&
+    pressure.label !== "balanced" &&
+    nextBarrier?.clearanceLabel === "open" &&
+    nextBarrier?.clutterLabel !== "stacked"
+  ) {
+    return {
+      label: "actionable",
+      line: "dip-buy quality: actionable against support while structure and nearby room still support a bounce",
+    };
+  }
+
+  return {
+    label: "watch_only",
+    line: "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead",
+  };
+}
+
+export function deriveTraderFollowThroughContext(params: {
+  eventType: string;
+  returnPct: number | null;
+  directionalReturnPct: number | null;
+  followThroughLabel: TraderFollowThroughContext["label"];
+}): TraderFollowThroughContext {
+  const { eventType, returnPct, directionalReturnPct, followThroughLabel } = params;
+  const line =
+    followThroughLabel === "strong"
+      ? `follow-through: ${eventType.replaceAll("_", " ")} stayed strong after the alert`
+      : followThroughLabel === "working"
+        ? `follow-through: ${eventType.replaceAll("_", " ")} is still working after the alert`
+        : followThroughLabel === "stalled"
+          ? `follow-through: ${eventType.replaceAll("_", " ")} stalled after the alert and needs re-acceleration`
+          : followThroughLabel === "failed"
+            ? `follow-through: ${eventType.replaceAll("_", " ")} failed after the alert`
+            : `follow-through: ${eventType.replaceAll("_", " ")} outcome is still unclear`;
+
+  return {
+    label: followThroughLabel,
+    eventType,
+    directionalReturnPct,
+    rawReturnPct: returnPct,
+    line,
   };
 }
 
@@ -759,6 +849,12 @@ export function buildTraderAlertBody(
     pressure,
     nextBarrier,
   });
+  const dipBuyQuality = deriveTraderDipBuyQualityContext({
+    event,
+    zone,
+    pressure,
+    nextBarrier,
+  });
   const setupState = deriveTraderSetupStateContext({
     event,
     movement,
@@ -785,6 +881,7 @@ export function buildTraderAlertBody(
     roomLine,
     target?.line ?? null,
     triggerQuality?.line ?? null,
+    dipBuyQuality?.line ?? null,
     setupState?.line ?? null,
     failureRisk?.line ?? null,
     tradeMap?.line ?? null,

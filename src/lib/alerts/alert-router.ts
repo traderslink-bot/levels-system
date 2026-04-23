@@ -5,6 +5,7 @@ import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
 import type {
   AlertPayload,
   DiscordThread,
+  TraderFollowThroughContext,
   LevelExtensionPayload,
   LevelSnapshotDisplayZone,
   LevelSnapshotPayload,
@@ -18,6 +19,8 @@ export function formatMonitoringEventAsAlert(event: MonitoringEvent): AlertPaylo
     title: `${event.symbol} ${event.eventType.replaceAll("_", " ")}`,
     body: `${event.zoneKind} zone ${event.eventContext.canonicalZoneId} at ${event.triggerPrice}`,
     event,
+    symbol: event.symbol,
+    timestamp: event.timestamp,
   };
 }
 
@@ -34,12 +37,17 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       `trigger ${alert.event.triggerPrice >= 1 ? alert.event.triggerPrice.toFixed(2) : alert.event.triggerPrice.toFixed(4)}`,
     ].join("\n"),
     event: alert.event,
+    symbol: alert.event.symbol,
+    timestamp: alert.event.timestamp,
     metadata: {
+      messageKind: "intelligent_alert",
       eventType: alert.event.eventType,
       severity: alert.severity,
       confidence: alert.confidence,
       score: alert.score,
       clearanceLabel: alert.nextBarrier?.clearanceLabel,
+      barrierClutterLabel: alert.nextBarrier?.clutterLabel,
+      nearbyBarrierCount: alert.nextBarrier?.nearbyBarrierCount,
       nextBarrierSide: alert.nextBarrier?.side,
       nextBarrierDistancePct: alert.nextBarrier?.distancePct,
       tacticalRead: alert.tacticalRead,
@@ -48,6 +56,7 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       pressureLabel: alert.pressure?.label,
       pressureScore: alert.pressure?.pressureScore,
       triggerQualityLabel: alert.triggerQuality?.label,
+      dipBuyQualityLabel: alert.dipBuyQuality?.label,
       setupStateLabel: alert.setupState?.label,
       failureRiskLabel: alert.failureRisk?.label,
       tradeMapLabel: alert.tradeMap?.label,
@@ -56,6 +65,47 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       targetSide: alert.target?.side,
       targetPrice: alert.target?.price,
       targetDistancePct: alert.target?.distancePct,
+    },
+  };
+}
+
+function formatPct(value: number): string {
+  const sign = value >= 0 ? "+" : "-";
+  return `${sign}${Math.abs(value).toFixed(2)}%`;
+}
+
+export function formatFollowThroughUpdateAsPayload(params: {
+  symbol: string;
+  timestamp: number;
+  followThrough: TraderFollowThroughContext;
+  entryPrice: number;
+  outcomePrice: number;
+}): AlertPayload {
+  const { symbol, timestamp, followThrough, entryPrice, outcomePrice } = params;
+  const directionalText =
+    followThrough.directionalReturnPct === null
+      ? "n/a"
+      : formatPct(followThrough.directionalReturnPct);
+  const rawText =
+    followThrough.rawReturnPct === null
+      ? "n/a"
+      : formatPct(followThrough.rawReturnPct);
+
+  return {
+    title: `${symbol} ${followThrough.eventType.replaceAll("_", " ")} follow-through`,
+    body: [
+      followThrough.line,
+      `status: ${followThrough.label} | directional ${directionalText} | raw ${rawText}`,
+      `path: tracked from ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} to ${outcomePrice >= 1 ? outcomePrice.toFixed(2) : outcomePrice.toFixed(4)}`,
+    ].join("\n"),
+    symbol,
+    timestamp,
+    metadata: {
+      messageKind: "follow_through_update",
+      eventType: followThrough.eventType as MonitoringEvent["eventType"],
+      followThroughLabel: followThrough.label,
+      directionalReturnPct: followThrough.directionalReturnPct,
+      rawReturnPct: followThrough.rawReturnPct,
     },
   };
 }

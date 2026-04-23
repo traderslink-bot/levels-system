@@ -436,6 +436,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
       "room: limited overhead into next resistance 100.50 (+2.4%)",
       "target: first resistance objective 100.50 (+2.4%)",
       "trigger quality: workable trigger with workable control, but follow-through still needs to prove itself",
+      "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead",
       "setup state: building, so the zone still needs a real decision move",
       "failure risk: still relatively contained while price holds this area",
       "trade map: risk to invalidation 0.3%; room to next resistance 2.4% (~6.9x, favorable skew)",
@@ -443,6 +444,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
     ].join("\n"),
   );
   assert.equal(result.rawAlert.tacticalRead, "firm");
+  assert.equal(result.rawAlert.dipBuyQuality?.label, "watch_only");
   assert.equal(result.rawAlert.scoreComponents.tacticalRead, 4);
 });
 

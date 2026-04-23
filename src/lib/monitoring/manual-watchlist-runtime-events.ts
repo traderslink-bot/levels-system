@@ -12,6 +12,8 @@ export type ManualWatchlistLifecycleEventName =
   | "alert_posted"
   | "alert_suppressed"
   | "alert_post_failed"
+  | "follow_through_posted"
+  | "follow_through_post_failed"
   | "deactivated"
   | "restore_failed";
 

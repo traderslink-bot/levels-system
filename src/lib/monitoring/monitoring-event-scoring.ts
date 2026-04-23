@@ -5,6 +5,7 @@ import {
 } from "../levels/zone-tactical-read.js";
 import type { MonitoringConfig } from "./monitoring-config.js";
 import type {
+  BarrierClutterLabel,
   BarrierClearanceLabel,
   LivePriceUpdate,
   MonitoringAlertType,
@@ -81,19 +82,19 @@ function barrierSideForEvent(
   return bias === "bearish" ? "support" : "resistance";
 }
 
-export function findNearestRelevantBarrier(params: {
+function relevantBarriers(params: {
   eventType: MonitoringEventType;
   zone: FinalLevelZone;
   symbolState: SymbolMonitoringState;
   triggerPrice: number;
-}): {
+}): Array<{
   kind: "support" | "resistance";
   level: number;
   distancePct: number;
-} | null {
+}> {
   const { eventType, zone, symbolState, triggerPrice } = params;
   if (!Number.isFinite(triggerPrice) || triggerPrice <= 0) {
-    return null;
+    return [];
   }
 
   const barrierKind = barrierSideForEvent(eventType, zone, symbolState.bias ?? "neutral");
@@ -112,19 +113,66 @@ export function findNearestRelevantBarrier(params: {
       barrierKind === "resistance"
         ? left.representativePrice - right.representativePrice
         : right.representativePrice - left.representativePrice,
-    );
-  const nextBarrier = candidates[0];
+    )
+    .map((candidate) => ({
+      kind: barrierKind,
+      level: candidate.representativePrice,
+      distancePct:
+        Math.abs(candidate.representativePrice - triggerPrice) /
+        Math.max(triggerPrice, 0.0001),
+    }));
 
-  if (!nextBarrier) {
+  return candidates;
+}
+
+export function findNearestRelevantBarrier(params: {
+  eventType: MonitoringEventType;
+  zone: FinalLevelZone;
+  symbolState: SymbolMonitoringState;
+  triggerPrice: number;
+}): {
+  kind: "support" | "resistance";
+  level: number;
+  distancePct: number;
+} | null {
+  return relevantBarriers(params)[0] ?? null;
+}
+
+export function deriveBarrierClutter(params: {
+  eventType: MonitoringEventType;
+  zone: FinalLevelZone;
+  symbolState: SymbolMonitoringState;
+  triggerPrice: number;
+  config: MonitoringConfig;
+}): {
+  label: BarrierClutterLabel;
+  nearbyBarrierCount: number;
+} | null {
+  const barriers = relevantBarriers(params);
+  if (barriers.length === 0) {
     return null;
   }
 
+  const clusteredDistancePct = Math.max(params.config.limitedClearancePct * 2, 0.06);
+  const nearbyBarrierCount = barriers.filter((barrier) => barrier.distancePct <= clusteredDistancePct).length;
+
+  if (nearbyBarrierCount >= 3) {
+    return {
+      label: "dense",
+      nearbyBarrierCount,
+    };
+  }
+
+  if (nearbyBarrierCount >= 2) {
+    return {
+      label: "stacked",
+      nearbyBarrierCount,
+    };
+  }
+
   return {
-    kind: barrierKind,
-    level: nextBarrier.representativePrice,
-    distancePct:
-      Math.abs(nextBarrier.representativePrice - triggerPrice) /
-      Math.max(triggerPrice, 0.0001),
+    label: "clear",
+    nearbyBarrierCount: 1,
   };
 }
 
@@ -257,6 +305,13 @@ export function scoreMonitoringEvent(params: {
     symbolState,
     triggerPrice: update.lastPrice,
   });
+  const barrierClutter = deriveBarrierClutter({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+    config,
+  });
   const clearanceLabel = deriveBarrierClearanceLabel(
     nearestBarrier?.distancePct ?? null,
     config,
@@ -356,10 +411,36 @@ export function scoreMonitoringEvent(params: {
         ? 0.03
         : 0;
   const clearanceBonus = clearanceLabel === "open" ? 0.03 : 0;
+  const clutterPenalty =
+    barrierClutter?.label === "dense"
+      ? 0.07
+      : barrierClutter?.label === "stacked"
+        ? 0.03
+        : 0;
+  const clutterTailwind =
+    barrierClutter?.label === "dense" &&
+    ((zone.kind === "resistance" && eventType === "breakout") ||
+      (zone.kind === "support" && eventType === "breakdown"))
+      ? 0.02
+      : 0;
   const tacticalScale =
     eventType === "level_touch" || eventType === "compression" ? 0.75 : 1;
   const tacticalTailwindBonus = tacticalBias === "tailwind" ? 0.02 * tacticalScale : 0;
   const tacticalHeadwindPenalty = tacticalBias === "headwind" ? 0.03 * tacticalScale : 0;
+  const exhaustionPenalty =
+    tacticalRead === "tired" &&
+    ((zone.kind === "support" &&
+      (eventType === "level_touch" || eventType === "reclaim" || eventType === "fake_breakdown")) ||
+      (zone.kind === "resistance" &&
+        (eventType === "level_touch" || eventType === "rejection" || eventType === "fake_breakout")))
+      ? 0.05
+      : 0;
+  const exhaustionTailwind =
+    tacticalRead === "tired" &&
+    ((zone.kind === "resistance" && eventType === "breakout") ||
+      (zone.kind === "support" && eventType === "breakdown"))
+      ? 0.03
+      : 0;
 
   const strength = clamp(
     proximityScore * 0.32 +
@@ -379,8 +460,12 @@ export function scoreMonitoringEvent(params: {
       extensionContext -
       clearancePenalty +
       clearanceBonus -
+      clutterPenalty +
+      clutterTailwind -
       tacticalHeadwindPenalty +
       tacticalTailwindBonus -
+      exhaustionPenalty +
+      exhaustionTailwind -
       dataQualityPenalty -
       staleContextPenalty -
       weakZonePenalty,
@@ -402,8 +487,12 @@ export function scoreMonitoringEvent(params: {
       extensionContext * 0.8 -
       clearancePenalty * 0.7 +
       clearanceBonus * 0.7 -
+      clutterPenalty * 0.85 +
+      clutterTailwind * 0.75 -
       tacticalHeadwindPenalty * 0.85 +
       tacticalTailwindBonus * 0.75 -
+      exhaustionPenalty * 0.9 +
+      exhaustionTailwind * 0.75 -
       dataQualityPenalty * 0.5 -
       staleContextPenalty * 0.75 -
       weakZonePenalty * 0.6,

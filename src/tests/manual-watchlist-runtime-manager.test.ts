@@ -1408,6 +1408,122 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
   );
 });
 
+test("ManualWatchlistRuntimeManager posts follow-through updates when evaluations complete", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: {
+      processMonitoringEvent() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 1,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+        };
+      },
+      processPriceUpdate() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [],
+          summary: {
+            totalEvaluated: 1,
+            expectancy: 2.38,
+            rollingExpectancy: { expectancy: 2.38 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 1,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [
+            {
+              symbol: "ALBT",
+              timestamp: 10,
+              evaluatedAt: 20,
+              entryPrice: 2.52,
+              outcomePrice: 2.58,
+              returnPct: 2.38,
+              directionalReturnPct: 2.38,
+              followThroughLabel: "strong",
+              success: true,
+              eventType: "breakout",
+            },
+          ],
+        };
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+            strengthLabel: "strong",
+            strengthScore: 28,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    lastPrice: 2.58,
+    timestamp: 20,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(discordAlertRouter.routed.length, 1);
+  assert.equal(discordAlertRouter.routed[0]?.payload.title, "ALBT breakout follow-through");
+  assert.equal(
+    discordAlertRouter.routed[0]?.payload.body,
+    [
+      "follow-through: breakout stayed strong after the alert",
+      "status: strong | directional +2.38% | raw +2.38%",
+      "path: tracked from 2.52 to 2.58",
+    ].join("\n"),
+  );
+  assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.messageKind, "follow_through_update");
+  assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.followThroughLabel, "strong");
+});
+
 test("ManualWatchlistRuntimeManager suppresses near-duplicate alert posts for the same structural state", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();

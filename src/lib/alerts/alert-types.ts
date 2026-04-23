@@ -4,6 +4,7 @@
 import type { FinalLevelZone } from "../levels/level-types.js";
 import type { ZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type {
+  BarrierClutterLabel,
   BarrierClearanceLabel,
   MonitoringEvent,
 } from "../monitoring/monitoring-types.js";
@@ -51,6 +52,16 @@ export type TraderTriggerQualityContext = {
   line: string;
 };
 
+export type TraderDipBuyQualityLabel =
+  | "actionable"
+  | "watch_only"
+  | "poor";
+
+export type TraderDipBuyQualityContext = {
+  label: TraderDipBuyQualityLabel;
+  line: string;
+};
+
 export type TraderSetupStateLabel =
   | "building"
   | "confirmation"
@@ -95,18 +106,38 @@ export type TraderTargetContext = {
   line: string;
 };
 
+export type TraderFollowThroughLabel =
+  | "strong"
+  | "working"
+  | "stalled"
+  | "failed"
+  | "unknown";
+
+export type TraderFollowThroughContext = {
+  label: TraderFollowThroughLabel;
+  eventType: string;
+  directionalReturnPct: number | null;
+  rawReturnPct: number | null;
+  line: string;
+};
+
 export type AlertPayload = {
   title: string;
   body: string;
-  event: MonitoringEvent;
+  event?: MonitoringEvent;
+  symbol?: string;
+  timestamp?: number;
   metadata?: {
     eventType?: MonitoringEvent["eventType"];
+    messageKind?: "intelligent_alert" | "follow_through_update";
     severity?: AlertSeverity;
     confidence?: AlertConfidence;
     score?: number;
     postingFamily?: AlertPostingFamily;
     postingDecisionReason?: AlertPostingDecisionReason;
     clearanceLabel?: BarrierClearanceLabel;
+    barrierClutterLabel?: BarrierClutterLabel;
+    nearbyBarrierCount?: number;
     nextBarrierSide?: "support" | "resistance";
     nextBarrierDistancePct?: number;
     tacticalRead?: TraderZoneTacticalRead;
@@ -115,6 +146,7 @@ export type AlertPayload = {
     pressureLabel?: TraderPressureLabel;
     pressureScore?: number;
     triggerQualityLabel?: TraderTriggerQualityLabel;
+    dipBuyQualityLabel?: TraderDipBuyQualityLabel;
     setupStateLabel?: TraderSetupStateLabel;
     failureRiskLabel?: TraderFailureRiskLabel;
     tradeMapLabel?: TraderTradeMapLabel;
@@ -123,6 +155,9 @@ export type AlertPayload = {
     targetSide?: "support" | "resistance";
     targetPrice?: number;
     targetDistancePct?: number;
+    followThroughLabel?: TraderFollowThroughLabel;
+    directionalReturnPct?: number | null;
+    rawReturnPct?: number | null;
   };
 };
 
@@ -131,6 +166,8 @@ export type TraderNextBarrierContext = {
   price: number;
   distancePct: number;
   clearanceLabel?: BarrierClearanceLabel;
+  clutterLabel?: BarrierClutterLabel;
+  nearbyBarrierCount?: number;
 };
 
 export type DiscordThread = {
@@ -190,6 +227,7 @@ export type IntelligentAlert = {
   movement?: TraderMovementContext | null;
   pressure?: TraderPressureContext | null;
   triggerQuality?: TraderTriggerQualityContext | null;
+  dipBuyQuality?: TraderDipBuyQualityContext | null;
   setupState?: TraderSetupStateContext | null;
   failureRisk?: TraderFailureRiskContext | null;
   tradeMap?: TraderTradeMapContext | null;

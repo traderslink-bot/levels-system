@@ -103,6 +103,8 @@ export class AlertIntelligenceEngine {
         price: event.eventContext.nextBarrierLevel,
         distancePct: event.eventContext.nextBarrierDistancePct,
         clearanceLabel: event.eventContext.clearanceLabel,
+        clutterLabel: event.eventContext.barrierClutterLabel,
+        nearbyBarrierCount: event.eventContext.nearbyBarrierCount,
       };
     }
 
@@ -129,6 +131,17 @@ export class AlertIntelligenceEngine {
       return null;
     }
 
+    const clusteredDistancePct = Math.max(DEFAULT_MONITORING_CONFIG.limitedClearancePct * 2, 0.06);
+    const nearbyBarrierCount = candidates.filter((candidate) =>
+      Math.abs(candidate.representativePrice - event.triggerPrice) / Math.max(event.triggerPrice, 0.0001) <= clusteredDistancePct
+    ).length;
+    const clutterLabel =
+      nearbyBarrierCount >= 3
+        ? "dense"
+        : nearbyBarrierCount >= 2
+          ? "stacked"
+          : "clear";
+
     return {
       side: barrierSide,
       price: nextBarrier.representativePrice,
@@ -140,6 +153,8 @@ export class AlertIntelligenceEngine {
           Math.max(event.triggerPrice, 0.0001),
         DEFAULT_MONITORING_CONFIG,
       ),
+      clutterLabel,
+      nearbyBarrierCount,
     };
   }
 

@@ -1,11 +1,21 @@
 import type { RankedOpportunity } from "./opportunity-engine.js";
 
+export type OpportunityFollowThroughLabel =
+  | "strong"
+  | "working"
+  | "stalled"
+  | "failed"
+  | "unknown";
+
 export type EvaluatedOpportunity = {
   symbol: string;
   timestamp: number;
+  evaluatedAt: number;
   entryPrice: number;
   outcomePrice: number;
   returnPct: number;
+  directionalReturnPct: number | null;
+  followThroughLabel: OpportunityFollowThroughLabel;
   success: boolean;
   eventType: string;
 };
@@ -98,6 +108,47 @@ function computeReturnPct(entryPrice: number, outcomePrice: number): number {
   }
 
   return ((outcomePrice - entryPrice) / entryPrice) * 100;
+}
+
+function directionalReturnPct(eventType: string, returnPct: number): number | null {
+  if (!Number.isFinite(returnPct)) {
+    return null;
+  }
+
+  if (isBullishType(eventType)) {
+    return returnPct;
+  }
+
+  if (isBearishType(eventType)) {
+    return -1 * returnPct;
+  }
+
+  return Math.abs(returnPct);
+}
+
+function deriveFollowThroughLabel(
+  eventType: string,
+  returnPct: number,
+  success: boolean,
+): OpportunityFollowThroughLabel {
+  const directional = directionalReturnPct(eventType, returnPct);
+  if (directional === null) {
+    return "unknown";
+  }
+
+  if (success && directional >= 1.0) {
+    return "strong";
+  }
+
+  if (success && directional >= 0.3) {
+    return "working";
+  }
+
+  if (directional >= -0.2) {
+    return "stalled";
+  }
+
+  return "failed";
 }
 
 function determineSuccessWithThreshold(
@@ -309,18 +360,27 @@ export class OpportunityEvaluator {
         continue;
       }
 
+      const resolvedEventType = resolveOpportunityEventType(pending.opportunity);
+      const success = determineSuccessWithThreshold(
+        pending.opportunity,
+        returnPct,
+        this.successThresholdPct,
+      );
       const evaluatedOpportunity: EvaluatedOpportunity = {
         symbol: pending.opportunity.symbol,
         timestamp: pending.opportunity.timestamp,
+        evaluatedAt: timestamp,
         entryPrice: pending.entryPrice,
         outcomePrice: normalizedPrice,
         returnPct,
-        success: determineSuccessWithThreshold(
-          pending.opportunity,
+        directionalReturnPct: directionalReturnPct(resolvedEventType, returnPct),
+        followThroughLabel: deriveFollowThroughLabel(
+          resolvedEventType,
           returnPct,
-          this.successThresholdPct,
+          success,
         ),
-        eventType: resolveOpportunityEventType(pending.opportunity),
+        success,
+        eventType: resolvedEventType,
       };
 
       this.evaluated.push(evaluatedOpportunity);

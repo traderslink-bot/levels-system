@@ -226,8 +226,8 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
       type: "alert",
       title: payload.title,
       body: payload.body,
-      symbol: payload.event.symbol,
-      timestamp: payload.event.timestamp,
+      symbol: payload.symbol ?? payload.event?.symbol ?? "UNKNOWN",
+      timestamp: payload.timestamp ?? payload.event?.timestamp ?? Date.now(),
     });
     this.saveState(state);
   }

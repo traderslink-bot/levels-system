@@ -28,12 +28,15 @@ export type DiscordDeliveryAuditEntry = {
   title?: string;
   bodyPreview?: string;
   eventType?: string;
+  messageKind?: string;
   severity?: string;
   confidence?: string;
   score?: number;
   postingFamily?: string;
   postingDecisionReason?: string;
   clearanceLabel?: string;
+  barrierClutterLabel?: string;
+  nearbyBarrierCount?: number;
   nextBarrierSide?: string;
   nextBarrierDistancePct?: number;
   tacticalRead?: string;
@@ -42,6 +45,7 @@ export type DiscordDeliveryAuditEntry = {
   pressureLabel?: string;
   pressureScore?: number;
   triggerQualityLabel?: string;
+  dipBuyQualityLabel?: string;
   setupStateLabel?: string;
   failureRiskLabel?: string;
   tradeMapLabel?: string;
@@ -50,6 +54,9 @@ export type DiscordDeliveryAuditEntry = {
   targetSide?: string;
   targetPrice?: number;
   targetDistancePct?: number;
+  followThroughLabel?: string;
+  directionalReturnPct?: number | null;
+  rawReturnPct?: number | null;
   supportCount?: number;
   resistanceCount?: number;
   side?: string;
@@ -159,9 +166,10 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       await this.inner.sendMessage(threadId, payload);
       this.recordPosted("post_alert", {
         threadId,
-        symbol: payload.event.symbol,
+        symbol: payload.symbol ?? payload.event?.symbol,
         title: payload.title,
         bodyPreview: previewBody(payload.body),
+        messageKind: payload.metadata?.messageKind,
         eventType: payload.metadata?.eventType,
         severity: payload.metadata?.severity,
         confidence: payload.metadata?.confidence,
@@ -169,6 +177,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         postingFamily: payload.metadata?.postingFamily,
         postingDecisionReason: payload.metadata?.postingDecisionReason,
         clearanceLabel: payload.metadata?.clearanceLabel,
+        barrierClutterLabel: payload.metadata?.barrierClutterLabel,
+        nearbyBarrierCount: payload.metadata?.nearbyBarrierCount,
         nextBarrierSide: payload.metadata?.nextBarrierSide,
         nextBarrierDistancePct: payload.metadata?.nextBarrierDistancePct,
         tacticalRead: payload.metadata?.tacticalRead,
@@ -177,6 +187,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         pressureLabel: payload.metadata?.pressureLabel,
         pressureScore: payload.metadata?.pressureScore,
         triggerQualityLabel: payload.metadata?.triggerQualityLabel,
+        dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
         setupStateLabel: payload.metadata?.setupStateLabel,
         failureRiskLabel: payload.metadata?.failureRiskLabel,
         tradeMapLabel: payload.metadata?.tradeMapLabel,
@@ -185,13 +196,17 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         targetSide: payload.metadata?.targetSide,
         targetPrice: payload.metadata?.targetPrice,
         targetDistancePct: payload.metadata?.targetDistancePct,
+        followThroughLabel: payload.metadata?.followThroughLabel,
+        directionalReturnPct: payload.metadata?.directionalReturnPct,
+        rawReturnPct: payload.metadata?.rawReturnPct,
       });
     } catch (error) {
       this.recordFailed("post_alert", error, {
         threadId,
-        symbol: payload.event.symbol,
+        symbol: payload.symbol ?? payload.event?.symbol,
         title: payload.title,
         bodyPreview: previewBody(payload.body),
+        messageKind: payload.metadata?.messageKind,
         eventType: payload.metadata?.eventType,
         severity: payload.metadata?.severity,
         confidence: payload.metadata?.confidence,
@@ -199,6 +214,8 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         postingFamily: payload.metadata?.postingFamily,
         postingDecisionReason: payload.metadata?.postingDecisionReason,
         clearanceLabel: payload.metadata?.clearanceLabel,
+        barrierClutterLabel: payload.metadata?.barrierClutterLabel,
+        nearbyBarrierCount: payload.metadata?.nearbyBarrierCount,
         nextBarrierSide: payload.metadata?.nextBarrierSide,
         nextBarrierDistancePct: payload.metadata?.nextBarrierDistancePct,
         tacticalRead: payload.metadata?.tacticalRead,
@@ -207,6 +224,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         pressureLabel: payload.metadata?.pressureLabel,
         pressureScore: payload.metadata?.pressureScore,
         triggerQualityLabel: payload.metadata?.triggerQualityLabel,
+        dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
         setupStateLabel: payload.metadata?.setupStateLabel,
         failureRiskLabel: payload.metadata?.failureRiskLabel,
         tradeMapLabel: payload.metadata?.tradeMapLabel,
@@ -215,6 +233,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         targetSide: payload.metadata?.targetSide,
         targetPrice: payload.metadata?.targetPrice,
         targetDistancePct: payload.metadata?.targetDistancePct,
+        followThroughLabel: payload.metadata?.followThroughLabel,
+        directionalReturnPct: payload.metadata?.directionalReturnPct,
+        rawReturnPct: payload.metadata?.rawReturnPct,
       });
     }
   }

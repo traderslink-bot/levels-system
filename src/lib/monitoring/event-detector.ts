@@ -15,6 +15,7 @@ import type {
   ZoneInteractionState,
 } from "./monitoring-types.js";
 import {
+  deriveBarrierClutter,
   buildInteractionEpisodeId,
   deriveBarrierClearanceLabel,
   findNearestRelevantBarrier,
@@ -111,6 +112,13 @@ function buildMonitoringEventContext(
     symbolState,
     triggerPrice: update.lastPrice,
   });
+  const barrierClutter = deriveBarrierClutter({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+    config,
+  });
   const clearanceLabel = deriveBarrierClearanceLabel(
     nearestBarrier?.distancePct ?? null,
     config,
@@ -138,6 +146,8 @@ function buildMonitoringEventContext(
       nextBarrierLevel: nearestBarrier?.level,
       nextBarrierDistancePct: nearestBarrier?.distancePct,
       clearanceLabel,
+      barrierClutterLabel: barrierClutter?.label,
+      nearbyBarrierCount: barrierClutter?.nearbyBarrierCount,
       tacticalRead,
     };
   }
@@ -159,6 +169,8 @@ function buildMonitoringEventContext(
     nextBarrierLevel: nearestBarrier?.level,
     nextBarrierDistancePct: nearestBarrier?.distancePct,
     clearanceLabel,
+    barrierClutterLabel: barrierClutter?.label,
+    nearbyBarrierCount: barrierClutter?.nearbyBarrierCount,
     tacticalRead,
   };
 }

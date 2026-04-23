@@ -75,6 +75,11 @@ export type BarrierClearanceLabel =
   | "limited"
   | "open";
 
+export type BarrierClutterLabel =
+  | "clear"
+  | "stacked"
+  | "dense";
+
 export type MonitoringZoneContext = {
   monitoredZoneId: string;
   canonicalZoneId: string;
@@ -163,6 +168,8 @@ export type MonitoringEventContext = {
   nextBarrierLevel?: number;
   nextBarrierDistancePct?: number;
   clearanceLabel?: BarrierClearanceLabel;
+  barrierClutterLabel?: BarrierClutterLabel;
+  nearbyBarrierCount?: number;
   tacticalRead?: ZoneTacticalRead;
 };
 

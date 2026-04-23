@@ -13,6 +13,7 @@ import type { AlertIntelligenceConfig } from "./alert-config.js";
 import { resolveZoneTacticalBias } from "../levels/zone-tactical-read.js";
 import {
   buildTraderAlertBody,
+  deriveTraderDipBuyQualityContext,
   deriveTraderFailureRiskContext,
   deriveTraderMovementContext,
   deriveTraderPressureContext,
@@ -133,6 +134,12 @@ function contextContributions(
     pressure,
     nextBarrier,
   });
+  const dipBuyQuality = deriveTraderDipBuyQualityContext({
+    event,
+    zone,
+    pressure,
+    nextBarrier,
+  });
   const tacticalBias = zone
     ? resolveZoneTacticalBias({
       zoneKind: zone.kind,
@@ -173,9 +180,37 @@ function contextContributions(
         ? -config.degradedDirectionalPenalty
         : 0,
     clearance: clearanceScore,
+    clutter:
+      context.barrierClutterLabel === "dense"
+        ? -4
+        : context.barrierClutterLabel === "stacked"
+          ? -2
+          : 0,
     pressureQuality: config.pressureLabelScores[pressure.label],
     triggerQuality: triggerQuality ? config.triggerQualityScores[triggerQuality.label] : 0,
+    dipBuyQuality:
+      dipBuyQuality?.label === "actionable"
+        ? 2
+        : dipBuyQuality?.label === "watch_only"
+          ? -1.5
+          : dipBuyQuality?.label === "poor"
+            ? -4
+            : 0,
     tacticalRead: config.tacticalBiasScores[tacticalBias],
+    tiredStructureRisk:
+      tacticalRead === "tired" &&
+      ((event.zoneKind === "support" &&
+        (event.eventType === "level_touch" || event.eventType === "reclaim")) ||
+        (event.zoneKind === "resistance" &&
+          (event.eventType === "level_touch" || event.eventType === "rejection")))
+        ? -3
+        : 0,
+    tiredBreakTailwind:
+      tacticalRead === "tired" &&
+      ((event.zoneKind === "resistance" && event.eventType === "breakout") ||
+        (event.zoneKind === "support" && event.eventType === "breakdown"))
+        ? 1.5
+        : 0,
     innerDirectionalRisk:
       directionalResolution &&
       context.ladderPosition === "inner" &&
@@ -218,6 +253,10 @@ function tagsForAlert(event: MonitoringEvent, zone?: FinalLevelZone): string[] {
     tags.push(...zone.timeframeSources);
   }
 
+  if (event.eventContext.barrierClutterLabel) {
+    tags.push(`clutter_${event.eventContext.barrierClutterLabel}`);
+  }
+
   return [...new Set(tags)];
 }
 
@@ -250,6 +289,12 @@ export function scoreMonitoringEventToAlert(params: {
   const triggerQuality = deriveTraderTriggerQualityContext({
     event,
     movement,
+    pressure,
+    nextBarrier,
+  });
+  const dipBuyQuality = deriveTraderDipBuyQualityContext({
+    event,
+    zone,
     pressure,
     nextBarrier,
   });
@@ -288,6 +333,7 @@ export function scoreMonitoringEventToAlert(params: {
     movement,
     pressure,
     triggerQuality,
+    dipBuyQuality,
     setupState,
     failureRisk,
     target: deriveTraderTargetContext(event, zone, nextBarrier),

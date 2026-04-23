@@ -21,6 +21,8 @@ export type RankedOpportunity = {
   classification: OpportunityClassification;
   nextBarrierDistancePct?: number;
   clearanceLabel?: "tight" | "limited" | "open";
+  barrierClutterLabel?: "clear" | "stacked" | "dense";
+  nearbyBarrierCount?: number;
   tacticalRead?: "firm" | "balanced" | "tired";
 };
 
@@ -195,6 +197,20 @@ function tacticalAdjustment(event: MonitoringEvent): number {
   return 0;
 }
 
+function clutterAdjustment(event: MonitoringEvent): number {
+  const clutterLabel = event.eventContext.barrierClutterLabel;
+
+  if (clutterLabel === "dense") {
+    return -0.08;
+  }
+
+  if (clutterLabel === "stacked") {
+    return -0.04;
+  }
+
+  return 0;
+}
+
 export class OpportunityEngine {
   constructor(private readonly debug: boolean = false) {}
 
@@ -229,6 +245,7 @@ export class OpportunityEngine {
       );
       const qualityWeight = 0.65 + clamp(event.strength) * 0.2 + clamp(event.confidence) * 0.15;
       const resolvedClearanceAdjustment = clearanceAdjustment(event);
+      const resolvedClutterAdjustment = clutterAdjustment(event);
       const resolvedTacticalAdjustment = tacticalAdjustment(event);
 
       const score =
@@ -242,6 +259,7 @@ export class OpportunityEngine {
             resolvedStackingBoost -
             conflictPenalty +
             resolvedClearanceAdjustment +
+            resolvedClutterAdjustment +
             resolvedTacticalAdjustment,
         ) *
         typeWeight(event.eventType) *
@@ -265,6 +283,8 @@ export class OpportunityEngine {
         classification: "low" as OpportunityClassification,
         nextBarrierDistancePct: event.eventContext.nextBarrierDistancePct,
         clearanceLabel: event.eventContext.clearanceLabel,
+        barrierClutterLabel: event.eventContext.barrierClutterLabel,
+        nearbyBarrierCount: event.eventContext.nearbyBarrierCount,
         tacticalRead: event.eventContext.tacticalRead,
       };
     });

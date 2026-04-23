@@ -43,6 +43,7 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       timestamp: 1,
     } as any,
     metadata: {
+      messageKind: "intelligent_alert",
       eventType: "breakout",
       severity: "critical",
       confidence: "high",
@@ -50,6 +51,8 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       postingFamily: "bullish_resolution",
       postingDecisionReason: "posted",
       clearanceLabel: "limited",
+      barrierClutterLabel: "stacked",
+      nearbyBarrierCount: 2,
       nextBarrierSide: "resistance",
       nextBarrierDistancePct: 0.024,
       tacticalRead: "firm",
@@ -58,6 +61,7 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       pressureLabel: "strong",
       pressureScore: 0.74,
       triggerQualityLabel: "clean",
+      dipBuyQualityLabel: "actionable",
       setupStateLabel: "continuation",
       failureRiskLabel: "contained",
       tradeMapLabel: "favorable",
@@ -87,9 +91,12 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[2]?.operation, "post_level_snapshot");
   assert.equal(lines[1]?.status, "posted");
   assert.equal(lines[1]?.symbol, "ALBT");
+  assert.equal(lines[1]?.messageKind, "intelligent_alert");
   assert.equal(lines[1]?.eventType, "breakout");
   assert.equal(lines[1]?.postingFamily, "bullish_resolution");
   assert.equal(lines[1]?.clearanceLabel, "limited");
+  assert.equal(lines[1]?.barrierClutterLabel, "stacked");
+  assert.equal(lines[1]?.nearbyBarrierCount, 2);
   assert.equal(lines[1]?.nextBarrierSide, "resistance");
   assert.equal(lines[1]?.nextBarrierDistancePct, 0.024);
   assert.equal(lines[1]?.tacticalRead, "firm");
@@ -98,6 +105,7 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.pressureLabel, "strong");
   assert.equal(lines[1]?.pressureScore, 0.74);
   assert.equal(lines[1]?.triggerQualityLabel, "clean");
+  assert.equal(lines[1]?.dipBuyQualityLabel, "actionable");
   assert.equal(lines[1]?.setupStateLabel, "continuation");
   assert.equal(lines[1]?.failureRiskLabel, "contained");
   assert.equal(lines[1]?.tradeMapLabel, "favorable");
@@ -145,6 +153,7 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
         timestamp: 1,
       } as any,
       metadata: {
+        messageKind: "intelligent_alert",
         eventType: "breakout",
         severity: "critical",
         confidence: "high",
@@ -152,6 +161,8 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
         postingFamily: "bullish_resolution",
         postingDecisionReason: "posted",
         clearanceLabel: "tight",
+        barrierClutterLabel: "dense",
+        nearbyBarrierCount: 3,
         nextBarrierSide: "support",
         nextBarrierDistancePct: 0.011,
         tacticalRead: "tired",
@@ -160,6 +171,7 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
         pressureLabel: "tentative",
         pressureScore: 0.34,
         triggerQualityLabel: "crowded",
+        dipBuyQualityLabel: "poor",
         setupStateLabel: "confirmation",
         failureRiskLabel: "high",
         tradeMapLabel: "tight",
@@ -177,9 +189,12 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.operation, "post_alert");
   assert.equal(line.status, "failed");
   assert.equal(line.gatewayMode, "local");
+  assert.equal(line.messageKind, "intelligent_alert");
   assert.equal(line.eventType, "breakout");
   assert.equal(line.postingFamily, "bullish_resolution");
   assert.equal(line.clearanceLabel, "tight");
+  assert.equal(line.barrierClutterLabel, "dense");
+  assert.equal(line.nearbyBarrierCount, 3);
   assert.equal(line.nextBarrierSide, "support");
   assert.equal(line.nextBarrierDistancePct, 0.011);
   assert.equal(line.tacticalRead, "tired");
@@ -188,6 +203,7 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.pressureLabel, "tentative");
   assert.equal(line.pressureScore, 0.34);
   assert.equal(line.triggerQualityLabel, "crowded");
+  assert.equal(line.dipBuyQualityLabel, "poor");
   assert.equal(line.setupStateLabel, "confirmation");
   assert.equal(line.failureRiskLabel, "high");
   assert.equal(line.tradeMapLabel, "tight");

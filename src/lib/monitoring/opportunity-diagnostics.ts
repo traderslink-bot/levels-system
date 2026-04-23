@@ -27,6 +27,8 @@ export type OpportunityDiagnosticsLogEntry = {
     classification: string;
     nextBarrierDistancePct?: number;
     clearanceLabel?: string;
+    barrierClutterLabel?: string;
+    nearbyBarrierCount?: number;
     tacticalRead?: string;
   }>;
   opportunity?: {
@@ -37,6 +39,8 @@ export type OpportunityDiagnosticsLogEntry = {
     classification: string;
     nextBarrierDistancePct?: number;
     clearanceLabel?: string;
+    barrierClutterLabel?: string;
+    nearbyBarrierCount?: number;
     tacticalRead?: string;
   };
   completedEvaluations?: EvaluatedOpportunity[];
@@ -141,6 +145,8 @@ export function buildOpportunityDiagnosticsLogEntry(
       classification: opportunity.classification,
       nextBarrierDistancePct: opportunity.nextBarrierDistancePct,
       clearanceLabel: opportunity.clearanceLabel,
+      barrierClutterLabel: opportunity.barrierClutterLabel,
+      nearbyBarrierCount: opportunity.nearbyBarrierCount,
       tacticalRead: opportunity.tacticalRead,
     })),
     opportunity: snapshot.newOpportunity
@@ -152,6 +158,8 @@ export function buildOpportunityDiagnosticsLogEntry(
         classification: snapshot.newOpportunity.classification,
         nextBarrierDistancePct: snapshot.newOpportunity.nextBarrierDistancePct,
         clearanceLabel: snapshot.newOpportunity.clearanceLabel,
+        barrierClutterLabel: snapshot.newOpportunity.barrierClutterLabel,
+        nearbyBarrierCount: snapshot.newOpportunity.nearbyBarrierCount,
         tacticalRead: snapshot.newOpportunity.tacticalRead,
       }
       : undefined,

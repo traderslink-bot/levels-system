@@ -86,12 +86,15 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added nearest-support / nearest-resistance snapshot map summaries so the snapshot immediately shows which side is tighter before the trader scans the full ladder.
 - Added snapshot room classification so the map line now describes the nearby balance as `bullish room`, `bearish room`, or `balanced room` when possible.
 - Added deterministic follow-through grading to long-run session artifacts so completed evaluations are now labeled `strong`, `working`, `stalled`, or `failed` instead of living only as raw win/loss counts and return percentages.
+- Added live follow-through thread updates so completed setups can now post `strong`, `working`, `stalled`, or `failed` back into the trader-facing thread instead of only showing up in post-run artifacts.
+- Added barrier-clutter context so event scoring, opportunity ranking, alert wording, and audit metadata can now distinguish cleaner paths from `stacked` or `dense` pathing beyond the first barrier.
+- Added deterministic dip-buy-quality wording so support-test alerts can now say whether the bounce looks actionable, watch-only, or tactically poor.
+- Added `trader-thread-recaps.md` so long-run sessions now produce a short readable recap artifact per symbol in addition to JSON summaries.
 
 ## Active Backlog
 
 ### End-user output improvements
 
-- Add end-of-session summaries for symbols that produced multiple alerts.
 - Add explicit `why now` and `what changed` wording for higher-priority alerts.
 - Improve low-priced-symbol phrasing so tiny decimal moves remain readable and not misleading.
 - Use the new target metadata to learn whether alerts with clear nearby objectives are materially more trader-useful than alerts without a confirmed first barrier.
@@ -104,7 +107,6 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 ### Detection and ranking improvements
 
-- Add overhead-clearance awareness so dip-buy style support signals are downgraded when there is very little room to the next meaningful resistance.
 - Add more explicit heavy/light support and resistance logic based on:
   - structural score
   - freshness
@@ -157,7 +159,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 1. Use human review feedback to tune heavy/light and firm/tired wording against real alert outcomes.
 2. Add AI commentary on top of the cleaned deterministic signal stream for the highest-priority symbols, using the new follow-through grades as part of the structured evidence.
 3. Use human review feedback to tune when tired zones should still be treated as real break tailwinds versus just noisy damage.
-4. Add stronger end-of-session summaries for symbols that materially changed state multiple times across the same run, especially when alerts and evaluated outcomes disagree.
+4. Use the new live follow-through updates and recap artifacts to decide which alert families deserve in-thread continuation updates versus only post-run review.
 5. Use the new event-type evaluation buckets to identify families that need tighter posting thresholds or better wording before adding AI commentary on top.
 6. Use the new dynamic-symbol and disagreement summaries to decide whether activation churn, reactivation behavior, or symbol-specific noise suppression needs more tuning.
 7. Use the new movement labels to learn whether early alerts outperform stretched alerts before tightening posting rules further.

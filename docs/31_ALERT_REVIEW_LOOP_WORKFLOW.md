@@ -83,6 +83,7 @@ That means these artifacts can reflect human review:
 
 - `session-summary.json`
 - `thread-summaries.json`
+- `trader-thread-recaps.md`
 - `session-review.md`
 
 The session review will then show:
@@ -122,6 +123,7 @@ This loop creates the evidence needed to improve:
 When reviewing or recording feedback, look at:
 
 - `session-review.md`
+- `trader-thread-recaps.md`
 - `thread-summaries.json`
 - `discord-delivery-audit.jsonl`
 - `manual-watchlist-operational.log`
