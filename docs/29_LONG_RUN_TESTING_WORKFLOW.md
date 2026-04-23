@@ -491,6 +491,7 @@ Live thread posting is intentionally stricter than the raw runtime evaluation st
 - `level_touch` and `compression` families now get a much narrower continuity / recap / live-state budget.
 - `rejection`, `fake_breakout`, and `fake_breakdown` now also sit on a tighter optional-post budget than clean directional resolution families, because they are easier to over-narrate before price has really proven the move.
 - continuity, recap, live-state, and follow-through narration now also share a short burst budget, so one symbol is less likely to spray a same-window cluster of trader-facing updates.
+- continuity now also yields more aggressively to fresh trader-critical beats, and same-label continuity transitions are collapsed even if they arrive before the first route resolves.
 - The review artifacts are meant to tell us when that discipline is helping versus when a family still needs tighter or looser thresholds.
 
 ## What This Process Does Not Replace

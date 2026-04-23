@@ -120,6 +120,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added short per-symbol narration burst control so continuity / recap / follow-through updates are less likely to pile up in the same window when one setup changes state rapidly.
 - Tightened extension dedupe so overlapping refresh paths are less likely to repost identical `NEXT LEVELS` payloads.
 - Refined review wording so delivery-choked threads can read as downstream-pressure problems instead of automatically looking like low-signal threads.
+- Tightened continuity again so setup-forming narration yields to fresh critical beats and same-label continuity updates collapse before in-flight routing can duplicate the story.
 
 ## Active Backlog
 

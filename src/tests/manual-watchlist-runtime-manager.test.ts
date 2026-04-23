@@ -2448,6 +2448,291 @@ test("ManualWatchlistRuntimeManager collapses same-window narration bursts into 
   assert.ok(!messageKinds.includes("symbol_recap"));
 });
 
+test("ManualWatchlistRuntimeManager suppresses setup-forming continuity immediately after a fresh trader-critical alert", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: {
+      processMonitoringEvent() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [],
+        };
+      },
+      processPriceUpdate() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [
+            {
+              symbol: "ALBT",
+              type: "pre_zone",
+              eventType: "level_touch",
+              message: "watching pullback into support near 2.45",
+              confidence: 0.82,
+              tags: [],
+              timestamp: 20,
+            },
+          ],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [],
+        };
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({
+            id: "S1",
+            symbol,
+            kind: "support",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+            strengthLabel: "strong",
+            strengthScore: 28,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  monitor.listener?.({
+    id: "evt-alert-first",
+    episodeId: "evt-alert-first-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "ALBT-support-monitored-1",
+    zoneKind: "support",
+    level: 2.45,
+    triggerPrice: 2.44,
+    strength: 0.82,
+    confidence: 0.79,
+    priority: 86,
+    bias: "bullish",
+    pressureScore: 0.71,
+    eventContext: {
+      monitoredZoneId: "ALBT-support-monitored-1",
+      canonicalZoneId: "S1",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["ALBT-support-monitored-legacy"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+    },
+    notes: ["Support touch near outermost support."],
+    timestamp: 10,
+  });
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 20,
+    lastPrice: 2.44,
+  });
+  await waitForAsyncWork();
+
+  const continuityPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "continuity_update",
+  );
+  const alertPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "intelligent_alert",
+  );
+
+  assert.equal(alertPosts.length, 1);
+  assert.equal(continuityPosts.length, 0);
+});
+
+test("ManualWatchlistRuntimeManager collapses same-label continuity updates that arrive before the first route resolves", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: {
+      processMonitoringEvent() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [
+            {
+              symbol: "ALBT",
+              type: "breakout",
+              eventType: "breakout",
+              level: 2.45,
+              classification: "high_conviction",
+              clearanceLabel: "open",
+              pathQualityLabel: "clean",
+              exhaustionLabel: "fresh",
+            },
+          ],
+          interpretations: [
+            {
+              symbol: "ALBT",
+              type: "breakout_context",
+              eventType: "breakout",
+              message: "breakout holding above 2.45",
+              confidence: 0.84,
+              tags: [],
+              timestamp: 10,
+            },
+          ],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [],
+        };
+      },
+      processPriceUpdate() {
+        return null;
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+            strengthLabel: "strong",
+            strengthScore: 28,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  const baseEvent = {
+    symbol: "ALBT",
+    type: "breakout" as const,
+    eventType: "breakout" as const,
+    zoneId: "ALBT-resistance-monitored-1",
+    zoneKind: "resistance" as const,
+    level: 2.45,
+    triggerPrice: 2.52,
+    strength: 0.82,
+    confidence: 0.79,
+    priority: 86,
+    bias: "bullish" as const,
+    pressureScore: 0.71,
+    eventContext: {
+      monitoredZoneId: "ALBT-resistance-monitored-1",
+      canonicalZoneId: "R1",
+      zoneFreshness: "fresh" as const,
+      zoneOrigin: "canonical" as const,
+      remapStatus: "preserved" as const,
+      remappedFromZoneIds: ["ALBT-resistance-monitored-legacy"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost" as const,
+      zoneStrengthLabel: "strong" as const,
+      sourceGeneratedAt: 1,
+    },
+    notes: ["Breakout through outermost resistance."],
+  };
+
+  monitor.listener?.({
+    id: "evt-continuity-dupe-1",
+    episodeId: "evt-continuity-dupe-episode",
+    timestamp: 10,
+    ...baseEvent,
+  });
+  monitor.listener?.({
+    id: "evt-continuity-dupe-2",
+    episodeId: "evt-continuity-dupe-episode",
+    timestamp: 11,
+    ...baseEvent,
+  });
+  await waitForAsyncWork();
+
+  const continuityPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "continuity_update",
+  );
+
+  assert.equal(continuityPosts.length, 1);
+  assert.equal(continuityPosts[0]?.payload.metadata?.continuityType, "continuation");
+});
+
 test("ManualWatchlistRuntimeManager posts next support levels when price approaches the lowest surfaced support", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();

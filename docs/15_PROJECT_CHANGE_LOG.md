@@ -3233,6 +3233,17 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused coverage in:
   - `src/tests/manual-watchlist-runtime-manager.test.ts`
 
+## 2026-04-23 12:45 PM America/Toronto
+
+### Tightened continuity overexpression from live `AIXI` / `AUUD` evidence
+
+- Refined `src/lib/monitoring/manual-watchlist-runtime-manager.ts` again:
+  - setup-forming continuity now yields to a freshly posted trader-critical alert instead of restating the story right after the alert already landed
+  - continuity state is now tracked optimistically during routing, so same-label continuity updates collapse even if they arrive before the first post resolves
+  - progress-driven continuity now yields more often to live follow-through-state posts, and evaluation-driven continuity now yields to completed follow-through posts when the trader-critical follow-through message already told the story
+- Added focused regression coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+
 ## 2026-04-17 10:20 PM America/Toronto
 
 ### Added a production-oriented level strength scoring and ranking layer
