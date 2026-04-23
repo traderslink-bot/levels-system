@@ -58,6 +58,7 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       pressureLabel: "strong",
       pressureScore: 0.74,
       triggerQualityLabel: "clean",
+      setupStateLabel: "continuation",
       failureRiskLabel: "contained",
       tradeMapLabel: "favorable",
       riskPct: 0.012,
@@ -97,6 +98,7 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.pressureLabel, "strong");
   assert.equal(lines[1]?.pressureScore, 0.74);
   assert.equal(lines[1]?.triggerQualityLabel, "clean");
+  assert.equal(lines[1]?.setupStateLabel, "continuation");
   assert.equal(lines[1]?.failureRiskLabel, "contained");
   assert.equal(lines[1]?.tradeMapLabel, "favorable");
   assert.equal(lines[1]?.riskPct, 0.012);
@@ -158,6 +160,7 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
         pressureLabel: "tentative",
         pressureScore: 0.34,
         triggerQualityLabel: "crowded",
+        setupStateLabel: "confirmation",
         failureRiskLabel: "high",
         tradeMapLabel: "tight",
         riskPct: 0.018,
@@ -185,6 +188,7 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.pressureLabel, "tentative");
   assert.equal(line.pressureScore, 0.34);
   assert.equal(line.triggerQualityLabel, "crowded");
+  assert.equal(line.setupStateLabel, "confirmation");
   assert.equal(line.failureRiskLabel, "high");
   assert.equal(line.tradeMapLabel, "tight");
   assert.equal(line.riskPct, 0.018);

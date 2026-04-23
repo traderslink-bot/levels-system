@@ -51,6 +51,18 @@ export type TraderTriggerQualityContext = {
   line: string;
 };
 
+export type TraderSetupStateLabel =
+  | "building"
+  | "confirmation"
+  | "continuation"
+  | "weakening"
+  | "failed";
+
+export type TraderSetupStateContext = {
+  label: TraderSetupStateLabel;
+  line: string;
+};
+
 export type TraderFailureRiskLabel =
   | "contained"
   | "watchful"
@@ -103,6 +115,7 @@ export type AlertPayload = {
     pressureLabel?: TraderPressureLabel;
     pressureScore?: number;
     triggerQualityLabel?: TraderTriggerQualityLabel;
+    setupStateLabel?: TraderSetupStateLabel;
     failureRiskLabel?: TraderFailureRiskLabel;
     tradeMapLabel?: TraderTradeMapLabel;
     riskPct?: number;
@@ -177,6 +190,7 @@ export type IntelligentAlert = {
   movement?: TraderMovementContext | null;
   pressure?: TraderPressureContext | null;
   triggerQuality?: TraderTriggerQualityContext | null;
+  setupState?: TraderSetupStateContext | null;
   failureRisk?: TraderFailureRiskContext | null;
   tradeMap?: TraderTradeMapContext | null;
   target?: TraderTargetContext | null;

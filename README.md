@@ -33,6 +33,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - a `pressure` line so the user sees whether buyers or sellers still have strong, workable, or tentative control behind the move
   - a `target` line so the user sees the first directional objective explicitly when the next barrier is known
   - a `trigger quality` line so the user can tell whether the setup looks `clean`, `workable`, `crowded`, or `late`
+  - a `setup state` line so the user can tell whether the idea is still building, confirming, continuing, weakening, or already failed
   - a `failure risk` line so the user can see whether the setup still looks contained or is already carrying elevated failure risk from tight room, weak control, tired structure, or degraded context
   - a `trade map` line so the user sees rough room-to-next-barrier versus risk-to-invalidation before acting
   - a tactical read of `firm` versus `tired` structure when the zone evidence clearly supports that distinction
@@ -51,6 +52,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Alert payload metadata and Discord delivery audit rows now also carry explicit first-target context, so long-run review can compare whether alerts with clear nearby objectives are behaving better than vague ones.
 - Alert payload metadata and Discord delivery audit rows now also carry pressure labels and raw pressure score, so long-run review can compare whether strong-control alerts are behaving better than tentative ones.
 - Alert payload metadata and Discord delivery audit rows now also carry trigger-quality labels, so long-run review can compare whether `clean` entries actually outperform `crowded` or `late` ones.
+- Alert payload metadata and Discord delivery audit rows now also carry setup-state labels, so long-run review can compare whether building, confirmation, continuation, weakening, or failed setups are being posted at the right times.
 - Alert payload metadata and Discord delivery audit rows now also carry failure-risk labels, so long-run review can compare whether contained setups behave better than elevated-risk ones.
 - Directional alert scoring is now more conservative when a setup is `crowded` or `late`, when pressure is only tentative, or when an inner breakout also carries degraded data quality.
 - Validation candle cache lives under `.validation-cache/` locally and is ignored by git.

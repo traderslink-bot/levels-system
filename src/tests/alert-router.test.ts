@@ -190,6 +190,10 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       label: "clean",
       line: "trigger quality: clean trigger with early participation, strong control, and limited room",
     },
+    setupState: {
+      label: "continuation",
+      line: "setup state: continuation, so the move has started and now needs follow-through",
+    },
     failureRisk: {
       label: "contained",
       reasons: [],
@@ -228,6 +232,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.pressureLabel, "strong");
   assert.equal(payload.metadata?.pressureScore, 0.74);
   assert.equal(payload.metadata?.triggerQualityLabel, "clean");
+  assert.equal(payload.metadata?.setupStateLabel, "continuation");
   assert.equal(payload.metadata?.failureRiskLabel, "contained");
   assert.equal(payload.metadata?.tradeMapLabel, "favorable");
   assert.equal(payload.metadata?.riskPct, 0.012);

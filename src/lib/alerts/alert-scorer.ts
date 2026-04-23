@@ -16,6 +16,7 @@ import {
   deriveTraderFailureRiskContext,
   deriveTraderMovementContext,
   deriveTraderPressureContext,
+  deriveTraderSetupStateContext,
   deriveTraderTriggerQualityContext,
   deriveTraderTargetContext,
   deriveTraderTradeMapContext,
@@ -252,6 +253,10 @@ export function scoreMonitoringEventToAlert(params: {
     pressure,
     nextBarrier,
   });
+  const setupState = deriveTraderSetupStateContext({
+    event,
+    movement,
+  });
   const failureRisk = deriveTraderFailureRiskContext({
     event,
     zone,
@@ -283,6 +288,7 @@ export function scoreMonitoringEventToAlert(params: {
     movement,
     pressure,
     triggerQuality,
+    setupState,
     failureRisk,
     target: deriveTraderTargetContext(event, zone, nextBarrier),
     tradeMap: deriveTraderTradeMapContext(event, zone, nextBarrier),

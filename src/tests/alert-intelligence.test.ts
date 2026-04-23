@@ -161,6 +161,7 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
       "context: major resistance | outermost | fresh | 5m/4h/daily confluence | recently refreshed",
       "quality: resistance still looks firm, so a clean break matters more",
       "trigger quality: clean trigger with early participation, strong control, and unclear room",
+      "setup state: confirmation, so the move still needs acceptance to hold",
       "failure risk: still relatively contained while price holds this area",
       "trade map: risk to invalidation is about 1.4%; next directional barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
@@ -295,6 +296,7 @@ test("AlertIntelligenceEngine preserves promoted extension significance without 
       "pressure: buyers still have workable control (0.67), but follow-through still matters",
       "context: heavy resistance | promoted extension | fresh | 5m/4h confluence",
       "trigger quality: workable trigger with workable control, but follow-through still needs to prove itself",
+      "setup state: building, so the zone still needs a real decision move",
       "failure risk: still relatively contained while price holds this area",
       "trade map: risk to invalidation is about 1.2%; next directional barrier still needs confirmation",
       "watch: sellers defend 3.25-3.35 before breakout pressure builds",
@@ -361,6 +363,7 @@ test("AlertIntelligenceEngine penalizes degraded data quality and preserves rema
       "pressure: buyers still have workable control (0.62), but follow-through still matters",
       "context: major resistance | outermost | aging | 5m/4h/daily confluence | recently refreshed",
       "trigger quality: workable trigger with workable control, but follow-through still needs to prove itself",
+      "setup state: confirmation, so the move still needs acceptance to hold",
       "failure risk: still relatively contained while price holds this area",
       "trade map: risk to invalidation is about 1.2%; next directional barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
@@ -433,6 +436,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
       "room: limited overhead into next resistance 100.50 (+2.4%)",
       "target: first resistance objective 100.50 (+2.4%)",
       "trigger quality: workable trigger with workable control, but follow-through still needs to prove itself",
+      "setup state: building, so the zone still needs a real decision move",
       "failure risk: still relatively contained while price holds this area",
       "trade map: risk to invalidation 0.3%; room to next resistance 2.4% (~6.9x, favorable skew)",
       "watch: buyers defend 97.80-98.20 before momentum fades",
@@ -507,6 +511,7 @@ test("AlertIntelligenceEngine calls out tired structure when a strong-looking zo
       "context: heavy resistance | outermost | aging | 5m/4h/daily confluence",
       "quality: resistance looked tactically tired before this test",
       "trigger quality: workable trigger with workable control, but follow-through still needs to prove itself",
+      "setup state: confirmation, so the move still needs acceptance to hold",
       "failure risk: watchful because tired structure",
       "trade map: risk to invalidation is about 1.1%; next directional barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
@@ -558,6 +563,7 @@ test("AlertIntelligenceEngine downgrades crowded low-pressure breakouts instead 
   assert.ok(result.formatted);
   assert.equal(result.rawAlert.pressure?.label, "tentative");
   assert.equal(result.rawAlert.triggerQuality?.label, "crowded");
+  assert.equal(result.rawAlert.setupState?.label, "confirmation");
   assert.equal(result.rawAlert.failureRisk?.label, "high");
   assert.ok(result.rawAlert.score < 64);
   assert.notEqual(result.rawAlert.severity, "critical");
@@ -569,6 +575,10 @@ test("AlertIntelligenceEngine downgrades crowded low-pressure breakouts instead 
   assert.match(
     result.formatted?.body ?? "",
     /trigger quality: crowded trigger with tentative control and open room/,
+  );
+  assert.match(
+    result.formatted?.body ?? "",
+    /setup state: confirmation, so the move still needs acceptance to hold/,
   );
   assert.match(
     result.formatted?.body ?? "",

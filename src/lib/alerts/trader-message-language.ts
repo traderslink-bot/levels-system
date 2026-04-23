@@ -9,6 +9,7 @@ import type {
   TraderMovementContext,
   TraderNextBarrierContext,
   TraderPressureContext,
+  TraderSetupStateContext,
   TraderTriggerQualityContext,
   TraderTargetContext,
   TraderTradeMapContext,
@@ -262,6 +263,49 @@ export function deriveTraderTriggerQualityContext(params: {
     label: "workable",
     line: `trigger quality: workable trigger with ${pressureText}, but follow-through still needs to prove itself`,
   };
+}
+
+export function deriveTraderSetupStateContext(params: {
+  event: MonitoringEvent;
+  movement?: TraderMovementContext | null;
+}): TraderSetupStateContext | null {
+  const { event, movement } = params;
+
+  switch (event.eventType) {
+    case "compression":
+    case "level_touch":
+      return {
+        label: "building",
+        line: "setup state: building, so the zone still needs a real decision move",
+      };
+    case "breakout":
+    case "breakdown":
+    case "reclaim":
+      if (movement?.label === "early") {
+        return {
+          label: "confirmation",
+          line: "setup state: confirmation, so the move still needs acceptance to hold",
+        };
+      }
+
+      return {
+        label: "continuation",
+        line: "setup state: continuation, so the move has started and now needs follow-through",
+      };
+    case "rejection":
+      return {
+        label: "weakening",
+        line: "setup state: weakening, so the active test is fading but not fully failed yet",
+      };
+    case "fake_breakout":
+    case "fake_breakdown":
+      return {
+        label: "failed",
+        line: "setup state: failed, so the prior break attempt already lost structure",
+      };
+    default:
+      return null;
+  }
 }
 
 export function deriveTraderFailureRiskContext(params: {
@@ -715,6 +759,10 @@ export function buildTraderAlertBody(
     pressure,
     nextBarrier,
   });
+  const setupState = deriveTraderSetupStateContext({
+    event,
+    movement,
+  });
   const failureRisk = deriveTraderFailureRiskContext({
     event,
     zone,
@@ -737,6 +785,7 @@ export function buildTraderAlertBody(
     roomLine,
     target?.line ?? null,
     triggerQuality?.line ?? null,
+    setupState?.line ?? null,
     failureRisk?.line ?? null,
     tradeMap?.line ?? null,
     buildWatchLine(event, zone),
