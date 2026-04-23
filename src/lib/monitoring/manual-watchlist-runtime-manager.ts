@@ -748,11 +748,13 @@ export class ManualWatchlistRuntimeManager {
     eventType?: string | null;
   }): boolean {
     const state = this.pruneLiveThreadPosts(params.symbol, params.timestamp);
+    const recentCritical = state.critical.length;
     const recentOptional = state.optional.length;
     const recentKind = state.optional.filter((entry) => entry.kind === params.kind).length;
     const lastCriticalAt = state.critical.at(-1)?.timestamp ?? null;
     const recentCriticalAge =
       lastCriticalAt === null ? Number.POSITIVE_INFINITY : params.timestamp - lastCriticalAt;
+    const optionalLead = recentOptional - recentCritical;
     const directionalEvent =
       params.eventType !== undefined &&
       params.eventType !== null &&
@@ -770,11 +772,42 @@ export class ManualWatchlistRuntimeManager {
       return false;
     }
 
+    if (optionalLead >= 2 && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
+      return false;
+    }
+
     if (params.kind === "recap" && recentOptional >= 2 && recentCriticalAge > CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS) {
       return false;
     }
 
+    if (
+      params.kind === "recap" &&
+      recentKind >= 1 &&
+      optionalLead >= 1 &&
+      recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS
+    ) {
+      return false;
+    }
+
+    if (
+      params.kind === "continuity" &&
+      recentKind >= 2 &&
+      optionalLead >= 1 &&
+      recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS
+    ) {
+      return false;
+    }
+
     if (params.kind === "continuity" && !directionalEvent && recentOptional >= 2 && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
+      return false;
+    }
+
+    if (
+      params.kind === "follow_through_state" &&
+      recentKind >= 1 &&
+      optionalLead >= 1 &&
+      recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS
+    ) {
       return false;
     }
 

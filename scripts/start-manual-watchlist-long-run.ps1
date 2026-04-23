@@ -1139,6 +1139,25 @@ function Build-ThreadClutterRecord {
       0
     }
 
+  if ($traderHelpfulOptionalPosts -eq 0) {
+    return [ordered]@{
+      symbol = $Symbol
+      totalLivePosts = $totalLivePosts
+      traderCriticalPosts = $traderCriticalPosts
+      traderHelpfulOptionalPosts = $traderHelpfulOptionalPosts
+      alertToContextRatio = $alertToContextRatio
+      contextDensity = $contextDensity
+      followThroughDensity = $followThroughDensity
+      continuityDensity = $continuityDensity
+      recapDensity = $recapDensity
+      clutterRisk = "low"
+      contextValueSignal = "minimal_context"
+      outputClassification = $outputClassification
+      reasons = @()
+      recommendations = @()
+    }
+  }
+
   $riskReasons = @()
   if ($totalLivePosts -ge 8 -and $contextDensity -ge 0.55) {
     $riskReasons += "context posts outweighed trader-critical posts"
@@ -1152,7 +1171,7 @@ function Build-ThreadClutterRecord {
   if ([int]$SymbolSummary.followThroughStatePosts -ge 3) {
     $riskReasons += "live follow-through state posting stayed elevated"
   }
-  if ($SymbolSummary.quality.verdict -in @("noisy", "needs_attention")) {
+  if ($traderHelpfulOptionalPosts -ge 2 -and $SymbolSummary.quality.verdict -in @("noisy", "needs_attention")) {
     $riskReasons += "symbol quality verdict leaned noisy"
   }
 

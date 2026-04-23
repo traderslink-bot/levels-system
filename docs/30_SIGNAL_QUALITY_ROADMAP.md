@@ -109,6 +109,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Consolidated trader-facing wording slightly by suppressing low-signal default lines when they are only restating the same benign idea.
 - Made optional live-post gating category-aware and thread-density-aware, so recap, continuity, and follow-through-state posts now react differently to recent critical-post mix, event family, and context load instead of sharing one generic optional-context rule.
 - Added event-type context to trader continuity interpretations so live-post discipline can stay aware of directional versus non-directional story updates without flattening the interpretation layer.
+- Tightened optional live-post throttling again so context-heavy threads back off faster once optional narration starts outnumbering trader-critical beats.
+- Corrected the clutter-review heuristic so low-context threads are no longer penalized just because the symbol was suppression-heavy internally.
 
 ## Active Backlog
 
@@ -127,6 +129,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Use the deeper path-quality, path-window, and exhaustion metadata to learn whether worn levels with layered early pathing should be suppressed more aggressively before they reach Discord.
 - Use the new clutter artifact to decide which optional live post classes are earning their place and which should stay richer only in operator artifacts.
 - Use the new category-aware live-post gating to compare whether directional continuity deserves looser thresholds than non-directional narration in real sessions.
+- Keep validating live sessions like `BURU` and `AIXI` so optional-post throttling and clutter review stay grounded in what actually hit Discord rather than what only happened inside diagnostics.
 
 ### Detection and ranking improvements
 
@@ -201,5 +204,6 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 13. Use the new snapshot room classification to decide whether the thresholds for `bullish`, `bearish`, and `balanced` room need tuning against real trading usefulness.
 14. Use the new thread-clutter artifact and live/output classification to decide which optional post classes should tighten further before changing trader-critical posts.
 15. Use the new category-aware gating to compare whether recap, continuity, and follow-through-state thresholds should diverge further by event family instead of tightening globally.
-16. Use the new per-thread AI recap and noisy-family review outputs to judge whether the AI layer is staying faithful to the deterministic artifacts before expanding it further.
-17. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.
+16. Use real-session thread clutter outcomes to decide whether context-heavy symbols should start auto-preferring artifact review over optional live narration even earlier.
+17. Use the new per-thread AI recap and noisy-family review outputs to judge whether the AI layer is staying faithful to the deterministic artifacts before expanding it further.
+18. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.

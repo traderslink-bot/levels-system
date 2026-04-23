@@ -19,6 +19,34 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 10:30 AM America/Toronto
+
+### Tightened optional live-thread throttling again and fixed clutter review for quiet symbols
+
+- Updated runtime live-post throttling in:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+- Updated long-run clutter review in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - optional live posts now back off faster once recap / continuity / live-state narration starts materially outnumbering recent trader-critical posts
+  - recap posts now tighten earlier when the thread is already context-heavy and no fresh critical beat has arrived recently
+  - follow-through-state and continuity updates also tighten sooner when optional narration starts leading the thread instead of supporting it
+  - `thread-clutter-report.json` now treats truly low-context threads as low clutter even if the symbol was suppression-heavy internally, so quiet live threads are not mislabeled as moderate-risk just because detectors kept filtering setups
+- Why this matters:
+  - the live `BURU` session showed that optional thread context could still stack up too aggressively after the main alert story was already established
+  - the live `AIXI` session showed that clutter review was still conflating internal suppression with actual trader-facing thread clutter
+  - this pass keeps the thread-review system anchored to what the trader actually saw instead of what only happened behind the scenes
+- Verification completed:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/opportunity-interpretation.test.ts src/tests/alert-router.test.ts`
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+  - `npm run check`
+
+---
+
 ## 2026-04-23 02:10 AM America/Toronto
 
 ### Made optional live-post gating category-aware so thread context stays rich without drifting into generic narration

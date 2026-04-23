@@ -116,6 +116,7 @@ Inside that folder:
   - live-updated deterministic clutter artifact
   - tracks total live posts, trader-critical versus trader-helpful optional posts, alert-to-context ratio, continuity density, recap density, live-state density, and clutter-risk heuristics per symbol
   - now also reflects category-aware optional-live gating, so recap, continuity, and follow-through-state classes can be reviewed separately instead of being treated as one generic context bucket
+  - now also treats truly low-context threads as low clutter even if the symbol itself was suppression-heavy internally, so the report stays focused on what actually reached the trader
   - makes thread clutter measurable instead of subjective
 - `trader-thread-recaps.md`
   - live-updated readable recap artifact
