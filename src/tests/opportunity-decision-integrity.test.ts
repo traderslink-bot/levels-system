@@ -655,4 +655,83 @@ describe("opportunity decision integrity", () => {
     assert.equal(bySymbol.get("WEAK")?.tacticalRead, "tired");
     assert.equal(bySymbol.get("FIRM")?.tacticalRead, "firm");
   });
+
+  it("downgrades support-touch opportunities when repeated testing and layered overhead make them less tradeable", () => {
+    const engine = new OpportunityEngine();
+    const now = 13_000_000;
+    const ranked = engine.rank([
+      {
+        ...makeEvent({
+          id: "tested-layered-support",
+          symbol: "WATCH",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.6,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        zoneKind: "support",
+        eventContext: {
+          monitoredZoneId: "WATCH-zone",
+          canonicalZoneId: "WATCH-zone",
+          zoneFreshness: "stale",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          clearanceLabel: "limited",
+          pathQualityLabel: "layered",
+          pathBarrierCount: 3,
+          exhaustionLabel: "tested",
+        },
+      },
+      {
+        ...makeEvent({
+          id: "fresh-open-support",
+          symbol: "ACTION",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.6,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        zoneKind: "support",
+        eventContext: {
+          monitoredZoneId: "ACTION-zone",
+          canonicalZoneId: "ACTION-zone",
+          zoneFreshness: "fresh",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          clearanceLabel: "open",
+          pathQualityLabel: "clean",
+          pathBarrierCount: 1,
+          exhaustionLabel: "fresh",
+        },
+      },
+    ]);
+
+    const bySymbol = new Map(ranked.map((opportunity) => [opportunity.symbol, opportunity]));
+
+    assert.ok(bySymbol.get("ACTION")!.score > bySymbol.get("WATCH")!.score);
+    assert.equal(bySymbol.get("WATCH")?.pathQualityLabel, "layered");
+    assert.equal(bySymbol.get("WATCH")?.exhaustionLabel, "tested");
+    assert.equal(bySymbol.get("ACTION")?.pathQualityLabel, "clean");
+    assert.equal(bySymbol.get("ACTION")?.exhaustionLabel, "fresh");
+  });
 });

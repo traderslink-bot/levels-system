@@ -258,6 +258,43 @@ function exhaustionAdjustment(event: MonitoringEvent): number {
   return 0;
 }
 
+function supportTradeabilityAdjustment(event: MonitoringEvent): number {
+  if (event.zoneKind !== "support" || event.eventType !== "level_touch") {
+    return 0;
+  }
+
+  const exhaustion = event.eventContext.exhaustionLabel;
+  const pathQuality = event.eventContext.pathQualityLabel;
+  const clearance = event.eventContext.clearanceLabel;
+
+  if (
+    exhaustion === "spent" &&
+    (clearance === "tight" || pathQuality === "choppy" || pathQuality === "layered")
+  ) {
+    return -0.08;
+  }
+
+  if (
+    exhaustion === "worn" &&
+    (clearance === "tight" || clearance === "limited" || pathQuality === "choppy" || pathQuality === "layered")
+  ) {
+    return -0.05;
+  }
+
+  if (
+    exhaustion === "tested" &&
+    (clearance === "tight" || clearance === "limited" || pathQuality === "layered" || pathQuality === "choppy")
+  ) {
+    return -0.03;
+  }
+
+  if (exhaustion === "fresh" && clearance === "open" && pathQuality === "clean") {
+    return 0.015;
+  }
+
+  return 0;
+}
+
 export class OpportunityEngine {
   constructor(private readonly debug: boolean = false) {}
 
@@ -296,6 +333,7 @@ export class OpportunityEngine {
       const resolvedPathQualityAdjustment = pathQualityAdjustment(event);
       const resolvedTacticalAdjustment = tacticalAdjustment(event);
       const resolvedExhaustionAdjustment = exhaustionAdjustment(event);
+      const resolvedSupportTradeabilityAdjustment = supportTradeabilityAdjustment(event);
 
       const score =
         nonlinearScore *
@@ -311,7 +349,8 @@ export class OpportunityEngine {
             resolvedClutterAdjustment +
             resolvedPathQualityAdjustment +
             resolvedTacticalAdjustment +
-            resolvedExhaustionAdjustment,
+            resolvedExhaustionAdjustment +
+            resolvedSupportTradeabilityAdjustment,
         ) *
         typeWeight(event.eventType) *
         qualityWeight;

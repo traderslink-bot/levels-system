@@ -208,6 +208,25 @@ function contextContributions(
           : dipBuyQuality?.label === "poor"
             ? -4
             : 0,
+    supportTradeability:
+      event.zoneKind === "support" && event.eventType === "level_touch"
+        ? dipBuyQuality?.label === "actionable"
+          ? 1
+          : dipBuyQuality?.label === "poor"
+            ? -2.5
+            : dipBuyQuality?.label === "watch_only" &&
+                (
+                  pathQuality?.label !== "clean" ||
+                  nextBarrier?.clearanceLabel !== "open" ||
+                  exhaustion?.label === "tested" ||
+                  exhaustion?.label === "worn" ||
+                  exhaustion?.label === "spent" ||
+                  pressure.label === "tentative" ||
+                  pressure.label === "balanced"
+                )
+              ? -1.25
+              : 0
+        : 0,
     exhaustion:
       exhaustion?.label === "fresh"
         ? 1

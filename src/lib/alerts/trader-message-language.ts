@@ -434,6 +434,10 @@ export function deriveTraderDipBuyQualityContext(params: {
   const tacticalRead = deriveTraderZoneTacticalRead(zone, event.eventContext.zoneFreshness);
   const exhaustion = deriveTraderExhaustionContext(event, zone);
   const pathQuality = deriveTraderPathQualityContext(nextBarrier);
+  const limitedRoute =
+    nextBarrier?.clearanceLabel === "limited" ||
+    nextBarrier?.clutterLabel === "stacked" ||
+    pathQuality?.label === "layered";
   const crowdedRoute =
     pathQuality?.label === "choppy" ||
     (pathQuality?.label === "layered" && (pathQuality.barrierCount >= 3 || (pathQuality.pathConstraintScore ?? 0) >= 0.55));
@@ -441,8 +445,12 @@ export function deriveTraderDipBuyQualityContext(params: {
     tacticalRead === "tired" ||
     exhaustion?.label === "worn" ||
     exhaustion?.label === "spent";
+  const testedButCrowded = exhaustion?.label === "tested" && limitedRoute;
+  const weakBuyerControl = pressure.label === "tentative" || pressure.label === "balanced";
   if (
     tooWorn ||
+    testedButCrowded ||
+    (weakBuyerControl && limitedRoute) ||
     nextBarrier?.clearanceLabel === "tight" ||
     nextBarrier?.clutterLabel === "dense" ||
     crowdedRoute
@@ -452,7 +460,11 @@ export function deriveTraderDipBuyQualityContext(params: {
       line:
         tooWorn
           ? "dip-buy quality: tactically poor because support is still on the chart but looks too worn to lean on"
-          : "dip-buy quality: tactically poor because the upside path is too messy for a clean support reaction",
+          : testedButCrowded
+            ? "dip-buy quality: tactically poor because support is still there, but repeated testing plus nearby overhead make it more watchable than buyable"
+            : weakBuyerControl && limitedRoute
+              ? "dip-buy quality: tactically poor because buyer control is still too soft for the amount of nearby overhead"
+              : "dip-buy quality: tactically poor because the upside path is too messy for a clean support reaction",
     };
   }
 
@@ -474,7 +486,10 @@ export function deriveTraderDipBuyQualityContext(params: {
 
   return {
     label: "watch_only",
-    line: "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
+    line:
+      exhaustion?.label === "tested"
+        ? "dip-buy quality: watch-only because support still matters, but repeated testing means buyers still need to lift overhead cleanly first"
+        : "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
   };
 }
 

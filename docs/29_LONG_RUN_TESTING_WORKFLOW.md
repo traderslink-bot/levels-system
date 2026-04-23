@@ -119,6 +119,7 @@ Inside that folder:
   - now also reflects category-aware optional-live gating, so recap, continuity, and follow-through-state classes can be reviewed separately instead of being treated as one generic context bucket
   - now also treats truly low-context threads as low clutter even if the symbol itself was suppression-heavy internally, so the report stays focused on what actually reached the trader
   - event-family-aware runtime gating now means clutter review is especially useful for comparing `level_touch` / `compression` threads against cleaner directional families like `breakout`
+  - now also recognizes controlled reactive watch-mode threads, so snapshot-led `level_touch` / `compression` monitoring can read as intentionally quiet instead of falsely cluttered
   - makes thread clutter measurable instead of subjective
 - `trader-thread-recaps.md`
   - live-updated readable recap artifact
@@ -481,6 +482,15 @@ Use it when you want to answer questions like:
 - was there a downstream Discord failure even though the runtime stayed alive
 
 This is especially useful when judging whether Discord output is helpful or too noisy for the end user, because it gives a clean record of what was actually sent instead of only what the runtime evaluated.
+
+## Current Live-Post Discipline
+
+Live thread posting is intentionally stricter than the raw runtime evaluation stream.
+
+- `breakout`, `breakdown`, and `reclaim` families can still earn a fuller live continuity story when the setup genuinely advances.
+- `level_touch` and `compression` families now get a much narrower continuity / recap / live-state budget.
+- `rejection`, `fake_breakout`, and `fake_breakdown` now also sit on a tighter optional-post budget than clean directional resolution families, because they are easier to over-narrate before price has really proven the move.
+- The review artifacts are meant to tell us when that discipline is helping versus when a family still needs tighter or looser thresholds.
 
 ## What This Process Does Not Replace
 

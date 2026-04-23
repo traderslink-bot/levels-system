@@ -759,10 +759,14 @@ export class ManualWatchlistRuntimeManager {
       params.eventType !== undefined &&
       params.eventType !== null &&
       ["level_touch", "compression"].includes(params.eventType);
-    const directionalEvent =
+    const fragileDirectionalEvent =
       params.eventType !== undefined &&
       params.eventType !== null &&
-      ["breakout", "breakdown", "reclaim", "fake_breakout", "fake_breakdown", "rejection"].includes(params.eventType);
+      ["fake_breakout", "fake_breakdown", "rejection"].includes(params.eventType);
+    const trendDirectionalEvent =
+      params.eventType !== undefined &&
+      params.eventType !== null &&
+      ["breakout", "breakdown", "reclaim"].includes(params.eventType);
 
     if (params.majorChange) {
       return true;
@@ -780,15 +784,19 @@ export class ManualWatchlistRuntimeManager {
       return false;
     }
 
-    if (reactiveEvent && params.kind === "recap" && !params.majorChange) {
+    if ((reactiveEvent || fragileDirectionalEvent) && params.kind === "recap" && !params.majorChange) {
       return false;
     }
 
-    if (reactiveEvent && params.kind === "continuity" && recentKind >= 1) {
+    if ((reactiveEvent || fragileDirectionalEvent) && params.kind === "continuity" && recentKind >= 1) {
       return false;
     }
 
-    if (reactiveEvent && params.kind === "follow_through_state" && recentKind >= 1) {
+    if ((reactiveEvent || fragileDirectionalEvent) && params.kind === "follow_through_state" && recentKind >= 1) {
+      return false;
+    }
+
+    if (fragileDirectionalEvent && recentOptional >= 2 && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
       return false;
     }
 
@@ -814,7 +822,12 @@ export class ManualWatchlistRuntimeManager {
       return false;
     }
 
-    if (params.kind === "continuity" && !directionalEvent && recentOptional >= 2 && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
+    if (
+      params.kind === "continuity" &&
+      !trendDirectionalEvent &&
+      recentOptional >= 2 &&
+      recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS
+    ) {
       return false;
     }
 
@@ -827,7 +840,7 @@ export class ManualWatchlistRuntimeManager {
       return false;
     }
 
-    if (params.kind === "follow_through_state" && !directionalEvent && recentOptional >= 2) {
+    if (params.kind === "follow_through_state" && !trendDirectionalEvent && recentOptional >= 2) {
       return false;
     }
 

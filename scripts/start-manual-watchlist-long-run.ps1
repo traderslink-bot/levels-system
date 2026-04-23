@@ -1015,6 +1015,11 @@ function Build-EndOfSessionSummary {
   $evaluationLosses = [int]$SymbolSummary.evaluation.losses
   $followThroughSummary = Build-FollowThroughSummary -Evaluation $SymbolSummary.evaluation
   $latestFollowThroughPost = $SymbolSummary.lastFollowThroughPost
+  $reactiveWatchMode =
+    [int]$SymbolSummary.snapshotPosts -gt 0 -and
+    [int]$SymbolSummary.alertPosted -eq 0 -and
+    $SymbolSummary.lastOpportunity -and
+    [string]$SymbolSummary.lastOpportunity.type -in @("level_touch", "compression")
   $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
   $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
   $activationPending =
@@ -1040,6 +1045,14 @@ function Build-EndOfSessionSummary {
 
   if ($SymbolSummary.alertSuppressed -gt $SymbolSummary.alertPosted -and $SymbolSummary.alertSuppressed -ge 3) {
     return "$Symbol spent more time suppressing alerts than posting them, which points to repetitive or low-value conditions rather than a clean thread."
+  }
+
+  if ($reactiveWatchMode -and $SymbolSummary.alertSuppressed -eq 0) {
+    return "$Symbol stayed in reactive watch mode: the lead idea remained $($SymbolSummary.lastOpportunity.type -replace '_', ' '), but nothing earned live alert narration."
+  }
+
+  if ($reactiveWatchMode) {
+    return "$Symbol stayed mostly in reactive watch mode: the runtime kept monitoring $($SymbolSummary.lastOpportunity.type -replace '_', ' ') conditions, but trader-facing alerts stayed gated until the setup became cleaner."
   }
 
   if ($SymbolSummary.snapshotPosts -gt 0 -and $SymbolSummary.alertPosted -eq 0 -and $SymbolSummary.alertSuppressed -eq 0) {
@@ -1166,6 +1179,10 @@ function Build-ThreadClutterRecord {
     } else {
       0
     }
+  $reactiveWatchMode =
+    [int]$SymbolSummary.alertPosted -eq 0 -and
+    $SymbolSummary.lastOpportunity -and
+    [string]$SymbolSummary.lastOpportunity.type -in @("level_touch", "compression")
 
   if ($traderHelpfulOptionalPosts -eq 0) {
     return [ordered]@{
@@ -1186,11 +1203,33 @@ function Build-ThreadClutterRecord {
     }
   }
 
+  if ($reactiveWatchMode -and $traderHelpfulOptionalPosts -le 2 -and $totalLivePosts -le 5) {
+    return [ordered]@{
+      symbol = $Symbol
+      totalLivePosts = $totalLivePosts
+      traderCriticalPosts = $traderCriticalPosts
+      traderHelpfulOptionalPosts = $traderHelpfulOptionalPosts
+      alertToContextRatio = $alertToContextRatio
+      contextDensity = $contextDensity
+      followThroughDensity = $followThroughDensity
+      continuityDensity = $continuityDensity
+      recapDensity = $recapDensity
+      clutterRisk = "low"
+      contextValueSignal = "reactive_watch"
+      outputClassification = $outputClassification
+      reasons = @("thread stayed in controlled reactive watch mode without graduating into alert spam")
+      recommendations = @("judge this thread by whether it graduates into a cleaner directional setup, not by optional post count alone")
+    }
+  }
+
   $riskReasons = @()
   if ($totalLivePosts -ge 8 -and $contextDensity -ge 0.55) {
     $riskReasons += "context posts outweighed trader-critical posts"
   }
-  if ([int]$SymbolSummary.continuityPosts -ge 3) {
+  if (
+    ($reactiveWatchMode -and [int]$SymbolSummary.continuityPosts -ge 4) -or
+    (-not $reactiveWatchMode -and [int]$SymbolSummary.continuityPosts -ge 3)
+  ) {
     $riskReasons += "continuity posting stayed elevated"
   }
   if ([int]$SymbolSummary.recapPosts -ge 2) {
@@ -1204,7 +1243,9 @@ function Build-ThreadClutterRecord {
   }
 
   $contextValueSignal =
-    if (
+    if ($reactiveWatchMode -and $traderHelpfulOptionalPosts -gt 0 -and $SymbolSummary.quality.verdict -notin @("noisy", "needs_attention")) {
+      "reactive_watch"
+    } elseif (
       $traderHelpfulOptionalPosts -gt 0 -and
       ($SymbolSummary.quality.verdict -in @("high_signal", "useful") -or $SymbolSummary.humanReview.latestVerdict -in @("useful", "strong"))
     ) {
@@ -1235,6 +1276,8 @@ function Build-ThreadClutterRecord {
 
   if ($contextValueSignal -eq "context_heavy") {
     $recommendations += "prefer artifact review over extra live narration for this symbol"
+  } elseif ($contextValueSignal -eq "reactive_watch") {
+    $recommendations += "reactive monitoring looks controlled; keep judging it by whether it graduates into a cleaner directional setup"
   } elseif ($contextValueSignal -eq "context_helping") {
     $recommendations += "extra context appears to be helping rather than crowding the thread"
   }

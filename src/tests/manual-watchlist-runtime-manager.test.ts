@@ -2015,6 +2015,149 @@ test("ManualWatchlistRuntimeManager still allows directional continuity progress
   assert.equal(continuityPosts[1]?.payload.metadata?.continuityType, "confirmation");
 });
 
+test("ManualWatchlistRuntimeManager keeps fragile rejection continuity to one live optional update", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  let callCount = 0;
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: {
+      processMonitoringEvent() {
+        callCount += 1;
+        return {
+          ranked: [],
+          adapted: [],
+          top: [
+            {
+              symbol: "ALBT",
+              type: "rejection",
+              eventType: "rejection",
+              level: 2.45,
+              classification: "medium",
+              clearanceLabel: "limited",
+              pathQualityLabel: "layered",
+              exhaustionLabel: "tested",
+            },
+          ],
+          interpretations: [
+            {
+              symbol: "ALBT",
+              type: callCount === 1 ? "pre_zone" : "confirmation",
+              eventType: "rejection",
+              message:
+                callCount === 1
+                  ? "sellers are leaning on resistance near 2.45"
+                  : "rejection is trying to hold under 2.45",
+              confidence: 0.74,
+              tags: [],
+              timestamp: callCount * 10,
+            },
+          ],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [],
+        };
+      },
+      processPriceUpdate() {
+        return null;
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+            strengthLabel: "strong",
+            strengthScore: 28,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  const baseEvent = {
+    symbol: "ALBT",
+    type: "rejection" as const,
+    eventType: "rejection" as const,
+    zoneId: "ALBT-resistance-monitored-1",
+    zoneKind: "resistance" as const,
+    level: 2.45,
+    triggerPrice: 2.43,
+    strength: 0.73,
+    confidence: 0.69,
+    priority: 74,
+    bias: "bearish" as const,
+    pressureScore: 0.62,
+    eventContext: {
+      monitoredZoneId: "ALBT-resistance-monitored-1",
+      canonicalZoneId: "R1",
+      zoneFreshness: "fresh" as const,
+      zoneOrigin: "canonical" as const,
+      remapStatus: "preserved" as const,
+      remappedFromZoneIds: ["ALBT-resistance-monitored-legacy"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost" as const,
+      zoneStrengthLabel: "strong" as const,
+      sourceGeneratedAt: 1,
+    },
+    notes: ["Rejection under resistance."],
+  };
+
+  monitor.listener?.({
+    id: "evt-rejection-1",
+    episodeId: "evt-rejection-episode",
+    timestamp: 10,
+    ...baseEvent,
+  });
+  await waitForAsyncWork();
+
+  monitor.listener?.({
+    id: "evt-rejection-2",
+    episodeId: "evt-rejection-episode",
+    timestamp: 20,
+    ...baseEvent,
+  });
+  await waitForAsyncWork();
+
+  const continuityPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "continuity_update",
+  );
+  assert.equal(continuityPosts.length, 1);
+  assert.equal(continuityPosts[0]?.payload.metadata?.continuityType, "setup_forming");
+});
+
 test("ManualWatchlistRuntimeManager keeps setup-forming narration out of live recap posts", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();

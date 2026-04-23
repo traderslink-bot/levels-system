@@ -580,6 +580,80 @@ test("AlertIntelligenceEngine downgrades crowded low-pressure breakouts instead 
   );
 });
 
+test("AlertIntelligenceEngine treats repeatedly tested support with layered overhead as poor dip-buy tradeability", () => {
+  const engine = new AlertIntelligenceEngine();
+  const event: MonitoringEvent = {
+    id: "evt-tested-support",
+    episodeId: "evt-tested-support-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "zone-major-support",
+    zoneKind: "support",
+    level: 98.1,
+    triggerPrice: 98.08,
+    strength: 0.71,
+    confidence: 0.68,
+    priority: 73,
+    bias: "bullish",
+    pressureScore: 0.49,
+    eventContext: {
+      monitoredZoneId: "zone-major-support",
+      canonicalZoneId: "zone-major-support",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+      exhaustionLabel: "tested",
+      pathQualityLabel: "layered",
+      pathBarrierCount: 3,
+      pathWindowDistancePct: 0.035,
+      pathConstraintScore: 0.61,
+      nextBarrierKind: "resistance",
+      nextBarrierLevel: 100.05,
+      nextBarrierDistancePct: 0.0199,
+      clearanceLabel: "limited",
+      barrierClutterLabel: "stacked",
+    },
+    timestamp: 48,
+    notes: ["Repeated support test with layered overhead."],
+  };
+  const supportLevels: LevelEngineOutput = {
+    ...levels,
+    majorSupport: [
+      {
+        ...levels.majorResistance[0]!,
+        id: "zone-major-support",
+        kind: "support",
+        zoneLow: 97.8,
+        zoneHigh: 98.2,
+        representativePrice: 98.1,
+        strengthLabel: "strong",
+        touchCount: 3,
+        reactionQualityScore: 0.78,
+        rejectionScore: 0.48,
+        followThroughScore: 0.7,
+        freshness: "fresh",
+      },
+    ],
+  };
+
+  const result = engine.processEvent(event, supportLevels);
+
+  assert.equal(result.rawAlert.dipBuyQuality?.label, "poor");
+  assert.ok((result.rawAlert.scoreComponents.supportTradeability ?? 0) < 0);
+  assert.match(
+    result.formatted?.body ?? "",
+    /dip-buy quality: tactically poor because support is still there, but repeated testing plus nearby overhead make it more watchable than buyable/,
+  );
+});
+
 test("AlertIntelligenceEngine suppresses near-duplicate alerts for the same structural situation", () => {
   const engine = new AlertIntelligenceEngine();
   const firstEvent: MonitoringEvent = {

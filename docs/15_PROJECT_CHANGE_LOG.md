@@ -3196,6 +3196,29 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused coverage in:
   - `src/tests/validation-candle-cache.test.ts`
 
+## 2026-04-23 11:35 AM America/Toronto
+
+### Tightened reactive thread discipline and support-test tradeability
+
+- Tightened live optional-post gating again in `src/lib/monitoring/manual-watchlist-runtime-manager.ts`:
+  - `rejection`, `fake_breakout`, and `fake_breakdown` now keep a much tighter continuity / follow-through-state / recap budget than cleaner breakout / breakdown / reclaim families
+  - reactive `level_touch` / `compression` behavior remains constrained, but the gating is now more explicit about fragile directional families too
+- Tightened support-test tradeability in:
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/alerts/alert-scorer.ts`
+  - `src/lib/monitoring/opportunity-engine.ts`
+- The support-test pass now:
+  - downgrades repeatedly tested support more aggressively when nearby overhead is layered or limited
+  - makes poor dip-buy conditions show up in both trader-facing wording and the deterministic scoring/ranking layers
+  - preserves the distinction between structurally real support and support that is no longer tactically buyable
+- Refined long-run review honesty in `scripts/start-manual-watchlist-long-run.ps1`:
+  - controlled reactive watch-mode threads now read more honestly instead of being treated like clutter by default
+  - end-of-session summaries can now say when the symbol stayed in reactive watch mode rather than forcing a vague observational/noisy framing
+- Added focused coverage in:
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/opportunity-decision-integrity.test.ts`
+
 ## 2026-04-17 10:20 PM America/Toronto
 
 ### Added a production-oriented level strength scoring and ranking layer

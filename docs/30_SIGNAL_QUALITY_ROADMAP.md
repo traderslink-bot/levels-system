@@ -114,6 +114,9 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added event-family-aware live-post discipline so `level_touch` and `compression` threads now get a narrower optional-narration path than breakout-style threads.
 - Fixed continuity gating so event-family-aware optional-post rules now apply to meaningful label transitions too instead of only duplicate-state repost attempts.
 - Refined long-run review language so low-output or still-activating threads are more likely to read as `observational` / `activating` than falsely `noisy`.
+- Added stricter family-aware live-post discipline so `rejection`, `fake_breakout`, and `fake_breakdown` do not get the same optional continuity budget as cleaner breakout / breakdown / reclaim threads.
+- Tightened support-test tradeability so repeated testing plus layered or limited overhead push support touches toward `watch_only` or `poor` more aggressively in both alert scoring and opportunity ranking.
+- Refined clutter review again so controlled `level_touch` / `compression` watch-mode threads can read as intentionally reactive rather than just context-heavy.
 
 ## Active Backlog
 
@@ -135,6 +138,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Keep validating live sessions like `BURU` and `AIXI` so optional-post throttling and clutter review stay grounded in what actually hit Discord rather than what only happened inside diagnostics.
 - Keep validating live sessions like `AUUD` so support-test families can be tightened without accidentally flattening useful breakout/reclaim thread progression.
 - Keep validating live sessions so quiet low-output symbols are described honestly in review artifacts instead of being punished for simply not producing a setup yet.
+- Keep validating live sessions so reactive watch-mode threads only stay rich when they genuinely graduate into cleaner directional setups.
 
 ### Detection and ranking improvements
 
@@ -213,3 +217,4 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 17. Keep splitting optional-post thresholds further by event family where real sessions show that support tests, compression, and directional breakouts need different narration budgets.
 18. Use the new per-thread AI recap and noisy-family review outputs to judge whether the AI layer is staying faithful to the deterministic artifacts before expanding it further.
 19. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.
+20. Use real support-test sessions to decide whether `watch_only` support should still get live continuity at all or whether more of that story belongs only in review artifacts until tradeability improves.
