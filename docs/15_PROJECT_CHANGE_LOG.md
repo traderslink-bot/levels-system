@@ -3244,6 +3244,18 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Added focused coverage in:
   - `src/tests/validation-candle-cache.test.ts`
 
+## 2026-04-23 3:20 PM America/Toronto
+
+### Tightened cross-family narration ownership and delivery-aware optional backoff
+
+- Refined `src/lib/monitoring/manual-watchlist-runtime-manager.ts` again:
+  - reactive same-event watch-mode families like `level_touch` and `compression` now spend optional continuity / live-state beats more sparingly inside the short burst window
+  - when a single price-update snapshot already contains a completed evaluation for the same symbol and event type, the completed follow-through post now owns that story and weaker progress-driven narration is skipped
+  - recent Discord delivery failures now trigger a short optional-post backoff for that symbol, reducing the chance that continuity / live-state / recap chatter feeds a fresh 429 burst
+  - live thread post state now carries event-type context so the runtime can arbitrate same-symbol narration more precisely instead of treating every optional post like generic context
+- Added focused regression coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+
 ## 2026-04-23 11:35 AM America/Toronto
 
 ### Tightened reactive thread discipline and support-test tradeability

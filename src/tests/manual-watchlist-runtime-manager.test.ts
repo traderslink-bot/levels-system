@@ -2439,10 +2439,133 @@ test("ManualWatchlistRuntimeManager collapses same-window narration bursts into 
   await waitForAsyncWork();
 
   const messageKinds = discordAlertRouter.routed.map((entry) => entry.payload.metadata?.messageKind);
-  assert.equal(messageKinds.length, 2);
-  assert.ok(messageKinds.includes("follow_through_state_update"));
+  assert.equal(messageKinds.length, 1);
+  assert.ok(messageKinds.includes("follow_through_update"));
+  assert.ok(!messageKinds.includes("follow_through_state_update"));
   assert.ok(!messageKinds.includes("continuity_update"));
   assert.ok(!messageKinds.includes("symbol_recap"));
+});
+
+test("ManualWatchlistRuntimeManager lets completed follow-through own the story when progress and evaluation arrive together", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: {
+      processMonitoringEvent() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [],
+        };
+      },
+      processPriceUpdate() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [],
+          summary: {
+            totalEvaluated: 1,
+            expectancy: -0.3,
+            rollingExpectancy: { expectancy: -0.3 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [
+            {
+              symbol: "ALBT",
+              timestamp: 990,
+              evaluatedAt: 1000,
+              entryPrice: 2.45,
+              outcomePrice: 2.43,
+              returnPct: -0.82,
+              directionalReturnPct: -0.82,
+              followThroughLabel: "failed",
+              success: false,
+              eventType: "breakout",
+            },
+          ],
+          progressUpdates: [
+            {
+              symbol: "ALBT",
+              timestamp: 1000,
+              eventType: "breakout",
+              progressLabel: "stalling",
+              directionalReturnPct: 0,
+              entryPrice: 2.45,
+              currentPrice: 2.45,
+            },
+          ],
+        };
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+            strengthLabel: "strong",
+            strengthScore: 28,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 1000,
+    lastPrice: 2.43,
+  });
+  await waitForAsyncWork();
+
+  const messageKinds = discordAlertRouter.routed.map((entry) => entry.payload.metadata?.messageKind);
+  assert.equal(messageKinds.includes("follow_through_update"), true);
+  assert.equal(messageKinds.includes("follow_through_state_update"), false);
+  assert.equal(messageKinds.includes("continuity_update"), false);
 });
 
 test("ManualWatchlistRuntimeManager keeps price-update interpretations in operator logs when progress updates already own the live story", async () => {
@@ -2720,6 +2843,162 @@ test("ManualWatchlistRuntimeManager suppresses setup-forming continuity immediat
 
   assert.equal(alertPosts.length, 1);
   assert.equal(continuityPosts.length, 0);
+});
+
+test("ManualWatchlistRuntimeManager keeps reactive same-event narration to a single optional post inside the burst window", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: {
+      processMonitoringEvent() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [
+            {
+              symbol: "ALBT",
+              type: "in_zone",
+              eventType: "level_touch",
+              level: 2.45,
+              zoneKind: "support",
+              message: "price testing support near 2.45 - watching reaction",
+              confidence: 0.78,
+              tags: [],
+              timestamp: 10,
+            },
+          ],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [],
+        };
+      },
+      processPriceUpdate() {
+        return {
+          ranked: [],
+          adapted: [],
+          top: [],
+          interpretations: [],
+          summary: {
+            totalEvaluated: 0,
+            expectancy: 0,
+            rollingExpectancy: { expectancy: 0 },
+            performanceDrift: { declining: false },
+          },
+          adaptiveDiagnostics: {
+            targetGlobalMultiplier: 1,
+            appliedGlobalMultiplier: 1,
+            globalConfidence: 0,
+            globalDeltaApplied: 0,
+            driftDampeningActive: false,
+            eventTypes: {},
+          },
+          completedEvaluations: [],
+          progressUpdates: [
+            {
+              symbol: "ALBT",
+              timestamp: 20,
+              eventType: "level_touch",
+              progressLabel: "stalling",
+              directionalReturnPct: 0,
+              entryPrice: 2.45,
+              currentPrice: 2.45,
+            },
+          ],
+        };
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({
+            id: "S1",
+            symbol,
+            kind: "support",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+            strengthLabel: "strong",
+            strengthScore: 28,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  monitor.listener?.({
+    id: "evt-reactive-single-optional",
+    episodeId: "evt-reactive-single-optional-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "ALBT-support-monitored-1",
+    zoneKind: "support",
+    level: 2.45,
+    triggerPrice: 2.44,
+    strength: 0.42,
+    confidence: 0.38,
+    priority: 28,
+    bias: "bullish",
+    pressureScore: 0.22,
+    eventContext: {
+      monitoredZoneId: "ALBT-support-monitored-1",
+      canonicalZoneId: "S1",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+    },
+    notes: ["Reactive support touch used to stack optional narration."],
+    timestamp: 10,
+  });
+  await waitForAsyncWork();
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 20,
+    lastPrice: 2.45,
+  });
+  await waitForAsyncWork();
+
+  const optionalKinds = discordAlertRouter.routed
+    .map((entry) => entry.payload.metadata?.messageKind)
+    .filter((kind) => kind === "continuity_update" || kind === "follow_through_state_update");
+
+  assert.deepEqual(optionalKinds, ["continuity_update"]);
 });
 
 test("ManualWatchlistRuntimeManager only posts continuity that matches the triggering event side", async () => {

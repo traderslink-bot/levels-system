@@ -127,7 +127,10 @@ Inside that folder:
   - event-family-aware runtime gating now means clutter review is especially useful for comparing `level_touch` / `compression` threads against cleaner directional families like `breakout`
   - now also recognizes controlled reactive watch-mode threads, so snapshot-led `level_touch` / `compression` monitoring can read as intentionally quiet instead of falsely cluttered
   - same-window overlap is now tighter too, so continuity is more likely to yield when live follow-through-state or fresh alert posts already told the trader the active story
+  - reactive same-event overlap is tighter too, so a `level_touch` or `compression` setup is less likely to spend multiple optional narration beats in the same short burst window
   - continuity now also matches the triggering event side more strictly, which helps prevent support-style continuity wording from showing up right after a resistance-side alert on the same symbol
+  - completed follow-through now owns same-snapshot event narration, so progress-driven live-state / continuity beats are less likely to duplicate an evaluation that already resolved the same event
+  - recent Discord delivery failures now temporarily suppress optional narration for that symbol, so review artifacts can separate true signal clutter from short delivery-pressure spirals
   - makes thread clutter measurable instead of subjective
 - `trader-thread-recaps.md`
   - live-updated readable recap artifact
@@ -499,7 +502,10 @@ Live thread posting is intentionally stricter than the raw runtime evaluation st
 - `level_touch` and `compression` families now get a much narrower continuity / recap / live-state budget.
 - `rejection`, `fake_breakout`, and `fake_breakdown` now also sit on a tighter optional-post budget than clean directional resolution families, because they are easier to over-narrate before price has really proven the move.
 - continuity, recap, live-state, and follow-through narration now also share a short burst budget, so one symbol is less likely to spray a same-window cluster of trader-facing updates.
+- reactive same-event watch-mode families are tighter again, so once a `level_touch` or `compression` setup has already used one optional narration beat in the current burst window, the runtime is much less willing to spend another optional restatement on that same event immediately afterward.
 - continuity now also yields more aggressively to fresh trader-critical beats, and same-label continuity transitions are collapsed even if they arrive before the first route resolves.
+- if a price-update snapshot already contains a completed evaluation for the same symbol and event type, the completed follow-through post owns that story and weaker progress-driven narration is skipped.
+- recent Discord delivery failures now trigger a short optional-post backoff for that symbol, so the runtime is less likely to push more continuity / live-state / recap posts into a fresh 429 burst.
 - The review artifacts are meant to tell us when that discipline is helping versus when a family still needs tighter or looser thresholds.
 
 ## What This Process Does Not Replace

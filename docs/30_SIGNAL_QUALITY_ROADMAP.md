@@ -123,6 +123,9 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Tightened continuity again so setup-forming narration yields to fresh critical beats and same-label continuity updates collapse before in-flight routing can duplicate the story.
 - Tightened continuity overlap again so same-window `follow_through_state` posts now suppress weaker setup-forming / confirmation / weakening continuity more aggressively.
 - Matched monitoring-event continuity more strictly to the triggering event side and level, which prevents mixed same-symbol opportunity stacks from narrating support right after a resistance-side alert.
+- Tightened reactive same-event narration again so `level_touch` / `compression` setups now spend optional continuity / live-state beats more sparingly inside a short burst window.
+- Tightened price-update ownership so completed follow-through now owns same-snapshot narration for the same symbol and event type, which suppresses weaker progress-driven continuity / live-state duplicates.
+- Added short optional-post backoff after recent Discord delivery failures, so delivery pressure is less likely to turn into a second wave of continuity / live-state / recap chatter on the same symbol.
 
 ## Active Backlog
 
@@ -146,6 +149,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Keep validating live sessions so quiet low-output symbols are described honestly in review artifacts instead of being punished for simply not producing a setup yet.
 - Keep validating live sessions so reactive watch-mode threads only stay rich when they genuinely graduate into cleaner directional setups.
 - Keep validating live sessions like `AKAN` and `BURU` so delivery-choked or bursty threads can be separated from genuinely weak signal-quality threads.
+- Keep validating live sessions so same-snapshot progress/evaluation arbitration does not flatten useful trader-critical follow-through while still removing low-value duplicate narration.
 
 ### Detection and ranking improvements
 

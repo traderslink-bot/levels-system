@@ -87,6 +87,7 @@ const OPTIONAL_LIVE_POST_DENSITY_LIMIT = 4;
 const OPTIONAL_LIVE_POST_KIND_LIMIT = 2;
 const NARRATION_BURST_WINDOW_MS = 90 * 1000;
 const NARRATION_RECAP_BURST_WINDOW_MS = 75 * 1000;
+const DELIVERY_FAILURE_BACKOFF_MS = 2 * 60 * 1000;
 
 type SymbolRecapState = {
   lastSignature: string | null;
@@ -116,8 +117,8 @@ type LiveThreadPostKind =
   | "recap";
 
 type SymbolLiveThreadPostState = {
-  critical: Array<{ kind: LiveThreadPostKind; timestamp: number }>;
-  optional: Array<{ kind: LiveThreadPostKind; timestamp: number }>;
+  critical: Array<{ kind: LiveThreadPostKind; timestamp: number; eventType: string | null }>;
+  optional: Array<{ kind: LiveThreadPostKind; timestamp: number; eventType: string | null }>;
 };
 
 type NarrationBurstKind =
@@ -138,6 +139,11 @@ type SymbolStoryCriticalState = Array<{
   kind: StoryCriticalKind;
   timestamp: number;
 }>;
+
+type SymbolDeliveryPressureState = {
+  lastFailureAt: number | null;
+  lastFailureMessage: string | null;
+};
 
 function uniqueSortedLevels(levels: number[], direction: "asc" | "desc"): number[] {
   const unique = [...new Set(levels.filter((level) => Number.isFinite(level) && level > 0))];
@@ -293,6 +299,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly liveThreadPostState = new Map<string, SymbolLiveThreadPostState>();
   private readonly narrationBurstState = new Map<string, SymbolNarrationBurstState>();
   private readonly storyCriticalState = new Map<string, SymbolStoryCriticalState>();
+  private readonly deliveryPressureState = new Map<string, SymbolDeliveryPressureState>();
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
@@ -447,6 +454,7 @@ export class ManualWatchlistRuntimeManager {
       timestamp,
       kind: "snapshot",
       critical: true,
+      eventType: null,
     });
     this.emitLifecycle("snapshot_posted", {
       symbol,
@@ -524,6 +532,7 @@ export class ManualWatchlistRuntimeManager {
         timestamp,
         kind: "extension",
         critical: true,
+        eventType: null,
       });
       this.emitLifecycle("extension_posted", {
         symbol,
@@ -795,13 +804,61 @@ export class ManualWatchlistRuntimeManager {
     timestamp: number;
     kind: LiveThreadPostKind;
     critical: boolean;
+    eventType?: string | null;
   }): void {
     const state = this.pruneLiveThreadPosts(params.symbol, params.timestamp);
     const target = params.critical ? state.critical : state.optional;
     target.push({
       kind: params.kind,
       timestamp: params.timestamp,
+      eventType: params.eventType ?? null,
     });
+  }
+
+  private getDeliveryPressureState(symbol: string): SymbolDeliveryPressureState {
+    const existing = this.deliveryPressureState.get(symbol);
+    if (existing) {
+      return existing;
+    }
+
+    const created: SymbolDeliveryPressureState = {
+      lastFailureAt: null,
+      lastFailureMessage: null,
+    };
+    this.deliveryPressureState.set(symbol, created);
+    return created;
+  }
+
+  private recordDeliveryFailure(symbol: string, timestamp: number, message: string): void {
+    const state = this.getDeliveryPressureState(symbol);
+    state.lastFailureAt = timestamp;
+    state.lastFailureMessage = message;
+    this.deliveryPressureState.set(symbol, state);
+  }
+
+  private clearDeliveryFailure(symbol: string, timestamp: number): void {
+    const state = this.getDeliveryPressureState(symbol);
+    if (state.lastFailureAt !== null && timestamp - state.lastFailureAt > DELIVERY_FAILURE_BACKOFF_MS) {
+      state.lastFailureAt = null;
+      state.lastFailureMessage = null;
+      this.deliveryPressureState.set(symbol, state);
+    }
+  }
+
+  private isDeliveryBackoffActive(symbol: string, timestamp: number): boolean {
+    const state = this.getDeliveryPressureState(symbol);
+    if (state.lastFailureAt === null) {
+      return false;
+    }
+
+    if (timestamp - state.lastFailureAt > DELIVERY_FAILURE_BACKOFF_MS) {
+      state.lastFailureAt = null;
+      state.lastFailureMessage = null;
+      this.deliveryPressureState.set(symbol, state);
+      return false;
+    }
+
+    return true;
   }
 
   private getNarrationBurstState(symbol: string): SymbolNarrationBurstState {
@@ -937,6 +994,32 @@ export class ManualWatchlistRuntimeManager {
       params.eventType !== undefined &&
       params.eventType !== null &&
       ["breakout", "breakdown", "reclaim"].includes(params.eventType);
+    const recentSameEventOptional = state.optional.filter(
+      (entry) =>
+        entry.eventType !== null &&
+        entry.eventType === (params.eventType ?? null) &&
+        params.timestamp - entry.timestamp <= NARRATION_BURST_WINDOW_MS,
+    );
+    const recentSameEventContinuity = recentSameEventOptional.filter((entry) => entry.kind === "continuity").length;
+    const recentSameEventFollowThroughState = recentSameEventOptional.filter(
+      (entry) => entry.kind === "follow_through_state",
+    ).length;
+
+    if (this.isDeliveryBackoffActive(params.symbol, params.timestamp)) {
+      return false;
+    }
+
+    if ((reactiveEvent || fragileDirectionalEvent) && recentSameEventOptional.length >= 1) {
+      return false;
+    }
+
+    if (params.kind === "follow_through_state" && recentSameEventContinuity >= 1) {
+      return false;
+    }
+
+    if (params.kind === "continuity" && recentSameEventFollowThroughState >= 1) {
+      return false;
+    }
 
     if (params.majorChange) {
       return true;
@@ -1320,7 +1403,9 @@ export class ManualWatchlistRuntimeManager {
           timestamp: update.timestamp,
           kind: "continuity",
           critical: false,
+          eventType: update.eventType ?? null,
         });
+        this.clearDeliveryFailure(update.symbol, update.timestamp);
         this.emitLifecycle("continuity_posted", {
           symbol: update.symbol,
           threadId: entry.discordThreadId,
@@ -1345,6 +1430,7 @@ export class ManualWatchlistRuntimeManager {
             error: message,
           },
         });
+        this.recordDeliveryFailure(update.symbol, update.timestamp, message);
         console.error(`[ManualWatchlistRuntimeManager] Failed to route continuity update: ${message}`);
       });
 
@@ -1503,7 +1589,9 @@ export class ManualWatchlistRuntimeManager {
           timestamp: progressUpdate.timestamp,
           kind: "follow_through_state",
           critical: false,
+          eventType: progressUpdate.eventType,
         });
+        this.clearDeliveryFailure(progressUpdate.symbol, progressUpdate.timestamp);
         this.followThroughStatePosts.set(progressUpdate.symbol, {
           lastLabel: progressUpdate.progressLabel,
           lastPostedAt: progressUpdate.timestamp,
@@ -1529,6 +1617,7 @@ export class ManualWatchlistRuntimeManager {
             error: message,
           },
         });
+        this.recordDeliveryFailure(progressUpdate.symbol, progressUpdate.timestamp, message);
         console.error(`[ManualWatchlistRuntimeManager] Failed to route follow-through state update: ${message}`);
       });
 
@@ -1857,7 +1946,13 @@ export class ManualWatchlistRuntimeManager {
           timestamp: params.timestamp,
           kind: "recap",
           critical: false,
+          eventType:
+            params.evaluation?.eventType ??
+            params.progressUpdate?.eventType ??
+            params.interpretation?.eventType ??
+            null,
         });
+        this.clearDeliveryFailure(params.symbol, params.timestamp);
         this.emitLifecycle("recap_posted", {
             symbol: params.symbol,
             threadId: entry.discordThreadId,
@@ -1875,6 +1970,7 @@ export class ManualWatchlistRuntimeManager {
               error: message,
             },
           });
+          this.recordDeliveryFailure(params.symbol, params.timestamp, message);
           console.error(`[ManualWatchlistRuntimeManager] Failed to route symbol recap: ${message}`);
         });
     });
@@ -1942,7 +2038,9 @@ export class ManualWatchlistRuntimeManager {
           timestamp: event.timestamp,
           kind: "intelligent_alert",
           critical: true,
+          eventType: event.eventType,
         });
+        this.clearDeliveryFailure(event.symbol, event.timestamp);
         this.emitLifecycle("alert_posted", {
             symbol: event.symbol,
             threadId: entry.discordThreadId,
@@ -1977,6 +2075,7 @@ export class ManualWatchlistRuntimeManager {
               error: message,
             },
           });
+          this.recordDeliveryFailure(event.symbol, event.timestamp, message);
           console.error(`[ManualWatchlistRuntimeManager] Failed to route Discord alert: ${message}`);
         });
     } else {
@@ -2077,7 +2176,9 @@ export class ManualWatchlistRuntimeManager {
           timestamp: evaluation.evaluatedAt,
           kind: "follow_through",
           critical: true,
+          eventType: evaluation.eventType,
         });
+        this.clearDeliveryFailure(evaluation.symbol, evaluation.evaluatedAt);
         this.emitLifecycle("follow_through_posted", {
           symbol: evaluation.symbol,
           threadId: entry.discordThreadId,
@@ -2099,6 +2200,7 @@ export class ManualWatchlistRuntimeManager {
             error: message,
           },
         });
+        this.recordDeliveryFailure(evaluation.symbol, evaluation.evaluatedAt, message);
         console.error(`[ManualWatchlistRuntimeManager] Failed to route follow-through update: ${message}`);
       });
 
@@ -2131,7 +2233,15 @@ export class ManualWatchlistRuntimeManager {
       ));
     }
 
+    const completedEvaluationKeys = new Set(
+      snapshot.completedEvaluations.map((evaluation) => `${evaluation.symbol}:${evaluation.eventType}`),
+    );
+
     for (const progressUpdate of snapshot.progressUpdates) {
+      if (completedEvaluationKeys.has(`${progressUpdate.symbol}:${progressUpdate.eventType}`)) {
+        continue;
+      }
+
       const followThroughStatePosted = this.postFollowThroughStateUpdate(progressUpdate);
       const continuityUpdate = this.buildContinuityUpdateFromProgress(progressUpdate);
       if (
@@ -2451,6 +2561,7 @@ export class ManualWatchlistRuntimeManager {
     this.liveThreadPostState.delete(normalizeSymbol(symbol));
     this.narrationBurstState.delete(normalizeSymbol(symbol));
     this.storyCriticalState.delete(normalizeSymbol(symbol));
+    this.deliveryPressureState.delete(normalizeSymbol(symbol));
     this.persistWatchlist();
     await this.restartMonitoring();
     this.emitLifecycle("deactivated", {
