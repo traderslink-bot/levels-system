@@ -19,6 +19,28 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 11:10 AM America/Toronto
+
+### Made long-run review language more honest for activating and observational threads
+
+- Updated long-run review heuristics in:
+  - `scripts/start-manual-watchlist-long-run.ps1`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - quality heuristics now treat still-activating symbols as pending review instead of penalizing them immediately for lacking visible output
+  - observational threads with clean snapshots and no real live alert activity now read as observational instead of being pulled toward a falsely noisy verdict
+  - thread summaries now show `activating` explicitly when a symbol has not yet finished producing visible live output
+- Why this matters:
+  - after the `AIXI` and `AKAN` sessions, the clutter report was already honest but the thread summary language still felt harsher than the actual trader-facing behavior
+  - this keeps the review layer aligned with what the trader actually saw: quiet, observational, or still-starting is not the same thing as noisy
+- Verification completed:
+  - PowerShell parse check for `scripts/start-manual-watchlist-long-run.ps1`
+
+---
+
 ## 2026-04-23 10:55 AM America/Toronto
 
 ### Added event-family-aware continuity gating so support-test threads narrate less freely than breakout threads

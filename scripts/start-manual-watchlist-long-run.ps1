@@ -302,6 +302,7 @@ function Evaluate-QualityHeuristics {
     [hashtable]$Metrics
   )
 
+  $lastLifecycleEvent = [string](Get-HashtableValue -Table $Metrics -Key "lastLifecycleEvent" -Default "")
   $posted = [int](Get-HashtableValue -Table $Metrics -Key "alertPosted" -Default 0)
   $suppressed = [int](Get-HashtableValue -Table $Metrics -Key "alertSuppressed" -Default 0)
   $snapshots = [int](Get-HashtableValue -Table $Metrics -Key "snapshotPosts" -Default 0)
@@ -328,6 +329,16 @@ function Evaluate-QualityHeuristics {
     } else {
       0
     }
+  $activationPending =
+    $lastLifecycleEvent -in @("activation_queued", "activation_started", "thread_ready") -and
+    $snapshots -eq 0 -and
+    $posted -eq 0 -and
+    $failureTotal -eq 0
+  $observationalThread =
+    $snapshots -gt 0 -and
+    $posted -eq 0 -and
+    $suppressed -eq 0 -and
+    $failureTotal -eq 0
 
   $score = 45
   $rationale = @()
@@ -392,13 +403,18 @@ function Evaluate-QualityHeuristics {
     $rationale += "showed moderate suppression pressure"
   }
 
-  if ($diagnostics -ge 20 -and $posted -eq 0) {
+  if ($diagnostics -ge 20 -and $posted -eq 0 -and $snapshots -eq 0) {
     $score -= 10
     $rationale += "generated diagnostics without trader-facing output"
     $recommendations += "review whether detector chatter is producing value"
   }
 
-  if ($posted -eq 0 -and $snapshots -eq 0 -and $failureTotal -eq 0) {
+  if ($activationPending) {
+    $rationale += "activation is still pending visible trader output"
+    $recommendations += "let activation finish before judging this thread"
+  } elseif ($observationalThread) {
+    $rationale += "stayed observational without forcing trader-facing alerts"
+  } elseif ($posted -eq 0 -and $snapshots -eq 0 -and $failureTotal -eq 0) {
     $score -= 8
     $rationale += "did not produce meaningful visible output"
   }
@@ -1001,9 +1017,17 @@ function Build-EndOfSessionSummary {
   $latestFollowThroughPost = $SymbolSummary.lastFollowThroughPost
   $stateChangeSummary = Build-StateChangeSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
   $outcomeDisagreementSummary = Build-OutcomeDisagreementSummary -Symbol $Symbol -SymbolSummary $SymbolSummary
+  $activationPending =
+    $SymbolSummary.lastLifecycleEvent -in @("activation_queued", "activation_started", "thread_ready") -and
+    [int]$SymbolSummary.snapshotPosts -eq 0 -and
+    [int]$SymbolSummary.alertPosted -eq 0
 
   if ($failureTotal -gt 0) {
     return "$Symbol hit $failureTotal runtime failure(s) during the session and needs operational cleanup before trusting the thread."
+  }
+
+  if ($activationPending) {
+    return "$Symbol is still activating and has not produced visible trader-facing output yet, so the thread should be judged after seeding and the first live snapshot complete."
   }
 
   if ($reviewVerdict -eq "wrong" -or $reviewVerdict -eq "late") {
@@ -1016,6 +1040,10 @@ function Build-EndOfSessionSummary {
 
   if ($SymbolSummary.alertSuppressed -gt $SymbolSummary.alertPosted -and $SymbolSummary.alertSuppressed -ge 3) {
     return "$Symbol spent more time suppressing alerts than posting them, which points to repetitive or low-value conditions rather than a clean thread."
+  }
+
+  if ($SymbolSummary.snapshotPosts -gt 0 -and $SymbolSummary.alertPosted -eq 0 -and $SymbolSummary.alertSuppressed -eq 0) {
+    return "$Symbol stayed observational: the runtime posted snapshots, but no trader-facing setup was strong enough to justify live alert narration."
   }
 
   if ($SymbolSummary.snapshotPosts -gt 0 -and $SymbolSummary.alertPosted -eq 0) {
@@ -1236,7 +1264,13 @@ function Build-ThreadSummaryRecord {
   )
 
   $status =
-    if ($SymbolSummary.lastLifecycleEvent -eq "deactivated") {
+    if (
+      $SymbolSummary.lastLifecycleEvent -in @("activation_queued", "activation_started", "thread_ready") -and
+      [int]$SymbolSummary.snapshotPosts -eq 0 -and
+      [int]$SymbolSummary.alertPosted -eq 0
+    ) {
+      "activating"
+    } elseif ($SymbolSummary.lastLifecycleEvent -eq "deactivated") {
       "inactive"
     } elseif ($SymbolSummary.lastLifecycleEvent -eq "activation_failed" -or $SymbolSummary.lastLifecycleEvent -eq "restore_failed") {
       "error"

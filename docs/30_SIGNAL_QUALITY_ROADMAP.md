@@ -113,6 +113,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Corrected the clutter-review heuristic so low-context threads are no longer penalized just because the symbol was suppression-heavy internally.
 - Added event-family-aware live-post discipline so `level_touch` and `compression` threads now get a narrower optional-narration path than breakout-style threads.
 - Fixed continuity gating so event-family-aware optional-post rules now apply to meaningful label transitions too instead of only duplicate-state repost attempts.
+- Refined long-run review language so low-output or still-activating threads are more likely to read as `observational` / `activating` than falsely `noisy`.
 
 ## Active Backlog
 
@@ -133,6 +134,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Use the new category-aware live-post gating to compare whether directional continuity deserves looser thresholds than non-directional narration in real sessions.
 - Keep validating live sessions like `BURU` and `AIXI` so optional-post throttling and clutter review stay grounded in what actually hit Discord rather than what only happened inside diagnostics.
 - Keep validating live sessions like `AUUD` so support-test families can be tightened without accidentally flattening useful breakout/reclaim thread progression.
+- Keep validating live sessions so quiet low-output symbols are described honestly in review artifacts instead of being punished for simply not producing a setup yet.
 
 ### Detection and ranking improvements
 
