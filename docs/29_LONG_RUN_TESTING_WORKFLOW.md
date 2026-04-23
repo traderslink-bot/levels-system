@@ -63,6 +63,12 @@ When you start the long-run launcher, it will:
 9. write a smaller filtered review log
 10. write simple session metadata
 
+Important startup note:
+
+- the HTTP UI now binds immediately, before IBKR restore/seeding finishes
+- if persisted-symbol restore is still running, the UI should load and runtime status will show startup as `booting`
+- activate/deactivate requests are intentionally blocked with `503` until startup reaches `ready`
+
 ## Why It Stops An Older Runtime
 
 Yes: the launcher is intentionally supposed to stop an older copy of the manual runtime before starting a new one.

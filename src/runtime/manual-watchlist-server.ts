@@ -90,22 +90,35 @@ async function main(): Promise<void> {
     lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
   });
   const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
+  let startupState: "booting" | "ready" | "error" = "booting";
+  let startupError: string | null = null;
 
-  await waitForIbkrConnection(ib);
-  console.log(
-    `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
-  );
-  if (monitoringEventDiagnosticsEnabled) {
-    console.log(
-      `[ManualWatchlistRuntime] Monitoring event diagnostics enabled via ${MONITORING_EVENT_DIAGNOSTICS_ENV}.`,
-    );
-  }
-  if (aiCommentaryEnabled) {
-    console.log(
-      `[ManualWatchlistRuntime] AI commentary ${aiCommentaryService ? "enabled" : "requested but OPENAI_API_KEY is missing"}.`,
-    );
-  }
-  await manager.start();
+  const bootRuntime = async (): Promise<void> => {
+    try {
+      await waitForIbkrConnection(ib);
+      console.log(
+        `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
+      );
+      if (monitoringEventDiagnosticsEnabled) {
+        console.log(
+          `[ManualWatchlistRuntime] Monitoring event diagnostics enabled via ${MONITORING_EVENT_DIAGNOSTICS_ENV}.`,
+        );
+      }
+      if (aiCommentaryEnabled) {
+        console.log(
+          `[ManualWatchlistRuntime] AI commentary ${aiCommentaryService ? "enabled" : "requested but OPENAI_API_KEY is missing"}.`,
+        );
+      }
+      await manager.start();
+      startupState = "ready";
+      startupError = null;
+      console.log("[ManualWatchlistRuntime] Runtime startup complete.");
+    } catch (error) {
+      startupState = "error";
+      startupError = error instanceof Error ? error.message : String(error);
+      console.error(`[ManualWatchlistRuntime] Startup failed: ${startupError}`);
+    }
+  };
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", `http://${LOCAL_BIND_HOST}`);
@@ -120,6 +133,8 @@ async function main(): Promise<void> {
     if (request.method === "GET" && url.pathname === "/api/watchlist") {
       sendJson(response, 200, {
         activeEntries: manager.getActiveEntries(),
+        startupState,
+        startupError,
       });
       return;
     }
@@ -131,11 +146,22 @@ async function main(): Promise<void> {
         aiCommentaryEnabled: aiCommentaryService !== null,
         activeSymbolCount: manager.getActiveEntries().length,
         sessionDirectory,
+        startupState,
+        startupError,
       });
       return;
     }
 
     if (request.method === "POST" && url.pathname === "/api/watchlist/activate") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
       try {
         const body = await readJsonBody(request);
         const symbol = typeof body.symbol === "string" ? body.symbol : "";
@@ -161,6 +187,15 @@ async function main(): Promise<void> {
     }
 
     if (request.method === "POST" && url.pathname === "/api/watchlist/deactivate") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
       try {
         const body = await readJsonBody(request);
         const symbol = typeof body.symbol === "string" ? body.symbol : "";
@@ -218,6 +253,8 @@ async function main(): Promise<void> {
   server.listen(PORT, LOCAL_BIND_HOST, () => {
     console.log(`Manual watchlist server running at http://127.0.0.1:${PORT}`);
   });
+
+  void bootRuntime();
 }
 
 main().catch((error) => {

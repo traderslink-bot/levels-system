@@ -19,6 +19,28 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-23 2:45 PM America/Toronto
+
+### Bound the manual UI immediately so long startup restores no longer refuse the browser
+
+- Updated runtime startup flow in:
+  - `src/runtime/manual-watchlist-server.ts`
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+- What changed:
+  - the HTTP server now binds to `127.0.0.1:3010` immediately instead of waiting for IBKR connection plus persisted-symbol restore/seeding to finish
+  - runtime boot now continues in the background with explicit `startupState` / `startupError` tracking
+  - `/api/runtime/status` and `/api/watchlist` now expose that startup state
+  - activate/deactivate endpoints now return `503` until runtime startup is actually `ready`, instead of failing behind a refused browser connection
+- Why this matters:
+  - live sessions with many restored symbols could spend minutes seeding before `listen()` ever happened, which made the UI look dead even though the process was actively restoring
+  - the browser should now load immediately and make startup latency visible instead of looking like a crash
+- Verification completed:
+  - `npm run check`
+
+---
+
 ## 2026-04-23 1:05 PM America/Toronto
 
 ### Tightened same-window continuity overlap and fixed event-side continuity mismatches
