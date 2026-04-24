@@ -194,15 +194,6 @@ async function main(): Promise<void> {
     }
 
     if (request.method === "POST" && url.pathname === "/api/watchlist/deactivate") {
-      if (startupState !== "ready") {
-        sendJson(response, 503, {
-          error:
-            startupState === "error"
-              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
-              : "Runtime is still starting. Try again when startup completes.",
-        });
-        return;
-      }
       try {
         const body = await readJsonBody(request);
         const symbol = typeof body.symbol === "string" ? body.symbol : "";

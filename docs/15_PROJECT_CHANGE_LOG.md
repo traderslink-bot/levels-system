@@ -19,6 +19,18 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-24 11:03 AM America/Toronto
+
+### Allowed deactivation during runtime startup
+
+- Updated:
+  - `src/runtime/manual-watchlist-server.ts`
+  - `README.md`
+- What changed:
+  - removed the shared startup gate from `/api/watchlist/deactivate`
+  - new activations still wait for runtime startup to complete, but deactivation is now allowed while persisted symbols are still restoring or seeding
+  - this prevents the UI from showing `Runtime is still starting` when the user is trying to stop already-visible active symbols during boot
+
 ## 2026-04-24 09:46 AM America/Toronto
 
 ### Added a separate Finnhub stock-context prototype for the first thread post

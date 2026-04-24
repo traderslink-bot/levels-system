@@ -14,6 +14,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - `npm run watchlist:manual` starts the manual watchlist server on `127.0.0.1:3010` by default.
 - The manual UI now binds immediately, even while IBKR connection and persisted-symbol restore are still booting in the background, so the browser should show the app instead of `ERR_CONNECTION_REFUSED` during long startup restores.
 - `/api/runtime/status` and `/api/watchlist` now expose `startupState` and `startupError`, and activate/deactivate requests return `503` until runtime startup is actually ready.
+- New activations still wait for `startupState=ready`, but deactivation is allowed during startup so slow restoring symbols can be stopped immediately from the UI.
 - Manual activation seeding is now bounded by a timeout, so a symbol that hangs during level generation should fail explicitly instead of sitting in `refresh_pending` forever.
 - Set `LEVEL_MONITORING_EVENT_DIAGNOSTICS=1` before `npm run watchlist:manual` to emit filtered `monitoring_event_diagnostic` JSON lines for breakout / breakdown / fakeout / reclaim decisions.
 - Diagnostic logging is intentionally filtered:
