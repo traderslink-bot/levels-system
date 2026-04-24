@@ -17,6 +17,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - `startupState=ready` now means the runtime is connected and can accept requests, even if the slower persisted-symbol restore pass is still finishing in the background.
 - New activations still wait for `startupState=ready`, but deactivation is allowed during startup so slow restoring symbols can be stopped immediately from the UI.
 - Manual activation seeding is now bounded by a timeout, so a symbol that hangs during level generation should fail explicitly instead of sitting in `refresh_pending` forever.
+- The manual runtime now gives IBKR historical seeding more breathing room by default during first activation; set `MANUAL_WATCHLIST_IBKR_TIMEOUT_MS` if you want to override the default `90000` ms timeout.
 - Set `LEVEL_MONITORING_EVENT_DIAGNOSTICS=1` before `npm run watchlist:manual` to emit filtered `monitoring_event_diagnostic` JSON lines for breakout / breakdown / fakeout / reclaim decisions.
 - Diagnostic logging is intentionally filtered:
   - emitted decisions always log

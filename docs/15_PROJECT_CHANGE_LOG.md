@@ -19,6 +19,21 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-24 2:31 PM America/Toronto
+
+### Gave manual first activations a longer IBKR historical timeout
+
+- Updated:
+  - `src/runtime/manual-watchlist-server.ts`
+  - `README.md`
+- What changed:
+  - the manual runtime now constructs the IBKR historical candle provider with a longer default timeout of `90000ms` instead of relying on the provider's shorter default
+  - the timeout is configurable through `MANUAL_WATCHLIST_IBKR_TIMEOUT_MS`
+  - the runtime now logs the effective IBKR historical timeout at startup for easier live debugging
+- Why this matters:
+  - live evidence from `LIDR` showed that thread creation and activation could start successfully while historical candle seeding still timed out before levels were generated
+  - when that happened, the queued activation rolled back out of the active list and looked like it vanished, even though the real issue was just a slow IBKR historical response
+
 ## 2026-04-24 1:26 PM America/Toronto
 
 ### Let slow queued activations finish during a grace window

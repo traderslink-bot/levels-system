@@ -34,6 +34,8 @@ const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
 const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
 const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
 const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
+const MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV = "MANUAL_WATCHLIST_IBKR_TIMEOUT_MS";
+const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
 
 function isTruthyEnv(value: string | undefined): boolean {
   if (!value) {
@@ -45,7 +47,15 @@ function isTruthyEnv(value: string | undefined): boolean {
 
 async function main(): Promise<void> {
   const ib = createIbkrClient();
-  const historicalProvider = new IbkrHistoricalCandleProvider(ib);
+  const manualWatchlistIbkrTimeoutMs = Number(
+    process.env[MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV] ?? DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+  );
+  const historicalProvider = new IbkrHistoricalCandleProvider(
+    ib,
+    Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+      ? manualWatchlistIbkrTimeoutMs
+      : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+  );
   const liveProvider = new IBKRLivePriceProvider(ib);
   const candleService = new CandleFetchService(historicalProvider);
   const levelStore = new LevelStore();
@@ -104,6 +114,9 @@ async function main(): Promise<void> {
       startupError = null;
       console.log(
         `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] IBKR historical timeout: ${Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0 ? manualWatchlistIbkrTimeoutMs : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS}ms.`,
       );
       if (monitoringEventDiagnosticsEnabled) {
         console.log(
