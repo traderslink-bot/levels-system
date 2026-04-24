@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { FinnhubClient } from "../lib/stock-context/finnhub-client.js";
 import { formatFinnhubThreadPreview } from "../lib/stock-context/finnhub-thread-preview.js";
 
-test("FinnhubClient assembles a stock context preview and limits news items", async () => {
+test("FinnhubClient assembles a stock context preview from quote and profile data", async () => {
   const requestedPaths: string[] = [];
   const client = new FinnhubClient({
     apiKey: "test-key",
@@ -45,18 +45,6 @@ test("FinnhubClient assembles a stock context preview and limits news items", as
         );
       }
 
-      if (url.pathname.endsWith("/company-news")) {
-        return new Response(
-          JSON.stringify([
-            { headline: "Older item", source: "Source B", datetime: 100 },
-            { headline: "Newest item", source: "Source A", datetime: 300 },
-            { headline: "Middle item", source: "Source C", datetime: 200 },
-            { headline: "Trimmed item", source: "Source D", datetime: 50 },
-          ]),
-          { status: 200 },
-        );
-      }
-
       return new Response("not found", { status: 404 });
     },
   });
@@ -66,11 +54,9 @@ test("FinnhubClient assembles a stock context preview and limits news items", as
   assert.equal(preview.symbol, "EXMP");
   assert.deepEqual(
     requestedPaths.sort(),
-    ["/api/v1/company-news", "/api/v1/quote", "/api/v1/stock/profile2"].sort(),
+    ["/api/v1/quote", "/api/v1/stock/profile2"].sort(),
   );
-  assert.equal(preview.recentNews.length, 3);
-  assert.equal(preview.recentNews[0]?.headline, "Newest item");
-  assert.equal(preview.recentNews[2]?.headline, "Older item");
+  assert.equal(preview.profile.name, "Example Corp");
 });
 
 test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
@@ -96,18 +82,10 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
       shareOutstanding: 125,
       weburl: "https://example.com",
     },
-    recentNews: [
-      {
-        headline: "Example headline",
-        source: "Example Source",
-        datetime: 1_700_000_000,
-      },
-    ],
   });
 
   assert.match(content, /FIRST THREAD POST PREVIEW/);
   assert.match(content, /EXMP \| Example Corp \| NASDAQ \| Technology/);
   assert.match(content, /market cap 850\.00M/);
-  assert.match(content, /Recent news/);
   assert.match(content, /Levels loading\.\.\./);
 });

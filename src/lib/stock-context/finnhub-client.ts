@@ -25,23 +25,10 @@ export type FinnhubCompanyProfile = {
   weburl?: string;
 };
 
-export type FinnhubCompanyNewsItem = {
-  category?: string;
-  datetime?: number;
-  headline?: string;
-  id?: number;
-  image?: string;
-  related?: string;
-  source?: string;
-  summary?: string;
-  url?: string;
-};
-
 export type FinnhubThreadPreview = {
   symbol: string;
   quote: FinnhubQuote;
   profile: FinnhubCompanyProfile;
-  recentNews: FinnhubCompanyNewsItem[];
 };
 
 export type FinnhubClientOptions = {
@@ -49,27 +36,17 @@ export type FinnhubClientOptions = {
   fetchImpl?: FetchLike;
   timeoutMs?: number;
   baseUrl?: string;
-  newsLookbackDays?: number;
-  newsLimit?: number;
 };
-
-function toIsoDateParts(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
 
 export class FinnhubClient {
   private readonly fetchImpl: FetchLike;
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
-  private readonly newsLookbackDays: number;
-  private readonly newsLimit: number;
 
   constructor(private readonly options: FinnhubClientOptions) {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 15_000;
     this.baseUrl = options.baseUrl ?? "https://finnhub.io/api/v1";
-    this.newsLookbackDays = options.newsLookbackDays ?? 7;
-    this.newsLimit = options.newsLimit ?? 3;
   }
 
   private async requestJson<T>(path: string, query: Record<string, string>): Promise<T> {
@@ -113,37 +90,21 @@ export class FinnhubClient {
     });
   }
 
-  async getCompanyNews(symbol: string): Promise<FinnhubCompanyNewsItem[]> {
-    const to = new Date();
-    const from = new Date(to.getTime() - this.newsLookbackDays * 24 * 60 * 60 * 1000);
-    const items = await this.requestJson<FinnhubCompanyNewsItem[]>("/company-news", {
-      symbol,
-      from: toIsoDateParts(from),
-      to: toIsoDateParts(to),
-    });
-
-    return [...items]
-      .sort((left, right) => (right.datetime ?? 0) - (left.datetime ?? 0))
-      .slice(0, this.newsLimit);
-  }
-
   async getThreadPreview(symbolInput: string): Promise<FinnhubThreadPreview> {
     const symbol = symbolInput.trim().toUpperCase();
     if (!symbol) {
       throw new Error("A ticker symbol is required.");
     }
 
-    const [quote, profile, recentNews] = await Promise.all([
+    const [quote, profile] = await Promise.all([
       this.getQuote(symbol),
       this.getCompanyProfile(symbol),
-      this.getCompanyNews(symbol),
     ]);
 
     return {
       symbol,
       quote,
       profile,
-      recentNews,
     };
   }
 }

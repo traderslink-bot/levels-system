@@ -133,7 +133,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added a bounded seed timeout for manual activation so a hung level-generation request now fails explicitly instead of leaving a symbol parked in `refresh_pending` forever.
 - Extended long-run review honesty so `refresh_pending` no-output threads are treated as pending work rather than falsely noisy.
 - Fixed the long-run launcher so review artifacts now keep refreshing from `discord-delivery-audit.jsonl` even when runtime stdout goes quiet, which keeps post-market and slow-session summaries aligned with what actually reached Discord.
-- Added a separate Finnhub stock-context prototype path so the planned first thread post can be tested in the terminal first without tangling that experiment into the live runtime yet.
+- Added a separate Finnhub stock-context prototype path so the planned first thread post can be tested in the terminal first without tangling that experiment into the live runtime yet, with the initial scope narrowed to ticker-specific quote/profile data instead of news.
 - Tightened identical extension dedupe so the same `NEXT LEVELS` payload now stays suppressed until the extension ladder actually changes, instead of reappearing once a short cooldown expires.
 - Lengthened same-scope trader alert repost windows and raised the required score delta for reposts, so structurally unchanged zone stories now need a more meaningful change before Discord gets another alert.
 

@@ -1,5 +1,4 @@
 import type {
-  FinnhubCompanyNewsItem,
   FinnhubCompanyProfile,
   FinnhubQuote,
   FinnhubThreadPreview,
@@ -67,22 +66,6 @@ function formatShareCount(value: number | undefined): string {
   return `${value.toFixed(2)}M`;
 }
 
-function formatHeadline(item: FinnhubCompanyNewsItem): string {
-  const source = item.source?.trim() || "Unknown source";
-  const headline = item.headline?.trim() || "Untitled";
-  const timestamp =
-    typeof item.datetime === "number" && item.datetime > 0
-      ? new Date(item.datetime * 1000).toLocaleString("en-US", {
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        })
-      : null;
-  const suffix = timestamp ? ` (${timestamp})` : "";
-  return `- ${headline} | ${source}${suffix}`;
-}
-
 function formatIdentityLine(symbol: string, profile: FinnhubCompanyProfile): string {
   const name = profile.name?.trim() || symbol;
   const exchange = profile.exchange?.trim() || "n/a";
@@ -103,10 +86,6 @@ function formatQuoteLine(quote: FinnhubQuote): string {
 
 export function formatFinnhubThreadPreview(preview: FinnhubThreadPreview): string {
   const profile = preview.profile;
-  const newsLines =
-    preview.recentNews.length > 0
-      ? preview.recentNews.map((item) => formatHeadline(item))
-      : ["- No recent headlines returned."];
 
   return [
     `FIRST THREAD POST PREVIEW`,
@@ -118,9 +97,6 @@ export function formatFinnhubThreadPreview(preview: FinnhubThreadPreview): strin
     `Company`,
     `market cap ${formatMarketCap(profile.marketCapitalization)} | shares out ${formatShareCount(profile.shareOutstanding)} | ipo ${profile.ipo?.trim() || "n/a"} | country ${profile.country?.trim() || "n/a"}`,
     `website ${profile.weburl?.trim() || "n/a"}`,
-    ``,
-    `Recent news`,
-    ...newsLines,
     ``,
     `Levels loading...`,
   ].join("\n");

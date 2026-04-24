@@ -37,6 +37,7 @@ This document tracks concrete implementation changes made to the `levels-system`
   - added a terminal formatter that prints the planned pre-level thread opener as a compact stock-context preview
   - added `npm run finnhub:test -- <SYMBOL>` so this first-post idea can be tested in isolation before wiring it into the live Discord/runtime flow
   - kept the prototype in new separate files so it does not tangle with the current manual watchlist runtime yet
+  - later narrowed the first-post prototype to ticker-specific Finnhub quote/profile data only, leaving news for a separate future channel
 
 ## 2026-04-23 8:10 PM America/Toronto
 
