@@ -100,6 +100,8 @@ async function main(): Promise<void> {
   const bootRuntime = async (): Promise<void> => {
     try {
       await waitForIbkrConnection(ib);
+      startupState = "ready";
+      startupError = null;
       console.log(
         `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
       );
@@ -117,8 +119,6 @@ async function main(): Promise<void> {
         `[ManualWatchlistRuntime] Finnhub stock context ${finnhubClient ? "enabled" : "disabled (FINNHUB_API_KEY missing)"}.`,
       );
       await manager.start();
-      startupState = "ready";
-      startupError = null;
       console.log("[ManualWatchlistRuntime] Runtime startup complete.");
     } catch (error) {
       startupState = "error";

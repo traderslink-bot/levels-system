@@ -19,6 +19,18 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-24 11:17 AM America/Toronto
+
+### Marked runtime ready once IBKR is connected, not after full restore finishes
+
+- Updated:
+  - `src/runtime/manual-watchlist-server.ts`
+  - `README.md`
+- What changed:
+  - `startupState` now flips to `ready` immediately after IBKR connection succeeds
+  - the slower persisted-symbol restore pass still continues in the background, but new activations no longer stay blocked behind that entire startup workload
+  - this fixes the case where the UI already shows live active symbols but `/api/watchlist/activate` still returns `Runtime is still starting`
+
 ## 2026-04-24 11:03 AM America/Toronto
 
 ### Allowed deactivation during runtime startup
