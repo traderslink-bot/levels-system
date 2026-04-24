@@ -39,6 +39,7 @@ This document tracks concrete implementation changes made to the `levels-system`
 - What changed:
   - the Finnhub opener now emits the website as a fully qualified URL so Discord will auto-link it reliably
   - if Finnhub ever returns a bare domain, the formatter now prepends `https://`
+  - Finnhub opener posts now set Discord's suppress-embeds flag so the website stays a one-line text link instead of expanding into a preview card
 
 ## 2026-04-24 11:48 AM America/Toronto
 

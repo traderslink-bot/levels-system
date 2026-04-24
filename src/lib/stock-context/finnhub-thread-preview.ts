@@ -98,6 +98,7 @@ export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview):
     timestamp: typeof quote.t === "number" && quote.t > 0 ? quote.t * 1000 : Date.now(),
     metadata: {
       messageKind: "stock_context",
+      suppressEmbeds: true,
     },
   };
 }

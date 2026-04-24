@@ -190,6 +190,7 @@ export type AlertPayload = {
     aiGenerated?: boolean;
     directionalReturnPct?: number | null;
     rawReturnPct?: number | null;
+    suppressEmbeds?: boolean;
   };
 };
 

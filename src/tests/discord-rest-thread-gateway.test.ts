@@ -148,3 +148,37 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
     ].join("\n"),
   );
 });
+
+test("DiscordRestThreadGateway can suppress embeds for plain-text link messages", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return jsonResponse({ body: { id: "message-1" } });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+  });
+
+  await gateway.sendMessage("thread-albt", {
+    title: "",
+    body: [
+      "COMPANY: Example Corp",
+      "WEBSITE: https://example.com/",
+    ].join("\n"),
+    symbol: "EXMP",
+    timestamp: 1,
+    metadata: {
+      messageKind: "stock_context",
+      suppressEmbeds: true,
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.input, "https://discord.com/api/v10/channels/thread-albt/messages");
+  const requestBody = JSON.parse(String(calls[0]?.init?.body));
+  assert.equal(requestBody.content, "COMPANY: Example Corp\nWEBSITE: https://example.com/");
+  assert.equal(requestBody.flags, 4);
+});

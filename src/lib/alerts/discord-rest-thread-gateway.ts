@@ -36,6 +36,7 @@ export type DiscordRestThreadGatewayOptions = {
 };
 
 const DEFAULT_API_BASE_URL = "https://discord.com/api/v10";
+const DISCORD_FLAG_SUPPRESS_EMBEDS = 1 << 2;
 
 function normalizeNonEmpty(value: string | undefined, label: string): string {
   const normalized = value?.trim();
@@ -182,7 +183,12 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   }
 
   async sendMessage(threadId: string, payload: AlertPayload): Promise<void> {
-    await this.postMessage(threadId, buildAlertMessageContent(payload));
+    const content = buildAlertMessageContent(payload);
+    const flags = payload.metadata?.suppressEmbeds ? DISCORD_FLAG_SUPPRESS_EMBEDS : undefined;
+    await this.request<DiscordMessageResponse>(`/channels/${threadId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(flags === undefined ? { content } : { content, flags }),
+    });
   }
 
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
