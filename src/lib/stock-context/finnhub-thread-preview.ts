@@ -66,10 +66,8 @@ function formatWebsite(value: string | undefined): string {
     return normalized;
   }
 
-  return normalized
-    .replace(/^https?:\/\//i, "")
-    .replace(/^www\./i, "")
-    .replace(/\/+$/g, "");
+  const trimmed = normalized.replace(/\/+$/g, "");
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview): AlertPayload {

@@ -93,7 +93,7 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
   assert.match(content, /EXCHANGE: NASDAQ/);
   assert.match(content, /INDUSTRY: Technology/);
   assert.match(content, /COUNTRY: US/);
-  assert.match(content, /WEBSITE: example\.com/);
+  assert.match(content, /WEBSITE: https:\/\/www\.example\.com/);
   assert.match(content, /MARKET CAP: 850\.00M/);
   assert.match(content, /CURRENT PRICE: 12\.340/);
   assert.match(content, /PERCENT CHANGE: \+11\.10%/);

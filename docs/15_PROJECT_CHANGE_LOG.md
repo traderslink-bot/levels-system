@@ -31,6 +31,15 @@ This document tracks concrete implementation changes made to the `levels-system`
   - if seeding finishes during the grace window, the symbol still completes activation and posts its first level snapshot
   - truly hung seeds still fail once the combined timeout and grace window are exhausted
 
+### Switched Finnhub website line to a clickable full URL
+
+- Updated:
+  - `src/lib/stock-context/finnhub-thread-preview.ts`
+  - `src/tests/finnhub-thread-preview.test.ts`
+- What changed:
+  - the Finnhub opener now emits the website as a fully qualified URL so Discord will auto-link it reliably
+  - if Finnhub ever returns a bare domain, the formatter now prepends `https://`
+
 ## 2026-04-24 11:48 AM America/Toronto
 
 ### Simplified Finnhub opener formatting
