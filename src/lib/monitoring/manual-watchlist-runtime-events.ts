@@ -7,6 +7,8 @@ export type ManualWatchlistLifecycleEventName =
   | "levels_seeded"
   | "activation_completed"
   | "activation_failed"
+  | "stock_context_posted"
+  | "stock_context_post_failed"
   | "snapshot_posted"
   | "extension_posted"
   | "alert_posted"

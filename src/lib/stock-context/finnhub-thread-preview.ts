@@ -1,8 +1,9 @@
 import type {
   FinnhubCompanyProfile,
-  FinnhubQuote,
   FinnhubThreadPreview,
+  FinnhubQuote,
 } from "./finnhub-client.js";
+import type { AlertPayload } from "../alerts/alert-types.js";
 
 function formatPercent(value: number | undefined): string {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -54,50 +55,56 @@ function formatMarketCap(value: number | undefined): string {
   return `${(value * 1_000).toFixed(2)}K`;
 }
 
-function formatShareCount(value: number | undefined): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "n/a";
-  }
-
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(2)}B`;
-  }
-
-  return `${value.toFixed(2)}M`;
+function normalizeText(value: string | undefined, fallback = "n/a"): string {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : fallback;
 }
 
-function formatIdentityLine(symbol: string, profile: FinnhubCompanyProfile): string {
-  const name = profile.name?.trim() || symbol;
-  const exchange = profile.exchange?.trim() || "n/a";
-  const industry = profile.finnhubIndustry?.trim() || "n/a";
-  return `${symbol} | ${name} | ${exchange} | ${industry}`;
+function formatWebsite(value: string | undefined): string {
+  const normalized = normalizeText(value);
+  if (normalized === "n/a") {
+    return normalized;
+  }
+
+  return normalized
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/g, "");
 }
 
-function formatQuoteLine(quote: FinnhubQuote): string {
-  return [
-    `price ${formatPrice(quote.c)}`,
-    `change ${formatSignedPrice(quote.d)}`,
-    `move ${formatPercent(quote.dp)}`,
-    `high ${formatPrice(quote.h)}`,
-    `low ${formatPrice(quote.l)}`,
-    `prev ${formatPrice(quote.pc)}`,
-  ].join(" | ");
+export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview): AlertPayload {
+  const profile = preview.profile;
+  const symbol = preview.symbol;
+  const quote = preview.quote;
+
+  return {
+    title: `STOCK CONTEXT: ${symbol}`,
+    body: [
+      `COMPANY: ${normalizeText(profile.name, symbol)}`,
+      `TICKER: ${symbol}`,
+      `EXCHANGE: ${normalizeText(profile.exchange)}`,
+      `INDUSTRY: ${normalizeText(profile.finnhubIndustry)}`,
+      `COUNTRY: ${normalizeText(profile.country)}`,
+      `WEBSITE: ${formatWebsite(profile.weburl)}`,
+      `MARKET CAP: ${formatMarketCap(profile.marketCapitalization)}`,
+      ``,
+      `CURRENT PRICE: ${formatPrice(quote.c)}`,
+      `PERCENT CHANGE: ${formatPercent(quote.dp)}`,
+      `OPEN: ${formatPrice(quote.o)}`,
+      `HIGH: ${formatPrice(quote.h)}`,
+      `LOW: ${formatPrice(quote.l)}`,
+      `PREVIOUS CLOSE: ${formatPrice(quote.pc)}`,
+      ``,
+      `Levels loading...`,
+    ].join("\n"),
+    symbol,
+    timestamp: typeof quote.t === "number" && quote.t > 0 ? quote.t * 1000 : Date.now(),
+    metadata: {
+      messageKind: "stock_context",
+    },
+  };
 }
 
 export function formatFinnhubThreadPreview(preview: FinnhubThreadPreview): string {
-  const profile = preview.profile;
-
-  return [
-    `FIRST THREAD POST PREVIEW`,
-    formatIdentityLine(preview.symbol, profile),
-    ``,
-    `Quote`,
-    formatQuoteLine(preview.quote),
-    ``,
-    `Company`,
-    `market cap ${formatMarketCap(profile.marketCapitalization)} | shares out ${formatShareCount(profile.shareOutstanding)} | ipo ${profile.ipo?.trim() || "n/a"} | country ${profile.country?.trim() || "n/a"}`,
-    `website ${profile.weburl?.trim() || "n/a"}`,
-    ``,
-    `Levels loading...`,
-  ].join("\n");
+  const payload = buildFinnhubThreadPreviewPayload(preview);
+  return [payload.title, payload.body].join("\n");
 }

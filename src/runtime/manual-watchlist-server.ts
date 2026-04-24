@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-commentary-service.js";
+import { createFinnhubClientFromEnv } from "../lib/stock-context/finnhub-client.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
 import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
@@ -79,6 +80,7 @@ async function main(): Promise<void> {
   const aiCommentaryService = aiCommentaryEnabled
     ? createOpenAITraderCommentaryServiceFromEnv()
     : null;
+  const finnhubClient = createFinnhubClientFromEnv();
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: candleService,
     levelStore,
@@ -86,6 +88,7 @@ async function main(): Promise<void> {
     discordAlertRouter: createDiscordAlertRouter(),
     opportunityRuntimeController,
     aiCommentaryService,
+    stockContextProvider: finnhubClient,
     watchlistStatePersistence: new WatchlistStatePersistence(),
     lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
     optionalPostSettleDelayMs: 250,
@@ -110,6 +113,9 @@ async function main(): Promise<void> {
           `[ManualWatchlistRuntime] AI commentary ${aiCommentaryService ? "enabled" : "requested but OPENAI_API_KEY is missing"}.`,
         );
       }
+      console.log(
+        `[ManualWatchlistRuntime] Finnhub stock context ${finnhubClient ? "enabled" : "disabled (FINNHUB_API_KEY missing)"}.`,
+      );
       await manager.start();
       startupState = "ready";
       startupError = null;

@@ -13,7 +13,10 @@ import {
   type DiscordAlertRouter,
 } from "../alerts/alert-router.js";
 import type { TraderCommentaryService } from "../ai/trader-commentary-service.js";
+import type { FinnhubThreadPreview } from "../stock-context/finnhub-client.js";
+import { buildFinnhubThreadPreviewPayload } from "../stock-context/finnhub-thread-preview.js";
 import type {
+  DiscordThreadRoutingResult,
   LevelExtensionPayload,
   LevelExtensionSide,
   LevelSnapshotDisplayZone,
@@ -48,6 +51,9 @@ export type ManualWatchlistRuntimeManagerOptions = {
   lifecycleListener?: ManualWatchlistLifecycleListener;
   optionalPostSettleDelayMs?: number;
   levelSeedTimeoutMs?: number;
+  stockContextProvider?: {
+    getThreadPreview(symbolInput: string): Promise<FinnhubThreadPreview>;
+  } | null;
 };
 
 export type ManualWatchlistActivationInput = {
@@ -520,6 +526,50 @@ export class ManualWatchlistRuntimeManager {
       lastLevelPostAt: timestamp,
       refreshPending: false,
     });
+  }
+
+  private async maybePostStockContext(
+    symbol: string,
+    threadId: string,
+    timestamp: number,
+  ): Promise<void> {
+    const stockContextProvider = this.options.stockContextProvider;
+    if (!stockContextProvider) {
+      return;
+    }
+
+    try {
+      const preview = await stockContextProvider.getThreadPreview(symbol);
+      const payload = buildFinnhubThreadPreviewPayload(preview);
+      await this.options.discordAlertRouter.routeAlert(threadId, payload);
+      this.recordLiveThreadPost({
+        symbol,
+        timestamp,
+        kind: "intelligent_alert",
+        critical: true,
+        eventType: null,
+      });
+      this.clearDeliveryFailure(symbol, timestamp);
+      this.emitLifecycle("stock_context_posted", {
+        symbol,
+        threadId,
+        details: {
+          exchange: preview.profile.exchange?.trim() || null,
+          industry: preview.profile.finnhubIndustry?.trim() || null,
+          marketCap: preview.profile.marketCapitalization ?? null,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.emitLifecycle("stock_context_post_failed", {
+        symbol,
+        threadId,
+        details: {
+          error: message,
+        },
+      });
+      console.error(`[ManualWatchlistRuntimeManager] Failed to post stock context for ${symbol}: ${message}`);
+    }
   }
 
   private async postLevelExtension(
@@ -2551,7 +2601,7 @@ export class ManualWatchlistRuntimeManager {
   private async performActivation(
     input: ManualWatchlistActivationInput,
     rollbackEntries: WatchlistEntry[],
-    preparedThreadId?: string | null,
+    preparedThread?: DiscordThreadRoutingResult | null,
   ): Promise<WatchlistEntry> {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.watchlistStore.getEntry(symbol);
@@ -2559,18 +2609,21 @@ export class ManualWatchlistRuntimeManager {
     try {
       this.emitLifecycle("activation_started", {
         symbol,
-        threadId: preparedThreadId ?? existing?.discordThreadId ?? null,
+        threadId: preparedThread?.threadId ?? existing?.discordThreadId ?? null,
       });
+      if (preparedThread?.created) {
+        await this.maybePostStockContext(symbol, preparedThread.threadId, Date.now());
+      }
       await this.seedLevelsForSymbol(symbol);
       const threadId =
-        preparedThreadId ??
+        preparedThread?.threadId ??
         (
           await this.options.discordAlertRouter.ensureThread(
             symbol,
             existing?.discordThreadId,
           )
         ).threadId;
-      if (!preparedThreadId) {
+      if (!preparedThread) {
         this.emitLifecycle("thread_ready", {
           symbol,
           threadId,
@@ -2596,7 +2649,7 @@ export class ManualWatchlistRuntimeManager {
       try {
         await this.postLevelSnapshot(symbol, threadId, Date.now());
       } catch (error) {
-        if (preparedThreadId) {
+        if (preparedThread) {
           throw error;
         }
 
@@ -2617,7 +2670,7 @@ export class ManualWatchlistRuntimeManager {
       const message = error instanceof Error ? error.message : String(error);
       this.emitLifecycle("activation_failed", {
         symbol,
-        threadId: preparedThreadId ?? existing?.discordThreadId ?? null,
+        threadId: preparedThread?.threadId ?? existing?.discordThreadId ?? null,
         details: {
           error: message,
         },
@@ -2686,7 +2739,7 @@ export class ManualWatchlistRuntimeManager {
     const activationTask = this.performActivation(
       { symbol, note: input.note },
       rollbackEntries,
-      thread.threadId,
+      thread,
     )
       .then(() => undefined)
       .catch((error) => {

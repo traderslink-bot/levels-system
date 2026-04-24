@@ -38,6 +38,8 @@ This document tracks concrete implementation changes made to the `levels-system`
   - added `npm run finnhub:test -- <SYMBOL>` so this first-post idea can be tested in isolation before wiring it into the live Discord/runtime flow
   - kept the prototype in new separate files so it does not tangle with the current manual watchlist runtime yet
   - later narrowed the first-post prototype to ticker-specific Finnhub quote/profile data only, leaving news for a separate future channel
+  - later narrowed the preview field set further to company name, ticker, exchange, industry, country, website, market cap, current price, percent move, and open/high/low/previous close
+  - wired that labeled stock-context card into the live manual watchlist runtime so newly created Discord threads now get the opener before levels finish generating when `FINNHUB_API_KEY` is set
 
 ## 2026-04-23 8:10 PM America/Toronto
 

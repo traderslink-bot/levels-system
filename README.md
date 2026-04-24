@@ -22,7 +22,19 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - For multi-hour manual testing on Windows, use `scripts/start-manual-watchlist-long-run.ps1` so each session gets a timestamped full log plus a smaller filtered review log under `artifacts/long-run/`.
 - Long-run sessions now also emit structured `manual_watchlist_lifecycle` JSON lines and a local `discord-delivery-audit.jsonl` file so activation/deactivation, snapshot posting, alert posting, and downstream Discord delivery can be reviewed after the fact.
 - The long-run launcher now also refreshes summary artifacts from `discord-delivery-audit.jsonl`, so `session-summary.json`, `thread-summaries.json`, `thread-clutter-report.json`, `session-review.md`, and `trader-thread-recaps.md` keep updating even when runtime stdout goes quiet.
-- To prototype the planned pre-level thread opener separately from the runtime, set `FINNHUB_API_KEY` in `.env` and run `npm run finnhub:test -- AAPL` to print a Finnhub-backed stock context preview in the terminal first. The prototype currently focuses on ticker-specific quote/profile data rather than news.
+- Set `FINNHUB_API_KEY` in `.env` to enable a Finnhub-backed stock-context opener on newly created Discord threads before level generation finishes.
+- `npm run finnhub:test -- AAPL` still prints that same stock-context card in the terminal so the opener can be iterated separately from the live runtime.
+- The stock-context opener is intentionally limited to ticker-specific data only:
+  - company name
+  - ticker
+  - exchange
+  - industry
+  - country
+  - website
+  - market cap
+  - current price
+  - percent change
+  - open / high / low / previous close
 - Long-run sessions now split review surfaces:
   - `manual-watchlist-operational.log` for lifecycle, failures, compare output, and Discord delivery
   - `manual-watchlist-diagnostics.log` for `monitoring_event_diagnostic` reasoning

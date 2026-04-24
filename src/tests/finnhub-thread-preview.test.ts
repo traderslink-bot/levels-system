@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { FinnhubClient } from "../lib/stock-context/finnhub-client.js";
-import { formatFinnhubThreadPreview } from "../lib/stock-context/finnhub-thread-preview.js";
+import {
+  buildFinnhubThreadPreviewPayload,
+  formatFinnhubThreadPreview,
+} from "../lib/stock-context/finnhub-thread-preview.js";
 
 test("FinnhubClient assembles a stock context preview from quote and profile data", async () => {
   const requestedPaths: string[] = [];
@@ -60,7 +63,7 @@ test("FinnhubClient assembles a stock context preview from quote and profile dat
 });
 
 test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
-  const content = formatFinnhubThreadPreview({
+  const preview = {
     symbol: "EXMP",
     quote: {
       c: 12.34,
@@ -82,10 +85,22 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
       shareOutstanding: 125,
       weburl: "https://example.com",
     },
-  });
+  };
+  const content = formatFinnhubThreadPreview(preview);
+  const payload = buildFinnhubThreadPreviewPayload(preview);
 
-  assert.match(content, /FIRST THREAD POST PREVIEW/);
-  assert.match(content, /EXMP \| Example Corp \| NASDAQ \| Technology/);
-  assert.match(content, /market cap 850\.00M/);
+  assert.match(content, /STOCK CONTEXT: EXMP/);
+  assert.match(content, /COMPANY: Example Corp/);
+  assert.match(content, /TICKER: EXMP/);
+  assert.match(content, /EXCHANGE: NASDAQ/);
+  assert.match(content, /INDUSTRY: Technology/);
+  assert.match(content, /COUNTRY: US/);
+  assert.match(content, /WEBSITE: example\.com/);
+  assert.match(content, /MARKET CAP: 850\.00M/);
+  assert.match(content, /CURRENT PRICE: 12\.340/);
+  assert.match(content, /PERCENT CHANGE: \+11\.10%/);
+  assert.match(content, /OPEN: 11\.750/);
+  assert.match(content, /PREVIOUS CLOSE: 11\.110/);
   assert.match(content, /Levels loading\.\.\./);
+  assert.equal(payload.metadata?.messageKind, "stock_context");
 });

@@ -150,6 +150,7 @@ export type AlertPayload = {
     eventType?: MonitoringEvent["eventType"];
     messageKind?:
       | "intelligent_alert"
+      | "stock_context"
       | "follow_through_update"
       | "follow_through_state_update"
       | "continuity_update"

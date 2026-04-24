@@ -580,6 +580,62 @@ test("ManualWatchlistRuntimeManager queues activation immediately, creates the t
   assert.equal(discordAlertRouter.levelSnapshots[0]?.threadId, "thread-BMGL");
 });
 
+test("ManualWatchlistRuntimeManager posts stock context into a newly created thread before the level snapshot", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    stockContextProvider: {
+      async getThreadPreview(symbolInput: string) {
+        return {
+          symbol: symbolInput.toUpperCase(),
+          quote: {
+            c: 12.34,
+            d: 1.23,
+            dp: 11.1,
+            h: 13,
+            l: 11.5,
+            o: 11.75,
+            pc: 11.11,
+            t: 1_700_000_000,
+          },
+          profile: {
+            country: "US",
+            exchange: "NASDAQ",
+            finnhubIndustry: "Technology",
+            marketCapitalization: 850,
+            name: "Example Corp",
+            weburl: "https://example.com",
+          },
+        };
+      },
+    },
+    seedSymbolLevels: async (symbol: string) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.queueActivation({ symbol: "EXMP" });
+  await new Promise((resolve) => setTimeout(resolve, 80));
+
+  assert.equal(discordAlertRouter.routed.length >= 1, true);
+  assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.messageKind, "stock_context");
+  assert.equal(discordAlertRouter.routed[0]?.payload.title, "STOCK CONTEXT: EXMP");
+  assert.equal(discordAlertRouter.levelSnapshots.length >= 1, true);
+});
+
 test("ManualWatchlistRuntimeManager times out a hung queued activation instead of leaving refresh_pending forever", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
