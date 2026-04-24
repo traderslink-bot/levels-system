@@ -632,7 +632,7 @@ test("ManualWatchlistRuntimeManager posts stock context into a newly created thr
 
   assert.equal(discordAlertRouter.routed.length >= 1, true);
   assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.messageKind, "stock_context");
-  assert.equal(discordAlertRouter.routed[0]?.payload.title, "STOCK CONTEXT: EXMP");
+  assert.equal(discordAlertRouter.routed[0]?.payload.title, "");
   assert.equal(discordAlertRouter.levelSnapshots.length >= 1, true);
 });
 
@@ -656,6 +656,7 @@ test("ManualWatchlistRuntimeManager times out a hung queued activation instead o
       lifecycleEvents.push(event);
     },
     levelSeedTimeoutMs: 5,
+    queuedActivationSeedGraceTimeoutMs: 10,
     seedSymbolLevels: async () => {
       await new Promise<void>(() => {});
     },
@@ -669,7 +670,7 @@ test("ManualWatchlistRuntimeManager times out a hung queued activation instead o
   assert.equal(queued.refreshPending, true);
 
   await waitForAsyncWork();
-  await new Promise((resolve) => setTimeout(resolve, 25));
+  await new Promise((resolve) => setTimeout(resolve, 120));
 
   assert.equal(manager.getActiveEntries().find((entry) => entry.symbol === "INTC"), undefined);
   assert.equal(
@@ -681,6 +682,44 @@ test("ManualWatchlistRuntimeManager times out a hung queued activation instead o
     ),
     true,
   );
+});
+
+test("ManualWatchlistRuntimeManager keeps a queued activation alive when seeding finishes during the grace window", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    levelSeedTimeoutMs: 5,
+    queuedActivationSeedGraceTimeoutMs: 80,
+    seedSymbolLevels: async (symbol: string) => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+
+  const queued = await manager.queueActivation({ symbol: "POET", note: "slow but valid" });
+  assert.equal(queued.symbol, "POET");
+  assert.equal(queued.lifecycle, "activating");
+
+  await waitForAsyncWork();
+  await new Promise((resolve) => setTimeout(resolve, 120));
+
+  const activeEntry = manager.getActiveEntries().find((entry) => entry.symbol === "POET");
+  assert.equal(activeEntry?.lifecycle, "active");
+  assert.equal(activeEntry?.refreshPending, false);
+  assert.equal(discordAlertRouter.levelSnapshots.length >= 1, true);
 });
 
 test("ManualWatchlistRuntimeManager emits structured lifecycle events for activation and deactivation", async () => {

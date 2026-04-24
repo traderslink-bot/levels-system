@@ -19,6 +19,30 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-24 1:26 PM America/Toronto
+
+### Let slow queued activations finish during a grace window
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - queued manual activations now tolerate slow first-time level seeding beyond the initial timeout instead of immediately rolling back the symbol
+  - if seeding finishes during the grace window, the symbol still completes activation and posts its first level snapshot
+  - truly hung seeds still fail once the combined timeout and grace window are exhausted
+
+## 2026-04-24 11:48 AM America/Toronto
+
+### Simplified Finnhub opener formatting
+
+- Updated:
+  - `src/lib/stock-context/finnhub-thread-preview.ts`
+  - `src/lib/alerts/discord-rest-thread-gateway.ts`
+- What changed:
+  - removed the redundant `STOCK CONTEXT: SYMBOL` title from the Finnhub opener so the post starts directly with labeled company fields
+  - removed the redundant `TICKER:` line from the body
+  - website display now strips both the protocol and a leading `www.` prefix
+
 ## 2026-04-24 11:17 AM America/Toronto
 
 ### Marked runtime ready once IBKR is connected, not after full restore finishes

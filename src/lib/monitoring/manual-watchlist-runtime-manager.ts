@@ -51,6 +51,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   lifecycleListener?: ManualWatchlistLifecycleListener;
   optionalPostSettleDelayMs?: number;
   levelSeedTimeoutMs?: number;
+  queuedActivationSeedGraceTimeoutMs?: number;
   stockContextProvider?: {
     getThreadPreview(symbolInput: string): Promise<FinnhubThreadPreview>;
   } | null;
@@ -99,6 +100,7 @@ const DELIVERY_FAILURE_BACKOFF_MS = 2 * 60 * 1000;
 const OPTIONAL_POST_SETTLE_DELAY_MS = 250;
 const OPTIONAL_POST_CRITICAL_PREEMPT_WINDOW_MS = 1500;
 const LEVEL_SEED_TIMEOUT_MS = 45 * 1000;
+const QUEUED_ACTIVATION_SEED_GRACE_TIMEOUT_MS = 3 * 60 * 1000;
 
 type SymbolRecapState = {
   lastSignature: string | null;
@@ -342,6 +344,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly deliveryPressureState = new Map<string, SymbolDeliveryPressureState>();
   private readonly optionalPostSettleDelayMs: number;
   private readonly levelSeedTimeoutMs: number;
+  private readonly queuedActivationSeedGraceTimeoutMs: number;
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
@@ -360,6 +363,10 @@ export class ManualWatchlistRuntimeManager {
       options.watchlistStatePersistence ?? new WatchlistStatePersistence();
     this.optionalPostSettleDelayMs = Math.max(0, options.optionalPostSettleDelayMs ?? 0);
     this.levelSeedTimeoutMs = Math.max(0, options.levelSeedTimeoutMs ?? LEVEL_SEED_TIMEOUT_MS);
+    this.queuedActivationSeedGraceTimeoutMs = Math.max(
+      0,
+      options.queuedActivationSeedGraceTimeoutMs ?? QUEUED_ACTIVATION_SEED_GRACE_TIMEOUT_MS,
+    );
   }
 
   private emitLifecycle(
@@ -825,8 +832,8 @@ export class ManualWatchlistRuntimeManager {
     }
   }
 
-  private async seedLevelsForSymbol(symbol: string): Promise<void> {
-    const seedOperation = async (): Promise<void> => {
+  private beginSeedLevelsForSymbol(symbol: string): Promise<void> {
+    return (async (): Promise<void> => {
       if (this.options.seedSymbolLevels) {
         await this.options.seedSymbolLevels(symbol);
         this.emitLifecycle("levels_seeded", {
@@ -851,15 +858,19 @@ export class ManualWatchlistRuntimeManager {
           generatedAt: output.generatedAt,
         },
       });
-    };
+    })();
+  }
+
+  private async seedLevelsForSymbol(symbol: string): Promise<void> {
+    const seedOperation = this.beginSeedLevelsForSymbol(symbol);
 
     if (this.levelSeedTimeoutMs <= 0) {
-      await seedOperation();
+      await seedOperation;
       return;
     }
 
     await withTimeout(
-      seedOperation(),
+      seedOperation,
       this.levelSeedTimeoutMs,
       () => new LevelSeedTimeoutError(symbol, this.levelSeedTimeoutMs),
     );
@@ -2614,7 +2625,39 @@ export class ManualWatchlistRuntimeManager {
       if (preparedThread?.created) {
         await this.maybePostStockContext(symbol, preparedThread.threadId, Date.now());
       }
-      await this.seedLevelsForSymbol(symbol);
+      if (preparedThread) {
+        const seedOperation = this.beginSeedLevelsForSymbol(symbol);
+        try {
+          if (this.levelSeedTimeoutMs <= 0) {
+            await seedOperation;
+          } else {
+            await withTimeout(
+              seedOperation,
+              this.levelSeedTimeoutMs,
+              () => new LevelSeedTimeoutError(symbol, this.levelSeedTimeoutMs),
+            );
+          }
+        } catch (error) {
+          if (
+            error instanceof LevelSeedTimeoutError &&
+            this.queuedActivationSeedGraceTimeoutMs > 0
+          ) {
+            await withTimeout(
+              seedOperation,
+              this.queuedActivationSeedGraceTimeoutMs,
+              () =>
+                new LevelSeedTimeoutError(
+                  symbol,
+                  this.levelSeedTimeoutMs + this.queuedActivationSeedGraceTimeoutMs,
+                ),
+            );
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        await this.seedLevelsForSymbol(symbol);
+      }
       const threadId =
         preparedThread?.threadId ??
         (

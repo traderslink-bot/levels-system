@@ -68,6 +68,7 @@ function formatWebsite(value: string | undefined): string {
 
   return normalized
     .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
     .replace(/\/+$/g, "");
 }
 
@@ -77,10 +78,9 @@ export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview):
   const quote = preview.quote;
 
   return {
-    title: `STOCK CONTEXT: ${symbol}`,
+    title: "",
     body: [
       `COMPANY: ${normalizeText(profile.name, symbol)}`,
-      `TICKER: ${symbol}`,
       `EXCHANGE: ${normalizeText(profile.exchange)}`,
       `INDUSTRY: ${normalizeText(profile.finnhubIndustry)}`,
       `COUNTRY: ${normalizeText(profile.country)}`,
@@ -106,5 +106,5 @@ export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview):
 
 export function formatFinnhubThreadPreview(preview: FinnhubThreadPreview): string {
   const payload = buildFinnhubThreadPreviewPayload(preview);
-  return [payload.title, payload.body].join("\n");
+  return payload.title ? [payload.title, payload.body].join("\n") : payload.body;
 }

@@ -46,7 +46,8 @@ function normalizeNonEmpty(value: string | undefined, label: string): string {
 }
 
 function buildAlertMessageContent(payload: AlertPayload): string {
-  return `${payload.title}\n${payload.body}`;
+  const title = payload.title.trim();
+  return title ? `${title}\n${payload.body}` : payload.body;
 }
 
 async function parseDiscordJson<T>(response: Response): Promise<T | null> {

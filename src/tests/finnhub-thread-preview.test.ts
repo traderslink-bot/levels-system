@@ -42,7 +42,7 @@ test("FinnhubClient assembles a stock context preview from quote and profile dat
             name: "Example Corp",
             shareOutstanding: 125,
             ticker: "EXMP",
-            weburl: "https://example.com",
+            weburl: "https://www.example.com",
           }),
           { status: 200 },
         );
@@ -83,15 +83,13 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
       marketCapitalization: 850,
       name: "Example Corp",
       shareOutstanding: 125,
-      weburl: "https://example.com",
+      weburl: "https://www.example.com",
     },
   };
   const content = formatFinnhubThreadPreview(preview);
   const payload = buildFinnhubThreadPreviewPayload(preview);
 
-  assert.match(content, /STOCK CONTEXT: EXMP/);
   assert.match(content, /COMPANY: Example Corp/);
-  assert.match(content, /TICKER: EXMP/);
   assert.match(content, /EXCHANGE: NASDAQ/);
   assert.match(content, /INDUSTRY: Technology/);
   assert.match(content, /COUNTRY: US/);
@@ -102,5 +100,8 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
   assert.match(content, /OPEN: 11\.750/);
   assert.match(content, /PREVIOUS CLOSE: 11\.110/);
   assert.match(content, /Levels loading\.\.\./);
+  assert.doesNotMatch(content, /STOCK CONTEXT:/);
+  assert.doesNotMatch(content, /TICKER:/);
+  assert.equal(payload.title, "");
   assert.equal(payload.metadata?.messageKind, "stock_context");
 });
