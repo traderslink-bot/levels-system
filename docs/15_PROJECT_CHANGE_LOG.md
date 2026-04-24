@@ -19,6 +19,25 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-24 09:46 AM America/Toronto
+
+### Added a separate Finnhub stock-context prototype for the first thread post
+
+- Added:
+  - `src/lib/stock-context/finnhub-client.ts`
+  - `src/lib/stock-context/finnhub-thread-preview.ts`
+  - `src/scripts/run-finnhub-thread-preview.ts`
+  - `src/tests/finnhub-thread-preview.test.ts`
+  - `package.json`
+- Updated:
+  - `README.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - added a standalone Finnhub client for `quote`, `stock/profile2`, and `company-news`
+  - added a terminal formatter that prints the planned pre-level thread opener as a compact stock-context preview
+  - added `npm run finnhub:test -- <SYMBOL>` so this first-post idea can be tested in isolation before wiring it into the live Discord/runtime flow
+  - kept the prototype in new separate files so it does not tangle with the current manual watchlist runtime yet
+
 ## 2026-04-23 8:10 PM America/Toronto
 
 ### Reduced repetitive thread noise by hardening identical extension dedupe and lengthening same-scope alert repost windows
