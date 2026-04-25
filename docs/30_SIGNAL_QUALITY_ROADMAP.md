@@ -135,8 +135,10 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Fixed the long-run launcher so review artifacts now keep refreshing from `discord-delivery-audit.jsonl` even when runtime stdout goes quiet, which keeps post-market and slow-session summaries aligned with what actually reached Discord.
 - Added a separate Finnhub stock-context prototype path so the planned first thread post can be tested in the terminal first without tangling that experiment into the live runtime yet, with the initial scope narrowed to ticker-specific quote/profile data instead of news.
 - Wired the Finnhub stock-context card into the live runtime so newly created threads now get a labeled ticker-specific opener before levels finish seeding when `FINNHUB_API_KEY` is present.
+- Tightened the Finnhub opener so it now stays focused on ticker-specific fields, removes redundant title/ticker lines, keeps the website clickable, and suppresses Discord embeds so the opener behaves like a compact stock card instead of a preview dump.
 - Tightened identical extension dedupe so the same `NEXT LEVELS` payload now stays suppressed until the extension ladder actually changes, instead of reappearing once a short cooldown expires.
 - Lengthened same-scope trader alert repost windows and raised the required score delta for reposts, so structurally unchanged zone stories now need a more meaningful change before Discord gets another alert.
+- Extended manual-runtime activation tolerance and IBKR historical timeout handling so slow first activations are less likely to vanish from the active list just because thread creation finished before historical seeding did.
 
 ## Active Backlog
 
@@ -161,6 +163,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Keep validating live sessions so reactive watch-mode threads only stay rich when they genuinely graduate into cleaner directional setups.
 - Keep validating live sessions like `AKAN` and `BURU` so delivery-choked or bursty threads can be separated from genuinely weak signal-quality threads.
 - Keep validating live sessions so same-snapshot progress/evaluation arbitration does not flatten useful trader-critical follow-through while still removing low-value duplicate narration.
+- Keep validating first activations so slow-but-valid symbols remain visible as `activating`, post the Finnhub opener first, and either finish seeding or fail clearly instead of silently rolling back.
 
 ### Detection and ranking improvements
 
@@ -240,3 +243,4 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 18. Use the new per-thread AI recap and noisy-family review outputs to judge whether the AI layer is staying faithful to the deterministic artifacts before expanding it further.
 19. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.
 20. Use real support-test sessions to decide whether `watch_only` support should still get live continuity at all or whether more of that story belongs only in review artifacts until tradeability improves.
+21. Validate the current first-activation flow in live use and decide whether the next improvement should be stronger activation-failure visibility in the UI rather than more tolerance or more startup complexity.

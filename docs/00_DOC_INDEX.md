@@ -46,3 +46,5 @@ This folder contains the full plan for the candle-based levels system, including
 32. `32_AI_COMMENTARY_WORKFLOW.md`
 33. `33_CODEX_RUNTIME_AND_SIGNAL_REVIEW_2026-04-23.md`
 34. `34_CODEX_EXECUTION_BRIEF_2026-04-23.md`
+35. `35_PROJECT_LEVEL_SUGGESTIONS_2026-04-23.md`
+36. `36_RUNTIME_HANDOFF_2026-04-25.md`
