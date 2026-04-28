@@ -78,6 +78,76 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
     supportZones: [{ representativePrice: 2.4 }],
     resistanceZones: [{ representativePrice: 2.6 }],
     timestamp: 2,
+    audit: {
+      referencePrice: 2.51,
+      displayTolerance: 0.01,
+      forwardResistanceLimit: 3.765,
+      displayedSupportIds: ["support-1"],
+      displayedResistanceIds: ["resistance-1"],
+      omittedSupportCount: 0,
+      omittedResistanceCount: 1,
+      supportCandidates: [
+        {
+          id: "support-1",
+          side: "support",
+          bucket: "surfaced",
+          representativePrice: 2.4,
+          zoneLow: 2.39,
+          zoneHigh: 2.41,
+          strengthLabel: "moderate",
+          strengthScore: 1.2,
+          confluenceCount: 1,
+          sourceEvidenceCount: 1,
+          timeframeBias: "5m",
+          timeframeSources: ["5m"],
+          sourceTypes: ["swing_low"],
+          freshness: "fresh",
+          isExtension: false,
+          displayed: true,
+          omittedReason: "displayed",
+        },
+      ],
+      resistanceCandidates: [
+        {
+          id: "resistance-1",
+          side: "resistance",
+          bucket: "surfaced",
+          representativePrice: 2.6,
+          zoneLow: 2.59,
+          zoneHigh: 2.61,
+          strengthLabel: "moderate",
+          strengthScore: 1.2,
+          confluenceCount: 1,
+          sourceEvidenceCount: 1,
+          timeframeBias: "5m",
+          timeframeSources: ["5m"],
+          sourceTypes: ["swing_high"],
+          freshness: "fresh",
+          isExtension: false,
+          displayed: true,
+          omittedReason: "displayed",
+        },
+        {
+          id: "resistance-2",
+          side: "resistance",
+          bucket: "extension",
+          representativePrice: 4,
+          zoneLow: 3.98,
+          zoneHigh: 4.02,
+          strengthLabel: "major",
+          strengthScore: 3,
+          confluenceCount: 2,
+          sourceEvidenceCount: 2,
+          timeframeBias: "daily",
+          timeframeSources: ["daily"],
+          sourceTypes: ["swing_high"],
+          freshness: "aging",
+          isExtension: true,
+          displayed: false,
+          omittedReason: "outside_forward_range",
+        },
+      ],
+    },
   });
 
   const lines = readFileSync(auditFilePath, "utf8")
@@ -91,6 +161,7 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[2]?.operation, "post_level_snapshot");
   assert.equal(lines[1]?.status, "posted");
   assert.equal(lines[1]?.symbol, "ALBT");
+  assert.equal(lines[1]?.body, "breakout resistance 2.40-2.50");
   assert.equal(lines[1]?.messageKind, "intelligent_alert");
   assert.equal(lines[1]?.eventType, "breakout");
   assert.equal(lines[1]?.postingFamily, "bullish_resolution");
@@ -116,6 +187,12 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.targetDistancePct, 0.024);
   assert.equal(lines[2]?.supportCount, 1);
   assert.equal(lines[2]?.resistanceCount, 1);
+  assert.equal(lines[2]?.snapshotAudit?.omittedResistanceCount, 1);
+  assert.equal(
+    lines[2]?.snapshotAudit?.omittedResistanceLevels[0]?.omittedReason,
+    "outside_forward_range",
+  );
+  assert.match(lines[2]?.body, /LEVEL SNAPSHOT: ALBT/);
   assert.equal(capturedEntries.length, 3);
 });
 

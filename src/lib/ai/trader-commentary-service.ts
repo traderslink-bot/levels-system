@@ -85,6 +85,44 @@ function extractResponseText(response: ResponsesApiResponse): string | null {
   return null;
 }
 
+function containsBlockedTraderCommentary(text: string): boolean {
+  return [
+    /\bshort(?:ing|s)?\b/i,
+    /\bsell\s+short\b/i,
+    /\bshort\s+(?:setup|entry|trade|idea)\b/i,
+    /\bdownside\b/i,
+    /\b(?:target|objective)\b/i,
+    /\bnext\s+support\b/i,
+    /\bfirst\s+support\b/i,
+    /\btoward\s+(?:first\s+|next\s+)?support\b/i,
+    /\bwait\s+to\s+open\b/i,
+    /\bopen\s+new\s+longs\b/i,
+    /\bbuy\s+now\b/i,
+    /\bsell\s+now\b/i,
+  ].some((pattern) => pattern.test(text));
+}
+
+export function validateTraderCommentaryText(text: string): string | null {
+  const cleaned = text
+    .trim()
+    .replace(/[–—]/g, "-")
+    .replace(/[≈]/g, "about ")
+    .replace(/[‑]/g, "-");
+  if (!cleaned || containsBlockedTraderCommentary(cleaned)) {
+    return null;
+  }
+
+  return cleaned;
+}
+
+const LIVE_TRADER_COMMENTARY_RULES =
+  "This product is for long-only traders. Never suggest shorting, short entries, downside targets, or bearish trade ideas. " +
+  "Do not use the words downside, target, objective, first support, next support, buy now, sell now, wait to open, or open new longs. " +
+  "For weak or bearish conditions, say the setup is not clean for longs yet and name the reclaim or confirmation level. " +
+  "For resistance tests, say buyers need acceptance above resistance. For support tests, say buyers need to defend or reclaim support. " +
+  "If a possible dip-buy area is provided, you may mention it only as conditional support where buyers must stabilize. " +
+  "Do not tell the user to buy now or sell now. Stay faithful to the deterministic facts. Use plain ASCII punctuation.";
+
 export class OpenAITraderCommentaryService implements TraderCommentaryService {
   private readonly model: string;
   private readonly fetchImpl: FetchLike;
@@ -147,8 +185,13 @@ export class OpenAITraderCommentaryService implements TraderCommentaryService {
         return null;
       }
 
+      const validatedText = validateTraderCommentaryText(text);
+      if (!validatedText) {
+        return null;
+      }
+
       return {
-        text,
+        text: validatedText,
         model: this.model,
       };
     } finally {
@@ -162,7 +205,8 @@ export class OpenAITraderCommentaryService implements TraderCommentaryService {
         "You write short trader-facing commentary. Be plain, concrete, and cautious. " +
         "Do not tell the user to buy or sell. Explain the structured setup in 2 short sentences max. " +
         "Prefer words like volume, activity, room, support, resistance, continuation, and failure risk. " +
-        "Avoid the word participation.",
+        "Avoid the word participation. " +
+        LIVE_TRADER_COMMENTARY_RULES,
       userPayload: input,
     });
   }
@@ -171,8 +215,9 @@ export class OpenAITraderCommentaryService implements TraderCommentaryService {
     return this.requestCommentary({
       developerPrompt:
         "Explain a deterministic trading signal in plain English. " +
-        "Be concise, cautious, and factual. Use 2 short sentences max. " +
-        "Do not give direct execution advice. Avoid the word participation.",
+        "Be concise, cautious, and factual. Use exactly 1 short sentence, 35 words max. " +
+        "Do not give direct execution advice. Avoid the word participation. " +
+        LIVE_TRADER_COMMENTARY_RULES,
       userPayload: input,
     });
   }
@@ -182,7 +227,8 @@ export class OpenAITraderCommentaryService implements TraderCommentaryService {
       developerPrompt:
         "Summarize a single trader-facing symbol thread. " +
         "Return 2 short sentences max. Focus on the current state, what changed, and what matters next. " +
-        "Stay faithful to the provided deterministic facts and avoid direct trade instructions.",
+        "Stay faithful to the provided deterministic facts and avoid direct trade instructions. " +
+        LIVE_TRADER_COMMENTARY_RULES,
       userPayload: input,
     });
   }

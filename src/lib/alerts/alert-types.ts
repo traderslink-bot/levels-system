@@ -151,10 +151,12 @@ export type AlertPayload = {
     messageKind?:
       | "intelligent_alert"
       | "stock_context"
+      | "level_clear_update"
       | "follow_through_update"
       | "follow_through_state_update"
       | "continuity_update"
-      | "symbol_recap";
+      | "symbol_recap"
+      | "ai_signal_commentary";
     severity?: AlertSeverity;
     confidence?: AlertConfidence;
     score?: number;
@@ -231,12 +233,51 @@ export type LevelSnapshotDisplayZone = {
   isExtension?: boolean;
 };
 
+export type LevelSnapshotAuditOmittedReason =
+  | "displayed"
+  | "compacted"
+  | "wrong_side"
+  | "outside_forward_range";
+
+export type LevelSnapshotAuditZone = {
+  id: string;
+  side: "support" | "resistance";
+  bucket: "surfaced" | "extension";
+  representativePrice: number;
+  zoneLow: number;
+  zoneHigh: number;
+  strengthLabel: FinalLevelZone["strengthLabel"];
+  strengthScore: number;
+  confluenceCount: number;
+  sourceEvidenceCount: number;
+  timeframeBias: FinalLevelZone["timeframeBias"];
+  timeframeSources: FinalLevelZone["timeframeSources"];
+  sourceTypes: FinalLevelZone["sourceTypes"];
+  freshness: FinalLevelZone["freshness"];
+  isExtension: boolean;
+  displayed: boolean;
+  omittedReason: LevelSnapshotAuditOmittedReason;
+};
+
+export type LevelSnapshotAudit = {
+  referencePrice: number;
+  displayTolerance: number;
+  forwardResistanceLimit: number;
+  displayedSupportIds: string[];
+  displayedResistanceIds: string[];
+  supportCandidates: LevelSnapshotAuditZone[];
+  resistanceCandidates: LevelSnapshotAuditZone[];
+  omittedSupportCount: number;
+  omittedResistanceCount: number;
+};
+
 export type LevelSnapshotPayload = {
   symbol: string;
   currentPrice: number;
   supportZones: LevelSnapshotDisplayZone[];
   resistanceZones: LevelSnapshotDisplayZone[];
   timestamp: number;
+  audit?: LevelSnapshotAudit;
 };
 
 export type LevelExtensionPayload = {

@@ -1,43 +1,8 @@
 import type {
   FinnhubCompanyProfile,
   FinnhubThreadPreview,
-  FinnhubQuote,
 } from "./finnhub-client.js";
 import type { AlertPayload } from "../alerts/alert-types.js";
-
-function formatPercent(value: number | undefined): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "n/a";
-  }
-
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
-}
-
-function formatPrice(value: number | undefined): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "n/a";
-  }
-
-  if (value >= 100) {
-    return value.toFixed(2);
-  }
-
-  if (value >= 1) {
-    return value.toFixed(3);
-  }
-
-  return value.toFixed(4);
-}
-
-function formatSignedPrice(value: number | undefined): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "n/a";
-  }
-
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${formatPrice(value)}`;
-}
 
 function formatMarketCap(value: number | undefined): string {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -73,7 +38,6 @@ function formatWebsite(value: string | undefined): string {
 export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview): AlertPayload {
   const profile = preview.profile;
   const symbol = preview.symbol;
-  const quote = preview.quote;
 
   return {
     title: "",
@@ -85,17 +49,13 @@ export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview):
       `WEBSITE: ${formatWebsite(profile.weburl)}`,
       `MARKET CAP: ${formatMarketCap(profile.marketCapitalization)}`,
       ``,
-      `CURRENT PRICE: ${formatPrice(quote.c)}`,
-      `PERCENT CHANGE: ${formatPercent(quote.dp)}`,
-      `OPEN: ${formatPrice(quote.o)}`,
-      `HIGH: ${formatPrice(quote.h)}`,
-      `LOW: ${formatPrice(quote.l)}`,
-      `PREVIOUS CLOSE: ${formatPrice(quote.pc)}`,
-      ``,
       `Levels loading...`,
     ].join("\n"),
     symbol,
-    timestamp: typeof quote.t === "number" && quote.t > 0 ? quote.t * 1000 : Date.now(),
+    timestamp:
+      typeof preview.quote.t === "number" && preview.quote.t > 0
+        ? preview.quote.t * 1000
+        : Date.now(),
     metadata: {
       messageKind: "stock_context",
       suppressEmbeds: true,

@@ -20,6 +20,10 @@ $traderRecapPath = Join-Path $sessionDirectory "trader-thread-recaps.md"
 $feedbackPath = Join-Path $sessionDirectory "human-review-feedback.jsonl"
 $sessionInfoPath = Join-Path $sessionDirectory "session-info.txt"
 $discordAuditPollIntervalMs = 5000
+$summarySaveThrottleMs = 5000
+$lastSummarySaveAt = [DateTime]::MinValue
+$pendingSummarySave = $false
+$highVolumeSummaryPattern = "monitoring_event_diagnostic|opportunity_snapshot|evaluation_update"
 $operationalPattern =
   "Manual watchlist server running|" +
   "Candle provider path|" +
@@ -2258,6 +2262,24 @@ function Save-SessionSummary {
   Set-Content -LiteralPath $traderRecapPath -Value ((Build-TraderThreadRecapLines -ThreadSummaries $threadSummaries) -join [Environment]::NewLine)
 }
 
+function Save-SessionSummaryThrottled {
+  param(
+    [switch]$Force
+  )
+
+  $now = Get-Date
+  $elapsedMs = ($now - $script:lastSummarySaveAt).TotalMilliseconds
+
+  if ($Force -or $elapsedMs -ge $summarySaveThrottleMs) {
+    Save-SessionSummary
+    $script:lastSummarySaveAt = $now
+    $script:pendingSummarySave = $false
+    return
+  }
+
+  $script:pendingSummarySave = $true
+}
+
 function Write-RuntimeLine {
   param(
     [string]$Line
@@ -2277,7 +2299,7 @@ function Write-RuntimeLine {
     Write-Host $Line
   }
 
-  Save-SessionSummary
+  Save-SessionSummaryThrottled -Force:(($Line -match $operationalPattern) -and ($Line -notmatch $highVolumeSummaryPattern))
 }
 
 function Update-SummaryFromDiscordAuditFile {
@@ -2318,8 +2340,10 @@ function Start-DiscordAuditSummaryRefresh {
 
   Register-ObjectEvent -InputObject $discordAuditTimer -EventName Elapsed -SourceIdentifier "LevelsSystem.DiscordAuditPoll" -Action {
     try {
-      if (Update-SummaryFromDiscordAuditFile) {
+      if ((Update-SummaryFromDiscordAuditFile) -or $script:pendingSummarySave) {
         Save-SessionSummary
+        $script:lastSummarySaveAt = Get-Date
+        $script:pendingSummarySave = $false
       }
     } catch {
       Write-Host "[LongRunLauncher] Failed to refresh summary from discord audit: $($_.Exception.Message)"

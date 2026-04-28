@@ -48,6 +48,8 @@ export type InteractionPhase =
 export type WatchlistLifecycleState =
   | "inactive"
   | "activating"
+  | "restoring"
+  | "activation_failed"
   | "active"
   | "stale"
   | "refresh_pending"
@@ -119,7 +121,12 @@ export type WatchlistEntry = {
   activatedAt?: number;
   lastLevelPostAt?: number;
   lastExtensionPostAt?: number;
+  lastPriceUpdateAt?: number;
+  lastThreadPostAt?: number;
+  lastThreadPostKind?: string;
   refreshPending?: boolean;
+  lastError?: string;
+  operationStatus?: string;
 };
 
 export type LivePriceUpdate = {

@@ -136,9 +136,11 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added a separate Finnhub stock-context prototype path so the planned first thread post can be tested in the terminal first without tangling that experiment into the live runtime yet, with the initial scope narrowed to ticker-specific quote/profile data instead of news.
 - Wired the Finnhub stock-context card into the live runtime so newly created threads now get a labeled ticker-specific opener before levels finish seeding when `FINNHUB_API_KEY` is present.
 - Tightened the Finnhub opener so it now stays focused on ticker-specific fields, removes redundant title/ticker lines, keeps the website clickable, and suppresses Discord embeds so the opener behaves like a compact stock card instead of a preview dump.
+- Removed Finnhub quote/price fields from the first-thread opener, so premarket/live price context continues to come from the trading data path rather than stale Finnhub free-tier quote data.
 - Tightened identical extension dedupe so the same `NEXT LEVELS` payload now stays suppressed until the extension ladder actually changes, instead of reappearing once a short cooldown expires.
 - Lengthened same-scope trader alert repost windows and raised the required score delta for reposts, so structurally unchanged zone stories now need a more meaningful change before Discord gets another alert.
 - Extended manual-runtime activation tolerance and IBKR historical timeout handling so slow first activations are less likely to vanish from the active list just because thread creation finished before historical seeding did.
+- Added operator-only snapshot audit metadata to Discord delivery audit rows, making it easier to diagnose whether missing-looking levels were compacted, crossed, outside the forward range, or absent from generated candidates.
 
 ## Active Backlog
 

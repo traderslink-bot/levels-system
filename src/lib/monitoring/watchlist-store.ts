@@ -19,6 +19,11 @@ export class WatchlistStore {
     const activatedAt = normalizeFiniteTimestamp(entry.activatedAt);
     const lastLevelPostAt = normalizeFiniteTimestamp(entry.lastLevelPostAt);
     const lastExtensionPostAt = normalizeFiniteTimestamp(entry.lastExtensionPostAt);
+    const lastPriceUpdateAt = normalizeFiniteTimestamp(entry.lastPriceUpdateAt);
+    const lastThreadPostAt = normalizeFiniteTimestamp(entry.lastThreadPostAt);
+    const lastError = entry.lastError?.trim() || undefined;
+    const operationStatus = entry.operationStatus?.trim() || undefined;
+    const lastThreadPostKind = entry.lastThreadPostKind?.trim() || undefined;
 
     return {
       symbol: normalizeSymbol(entry.symbol),
@@ -32,6 +37,11 @@ export class WatchlistStore {
       ...(activatedAt !== undefined ? { activatedAt } : {}),
       ...(lastLevelPostAt !== undefined ? { lastLevelPostAt } : {}),
       ...(lastExtensionPostAt !== undefined ? { lastExtensionPostAt } : {}),
+      ...(lastPriceUpdateAt !== undefined ? { lastPriceUpdateAt } : {}),
+      ...(lastThreadPostAt !== undefined ? { lastThreadPostAt } : {}),
+      ...(lastThreadPostKind !== undefined ? { lastThreadPostKind } : {}),
+      ...(lastError !== undefined ? { lastError } : {}),
+      ...(operationStatus !== undefined ? { operationStatus } : {}),
     };
   }
 
@@ -72,7 +82,12 @@ export class WatchlistStore {
     activatedAt?: number;
     lastLevelPostAt?: number;
     lastExtensionPostAt?: number;
+    lastPriceUpdateAt?: number;
+    lastThreadPostAt?: number;
+    lastThreadPostKind?: string | null;
     refreshPending?: boolean;
+    lastError?: string | null;
+    operationStatus?: string | null;
   }): WatchlistEntry {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.entries.get(symbol);
@@ -99,14 +114,33 @@ export class WatchlistStore {
         normalizeFiniteTimestamp(input.lastLevelPostAt) ?? existing?.lastLevelPostAt,
       lastExtensionPostAt:
         normalizeFiniteTimestamp(input.lastExtensionPostAt) ?? existing?.lastExtensionPostAt,
+      lastPriceUpdateAt:
+        normalizeFiniteTimestamp(input.lastPriceUpdateAt) ?? existing?.lastPriceUpdateAt,
+      lastThreadPostAt:
+        normalizeFiniteTimestamp(input.lastThreadPostAt) ?? existing?.lastThreadPostAt,
+      lastThreadPostKind:
+        input.lastThreadPostKind !== undefined
+          ? input.lastThreadPostKind?.trim() || undefined
+          : existing?.lastThreadPostKind,
       refreshPending: input.refreshPending ?? existing?.refreshPending ?? false,
+      lastError:
+        input.lastError !== undefined
+          ? input.lastError?.trim() || undefined
+          : existing?.lastError,
+      operationStatus:
+        input.operationStatus !== undefined
+          ? input.operationStatus?.trim() || undefined
+          : existing?.operationStatus,
     };
 
     this.entries.set(symbol, entry);
     return this.normalizeEntry(entry);
   }
 
-  patchEntry(symbol: string, patch: Partial<WatchlistEntry>): WatchlistEntry | null {
+  patchEntry(
+    symbol: string,
+    patch: Partial<Omit<WatchlistEntry, "lastError">> & { lastError?: string | null },
+  ): WatchlistEntry | null {
     const normalizedSymbol = normalizeSymbol(symbol);
     const existing = this.entries.get(normalizedSymbol);
 
@@ -114,11 +148,16 @@ export class WatchlistStore {
       return null;
     }
 
-    const updated = this.normalizeEntry({
+    const merged: WatchlistEntry = {
       ...existing,
       ...patch,
       symbol: normalizedSymbol,
-    });
+      lastError:
+        patch.lastError !== undefined
+          ? patch.lastError?.trim() || undefined
+          : existing.lastError,
+    };
+    const updated = this.normalizeEntry(merged);
     this.entries.set(normalizedSymbol, updated);
     return updated;
   }
@@ -136,6 +175,7 @@ export class WatchlistStore {
       active: false,
       lifecycle: "inactive",
       refreshPending: false,
+      operationStatus: undefined,
     };
 
     this.entries.set(normalizedSymbol, updated);

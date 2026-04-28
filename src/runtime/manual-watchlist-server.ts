@@ -8,7 +8,11 @@ import { createFinnhubClientFromEnv } from "../lib/stock-context/finnhub-client.
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
 import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
-import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
+import {
+  DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS,
+  ManualWatchlistRuntimeManager,
+  type ManualWatchlistHistoricalLookbacks,
+} from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import {
   AdaptiveScoringEngine,
   DEFAULT_ADAPTIVE_SCORING_CONFIG,
@@ -20,7 +24,11 @@ import { createMonitoringEventDiagnosticListener } from "../lib/monitoring/monit
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
 import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
-import { createIbkrClient } from "../scripts/shared/ibkr-runtime.js";
+import {
+  createIbkrClient,
+  isIbkrConnected,
+  isIbkrReconnecting,
+} from "../scripts/shared/ibkr-runtime.js";
 import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
 import {
   LOCAL_BIND_HOST,
@@ -34,7 +42,11 @@ const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
 const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
 const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
 const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
+const AI_MODEL_ENV = "LEVEL_AI_MODEL";
 const MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV = "MANUAL_WATCHLIST_IBKR_TIMEOUT_MS";
+const MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV = "LEVEL_MANUAL_LOOKBACK_DAILY";
+const MANUAL_WATCHLIST_LOOKBACK_4H_ENV = "LEVEL_MANUAL_LOOKBACK_4H";
+const MANUAL_WATCHLIST_LOOKBACK_5M_ENV = "LEVEL_MANUAL_LOOKBACK_5M";
 const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
 
 function isTruthyEnv(value: string | undefined): boolean {
@@ -45,11 +57,34 @@ function isTruthyEnv(value: string | undefined): boolean {
   return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
+function resolvePositiveIntegerEnv(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function resolveManualWatchlistHistoricalLookbacks(): ManualWatchlistHistoricalLookbacks {
+  return {
+    daily: resolvePositiveIntegerEnv(
+      process.env[MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV],
+      DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS.daily,
+    ),
+    "4h": resolvePositiveIntegerEnv(
+      process.env[MANUAL_WATCHLIST_LOOKBACK_4H_ENV],
+      DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS["4h"],
+    ),
+    "5m": resolvePositiveIntegerEnv(
+      process.env[MANUAL_WATCHLIST_LOOKBACK_5M_ENV],
+      DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS["5m"],
+    ),
+  };
+}
+
 async function main(): Promise<void> {
   const ib = createIbkrClient();
   const manualWatchlistIbkrTimeoutMs = Number(
     process.env[MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV] ?? DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
   );
+  const historicalLookbackBars = resolveManualWatchlistHistoricalLookbacks();
   const historicalProvider = new IbkrHistoricalCandleProvider(
     ib,
     Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
@@ -87,6 +122,8 @@ async function main(): Promise<void> {
     adaptiveStatePersistence,
   });
   const aiCommentaryEnabled = isTruthyEnv(process.env[AI_COMMENTARY_ENV]);
+  const aiCommentaryModel = process.env[AI_MODEL_ENV]?.trim() || "gpt-5-mini";
+  const openAiApiKeyPresent = Boolean(process.env.OPENAI_API_KEY?.trim());
   const aiCommentaryService = aiCommentaryEnabled
     ? createOpenAITraderCommentaryServiceFromEnv()
     : null;
@@ -97,6 +134,7 @@ async function main(): Promise<void> {
     monitor,
     discordAlertRouter: createDiscordAlertRouter(),
     opportunityRuntimeController,
+    historicalLookbackBars,
     aiCommentaryService,
     stockContextProvider: finnhubClient,
     watchlistStatePersistence: new WatchlistStatePersistence(),
@@ -117,6 +155,9 @@ async function main(): Promise<void> {
       );
       console.log(
         `[ManualWatchlistRuntime] IBKR historical timeout: ${Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0 ? manualWatchlistIbkrTimeoutMs : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS}ms.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Historical lookbacks: daily=${historicalLookbackBars.daily}, 4h=${historicalLookbackBars["4h"]}, 5m=${historicalLookbackBars["5m"]}.`,
       );
       if (monitoringEventDiagnosticsEnabled) {
         console.log(
@@ -160,11 +201,33 @@ async function main(): Promise<void> {
     }
 
     if (request.method === "GET" && url.pathname === "/api/runtime/status") {
+      const runtimeHealth = manager.getRuntimeHealth();
       sendJson(response, 200, {
         providerName: candleService.getProviderName(),
         diagnosticsEnabled: monitoringEventDiagnosticsEnabled,
         aiCommentaryEnabled: aiCommentaryService !== null,
+        runtimeConfig: {
+          bindHost: LOCAL_BIND_HOST,
+          port: PORT,
+          historicalProvider: candleService.getProviderName(),
+          liveProvider: "ibkr",
+          ibkrHistoricalTimeoutMs:
+            Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+              ? manualWatchlistIbkrTimeoutMs
+              : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+          historicalLookbackBars: manager.getHistoricalLookbackBars(),
+          monitoringDiagnosticsRequested: monitoringEventDiagnosticsEnabled,
+          aiCommentaryRequested: aiCommentaryEnabled,
+          aiCommentaryServiceAvailable: aiCommentaryService !== null,
+          aiCommentaryModel,
+          openAiApiKeyPresent,
+          aiCommentaryRoute: "symbol recaps and live alert AI reads",
+        },
         activeSymbolCount: manager.getActiveEntries().length,
+        ibkrConnected: isIbkrConnected(ib),
+        ibkrReconnecting: isIbkrReconnecting(ib),
+        runtimeHealth,
+        recentActivity: manager.getRecentActivity(),
         sessionDirectory,
         startupState,
         startupError,
@@ -222,6 +285,52 @@ async function main(): Promise<void> {
           return;
         }
 
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/refresh-levels") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+
+        if (symbol.trim().length === 0) {
+          sendJson(response, 400, { error: "Symbol is required." });
+          return;
+        }
+
+        const entry = await manager.refreshSymbolLevels(symbol);
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/repost-snapshot") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+
+        if (symbol.trim().length === 0) {
+          sendJson(response, 400, { error: "Symbol is required." });
+          return;
+        }
+
+        const entry = await manager.repostLevelSnapshot(symbol);
         sendJson(response, 200, { entry });
       } catch (error) {
         if (error instanceof RequestBodyParseError) {

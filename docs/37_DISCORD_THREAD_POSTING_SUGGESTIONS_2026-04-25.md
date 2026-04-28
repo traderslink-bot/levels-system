@@ -28,6 +28,34 @@ The thread should not keep narrating the same trade unless something materially 
 The runtime should not post just because it detected something again.
 It should post only when the new information changes the trade decision context in a meaningful way.
 
+### Snapshot posts must lead with a beginner-readable read
+
+Live review on April 27, 2026 flagged the current level snapshot shape as not readable enough for traders, especially newer traders.
+
+Example of the problematic shape:
+
+```text
+LEVEL SNAPSHOT: CAST
+PRICE: 2.83
+MAP: nearest support 2.76 (-2.5%) | nearest resistance 2.85 (+0.7%) | bearish room
+SUPPORT: 2.76 (-2.5%, moderate), 2.70 (-4.6%, moderate), 2.63 (-7.1%, heavy), 2.54 (-10.4%, light), 2.50 (-11.7%, heavy), 2.25 (-20.5%, moderate), 2.06 (-27.2%, major), 1.97 (-30.4%, major), 1.88 (-33.6%, heavy), 1.63 (-42.4%, moderate)
+RESISTANCE: 2.85 (+0.7%, heavy), 2.90 (+2.5%, light), 3.10 (+9.5%, moderate), 3.39 (+19.8%, moderate), 3.44 (+21.6%, light), 3.97 (+40.3%, heavy), 4.09 (+44.5%, moderate extension), 4.20 (+48.4%, light extension)
+```
+
+Verdict: the data is useful, but the presentation forces the trader to decode too much. Snapshot posts should state the current read first, show only the nearest/key levels up front, and move the full ladder into a secondary section.
+
+### Live alerts should read like decision notes, not diagnostics
+
+Live CAST review on April 27, 2026 also showed that the newer intelligent alert shape was better than the raw level snapshot, but still too busy for newer traders.
+
+The main issues were:
+- level touch and breakout could post back-to-back for the same zone
+- `What matters`, `Risk / quality`, and `Context` made one alert feel like a mini report
+- internal language such as dense pathing, degraded data, inner setup, raw score, and risk math leaked into Discord
+- duplicate context made the trader work too hard to decide what actually changed
+
+Implemented direction: live alert bodies should use a short `Read` section, a compact `Nearby levels` section, and a simple signal line. Raw diagnostics should stay in metadata/audit artifacts unless they directly improve the trader's decision.
+
 Examples of meaningful trader-context change:
 - setup confirmed in a stronger way
 - setup failed or materially weakened

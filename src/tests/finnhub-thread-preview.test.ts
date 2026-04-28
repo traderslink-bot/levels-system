@@ -95,11 +95,13 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
   assert.match(content, /COUNTRY: US/);
   assert.match(content, /WEBSITE: https:\/\/www\.example\.com/);
   assert.match(content, /MARKET CAP: 850\.00M/);
-  assert.match(content, /CURRENT PRICE: 12\.340/);
-  assert.match(content, /PERCENT CHANGE: \+11\.10%/);
-  assert.match(content, /OPEN: 11\.750/);
-  assert.match(content, /PREVIOUS CLOSE: 11\.110/);
   assert.match(content, /Levels loading\.\.\./);
+  assert.doesNotMatch(content, /CURRENT PRICE:/);
+  assert.doesNotMatch(content, /PERCENT CHANGE:/);
+  assert.doesNotMatch(content, /OPEN:/);
+  assert.doesNotMatch(content, /HIGH:/);
+  assert.doesNotMatch(content, /LOW:/);
+  assert.doesNotMatch(content, /PREVIOUS CLOSE:/);
   assert.doesNotMatch(content, /STOCK CONTEXT:/);
   assert.doesNotMatch(content, /TICKER:/);
   assert.equal(payload.title, "");

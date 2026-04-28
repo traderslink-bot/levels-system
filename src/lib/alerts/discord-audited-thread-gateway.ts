@@ -5,9 +5,14 @@ import type {
   AlertPayload,
   DiscordThread,
   LevelExtensionPayload,
+  LevelSnapshotAuditZone,
   LevelSnapshotPayload,
 } from "./alert-types.js";
-import type { DiscordThreadGateway } from "./alert-router.js";
+import {
+  formatLevelExtensionMessage,
+  formatLevelSnapshotMessage,
+  type DiscordThreadGateway,
+} from "./alert-router.js";
 
 export type DiscordDeliveryAuditOperation =
   | "create_thread"
@@ -27,6 +32,7 @@ export type DiscordDeliveryAuditEntry = {
   symbol?: string;
   title?: string;
   bodyPreview?: string;
+  body?: string;
   eventType?: string;
   messageKind?: string;
   severity?: string;
@@ -66,6 +72,17 @@ export type DiscordDeliveryAuditEntry = {
   rawReturnPct?: number | null;
   supportCount?: number;
   resistanceCount?: number;
+  snapshotAudit?: {
+    referencePrice: number;
+    displayTolerance: number;
+    forwardResistanceLimit: number;
+    displayedSupportIds: string[];
+    displayedResistanceIds: string[];
+    omittedSupportCount: number;
+    omittedResistanceCount: number;
+    omittedSupportLevels: LevelSnapshotAuditZone[];
+    omittedResistanceLevels: LevelSnapshotAuditZone[];
+  };
   side?: string;
   levelCount?: number;
   error?: string;
@@ -91,6 +108,28 @@ const DEFAULT_AUDIT_FILE_PATH = resolve(
 function previewBody(body: string): string {
   const singleLine = body.replace(/\s+/g, " ").trim();
   return singleLine.length <= 240 ? singleLine : `${singleLine.slice(0, 237)}...`;
+}
+
+function buildSnapshotAuditPreview(
+  audit: LevelSnapshotPayload["audit"],
+): DiscordDeliveryAuditEntry["snapshotAudit"] | undefined {
+  if (!audit) {
+    return undefined;
+  }
+
+  return {
+    referencePrice: audit.referencePrice,
+    displayTolerance: audit.displayTolerance,
+    forwardResistanceLimit: audit.forwardResistanceLimit,
+    displayedSupportIds: audit.displayedSupportIds,
+    displayedResistanceIds: audit.displayedResistanceIds,
+    omittedSupportCount: audit.omittedSupportCount,
+    omittedResistanceCount: audit.omittedResistanceCount,
+    omittedSupportLevels: audit.supportCandidates.filter((candidate) => !candidate.displayed),
+    omittedResistanceLevels: audit.resistanceCandidates.filter(
+      (candidate) => !candidate.displayed,
+    ),
+  };
 }
 
 export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
@@ -175,6 +214,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         threadId,
         symbol: payload.symbol ?? payload.event?.symbol,
         title: payload.title,
+        body: payload.body,
         bodyPreview: previewBody(payload.body),
         messageKind: payload.metadata?.messageKind,
         eventType: payload.metadata?.eventType,
@@ -219,6 +259,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         threadId,
         symbol: payload.symbol ?? payload.event?.symbol,
         title: payload.title,
+        body: payload.body,
         bodyPreview: previewBody(payload.body),
         messageKind: payload.metadata?.messageKind,
         eventType: payload.metadata?.eventType,
@@ -262,9 +303,11 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
   }
 
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
+    const body = formatLevelSnapshotMessage(payload);
     const bodyPreview =
       `price ${payload.currentPrice}; support ${payload.supportZones.length}; ` +
       `resistance ${payload.resistanceZones.length}`;
+    const snapshotAudit = buildSnapshotAuditPreview(payload.audit);
 
     try {
       await this.inner.sendLevelSnapshot(threadId, payload);
@@ -272,23 +315,28 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         threadId,
         symbol: payload.symbol,
         title: `LEVEL SNAPSHOT: ${payload.symbol}`,
+        body,
         bodyPreview,
         supportCount: payload.supportZones.length,
         resistanceCount: payload.resistanceZones.length,
+        snapshotAudit,
       });
     } catch (error) {
       this.recordFailed("post_level_snapshot", error, {
         threadId,
         symbol: payload.symbol,
         title: `LEVEL SNAPSHOT: ${payload.symbol}`,
+        body,
         bodyPreview,
         supportCount: payload.supportZones.length,
         resistanceCount: payload.resistanceZones.length,
+        snapshotAudit,
       });
     }
   }
 
   async sendLevelExtension(threadId: string, payload: LevelExtensionPayload): Promise<void> {
+    const body = formatLevelExtensionMessage(payload);
     const bodyPreview = `${payload.side} ${payload.levels.join(", ")}`;
 
     try {
@@ -297,6 +345,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         threadId,
         symbol: payload.symbol,
         title: `NEXT LEVELS: ${payload.symbol}`,
+        body,
         bodyPreview: previewBody(bodyPreview),
         side: payload.side,
         levelCount: payload.levels.length,
@@ -306,6 +355,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         threadId,
         symbol: payload.symbol,
         title: `NEXT LEVELS: ${payload.symbol}`,
+        body,
         bodyPreview: previewBody(bodyPreview),
         side: payload.side,
         levelCount: payload.levels.length,

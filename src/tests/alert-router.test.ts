@@ -189,7 +189,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
     pressure: {
       label: "strong",
       pressureScore: 0.74,
-      line: "pressure: buyers still have strong control (0.74), backing the move",
+      line: "pressure: buyers still have strong control, backing the move",
     },
     triggerQuality: {
       label: "clean",
@@ -220,7 +220,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       side: "resistance",
       price: 2.5,
       distancePct: 0.036,
-      line: "target: first resistance objective 2.50 (+3.6%)",
+      line: "target: first upside objective 2.50 (+3.6%)",
     },
     tradeMap: {
       label: "favorable",
@@ -236,8 +236,17 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
     payload.body,
     [
       "breakout resistance 2.40-2.50 | strong outermost | fresh",
-      "severity HIGH | confidence MEDIUM | score 52.34",
-      "trigger 2.41",
+      "",
+      "Status: Cleared",
+      "",
+      "What it means:",
+      "- price is pushing farther above the zone high and follow-through is building (0.8%)",
+      "",
+      "Next levels:",
+      "- First resistance: 2.50",
+      "",
+      "Signal: high severity | medium confidence",
+      "Trigger: 2.41",
     ].join("\n"),
   );
   assert.equal(payload.metadata?.clearanceLabel, "limited");
@@ -264,6 +273,91 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.targetSide, "resistance");
   assert.equal(payload.metadata?.targetPrice, 2.5);
   assert.equal(payload.metadata?.targetDistancePct, 0.036);
+});
+
+test("formatIntelligentAlertAsPayload shows conditional dip-buy area for long-caution alerts", () => {
+  const breakdownEvent = {
+    ...samplePayload.event!,
+    id: "evt-breakdown",
+    episodeId: "ep-breakdown",
+    type: "breakdown" as const,
+    eventType: "breakdown" as const,
+    zoneKind: "support" as const,
+    triggerPrice: 1.23,
+    bias: "bearish" as const,
+  };
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-breakdown",
+    symbol: "ATER",
+    title: "ATER breakdown",
+    body: "support lost at moderate support 1.24",
+    severity: "medium",
+    confidence: "medium",
+    score: 45.8,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: breakdownEvent,
+    zone: {
+      id: "S1",
+      symbol: "ATER",
+      kind: "support",
+      timeframeBias: "5m",
+      zoneLow: 1.24,
+      zoneHigh: 1.24,
+      representativePrice: 1.24,
+      strengthScore: 10,
+      strengthLabel: "moderate",
+      touchCount: 1,
+      confluenceCount: 1,
+      sourceTypes: ["swing_low"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.5,
+      rejectionScore: 0.4,
+      displacementScore: 0.4,
+      sessionSignificanceScore: 0.2,
+      followThroughScore: 0.5,
+      gapContinuationScore: 0,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 1,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    nextBarrier: {
+      side: "support",
+      price: 1.06,
+      distancePct: 0.138,
+      clearanceLabel: "open",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+    movement: {
+      label: "building",
+      movementPct: 0.01,
+      line: "movement: price is moving farther below support, increasing risk for longs (1.0%)",
+    },
+    pressure: {
+      label: "moderate",
+      pressureScore: 0.55,
+      line: "pressure: buyers still need to reclaim control",
+    },
+    triggerQuality: null,
+    pathQuality: null,
+    dipBuyQuality: null,
+    exhaustion: null,
+    setupState: null,
+    failureRisk: null,
+    target: null,
+    tradeMap: null,
+  });
+
+  assert.match(payload.body, /What to watch:\n- possible dip-buy area: 1\.06, only if buyers stabilize there or reclaim 1\.24/);
+  assert.match(payload.body, /Hold \/ failure map:\n- 1\.24 is the reclaim line for the long setup; below it, risk stays open toward 1\.06 unless buyers stabilize first\./);
+  assert.match(payload.body, /Next levels:\n- Possible dip-buy area: 1\.06/);
+  assert.doesNotMatch(payload.body, /Risk support/);
+  assert.doesNotMatch(payload.body, /\b(Buy|Sell|buy at|sell if|take profit|stop out)\b/);
 });
 
 test("formatFollowThroughStateUpdateAsPayload adds live progress metadata", () => {
@@ -320,9 +414,14 @@ test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through con
   assert.equal(
     payload.body,
     [
-      "follow-through: breakout is still working after the alert",
-      "status: working | directional +2.90% | raw +2.90%",
-      "path: tracked from 2.41 to 2.48",
+      "Status: working",
+      "",
+      "What it means:",
+      "- breakout is still working after the alert",
+      "- alert direction move: +2.90%",
+      "",
+      "Path:",
+      "- 2.41 -> 2.48 (+2.90% price move)",
     ].join("\n"),
   );
   assert.equal(payload.symbol, "ALBT");
@@ -352,9 +451,18 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
     [
       "LEVEL SNAPSHOT: ALBT",
       "PRICE: 2.51",
-      "MAP: nearest support 2.40 (-4.4%) | nearest resistance 2.60 (+3.6%) | balanced room",
-      "SUPPORT: 2.40 (-4.4%, heavy), 2.25 (-10.4%, light)",
-      "RESISTANCE: 2.60 (+3.6%, major), 2.75 (+9.6%, moderate extension)",
+      "",
+      "CURRENT READ:",
+      "- Price is between support 2.40 and resistance 2.60.",
+      "- Room is fairly balanced between the nearest support and resistance.",
+      "",
+      "KEY LEVELS:",
+      "- Resistance: 2.60 (+3.6%, major), 2.75 (+9.6%, moderate extension)",
+      "- Support: 2.40 (-4.4%, heavy), 2.25 (-10.4%, light)",
+      "",
+      "FULL LADDER:",
+      "- Support: 2.40 (-4.4%, heavy), 2.25 (-10.4%, light)",
+      "- Resistance: 2.60 (+3.6%, major), 2.75 (+9.6%, moderate extension)",
     ].join("\n"),
   );
 });

@@ -157,12 +157,12 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
       "bullish breakout through major resistance 100.00-101.00",
       "why now: price cleared the outermost resistance instead of stalling underneath it",
       "movement: price is still just above the zone high, so the breakout is early (0.4%)",
-      "pressure: buyers still have strong control (0.74), backing the move",
+      "pressure: buyers still have strong control, backing the move",
       "context: major resistance | outermost | fresh | 5m/4h/daily confluence | recently refreshed",
       "quality: resistance still looks firm, so a clean break matters more",
       "trigger quality: clean trigger with early movement, strong control, and unclear room",
       "setup state: confirmation, so the move still needs acceptance to hold",
-      "trade map: risk to invalidation is about 1.4%; next directional barrier still needs confirmation",
+      "trade map: risk to invalidation is about 1.4%; next upside barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
     ].join("\n"),
   );
@@ -290,16 +290,72 @@ test("AlertIntelligenceEngine preserves promoted extension significance without 
     extensionResult.formatted?.body,
     [
       "price testing heavy resistance 3.25-3.35",
-      "why now: price is back at resistance where sellers need to prove control",
+      "why now: price is back at resistance; buyers need acceptance above the zone",
       "movement: price is testing inside resistance below the upper edge (1.2%)",
-      "pressure: buyers still have workable control (0.67), but follow-through still matters",
+      "pressure: buyers still have workable control, but follow-through still matters",
       "context: heavy resistance | promoted extension | fresh | 5m/4h confluence",
       "setup state: building, so the zone still needs a real decision move",
-      "trade map: risk to invalidation is about 1.2%; next directional barrier still needs confirmation",
-      "watch: sellers defend 3.25-3.35 before breakout pressure builds",
+      "trade map: risk to invalidation is about 1.2%; next upside barrier still needs confirmation",
+      "watch: buyers need acceptance above 3.35 before breakout pressure builds",
     ].join("\n"),
   );
   assert.ok(extensionResult.rawAlert.tags.includes("promoted_extension"));
+});
+
+test("AlertIntelligenceEngine formats single-price zones as one readable level", () => {
+  const engine = new AlertIntelligenceEngine();
+  const singlePriceLevels: LevelEngineOutput = {
+    ...levels,
+    majorResistance: [
+      {
+        ...levels.majorResistance[0]!,
+        id: "zone-single-price-resistance",
+        zoneLow: 3.1,
+        zoneHigh: 3.1,
+        representativePrice: 3.1,
+        strengthLabel: "moderate",
+      },
+    ],
+  };
+  const event: MonitoringEvent = {
+    id: "evt-single-price-touch",
+    episodeId: "evt-single-price-touch-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "zone-single-price-resistance",
+    zoneKind: "resistance",
+    level: 3.1,
+    triggerPrice: 3.1,
+    strength: 0.68,
+    confidence: 0.67,
+    priority: 72,
+    bias: "neutral",
+    pressureScore: 0.35,
+    eventContext: {
+      monitoredZoneId: "zone-single-price-resistance",
+      canonicalZoneId: "zone-single-price-resistance",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "moderate",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 15,
+    notes: ["Single-price resistance touch."],
+  };
+
+  const result = engine.processEvent(event, singlePriceLevels);
+
+  assert.ok(result.formatted);
+  assert.match(result.formatted?.body ?? "", /^price testing moderate resistance 3\.10\n/);
+  assert.match(result.formatted?.body ?? "", /watch: buyers need acceptance above 3\.10 before breakout pressure builds/);
+  assert.doesNotMatch(result.formatted?.body ?? "", /3\.10-3\.10/);
 });
 
 test("AlertIntelligenceEngine penalizes degraded data quality and preserves remap context in output", () => {
@@ -357,10 +413,10 @@ test("AlertIntelligenceEngine penalizes degraded data quality and preserves rema
       "reclaim back above major resistance 100.00-101.00",
       "why now: buyers got price back above the zone after a real break attempt",
       "movement: price is back just above the zone high, so the reclaim is still early (0.2%)",
-      "pressure: buyers still have workable control (0.62), but follow-through still matters",
+      "pressure: buyers still have workable control, but follow-through still matters",
       "context: major resistance | outermost | aging | 5m/4h/daily confluence | recently refreshed",
       "setup state: confirmation, so the move still needs acceptance to hold",
-      "trade map: risk to invalidation is about 1.2%; next directional barrier still needs confirmation",
+      "trade map: risk to invalidation is about 1.2%; next upside barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
     ].join("\n"),
   );
@@ -425,11 +481,11 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
       "dip-buy test at heavy support 97.80-98.20",
       "why now: price came back into defended support instead of drifting mid-range",
       "movement: price is testing inside support above the lower edge (0.3%)",
-      "pressure: buyers still have workable control (0.51), but follow-through still matters",
+      "pressure: buyers still have workable control, but follow-through still matters",
       "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
       "quality: support still looks firm with healthy follow-through",
       "room: limited overhead into next resistance 100.50 (+2.4%)",
-      "target: first resistance objective 100.50 (+2.4%)",
+      "target: first upside objective 100.50 (+2.4%)",
       "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
       "setup state: building, so the zone still needs a real decision move",
       "trade map: risk to invalidation 0.3%; room to next resistance 2.4% (~6.9x, favorable skew)",
@@ -502,12 +558,12 @@ test("AlertIntelligenceEngine calls out tired structure when a strong-looking zo
       "bullish breakout through heavy resistance 100.00-101.00",
       "why now: price cleared the outermost resistance instead of stalling underneath it",
       "movement: price is still just above the zone high, so the breakout is early (0.1%)",
-      "pressure: buyers still have workable control (0.58), but follow-through still matters",
+      "pressure: buyers still have workable control, but follow-through still matters",
       "context: heavy resistance | outermost | aging | 5m/4h/daily confluence",
       "quality: resistance looked tactically tired before this test",
       "setup state: confirmation, so the move still needs acceptance to hold",
       "failure risk: watchful because tired structure",
-      "trade map: risk to invalidation is about 1.1%; next directional barrier still needs confirmation",
+      "trade map: risk to invalidation is about 1.1%; next upside barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
     ].join("\n"),
   );

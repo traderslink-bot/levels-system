@@ -54,11 +54,23 @@ export function deriveTraderZoneTacticalRead(
 }
 
 function formatZoneRange(zone: FinalLevelZone): string {
+  if (Math.abs(zone.zoneHigh - zone.zoneLow) <= Math.max(zone.zoneHigh * 0.001, 0.001)) {
+    return formatLevel(zone.representativePrice);
+  }
+
   return `${formatLevel(zone.zoneLow)}-${formatLevel(zone.zoneHigh)}`;
 }
 
 function clearanceDirectionForSide(side: "support" | "resistance"): string {
   return side === "resistance" ? "overhead" : "downside";
+}
+
+function isLongCautionEvent(event: MonitoringEvent): boolean {
+  return (
+    event.eventType === "breakdown" ||
+    event.eventType === "fake_breakout" ||
+    (event.eventType === "rejection" && event.zoneKind === "resistance")
+  );
 }
 
 function formatBarrierPct(
@@ -88,6 +100,31 @@ function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
     default:
       return `room: next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
   }
+}
+
+function describeLongCautionBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
+  const pctText = formatBarrierPct(nextBarrier.side, nextBarrier.distancePct);
+  const clutterText =
+    nextBarrier.clutterLabel === "dense"
+      ? `; nearby levels are dense (${nextBarrier.nearbyBarrierCount ?? 0} nearby levels)`
+      : nextBarrier.clutterLabel === "stacked"
+        ? "; nearby levels are stacked"
+        : "";
+
+  if (nextBarrier.side === "support") {
+    switch (nextBarrier.clearanceLabel) {
+      case "tight":
+        return `risk: next support is close at ${formatLevel(nextBarrier.price)} (${pctText}), so longs have little room for error${clutterText}`;
+      case "limited":
+        return `risk: next support is ${formatLevel(nextBarrier.price)} (${pctText}); long setups need price to stabilize first${clutterText}`;
+      case "open":
+        return `risk: open air to next support near ${formatLevel(nextBarrier.price)} (${pctText}) if buyers do not reclaim the level${clutterText}`;
+      default:
+        return `risk: next support is ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
+    }
+  }
+
+  return describeBarrierRoom(nextBarrier);
 }
 
 function deriveDirectionalTradePlan(
@@ -183,21 +220,39 @@ export function deriveTraderPressureContext(
     return {
       label: "balanced",
       pressureScore: score,
-      line: `pressure: buying and selling pressure still look balanced (${score.toFixed(2)})`,
+      line: "pressure: buying and selling pressure still look balanced",
     };
   }
 
-  const actor = event.bias === "bullish" ? "buyers" : "sellers";
-  const direction =
-    event.bias === "bullish"
-      ? "backing the move"
-      : "pressing the move";
+  if (event.bias === "bearish") {
+    if (score >= 0.7) {
+      return {
+        label: "strong",
+        pressureScore: score,
+        line: "pressure: buyers do not have control right now",
+      };
+    }
+
+    if (score >= 0.45) {
+      return {
+        label: "moderate",
+        pressureScore: score,
+        line: "pressure: buyers still need to reclaim control",
+      };
+    }
+
+    return {
+      label: "tentative",
+      pressureScore: score,
+      line: "pressure: buyers are not showing clear control yet",
+    };
+  }
 
   if (score >= 0.7) {
     return {
       label: "strong",
       pressureScore: score,
-      line: `pressure: ${actor} still have strong control (${score.toFixed(2)}), ${direction}`,
+      line: "pressure: buyers still have strong control, backing the move",
     };
   }
 
@@ -205,14 +260,14 @@ export function deriveTraderPressureContext(
     return {
       label: "moderate",
       pressureScore: score,
-      line: `pressure: ${actor} still have workable control (${score.toFixed(2)}), but follow-through still matters`,
+      line: "pressure: buyers still have workable control, but follow-through still matters",
     };
   }
 
   return {
     label: "tentative",
     pressureScore: score,
-    line: `pressure: ${actor} are present (${score.toFixed(2)}), but control still looks tentative`,
+    line: "pressure: buyers are present, but control still looks tentative",
   };
 }
 
@@ -667,7 +722,7 @@ function buildLeadLine(event: MonitoringEvent, zone?: FinalLevelZone): string {
     case "breakout":
       return `bullish breakout through ${descriptor} ${zoneRange}`;
     case "breakdown":
-      return `bearish breakdown through ${descriptor} ${zoneRange}`;
+      return `support lost at ${descriptor} ${zoneRange}`;
     case "reclaim":
       return `reclaim back above ${descriptor} ${zoneRange}`;
     case "fake_breakout":
@@ -676,7 +731,7 @@ function buildLeadLine(event: MonitoringEvent, zone?: FinalLevelZone): string {
       return `failed breakdown at ${descriptor} ${zoneRange}`;
     case "rejection":
       return zone.kind === "resistance"
-        ? `sellers defended ${descriptor} ${zoneRange}`
+        ? `breakout rejected at ${descriptor} ${zoneRange}`
         : `buyers defended ${descriptor} ${zoneRange}`;
     case "compression":
       return `price compressing into ${descriptor} ${zoneRange}`;
@@ -708,8 +763,8 @@ function buildWhyNowLine(
         : "why now: price pushed through resistance instead of stalling under the zone";
     case "breakdown":
       return event.eventContext.ladderPosition === "outermost"
-        ? "why now: price lost the outermost support instead of bouncing cleanly off it"
-        : "why now: price slipped through support instead of holding the zone";
+        ? "why now: price lost the outermost support, so longs need a reclaim before trusting the setup"
+        : "why now: price slipped through support instead of holding the zone, raising risk for longs";
     case "reclaim":
       return zone.kind === "support"
         ? "why now: buyers got price back above support after a real break attempt"
@@ -720,14 +775,14 @@ function buildWhyNowLine(
       return "why now: breakdown pressure failed and buyers reclaimed support quickly";
     case "rejection":
       return zone.kind === "resistance"
-        ? "why now: sellers responded at resistance before breakout acceptance could build"
+        ? "why now: resistance rejected the breakout attempt before buyers could prove acceptance"
         : "why now: buyers responded at support before breakdown acceptance could build";
     case "compression":
       return "why now: repeated near-zone tests are tightening the range into a decision point";
     case "level_touch":
       return zone.kind === "support"
         ? "why now: price came back into defended support instead of drifting mid-range"
-        : "why now: price is back at resistance where sellers need to prove control";
+        : "why now: price is back at resistance; buyers need acceptance above the zone";
     default:
       return null;
   }
@@ -756,9 +811,9 @@ export function deriveTraderMovementContext(
     case "breakdown":
       return movementStageLine(
         Math.max(0, zone.zoneLow - event.triggerPrice) / zoneLow,
-        "movement: price is still just below the zone low, so the breakdown is early",
-        "movement: price is slipping farther below the zone low and downside follow-through is building",
-        "movement: price is already well below the zone low and getting extended from the breakdown zone",
+        "movement: price is still just below the support floor, so longs need a reclaim",
+        "movement: price is moving farther below support, increasing risk for longs",
+        "movement: price is already well below support and extended away from the lost zone",
       );
     case "reclaim":
       return movementStageLine(
@@ -789,7 +844,7 @@ export function deriveTraderMovementContext(
         return {
           label: "holding_from_edge",
           movementPct,
-          line: `movement: price is fading below the resistance edge after the seller response (${formatPct(movementPct)})`,
+          line: `movement: price is fading below the resistance edge after the rejected breakout (${formatPct(movementPct)})`,
         };
       }
 
@@ -858,9 +913,13 @@ export function deriveTraderTradeMapContext(
 
   const riskPct = Math.abs(triggerPrice - tradePlan.invalidationLevel) / triggerPrice;
   const roomPct =
-    nextBarrier && nextBarrier.side === tradePlan.preferredBarrierSide
-      ? nextBarrier.distancePct
-      : null;
+    isLongCautionEvent(event)
+      ? null
+      : nextBarrier && nextBarrier.side === tradePlan.preferredBarrierSide
+        ? nextBarrier.distancePct
+        : null;
+
+  const linePrefix = isLongCautionEvent(event) ? "long risk map" : "trade map";
 
   if (roomPct === null) {
     return {
@@ -868,7 +927,9 @@ export function deriveTraderTradeMapContext(
       riskPct,
       roomPct: null,
       roomToRiskRatio: null,
-      line: `trade map: risk to invalidation is about ${formatPct(riskPct)}; next directional barrier still needs confirmation`,
+      line: isLongCautionEvent(event)
+        ? `${linePrefix}: reclaim/invalidation distance is about ${formatPct(riskPct)}; no long target is implied`
+        : `${linePrefix}: risk to invalidation is about ${formatPct(riskPct)}; next upside barrier still needs confirmation`,
     };
   }
 
@@ -880,7 +941,7 @@ export function deriveTraderTradeMapContext(
     roomPct,
     roomToRiskRatio,
     line:
-      `trade map: risk to invalidation ${formatPct(riskPct)}; room to next ${tradePlan.preferredBarrierSide} ${formatPct(roomPct)} ` +
+      `${linePrefix}: risk to invalidation ${formatPct(riskPct)}; room to next ${tradePlan.preferredBarrierSide} ${formatPct(roomPct)} ` +
       `(~${roomToRiskRatio.toFixed(1)}x, ${label} skew)`,
   };
 }
@@ -890,6 +951,10 @@ export function deriveTraderTargetContext(
   zone?: FinalLevelZone,
   nextBarrier?: TraderNextBarrierContext | null,
 ): TraderTargetContext | null {
+  if (event && isLongCautionEvent(event)) {
+    return null;
+  }
+
   const tradePlan = deriveDirectionalTradePlan(event, zone);
   if (!tradePlan || !nextBarrier || nextBarrier.side !== tradePlan.preferredBarrierSide) {
     return null;
@@ -900,7 +965,7 @@ export function deriveTraderTargetContext(
     side: nextBarrier.side,
     price: nextBarrier.price,
     distancePct: nextBarrier.distancePct,
-    line: `target: first ${nextBarrier.side} objective ${formatLevel(nextBarrier.price)} (${pctText})`,
+    line: `target: first upside objective ${formatLevel(nextBarrier.price)} (${pctText})`,
   };
 }
 
@@ -911,30 +976,31 @@ function buildWatchLine(event: MonitoringEvent, zone?: FinalLevelZone): string |
 
   const zoneLow = formatLevel(zone.zoneLow);
   const zoneHigh = formatLevel(zone.zoneHigh);
+  const zoneRange = formatZoneRange(zone);
 
   switch (event.eventType) {
     case "breakout":
       return `watch: hold above ${zoneHigh}; invalidates back below ${zoneLow}`;
     case "breakdown":
-      return `watch: stay below ${zoneLow}; invalidates back above ${zoneHigh}`;
+      return `watch: long setup stays risky until price reclaims ${zoneHigh}; risk stays elevated below ${zoneLow}`;
     case "reclaim":
       return `watch: hold above ${zoneHigh}; invalidates back below ${zoneLow}`;
     case "fake_breakout":
-      return `watch: rejection continuation below ${zoneHigh}; invalidates on acceptance back above it`;
+      return `watch: long setup needs acceptance back above ${zoneHigh} before risk improves`;
     case "fake_breakdown":
       return `watch: rebound continuation above ${zoneLow}; invalidates on loss of that support`;
     case "rejection":
       return zone.kind === "resistance"
-        ? `watch: sellers keep price below ${zoneHigh}; invalidates on clean acceptance above it`
+        ? `watch: long setup needs acceptance above ${zoneHigh} before risk improves`
         : `watch: buyers keep price above ${zoneLow}; invalidates on clean loss below it`;
     case "compression":
       return zone.kind === "resistance"
-        ? `watch: breakout through ${zoneHigh} or rejection from ${zoneLow}-${zoneHigh}`
-        : `watch: breakdown through ${zoneLow} or bounce from ${zoneLow}-${zoneHigh}`;
+        ? `watch: breakout through ${zoneHigh} or rejection from ${zoneRange}`
+        : `watch: bounce from ${zoneRange}; caution if ${zoneLow} fails`;
     case "level_touch":
       return zone.kind === "support"
-        ? `watch: buyers defend ${zoneLow}-${zoneHigh} before momentum fades`
-        : `watch: sellers defend ${zoneLow}-${zoneHigh} before breakout pressure builds`;
+        ? `watch: buyers defend ${zoneRange} before momentum fades`
+        : `watch: buyers need acceptance above ${zoneHigh} before breakout pressure builds`;
     default:
       return null;
   }
@@ -950,7 +1016,9 @@ export function buildTraderAlertBody(
   }
 
   const roomLine = nextBarrier
-    ? describeBarrierRoom(nextBarrier)
+    ? isLongCautionEvent(event)
+      ? describeLongCautionBarrierRoom(nextBarrier)
+      : describeBarrierRoom(nextBarrier)
     : null;
   const movement = deriveTraderMovementContext(event, zone);
   const pressure = deriveTraderPressureContext(event);

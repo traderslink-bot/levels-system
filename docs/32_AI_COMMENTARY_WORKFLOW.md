@@ -23,6 +23,7 @@ The current AI layer is intentionally narrow.
 
 It can:
 
+- add a separate AI read after a deterministic live alert posts to the symbol thread
 - enhance in-session symbol recap text when the manual runtime is running
 - explain structured signal facts in a stricter plain-English layer when called downstream of deterministic summaries
 - generate a post-run `session-ai-review.md` from deterministic session artifacts
@@ -59,8 +60,10 @@ npm run watchlist:manual
 When enabled successfully:
 
 - the runtime keeps deterministic recap logic as the source of truth
+- deterministic live alerts post first, then AI may add a separate `AI read` message in the same symbol thread
 - AI may enhance recap wording for eligible symbol recaps
 - if AI fails, the runtime falls back to deterministic recap text
+- if AI returns short-side or direct execution wording, the runtime drops that AI text
 
 ## Post-Run AI Session Summary
 
@@ -99,6 +102,8 @@ The current AI prompts are written to stay close to trader-useful language.
 
 In particular:
 
+- this is a long-only trader system, so AI must not suggest shorting, short entries, downside targets, or bearish trade ideas
+- bearish conditions should be framed as long-side risk, avoid-chasing, reclaim, confirmation, support-risk, or invalidation context
 - prefer plain-English movement and level language
 - avoid abstract words like `participation`
 - prefer concrete terms like `volume`, `activity`, `support`, `resistance`, `breakout`, `stalling`, and `failure risk`
@@ -132,13 +137,13 @@ When reviewing a long-run session:
 
 The safest next AI expansions are:
 
-- better in-session recap enhancement
+- better in-session recap enhancement and live AI reads after deterministic alerts
 - better post-run session summaries
 - better per-symbol AI recaps that stay tightly grounded in deterministic thread summaries
 - AI-assisted review of noisy symbols and noisy alert families
 
 Ideas that should wait:
 
-- top-alert AI commentary before the deterministic thresholds settle more
+- AI replacement of deterministic alert bodies before the deterministic thresholds settle more
 - any AI-driven execution logic
 - any AI replacement for structured monitoring and scoring

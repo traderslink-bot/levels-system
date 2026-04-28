@@ -18,26 +18,24 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - New activations still wait for `startupState=ready`, but deactivation is allowed during startup so slow restoring symbols can be stopped immediately from the UI.
 - Manual activation seeding is now bounded by a timeout, so a symbol that hangs during level generation should fail explicitly instead of sitting in `refresh_pending` forever.
 - The manual runtime now gives IBKR historical seeding more breathing room by default during first activation; set `MANUAL_WATCHLIST_IBKR_TIMEOUT_MS` if you want to override the default `90000` ms timeout.
+- Manual watchlist level seeding uses deeper daily history by default (`LEVEL_MANUAL_LOOKBACK_DAILY=520`, `LEVEL_MANUAL_LOOKBACK_4H=180`, `LEVEL_MANUAL_LOOKBACK_5M=100` defaults) so older overhead resistance can be included when a runner clears recent levels.
 - Set `LEVEL_MONITORING_EVENT_DIAGNOSTICS=1` before `npm run watchlist:manual` to emit filtered `monitoring_event_diagnostic` JSON lines for breakout / breakdown / fakeout / reclaim decisions.
 - Diagnostic logging is intentionally filtered:
   - emitted decisions always log
   - suppressed decisions only log when they are near the threshold, carry meaningful state, change reason, or recur after cooldown
 - For multi-hour manual testing on Windows, use `scripts/start-manual-watchlist-long-run.ps1` so each session gets a timestamped full log plus a smaller filtered review log under `artifacts/long-run/`.
 - Long-run sessions now also emit structured `manual_watchlist_lifecycle` JSON lines and a local `discord-delivery-audit.jsonl` file so activation/deactivation, snapshot posting, alert posting, and downstream Discord delivery can be reviewed after the fact.
+- Level snapshot audit details are operator-only: `discord-delivery-audit.jsonl` records which support/resistance candidates were displayed, compacted, already on the wrong side of price, or outside the forward planning range without adding that diagnostic detail to Discord posts.
 - The long-run launcher now also refreshes summary artifacts from `discord-delivery-audit.jsonl`, so `session-summary.json`, `thread-summaries.json`, `thread-clutter-report.json`, `session-review.md`, and `trader-thread-recaps.md` keep updating even when runtime stdout goes quiet.
 - Set `FINNHUB_API_KEY` in `.env` to enable a Finnhub-backed stock-context opener on newly created Discord threads before level generation finishes.
 - `npm run finnhub:test -- AAPL` still prints that same stock-context card in the terminal so the opener can be iterated separately from the live runtime.
-- The stock-context opener is intentionally limited to ticker-specific data only:
+- The stock-context opener is intentionally limited to ticker/profile data only and does not use Finnhub quote fields for live price context:
   - company name
-  - ticker
   - exchange
   - industry
   - country
   - website
   - market cap
-  - current price
-  - percent change
-  - open / high / low / previous close
 - Long-run sessions now split review surfaces:
   - `manual-watchlist-operational.log` for lifecycle, failures, compare output, and Discord delivery
   - `manual-watchlist-diagnostics.log` for `monitoring_event_diagnostic` reasoning
@@ -52,7 +50,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - trader-helpful but optional live posts
   - operator-only artifacts and diagnostics
 - Long-run sessions can also collect human review feedback in `human-review-feedback.jsonl` via `scripts/add-long-run-review-feedback.ps1`, and the live session summaries will fold that feedback into the review artifacts.
-- Optional AI commentary can be enabled with `LEVEL_AI_COMMENTARY=1` plus `OPENAI_API_KEY`; the runtime will then enhance eligible in-session recaps and `npm run longrun:ai:summary -- <session-folder>` can generate post-run `session-ai-review.md` and `thread-ai-recaps.md` artifacts.
+- Optional AI commentary can be enabled with `LEVEL_AI_COMMENTARY=1` plus `OPENAI_API_KEY`; the runtime can then add separate AI read posts after deterministic live alerts, enhance eligible in-session recaps, and `npm run longrun:ai:summary -- <session-folder>` can generate post-run `session-ai-review.md` and `thread-ai-recaps.md` artifacts.
 - The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
 - Trader-facing Discord alerts now include:
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`

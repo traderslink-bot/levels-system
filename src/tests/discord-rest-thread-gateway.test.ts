@@ -142,9 +142,18 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
     [
       "LEVEL SNAPSHOT: ALBT",
       "PRICE: 2.51",
-      "MAP: nearest support 2.40 (-4.4%) | nearest resistance 2.60 (+3.6%) | balanced room",
-      "SUPPORT: 2.40 (-4.4%), 2.25 (-10.4%)",
-      "RESISTANCE: 2.60 (+3.6%), 2.75 (+9.6%)",
+      "",
+      "CURRENT READ:",
+      "- Price is between support 2.40 and resistance 2.60.",
+      "- Room is fairly balanced between the nearest support and resistance.",
+      "",
+      "KEY LEVELS:",
+      "- Resistance: 2.60 (+3.6%), 2.75 (+9.6%)",
+      "- Support: 2.40 (-4.4%), 2.25 (-10.4%)",
+      "",
+      "FULL LADDER:",
+      "- Support: 2.40 (-4.4%), 2.25 (-10.4%)",
+      "- Resistance: 2.60 (+3.6%), 2.75 (+9.6%)",
     ].join("\n"),
   );
 });

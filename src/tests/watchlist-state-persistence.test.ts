@@ -23,7 +23,11 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       activatedAt: 123,
       lastLevelPostAt: 456,
       lastExtensionPostAt: 789,
+      lastPriceUpdateAt: 800,
+      lastThreadPostAt: 900,
+      lastThreadPostKind: "snapshot",
       refreshPending: false,
+      operationStatus: "monitoring live price",
     },
   ]);
 
@@ -40,7 +44,11 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       activatedAt: 123,
       lastLevelPostAt: 456,
       lastExtensionPostAt: 789,
+      lastPriceUpdateAt: 800,
+      lastThreadPostAt: 900,
+      lastThreadPostKind: "snapshot",
       refreshPending: false,
+      operationStatus: "monitoring live price",
     },
   ]);
 

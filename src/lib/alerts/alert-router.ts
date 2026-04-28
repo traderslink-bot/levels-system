@@ -25,18 +25,238 @@ export function formatMonitoringEventAsAlert(event: MonitoringEvent): AlertPaylo
   };
 }
 
-export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertPayload {
-  const severityText = alert.severity.toUpperCase();
-  const confidenceText = alert.confidence.toUpperCase();
-  const scoreText = alert.score.toFixed(2);
+function stripLinePrefix(line: string): string {
+  const index = line.indexOf(":");
+  if (index < 0) {
+    return line;
+  }
 
+  return line.slice(index + 1).trim();
+}
+
+function pickBodyLine(lines: string[], prefix: string): string | null {
+  return lines.find((line) => line.startsWith(prefix)) ?? null;
+}
+
+function pickLine(lines: string[], prefix: string, fallback?: { line?: string } | null): string | null {
+  return pickBodyLine(lines, prefix) ?? fallback?.line ?? null;
+}
+
+function lowercaseFirst(value: string): string {
+  return value.length > 0 ? `${value[0]?.toLowerCase()}${value.slice(1)}` : value;
+}
+
+function formatAlertLevel(level: number | undefined): string | null {
+  return typeof level === "number" && Number.isFinite(level)
+    ? level >= 1
+      ? level.toFixed(2)
+      : level.toFixed(4)
+    : null;
+}
+
+function signalText(value: string): string {
+  return value.toLowerCase();
+}
+
+function eventStatusLabel(eventType: MonitoringEvent["eventType"]): string {
+  switch (eventType) {
+    case "level_touch":
+      return "Testing";
+    case "breakout":
+    case "reclaim":
+      return "Cleared";
+    case "breakdown":
+      return "Lost";
+    case "rejection":
+    case "fake_breakout":
+      return "Rejected";
+    case "fake_breakdown":
+      return "Reclaimed";
+    case "compression":
+      return "Building";
+    default:
+      return "Watching";
+  }
+}
+
+function simplifyTraderRead(line: string): string {
+  return line
+    .replace(/^buyers still have workable control, but follow-through still matters$/i, "buyers have some control, but the move still needs follow-through")
+    .replace(/^buyers still have strong control, backing the move$/i, "buyers are in control right now")
+    .replace(/^buying and selling pressure still look balanced$/i, "buyers and sellers are still balanced")
+    .replace(/^avoid longs until price reclaims (.+)$/i, "long setup stays risky until price reclaims $1")
+    .replace(/^hold above /i, "confirmation: hold above ");
+}
+
+function isLongCautionEventType(eventType: MonitoringEvent["eventType"]): boolean {
+  return eventType === "breakdown" || eventType === "fake_breakout" || eventType === "rejection";
+}
+
+function buildPotentialDipBuyLine(alert: IntelligentAlert, level: string | null): string | null {
+  if (!level || !isLongCautionEventType(alert.event.eventType) || alert.nextBarrier?.side !== "support") {
+    return null;
+  }
+
+  const reclaimLevel = formatAlertLevel(alert.zone?.zoneHigh);
+  if (alert.event.eventType === "breakdown" && reclaimLevel) {
+    return `possible dip-buy area: ${level}, only if buyers stabilize there or reclaim ${reclaimLevel}`;
+  }
+
+  return `possible dip-buy area: ${level}, only if buyers stabilize there first`;
+}
+
+function buildHoldFailureMapLine(alert: IntelligentAlert, nextSupportLevel: string | null): string | null {
+  if (!isLongCautionEventType(alert.event.eventType) || alert.nextBarrier?.side !== "support") {
+    return null;
+  }
+
+  const reclaimLevel = formatAlertLevel(alert.zone?.zoneHigh);
+  if (!reclaimLevel || !nextSupportLevel) {
+    return null;
+  }
+
+  return `${reclaimLevel} is the reclaim line for the long setup; below it, risk stays open toward ${nextSupportLevel} unless buyers stabilize first.`;
+}
+
+function splitWatchLine(watch: string | null): { confirm: string | null; invalidation: string | null } {
+  if (!watch) {
+    return { confirm: null, invalidation: null };
+  }
+
+  const text = stripLinePrefix(watch);
+  const [confirmRaw, invalidationRaw] = text.split(/;\s*/);
+  return {
+    confirm: confirmRaw ? simplifyTraderRead(confirmRaw.trim()) : null,
+    invalidation: invalidationRaw ? invalidationRaw.trim() : null,
+  };
+}
+
+function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
+  const lines = alert.body.split("\n").map((line) => line.trim()).filter(Boolean);
+  const lead = lines[0] ?? alert.title;
+  const whyNow = pickBodyLine(lines, "why now:");
+  const movement = pickLine(lines, "movement:", alert.movement);
+  const pressure = pickLine(lines, "pressure:", alert.pressure);
+  const room = pickBodyLine(lines, "room:");
+  const watch = pickBodyLine(lines, "watch:");
+  const failureRisk = pickLine(lines, "failure risk:", alert.failureRisk);
+  const targetLevel = formatAlertLevel(alert.target?.price);
+  const barrierLevel = formatAlertLevel(alert.nextBarrier?.price);
+  const eventType = alert.event.eventType;
+  const status = eventStatusLabel(eventType);
+  const watchParts = splitWatchLine(watch);
+  const potentialDipBuyLine = buildPotentialDipBuyLine(alert, barrierLevel);
+  const holdFailureMapLine = buildHoldFailureMapLine(alert, barrierLevel);
+  const readLines: string[] = [];
+
+  if (eventType === "breakout") {
+    readLines.push(
+      movement
+        ? simplifyTraderRead(lowercaseFirst(stripLinePrefix(movement)))
+        : "price is trying to turn resistance into support",
+    );
+    if (whyNow) {
+      readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(whyNow))));
+    }
+    if (room) {
+      readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(room))));
+    }
+  } else if (eventType === "breakdown") {
+    readLines.push(
+      movement
+        ? simplifyTraderRead(lowercaseFirst(stripLinePrefix(movement)))
+        : "price is trying to turn support into resistance",
+    );
+    if (whyNow) {
+      readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(whyNow))));
+    }
+    if (room) {
+      readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(room))));
+    }
+  } else if (eventType === "level_touch") {
+    readLines.push(
+      pressure
+        ? simplifyTraderRead(lowercaseFirst(stripLinePrefix(pressure)))
+        : whyNow
+          ? simplifyTraderRead(lowercaseFirst(stripLinePrefix(whyNow)))
+          : "price is testing a key zone",
+    );
+    if (whyNow) {
+      readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(whyNow))));
+    }
+    if (room) {
+      readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(room))));
+    }
+  } else {
+    if (whyNow) {
+      readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(whyNow))));
+    }
+    if (movement) {
+      readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(movement))));
+    }
+  }
+
+  if (readLines.length < 3 && failureRisk && alert.failureRisk?.label === "high") {
+    readLines.push(`risk is high: ${stripLinePrefix(failureRisk).replace(/^high because /, "")}`);
+  }
+
+  const nearbyLevels: string[] = [];
+  const seenNearbyLevelKeys = new Set<string>();
+  const pushNearbyLevel = (label: string, side: string, level: string | null): void => {
+    if (!level) {
+      return;
+    }
+    const key = `${side}:${level}`;
+    if (seenNearbyLevelKeys.has(key)) {
+      return;
+    }
+    seenNearbyLevelKeys.add(key);
+    nearbyLevels.push(`${label} ${side}: ${level}`);
+  };
+  if (isLongCautionEventType(eventType)) {
+    if (potentialDipBuyLine) {
+      nearbyLevels.push(`Possible dip-buy area: ${barrierLevel}`);
+    }
+  } else {
+    pushNearbyLevel("First", alert.target?.side ?? "", targetLevel);
+    pushNearbyLevel("Next", alert.nextBarrier?.side ?? "", barrierLevel);
+  }
+
+  const output = [lead];
+  output.push("", `Status: ${status}`);
+  if (readLines.length > 0) {
+    output.push("", "What it means:", ...readLines.slice(0, 3).map((line) => `- ${line}`));
+  }
+  if (watchParts.confirm || watchParts.invalidation || potentialDipBuyLine) {
+    output.push("", "What to watch:");
+    if (watchParts.confirm) {
+      output.push(`- ${watchParts.confirm}`);
+    }
+    if (watchParts.invalidation) {
+      output.push(`- invalidation: ${watchParts.invalidation.replace(/^invalidates\s*/i, "")}`);
+    }
+    if (potentialDipBuyLine) {
+      output.push(`- ${potentialDipBuyLine}`);
+    }
+  }
+  if (holdFailureMapLine) {
+    output.push("", "Hold / failure map:", `- ${holdFailureMapLine}`);
+  }
+  if (nearbyLevels.length > 0) {
+    output.push("", "Next levels:", ...nearbyLevels.map((line) => `- ${line}`));
+  }
+  output.push(
+    "",
+    `Signal: ${signalText(alert.severity)} severity | ${signalText(alert.confidence)} confidence`,
+    `Trigger: ${alert.event.triggerPrice >= 1 ? alert.event.triggerPrice.toFixed(2) : alert.event.triggerPrice.toFixed(4)}`,
+  );
+  return output.join("\n");
+}
+
+export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertPayload {
   return {
     title: alert.title,
-    body: [
-      alert.body,
-      `severity ${severityText} | confidence ${confidenceText} | score ${scoreText}`,
-      `trigger ${alert.event.triggerPrice >= 1 ? alert.event.triggerPrice.toFixed(2) : alert.event.triggerPrice.toFixed(4)}`,
-    ].join("\n"),
+    body: buildReadableIntelligentAlertBody(alert),
     event: alert.event,
     symbol: alert.event.symbol,
     timestamp: alert.event.timestamp,
@@ -99,9 +319,14 @@ export function formatFollowThroughUpdateAsPayload(params: {
   return {
     title: `${symbol} ${followThrough.eventType.replaceAll("_", " ")} follow-through`,
     body: [
-      followThrough.line,
-      `status: ${followThrough.label} | directional ${directionalText} | raw ${rawText}`,
-      `path: tracked from ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} to ${outcomePrice >= 1 ? outcomePrice.toFixed(2) : outcomePrice.toFixed(4)}`,
+      `Status: ${followThrough.label}`,
+      "",
+      "What it means:",
+      `- ${stripLinePrefix(followThrough.line)}`,
+      `- alert direction move: ${directionalText}`,
+      "",
+      "Path:",
+      `- ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} -> ${outcomePrice >= 1 ? outcomePrice.toFixed(2) : outcomePrice.toFixed(4)} (${rawText} price move)`,
     ].join("\n"),
     symbol,
     timestamp,
@@ -131,17 +356,22 @@ export function formatFollowThroughStateUpdateAsPayload(params: {
       : formatPct(directionalReturnPct);
   const line =
     progressLabel === "improving"
-      ? `live follow-through: ${eventType.replaceAll("_", " ")} is improving since the alert`
+      ? `${eventType.replaceAll("_", " ")} is improving since the alert`
       : progressLabel === "stalling"
-        ? `live follow-through: ${eventType.replaceAll("_", " ")} is stalling and needs fresh follow-through`
-        : `live follow-through: ${eventType.replaceAll("_", " ")} is degrading and needs to stabilize quickly`;
+        ? `${eventType.replaceAll("_", " ")} is stalling and needs fresh follow-through`
+        : `${eventType.replaceAll("_", " ")} is degrading and needs to stabilize`;
 
   return {
     title: `${symbol} ${eventType.replaceAll("_", " ")} state update`,
     body: [
-      line,
-      `status: ${progressLabel} | directional ${directionalText}`,
-      `path: ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} -> ${currentPrice >= 1 ? currentPrice.toFixed(2) : currentPrice.toFixed(4)}`,
+      `Status: ${progressLabel}`,
+      "",
+      "What it means:",
+      `- ${line}`,
+      `- alert direction move: ${directionalText}`,
+      "",
+      "Path:",
+      `- ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} -> ${currentPrice >= 1 ? currentPrice.toFixed(2) : currentPrice.toFixed(4)}`,
     ].join("\n"),
     symbol,
     timestamp,
@@ -183,10 +413,7 @@ export function formatContinuityUpdateAsPayload(params: {
 
   return {
     title: `${interpretation.symbol} setup update`,
-    body: [
-      interpretation.message,
-      `continuity: ${interpretation.type.replaceAll("_", " ")} | confidence ${interpretation.confidence.toFixed(2)}`,
-    ].join("\n"),
+    body: interpretation.message,
     symbol: interpretation.symbol,
     timestamp: interpretation.timestamp,
     metadata: {
@@ -297,14 +524,14 @@ function buildSnapshotMapLine(payload: LevelSnapshotPayload): string {
     const resistanceDistance = Math.abs(nearestResistance.representativePrice - payload.currentPrice) / Math.max(payload.currentPrice, 0.0001);
     const ratio = resistanceDistance / Math.max(supportDistance, 0.0001);
     if (ratio <= 0.8) {
-      skew = "bearish room";
+      skew = "support-side risk";
     } else if (ratio >= 1.2) {
       skew = "bullish room";
     } else {
       skew = "balanced room";
     }
   } else if (nearestResistance) {
-    skew = "bearish room";
+    skew = "support-side risk";
   } else if (nearestSupport) {
     skew = "bullish room";
   } else {
@@ -314,22 +541,80 @@ function buildSnapshotMapLine(payload: LevelSnapshotPayload): string {
   return `MAP: nearest support ${supportText} | nearest resistance ${resistanceText} | ${skew}`;
 }
 
+function buildSnapshotReadLines(payload: LevelSnapshotPayload): string[] {
+  const nearestSupport = nearestSnapshotLevel(payload.supportZones, payload.currentPrice, "support");
+  const nearestResistance = nearestSnapshotLevel(payload.resistanceZones, payload.currentPrice, "resistance");
+  const lines: string[] = [];
+
+  if (nearestSupport && nearestResistance) {
+    const supportDistance = Math.abs(nearestSupport.representativePrice - payload.currentPrice) / Math.max(payload.currentPrice, 0.0001);
+    const resistanceDistance = Math.abs(nearestResistance.representativePrice - payload.currentPrice) / Math.max(payload.currentPrice, 0.0001);
+    lines.push(
+      `Price is between support ${formatLevel(nearestSupport.representativePrice)} and resistance ${formatLevel(nearestResistance.representativePrice)}.`,
+    );
+
+    if (resistanceDistance < supportDistance * 0.8) {
+      lines.push(
+        `Upside room is tight until ${payload.symbol} clears ${formatLevel(nearestResistance.representativePrice)}.`,
+      );
+    } else if (supportDistance < resistanceDistance * 0.8) {
+      lines.push(
+        `Support is close while ${payload.symbol} holds above ${formatLevel(nearestSupport.representativePrice)}.`,
+      );
+    } else {
+      lines.push("Room is fairly balanced between the nearest support and resistance.");
+    }
+    return lines;
+  }
+
+  if (nearestResistance) {
+    lines.push(
+      `Nearest resistance is ${formatLevel(nearestResistance.representativePrice)}; no nearby support is in the current ladder.`,
+    );
+    return lines;
+  }
+
+  if (nearestSupport) {
+    lines.push(
+      `Nearest support is ${formatLevel(nearestSupport.representativePrice)}; no nearby resistance is in the current ladder.`,
+    );
+    return lines;
+  }
+
+  return ["No nearby support or resistance is available in the current ladder."];
+}
+
+function formatSnapshotLevelList(
+  zones: LevelSnapshotDisplayZone[],
+  currentPrice: number,
+  limit?: number,
+): string {
+  const selected = limit === undefined ? zones : zones.slice(0, limit);
+  return selected.length > 0
+    ? selected.map((zone) => formatSnapshotDisplayZone(zone, currentPrice)).join(", ")
+    : "none";
+}
+
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
-  const supportLine =
-    payload.supportZones.length > 0
-      ? payload.supportZones.map((zone) => formatSnapshotDisplayZone(zone, payload.currentPrice)).join(", ")
-      : "none";
-  const resistanceLine =
-    payload.resistanceZones.length > 0
-      ? payload.resistanceZones.map((zone) => formatSnapshotDisplayZone(zone, payload.currentPrice)).join(", ")
-      : "none";
+  const keySupportLine = formatSnapshotLevelList(payload.supportZones, payload.currentPrice, 3);
+  const keyResistanceLine = formatSnapshotLevelList(payload.resistanceZones, payload.currentPrice, 3);
+  const supportLine = formatSnapshotLevelList(payload.supportZones, payload.currentPrice);
+  const resistanceLine = formatSnapshotLevelList(payload.resistanceZones, payload.currentPrice);
 
   return [
     `LEVEL SNAPSHOT: ${payload.symbol}`,
     `PRICE: ${formatLevel(payload.currentPrice)}`,
-    buildSnapshotMapLine(payload),
-    `SUPPORT: ${supportLine}`,
-    `RESISTANCE: ${resistanceLine}`,
+    "",
+    "CURRENT READ:",
+    ...buildSnapshotReadLines(payload).map((line) => `- ${line}`),
+    "",
+    "KEY LEVELS:",
+    `- Resistance: ${keyResistanceLine}`,
+    `- Support: ${keySupportLine}`,
+    "",
+    "FULL LADDER:",
+    `- Support: ${supportLine}`,
+    `- Resistance: ${resistanceLine}`,
   ].join("\n");
 }
 

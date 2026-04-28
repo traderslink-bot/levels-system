@@ -19,6 +19,352 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-28 America/Toronto
+
+### Refreshed project docs for current runtime behavior
+
+- Updated:
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+  - `docs/36_RUNTIME_HANDOFF_2026-04-25.md`
+- What changed:
+  - documented that Finnhub first-thread openers no longer include quote/price fields because the free-tier quote data can be stale during premarket/after-hours testing
+  - documented that snapshot level omission/compaction diagnostics live in `discord-delivery-audit.jsonl`, not in trader-facing Discord posts
+  - updated older handoff notes so the approved Finnhub opener field set matches the current implementation
+- Why this matters:
+  - docs now match the current live-test assumptions: IBKR/trading provider data owns price context, Finnhub only gives ticker/profile context, and level-audit details stay operator-only
+- Verification:
+  - docs-only update
+
+### Added snapshot level audit metadata
+
+- Updated:
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+- What changed:
+  - level snapshot payloads now include operator-only audit metadata showing every surfaced support/resistance candidate and extension resistance candidate considered for the snapshot
+  - the audit marks each candidate as displayed, compacted, on the wrong side of price, or outside the forward resistance range
+  - audit entries preserve source timeframes, source types, strength, confluence, evidence count, freshness, and extension status
+  - `discord-delivery-audit.jsonl` now records omitted snapshot levels and their reasons without changing the trader-facing Discord snapshot text
+- Why this matters:
+  - when a runner appears to miss an obvious daily level, the logs can now show whether the system never found it, found it but compacted it into a nearby stronger level, filtered it because price had already crossed it, or left it outside the forward planning range
+  - this keeps Discord readable while improving diagnosis of ATER-style level ladder questions
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/alert-router.test.ts`
+  - `npm run build`
+  - `npm test`
+
+### Tightened live Discord post volume
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+  - `README.md`
+- What changed:
+  - manual watchlist level seeding now defaults to 520 daily candles instead of 220, with configurable `LEVEL_MANUAL_LOOKBACK_DAILY`, `LEVEL_MANUAL_LOOKBACK_4H`, and `LEVEL_MANUAL_LOOKBACK_5M` env overrides
+  - runtime status now exposes the active historical lookbacks so stale/too-shallow level seeding is visible from the UI
+  - fast resistance/support clear posts now advance through the active ladder after the first level is cleared, so runners can post that a later level such as 1.39 cleared instead of staying anchored to the original snapshot level
+  - materially higher fast-cleared resistance levels can post even when a lower breakout/clear post happened recently
+  - level-extension posts now wait until price approaches the far edge of the displayed ladder instead of the nearest resistance, preventing `NEXT LEVELS` from jumping to an extension while intermediate displayed resistance remains ahead
+  - AI signal commentary is now rate-limited to one live AI read per symbol every 10 minutes
+  - symbol recaps now use a 30-minute cooldown and are suppressed for 3 minutes after story-critical alerts or follow-through posts
+  - symbol recaps are also suppressed when an AI read posted recently, so the thread does not get both forms of optional explanation on the same move
+  - continuity/setup updates now wait longer after real alerts/follow-through posts, use a longer exact-message cooldown, and have tighter optional-post density limits
+  - follow-through updates now suppress repeated same-symbol, same-event, same-level outcomes for 5 minutes, which keeps runners from posting the same working/failed result over and over
+- Why this matters:
+  - ATER at 1.62 showed `Resistance: none` because the manual runtime's 220-daily-candle request only reached roughly June 2025 and omitted older overhead resistance
+  - ATER cleared 1.39 during a halted runner move, but the bridge stayed stuck on the earlier 1.32 clear and did not post the materially higher resistance clear
+  - ATER at 1.67 posted `NEXT LEVELS: 2.50` even though 1.87, 2.30, and 2.40 were still visible in the snapshot ladder
+  - live logs still showed bursts like alert + level clear + follow-through + recap + AI inside a few seconds
+  - BIYA and ATER runner logs showed repeated breakdown/compression follow-through on the same active move
+  - the goal is to keep core deterministic alerts and meaningful follow-through, while cutting optional companion posts that crowd the thread
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run build`
+
+### Calmed repeated live thread narration
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - removed urgent `quickly` wording from weakening/degrading trader-facing updates
+  - added a 10-minute exact-message cooldown for continuity/setup updates so the same `stalling` or `kept working` line cannot keep cycling after the label changes
+  - preserved fast level-clear memory through extension maintenance so repeated extension checks do not allow the same `resistance cleared` message to repost
+- Why this matters:
+  - live BIYA output used unnecessary urgency in `needs a better reaction quickly`
+  - live logs showed repeated setup updates and repeated same-level `resistance cleared` posts, especially on SKYQ/SEGG/ATER-style movers
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/alert-router.test.ts src/tests/alert-intelligence.test.ts`
+  - `npm run build`
+
+### Suppressed duplicate fast level-clear posts
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - fast resistance/support clear updates now mark the cleared level before the Discord route resolves
+  - added coverage for overlapping price ticks that cross the same cleared level while the first Discord post is still in flight
+- Why this matters:
+  - live logs showed BIYA and SEGG could post multiple `resistance cleared` messages within milliseconds for the same move
+  - the duplicate posts came from concurrent async price-update handling, not from materially different levels
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run build`
+  - `npm test`
+
+### Started monitoring restored symbols during slow startup restores
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - startup restore now starts live monitoring for symbols as soon as they finish restoring instead of waiting for every persisted symbol to finish
+  - startup restore level seeding now uses the same late-timeout grace path as queued activation, so a slow IBKR seed that finishes after the first timeout can still be used
+  - runtime health now flips to started while restore is in progress, matching the fact that ready symbols can already be monitored
+- Why this matters:
+  - live logs showed KIDZ and SEGG restored successfully, but live price monitoring had not started because later symbols were still restoring or waiting on IBKR
+  - DRCT also timed out during restore and then produced levels shortly after, which should not leave the whole runtime stalled
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run build`
+  - `npm test`
+
+### Added conditional dip-buy area to long-caution alerts
+
+- Updated:
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/ai/trader-commentary-service.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/trader-commentary-service.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - breakdown, failed-breakout, and rejection alerts can now show a `possible dip-buy area` when the next support-side barrier is known
+  - the dip-buy area is explicitly conditional, for example: buyers must stabilize there or reclaim the lost level
+  - long-caution alerts now include a `Hold / failure map` that names the reclaim line and the next support risk area without telling the trader to buy or sell
+  - the readable Discord alert includes the conditional dip-buy area in `What to watch` and labels it in `Next levels`
+  - the live AI prompt now allows mentioning a provided possible dip-buy area only as conditional support where buyers must stabilize
+  - removed direct-advice style phrases such as `avoid longs` from the raw watch-line language, replacing them with risk-context wording
+- Why this matters:
+  - long-only caution alerts should not only say what to avoid; they should also tell the trader where a future long setup might start to become interesting again
+  - traders already in a position need a clean level map: what must be reclaimed or held, and where risk opens next if buyers do not stabilize
+- Verification:
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/trader-commentary-service.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run build`
+  - `npm test`
+
+### Tightened live AI commentary wording
+
+- Updated:
+  - `src/lib/ai/trader-commentary-service.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/trader-commentary-service.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - live AI signal commentary now asks for exactly one short sentence, capped at 35 words
+  - added output blocking for `downside`, `target`, `objective`, `first support`, `next support`, `wait to open`, and `open new longs`
+  - normalized AI punctuation back to ASCII before posting so Discord/audit logs stay cleaner
+  - removed `Next levels` and target/barrier metadata from the live AI prompt payload so the model does not reframe support as a downside destination
+- Why this matters:
+  - live AI reads were successfully posting, but some still sounded too much like downside/support-target commentary instead of long-only chart context
+- Verification:
+  - `npx tsx --test src/tests/trader-commentary-service.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run build`
+  - `npm test`
+
+### Wired AI reads into live alert threads
+
+- Updated:
+  - `src/lib/ai/trader-commentary-service.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/runtime/manual-watchlist-page.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+  - `src/tests/trader-commentary-service.test.ts`
+  - `src/tests/manual-watchlist-server.test.ts`
+  - `README.md`
+  - `docs/32_AI_COMMENTARY_WORKFLOW.md`
+- What changed:
+  - when `LEVEL_AI_COMMENTARY=1` and `OPENAI_API_KEY` are present, deterministic intelligent alerts still post first, then a separate `AI read` can post into the same symbol thread
+  - AI commentary failures do not block deterministic alert delivery
+  - added long-only AI prompt rules so bearish conditions are framed as wait/reclaim/confirmation/risk context, not short setups
+  - added an output guard that drops AI text containing short-side or direct execution wording
+  - updated the runtime UI/config route from `symbol recaps only` to `symbol recaps and live alert AI reads`
+- Why this matters:
+  - the private Discord test channel can now show whether AI commentary is actually useful beside the deterministic post, while the deterministic engine remains the source of truth
+- Verification:
+  - `npx tsx --test src/tests/trader-commentary-service.test.ts src/tests/manual-watchlist-server.test.ts src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts`
+  - `npm run build`
+
+### Kept Discord alert language long-only
+
+- Updated:
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - reframed breakdown, failed-breakout, and resistance-rejection alerts as long-side risk/caution instead of short-side trade setups
+  - removed bearish-breakdown, stay-below, rejection-continuation, and support-objective style wording from trader-facing alert copy
+  - stopped long-caution events from publishing support-side targets as if they were downside objectives
+  - kept bullish/reclaim/support-defense language focused on upside follow-through, confirmation, invalidation, and risk control
+  - reframed live continuity updates for breakdown, failed-breakout, and rejection follow-through so they say long-side caution stayed active instead of implying a short setup worked
+  - removed trader-facing `thread` and `continuity:` wording from setup updates, and added a short spacing guard so optional setup updates do not post immediately after more important alerts or follow-through posts
+- Why this matters:
+  - this system is intended for long-only traders, including newer traders, so bearish events should tell them when to avoid, wait, or require a reclaim rather than imply a short trade
+  - Discord implementation words such as `thread` and internal labels such as `continuity` are not useful to traders reading live posts
+- Verification:
+  - `rg -n -i "stay below|shorting|sell short|short entry|bearish breakdown|target: first support objective|target: first resistance objective|rejection continuation|sellers defended|downside follow-through|support objective" src/lib/alerts src/lib/monitoring src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts`
+  - `rg -n -i "\bshort\b|\bshorts\b" src/lib/alerts src/lib/monitoring src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts`
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts`
+  - `npm run build`
+
+### Stabilized activation after slow IBKR level seeding
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - serialized monitor restarts so old startup/restore work cannot keep reseeding symbols after the operator deactivates them
+  - made activation retries reuse levels from a slow IBKR seed that finished after the timeout instead of starting another candle fetch
+  - stopped monitoring restarts from starting live monitoring for symbols still in `activating`
+  - made startup restore skip work for entries that were deactivated while restore was still running
+  - reset `activatedAt` for reactivated or previously-stuck activating symbols so stale entries do not show huge stuck durations
+  - kept forced refresh paths able to rebuild levels even when levels already exist
+  - made deactivation cancel the symbol's queued activation epoch so late snapshot/seed work cannot flip removed symbols back into active health counts
+  - changed runtime health counts to report live display entries, preventing inactive stored entries from appearing as active/pending in the summary cards
+  - changed active-symbol boundary refreshes to use cached extension levels instead of force-rebuilding full historical candles during live movement
+  - added an in-flight guard around extension checks so overlapping price updates cannot launch repeated maintenance rebuilds for the same symbol
+- Why this matters:
+  - live testing on April 28 showed new symbols stuck in `activating` while some had already received live prices or late `levels_seeded` events
+  - the root issue was stale/repeated restore and retry work colliding with slow IBKR historical requests
+  - later testing showed the visible active ticker list could be empty while summary cards still showed stale active/pending counts
+  - SKYQ activation later showed active tickers could compete with new activations by repeatedly triggering full historical refreshes from extension fallback
+- Verification:
+  - `npm test`
+  - `npm run build`
+
+## 2026-04-27 America/Toronto
+
+### Added trader-story Discord posts and operator controls
+
+- Updated:
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/monitoring/monitoring-types.ts`
+  - `src/lib/monitoring/watchlist-store.ts`
+  - `src/lib/monitoring/watchlist-state-persistence.ts`
+  - `src/runtime/manual-watchlist-page.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+  - related formatter, runtime, server, and persistence tests
+- What changed:
+  - changed intelligent alerts, follow-through updates, and fast level-clear bridge posts to use a consistent `Status`, `What it means`, `What to watch`, and `Next levels` structure
+  - simplified trader-facing pressure wording while keeping scores in metadata/audit fields
+  - added per-ticker operation status, last live price timestamp, last Discord post timestamp, and last Discord post kind
+  - persisted the new watchlist entry health fields so startup restore and UI state are easier to inspect
+  - added UI buttons to copy a thread id, repost the latest level snapshot, and manually refresh levels for an active ticker
+  - added server endpoints for manual level refresh and snapshot repost
+- Why this matters:
+  - the Discord thread should read more like one evolving trade story instead of a stream of raw system events
+  - the operator UI now explains whether a ticker is queued, building levels, posting a snapshot, monitoring live price, or waiting on retry/restore
+  - manual refresh/repost controls make market-closed testing and live debugging easier without rebuilding the watchlist
+- Verification:
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/manual-watchlist-runtime-manager.test.ts src/tests/manual-watchlist-server.test.ts src/tests/watchlist-state-persistence.test.ts`
+  - `npm run build`
+
+### Polished alert wording for market-closed review
+
+- Updated:
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/alert-router.test.ts`
+- What changed:
+  - removed raw pressure-score numbers from trader-facing intelligent alert copy while keeping the underlying score in metadata
+  - formatted single-price zones as one level, so alerts say `3.10` instead of `3.10-3.10`
+  - reused the single-level formatting in level-touch and compression watch lines
+  - added coverage to prevent single-price zones from regressing back into duplicated ranges
+- Why this matters:
+  - live CAST output showed the core read was improving, but score-like text and repeated same-price ranges still made the post feel more mechanical than trader-friendly
+- Verification:
+  - `npx tsx --test src/tests/alert-intelligence.test.ts src/tests/alert-router.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+
+### Added same-level story priority and fast level-clear bridge posts
+
+- Updated:
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - added a same-level story resolver so a failed breakout/breakdown suppresses older lower-value level-touch follow-through on the same price area
+  - suppressed zero-move breakout/breakdown `stalling` state updates so the thread does not post `setup move: +0.00%` before a clearer outcome
+  - added compact `level_clear_update` posts when price quickly clears the nearest snapshot resistance/support before the normal zone alert catches the move
+  - de-duplicated those fast-clear posts per symbol/level so repeated ticks above the same cleared level do not spam Discord
+- Why this matters:
+  - live CAST testing showed overlapping posts for the same 2.90 area: breakout state, breakout failed, and older level-touch follow-through
+  - the thread should present one evolving story per level, with breakout failure taking priority over stale level-touch success
+  - fast clears such as `2.90 cleared, next test 3.10` now get their own short bridge update instead of waiting for the next level touch
+- Verification:
+  - `npm test`
+  - `npm run build`
+
+### Prevented level-touch state updates from posting before delayed alerts
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - when a `level_touch` alert is in the short supersede delay window, follow-through state updates for that same symbol/event are held back
+  - added coverage for the exact ordering problem where a `level touch state update` could appear before the `level touch` alert itself
+- Why this matters:
+  - live CAST testing showed a confusing sequence where the state update posted about 0.8 seconds before the underlying alert
+  - the live thread should introduce the setup first, then post follow-through/state only after the setup exists in Discord
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/monitoring-events.test.ts`
+  - `npm run build`
+
+### Tightened live alert posts and same-zone chatter
+
+- Updated:
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - changed intelligent alert Discord bodies to use a shorter `Read` section plus `Nearby levels`
+  - removed raw score/risk math and internal labels from the live post body while keeping those details in metadata/audit fields
+  - de-duplicated repeated nearby levels when the first objective and next barrier are the same price
+  - added a short level-touch supersede delay so an immediate breakout/breakdown can replace the earlier touch instead of posting both back-to-back
+- Why this matters:
+  - live CAST output showed that the alert stream was closer, but still too verbose and confusing for newer traders
+  - a level touch followed immediately by a breakout should read as one decision update, not two competing messages
+- Verification:
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/manual-watchlist-runtime-manager.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/alert-intelligence.test.ts`
+  - `npm run build`
+
+### Reworked level snapshot posts for beginner readability
+
+- Updated:
+  - `src/lib/alerts/alert-router.ts`
+  - `src/tests/alert-router.test.ts`
+  - `docs/37_DISCORD_THREAD_POSTING_SUGGESTIONS_2026-04-25.md`
+- What changed:
+  - recorded live CAST feedback that the old `LEVEL SNAPSHOT` format was not readable enough for traders, especially newer traders
+  - changed snapshot Discord output to lead with `CURRENT READ`, then `KEY LEVELS`, then the longer `FULL LADDER`
+  - kept the full support/resistance ladder available, but moved it below the simpler read so the post no longer starts as a dense level dump
+- Why this matters:
+  - the old format had useful data but forced the trader to decode the map, room bias, support ladder, and resistance ladder before knowing what mattered now
+  - the new format states the immediate support/resistance relationship and room condition first
+
 ## 2026-04-24 2:31 PM America/Toronto
 
 ### Gave manual first activations a longer IBKR historical timeout
@@ -112,6 +458,7 @@ This document tracks concrete implementation changes made to the `levels-system`
   - kept the prototype in new separate files so it does not tangle with the current manual watchlist runtime yet
   - later narrowed the first-post prototype to ticker-specific Finnhub quote/profile data only, leaving news for a separate future channel
   - later narrowed the preview field set further to company name, ticker, exchange, industry, country, website, market cap, current price, percent move, and open/high/low/previous close
+  - later removed Finnhub quote/price fields from the live opener after premarket testing showed free-tier quote data could be stale
   - wired that labeled stock-context card into the live manual watchlist runtime so newly created Discord threads now get the opener before levels finish generating when `FINNHUB_API_KEY` is set
 
 ## 2026-04-23 8:10 PM America/Toronto

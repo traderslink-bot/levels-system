@@ -32,6 +32,8 @@ function isLifecycle(value: unknown): value is WatchlistLifecycleState {
   return (
     value === "inactive" ||
     value === "activating" ||
+    value === "restoring" ||
+    value === "activation_failed" ||
     value === "active" ||
     value === "stale" ||
     value === "refresh_pending" ||
@@ -88,6 +90,43 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     return null;
   }
 
+  if (
+    value.lastError !== undefined &&
+    value.lastError !== null &&
+    typeof value.lastError !== "string"
+  ) {
+    return null;
+  }
+
+  if (
+    value.operationStatus !== undefined &&
+    value.operationStatus !== null &&
+    typeof value.operationStatus !== "string"
+  ) {
+    return null;
+  }
+
+  if (
+    value.lastThreadPostKind !== undefined &&
+    value.lastThreadPostKind !== null &&
+    typeof value.lastThreadPostKind !== "string"
+  ) {
+    return null;
+  }
+
+  const lastError =
+    typeof value.lastError === "string" && value.lastError.trim().length > 0
+      ? value.lastError.trim()
+      : undefined;
+  const operationStatus =
+    typeof value.operationStatus === "string" && value.operationStatus.trim().length > 0
+      ? value.operationStatus.trim()
+      : undefined;
+  const lastThreadPostKind =
+    typeof value.lastThreadPostKind === "string" && value.lastThreadPostKind.trim().length > 0
+      ? value.lastThreadPostKind.trim()
+      : undefined;
+
   return {
     symbol: value.symbol.trim().toUpperCase(),
     active: value.active,
@@ -110,7 +149,12 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     activatedAt: normalizeOptionalTimestamp(value.activatedAt),
     lastLevelPostAt: normalizeOptionalTimestamp(value.lastLevelPostAt),
     lastExtensionPostAt: normalizeOptionalTimestamp(value.lastExtensionPostAt),
+    lastPriceUpdateAt: normalizeOptionalTimestamp(value.lastPriceUpdateAt),
+    lastThreadPostAt: normalizeOptionalTimestamp(value.lastThreadPostAt),
+    ...(lastThreadPostKind !== undefined ? { lastThreadPostKind } : {}),
     refreshPending: typeof value.refreshPending === "boolean" ? value.refreshPending : false,
+    ...(lastError !== undefined ? { lastError } : {}),
+    ...(operationStatus !== undefined ? { operationStatus } : {}),
   };
 }
 
@@ -163,7 +207,12 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
       activatedAt: normalizeOptionalTimestamp(entry.activatedAt),
       lastLevelPostAt: normalizeOptionalTimestamp(entry.lastLevelPostAt),
       lastExtensionPostAt: normalizeOptionalTimestamp(entry.lastExtensionPostAt),
+      lastPriceUpdateAt: normalizeOptionalTimestamp(entry.lastPriceUpdateAt),
+      lastThreadPostAt: normalizeOptionalTimestamp(entry.lastThreadPostAt),
+      lastThreadPostKind: entry.lastThreadPostKind?.trim() || undefined,
       refreshPending: entry.refreshPending ?? false,
+      lastError: entry.lastError?.trim() || undefined,
+      operationStatus: entry.operationStatus?.trim() || undefined,
     })),
   };
 }

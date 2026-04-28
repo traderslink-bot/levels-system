@@ -42,15 +42,13 @@ Current approved field set:
 - country
 - website
 - market cap
-- current price
-- percent change
-- open / high / low / previous close
 
 Explicitly removed from the live opener:
 
 - Finnhub news
 - `STOCK CONTEXT: SYMBOL`
 - `TICKER: SYMBOL`
+- Finnhub quote/price fields such as current price, percent change, open, high, low, and previous close
 - shares outstanding
 - IPO date
 
@@ -265,5 +263,7 @@ The current system is materially better than it was:
 - Finnhub stock-context opening posts are live
 - slow queued activations have more tolerance
 - manual-runtime IBKR historical timeout is now longer
+- Finnhub opener posts no longer include quote/price fields
+- snapshot level audit metadata now lives in `discord-delivery-audit.jsonl` for operator review
 
 The next job is not another wide feature pass. The next job is to validate that first activations now behave reliably and visibly enough in live use.

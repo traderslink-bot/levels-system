@@ -504,11 +504,14 @@ Use it when you want to answer questions like:
 
 - was the thread newly created or reused
 - did the initial level snapshot really post
+- which support/resistance candidates were displayed versus compacted or filtered from a snapshot
+- whether an apparent missing level was already crossed, outside the forward planning range, or simply folded into a nearby stronger level
 - did a trader-facing alert get sent
 - did an extension post happen
 - was there a downstream Discord failure even though the runtime stayed alive
 
 This is especially useful when judging whether Discord output is helpful or too noisy for the end user, because it gives a clean record of what was actually sent instead of only what the runtime evaluated.
+Snapshot audit details are intentionally kept in this artifact rather than posted into Discord, so trader-facing threads stay readable while level-ladder questions remain debuggable.
 
 ## Current Live-Post Discipline
 
