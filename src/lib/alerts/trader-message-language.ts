@@ -772,7 +772,7 @@ function buildWhyNowLine(
         : "why now: price pushed through resistance instead of stalling under the zone";
     case "breakdown":
       return event.eventContext.ladderPosition === "outermost"
-        ? "why now: price lost the outermost support, so longs need a reclaim before trusting the setup"
+        ? "why now: price lost the outermost support, so the setup needs a reclaim before it looks cleaner"
         : "why now: price slipped through support instead of holding the zone, raising risk for longs";
     case "reclaim":
       return zone.kind === "support"
@@ -820,7 +820,7 @@ export function deriveTraderMovementContext(
     case "breakdown":
       return movementStageLine(
         Math.max(0, zone.zoneLow - event.triggerPrice) / zoneLow,
-        "movement: price is still just below the support floor, so longs need a reclaim",
+        "movement: price is still just below the support floor, so the setup needs a reclaim",
         "movement: price is moving farther below support, increasing risk for longs",
         "movement: price is already well below support and extended away from the lost zone",
       );

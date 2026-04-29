@@ -49,10 +49,12 @@ test("validateTraderCommentaryText blocks short-side or direct execution wording
   assert.equal(validateTraderCommentaryText("Limited downside to support at 1.04."), null);
   assert.equal(validateTraderCommentaryText("Wait to open new longs until price reclaims 3.04."), null);
   assert.equal(validateTraderCommentaryText("The next support is near 2.92."), null);
-  assert.equal(
-    validateTraderCommentaryText("Longs should wait for a reclaim before trusting the setup."),
-    "Longs should wait for a reclaim before trusting the setup.",
-  );
+  assert.equal(validateTraderCommentaryText("Longs should wait for a reclaim before trusting the setup."), null);
+  assert.equal(validateTraderCommentaryText("Traders should wait for acceptance above resistance."), null);
+  assert.equal(validateTraderCommentaryText("Best entry is on a pullback into support."), null);
+  assert.equal(validateTraderCommentaryText("Traders can buy if price holds support."), null);
+  assert.equal(validateTraderCommentaryText("Good place to add if this level reclaims."), null);
+  assert.equal(validateTraderCommentaryText("Buyers need acceptance above resistance before continuation looks cleaner."), "Buyers need acceptance above resistance before continuation looks cleaner.");
 });
 
 test("OpenAITraderCommentaryService summarizes a symbol thread from output_text", async () => {
@@ -161,7 +163,7 @@ test("OpenAITraderCommentaryService sends long-only rules for signal explanation
       requestBody = JSON.parse(String(init?.body));
       return new Response(
         JSON.stringify({
-          output_text: "Longs should wait for acceptance above resistance before trusting continuation.",
+          output_text: "Buyers need acceptance above resistance before continuation looks cleaner.",
         }),
         {
           status: 200,
@@ -177,7 +179,7 @@ test("OpenAITraderCommentaryService sends long-only rules for signal explanation
     deterministicBody: "breakout through resistance",
   });
 
-  assert.match(result?.text ?? "", /Longs should wait/);
+  assert.match(result?.text ?? "", /Buyers need acceptance/);
   assert.match(
     requestBody?.input?.[0]?.content?.[0]?.text ?? "",
     /long-only traders/i,
@@ -189,6 +191,10 @@ test("OpenAITraderCommentaryService sends long-only rules for signal explanation
   assert.match(
     requestBody?.input?.[0]?.content?.[0]?.text ?? "",
     /Do not use the words downside, target, objective/i,
+  );
+  assert.match(
+    requestBody?.input?.[0]?.content?.[0]?.text ?? "",
+    /Do not write 'longs should wait'/i,
   );
   assert.match(
     requestBody?.input?.[0]?.content?.[0]?.text ?? "",

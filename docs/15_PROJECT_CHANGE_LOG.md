@@ -21,6 +21,26 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-29 America/Toronto
 
+### Tightened trader-view-only Discord language boundary
+
+- Updated:
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/ai/trader-commentary-service.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/trader-commentary-service.test.ts`
+- What changed:
+  - removed the Discord-visible `Update type: existing setup update, not a new setup` line from repeated follow-through posts; the state remains in metadata for audit/review only
+  - tightened AI commentary validation so phrases like `longs should wait`, `traders should wait`, `best entry`, `can buy`, `should add`, `should trim`, `take profit`, and `stop out` are rejected from trader-facing AI reads
+  - rewrote remaining deterministic `longs need...` style caution wording into setup-context wording such as `the setup needs stabilization or a reclaim`
+  - rewrote a fast support-loss fallback from an operator-like `wait for buyers...` instruction into observational trader context
+- Why this matters:
+  - Discord posts are now treated as trader-view only; operator/testing context belongs in logs, audit files, diagnostics, replay reports, and review artifacts
+  - AI commentary should not be looser or more advisory than deterministic posts
+- Verification:
+  - `npx tsx --test src/tests/trader-commentary-service.test.ts src/tests/alert-router.test.ts src/tests/alert-intelligence.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+
 ### Preserved untested higher-timeframe levels during refreshes
 
 - Updated:

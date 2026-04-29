@@ -1460,7 +1460,7 @@ export class ManualWatchlistRuntimeManager {
         `- reclaiming ${formatSnapshotLevel(support)} is needed to repair the level`,
         nextSupportText
           ? `- next support reaction area: ${nextSupportText}; buyers need stabilization there or a reclaim of ${formatSnapshotLevel(support)}`
-          : "- wait for buyers to stabilize before treating the drop as repaired",
+          : "- buyers need to stabilize before the drop looks repaired",
         nextSupportLevel
           ? `- below ${formatSnapshotLevel(support)}, risk stays open toward ${nextSupportLevel}`
           : `- below ${formatSnapshotLevel(support)}, risk stays elevated until a new support forms`,
@@ -2414,7 +2414,7 @@ export class ManualWatchlistRuntimeManager {
           eventType: progressUpdate.eventType,
           message:
             directional >= 0.45
-              ? `${eventLabel} caution is still active, so longs need stabilization or a reclaim before trusting the setup.`
+              ? `${eventLabel} caution is still active, so the setup needs stabilization or a reclaim before it looks cleaner.`
               : `${eventLabel} caution is improving, so longs still need confirmation before stepping back in.`,
         };
       }
@@ -2481,7 +2481,7 @@ export class ManualWatchlistRuntimeManager {
         continuityType: "continuation",
         eventType: evaluation.eventType,
         message: longCautionEvent
-          ? `${eventLabel} caution stayed active; longs need stabilization or a reclaim before trusting the setup.`
+          ? `${eventLabel} caution stayed active; the setup needs stabilization or a reclaim before it looks cleaner.`
           : `${eventLabel} kept working, so the setup still has follow-through instead of fading immediately.`,
       };
     }

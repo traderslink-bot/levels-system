@@ -547,7 +547,7 @@ test("formatFollowThroughUpdateAsPayload marks repeated outcome updates as exist
     },
   });
 
-  assert.match(payload.body, /Update type: existing setup update, not a new setup/);
+  assert.doesNotMatch(payload.body, /Update type|existing setup update|not a new setup/);
   assert.match(payload.body, /for longs, 2\.41 needs to be reclaimed/);
   assert.equal(payload.metadata?.repeatedOutcomeUpdate, true);
 });

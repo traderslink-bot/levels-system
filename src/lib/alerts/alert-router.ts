@@ -422,7 +422,6 @@ export function formatFollowThroughUpdateAsPayload(params: {
     title: `${symbol} ${eventType} follow-through`,
     body: [
       `Status: ${followThrough.label}`,
-      ...(params.repeatedOutcomeUpdate ? ["Update type: existing setup update, not a new setup"] : []),
       "",
       "What changed:",
       `- ${stripLinePrefix(followThrough.line)}`,
