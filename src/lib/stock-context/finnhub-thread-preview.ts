@@ -139,7 +139,7 @@ function buildYahooLines(preview: StockContextPreview): string[] {
   const summary = yahoo.summary;
   const previousDay = yahoo.previousDay;
   if (!quote && !summary && !previousDay) {
-    return ["", "Yahoo context: unavailable"];
+    return [];
   }
 
   const lines = ["", "Yahoo context:"];
@@ -210,18 +210,7 @@ function buildYahooLines(preview: StockContextPreview): string[] {
     lines.push(`Company description (Yahoo): ${description}`);
   }
 
-  if (lines.length === 2) {
-    lines.push("Yahoo quote and financial fields are unavailable for this symbol.");
-  } else {
-    if (!quote) {
-      lines.push("Yahoo quote fields are unavailable for this symbol.");
-    }
-    if (!summary) {
-      lines.push("Yahoo financial fields are unavailable for this symbol.");
-    }
-  }
-
-  return lines;
+  return lines.length > 2 ? lines : [];
 }
 
 export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview | StockContextPreview): AlertPayload {
