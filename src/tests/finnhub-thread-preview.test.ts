@@ -318,7 +318,7 @@ test("YahooClient uses chart price when quote endpoint has no usable price", asy
   assert.match(content, /Current price \(Yahoo\): 1\.27 \(premarket\)/);
 });
 
-test("formatFinnhubThreadPreview includes Yahoo source-labeled trader context", () => {
+test("formatFinnhubThreadPreview includes only Yahoo current price in trader context", () => {
   const content = formatFinnhubThreadPreview({
     symbol: "EXMP",
     quote: {
@@ -387,17 +387,17 @@ test("formatFinnhubThreadPreview includes Yahoo source-labeled trader context", 
 
   assert.match(content, /Yahoo context:/);
   assert.match(content, /Current price \(Yahoo\): 12\.50 \(premarket\)/);
-  assert.match(content, /Previous day range \(Yahoo\): high 11\.00 \| low 9\.00/);
-  assert.match(content, /52-week range \(Yahoo\): high 20\.00 \| low 4\.50/);
-  assert.match(content, /Market cap \(Yahoo\): \$875\.00M/);
-  assert.match(content, /Float \/ shares \(Yahoo\): float 25\.00M \| shares outstanding 40\.00M/);
-  assert.match(content, /Short interest \(Yahoo\): 10\.0% of float \| shares short 2\.50M \| short ratio 1\.25/);
-  assert.match(content, /Profitability \(Yahoo\): profit margin -8\.0% \| operating margin -12\.0%/);
-  assert.match(content, /Cash \/ debt \(Yahoo\): cash \$50\.00M \| debt \$8\.00M/);
-  assert.match(content, /Company description \(Yahoo\): Example builds trader tools\./);
+  assert.doesNotMatch(content, /Previous day range \(Yahoo\)/);
+  assert.doesNotMatch(content, /52-week range \(Yahoo\)/);
+  assert.doesNotMatch(content, /Market cap \(Yahoo\)/);
+  assert.doesNotMatch(content, /Float \/ shares \(Yahoo\)/);
+  assert.doesNotMatch(content, /Short interest \(Yahoo\)/);
+  assert.doesNotMatch(content, /Profitability \(Yahoo\)/);
+  assert.doesNotMatch(content, /Cash \/ debt \(Yahoo\)/);
+  assert.doesNotMatch(content, /Company description \(Yahoo\)/);
 });
 
-test("formatFinnhubThreadPreview omits empty Yahoo fields instead of posting n/a blocks", () => {
+test("formatFinnhubThreadPreview omits Yahoo section when only non-current-price Yahoo fields are available", () => {
   const content = formatFinnhubThreadPreview({
     symbol: "EXMP",
     quote: {
@@ -427,8 +427,8 @@ test("formatFinnhubThreadPreview omits empty Yahoo fields instead of posting n/a
     },
   });
 
-  assert.match(content, /Yahoo context:/);
-  assert.match(content, /Previous day range \(Yahoo\): high 1\.27 \| low 1\.16/);
+  assert.doesNotMatch(content, /Yahoo context:/);
+  assert.doesNotMatch(content, /Previous day range \(Yahoo\)/);
   assert.doesNotMatch(content, /unavailable/i);
   assert.doesNotMatch(content, /Current price \(Yahoo\): n\/a/);
   assert.doesNotMatch(content, /Regular session \(Yahoo\): price n\/a/);

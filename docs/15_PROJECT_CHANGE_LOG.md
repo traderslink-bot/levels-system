@@ -37,7 +37,7 @@ This document tracks concrete implementation changes made to the `levels-system`
   - Yahoo fields include current regular/premarket/postmarket price context, current day high/low/volume, previous day high/low, 52-week range, market cap, float, shares outstanding, short interest, profitability, cash/debt, revenue/growth, and company description
   - added a combined stock-context provider so Finnhub and Yahoo can both contribute while failures in one source do not block the other
   - added `YAHOO_STOCK_CONTEXT_ENABLED=false` as the opt-out switch for Yahoo enrichment
-  - refined the Yahoo opener formatting so partial Yahoo responses only show fields that came back with usable data instead of printing large `n/a` blocks or unavailable labels
+  - refined the Yahoo opener formatting so live Discord only shows the current Yahoo price mark; other Yahoo fields stay out of the opener for now because availability is inconsistent across small-cap symbols
   - added a Yahoo chart-price fallback so the opener can still show a current Yahoo mark when the quote endpoint is empty but the chart endpoint returns regular/premarket/postmarket bars
 - Why this matters:
   - market cap and other fundamentals can differ by source, so the opener now labels Finnhub and Yahoo values separately instead of merging them into one implied truth
