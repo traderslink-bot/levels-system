@@ -21,6 +21,24 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-29 America/Toronto
 
+### Calmed remaining trader-facing level wording from live log review
+
+- Updated:
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - renamed follow-through state titles from `state update` to `progress check`
+  - changed fast level-cross wording from `next resistance/support is...` to nearby-level language like `nearby resistance above is...` and `nearby support below is...`
+  - changed support reaction wording from `next support reaction area` to `nearby support reaction area`
+  - removed deterministic `downside` wording from level-room descriptions in favor of lower-support wording
+- Why this matters:
+  - live posts should read like trader context, not system state labels or implied price predictions
+- Verification:
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/manual-watchlist-runtime-manager.test.ts src/tests/alert-intelligence.test.ts`
+
 ### Added Yahoo enrichment to the initial stock-context opener
 
 - Updated:

@@ -1374,14 +1374,14 @@ export class ManualWatchlistRuntimeManager {
       const resistanceLine = formatSnapshotLevel(resistanceBreakLine ?? resistance);
       const title = `${symbol} resistance crossed`;
       const body = [
-        `price pushed above ${resistanceLine}${nextResistanceText ? `; next resistance is ${nextResistanceText}` : ""}`,
+        `price pushed above ${resistanceLine}${nextResistanceText ? `; nearby resistance above is ${nextResistanceText}` : ""}`,
         "",
         "Breakout attempt is being tested.",
         "",
         "What it means:",
         `- ${resistanceLine} is being tested from above, but it still needs to hold`,
         nextResistanceText
-          ? `- next resistance is ${nextResistanceText}`
+          ? `- nearby resistance above is ${nextResistanceText}`
           : "- no higher resistance is currently in the surfaced ladder",
         "",
         "What to watch:",
@@ -1448,20 +1448,20 @@ export class ManualWatchlistRuntimeManager {
       const nextSupportLevel = formatFastLevelOnly(nextSupport);
       const title = `${symbol} support crossed lower`;
       const body = [
-        `price slipped below ${formatSnapshotLevel(support)}${nextSupportText ? `; next support is ${nextSupportText}` : ""}`,
+        `price slipped below ${formatSnapshotLevel(support)}${nextSupportText ? `; nearby support below is ${nextSupportText}` : ""}`,
         "",
         "Support loss is being tested.",
         "",
         "What it means:",
         `- ${formatSnapshotLevel(support)} is being tested from below, but it can still be reclaimed`,
         nextSupportText
-          ? `- next support is ${nextSupportText}`
+          ? `- nearby support below is ${nextSupportText}`
           : "- no lower support is currently in the surfaced ladder",
         "",
         "What to watch:",
         `- reclaiming ${formatSnapshotLevel(support)} is needed to repair the level`,
         nextSupportText
-          ? `- next support reaction area: ${nextSupportText}; buyers need stabilization there or a reclaim of ${formatSnapshotLevel(support)}`
+          ? `- nearby support reaction area: ${nextSupportText}; buyers need stabilization there or a reclaim of ${formatSnapshotLevel(support)}`
           : "- buyers need to stabilize before the drop looks repaired",
         nextSupportLevel
           ? `- below ${formatSnapshotLevel(support)}, risk stays open toward ${nextSupportLevel}`

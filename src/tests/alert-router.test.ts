@@ -91,7 +91,7 @@ const samplePayload: AlertPayload = {
 };
 
 const DISCORD_SYSTEM_LANGUAGE_PATTERN =
-  /Status:|Signal:|Decision area|setup update|state recap|setup move|alert direction|after the alert|thread stayed|mapped|remapped|operator-only|policy|suppression|replay|simulation|runtime-only|not a price target/i;
+  /Status:|Signal:|Decision area|setup update|state update|state recap|setup move|alert direction|after the alert|thread stayed|mapped|remapped|operator-only|policy|suppression|replay|simulation|runtime-only|not a price target/i;
 
 const DISCORD_DIRECT_ADVICE_PATTERN =
   /\b(?:buy here|buy now|sell now|sell here|take profit|stop out|trim here|add here|exit now|short setup|best entry|safe entry|can buy|should add|should trim|should exit|longs should|traders should|wait for)\b/i;
@@ -288,7 +288,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.targetDistancePct, 0.036);
 });
 
-test("formatIntelligentAlertAsPayload shows reclaim area and next support for long-caution alerts", () => {
+test("formatIntelligentAlertAsPayload shows reclaim area and nearby support for long-caution alerts", () => {
   const breakdownEvent = {
     ...samplePayload.event!,
     id: "evt-breakdown",
@@ -367,9 +367,9 @@ test("formatIntelligentAlertAsPayload shows reclaim area and next support for lo
     tradeMap: null,
   });
 
-  assert.match(payload.body, /What to watch:\n- next support reaction area: light support 1\.06; buyers need stabilization there or a reclaim of 1\.24/);
+  assert.match(payload.body, /What to watch:\n- nearby support reaction area: light support 1\.06; buyers need stabilization there or a reclaim of 1\.24/);
   assert.match(payload.body, /Hold \/ failure map:\n- 1\.24 is the reclaim line for the long setup; below it, risk stays open toward light support 1\.06 unless buyers stabilize first\./);
-  assert.match(payload.body, /Key levels:\n- Reclaim area: moderate resistance 1\.24\n- Next support: light support 1\.06/);
+  assert.match(payload.body, /Key levels:\n- Reclaim area: moderate resistance 1\.24\n- Nearby support: light support 1\.06/);
   assert.doesNotMatch(payload.body, /Risk support/);
   assert.doesNotMatch(payload.body, /dip-buy/i);
   assert.doesNotMatch(payload.body, /Nearby resistance/);
@@ -397,7 +397,7 @@ test("formatIntelligentAlertAsPayload shows tested resistance and nearby support
       "price testing major resistance 2.61-2.64",
       "pressure: buying and selling pressure still look balanced",
       "why now: price is back at resistance; buyers need acceptance above the zone",
-      "room: open downside path to next support 2.16 (-17.2%)",
+      "room: open lower support path to support near 2.16 (-17.2%)",
       "watch: buyers need acceptance above 2.64 before breakout pressure builds",
     ].join("\n"),
     severity: "critical",
@@ -458,7 +458,7 @@ test("formatIntelligentAlertAsPayload shows tested resistance and nearby support
     tradeMap: null,
   });
 
-  assert.match(payload.body, /Key levels:\n- Testing resistance: 2\.61-2\.64\n- Next support: 2\.16/);
+  assert.match(payload.body, /Key levels:\n- Testing resistance: 2\.61-2\.64\n- Nearby support: 2\.16/);
   assert.doesNotMatch(payload.body, /Next levels:/);
   assert.match(payload.body, /buyers need acceptance above 2\.64/);
   assertTraderFacingDiscordText(payload);
@@ -476,6 +476,7 @@ test("formatFollowThroughStateUpdateAsPayload adds live progress metadata", () =
   });
 
   assert.equal(payload.metadata?.messageKind, "follow_through_state_update");
+  assert.equal(payload.title, "ALBT breakout progress check");
   assert.equal(payload.metadata?.progressLabel, "improving");
   assert.equal(payload.metadata?.directionalReturnPct, 0.42);
   assert.match(payload.body, /breakout is improving/);

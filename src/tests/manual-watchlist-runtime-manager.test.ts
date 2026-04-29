@@ -1511,8 +1511,8 @@ test("ManualWatchlistRuntimeManager posts a compact update when nearest snapshot
   );
   assert.equal(clearPosts.length, 1);
   assert.equal(clearPosts[0]?.payload.title, "ALBT resistance crossed");
-  assert.match(clearPosts[0]?.payload.body ?? "", /price pushed above 2\.90; next resistance is moderate resistance 3\.10/);
-  assert.match(clearPosts[0]?.payload.body ?? "", /next resistance is moderate resistance 3\.10/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /price pushed above 2\.90; nearby resistance above is moderate resistance 3\.10/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /nearby resistance above is moderate resistance 3\.10/);
   assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /price target/);
   assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /mapped/);
 
@@ -1610,7 +1610,7 @@ test("ManualWatchlistRuntimeManager waits for full resistance zone clearance bef
     (entry) => entry.payload.metadata?.messageKind === "level_clear_update",
   );
   assert.equal(clearPosts.length, 1);
-  assert.match(clearPosts[0]?.payload.body ?? "", /price pushed above 7\.04; next resistance is moderate resistance 7\.73/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /price pushed above 7\.04; nearby resistance above is moderate resistance 7\.73/);
   assert.match(clearPosts[0]?.payload.body ?? "", /falling back below 7\.04 means the level is still acting like resistance/);
 });
 
@@ -1711,7 +1711,7 @@ test("ManualWatchlistRuntimeManager advances fast resistance clears through runn
   assert.equal(clearPosts[0]?.payload.metadata?.targetPrice, 1.32);
   assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.33);
   assert.equal(clearPosts[2]?.payload.metadata?.targetPrice, 1.39);
-  assert.match(clearPosts[2]?.payload.body ?? "", /price pushed above 1\.39; next resistance is moderate resistance 1\.41/);
+  assert.match(clearPosts[2]?.payload.body ?? "", /price pushed above 1\.39; nearby resistance above is moderate resistance 1\.41/);
   assert.doesNotMatch(clearPosts[2]?.payload.body ?? "", /mapped/);
 });
 
@@ -1881,11 +1881,11 @@ test("ManualWatchlistRuntimeManager does not skip intermediate support when pric
   assert.equal(clearPosts.length, 2);
   assert.equal(clearPosts[0]?.payload.metadata?.targetPrice, 1.22);
   assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.08);
-  assert.match(clearPosts[0]?.payload.body ?? "", /price slipped below 1\.22; next support is moderate support 1\.08/);
-  assert.match(clearPosts[0]?.payload.body ?? "", /next support is moderate support 1\.08/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /price slipped below 1\.22; nearby support below is moderate support 1\.08/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /nearby support below is moderate support 1\.08/);
   assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /price target/);
   assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /mapped/);
-  assert.match(clearPosts[0]?.payload.body ?? "", /next support reaction area: moderate support 1\.08; buyers need stabilization there or a reclaim of 1\.22/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /nearby support reaction area: moderate support 1\.08; buyers need stabilization there or a reclaim of 1\.22/);
   assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /dip-buy/i);
   assert.match(clearPosts[0]?.payload.body ?? "", /below 1\.22, risk stays open toward 1\.08/);
 });

@@ -62,7 +62,7 @@ function formatZoneRange(zone: FinalLevelZone): string {
 }
 
 function clearanceDirectionForSide(side: "support" | "resistance"): string {
-  return side === "resistance" ? "overhead" : "downside";
+  return side === "resistance" ? "overhead" : "lower support";
 }
 
 function isLongCautionEvent(event: MonitoringEvent): boolean {
@@ -83,6 +83,10 @@ function formatBarrierPct(
 function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
   const pctText = formatBarrierPct(nextBarrier.side, nextBarrier.distancePct);
   const sideText = clearanceDirectionForSide(nextBarrier.side);
+  const barrierText =
+    nextBarrier.side === "support"
+      ? `support near ${formatLevel(nextBarrier.price)}`
+      : `next resistance ${formatLevel(nextBarrier.price)}`;
   const clutterText =
     nextBarrier.clutterLabel === "dense"
       ? `; ${sideText} gets dense quickly (${nextBarrier.nearbyBarrierCount ?? 0} nearby levels)`
@@ -92,13 +96,13 @@ function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
 
   switch (nextBarrier.clearanceLabel) {
     case "tight":
-      return `room: tight ${sideText} into next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
+      return `room: tight ${sideText} into ${barrierText} (${pctText})${clutterText}`;
     case "limited":
-      return `room: limited ${sideText} into next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
+      return `room: limited ${sideText} into ${barrierText} (${pctText})${clutterText}`;
     case "open":
-      return `room: open ${sideText} path to next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
+      return `room: open ${sideText} path to ${barrierText} (${pctText})${clutterText}`;
     default:
-      return `room: next ${nextBarrier.side} ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
+      return `room: ${barrierText} (${pctText})${clutterText}`;
   }
 }
 
@@ -114,13 +118,13 @@ function describeLongCautionBarrierRoom(nextBarrier: TraderNextBarrierContext): 
   if (nextBarrier.side === "support") {
     switch (nextBarrier.clearanceLabel) {
       case "tight":
-        return `risk: next support is close at ${formatLevel(nextBarrier.price)} (${pctText}), so longs have little room for error${clutterText}`;
+        return `risk: nearby support is close at ${formatLevel(nextBarrier.price)} (${pctText}), so longs have little room for error${clutterText}`;
       case "limited":
-        return `risk: next support is ${formatLevel(nextBarrier.price)} (${pctText}); long setups need price to stabilize first${clutterText}`;
+        return `risk: nearby support is ${formatLevel(nextBarrier.price)} (${pctText}); long setups need price to stabilize first${clutterText}`;
       case "open":
-        return `risk: open air to next support near ${formatLevel(nextBarrier.price)} (${pctText}) if buyers do not reclaim the level${clutterText}`;
+        return `risk: open air to support near ${formatLevel(nextBarrier.price)} (${pctText}) if buyers do not reclaim the level${clutterText}`;
       default:
-        return `risk: next support is ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
+        return `risk: nearby support is ${formatLevel(nextBarrier.price)} (${pctText})${clutterText}`;
     }
   }
 

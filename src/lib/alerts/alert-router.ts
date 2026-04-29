@@ -138,10 +138,10 @@ function buildSupportReactionLine(alert: IntelligentAlert, barrierText: string |
 
   const reclaimLevel = formatAlertLevel(alert.zone?.zoneHigh);
   if (alert.event.eventType === "breakdown" && reclaimLevel) {
-    return `next support reaction area: ${barrierText}; buyers need stabilization there or a reclaim of ${reclaimLevel}`;
+    return `nearby support reaction area: ${barrierText}; buyers need stabilization there or a reclaim of ${reclaimLevel}`;
   }
 
-  return `next support reaction area: ${barrierText}; buyers need stabilization there first`;
+  return `nearby support reaction area: ${barrierText}; buyers need stabilization there first`;
 }
 
 function buildHoldFailureMapLine(alert: IntelligentAlert, nextSupportText: string | null): string | null {
@@ -258,15 +258,15 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
       nearbyLevels.push(`Reclaim area: ${reclaimArea}`);
     }
     if (alert.nextBarrier?.side === "support" && barrierText) {
-      nearbyLevels.push(`Next support: ${barrierText}`);
+      nearbyLevels.push(`Nearby support: ${barrierText}`);
     }
   } else if (eventType === "level_touch") {
     const zoneRange = formatAlertZoneRange(alert);
     pushNearbyLevel("Testing", alert.event.zoneKind, zoneRange);
-    pushNearbyLevel("Next", alert.nextBarrier?.side ?? "", barrierLevel);
+    pushNearbyLevel("Nearby", alert.nextBarrier?.side ?? "", barrierLevel);
   } else {
     pushNearbyLevel("First", alert.target?.side ?? "", targetLevel);
-    pushNearbyLevel("Next", alert.nextBarrier?.side ?? "", barrierLevel);
+    pushNearbyLevel("Nearby", alert.nextBarrier?.side ?? "", barrierLevel);
   }
 
   const output = [lead];
@@ -496,7 +496,7 @@ export function formatFollowThroughStateUpdateAsPayload(params: {
         : `${eventLabel} is degrading and needs to stabilize`;
 
   return {
-    title: `${symbol} ${eventLabel} state update`,
+    title: `${symbol} ${eventLabel} progress check`,
     body: [
       followThroughProgressLine(progressLabel),
       "",
