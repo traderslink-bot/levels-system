@@ -15,6 +15,18 @@ $discordAuditPath = Join-Path $sessionDirectory "discord-delivery-audit.jsonl"
 $sessionSummaryPath = Join-Path $sessionDirectory "session-summary.json"
 $threadSummaryPath = Join-Path $sessionDirectory "thread-summaries.json"
 $threadClutterPath = Join-Path $sessionDirectory "thread-clutter-report.json"
+$threadPostPolicyPath = Join-Path $sessionDirectory "thread-post-policy-report.json"
+$snapshotAuditReportPath = Join-Path $sessionDirectory "snapshot-audit-report.json"
+$threadPostPolicyMarkdownPath = Join-Path $sessionDirectory "thread-post-policy-report.md"
+$snapshotAuditMarkdownPath = Join-Path $sessionDirectory "snapshot-audit-report.md"
+$tuningSuggestionsPath = Join-Path $sessionDirectory "long-run-tuning-suggestions.json"
+$tuningSuggestionsMarkdownPath = Join-Path $sessionDirectory "long-run-tuning-suggestions.md"
+$livePostReplaySimulationPath = Join-Path $sessionDirectory "live-post-replay-simulation.json"
+$livePostReplaySimulationMarkdownPath = Join-Path $sessionDirectory "live-post-replay-simulation.md"
+$livePostProfileComparisonPath = Join-Path $sessionDirectory "live-post-profile-comparison.json"
+$livePostProfileComparisonMarkdownPath = Join-Path $sessionDirectory "live-post-profile-comparison.md"
+$runnerStoryReportPath = Join-Path $sessionDirectory "runner-story-report.json"
+$runnerStoryReportMarkdownPath = Join-Path $sessionDirectory "runner-story-report.md"
 $sessionReviewPath = Join-Path $sessionDirectory "session-review.md"
 $traderRecapPath = Join-Path $sessionDirectory "trader-thread-recaps.md"
 $feedbackPath = Join-Path $sessionDirectory "human-review-feedback.jsonl"
@@ -752,16 +764,16 @@ function Build-FollowThroughSummary {
 
   switch ($label) {
     "strong" {
-      return "$eventType follow-through stayed strong after the alert."
+      return "$eventType follow-through stayed strong."
     }
     "working" {
-      return "$eventType follow-through stayed positive after the alert."
+      return "$eventType follow-through stayed positive."
     }
     "stalled" {
-      return "$eventType follow-through stalled after the alert and did not separate cleanly."
+      return "$eventType follow-through stalled and did not separate cleanly."
     }
     "failed" {
-      return "$eventType follow-through turned against the alert after trigger."
+      return "$eventType follow-through turned against the setup."
     }
     default {
       return "$eventType follow-through is not classified yet."
@@ -1183,7 +1195,7 @@ function Build-EndOfSessionSummary {
   }
 
   if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.dipBuyQualityLabel) {
-    return "$Symbol ended with a $($SymbolSummary.lastAlert.dipBuyQualityLabel) dip-buy read, which is useful context for deciding whether support tests were actually tradeable."
+    return "$Symbol ended with a $($SymbolSummary.lastAlert.dipBuyQualityLabel) support-reaction read, which is useful context for deciding whether support tests were actually tradeable."
   }
 
   if ($SymbolSummary.lastAlert -and $SymbolSummary.lastAlert.barrierClutterLabel) {
@@ -1456,7 +1468,7 @@ function Build-ThreadSummaryRecord {
       $latestAlertSummary += ("zone=" + [string]$SymbolSummary.lastAlert.tacticalRead)
     }
     if ($SymbolSummary.lastAlert.dipBuyQualityLabel) {
-      $latestAlertSummary += ("dip-buy=" + [string]$SymbolSummary.lastAlert.dipBuyQualityLabel)
+      $latestAlertSummary += ("support-reaction=" + [string]$SymbolSummary.lastAlert.dipBuyQualityLabel)
     }
     if ($SymbolSummary.lastAlert.exhaustionLabel) {
       $latestAlertSummary += ("exhaustion=" + [string]$SymbolSummary.lastAlert.exhaustionLabel)
@@ -2403,6 +2415,18 @@ Write-SessionInfo "discord_audit_log=$discordAuditPath"
 Write-SessionInfo "session_summary=$sessionSummaryPath"
 Write-SessionInfo "thread_summaries=$threadSummaryPath"
 Write-SessionInfo "thread_clutter_report=$threadClutterPath"
+Write-SessionInfo "thread_post_policy_report=$threadPostPolicyPath"
+Write-SessionInfo "snapshot_audit_report=$snapshotAuditReportPath"
+Write-SessionInfo "thread_post_policy_markdown=$threadPostPolicyMarkdownPath"
+Write-SessionInfo "snapshot_audit_markdown=$snapshotAuditMarkdownPath"
+Write-SessionInfo "tuning_suggestions=$tuningSuggestionsPath"
+Write-SessionInfo "tuning_suggestions_markdown=$tuningSuggestionsMarkdownPath"
+Write-SessionInfo "live_post_replay_simulation=$livePostReplaySimulationPath"
+Write-SessionInfo "live_post_replay_simulation_markdown=$livePostReplaySimulationMarkdownPath"
+Write-SessionInfo "live_post_profile_comparison=$livePostProfileComparisonPath"
+Write-SessionInfo "live_post_profile_comparison_markdown=$livePostProfileComparisonMarkdownPath"
+Write-SessionInfo "runner_story_report=$runnerStoryReportPath"
+Write-SessionInfo "runner_story_report_markdown=$runnerStoryReportMarkdownPath"
 Write-SessionInfo "session_review=$sessionReviewPath"
 Write-SessionInfo "human_review_feedback=$feedbackPath"
 Write-SessionInfo "runtime_url=$runtimeUrl"
@@ -2458,4 +2482,18 @@ try {
   Write-SessionInfo "ended_at=$(Get-Date -Format o)"
   $summary.endedAt = Get-Date -Format o
   Save-SessionSummary
+  $pushedRepoLocation = $false
+  try {
+    Push-Location $repoRoot
+    $pushedRepoLocation = $true
+    & npm run longrun:audit:reports -- $sessionDirectory | ForEach-Object {
+      Write-Host $_
+    }
+  } catch {
+    Write-Host "[LongRunLauncher] Failed to generate audit reports: $($_.Exception.Message)"
+  } finally {
+    if ($pushedRepoLocation) {
+      Pop-Location
+    }
+  }
 }

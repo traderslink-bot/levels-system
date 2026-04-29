@@ -47,6 +47,31 @@ The current risks are:
 The best next pass is **not** another broad feature-addition pass.
 The best next pass is a **clarifying, decomposing, and evidence-driven tightening pass**.
 
+## Implementation Progress
+
+### 2026-04-28 follow-up pass
+
+Started the recommended clarifying pass without attempting a broad runtime rewrite.
+
+Completed:
+- extracted the first dedicated live-thread post policy module for follow-through and AI same-story decisions
+- added optional continuity, recap, and live follow-through-state policy decisions to the extracted module
+- added isolated tests for follow-through duplicate suppression, AI same-story / in-flight gating, optional-post density, and narration-burst control
+- tightened completed follow-through updates so repeated same-symbol, same-event, same-level outcomes need a label change or material directional change before posting again
+- tightened live AI reads so low-value or already-in-flight duplicate story commentary is suppressed before the OpenAI call is made
+- added `thread-post-policy-report.json` and `.md` generation from `discord-delivery-audit.jsonl` for repeated story clusters, output class mix, post bursts, recommendations, and per-thread trust scoring
+- added `snapshot-audit-report.json` and `.md` generation from `discord-delivery-audit.jsonl` for displayed versus omitted snapshot levels and omission reasons
+- wired audit report generation into the long-run launcher shutdown path and added a manual `npm run longrun:audit:reports -- <session-folder>` command
+- added `long-run-tuning-suggestions.json` and `.md`, turning the policy and snapshot audit reports into ranked action/watch/info items
+- added a manual-runtime `Review Artifacts` panel so generated session reports can be previewed from the browser UI
+- added `npm run validation:levels:quality -- <SYMBOL> [output-json-path]` to flag thin or suspiciously wide forward ladders before changing support/resistance logic
+
+Still open:
+- activation / restore coordinator extraction
+- symbol thread coordinator extraction
+- broader continuity state coordinator extraction
+- evidence-based tuning from the next live-market session using the new reports and tuning-suggestion artifact
+
 ---
 
 ## Current Strengths To Preserve

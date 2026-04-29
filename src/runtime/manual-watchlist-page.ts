@@ -40,6 +40,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .activity-message { min-width: 0; overflow-wrap: anywhere; }
     .activity-detail { color: #64748b; font-size: 12px; margin-top: 2px; }
     .notice { border: 1px solid #fde68a; background: #fffbeb; border-radius: 8px; color: #78350f; padding: 10px; font-size: 13px; margin-bottom: 12px; }
+    .artifact-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .artifact-card { border: 1px solid #dbe3ee; border-radius: 8px; padding: 10px; background: #fbfdff; }
+    .artifact-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .artifact-preview { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; background: #0f172a; color: #e2e8f0; border-radius: 6px; padding: 10px; }
     .danger { background: #b91c1c; }
     .secondary { background: #475569; }
     .quiet { background: #64748b; }
@@ -76,6 +80,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     </section>
 
     <section>
+      <h2>Review Artifacts</h2>
+      <div class="artifact-list" id="artifact-list"></div>
+    </section>
+
+    <section>
       <h2>Runtime Config</h2>
       <div class="notice" id="ai-notice"></div>
       <div class="runtime-grid" id="config-grid"></div>
@@ -92,6 +101,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const listEl = document.getElementById("active-list");
     const watchlistHealthEl = document.getElementById("watchlist-health");
     const runtimeGridEl = document.getElementById("runtime-grid");
+    const artifactListEl = document.getElementById("artifact-list");
     const configGridEl = document.getElementById("config-grid");
     const aiNoticeEl = document.getElementById("ai-notice");
     const activityListEl = document.getElementById("activity-list");
@@ -162,7 +172,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
       details.className = "meta";
       details.appendChild(
-        document.createTextNode("thread: " + (entry.discordThreadId || "pending")),
+        document.createTextNode("Discord thread ID: " + (entry.discordThreadId || "pending")),
       );
       appendMetaValue(details, "last snapshot", lastPostText);
       appendMetaValue(details, "last price", lastLiveText);
@@ -310,6 +320,56 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    function formatBytes(value) {
+      if (!value) {
+        return "";
+      }
+      if (value < 1024) {
+        return value + " B";
+      }
+      return Math.round(value / 1024) + " KB";
+    }
+
+    function renderReviewArtifacts(payload) {
+      artifactListEl.innerHTML = "";
+      const artifacts = payload.artifacts || [];
+      if (artifacts.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "notice";
+        empty.textContent = "No review artifact paths are configured.";
+        artifactListEl.appendChild(empty);
+        return;
+      }
+
+      for (const artifact of artifacts) {
+        const card = document.createElement("div");
+        const head = document.createElement("div");
+        const title = document.createElement("strong");
+        const meta = document.createElement("div");
+
+        card.className = "artifact-card";
+        head.className = "artifact-head";
+        title.textContent = artifact.name;
+        meta.className = "meta";
+        meta.textContent = artifact.exists
+          ? [formatBytes(artifact.sizeBytes), artifact.updatedAt ? "updated " + formatTime(artifact.updatedAt) : ""].filter(Boolean).join(" | ")
+          : "not generated yet";
+        head.appendChild(title);
+        head.appendChild(createBadge(artifact.exists ? "ready" : "missing", artifact.exists ? "badge badge-active" : "badge"));
+        card.appendChild(head);
+        card.appendChild(meta);
+
+        if (artifact.preview) {
+          const preview = document.createElement("pre");
+          preview.className = "artifact-preview";
+          preview.textContent = artifact.preview;
+          card.appendChild(preview);
+        }
+
+        artifactListEl.appendChild(card);
+      }
+    }
+
     function renderActivity(entries) {
       activityListEl.innerHTML = "";
       if (!entries || entries.length === 0) {
@@ -335,7 +395,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           const detail = document.createElement("div");
           detail.className = "activity-detail";
           detail.textContent = [
-            entry.threadId ? "thread: " + entry.threadId : "",
+            entry.threadId ? "Discord thread ID: " + entry.threadId : "",
             entry.details?.reason ? "reason: " + entry.details.reason : "",
           ].filter(Boolean).join(" | ");
           body.appendChild(detail);
@@ -503,6 +563,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderActivity(payload.recentActivity || []);
     }
 
+    async function loadReviewArtifacts() {
+      const response = await fetch("/api/runtime/review-artifacts");
+      const payload = await response.json();
+      renderReviewArtifacts(payload);
+    }
+
     formEl.addEventListener("submit", async (event) => {
       event.preventDefault();
       const started = await activateEntry(symbolEl.value, noteEl.value, false);
@@ -513,13 +579,14 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       noteEl.value = "";
       await loadEntries();
       await loadRuntimeStatus();
+      await loadReviewArtifacts();
     });
 
-    Promise.all([loadEntries(), loadRuntimeStatus()]).catch((error) => {
+    Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]).catch((error) => {
       setStatus(String(error), true);
     });
     setInterval(() => {
-      Promise.all([loadEntries(), loadRuntimeStatus()]).catch((error) => {
+      Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]).catch((error) => {
         setStatus(String(error), true);
       });
     }, 5000);

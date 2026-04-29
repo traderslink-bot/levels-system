@@ -185,6 +185,7 @@ export type MonitoringEventContext = {
   nextBarrierKind?: "support" | "resistance";
   nextBarrierLevel?: number;
   nextBarrierDistancePct?: number;
+  nextBarrierStrengthLabel?: FinalLevelZone["strengthLabel"];
   clearanceLabel?: BarrierClearanceLabel;
   barrierClutterLabel?: BarrierClutterLabel;
   nearbyBarrierCount?: number;

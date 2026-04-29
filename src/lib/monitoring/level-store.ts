@@ -15,6 +15,9 @@ type MonitoredZoneRecord = {
   context: MonitoringZoneContext;
 };
 
+const CARRIED_FORWARD_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+const CARRIED_FORWARD_NOTE = "carried_forward_prior_level";
+
 function cloneForMonitoring(record: MonitoredZoneRecord): FinalLevelZone {
   return {
     ...record.zone,
@@ -48,11 +51,23 @@ function zonesStronglyOverlap(left: FinalLevelZone, right: FinalLevelZone): bool
   return overlapRatio(left, right) >= 0.45 || centerDistancePct(left, right) <= 0.006;
 }
 
+function isHigherTimeframeZone(zone: FinalLevelZone): boolean {
+  return zone.timeframeSources.includes("daily") || zone.timeframeSources.includes("4h");
+}
+
 function sortByKind(zones: FinalLevelZone[], kind: "support" | "resistance"): FinalLevelZone[] {
   return [...zones].sort((a, b) =>
     kind === "support"
       ? b.representativePrice - a.representativePrice
       : a.representativePrice - b.representativePrice,
+  );
+}
+
+function sortRecordsByKind(records: MonitoredZoneRecord[], kind: "support" | "resistance"): MonitoredZoneRecord[] {
+  return [...records].sort((left, right) =>
+    kind === "support"
+      ? right.zone.representativePrice - left.zone.representativePrice
+      : left.zone.representativePrice - right.zone.representativePrice,
   );
 }
 
@@ -204,7 +219,89 @@ export class LevelStore {
       });
     }
 
-    return records;
+    for (const record of currentRecords.filter((item) => unmatchedCurrent.has(item.monitoredZoneId))) {
+      if (!this.shouldCarryForwardPriorLevel({
+        record,
+        side,
+        output,
+        existingRecords: records,
+        now,
+      })) {
+        continue;
+      }
+
+      const carriedZone: FinalLevelZone = {
+        ...record.zone,
+        freshness: record.zone.freshness === "stale" ? "stale" : "aging",
+        notes: [...new Set([...record.zone.notes, CARRIED_FORWARD_NOTE])],
+      };
+      records.push({
+        monitoredZoneId: record.monitoredZoneId,
+        zone: carriedZone,
+        context: this.buildContext({
+          monitoredZoneId: record.monitoredZoneId,
+          zone: carriedZone,
+          origin: record.context.origin,
+          remapStatus: "preserved",
+          remappedFromZoneIds: [record.monitoredZoneId],
+          sourceGeneratedAt: record.context.sourceGeneratedAt,
+          dataQualityDegraded: output.metadata.dataQualityFlags.length > 0,
+          ladderPosition: record.context.ladderPosition,
+          activeSince: record.context.activeSince,
+          lastRemappedAt: now,
+          recentlyPromotedExtension: false,
+        }),
+      });
+    }
+
+    return this.withUpdatedLadderPositions(records, side);
+  }
+
+  private shouldCarryForwardPriorLevel(params: {
+    record: MonitoredZoneRecord;
+    side: "support" | "resistance";
+    output: LevelEngineOutput;
+    existingRecords: MonitoredZoneRecord[];
+    now: number;
+  }): boolean {
+    const { record, side, output, existingRecords, now } = params;
+    const referencePrice = output.metadata.referencePrice;
+    if (!referencePrice || referencePrice <= 0) {
+      return false;
+    }
+
+    if (record.context.origin !== "canonical" || !isHigherTimeframeZone(record.zone)) {
+      return false;
+    }
+
+    if (now - record.context.activeSince > CARRIED_FORWARD_MAX_AGE_MS) {
+      return false;
+    }
+
+    if (existingRecords.some((existing) => zonesStronglyOverlap(existing.zone, record.zone))) {
+      return false;
+    }
+
+    const tolerance = Math.max(referencePrice * 0.001, 0.001);
+    if (side === "resistance") {
+      return record.zone.zoneHigh > referencePrice + tolerance;
+    }
+
+    return record.zone.zoneLow < referencePrice - tolerance;
+  }
+
+  private withUpdatedLadderPositions(
+    records: MonitoredZoneRecord[],
+    side: "support" | "resistance",
+  ): MonitoredZoneRecord[] {
+    const sorted = sortRecordsByKind(records, side);
+    return sorted.map((record, index) => ({
+      ...record,
+      context: {
+        ...record.context,
+        ladderPosition: ladderPositionForCanonical(side, index, sorted.length),
+      },
+    }));
   }
 
   private promoteExtensionSide(params: {

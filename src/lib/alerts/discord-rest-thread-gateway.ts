@@ -33,10 +33,14 @@ export type DiscordRestThreadGatewayOptions = {
   fetchImpl?: FetchLike;
   apiBaseUrl?: string;
   autoArchiveDurationMinutes?: 60 | 1440 | 4320 | 10080;
+  transientRetryAttempts?: number;
+  transientRetryDelayMs?: number;
 };
 
 const DEFAULT_API_BASE_URL = "https://discord.com/api/v10";
 const DISCORD_FLAG_SUPPRESS_EMBEDS = 1 << 2;
+const DEFAULT_TRANSIENT_RETRY_ATTEMPTS = 1;
+const DEFAULT_TRANSIENT_RETRY_DELAY_MS = 750;
 
 function normalizeNonEmpty(value: string | undefined, label: string): string {
   const normalized = value?.trim();
@@ -60,6 +64,24 @@ async function parseDiscordJson<T>(response: Response): Promise<T | null> {
   return JSON.parse(text) as T;
 }
 
+function isTransientDiscordStatus(status: number): boolean {
+  return status === 429 || status === 502 || status === 503 || status === 504;
+}
+
+function parseRetryAfterMs(response: Response, fallbackMs: number): number {
+  const retryAfter = response.headers.get("retry-after");
+  if (!retryAfter) {
+    return fallbackMs;
+  }
+
+  const seconds = Number(retryAfter);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : fallbackMs;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class DiscordRestThreadGateway implements DiscordThreadGateway {
   private readonly botToken: string;
   private readonly watchlistChannelId: string;
@@ -67,6 +89,8 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   private readonly fetchImpl: FetchLike;
   private readonly apiBaseUrl: string;
   private readonly autoArchiveDurationMinutes: 60 | 1440 | 4320 | 10080;
+  private readonly transientRetryAttempts: number;
+  private readonly transientRetryDelayMs: number;
 
   constructor(options: DiscordRestThreadGatewayOptions) {
     this.botToken = normalizeNonEmpty(options.botToken, "Discord bot token");
@@ -78,26 +102,39 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.apiBaseUrl = options.apiBaseUrl?.trim() || DEFAULT_API_BASE_URL;
     this.autoArchiveDurationMinutes = options.autoArchiveDurationMinutes ?? 1440;
+    this.transientRetryAttempts = Math.max(0, Math.floor(options.transientRetryAttempts ?? DEFAULT_TRANSIENT_RETRY_ATTEMPTS));
+    this.transientRetryDelayMs = Math.max(0, Math.floor(options.transientRetryDelayMs ?? DEFAULT_TRANSIENT_RETRY_DELAY_MS));
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bot ${this.botToken}`,
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-    });
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt <= this.transientRetryAttempts; attempt += 1) {
+      const response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bot ${this.botToken}`,
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+      });
 
-    if (!response.ok) {
+      if (response.ok) {
+        return (await parseDiscordJson<T>(response)) as T;
+      }
+
       const body = await response.text();
-      throw new Error(
+      lastError = new Error(
         `Discord API request failed (${response.status}) for ${path}: ${body || response.statusText}`,
       );
+      if (attempt < this.transientRetryAttempts && isTransientDiscordStatus(response.status)) {
+        await delay(parseRetryAfterMs(response, this.transientRetryDelayMs));
+        continue;
+      }
+
+      throw lastError;
     }
 
-    return (await parseDiscordJson<T>(response)) as T;
+    throw lastError ?? new Error(`Discord API request failed for ${path}.`);
   }
 
   private async postMessage(channelId: string, content: string): Promise<DiscordMessageResponse> {

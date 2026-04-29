@@ -148,8 +148,13 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
       "- Room is fairly balanced between the nearest support and resistance.",
       "",
       "KEY LEVELS:",
-      "- Resistance: 2.60 (+3.6%), 2.75 (+9.6%)",
-      "- Support: 2.40 (-4.4%), 2.25 (-10.4%)",
+      "Resistance:",
+      "2.60 (+3.6%)",
+      "2.75 (+9.6%)",
+      "",
+      "Support:",
+      "2.40 (-4.4%)",
+      "2.25 (-10.4%)",
       "",
       "FULL LADDER:",
       "- Support: 2.40 (-4.4%), 2.25 (-10.4%)",
@@ -190,4 +195,37 @@ test("DiscordRestThreadGateway can suppress embeds for plain-text link messages"
   const requestBody = JSON.parse(String(calls[0]?.init?.body));
   assert.equal(requestBody.content, "COMPANY: Example Corp\nWEBSITE: https://example.com/");
   assert.equal(requestBody.flags, 4);
+});
+
+test("DiscordRestThreadGateway retries transient message delivery failures", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    if (calls.length === 1) {
+      return jsonResponse({ status: 503, body: { message: "temporary upstream issue" } });
+    }
+
+    return jsonResponse({ body: { id: "message-2" } });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+    transientRetryDelayMs: 0,
+  });
+
+  await gateway.sendMessage("thread-albt", {
+    title: "ALBT breakout",
+    body: "price cleared resistance",
+    symbol: "ALBT",
+    timestamp: 1,
+    metadata: {
+      messageKind: "intelligent_alert",
+    },
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0]?.input, "https://discord.com/api/v10/channels/thread-albt/messages");
+  assert.equal(calls[1]?.input, "https://discord.com/api/v10/channels/thread-albt/messages");
 });

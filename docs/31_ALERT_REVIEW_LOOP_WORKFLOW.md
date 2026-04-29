@@ -103,7 +103,7 @@ Good moments to record feedback:
 
 - when an alert was clearly helpful
 - when a thread became obviously noisy
-- when a breakout or dip-buy alert was technically correct but too cramped to trade
+- when a breakout or support-reaction alert was technically correct but too cramped to trade
 - when an alert arrived too late to matter
 - when a setup looked good in the logs but poor to a human trader
 
@@ -115,7 +115,7 @@ This loop creates the evidence needed to improve:
 - heavy/light support and resistance wording
 - `firm` versus `tired` zone wording and whether that posture is acting as a tailwind or headwind for the setup
 - breakout quality filters
-- dip-buy usefulness
+- support-reaction usefulness
 - end-of-session summaries
 - in-session continuity and recap posting thresholds
 - future AI commentary layers

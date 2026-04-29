@@ -19,7 +19,152 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-29 America/Toronto
+
+### Preserved untested higher-timeframe levels during refreshes
+
+- Updated:
+  - `src/lib/monitoring/level-store.ts`
+  - `src/tests/level-store.test.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - level snapshot `KEY LEVELS` now prints plain `Resistance:` / `Support:` labels with each level on its own unindented line, separated by a blank line for easier Discord scanning
+  - support-test alerts now use support-reaction language instead of `dip-buy` wording in trader-facing posts
+  - support-lost posts now show the failed support as the reclaim / resistance area and show the next lower support separately, so the post does not imply a far overhead resistance is the next decision area
+  - level-touch key levels now say `Next support` / `Next resistance` instead of `Nearby`, which avoids overstating distance when the next formal ladder level is far away
+  - follow-through and state-update posts now use trader-facing wording like `setup move` and `stayed strong`, removing internal phrases such as `alert direction` and `after the alert`
+  - long-caution follow-through now says `support-loss warning faded` instead of ambiguous wording like `breakdown failed`
+  - daily and 4h swing detection now includes controlled barrier-candle highs/lows, so meaningful prior resistance/support inside a strong rising or falling sequence can survive even when it is not a perfect local swing point
+  - level refreshes now carry forward unmatched daily/4h support or resistance for a limited window when price has not tested or cleared that level yet
+  - carried levels are marked as aging and tagged with `carried_forward_prior_level` internally so the system can distinguish preserved prior structure from freshly generated levels
+  - carried levels are not kept if a fresh level already overlaps them, if they are too old, or if price has moved through them
+  - fast resistance-crossed detection now requires price to clear the full resistance zone high, not just the representative zone price, before introducing the next resistance
+- Why this matters:
+  - SKYQ showed a previous ladder with `7.12` and `7.28`, but a later refresh jumped from the `7.00-7.04` zone to `7.73`
+  - in runner charts, real intermediate resistance can come from prior higher-timeframe barrier candles, not only textbook local swing highs
+  - if those intermediate levels were still higher-timeframe structure and price had not tested them, the runtime should not forget them simply because one refresh failed to regenerate them
+  - a tap inside a zone like `7.00-7.04` should remain a test of that zone, not a confirmed move toward the next level
+- Verification:
+  - `npx tsc -p tsconfig.json --noEmit`
+  - `npx tsx --test src/tests/level-store.test.ts`
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+
 ## 2026-04-28 America/Toronto
+
+### Calmed runner-thread posting and improved follow-through wording
+
+- Updated:
+  - `src/lib/monitoring/live-thread-post-policy.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+  - `src/lib/review/live-post-replay-simulator.ts`
+  - `src/scripts/simulate-live-post-policy.ts`
+  - `src/scripts/generate-discord-audit-reports.ts`
+  - `src/lib/review/discord-audit-reports.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+  - `scripts/start-manual-watchlist-long-run.ps1`
+  - `package.json`
+  - `src/tests/live-thread-post-policy.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/live-post-replay-simulator.test.ts`
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+- What changed:
+  - added a critical live-post burst governor so runner symbols that already posted several trader-facing updates in a short window can suppress lower-value critical repeats
+  - tightened completed follow-through posting so weak label drift such as `strong -> working` does not create another Discord post, and same-label repeats now need a larger directional change before posting again
+  - repeated material follow-through outcomes are now marked as existing setup updates, not new setups
+  - follow-through posts now include a `Decision area` section so traders can see which level needs to hold or be reclaimed without receiving direct buy/sell instructions
+  - follow-through state wording now says a stalling setup needs a better reaction instead of leaning on rushed wording like "fresh follow-through"
+  - Discord delivery audit metadata now records `repeatedOutcomeUpdate` for follow-through posts
+  - added `npm run longrun:simulate:posts -- <session-folder>` plus `live-post-replay-simulation.json` / `.md` to estimate how current post-policy rules would have handled saved sessions
+  - `npm run longrun:audit:reports -- <session-folder>` now also writes the replay simulation artifacts
+  - live AI reads now pass optional-post and narration-burst checks before the OpenAI call, so reactive or recap-like AI reads are blocked before spending API usage when the thread is already too busy
+  - added `WATCHLIST_POSTING_PROFILE=quiet|balanced|active` so live post volume can be tuned from `.env` without code edits
+  - added profile-aware post-policy thresholds for follow-through, same-zone alert chop, burst limits, continuity, and AI commentary
+  - added `live-post-profile-comparison.json` / `.md` so saved sessions compare quiet, balanced, and active profile output side by side
+  - added `runner-story-report.json` / `.md` so ATER / BIYA-style runner reviews can start from rough price path, post quality labels, noisy-repeat samples, candidate missed level clears/losses, post mix, and key posted events instead of raw audit rows
+  - fast resistance-cleared and support-lost detection now advances through the next crossed ladder level instead of jumping to the farthest crossed level when price moves quickly
+  - fast resistance-crossed detection now requires price to clear the full resistance zone high, not just the representative zone price, so a tap inside a zone like `7.00-7.04` does not introduce the next resistance too early
+  - resistance-cleared posts now include the pullback test level and lower risk area if the breakout cannot hold
+  - support-lost posts now include a conditional support-reaction area at the next support and the risk map below the failed support
+  - conditional support-reaction / support-risk language now includes the support or resistance strength, for example `next support reaction area: light support 3.34`
+  - fast resistance/support bridge posts now use less final wording (`resistance crossed`, `testing breakout`, `next support/resistance`) so a brief pierce does not read like confirmed acceptance
+  - intelligent alert payloads now use `Key levels` instead of `Next levels` so support/resistance context reads as a map, not a prediction
+  - level snapshot `KEY LEVELS` now prints each support/resistance on its own line for easier Discord scanning
+  - level-touch alerts now include the zone being tested, so a resistance touch can show both the tested resistance and nearby support context
+  - balanced posting now allows fewer follow-through posts inside a short burst while keeping critical level clears/losses eligible
+  - added regression coverage for fast jumps through multiple resistance/support levels so the runtime does not skip intermediate levels to reduce noise
+- Why this matters:
+  - ATER and BIYA live sessions showed that runner threads could stack too many repeated `working` / `failed` updates after the main idea was already clear
+  - this keeps levels intact while making the Discord output calmer and more decision-focused
+  - the replay simulator lets future tuning be tested against saved sessions before the next market window
+- Verification:
+  - `npm run longrun:simulate:posts -- artifacts\long-run\2026-04-28_15-29-05`
+  - `npm run longrun:simulate:posts -- artifacts\long-run\2026-04-28_15-29-05 --profile balanced --symbols ATER,BIYA`
+  - `npx tsx --test src/tests/live-thread-post-policy.test.ts src/tests/alert-router.test.ts src/tests/manual-watchlist-runtime-manager.test.ts src/tests/discord-audited-thread-gateway.test.ts src/tests/discord-audit-reports.test.ts`
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/live-post-replay-simulator.test.ts`
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npx tsx --test src/tests/live-thread-post-policy.test.ts src/tests/live-post-replay-simulator.test.ts`
+  - `npm run build`
+
+### Added live-thread policy extraction, audit reports, tuning suggestions, and level-quality validation
+
+- Updated:
+  - `src/lib/monitoring/live-thread-post-policy.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/review/discord-audit-reports.ts`
+  - `src/lib/review/long-run-tuning-suggestions.ts`
+  - `src/lib/levels/level-quality-audit.ts`
+  - `src/scripts/generate-discord-audit-reports.ts`
+  - `src/scripts/run-level-quality-audit.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+  - `src/runtime/manual-watchlist-page.ts`
+  - `scripts/start-manual-watchlist-long-run.ps1`
+  - `package.json`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/live-thread-post-policy.test.ts`
+  - `src/tests/discord-audit-reports.test.ts`
+  - `src/tests/long-run-tuning-suggestions.test.ts`
+  - `src/tests/level-quality-audit.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/manual-watchlist-server.test.ts`
+  - `README.md`
+  - `docs/18_LEVEL_VALIDATION_SYSTEM_PLAN.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+  - `docs/38_CODEX_PROJECT_IMPROVEMENT_PLAN_2026-04-28.md`
+- What changed:
+  - extracted follow-through and AI live-post duplicate policy into a dedicated helper module so same-story decisions can be tested outside the runtime manager
+  - extracted optional continuity, recap, and live follow-through-state gating into the same helper module so post-burst and same-event chatter rules can be tested directly
+  - completed follow-through posts now suppress repeated same-symbol, same-event, same-level outcomes unless the label changes or the directional move materially changes
+  - follow-through audit metadata now records the tracked entry level as `targetPrice`, so future policy reports can group repeated outcomes by actual level
+  - continuity audit metadata now records event type and level when available, so future reports do not collapse different continuity stories into `unknown`
+  - live AI reads now reserve in-flight story keys and require higher-value deterministic alerts, reducing repeated AI commentary on the same symbol move
+  - added `npm run longrun:audit:reports -- <session-folder>` to rebuild JSON and Markdown policy/snapshot audit reports from `discord-delivery-audit.jsonl`
+  - added `long-run-tuning-suggestions.json` / `.md` so long-run review produces ranked action/watch/info items instead of only raw reports
+  - added `npm run validation:levels:quality -- <SYMBOL> [output-json-path]` for suspicious forward-ladder cases such as missing-looking overhead resistance or unusually wide first gaps
+  - added a manual-runtime Review Artifacts panel and `/api/runtime/review-artifacts` endpoint so generated session reports can be previewed from the browser UI
+  - the long-run launcher now generates those report files at shutdown
+- Why this matters:
+  - ATER / BIYA runner sessions showed that even useful follow-through can become too repetitive when the same outcome keeps posting
+  - the new policy report makes repeated story clusters, post bursts, optional density, trust score, and tuning recommendations visible without manually reading raw Discord audit rows
+  - the new snapshot audit report makes level-ladder questions easier to debug without exposing operator-only details in trader-facing Discord posts
+  - the new tuning-suggestions artifact gives the next improvement pass a clearer first read on what deserves action versus watch-only review
+  - the new level-quality audit keeps ATER-style missing-resistance questions tied to generated ladder evidence before deeper level-engine changes
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-server.test.ts src/tests/level-quality-audit.test.ts src/tests/long-run-tuning-suggestions.test.ts src/tests/discord-audit-reports.test.ts`
+  - `npx tsx --test src/tests/live-thread-post-policy.test.ts src/tests/discord-audit-reports.test.ts src/tests/manual-watchlist-runtime-manager.test.ts src/tests/trader-commentary-service.test.ts`
+  - `npm run longrun:audit:reports -- artifacts\long-run\2026-04-28_15-29-05`
+  - `npm run build`
+  - `npm test`
 
 ### Refreshed project docs for current runtime behavior
 
@@ -138,7 +283,7 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `npm run build`
   - `npm test`
 
-### Added conditional dip-buy area to long-caution alerts
+### Added conditional support-reaction area to long-caution alerts
 
 - Updated:
   - `src/lib/alerts/alert-router.ts`
@@ -147,11 +292,11 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `src/tests/trader-commentary-service.test.ts`
   - `src/tests/manual-watchlist-runtime-manager.test.ts`
 - What changed:
-  - breakdown, failed-breakout, and rejection alerts can now show a `possible dip-buy area` when the next support-side barrier is known
-  - the dip-buy area is explicitly conditional, for example: buyers must stabilize there or reclaim the lost level
+  - breakdown, failed-breakout, and rejection alerts can now show a `next support reaction area` when the next support-side barrier is known
+  - the support-reaction area is explicitly conditional, for example: buyers must stabilize there or reclaim the lost level
   - long-caution alerts now include a `Hold / failure map` that names the reclaim line and the next support risk area without telling the trader to buy or sell
-  - the readable Discord alert includes the conditional dip-buy area in `What to watch` and labels it in `Next levels`
-  - the live AI prompt now allows mentioning a provided possible dip-buy area only as conditional support where buyers must stabilize
+  - the readable Discord alert includes the conditional support-reaction area in `What to watch` and labels it in `Key levels`
+  - the live AI prompt now allows mentioning a provided support-reaction area only as conditional support where buyers must stabilize
   - removed direct-advice style phrases such as `avoid longs` from the raw watch-line language, replacing them with risk-context wording
 - Why this matters:
   - long-only caution alerts should not only say what to avoid; they should also tell the trader where a future long setup might start to become interesting again

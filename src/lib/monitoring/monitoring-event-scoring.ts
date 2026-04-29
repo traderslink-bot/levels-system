@@ -287,6 +287,7 @@ export function findNearestRelevantBarrier(params: {
   triggerPrice: number;
 }): {
   kind: "support" | "resistance";
+  zone: FinalLevelZone;
   level: number;
   distancePct: number;
 } | null {

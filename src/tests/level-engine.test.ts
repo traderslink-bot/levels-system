@@ -151,6 +151,39 @@ test("buildRawLevelCandidates detects an isolated meaningful wick-high as a raw 
   assert.ok(resistance.followThroughScore > 0.35);
 });
 
+test("detectSwingPoints can retain higher-timeframe barrier highs inside a rising sequence", () => {
+  const baseTimestamp = Date.parse("2026-04-20T13:30:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = [
+    { timestamp: baseTimestamp, open: 6.40, high: 6.80, low: 6.20, close: 6.72, volume: 1000 },
+    { timestamp: baseTimestamp + dayMs, open: 6.76, high: 7.12, low: 6.58, close: 6.88, volume: 1300 },
+    { timestamp: baseTimestamp + 2 * dayMs, open: 6.92, high: 7.20, low: 6.62, close: 7.02, volume: 1200 },
+    { timestamp: baseTimestamp + 3 * dayMs, open: 6.98, high: 7.28, low: 6.82, close: 7.05, volume: 1500 },
+    { timestamp: baseTimestamp + 4 * dayMs, open: 7.10, high: 7.35, low: 6.94, close: 7.08, volume: 1100 },
+    { timestamp: baseTimestamp + 5 * dayMs, open: 7.18, high: 7.73, low: 7.00, close: 7.24, volume: 2100 },
+    { timestamp: baseTimestamp + 6 * dayMs, open: 7.22, high: 7.38, low: 6.90, close: 6.96, volume: 1600 },
+  ];
+
+  const basicSwings = detectSwingPoints(candles, {
+    swingWindow: 1,
+    minimumDisplacementPct: 0.02,
+    minimumSeparationBars: 1,
+  });
+  const barrierAwareSwings = detectSwingPoints(candles, {
+    swingWindow: 1,
+    minimumDisplacementPct: 0.02,
+    minimumSeparationBars: 1,
+    includeBarrierCandles: true,
+  });
+
+  assert.equal(
+    basicSwings.some((swing) => swing.kind === "resistance" && swing.price === 7.12),
+    false,
+  );
+  assert.ok(barrierAwareSwings.some((swing) => swing.kind === "resistance" && swing.price === 7.12));
+  assert.ok(barrierAwareSwings.some((swing) => swing.kind === "resistance" && swing.price === 7.28));
+});
+
 test("clusterRawLevelCandidates preserves the strongest nearby wick-led representative instead of averaging it away", () => {
   const candidates = [
     {

@@ -455,9 +455,12 @@ When future level-engine tuning is proposed:
 Recommended validation command order before and after any meaningful level-engine change:
 
 1. `npm run validation:levels:live -- <SYMBOL>`
-2. `npm run validation:levels:persistence -- <SYMBOL>`
-3. `npm run validation:levels:forward -- <SYMBOL>`
-4. `npm run validation:levels:batch -- <SYMBOL1> <SYMBOL2> <SYMBOL3> ...`
+2. `npm run validation:levels:quality -- <SYMBOL> [output-json-path]`
+3. `npm run validation:levels:persistence -- <SYMBOL>`
+4. `npm run validation:levels:forward -- <SYMBOL>`
+5. `npm run validation:levels:batch -- <SYMBOL1> <SYMBOL2> <SYMBOL3> ...`
+
+Use the level-quality audit when the trader-facing ladder appears to have no nearby forward support/resistance, has a suspiciously wide first gap, or only shows extension levels. It is a quick guardrail before changing structural level tuning from live snapshot impressions alone.
 
 Recommended live validation workflow:
 

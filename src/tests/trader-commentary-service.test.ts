@@ -192,7 +192,7 @@ test("OpenAITraderCommentaryService sends long-only rules for signal explanation
   );
   assert.match(
     requestBody?.input?.[0]?.content?.[0]?.text ?? "",
-    /possible dip-buy area/i,
+    /support reaction area/i,
   );
 });
 

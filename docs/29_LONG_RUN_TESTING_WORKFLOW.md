@@ -141,6 +141,44 @@ Inside that folder:
   - completed follow-through now owns same-snapshot event narration, so progress-driven live-state / continuity beats are less likely to duplicate an evaluation that already resolved the same event
   - recent Discord delivery failures now temporarily suppress optional narration for that symbol, so review artifacts can separate true signal clutter from short delivery-pressure spirals
   - makes thread clutter measurable instead of subjective
+- `thread-post-policy-report.json`
+  - generated from `discord-delivery-audit.jsonl` at shutdown, or manually with `npm run longrun:audit:reports -- <session-folder>`
+  - summarizes trader-critical versus optional posts, repeated same-story clusters, failed delivery counts, and per-symbol thread trust scores
+  - is the fastest artifact for spotting whether a runner like ATER or BIYA is repeating the same outcome too many times after the live thread already told the story
+- `thread-post-policy-report.md`
+  - readable version of the policy report
+  - best first file when you want to quickly see the weakest thread, biggest repeated story, biggest post burst, and concrete tuning recommendation
+- `snapshot-audit-report.json`
+  - generated from `discord-delivery-audit.jsonl` at shutdown, or manually with `npm run longrun:audit:reports -- <session-folder>`
+  - summarizes which snapshot levels displayed and which levels were omitted because they were compacted, already on the wrong side of price, or outside the forward planning range
+  - is the fastest artifact for diagnosing ATER-style questions about whether an apparent missing resistance was absent from generated candidates or intentionally omitted from the trader-facing ladder
+- `snapshot-audit-report.md`
+  - readable version of the snapshot audit report
+  - best first file when the trader-facing snapshot looks like it skipped a support or resistance level
+- `long-run-tuning-suggestions.json`
+  - generated from the policy and snapshot audit reports at shutdown, or manually with `npm run longrun:audit:reports -- <session-folder>`
+  - turns repeated-story clusters, post bursts, optional-density pressure, delivery failures, and level-audit warnings into action/watch/info items
+- `long-run-tuning-suggestions.md`
+  - readable version of the tuning suggestions
+  - best first file when you want the system to tell you which problems deserve attention before manually scanning every report
+- `live-post-replay-simulation.json`
+  - generated from `discord-delivery-audit.jsonl` at shutdown, or manually with `npm run longrun:simulate:posts -- <session-folder>`
+  - replays the saved post stream through the current calmer posting rules and estimates which old posts would now be suppressed
+- `live-post-replay-simulation.md`
+  - readable before/after replay summary
+  - best first file when we want to judge whether the current policy would have calmed an ATER / BIYA-style runner without reading raw Discord posts
+- `live-post-profile-comparison.json`
+  - generated from `discord-delivery-audit.jsonl` by `npm run longrun:simulate:posts -- <session-folder>`
+  - compares `quiet`, `balanced`, and `active` profiles against the same saved session
+- `live-post-profile-comparison.md`
+  - readable profile comparison table
+  - best first file when deciding whether the app should post less or more before changing `.env`
+- `runner-story-report.json`
+  - generated from the saved delivery audit by `npm run longrun:simulate:posts -- <session-folder> --symbols ATER,BIYA`
+  - summarizes rough price path, post mix, post quality labels, noisy-repeat samples, candidate missed level clears/losses, levels mentioned, and key posted events for high-activity symbols
+- `runner-story-report.md`
+  - readable operator story report
+  - useful for runner reviews, but not a chart replacement because it infers prices and levels from saved Discord/audit text; missed-event rows are candidates that deserve review, not proof the runtime saw every tick
 - `trader-thread-recaps.md`
   - live-updated readable recap artifact
   - now also keeps refreshing when new Discord delivery rows arrive after stdout quiets down
@@ -307,21 +345,36 @@ If the app behaves oddly:
    - `thread-clutter-report.json`
    when you want the fastest deterministic answer to whether optional context is earning its place in the live symbol thread
 9. check:
+   - `thread-post-policy-report.md`
+   when you want the fastest readable answer to repeated same-story posts, optional-post load, and per-thread trust score
+10. check:
+   - `thread-post-policy-report.json`
+   when you want the structured data behind the readable policy report
+11. check:
+   - `snapshot-audit-report.md`
+   when the question is about omitted, compacted, crossed, or out-of-range support/resistance levels
+12. check:
+   - `snapshot-audit-report.json`
+   when you want the structured data behind the readable snapshot audit report
+13. check:
    - `session-review.md`
    when you want the fastest human-readable verdict on whether the run looked useful or noisy
-10. optionally check:
+14. optionally check:
    - `thread-ai-recaps.md`
    when you generated the AI recap layer and want a per-symbol AI pass over the deterministic summaries
-11. optionally run:
+15. optionally run:
    - `npm run longrun:ai:summary -- <session-folder>`
    when you want a post-run AI commentary layer over the deterministic artifacts
-10. only check:
+16. optionally run:
+   - `npm run longrun:audit:reports -- <session-folder>`
+   when you want to regenerate the policy and snapshot audit reports from the latest Discord audit file
+17. only check:
    - `manual-watchlist-diagnostics.log`
    when the question is specifically about breakout / reclaim / fakeout reasoning
-11. only check:
+18. only check:
    - `manual-watchlist-full.log`
    if the operational and diagnostic logs still do not explain enough
-12. check:
+19. check:
    - `discord-delivery-audit.jsonl`
    when you want to confirm exactly what Discord received or whether a post failed downstream
 
@@ -336,6 +389,10 @@ When asking me to review a long-run failure, the most useful things to send are:
 - `session-summary.json` when you want a quick top-level review first
 - `thread-summaries.json` when you want the quickest per-symbol usefulness review
 - `trader-thread-recaps.md` when you want the shortest readable per-symbol recap
+- `thread-post-policy-report.md` when the issue is too many repeated posts, too much optional narration, or thread trust
+- `thread-post-policy-report.json` when the issue is too many repeated posts, too much optional narration, or thread trust
+- `snapshot-audit-report.md` when the issue is missing-looking support/resistance levels
+- `snapshot-audit-report.json` when the issue is missing-looking support/resistance levels
 - `session-review.md` when you want the fastest readable summary first
 - `human-review-feedback.jsonl` when you already marked alerts as useful, noisy, late, wrong, or strong
 - `session-ai-review.md` when you generated the optional AI recap layer and want me to review it too
@@ -513,6 +570,69 @@ Use it when you want to answer questions like:
 This is especially useful when judging whether Discord output is helpful or too noisy for the end user, because it gives a clean record of what was actually sent instead of only what the runtime evaluated.
 Snapshot audit details are intentionally kept in this artifact rather than posted into Discord, so trader-facing threads stay readable while level-ladder questions remain debuggable.
 
+## Regenerating Audit Reports
+
+The long-run launcher generates policy and snapshot audit reports at shutdown. You can also rebuild them at any time from an existing session folder:
+
+```powershell
+npm run longrun:audit:reports -- artifacts\long-run\<session-folder>
+```
+
+That writes:
+
+- `thread-post-policy-report.json`
+- `snapshot-audit-report.json`
+- `thread-post-policy-report.md`
+- `snapshot-audit-report.md`
+- `long-run-tuning-suggestions.json`
+- `long-run-tuning-suggestions.md`
+- `live-post-replay-simulation.json`
+- `live-post-replay-simulation.md`
+- `live-post-profile-comparison.json`
+- `live-post-profile-comparison.md`
+- `runner-story-report.json`
+- `runner-story-report.md`
+
+Use the tuning suggestions first when you want a quick action list. Use the policy report before reading raw audit rows when the question is "did this symbol post too many repeated versions of the same thing?" Use the snapshot report before reading raw audit rows when the question is "why did this level not show in the Discord snapshot?"
+
+You can also run only the replay simulator:
+
+```powershell
+npm run longrun:simulate:posts -- artifacts\long-run\<session-folder>
+```
+
+Use `--profile quiet|balanced|active` to replay a single live profile and `--symbols ATER,BIYA` to narrow the runner-story report:
+
+```powershell
+npm run longrun:simulate:posts -- artifacts\long-run\<session-folder> --profile balanced --symbols ATER,BIYA
+```
+
+The replay simulator is operator-only. Its job is to estimate how many saved Discord posts the selected policy would suppress, compare profile choices, summarize runner stories, classify saved posts by usefulness, and flag candidate missed level events. It does not change the saved Discord thread or rewrite history.
+
+## Runtime Review Panel
+
+The manual UI includes a `Review Artifacts` section. During long-run sessions it lists the known review files in the current session folder, shows whether each file exists yet, and previews generated Markdown/JSON artifacts such as:
+
+- `session-review.md`
+- `thread-post-policy-report.md`
+- `long-run-tuning-suggestions.md`
+- `live-post-replay-simulation.md`
+- `live-post-profile-comparison.md`
+- `runner-story-report.md`
+- `snapshot-audit-report.md`
+
+This is an operator convenience surface only; it does not change what gets posted to Discord.
+
+## Level Quality Audit
+
+When a runner appears to have too few forward levels or the next resistance/support looks suspiciously far away, run:
+
+```powershell
+npm run validation:levels:quality -- <SYMBOL> [output-json-path]
+```
+
+The audit checks the generated ladder for missing forward levels, wide first gaps, thin forward ladders, and extension-only forward ladders. It is meant to catch ATER-style "did we miss older daily resistance?" questions before changing level-engine tuning by feel.
+
 ## Current Live-Post Discipline
 
 Live thread posting is intentionally stricter than the raw runtime evaluation stream.
@@ -527,6 +647,17 @@ Live thread posting is intentionally stricter than the raw runtime evaluation st
 - continuity now also yields more aggressively to fresh trader-critical beats, and same-label continuity transitions are collapsed even if they arrive before the first route resolves.
 - if a price-update snapshot already contains a completed evaluation for the same symbol and event type, the completed follow-through post owns that story and weaker progress-driven narration is skipped.
 - recent Discord delivery failures now trigger a short optional-post backoff for that symbol, so the runtime is less likely to push more continuity / live-state / recap posts into a fresh 429 burst.
+- completed follow-through posts now also use a dedicated same-story policy helper, so repeated same-symbol, same-event, same-level outcomes stay suppressed unless the label changes or the directional move has materially changed.
+- completed follow-through posts now require stronger same-level evidence before repeating, avoid weak label drift, and mark material repeats as existing setup updates rather than new setups.
+- a critical live-post burst governor now suppresses lower-value critical repeats when a symbol already posted several trader-facing updates in a short window, while still allowing major changes through.
+- live AI reads now use a dedicated same-story policy helper too, so low-value or in-flight duplicate AI commentary is kept out of Discord while deterministic alerts remain the source of truth.
+- live AI reads also pass through optional-post and narration-burst discipline before the OpenAI call, so reactive or recap-like AI output stays out of already-busy threads.
+- live AI reads are profile-aware and only post for higher-value deterministic alerts, so AI commentary remains a support layer instead of becoming a second noisy stream.
+- `WATCHLIST_POSTING_PROFILE=quiet|balanced|active` controls the runtime post appetite. Use `balanced` by default, `quiet` when runner threads are still too busy, and `active` when live testing shows useful posts are being missed.
+- `live-post-profile-comparison.md` should be checked before changing the live profile because it shows expected post counts for the same saved session under all three profiles.
+- `runner-story-report.md` summarizes high-activity symbols by rough price path, post mix, post quality, key posted events, noisy samples, candidate missed level events, and frequently mentioned levels. Treat it as an operator triage aid, not a replacement for chart review, because it infers prices and levels from saved audit/post text.
+- Fast resistance-cleared and support-lost posts are intentionally ladder-step based. If price jumps through several levels, the runtime should post the next crossed level first, then advance to the next crossed level on the following live update instead of skipping straight to the farthest crossed level.
+- optional continuity, recap, and live follow-through-state decisions now flow through the same policy helper module, so those chatter-control rules can be tested directly instead of only through full runtime tests.
 - The review artifacts are meant to tell us when that discipline is helping versus when a family still needs tighter or looser thresholds.
 
 ## What This Process Does Not Replace

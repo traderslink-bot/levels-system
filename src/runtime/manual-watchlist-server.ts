@@ -1,6 +1,8 @@
 import "dotenv/config";
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-commentary-service.js";
@@ -37,6 +39,7 @@ import {
   sendJson,
 } from "./manual-watchlist-http.js";
 import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
+import { resolveLiveThreadPostingProfile } from "../lib/monitoring/live-thread-post-policy.js";
 
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
 const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
@@ -47,7 +50,23 @@ const MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV = "MANUAL_WATCHLIST_IBKR_TIMEOUT_MS";
 const MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV = "LEVEL_MANUAL_LOOKBACK_DAILY";
 const MANUAL_WATCHLIST_LOOKBACK_4H_ENV = "LEVEL_MANUAL_LOOKBACK_4H";
 const MANUAL_WATCHLIST_LOOKBACK_5M_ENV = "LEVEL_MANUAL_LOOKBACK_5M";
+const WATCHLIST_POSTING_PROFILE_ENV = "WATCHLIST_POSTING_PROFILE";
 const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
+const REVIEW_ARTIFACT_FILES = [
+  "session-review.md",
+  "thread-post-policy-report.md",
+  "long-run-tuning-suggestions.md",
+  "live-post-replay-simulation.md",
+  "live-post-profile-comparison.md",
+  "runner-story-report.md",
+  "snapshot-audit-report.md",
+  "live-post-replay-simulation.json",
+  "live-post-profile-comparison.json",
+  "runner-story-report.json",
+  "thread-clutter-report.json",
+  "thread-summaries.json",
+  "discord-delivery-audit.jsonl",
+] as const;
 
 function isTruthyEnv(value: string | undefined): boolean {
   if (!value) {
@@ -77,6 +96,50 @@ function resolveManualWatchlistHistoricalLookbacks(): ManualWatchlistHistoricalL
       DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS["5m"],
     ),
   };
+}
+
+function readReviewArtifacts(sessionDirectory: string | null): Array<{
+  name: string;
+  exists: boolean;
+  sizeBytes: number | null;
+  updatedAt: number | null;
+  preview: string | null;
+}> {
+  if (!sessionDirectory) {
+    return REVIEW_ARTIFACT_FILES.map((name) => ({
+      name,
+      exists: false,
+      sizeBytes: null,
+      updatedAt: null,
+      preview: null,
+    }));
+  }
+
+  return REVIEW_ARTIFACT_FILES.map((name) => {
+    const path = join(sessionDirectory, name);
+    if (!existsSync(path)) {
+      return {
+        name,
+        exists: false,
+        sizeBytes: null,
+        updatedAt: null,
+        preview: null,
+      };
+    }
+
+    const stats = statSync(path);
+    const isPreviewable = name.endsWith(".md") || name.endsWith(".json");
+    const preview = isPreviewable
+      ? readFileSync(path, "utf8").slice(0, 1800)
+      : null;
+    return {
+      name,
+      exists: true,
+      sizeBytes: stats.size,
+      updatedAt: stats.mtimeMs,
+      preview,
+    };
+  });
 }
 
 async function main(): Promise<void> {
@@ -123,6 +186,7 @@ async function main(): Promise<void> {
   });
   const aiCommentaryEnabled = isTruthyEnv(process.env[AI_COMMENTARY_ENV]);
   const aiCommentaryModel = process.env[AI_MODEL_ENV]?.trim() || "gpt-5-mini";
+  const postingProfile = resolveLiveThreadPostingProfile(process.env[WATCHLIST_POSTING_PROFILE_ENV]);
   const openAiApiKeyPresent = Boolean(process.env.OPENAI_API_KEY?.trim());
   const aiCommentaryService = aiCommentaryEnabled
     ? createOpenAITraderCommentaryServiceFromEnv()
@@ -140,6 +204,7 @@ async function main(): Promise<void> {
     watchlistStatePersistence: new WatchlistStatePersistence(),
     lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
     optionalPostSettleDelayMs: 250,
+    postingProfile,
   });
   const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
   let startupState: "booting" | "ready" | "error" = "booting";
@@ -159,6 +224,7 @@ async function main(): Promise<void> {
       console.log(
         `[ManualWatchlistRuntime] Historical lookbacks: daily=${historicalLookbackBars.daily}, 4h=${historicalLookbackBars["4h"]}, 5m=${historicalLookbackBars["5m"]}.`,
       );
+      console.log(`[ManualWatchlistRuntime] Posting profile: ${postingProfile}.`);
       if (monitoringEventDiagnosticsEnabled) {
         console.log(
           `[ManualWatchlistRuntime] Monitoring event diagnostics enabled via ${MONITORING_EVENT_DIAGNOSTICS_ENV}.`,
@@ -216,6 +282,7 @@ async function main(): Promise<void> {
               ? manualWatchlistIbkrTimeoutMs
               : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
           historicalLookbackBars: manager.getHistoricalLookbackBars(),
+          postingProfile,
           monitoringDiagnosticsRequested: monitoringEventDiagnosticsEnabled,
           aiCommentaryRequested: aiCommentaryEnabled,
           aiCommentaryServiceAvailable: aiCommentaryService !== null,
@@ -231,6 +298,14 @@ async function main(): Promise<void> {
         sessionDirectory,
         startupState,
         startupError,
+      });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/runtime/review-artifacts") {
+      sendJson(response, 200, {
+        sessionDirectory,
+        artifacts: readReviewArtifacts(sessionDirectory),
       });
       return;
     }

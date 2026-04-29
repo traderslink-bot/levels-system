@@ -242,7 +242,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       "What it means:",
       "- price is pushing farther above the zone high and follow-through is building (0.8%)",
       "",
-      "Next levels:",
+      "Key levels:",
       "- First resistance: 2.50",
       "",
       "Signal: high severity | medium confidence",
@@ -275,7 +275,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.targetDistancePct, 0.036);
 });
 
-test("formatIntelligentAlertAsPayload shows conditional dip-buy area for long-caution alerts", () => {
+test("formatIntelligentAlertAsPayload shows reclaim area and next support for long-caution alerts", () => {
   const breakdownEvent = {
     ...samplePayload.event!,
     id: "evt-breakdown",
@@ -328,6 +328,7 @@ test("formatIntelligentAlertAsPayload shows conditional dip-buy area for long-ca
     nextBarrier: {
       side: "support",
       price: 1.06,
+      strengthLabel: "weak",
       distancePct: 0.138,
       clearanceLabel: "open",
       clutterLabel: "clear",
@@ -353,11 +354,98 @@ test("formatIntelligentAlertAsPayload shows conditional dip-buy area for long-ca
     tradeMap: null,
   });
 
-  assert.match(payload.body, /What to watch:\n- possible dip-buy area: 1\.06, only if buyers stabilize there or reclaim 1\.24/);
-  assert.match(payload.body, /Hold \/ failure map:\n- 1\.24 is the reclaim line for the long setup; below it, risk stays open toward 1\.06 unless buyers stabilize first\./);
-  assert.match(payload.body, /Next levels:\n- Possible dip-buy area: 1\.06/);
+  assert.match(payload.body, /What to watch:\n- next support reaction area: light support 1\.06; buyers need stabilization there or a reclaim of 1\.24/);
+  assert.match(payload.body, /Hold \/ failure map:\n- 1\.24 is the reclaim line for the long setup; below it, risk stays open toward light support 1\.06 unless buyers stabilize first\./);
+  assert.match(payload.body, /Key levels:\n- Reclaim area: moderate resistance 1\.24\n- Next support: light support 1\.06/);
   assert.doesNotMatch(payload.body, /Risk support/);
+  assert.doesNotMatch(payload.body, /dip-buy/i);
+  assert.doesNotMatch(payload.body, /Nearby resistance/);
   assert.doesNotMatch(payload.body, /\b(Buy|Sell|buy at|sell if|take profit|stop out)\b/);
+});
+
+test("formatIntelligentAlertAsPayload shows tested resistance and nearby support for resistance touches", () => {
+  const touchEvent = {
+    ...samplePayload.event!,
+    id: "evt-touch",
+    episodeId: "ep-touch",
+    type: "level_touch" as const,
+    eventType: "level_touch" as const,
+    zoneKind: "resistance" as const,
+    level: 2.62,
+    triggerPrice: 2.61,
+    bias: "neutral" as const,
+  };
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-touch",
+    symbol: "SAGT",
+    title: "SAGT level touch",
+    body: [
+      "price testing major resistance 2.61-2.64",
+      "pressure: buying and selling pressure still look balanced",
+      "why now: price is back at resistance; buyers need acceptance above the zone",
+      "room: open downside path to next support 2.16 (-17.2%)",
+      "watch: buyers need acceptance above 2.64 before breakout pressure builds",
+    ].join("\n"),
+    severity: "critical",
+    confidence: "high",
+    score: 72,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: touchEvent,
+    zone: {
+      id: "R1",
+      symbol: "SAGT",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 2.61,
+      zoneHigh: 2.64,
+      representativePrice: 2.62,
+      strengthScore: 10,
+      strengthLabel: "major",
+      touchCount: 1,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.5,
+      rejectionScore: 0.4,
+      displacementScore: 0.4,
+      sessionSignificanceScore: 0.2,
+      followThroughScore: 0.5,
+      gapContinuationScore: 0,
+      sourceEvidenceCount: 1,
+      firstTimestamp: 1,
+      lastTimestamp: 1,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    nextBarrier: {
+      side: "support",
+      price: 2.16,
+      distancePct: -0.172,
+      clearanceLabel: "open",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+    movement: null,
+    pressure: {
+      label: "balanced",
+      pressureScore: 0.5,
+      line: "pressure: buying and selling pressure still look balanced",
+    },
+    triggerQuality: null,
+    pathQuality: null,
+    dipBuyQuality: null,
+    exhaustion: null,
+    setupState: null,
+    failureRisk: null,
+    target: null,
+    tradeMap: null,
+  });
+
+  assert.match(payload.body, /Key levels:\n- Testing resistance: 2\.61-2\.64\n- Next support: 2\.16/);
+  assert.doesNotMatch(payload.body, /Next levels:/);
 });
 
 test("formatFollowThroughStateUpdateAsPayload adds live progress metadata", () => {
@@ -374,7 +462,9 @@ test("formatFollowThroughStateUpdateAsPayload adds live progress metadata", () =
   assert.equal(payload.metadata?.messageKind, "follow_through_state_update");
   assert.equal(payload.metadata?.progressLabel, "improving");
   assert.equal(payload.metadata?.directionalReturnPct, 0.42);
-  assert.match(payload.body, /improving since the alert/);
+  assert.match(payload.body, /breakout is improving/);
+  assert.match(payload.body, /setup move: \+0\.42%/);
+  assert.doesNotMatch(payload.body, /alert direction|since the alert/);
 });
 
 test("formatContinuityUpdateAsPayload adds continuity metadata", () => {
@@ -384,6 +474,7 @@ test("formatContinuityUpdateAsPayload adds continuity metadata", () => {
       message: "buyers reacting at support near 2.40",
       type: "confirmation",
       eventType: "level_touch",
+      level: 2.4,
       confidence: 0.82,
       tags: [],
       timestamp: 12,
@@ -391,6 +482,8 @@ test("formatContinuityUpdateAsPayload adds continuity metadata", () => {
   });
 
   assert.equal(payload.metadata?.messageKind, "continuity_update");
+  assert.equal(payload.metadata?.eventType, "level_touch");
+  assert.equal(payload.metadata?.targetPrice, 2.4);
   assert.equal(payload.metadata?.continuityType, "confirmation");
   assert.match(payload.body, /buyers reacting at support near 2.40/);
 });
@@ -406,7 +499,7 @@ test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through con
       eventType: "breakout",
       directionalReturnPct: 2.9,
       rawReturnPct: 2.9,
-      line: "follow-through: breakout is still working after the alert",
+      line: "follow-through: breakout is still working",
     },
   });
 
@@ -416,9 +509,12 @@ test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through con
     [
       "Status: working",
       "",
-      "What it means:",
-      "- breakout is still working after the alert",
-      "- alert direction move: +2.90%",
+      "What changed:",
+      "- breakout is still working",
+      "- setup move: +2.90%",
+      "",
+      "Decision area:",
+      "- breakout is still active; 2.41 remains the decision level to hold or reclaim before the next setup update matters.",
       "",
       "Path:",
       "- 2.41 -> 2.48 (+2.90% price move)",
@@ -429,8 +525,52 @@ test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through con
   assert.equal(payload.metadata?.messageKind, "follow_through_update");
   assert.equal(payload.metadata?.eventType, "breakout");
   assert.equal(payload.metadata?.followThroughLabel, "working");
+  assert.equal(payload.metadata?.targetPrice, 2.41);
   assert.equal(payload.metadata?.directionalReturnPct, 2.9);
   assert.equal(payload.metadata?.rawReturnPct, 2.9);
+  assert.equal(payload.metadata?.repeatedOutcomeUpdate, false);
+});
+
+test("formatFollowThroughUpdateAsPayload marks repeated outcome updates as existing setup updates", () => {
+  const payload = formatFollowThroughUpdateAsPayload({
+    symbol: "ALBT",
+    timestamp: 10,
+    entryPrice: 2.41,
+    outcomePrice: 2.32,
+    repeatedOutcomeUpdate: true,
+    followThrough: {
+      label: "failed",
+      eventType: "breakout",
+      directionalReturnPct: -3.7,
+      rawReturnPct: -3.7,
+      line: "follow-through: breakout failed",
+    },
+  });
+
+  assert.match(payload.body, /Update type: existing setup update, not a new setup/);
+  assert.match(payload.body, /for longs, 2\.41 needs to be reclaimed/);
+  assert.equal(payload.metadata?.repeatedOutcomeUpdate, true);
+});
+
+test("formatFollowThroughUpdateAsPayload uses long-only wording for breakdown failures", () => {
+  const payload = formatFollowThroughUpdateAsPayload({
+    symbol: "ALBT",
+    timestamp: 12,
+    entryPrice: 2.41,
+    outcomePrice: 2.45,
+    followThrough: {
+      label: "failed",
+      eventType: "breakdown",
+      directionalReturnPct: -1.66,
+      rawReturnPct: 1.66,
+      line: "follow-through: support-loss warning faded",
+    },
+  });
+
+  assert.equal(payload.title, "ALBT support-loss warning follow-through");
+  assert.match(payload.body, /support-loss warning faded/);
+  assert.match(payload.body, /setup move: -1\.66%/);
+  assert.doesNotMatch(payload.body, /breakdown failed|after the alert|alert direction/);
 });
 
 test("formatLevelSnapshotMessage uses deterministic formatting", () => {
@@ -439,11 +579,11 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       symbol: "ALBT",
       currentPrice: 2.51,
       supportZones: [
-        { representativePrice: 2.4, strengthLabel: "strong" },
-        { representativePrice: 2.25, lowPrice: 2.2, highPrice: 2.28, strengthLabel: "weak" },
+        { representativePrice: 2.4, strengthLabel: "strong", sourceLabel: "daily structure" },
+        { representativePrice: 2.25, lowPrice: 2.2, highPrice: 2.28, strengthLabel: "weak", sourceLabel: "fresh intraday" },
       ],
       resistanceZones: [
-        { representativePrice: 2.6, lowPrice: 2.58, highPrice: 2.62, strengthLabel: "major" },
+        { representativePrice: 2.6, lowPrice: 2.58, highPrice: 2.62, strengthLabel: "major", sourceLabel: "4h confluence" },
         { representativePrice: 2.75, strengthLabel: "moderate", isExtension: true },
       ],
       timestamp: 1,
@@ -457,12 +597,17 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       "- Room is fairly balanced between the nearest support and resistance.",
       "",
       "KEY LEVELS:",
-      "- Resistance: 2.60 (+3.6%, major), 2.75 (+9.6%, moderate extension)",
-      "- Support: 2.40 (-4.4%, heavy), 2.25 (-10.4%, light)",
+      "Resistance:",
+      "2.60 (+3.6%, major, 4h confluence)",
+      "2.75 (+9.6%, moderate, extension)",
+      "",
+      "Support:",
+      "2.40 (-4.4%, heavy, daily structure)",
+      "2.25 (-10.4%, light, fresh intraday)",
       "",
       "FULL LADDER:",
-      "- Support: 2.40 (-4.4%, heavy), 2.25 (-10.4%, light)",
-      "- Resistance: 2.60 (+3.6%, major), 2.75 (+9.6%, moderate extension)",
+      "- Support: 2.40 (-4.4%, heavy, daily structure), 2.25 (-10.4%, light, fresh intraday)",
+      "- Resistance: 2.60 (+3.6%, major, 4h confluence), 2.75 (+9.6%, moderate, extension)",
     ].join("\n"),
   );
 });

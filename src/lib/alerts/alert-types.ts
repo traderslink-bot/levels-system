@@ -192,6 +192,7 @@ export type AlertPayload = {
     aiGenerated?: boolean;
     directionalReturnPct?: number | null;
     rawReturnPct?: number | null;
+    repeatedOutcomeUpdate?: boolean;
     suppressEmbeds?: boolean;
   };
 };
@@ -200,6 +201,7 @@ export type TraderNextBarrierContext = {
   side: "support" | "resistance";
   price: number;
   distancePct: number;
+  strengthLabel?: FinalLevelZone["strengthLabel"];
   clearanceLabel?: BarrierClearanceLabel;
   clutterLabel?: BarrierClutterLabel;
   nearbyBarrierCount?: number;
@@ -231,6 +233,7 @@ export type LevelSnapshotDisplayZone = {
   strengthLabel?: FinalLevelZone["strengthLabel"];
   freshness?: FinalLevelZone["freshness"];
   isExtension?: boolean;
+  sourceLabel?: string;
 };
 
 export type LevelSnapshotAuditOmittedReason =
@@ -253,6 +256,7 @@ export type LevelSnapshotAuditZone = {
   timeframeBias: FinalLevelZone["timeframeBias"];
   timeframeSources: FinalLevelZone["timeframeSources"];
   sourceTypes: FinalLevelZone["sourceTypes"];
+  sourceLabel?: string;
   freshness: FinalLevelZone["freshness"];
   isExtension: boolean;
   displayed: boolean;

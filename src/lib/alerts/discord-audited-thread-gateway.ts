@@ -70,6 +70,7 @@ export type DiscordDeliveryAuditEntry = {
   aiGenerated?: boolean;
   directionalReturnPct?: number | null;
   rawReturnPct?: number | null;
+  repeatedOutcomeUpdate?: boolean;
   supportCount?: number;
   resistanceCount?: number;
   snapshotAudit?: {
@@ -253,6 +254,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         aiGenerated: payload.metadata?.aiGenerated,
         directionalReturnPct: payload.metadata?.directionalReturnPct,
         rawReturnPct: payload.metadata?.rawReturnPct,
+        repeatedOutcomeUpdate: payload.metadata?.repeatedOutcomeUpdate,
       });
     } catch (error) {
       this.recordFailed("post_alert", error, {
@@ -298,6 +300,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         aiGenerated: payload.metadata?.aiGenerated,
         directionalReturnPct: payload.metadata?.directionalReturnPct,
         rawReturnPct: payload.metadata?.rawReturnPct,
+        repeatedOutcomeUpdate: payload.metadata?.repeatedOutcomeUpdate,
       });
     }
   }

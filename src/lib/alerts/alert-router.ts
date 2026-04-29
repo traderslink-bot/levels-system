@@ -7,6 +7,7 @@ import type {
   AlertPayload,
   DiscordThread,
   TraderFollowThroughContext,
+  TraderNextBarrierContext,
   LevelExtensionPayload,
   LevelSnapshotDisplayZone,
   LevelSnapshotPayload,
@@ -54,6 +55,16 @@ function formatAlertLevel(level: number | undefined): string | null {
     : null;
 }
 
+function formatAlertZoneRange(alert: IntelligentAlert): string | null {
+  const low = formatAlertLevel(alert.zone?.zoneLow);
+  const high = formatAlertLevel(alert.zone?.zoneHigh);
+  const representative = formatAlertLevel(alert.zone?.representativePrice ?? alert.event.level);
+  if (low && high) {
+    return low === high ? low : `${low}-${high}`;
+  }
+  return representative;
+}
+
 function signalText(value: string): string {
   return value.toLowerCase();
 }
@@ -92,30 +103,62 @@ function isLongCautionEventType(eventType: MonitoringEvent["eventType"]): boolea
   return eventType === "breakdown" || eventType === "fake_breakout" || eventType === "rejection";
 }
 
-function buildPotentialDipBuyLine(alert: IntelligentAlert, level: string | null): string | null {
-  if (!level || !isLongCautionEventType(alert.event.eventType) || alert.nextBarrier?.side !== "support") {
+function formatBarrierWithStrength(barrier: TraderNextBarrierContext | null | undefined): string | null {
+  if (!barrier) {
+    return null;
+  }
+
+  const level = formatAlertLevel(barrier.price);
+  if (!level) {
+    return null;
+  }
+
+  if (barrier.strengthLabel) {
+    return `${describeZoneStrength(barrier.strengthLabel)} ${barrier.side} ${level}`;
+  }
+
+  return `${barrier.side} near ${level}`;
+}
+
+function formatLostSupportAsResistance(alert: IntelligentAlert): string | null {
+  if (!isLongCautionEventType(alert.event.eventType)) {
+    return null;
+  }
+
+  const zoneRange = formatAlertZoneRange(alert);
+  if (!zoneRange) {
+    return null;
+  }
+
+  return alert.zone?.strengthLabel
+    ? `${describeZoneStrength(alert.zone.strengthLabel)} resistance ${zoneRange}`
+    : `resistance ${zoneRange}`;
+}
+
+function buildSupportReactionLine(alert: IntelligentAlert, barrierText: string | null): string | null {
+  if (!barrierText || !isLongCautionEventType(alert.event.eventType) || alert.nextBarrier?.side !== "support") {
     return null;
   }
 
   const reclaimLevel = formatAlertLevel(alert.zone?.zoneHigh);
   if (alert.event.eventType === "breakdown" && reclaimLevel) {
-    return `possible dip-buy area: ${level}, only if buyers stabilize there or reclaim ${reclaimLevel}`;
+    return `next support reaction area: ${barrierText}; buyers need stabilization there or a reclaim of ${reclaimLevel}`;
   }
 
-  return `possible dip-buy area: ${level}, only if buyers stabilize there first`;
+  return `next support reaction area: ${barrierText}; buyers need stabilization there first`;
 }
 
-function buildHoldFailureMapLine(alert: IntelligentAlert, nextSupportLevel: string | null): string | null {
+function buildHoldFailureMapLine(alert: IntelligentAlert, nextSupportText: string | null): string | null {
   if (!isLongCautionEventType(alert.event.eventType) || alert.nextBarrier?.side !== "support") {
     return null;
   }
 
   const reclaimLevel = formatAlertLevel(alert.zone?.zoneHigh);
-  if (!reclaimLevel || !nextSupportLevel) {
+  if (!reclaimLevel || !nextSupportText) {
     return null;
   }
 
-  return `${reclaimLevel} is the reclaim line for the long setup; below it, risk stays open toward ${nextSupportLevel} unless buyers stabilize first.`;
+  return `${reclaimLevel} is the reclaim line for the long setup; below it, risk stays open toward ${nextSupportText} unless buyers stabilize first.`;
 }
 
 function splitWatchLine(watch: string | null): { confirm: string | null; invalidation: string | null } {
@@ -142,11 +185,12 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   const failureRisk = pickLine(lines, "failure risk:", alert.failureRisk);
   const targetLevel = formatAlertLevel(alert.target?.price);
   const barrierLevel = formatAlertLevel(alert.nextBarrier?.price);
+  const barrierText = formatBarrierWithStrength(alert.nextBarrier);
   const eventType = alert.event.eventType;
   const status = eventStatusLabel(eventType);
   const watchParts = splitWatchLine(watch);
-  const potentialDipBuyLine = buildPotentialDipBuyLine(alert, barrierLevel);
-  const holdFailureMapLine = buildHoldFailureMapLine(alert, barrierLevel);
+  const supportReactionLine = buildSupportReactionLine(alert, barrierText);
+  const holdFailureMapLine = buildHoldFailureMapLine(alert, barrierText);
   const readLines: string[] = [];
 
   if (eventType === "breakout") {
@@ -214,9 +258,17 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
     nearbyLevels.push(`${label} ${side}: ${level}`);
   };
   if (isLongCautionEventType(eventType)) {
-    if (potentialDipBuyLine) {
-      nearbyLevels.push(`Possible dip-buy area: ${barrierLevel}`);
+    const reclaimArea = formatLostSupportAsResistance(alert);
+    if (reclaimArea) {
+      nearbyLevels.push(`Reclaim area: ${reclaimArea}`);
     }
+    if (alert.nextBarrier?.side === "support" && barrierText) {
+      nearbyLevels.push(`Next support: ${barrierText}`);
+    }
+  } else if (eventType === "level_touch") {
+    const zoneRange = formatAlertZoneRange(alert);
+    pushNearbyLevel("Testing", alert.event.zoneKind, zoneRange);
+    pushNearbyLevel("Next", alert.nextBarrier?.side ?? "", barrierLevel);
   } else {
     pushNearbyLevel("First", alert.target?.side ?? "", targetLevel);
     pushNearbyLevel("Next", alert.nextBarrier?.side ?? "", barrierLevel);
@@ -227,7 +279,7 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   if (readLines.length > 0) {
     output.push("", "What it means:", ...readLines.slice(0, 3).map((line) => `- ${line}`));
   }
-  if (watchParts.confirm || watchParts.invalidation || potentialDipBuyLine) {
+  if (watchParts.confirm || watchParts.invalidation || supportReactionLine) {
     output.push("", "What to watch:");
     if (watchParts.confirm) {
       output.push(`- ${watchParts.confirm}`);
@@ -235,15 +287,15 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
     if (watchParts.invalidation) {
       output.push(`- invalidation: ${watchParts.invalidation.replace(/^invalidates\s*/i, "")}`);
     }
-    if (potentialDipBuyLine) {
-      output.push(`- ${potentialDipBuyLine}`);
+    if (supportReactionLine) {
+      output.push(`- ${supportReactionLine}`);
     }
   }
   if (holdFailureMapLine) {
     output.push("", "Hold / failure map:", `- ${holdFailureMapLine}`);
   }
   if (nearbyLevels.length > 0) {
-    output.push("", "Next levels:", ...nearbyLevels.map((line) => `- ${line}`));
+    output.push("", "Key levels:", ...nearbyLevels.map((line) => `- ${line}`));
   }
   output.push(
     "",
@@ -299,12 +351,59 @@ function formatPct(value: number): string {
   return `${sign}${Math.abs(value).toFixed(2)}%`;
 }
 
+function formatAlertPrice(value: number): string {
+  return value >= 1 ? value.toFixed(2) : value.toFixed(4);
+}
+
+function followThroughEventLabel(eventType: string): string {
+  if (eventType === "breakdown") {
+    return "support-loss warning";
+  }
+
+  if (eventType === "fake_breakout") {
+    return "failed-breakout warning";
+  }
+
+  if (eventType === "rejection") {
+    return "rejection warning";
+  }
+
+  return eventType.replaceAll("_", " ");
+}
+
+function followThroughDecisionArea(params: {
+  eventType: string;
+  label: TraderFollowThroughContext["label"];
+  entryPrice: number;
+}): string {
+  const eventType = followThroughEventLabel(params.eventType);
+  const level = formatAlertPrice(params.entryPrice);
+  if (params.label === "failed") {
+    return `${eventType} is no longer confirmed; for longs, ${level} needs to be reclaimed before the setup improves.`;
+  }
+
+  if (params.label === "strong") {
+    return `${eventType} has expanded from ${level}; that level should keep holding for the move to stay clean.`;
+  }
+
+  if (params.label === "working") {
+    return `${eventType} is still active; ${level} remains the decision level to hold or reclaim before the next setup update matters.`;
+  }
+
+  if (params.label === "stalled") {
+    return `${eventType} has stopped making progress; ${level} is the decision level to watch for either recovery or fading momentum.`;
+  }
+
+  return `${eventType} is unresolved; ${level} remains the decision level for the next clean read.`;
+}
+
 export function formatFollowThroughUpdateAsPayload(params: {
   symbol: string;
   timestamp: number;
   followThrough: TraderFollowThroughContext;
   entryPrice: number;
   outcomePrice: number;
+  repeatedOutcomeUpdate?: boolean;
 }): AlertPayload {
   const { symbol, timestamp, followThrough, entryPrice, outcomePrice } = params;
   const directionalText =
@@ -315,18 +414,29 @@ export function formatFollowThroughUpdateAsPayload(params: {
     followThrough.rawReturnPct === null
       ? "n/a"
       : formatPct(followThrough.rawReturnPct);
+  const eventType = followThroughEventLabel(followThrough.eventType);
+  const entryText = formatAlertPrice(entryPrice);
+  const outcomeText = formatAlertPrice(outcomePrice);
 
   return {
-    title: `${symbol} ${followThrough.eventType.replaceAll("_", " ")} follow-through`,
+    title: `${symbol} ${eventType} follow-through`,
     body: [
       `Status: ${followThrough.label}`,
+      ...(params.repeatedOutcomeUpdate ? ["Update type: existing setup update, not a new setup"] : []),
       "",
-      "What it means:",
+      "What changed:",
       `- ${stripLinePrefix(followThrough.line)}`,
-      `- alert direction move: ${directionalText}`,
+      `- setup move: ${directionalText}`,
+      "",
+      "Decision area:",
+      `- ${followThroughDecisionArea({
+        eventType: followThrough.eventType,
+        label: followThrough.label,
+        entryPrice,
+      })}`,
       "",
       "Path:",
-      `- ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} -> ${outcomePrice >= 1 ? outcomePrice.toFixed(2) : outcomePrice.toFixed(4)} (${rawText} price move)`,
+      `- ${entryText} -> ${outcomeText} (${rawText} price move)`,
     ].join("\n"),
     symbol,
     timestamp,
@@ -334,8 +444,10 @@ export function formatFollowThroughUpdateAsPayload(params: {
       messageKind: "follow_through_update",
       eventType: followThrough.eventType as MonitoringEvent["eventType"],
       followThroughLabel: followThrough.label,
+      targetPrice: entryPrice,
       directionalReturnPct: followThrough.directionalReturnPct,
       rawReturnPct: followThrough.rawReturnPct,
+      repeatedOutcomeUpdate: params.repeatedOutcomeUpdate ?? false,
     },
   };
 }
@@ -350,25 +462,26 @@ export function formatFollowThroughStateUpdateAsPayload(params: {
   currentPrice: number;
 }): AlertPayload {
   const { symbol, timestamp, eventType, progressLabel, directionalReturnPct, entryPrice, currentPrice } = params;
+  const eventLabel = followThroughEventLabel(eventType);
   const directionalText =
     directionalReturnPct === null
       ? "n/a"
       : formatPct(directionalReturnPct);
   const line =
     progressLabel === "improving"
-      ? `${eventType.replaceAll("_", " ")} is improving since the alert`
+      ? `${eventLabel} is improving`
       : progressLabel === "stalling"
-        ? `${eventType.replaceAll("_", " ")} is stalling and needs fresh follow-through`
-        : `${eventType.replaceAll("_", " ")} is degrading and needs to stabilize`;
+        ? `${eventLabel} is stalling and needs a better reaction`
+        : `${eventLabel} is degrading and needs to stabilize`;
 
   return {
-    title: `${symbol} ${eventType.replaceAll("_", " ")} state update`,
+    title: `${symbol} ${eventLabel} state update`,
     body: [
       `Status: ${progressLabel}`,
       "",
       "What it means:",
       `- ${line}`,
-      `- alert direction move: ${directionalText}`,
+      `- setup move: ${directionalText}`,
       "",
       "Path:",
       `- ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} -> ${currentPrice >= 1 ? currentPrice.toFixed(2) : currentPrice.toFixed(4)}`,
@@ -392,6 +505,8 @@ export function formatContinuityUpdateAsPayload(params: {
     continuityType: string;
     message: string;
     confidence?: number;
+    eventType?: string | null;
+    level?: number;
   };
 }): AlertPayload {
   const interpretation =
@@ -403,6 +518,8 @@ export function formatContinuityUpdateAsPayload(params: {
           type: params.update.continuityType,
           message: params.update.message,
           confidence: params.update.confidence ?? 0.5,
+          eventType: params.update.eventType ?? undefined,
+          level: params.update.level,
           tags: [],
         }
       : null);
@@ -418,6 +535,8 @@ export function formatContinuityUpdateAsPayload(params: {
     timestamp: interpretation.timestamp,
     metadata: {
       messageKind: "continuity_update",
+      eventType: interpretation.eventType as MonitoringEvent["eventType"] | undefined,
+      targetPrice: interpretation.level,
       continuityType: interpretation.type,
     },
   };
@@ -475,7 +594,10 @@ function formatSnapshotDisplayZone(
   const distance = formatDistancePctFromPrice(zone.representativePrice, currentPrice);
   const descriptor = zone.strengthLabel ? describeZoneStrength(zone.strengthLabel) : null;
   const extension = zone.isExtension ? "extension" : null;
-  const descriptorText = [descriptor, extension].filter((value): value is string => Boolean(value)).join(" ");
+  const descriptorParts = [descriptor, zone.sourceLabel, extension]
+    .filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.indexOf(value) === index);
+  const descriptorText = descriptorParts.join(", ");
   const suffix = [distance, descriptorText].filter((value): value is string => Boolean(value)).join(", ");
 
   if (!suffix) {
@@ -595,9 +717,26 @@ function formatSnapshotLevelList(
     : "none";
 }
 
+function formatSnapshotLevelBlock(
+  label: "Resistance" | "Support",
+  zones: LevelSnapshotDisplayZone[],
+  currentPrice: number,
+  limit?: number,
+): string[] {
+  const selected = limit === undefined ? zones : zones.slice(0, limit);
+  if (selected.length === 0) {
+    return [`${label}:`, "none"];
+  }
+
+  return [
+    `${label}:`,
+    ...selected.map((zone) => formatSnapshotDisplayZone(zone, currentPrice)),
+  ];
+}
+
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
-  const keySupportLine = formatSnapshotLevelList(payload.supportZones, payload.currentPrice, 3);
-  const keyResistanceLine = formatSnapshotLevelList(payload.resistanceZones, payload.currentPrice, 3);
+  const keyResistanceLines = formatSnapshotLevelBlock("Resistance", payload.resistanceZones, payload.currentPrice, 3);
+  const keySupportLines = formatSnapshotLevelBlock("Support", payload.supportZones, payload.currentPrice, 3);
   const supportLine = formatSnapshotLevelList(payload.supportZones, payload.currentPrice);
   const resistanceLine = formatSnapshotLevelList(payload.resistanceZones, payload.currentPrice);
 
@@ -609,8 +748,9 @@ export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): strin
     ...buildSnapshotReadLines(payload).map((line) => `- ${line}`),
     "",
     "KEY LEVELS:",
-    `- Resistance: ${keyResistanceLine}`,
-    `- Support: ${keySupportLine}`,
+    ...keyResistanceLines,
+    "",
+    ...keySupportLines,
     "",
     "FULL LADDER:",
     `- Support: ${supportLine}`,

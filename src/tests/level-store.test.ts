@@ -213,3 +213,167 @@ test("LevelStore replaces promoted extension identity with canonical lineage wit
   assert.equal(context?.origin, "canonical");
   assert.equal(context?.remapStatus, "replaced");
 });
+
+test("LevelStore carries forward untested higher-timeframe resistance removed by a refresh", () => {
+  const store = new LevelStore();
+  store.setLevels(
+    buildOutput("SKYQ", {
+      metadata: {
+        providerByTimeframe: {},
+        dataQualityFlags: [],
+        freshness: "fresh",
+        referencePrice: 6.16,
+      },
+      majorResistance: [
+        buildZone({
+          id: "R1",
+          symbol: "SKYQ",
+          kind: "resistance",
+          timeframeBias: "daily",
+          timeframeSources: ["daily"],
+          zoneLow: 7,
+          zoneHigh: 7.04,
+          representativePrice: 7,
+          strengthLabel: "major",
+        }),
+      ],
+      intermediateResistance: [
+        buildZone({
+          id: "R2",
+          symbol: "SKYQ",
+          kind: "resistance",
+          timeframeBias: "4h",
+          timeframeSources: ["4h"],
+          zoneLow: 7.11,
+          zoneHigh: 7.13,
+          representativePrice: 7.12,
+        }),
+        buildZone({
+          id: "R3",
+          symbol: "SKYQ",
+          kind: "resistance",
+          timeframeBias: "4h",
+          timeframeSources: ["4h"],
+          zoneLow: 7.27,
+          zoneHigh: 7.29,
+          representativePrice: 7.28,
+        }),
+        buildZone({
+          id: "R4",
+          symbol: "SKYQ",
+          kind: "resistance",
+          timeframeBias: "4h",
+          timeframeSources: ["4h"],
+          zoneLow: 7.72,
+          zoneHigh: 7.74,
+          representativePrice: 7.73,
+        }),
+      ],
+    }),
+  );
+
+  const priorResistance = store.getResistanceZones("SKYQ");
+  const prior712 = priorResistance.find((zone) => zone.representativePrice === 7.12);
+  assert.ok(prior712);
+
+  store.setLevels(
+    buildOutput("SKYQ", {
+      metadata: {
+        providerByTimeframe: {},
+        dataQualityFlags: [],
+        freshness: "fresh",
+        referencePrice: 6.9,
+      },
+      majorResistance: [
+        buildZone({
+          id: "R5",
+          symbol: "SKYQ",
+          kind: "resistance",
+          timeframeBias: "daily",
+          timeframeSources: ["daily"],
+          zoneLow: 7,
+          zoneHigh: 7.04,
+          representativePrice: 7,
+          strengthLabel: "major",
+        }),
+      ],
+      intermediateResistance: [
+        buildZone({
+          id: "R6",
+          symbol: "SKYQ",
+          kind: "resistance",
+          timeframeBias: "4h",
+          timeframeSources: ["4h"],
+          zoneLow: 7.72,
+          zoneHigh: 7.74,
+          representativePrice: 7.73,
+        }),
+      ],
+    }),
+  );
+
+  const resistance = store.getResistanceZones("SKYQ");
+  assert.deepEqual(
+    resistance.map((zone) => zone.representativePrice),
+    [7, 7.12, 7.28, 7.73],
+  );
+  const carried = resistance.find((zone) => zone.representativePrice === 7.12);
+  const context = carried ? store.getZoneContext("SKYQ", carried.id) : undefined;
+  assert.equal(carried?.freshness, "aging");
+  assert.ok(carried?.notes.includes("carried_forward_prior_level"));
+  assert.equal(context?.remapStatus, "preserved");
+});
+
+test("LevelStore does not carry forward prior resistance after price has cleared it", () => {
+  const store = new LevelStore();
+  store.setLevels(
+    buildOutput("SKYQ", {
+      metadata: {
+        providerByTimeframe: {},
+        dataQualityFlags: [],
+        freshness: "fresh",
+        referencePrice: 6.16,
+      },
+      intermediateResistance: [
+        buildZone({
+          id: "R1",
+          symbol: "SKYQ",
+          kind: "resistance",
+          timeframeBias: "4h",
+          timeframeSources: ["4h"],
+          zoneLow: 7.11,
+          zoneHigh: 7.13,
+          representativePrice: 7.12,
+        }),
+      ],
+    }),
+  );
+
+  store.setLevels(
+    buildOutput("SKYQ", {
+      metadata: {
+        providerByTimeframe: {},
+        dataQualityFlags: [],
+        freshness: "fresh",
+        referencePrice: 7.3,
+      },
+      intermediateResistance: [
+        buildZone({
+          id: "R2",
+          symbol: "SKYQ",
+          kind: "resistance",
+          timeframeBias: "4h",
+          timeframeSources: ["4h"],
+          zoneLow: 7.72,
+          zoneHigh: 7.74,
+          representativePrice: 7.73,
+        }),
+      ],
+    }),
+  );
+
+  assert.deepEqual(
+    store.getResistanceZones("SKYQ").map((zone) => zone.representativePrice),
+    [7.73],
+  );
+});

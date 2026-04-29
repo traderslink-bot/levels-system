@@ -6,7 +6,7 @@ This document is the living tracker for ideas, priorities, progress, and open qu
 
 - more useful to the end user
 - more trustworthy operationally
-- better at describing support, resistance, breakouts, reclaims, and dip-buy style opportunities
+- better at describing support, resistance, breakouts, reclaims, and support-reaction opportunities
 - easier to improve over time without losing the thread of why changes were made
 
 This should be updated whenever a meaningful signal-quality or trader-output improvement ships, or when a new important improvement idea is identified.
@@ -30,7 +30,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 - Keep support and resistance ranking grounded in structural evidence, not only proximity.
 - Improve breakout and reclaim quality using live evidence, not only unit tests.
-- Improve dip-buy style interpretation so strong support tests are highlighted more clearly than weak inner noise.
+- Improve support-reaction interpretation so strong support tests are highlighted more clearly than weak inner noise.
 
 ### 4. AI-assisted commentary
 
@@ -49,7 +49,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added per-symbol session-summary tracking for lifecycle, delivery, diagnostics, failures, and opportunity updates.
 - Added runtime-status visibility for the operator.
 - Improved trader-facing alert payloads with severity, confidence, score, and trigger.
-- Improved trader-facing alert wording so breakout, breakdown, reclaim, failed-move, and dip-buy style support tests are described in more useful language.
+- Improved trader-facing alert wording so breakout, breakdown, reclaim, failed-move, and support-reaction tests are described in more useful language.
 - Added trader-facing support/resistance strength wording:
   - `weak` -> `light`
   - `moderate` -> `moderate`
@@ -69,7 +69,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added a human review loop backed by `human-review-feedback.jsonl` plus `scripts/add-long-run-review-feedback.ps1`, and surfaced that feedback in the long-run summary artifacts.
 - Added deterministic end-of-session thread summaries so each symbol now gets a clearer plain-English wrap-up instead of only raw counts.
 - Added tactical `firm` / `tired` zone reads to trader-facing alerts and long-run review summaries so structurally important but fading zones are described more honestly.
-- Made tactical `firm` / `tired` reads directional in scoring so worn-out support is downgraded for dip-buy style ideas while tired resistance can act as a breakout tailwind.
+- Made tactical `firm` / `tired` reads directional in scoring so worn-out support is downgraded for support-reaction ideas while tired resistance can act as a breakout tailwind.
 - Added deterministic `why now` trader wording and evaluation-aware long-run review so live sessions are judged more by useful outcomes than by raw diagnostic volume.
 - Added evaluation-by-event-type tracking to long-run summaries so each session can now show which alert families are validating cleanly versus leaning negative.
 - Added alert/evaluation alignment summaries to thread review so a symbol's latest posted setup can be compared against how that same setup family has actually been performing.
@@ -91,7 +91,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added barrier-clutter context so event scoring, opportunity ranking, alert wording, and audit metadata can now distinguish cleaner paths from `stacked` or `dense` pathing beyond the first barrier.
 - Added multi-barrier `path quality` scoring so setups can now distinguish cleaner routes from layered or choppy pathing beyond the first barrier.
 - Added explicit zone `exhaustion` tracking so alerts can now say when a support or resistance level still matters structurally but is getting tactically worn out.
-- Added deterministic dip-buy-quality wording so support-test alerts can now say whether the bounce looks actionable, watch-only, or tactically poor.
+- Added deterministic support-reaction-quality wording so support-test alerts can now say whether the bounce looks actionable, watch-only, or tactically poor.
 - Added `trader-thread-recaps.md` so long-run sessions now produce a short readable recap artifact per symbol in addition to JSON summaries.
 - Added thread continuity posts so active symbol threads can now describe the lifecycle as `setup forming`, `confirmation`, `continuation`, `weakening`, or `failed` instead of relying only on isolated setup alerts.
 - Added in-session symbol recap posts so longer-lived symbols can periodically summarize the current state in one useful trader sentence.
@@ -99,7 +99,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Deepened multi-barrier path scoring so the app now considers barrier density, barrier strength, and compressed gaps across the first path window instead of treating path quality as only a first-barrier problem.
 - Added explicit path-constraint and path-window metadata so review can compare technically open paths against routes that are still cramped or step-heavy early.
 - Tightened exhaustion wording so `tested`, `worn`, and `spent` levels are described more explicitly as structurally important but tactically less trustworthy.
-- Tightened dip-buy-quality wording so support-test alerts are more willing to downgrade layered / worn support into watch-only or tactically poor cases.
+- Tightened support-reaction-quality wording so support-test alerts are more willing to downgrade layered / worn support into watch-only or tactically poor cases.
 - Tightened continuity posting so runtime continuity messages now prefer real lifecycle transitions over repeated low-value restatements.
 - Added deterministic `What matters next` recap guidance so in-session symbol recaps can tell the trader what continuation still requires.
 - Expanded the optional AI commentary layer so `npm run longrun:ai:summary` can now generate both `session-ai-review.md` and `thread-ai-recaps.md`, plus an AI noisy-family review.
@@ -141,6 +141,22 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Lengthened same-scope trader alert repost windows and raised the required score delta for reposts, so structurally unchanged zone stories now need a more meaningful change before Discord gets another alert.
 - Extended manual-runtime activation tolerance and IBKR historical timeout handling so slow first activations are less likely to vanish from the active list just because thread creation finished before historical seeding did.
 - Added operator-only snapshot audit metadata to Discord delivery audit rows, making it easier to diagnose whether missing-looking levels were compacted, crossed, outside the forward range, or absent from generated candidates.
+- Extracted the first live thread post policy helper so follow-through and AI commentary duplicate rules can be tested outside the manual runtime manager.
+- Moved optional continuity, recap, and live follow-through-state gating into the same policy helper so post-burst and same-event chatter rules can be tested directly.
+- Tightened completed follow-through posting with same-story keys, material-change checks, and a longer same-outcome window so repeated `working` / `failed` updates on the same active move do not keep crowding runner threads.
+- Tightened live AI read posting with same-story and in-flight gating so AI commentary only follows higher-value deterministic alerts and does not repeat the same symbol story while a previous AI read is already being generated.
+- Added `thread-post-policy-report.json` / `.md` and `snapshot-audit-report.json` / `.md` generation from `discord-delivery-audit.jsonl`, giving post-run review a faster way to find repeated same-story clusters, post bursts, optional-density pressure, and level-ladder omission reasons without scanning raw JSONL rows.
+- Added `long-run-tuning-suggestions.json` / `.md`, which turns the policy and snapshot audit reports into ranked action/watch/info items after a session.
+- Added a manual-runtime `Review Artifacts` panel so generated session reports can be previewed from the UI while testing.
+- Added `npm run validation:levels:quality -- <SYMBOL> [output-json-path]` for suspicious forward-ladder cases such as missing-looking overhead resistance or unusually wide first gaps.
+- Added a critical live-post burst governor plus stricter completed follow-through transition rules, so runner threads like ATER / BIYA should repeat fewer same-level `working` / `failed` messages.
+- Improved follow-through Discord wording with a `Decision area` section and existing-setup labeling for material repeated outcomes.
+- Added `npm run longrun:simulate:posts -- <session-folder>` and `live-post-replay-simulation.json` / `.md`, so saved sessions can be replayed through the current post-policy rules before the next live market test.
+- Routed live AI reads through optional-post and narration-burst discipline before the OpenAI call, keeping reactive AI reads out of already-busy threads and reducing unnecessary API usage.
+- Added `WATCHLIST_POSTING_PROFILE=quiet|balanced|active` so live Discord post volume can be adjusted from `.env` without editing code.
+- Added `live-post-profile-comparison.json` / `.md` so saved sessions can compare quiet, balanced, and active profiles before changing the runtime setting.
+- Added `runner-story-report.json` / `.md` so runner reviews can start from rough price path, key events, post quality labels, noisy-repeat samples, candidate missed level clears/losses, and post mix instead of raw Discord/audit rows.
+- Tightened live posting around the current philosophy: critical level changes still post, but minor continuity, tiny follow-through, same-zone chop, and low-value AI commentary stay out of Discord by default.
 
 ## Active Backlog
 
@@ -166,6 +182,12 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Keep validating live sessions like `AKAN` and `BURU` so delivery-choked or bursty threads can be separated from genuinely weak signal-quality threads.
 - Keep validating live sessions so same-snapshot progress/evaluation arbitration does not flatten useful trader-critical follow-through while still removing low-value duplicate narration.
 - Keep validating first activations so slow-but-valid symbols remain visible as `activating`, post the Finnhub opener first, and either finish seeding or fail clearly instead of silently rolling back.
+- Use `thread-post-policy-report.json` after each live test to identify which symbols still repeat the same story too often, especially runner symbols that trigger several follow-through outcomes in a short window.
+- Use `snapshot-audit-report.json` after runner sessions to separate true missing-level detection issues from trader-facing compaction or forward-range filtering.
+- Use `long-run-tuning-suggestions.md` as the first triage pass after a session so the next code change is driven by the most visible repeated-story, burst, optional-density, delivery, or level-audit issue.
+- Use `npm run validation:levels:quality -- <SYMBOL>` before changing level detection because a live snapshot appears to have skipped older support/resistance.
+- After the next runner session, compare ATER / BIYA-style threads against the new burst governor and repeated-outcome wording to verify fewer same-story posts reach Discord without hiding genuinely new level clears or failures.
+- Use the replay simulator after every noisy session to estimate whether policy changes would have helped before changing live thresholds again.
 
 ### Detection and ranking improvements
 
@@ -203,6 +225,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
   - strong
 - Add stronger cooldown rules for repetitive context-only alerts.
 - Keep refining the line between trader-critical posts and trader-helpful optional posts without gutting useful thread continuity too early.
+- Continue extracting live-post policy from the manual runtime manager so suppression decisions can be unit-tested and reviewed as policy instead of being buried inside orchestration.
 
 ### AI ideas worth building later
 
@@ -215,12 +238,12 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 
 ## Current Hypotheses To Test
 
-- Strong-support `level_touch` events are more useful when framed as dip-buy tests rather than generic zone touches.
+- Strong-support `level_touch` events are more useful when framed as support-reaction tests rather than generic zone touches.
 - Outermost and promoted-extension zones are usually more trader-useful than weak inner-zone touches.
 - A signal becomes much more useful when the message says both:
   - what happened
   - what must happen next for the idea to remain valid
-- Some false-positive dip-buy ideas are probably caused by poor overhead-clearance awareness rather than weak support ranking alone.
+- Some false-positive support-reaction ideas are probably caused by poor overhead-clearance awareness rather than weak support ranking alone.
 - Some false-positive heavy-support / heavy-resistance reads are probably caused by structurally strong but durability-fragile levels being described too aggressively.
 
 ## Next Recommended Implementation Steps

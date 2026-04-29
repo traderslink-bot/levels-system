@@ -30,12 +30,17 @@ test("manual watchlist page builds entry metadata without innerHTML interpolatio
 test("manual watchlist page shows runtime status and separate review surfaces", () => {
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Status/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Config/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /AI commentary can add separate AI read posts after deterministic alerts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-operational\.log/);
   assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-diagnostics\.log/);
   assert.match(MANUAL_WATCHLIST_PAGE, /discord-delivery-audit\.jsonl/);
   assert.match(MANUAL_WATCHLIST_PAGE, /thread-summaries\.json/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Discord thread ID/);
   assert.match(MANUAL_WATCHLIST_PAGE, /fetch\("\/api\/runtime\/status"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /fetch\("\/api\/runtime\/review-artifacts"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /renderReviewArtifacts/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /artifact\.name/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Refresh Levels/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Repost Snapshot/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Copy Thread/);

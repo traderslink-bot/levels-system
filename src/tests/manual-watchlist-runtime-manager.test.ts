@@ -44,6 +44,10 @@ function buildZone(params: Partial<FinalLevelZone> & Pick<FinalLevelZone, "id" |
   };
 }
 
+function withoutSnapshotSourceLabels<T extends { sourceLabel?: string }>(zones: T[]): Array<Omit<T, "sourceLabel">> {
+  return zones.map(({ sourceLabel: _sourceLabel, ...zone }) => zone);
+}
+
 function buildLevelOutput(
   symbol: string,
   overrides: Partial<LevelEngineOutput> = {},
@@ -325,10 +329,10 @@ test("ManualWatchlistRuntimeManager loads persisted active entries and starts mo
   assert.equal(discordAlertRouter.levelSnapshots[0]?.threadId, "thread-bird");
   assert.equal(discordAlertRouter.levelSnapshots[0]?.payload.symbol, "BIRD");
   assert.equal(discordAlertRouter.levelSnapshots[0]?.payload.currentPrice, 2.2);
-  assert.deepEqual(discordAlertRouter.levelSnapshots[0]?.payload.supportZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots[0]?.payload.supportZones ?? []), [
     { representativePrice: 1.95, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
-  assert.deepEqual(discordAlertRouter.levelSnapshots[0]?.payload.resistanceZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots[0]?.payload.resistanceZones ?? []), [
     { representativePrice: 2.45, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
   assert.equal(typeof discordAlertRouter.levelSnapshots[0]?.payload.timestamp, "number");
@@ -1506,8 +1510,11 @@ test("ManualWatchlistRuntimeManager posts a compact update when nearest snapshot
     (entry) => entry.payload.metadata?.messageKind === "level_clear_update",
   );
   assert.equal(clearPosts.length, 1);
-  assert.equal(clearPosts[0]?.payload.title, "ALBT resistance cleared");
-  assert.match(clearPosts[0]?.payload.body ?? "", /price cleared 2\.90 and is moving toward 3\.10/);
+  assert.equal(clearPosts[0]?.payload.title, "ALBT resistance crossed");
+  assert.match(clearPosts[0]?.payload.body ?? "", /price pushed above 2\.90; next resistance is moderate resistance 3\.10/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /next resistance is moderate resistance 3\.10/);
+  assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /price target/);
+  assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /mapped/);
 
   monitor.onPriceUpdate?.({
     symbol: "ALBT",
@@ -1522,6 +1529,89 @@ test("ManualWatchlistRuntimeManager posts a compact update when nearest snapshot
     ).length,
     1,
   );
+});
+
+test("ManualWatchlistRuntimeManager waits for full resistance zone clearance before fast crossed post", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({
+            id: "S1",
+            symbol,
+            kind: "support",
+            zoneLow: 6.55,
+            zoneHigh: 6.56,
+            representativePrice: 6.56,
+          }),
+        ],
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 7,
+            zoneHigh: 7.04,
+            representativePrice: 7,
+            strengthLabel: "major",
+          }),
+          buildZone({
+            id: "R2",
+            symbol,
+            kind: "resistance",
+            zoneLow: 7.72,
+            zoneHigh: 7.74,
+            representativePrice: 7.73,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "SKYQ" });
+  discordAlertRouter.routed.length = 0;
+
+  monitor.onPriceUpdate?.({
+    symbol: "SKYQ",
+    timestamp: 1000,
+    lastPrice: 7.02,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(
+    discordAlertRouter.routed.filter(
+      (entry) => entry.payload.metadata?.messageKind === "level_clear_update",
+    ).length,
+    0,
+  );
+
+  monitor.onPriceUpdate?.({
+    symbol: "SKYQ",
+    timestamp: 2000,
+    lastPrice: 7.06,
+  });
+  await waitForAsyncWork();
+
+  const clearPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "level_clear_update",
+  );
+  assert.equal(clearPosts.length, 1);
+  assert.match(clearPosts[0]?.payload.body ?? "", /price pushed above 7\.04; next resistance is moderate resistance 7\.73/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /falling back below 7\.04 means the level is still acting like resistance/);
 });
 
 test("ManualWatchlistRuntimeManager advances fast resistance clears through runner ladders", async () => {
@@ -1607,13 +1697,197 @@ test("ManualWatchlistRuntimeManager advances fast resistance clears through runn
   });
   await waitForAsyncWork();
 
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 2300,
+    lastPrice: 1.41,
+  });
+  await waitForAsyncWork();
+
+  const clearPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "level_clear_update",
+  );
+  assert.equal(clearPosts.length, 3);
+  assert.equal(clearPosts[0]?.payload.metadata?.targetPrice, 1.32);
+  assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.33);
+  assert.equal(clearPosts[2]?.payload.metadata?.targetPrice, 1.39);
+  assert.match(clearPosts[2]?.payload.body ?? "", /price pushed above 1\.39; next resistance is moderate resistance 1\.41/);
+  assert.doesNotMatch(clearPosts[2]?.payload.body ?? "", /mapped/);
+});
+
+test("ManualWatchlistRuntimeManager does not skip intermediate resistance when price jumps through multiple levels", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({
+            id: "S1",
+            symbol,
+            kind: "support",
+            zoneLow: 1.21,
+            zoneHigh: 1.22,
+            representativePrice: 1.22,
+          }),
+        ],
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 1.31,
+            zoneHigh: 1.32,
+            representativePrice: 1.32,
+          }),
+          buildZone({
+            id: "R2",
+            symbol,
+            kind: "resistance",
+            zoneLow: 1.38,
+            zoneHigh: 1.39,
+            representativePrice: 1.39,
+          }),
+          buildZone({
+            id: "R3",
+            symbol,
+            kind: "resistance",
+            zoneLow: 1.40,
+            zoneHigh: 1.41,
+            representativePrice: 1.41,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 1000,
+    lastPrice: 1.44,
+  });
+  await waitForAsyncWork();
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 2000,
+    lastPrice: 1.44,
+  });
+  await waitForAsyncWork();
+
   const clearPosts = discordAlertRouter.routed.filter(
     (entry) => entry.payload.metadata?.messageKind === "level_clear_update",
   );
   assert.equal(clearPosts.length, 2);
   assert.equal(clearPosts[0]?.payload.metadata?.targetPrice, 1.32);
   assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.39);
-  assert.match(clearPosts[1]?.payload.body ?? "", /price cleared 1\.39 and is moving toward 1\.41/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /falling back below 1\.32 means the level is still acting like resistance/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /risk opens back toward 1\.22/);
+});
+
+test("ManualWatchlistRuntimeManager does not skip intermediate support when price drops through multiple levels", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({
+            id: "S1",
+            symbol,
+            kind: "support",
+            zoneLow: 1.21,
+            zoneHigh: 1.22,
+            representativePrice: 1.22,
+          }),
+          buildZone({
+            id: "S2",
+            symbol,
+            kind: "support",
+            zoneLow: 1.07,
+            zoneHigh: 1.08,
+            representativePrice: 1.08,
+          }),
+          buildZone({
+            id: "S3",
+            symbol,
+            kind: "support",
+            zoneLow: 1.05,
+            zoneHigh: 1.06,
+            representativePrice: 1.06,
+          }),
+        ],
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            zoneLow: 1.32,
+            zoneHigh: 1.33,
+            representativePrice: 1.33,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 1000,
+    lastPrice: 1.04,
+  });
+  await waitForAsyncWork();
+
+  monitor.onPriceUpdate?.({
+    symbol: "ALBT",
+    timestamp: 2000,
+    lastPrice: 1.04,
+  });
+  await waitForAsyncWork();
+
+  const clearPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "level_clear_update",
+  );
+  assert.equal(clearPosts.length, 2);
+  assert.equal(clearPosts[0]?.payload.metadata?.targetPrice, 1.22);
+  assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.08);
+  assert.match(clearPosts[0]?.payload.body ?? "", /price slipped below 1\.22; next support is moderate support 1\.08/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /next support is moderate support 1\.08/);
+  assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /price target/);
+  assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /mapped/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /next support reaction area: moderate support 1\.08; buyers need stabilization there or a reclaim of 1\.22/);
+  assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /dip-buy/i);
+  assert.match(clearPosts[0]?.payload.body ?? "", /below 1\.22, risk stays open toward 1\.08/);
 });
 
 test("ManualWatchlistRuntimeManager suppresses overlapping fast level-clear posts before routing resolves", async () => {
@@ -1950,12 +2224,13 @@ test("ManualWatchlistRuntimeManager snapshots partition displayed levels relativ
   const snapshot = discordAlertRouter.levelSnapshots.at(-1)?.payload;
   assert.equal(snapshot.symbol, "GXAI");
   assert.equal(snapshot.currentPrice, 1.55);
-  assert.deepEqual(snapshot.supportZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(snapshot.supportZones), [
     { representativePrice: 1.33, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
-  assert.deepEqual(snapshot.resistanceZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(snapshot.resistanceZones), [
     { representativePrice: 1.62, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
+  assert.equal(snapshot.supportZones[0]?.sourceLabel, "fresh intraday");
   assert.equal(typeof snapshot.timestamp, "number");
   assert.equal(snapshot.audit?.omittedSupportCount, 1);
   assert.equal(snapshot.audit?.omittedResistanceCount, 1);
@@ -2006,10 +2281,10 @@ test("ManualWatchlistRuntimeManager snapshot tolerance excludes near-price level
   await manager.start();
   await manager.activateSymbol({ symbol: "BIRD" });
 
-  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones ?? []), [
     { representativePrice: 1.53, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
-  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones ?? []), [
     { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
 });
@@ -2076,7 +2351,7 @@ test("ManualWatchlistRuntimeManager removes exact duplicate displayed prices and
   await manager.start();
   await manager.activateSymbol({ symbol: "GXAI" });
 
-  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots.at(-1)?.payload.supportZones ?? []), [
     { representativePrice: 1.431, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.36, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.33, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
@@ -2087,7 +2362,7 @@ test("ManualWatchlistRuntimeManager removes exact duplicate displayed prices and
     { representativePrice: 1.17, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.11, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
-  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones ?? []), [
     { representativePrice: 1.52, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.6, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
@@ -2163,7 +2438,7 @@ test("ManualWatchlistRuntimeManager keeps the strongest representative when clos
   await manager.start();
   await manager.activateSymbol({ symbol: "ALBT" });
 
-  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones ?? []), [
     { representativePrice: 2.62, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 2.74, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
@@ -2229,7 +2504,7 @@ test("ManualWatchlistRuntimeManager extends resistance snapshot coverage through
   await manager.start();
   await manager.activateSymbol({ symbol: "GXAI" });
 
-  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones ?? []), [
     { representativePrice: 1.47, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.53, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
@@ -2301,7 +2576,7 @@ test("ManualWatchlistRuntimeManager preserves near, intermediate, and far resist
   await manager.start();
   await manager.activateSymbol({ symbol: "GXAI" });
 
-  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones ?? []), [
     { representativePrice: 1.49, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.64, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
@@ -2367,7 +2642,7 @@ test("ManualWatchlistRuntimeManager preserves a meaningful isolated intermediate
   await manager.start();
   await manager.activateSymbol({ symbol: "GXAI" });
 
-  assert.deepEqual(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones, [
+  assert.deepEqual(withoutSnapshotSourceLabels(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones ?? []), [
     { representativePrice: 1.49, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.58, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
     { representativePrice: 1.64, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
@@ -2515,7 +2790,7 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
   );
   assert.match(
     intelligentAlerts[0]?.payload.body ?? "",
-    /Next levels:\n- First resistance: 2\.58/,
+    /Key levels:\n- First resistance: 2\.58/,
   );
   assert.match(
     intelligentAlerts[0]?.payload.body ?? "",
@@ -2534,6 +2809,7 @@ test("ManualWatchlistRuntimeManager posts AI signal commentary after determinist
       assert.equal(input.symbol, "ALBT");
       assert.match(input.deterministicBody, /Status: Cleared/);
       assert.doesNotMatch(input.deterministicBody, /Next levels:/);
+      assert.doesNotMatch(input.deterministicBody, /Key levels:/);
       assert.equal(input.metadata?.targetSide, undefined);
       assert.equal(input.metadata?.nextBarrierSide, undefined);
       assert.equal(input.metadata?.targetPrice, undefined);
@@ -2705,6 +2981,73 @@ test("ManualWatchlistRuntimeManager rate-limits AI signal commentary per symbol"
   );
 });
 
+test("ManualWatchlistRuntimeManager keeps reactive AI reads out of live threads", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  let aiCalls = 0;
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    aiCommentaryService: {
+      async explainSignal() {
+        aiCalls += 1;
+        return {
+          text: "AI says watch the reaction.",
+          model: "test-model",
+        };
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  await (manager as any).maybePostSignalCommentaryWithAI({
+    threadId: "thread-ALBT",
+    alert: {
+      symbol: "ALBT",
+      event: {
+        symbol: "ALBT",
+        eventType: "level_touch",
+        level: 2.45,
+        timestamp: 1000,
+      },
+      severity: "high",
+      confidence: "high",
+      score: 75,
+    },
+    deterministicPayload: {
+      title: "ALBT level touch",
+      body: "Status: Testing",
+      symbol: "ALBT",
+      timestamp: 1000,
+      metadata: {
+        messageKind: "intelligent_alert",
+      },
+    },
+  });
+
+  assert.equal(aiCalls, 0);
+  assert.equal(
+    discordAlertRouter.routed.filter(
+      (entry) => entry.payload.metadata?.messageKind === "ai_signal_commentary",
+    ).length,
+    0,
+  );
+});
+
 test("ManualWatchlistRuntimeManager posts follow-through updates when evaluations complete", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
@@ -2820,9 +3163,12 @@ test("ManualWatchlistRuntimeManager posts follow-through updates when evaluation
     [
       "Status: strong",
       "",
-      "What it means:",
-      "- breakout stayed strong after the alert",
-      "- alert direction move: +2.38%",
+      "What changed:",
+      "- breakout stayed strong",
+      "- setup move: +2.38%",
+      "",
+      "Decision area:",
+      "- breakout has expanded from 2.52; that level should keep holding for the move to stay clean.",
       "",
       "Path:",
       "- 2.52 -> 2.58 (+2.38% price move)",
@@ -2860,9 +3206,9 @@ test("ManualWatchlistRuntimeManager suppresses repeated follow-through on the sa
     timestamp: 1000,
     evaluatedAt: 2000,
     entryPrice: 2.45,
-    outcomePrice: 2.43,
-    returnPct: -0.82,
-    directionalReturnPct: -0.82,
+    outcomePrice: 2.42,
+    returnPct: -1.22,
+    directionalReturnPct: -1.22,
     followThroughLabel: "failed",
     success: false,
     eventType: "breakout",
@@ -2871,15 +3217,17 @@ test("ManualWatchlistRuntimeManager suppresses repeated follow-through on the sa
     ...firstEvaluation,
     timestamp: 3000,
     evaluatedAt: 4000,
-    outcomePrice: 2.42,
-    returnPct: -1.22,
-    directionalReturnPct: -1.22,
+    outcomePrice: 2.41,
+    returnPct: -1.63,
+    directionalReturnPct: -1.63,
   };
   const afterCooldownEvaluation = {
     ...firstEvaluation,
     timestamp: 310000,
     evaluatedAt: 310000,
-    outcomePrice: 2.41,
+    outcomePrice: 2.37,
+    returnPct: -3.27,
+    directionalReturnPct: -3.27,
   };
 
   assert.equal((manager as any).postFollowThroughUpdate(firstEvaluation), true);
@@ -2891,8 +3239,8 @@ test("ManualWatchlistRuntimeManager suppresses repeated follow-through on the sa
     (entry) => entry.payload.metadata?.messageKind === "follow_through_update",
   );
   assert.equal(followThroughPosts.length, 2);
-  assert.match(followThroughPosts[0]?.payload.body ?? "", /2\.45 -> 2\.43/);
-  assert.match(followThroughPosts[1]?.payload.body ?? "", /2\.45 -> 2\.41/);
+  assert.match(followThroughPosts[0]?.payload.body ?? "", /2\.45 -> 2\.42/);
+  assert.match(followThroughPosts[1]?.payload.body ?? "", /2\.45 -> 2\.37/);
 });
 
 test("ManualWatchlistRuntimeManager suppresses near-duplicate alert posts for the same structural state", async () => {
@@ -3805,9 +4153,9 @@ test("ManualWatchlistRuntimeManager collapses same-window narration bursts into 
               timestamp: 900,
               evaluatedAt: 1000,
               entryPrice: 2.45,
-              outcomePrice: 2.47,
-              returnPct: 0.82,
-              directionalReturnPct: 0.82,
+              outcomePrice: 2.49,
+              returnPct: 1.63,
+              directionalReturnPct: 1.63,
               followThroughLabel: "working",
               success: true,
               eventType: "breakout",
@@ -3929,9 +4277,9 @@ test("ManualWatchlistRuntimeManager lets completed follow-through own the story 
               timestamp: 990,
               evaluatedAt: 1000,
               entryPrice: 2.45,
-              outcomePrice: 2.43,
-              returnPct: -0.82,
-              directionalReturnPct: -0.82,
+              outcomePrice: 2.41,
+              returnPct: -1.63,
+              directionalReturnPct: -1.63,
               followThroughLabel: "failed",
               success: false,
               eventType: "breakout",
@@ -4553,7 +4901,7 @@ test("ManualWatchlistRuntimeManager does not post level-touch state before delay
   );
 });
 
-test("ManualWatchlistRuntimeManager keeps reactive same-event narration to a single optional post inside the burst window", async () => {
+test("ManualWatchlistRuntimeManager keeps reactive same-event narration out of Discord when it is only stalling", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const persistence = new FakeWatchlistStatePersistence();
@@ -4706,10 +5054,10 @@ test("ManualWatchlistRuntimeManager keeps reactive same-event narration to a sin
     .map((entry) => entry.payload.metadata?.messageKind)
     .filter((kind) => kind === "continuity_update" || kind === "follow_through_state_update");
 
-  assert.deepEqual(optionalKinds, ["continuity_update"]);
+  assert.deepEqual(optionalKinds, []);
 });
 
-test("ManualWatchlistRuntimeManager blocks reactive same-event optional overlap even while the first post is still routing", async () => {
+test("ManualWatchlistRuntimeManager blocks reactive same-event optional overlap even while routing is settling", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new DelayedAlertDiscordAlertRouter(30);
   const persistence = new FakeWatchlistStatePersistence();
@@ -4862,7 +5210,7 @@ test("ManualWatchlistRuntimeManager blocks reactive same-event optional overlap 
     .map((entry) => entry.payload.metadata?.messageKind)
     .filter((kind) => kind === "continuity_update" || kind === "follow_through_state_update");
 
-  assert.deepEqual(optionalKinds, ["continuity_update"]);
+  assert.deepEqual(optionalKinds, []);
 });
 
 test("ManualWatchlistRuntimeManager only posts continuity that matches the triggering event side", async () => {
@@ -5003,8 +5351,7 @@ test("ManualWatchlistRuntimeManager only posts continuity that matches the trigg
     (entry) => entry.payload.metadata?.messageKind === "continuity_update",
   );
 
-  assert.equal(continuityPosts.length, 1);
-  assert.match(continuityPosts[0]!.payload.body, /price testing resistance near 5\.25/i);
+  assert.equal(continuityPosts.length, 0);
 });
 
 test("ManualWatchlistRuntimeManager collapses same-label continuity updates that arrive before the first route resolves", async () => {
@@ -5141,8 +5488,7 @@ test("ManualWatchlistRuntimeManager collapses same-label continuity updates that
     (entry) => entry.payload.metadata?.messageKind === "continuity_update",
   );
 
-  assert.equal(continuityPosts.length, 1);
-  assert.equal(continuityPosts[0]?.payload.metadata?.continuityType, "continuation");
+  assert.equal(continuityPosts.length, 0);
 });
 
 test("ManualWatchlistRuntimeManager suppresses repeated continuity wording after the label cycles", async () => {
@@ -5176,22 +5522,22 @@ test("ManualWatchlistRuntimeManager suppresses repeated continuity wording after
   postContinuity({
     symbol: "ALBT",
     timestamp: 1000,
-    continuityType: "continuation",
-    message: "level touch kept working after the alert, so the setup still has follow-through instead of fading immediately.",
+    continuityType: "confirmation",
+    message: "buyers are trying to hold above 2.45; the setup is now moving into confirmation and needs acceptance to hold.",
     eventType: "breakout",
   });
   postContinuity({
     symbol: "ALBT",
     timestamp: 2000,
-    continuityType: "weakening",
-    message: "level touch is stalling, so the setup is weakening and needs fresh follow-through.",
+    continuityType: "failed",
+    message: "breakout failed, so the setup should be treated as failed until a new setup forms.",
     eventType: "breakout",
   });
   postContinuity({
     symbol: "ALBT",
     timestamp: 3000,
-    continuityType: "continuation",
-    message: "level touch kept working after the alert, so the setup still has follow-through instead of fading immediately.",
+    continuityType: "confirmation",
+    message: "buyers are trying to hold above 2.45; the setup is now moving into confirmation and needs acceptance to hold.",
     eventType: "breakout",
   });
   await waitForAsyncWork();
@@ -5203,7 +5549,7 @@ test("ManualWatchlistRuntimeManager suppresses repeated continuity wording after
   assert.equal(continuityPosts.length, 2);
   assert.deepEqual(
     continuityPosts.map((entry) => entry.payload.metadata?.continuityType),
-    ["continuation", "weakening"],
+    ["confirmation", "failed"],
   );
 });
 

@@ -120,7 +120,7 @@ const LIVE_TRADER_COMMENTARY_RULES =
   "Do not use the words downside, target, objective, first support, next support, buy now, sell now, wait to open, or open new longs. " +
   "For weak or bearish conditions, say the setup is not clean for longs yet and name the reclaim or confirmation level. " +
   "For resistance tests, say buyers need acceptance above resistance. For support tests, say buyers need to defend or reclaim support. " +
-  "If a possible dip-buy area is provided, you may mention it only as conditional support where buyers must stabilize. " +
+  "If a support reaction area is provided, mention it only as conditional support where buyers must stabilize. " +
   "Do not tell the user to buy now or sell now. Stay faithful to the deterministic facts. Use plain ASCII punctuation.";
 
 export class OpenAITraderCommentaryService implements TraderCommentaryService {

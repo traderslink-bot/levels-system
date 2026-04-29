@@ -224,6 +224,7 @@ export class LevelEngine {
           swingWindow: this.config.timeframeConfig[timeframe].swingWindow,
           minimumDisplacementPct: this.config.timeframeConfig[timeframe].minimumDisplacementPct,
           minimumSeparationBars: this.config.timeframeConfig[timeframe].minimumSwingSeparationBars,
+          includeBarrierCandles: timeframe === "daily" || timeframe === "4h",
         },
       );
 

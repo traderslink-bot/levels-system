@@ -514,12 +514,12 @@ export function deriveTraderDipBuyQualityContext(params: {
       label: "poor",
       line:
         tooWorn
-          ? "dip-buy quality: tactically poor because support is still on the chart but looks too worn to lean on"
+          ? "support reaction quality: tactically poor because support is still on the chart but looks too worn to lean on"
           : testedButCrowded
-            ? "dip-buy quality: tactically poor because support is still there, but repeated testing plus nearby overhead make it more watchable than buyable"
+            ? "support reaction quality: tactically poor because support is still there, but repeated testing plus nearby overhead make it more watchable than actionable"
             : weakBuyerControl && limitedRoute
-              ? "dip-buy quality: tactically poor because buyer control is still too soft for the amount of nearby overhead"
-              : "dip-buy quality: tactically poor because the upside path is too messy for a clean support reaction",
+              ? "support reaction quality: tactically poor because buyer control is still too soft for the amount of nearby overhead"
+              : "support reaction quality: tactically poor because the upside path is too messy for a clean support reaction",
     };
   }
 
@@ -535,7 +535,7 @@ export function deriveTraderDipBuyQualityContext(params: {
   ) {
     return {
       label: "actionable",
-      line: "dip-buy quality: actionable against support while structure and nearby room still support a bounce",
+      line: "support reaction quality: actionable while structure and nearby room still support a bounce",
     };
   }
 
@@ -543,8 +543,8 @@ export function deriveTraderDipBuyQualityContext(params: {
     label: "watch_only",
     line:
       exhaustion?.label === "tested"
-        ? "dip-buy quality: watch-only because support still matters, but repeated testing means buyers still need to lift overhead cleanly first"
-        : "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
+        ? "support reaction quality: watch-only because support still matters, but repeated testing means buyers still need to lift overhead cleanly first"
+        : "support reaction quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
   };
 }
 
@@ -635,16 +635,25 @@ export function deriveTraderFollowThroughContext(params: {
   followThroughLabel: TraderFollowThroughContext["label"];
 }): TraderFollowThroughContext {
   const { eventType, returnPct, directionalReturnPct, followThroughLabel } = params;
+  const longCautionLabel =
+    eventType === "breakdown"
+      ? "support-loss warning"
+      : eventType === "fake_breakout"
+        ? "failed-breakout warning"
+        : eventType === "rejection"
+          ? "rejection warning"
+          : null;
+  const eventLabel = longCautionLabel ?? eventType.replaceAll("_", " ");
   const line =
     followThroughLabel === "strong"
-      ? `follow-through: ${eventType.replaceAll("_", " ")} stayed strong after the alert`
+      ? `follow-through: ${eventLabel} stayed strong`
       : followThroughLabel === "working"
-        ? `follow-through: ${eventType.replaceAll("_", " ")} is still working after the alert`
+        ? `follow-through: ${eventLabel} is still working`
         : followThroughLabel === "stalled"
-          ? `follow-through: ${eventType.replaceAll("_", " ")} stalled after the alert and needs re-acceleration`
+          ? `follow-through: ${eventLabel} stalled and needs a better reaction`
           : followThroughLabel === "failed"
-            ? `follow-through: ${eventType.replaceAll("_", " ")} failed after the alert`
-            : `follow-through: ${eventType.replaceAll("_", " ")} outcome is still unclear`;
+            ? `follow-through: ${longCautionLabel ? `${eventLabel} faded` : `${eventLabel} failed`}`
+            : `follow-through: ${eventLabel} outcome is still unclear`;
 
   return {
     label: followThroughLabel,
@@ -740,7 +749,7 @@ function buildLeadLine(event: MonitoringEvent, zone?: FinalLevelZone): string {
         zone.kind === "support" &&
         (zone.strengthLabel === "strong" || zone.strengthLabel === "major")
       ) {
-        return `dip-buy test at ${descriptor} ${zoneRange}`;
+        return `price testing ${descriptor} ${zoneRange}`;
       }
       return `price testing ${descriptor} ${zoneRange}`;
     default:

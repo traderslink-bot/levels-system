@@ -19,7 +19,9 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Manual activation seeding is now bounded by a timeout, so a symbol that hangs during level generation should fail explicitly instead of sitting in `refresh_pending` forever.
 - The manual runtime now gives IBKR historical seeding more breathing room by default during first activation; set `MANUAL_WATCHLIST_IBKR_TIMEOUT_MS` if you want to override the default `90000` ms timeout.
 - Manual watchlist level seeding uses deeper daily history by default (`LEVEL_MANUAL_LOOKBACK_DAILY=520`, `LEVEL_MANUAL_LOOKBACK_4H=180`, `LEVEL_MANUAL_LOOKBACK_5M=100` defaults) so older overhead resistance can be included when a runner clears recent levels.
+- Fast runner level updates advance through support/resistance ladders one step at a time, so a price jump does not intentionally skip intermediate levels just to reduce post volume.
 - Set `LEVEL_MONITORING_EVENT_DIAGNOSTICS=1` before `npm run watchlist:manual` to emit filtered `monitoring_event_diagnostic` JSON lines for breakout / breakdown / fakeout / reclaim decisions.
+- Set `WATCHLIST_POSTING_PROFILE=quiet`, `balanced`, or `active` to tune live Discord post volume without code changes. `balanced` is the default; `quiet` suppresses more narration/chop, while `active` allows more follow-through and continuity context.
 - Diagnostic logging is intentionally filtered:
   - emitted decisions always log
   - suppressed decisions only log when they are near the threshold, carry meaningful state, change reason, or recur after cooldown
@@ -42,6 +44,14 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - `session-summary.json` for a quick session-level and per-symbol rollup
   - `thread-summaries.json` for a compact trader-facing story per active symbol
   - `thread-clutter-report.json` for deterministic thread-clutter analysis, post-category counts, and context-density risk
+  - `thread-post-policy-report.json` for repeated story clusters, critical/optional ratios, and per-thread trust scoring
+  - `thread-post-policy-report.md` for the readable version of that same policy review
+  - `snapshot-audit-report.json` for displayed, compacted, wrong-side, and outside-range level audit summaries
+  - `snapshot-audit-report.md` for the readable version of that same level audit
+  - `long-run-tuning-suggestions.json` / `.md` for action/watch/info items generated from the policy and snapshot audit reports
+  - `live-post-replay-simulation.json` / `.md` for replaying the saved Discord audit through the current calmer post-policy rules and estimating old-versus-new output
+  - `live-post-profile-comparison.json` / `.md` for comparing `quiet`, `balanced`, and `active` posting profiles against the same saved session before changing live behavior
+  - `runner-story-report.json` / `.md` for an operator-level price/story summary of high-activity symbols, including post quality labels, noisy-repeat samples, rough price path, key posted events, and candidate missed level clears/losses
   - `session-review.md` for the fastest human-readable verdict on whether the run looked useful, noisy, or in need of attention
   - `trader-thread-recaps.md` for short end-of-session symbol recaps that are easier to skim than JSON
 - Long-run sessions now also post in-thread continuity updates and symbol recaps, so active symbols can explain what changed during the session instead of only relying on isolated setup alerts.
@@ -51,7 +61,9 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - operator-only artifacts and diagnostics
 - Long-run sessions can also collect human review feedback in `human-review-feedback.jsonl` via `scripts/add-long-run-review-feedback.ps1`, and the live session summaries will fold that feedback into the review artifacts.
 - Optional AI commentary can be enabled with `LEVEL_AI_COMMENTARY=1` plus `OPENAI_API_KEY`; the runtime can then add separate AI read posts after deterministic live alerts, enhance eligible in-session recaps, and `npm run longrun:ai:summary -- <session-folder>` can generate post-run `session-ai-review.md` and `thread-ai-recaps.md` artifacts.
-- The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, and which logs to review.
+- Live AI reads now use the same optional-post discipline as other recap-like context, so reactive AI reads can be blocked before the OpenAI call when the thread is already too busy or the setup family is too easy to over-narrate.
+- Live AI reads are profile-aware and reserved for higher-value deterministic alerts; they should support the thread story, not create a second stream of recap noise.
+- The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, which logs to review, and a review-artifacts panel with previews for generated Markdown/JSON reports.
 - Trader-facing Discord alerts now include:
   - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
   - a `why now` line so the user sees why the setup matters at this moment instead of only getting the label
@@ -59,7 +71,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - a `pressure` line so the user sees whether buyers or sellers still have strong, workable, or tentative control behind the move
   - a `target` line so the user sees the first directional objective explicitly when the next barrier is known
   - a `trigger quality` line so the user can tell whether the setup looks `clean`, `workable`, `crowded`, or `late`
-  - a `dip-buy quality` line on support-test alerts so the user can tell whether a bounce looks actionable, watch-only, or tactically poor
+  - a `support reaction quality` line on support-test alerts so the user can tell whether buyers are reacting cleanly, still need confirmation, or are pressing into messy overhead
   - a `path quality` line so the user can tell whether the move has a cleaner route or is likely to chop through layered nearby barriers
   - a `support/resistance exhaustion` line so the user can tell when a level still matters structurally but is getting worn out tactically
   - a `setup state` line so the user can tell whether the idea is still building, confirming, continuing, weakening, or already failed
@@ -72,6 +84,9 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - nearby barrier context when the next support or resistance is known, including whether room is `tight`, `limited`, or `open`
   - nearby pathing context when overhead or downside gets `stacked` or `dense` beyond the first barrier
 - Completed opportunity evaluations now post live thread follow-through updates, so the trader can see whether a setup stayed `strong`, kept `working`, `stalled`, or `failed` after the original alert.
+- Completed follow-through updates are now stricter in runner threads: repeated same-level outcomes need a larger directional change, weak label drift is suppressed, and material repeats are labeled as existing setup updates instead of new setups.
+- Follow-through posts now include a `Decision area` section that explains the level that needs to hold or be reclaimed without giving direct buy/sell instructions.
+- A critical live-post burst governor now helps calm busy runner threads by letting major changes through while suppressing lower-value repeats during short posting bursts.
 - In-flight evaluations can now also post smarter live follow-through state changes such as `improving`, `stalling`, or `degrading` before the final evaluation window closes, with higher thresholds and cooldowns to avoid low-value chatter.
 - Continuity and recap posting are now tighter too: setup-forming chatter is suppressed more aggressively, confirmation/weakening recaps are preferred over generic narration, and optional live context is pushed harder toward operator artifacts when the thread is not genuinely evolving.
 - Optional live context is now also category-aware and thread-density-aware: recap, continuity, and follow-through-state posts look at recent critical-vs-optional post mix, treat recap more strictly than continuity, and are less willing to add non-directional narration when the symbol thread is already context-heavy.
@@ -144,6 +159,9 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - `npm run watchlist:alerts:test -- AAPL`
 - `npm run watchlist:manual`
 - `npm run longrun:ai:summary -- <session-folder>`
+- `npm run longrun:audit:reports -- <session-folder>`
+- `npm run longrun:simulate:posts -- <session-folder>`
+- `npm run validation:levels:quality -- <SYMBOL> [output-json-path]`
 
 ## Docs
 

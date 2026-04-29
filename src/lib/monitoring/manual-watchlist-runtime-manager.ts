@@ -26,7 +26,7 @@ import type {
   LevelSnapshotDisplayZone,
   LevelSnapshotPayload,
 } from "../alerts/alert-types.js";
-import { deriveTraderFollowThroughContext } from "../alerts/trader-message-language.js";
+import { deriveTraderFollowThroughContext, describeZoneStrength } from "../alerts/trader-message-language.js";
 import { LevelStore } from "./level-store.js";
 import type {
   LivePriceUpdate,
@@ -46,6 +46,33 @@ import type {
   ManualWatchlistLifecycleEventName,
   ManualWatchlistLifecycleListener,
 } from "./manual-watchlist-runtime-events.js";
+import {
+  buildAiSignalStoryKey,
+  buildFollowThroughStoryRecord,
+  buildIntelligentAlertStoryRecord,
+  decideCriticalLivePost,
+  decideIntelligentAlertPost,
+  decideNarrationBurst,
+  decideAiSignalPost,
+  decideFollowThroughPost,
+  decideOptionalLivePost,
+  pruneAiSignalStoryRecords,
+  pruneFollowThroughStoryRecords,
+  pruneIntelligentAlertStoryRecords,
+  getLiveThreadPostingPolicySettings,
+  resolveLiveThreadPostingProfile,
+  type AiSignalStoryRecord,
+  type CriticalLivePostKind,
+  type FollowThroughPostDecision,
+  type FollowThroughStoryRecord,
+  type IntelligentAlertStoryRecord,
+  type LiveThreadPostingPolicySettings,
+  type LiveThreadPostingProfile,
+  type LiveThreadPostRecord,
+  type LiveThreadRuntimePostKind,
+  type NarrationBurstKind,
+  type NarrationBurstRecord,
+} from "./live-thread-post-policy.js";
 
 export type ManualWatchlistRuntimeManagerOptions = {
   candleFetchService: CandleFetchService;
@@ -61,6 +88,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   seedSymbolLevels?: (symbol: string) => Promise<void>;
   lifecycleListener?: ManualWatchlistLifecycleListener;
   optionalPostSettleDelayMs?: number;
+  postingProfile?: LiveThreadPostingProfile | string | null;
   levelSeedTimeoutMs?: number;
   queuedActivationSeedGraceTimeoutMs?: number;
   activationAutoRetryDelayMs?: number;
@@ -163,8 +191,6 @@ const CONTINUITY_AFTER_STORY_MIN_GAP_MS = 3 * 60 * 1000;
 const FOLLOW_THROUGH_UPDATE_REPEAT_COOLDOWN_MS = 5 * 60 * 1000;
 const FOLLOW_THROUGH_STATE_UPDATE_COOLDOWN_MS = 4 * 60 * 1000;
 const OPTIONAL_LIVE_POST_WINDOW_MS = 15 * 60 * 1000;
-const OPTIONAL_LIVE_POST_DENSITY_LIMIT = 2;
-const OPTIONAL_LIVE_POST_KIND_LIMIT = 1;
 const NARRATION_BURST_WINDOW_MS = 90 * 1000;
 const NARRATION_RECAP_BURST_WINDOW_MS = 75 * 1000;
 const DELIVERY_FAILURE_BACKOFF_MS = 2 * 60 * 1000;
@@ -179,6 +205,7 @@ const ACTIVATION_WATCHDOG_INTERVAL_MS = 15 * 1000;
 const MAX_ACTIVITY_ENTRIES = 80;
 const LEVEL_TOUCH_SUPERSEDE_DELAY_MS = 1200;
 const FAST_LEVEL_CLEAR_CONFIRM_PCT = 0.0025;
+const FOLLOW_THROUGH_MAJOR_MOVE_PCT = 2;
 export const DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS: ManualWatchlistHistoricalLookbacks = {
   daily: 520,
   "4h": 180,
@@ -208,13 +235,7 @@ type SymbolFollowThroughStatePost = {
   lastDirectionalReturnPct: number | null;
 };
 
-type SymbolFollowThroughPostState = Array<{
-  eventType: string;
-  label: string;
-  entryPrice: number;
-  postedAt: number;
-  directionalReturnPct: number | null;
-}>;
+type SymbolFollowThroughPostState = FollowThroughStoryRecord[];
 
 type SymbolDominantLevelStory = {
   level: number;
@@ -224,32 +245,14 @@ type SymbolDominantLevelStory = {
   label: string | null;
 };
 
-type LiveThreadPostKind =
-  | "snapshot"
-  | "extension"
-  | "intelligent_alert"
-  | "follow_through"
-  | "continuity"
-  | "follow_through_state"
-  | "recap"
-  | "ai_signal_commentary";
+type LiveThreadPostKind = LiveThreadRuntimePostKind;
 
 type SymbolLiveThreadPostState = {
-  critical: Array<{ kind: LiveThreadPostKind; timestamp: number; eventType: string | null }>;
-  optional: Array<{ kind: LiveThreadPostKind; timestamp: number; eventType: string | null }>;
+  critical: LiveThreadPostRecord[];
+  optional: LiveThreadPostRecord[];
 };
 
-type NarrationBurstKind =
-  | "continuity"
-  | "follow_through_state"
-  | "recap"
-  | "follow_through";
-
-type SymbolNarrationBurstState = Array<{
-  kind: NarrationBurstKind;
-  eventType: string | null;
-  timestamp: number;
-}>;
+type SymbolNarrationBurstState = NarrationBurstRecord[];
 
 type StoryCriticalKind = "intelligent_alert" | "follow_through";
 
@@ -279,6 +282,39 @@ function snapshotDisplayCompactionTolerance(price: number): number {
 
 function formatSnapshotLevel(level: number): string {
   return level >= 1 ? level.toFixed(2) : level.toFixed(4);
+}
+
+function formatFastLevelZone(zone: FinalLevelZone | null, side: "support" | "resistance"): string | null {
+  if (!zone) {
+    return null;
+  }
+
+  return `${describeZoneStrength(zone.strengthLabel)} ${side} ${formatSnapshotLevel(zone.representativePrice)}`;
+}
+
+function formatFastLevelOnly(zone: FinalLevelZone | null): string | null {
+  return zone ? formatSnapshotLevel(zone.representativePrice) : null;
+}
+
+function deriveSnapshotLevelSourceLabel(zone: FinalLevelZone): string {
+  if (zone.isExtension) {
+    return "extension";
+  }
+
+  const sources = new Set(zone.timeframeSources);
+  if (sources.has("daily")) {
+    return zone.timeframeSources.length > 1 ? "daily confluence" : "daily structure";
+  }
+
+  if (sources.has("4h")) {
+    return zone.timeframeSources.length > 1 ? "4h confluence" : "4h structure";
+  }
+
+  if (sources.has("5m")) {
+    return zone.freshness === "fresh" ? "fresh intraday" : "intraday";
+  }
+
+  return "price structure";
 }
 
 function freshnessRank(freshness: FinalLevelZone["freshness"]): number {
@@ -397,6 +433,7 @@ function buildSnapshotDisplayZones(
     strengthLabel: zone.strengthLabel,
     freshness: zone.freshness,
     isExtension: zone.isExtension,
+    sourceLabel: deriveSnapshotLevelSourceLabel(zone),
   }));
 }
 
@@ -439,6 +476,7 @@ function buildSnapshotAuditZones(params: {
       timeframeBias: zone.timeframeBias,
       timeframeSources: [...zone.timeframeSources],
       sourceTypes: [...zone.sourceTypes],
+      sourceLabel: deriveSnapshotLevelSourceLabel(zone),
       freshness: zone.freshness,
       isExtension: zone.isExtension,
       displayed,
@@ -563,6 +601,8 @@ export class ManualWatchlistRuntimeManager {
   private readonly continuityState = new Map<string, SymbolContinuityState>();
   private readonly followThroughStatePosts = new Map<string, SymbolFollowThroughStatePost>();
   private readonly followThroughPostState = new Map<string, SymbolFollowThroughPostState>();
+  private readonly intelligentAlertPostState = new Map<string, IntelligentAlertStoryRecord[]>();
+  private readonly aiSignalStoryState = new Map<string, AiSignalStoryRecord[]>();
   private readonly dominantLevelStories = new Map<string, SymbolDominantLevelStory[]>();
   private readonly liveThreadPostState = new Map<string, SymbolLiveThreadPostState>();
   private readonly narrationBurstState = new Map<string, SymbolNarrationBurstState>();
@@ -576,6 +616,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly activationStuckWarningMs: number;
   private readonly levelTouchSupersedeDelayMs: number;
   private readonly historicalLookbackBars: ManualWatchlistHistoricalLookbacks;
+  private readonly postingPolicySettings: LiveThreadPostingPolicySettings;
   private readonly recentActivity: ManualWatchlistActivityEntry[] = [];
   private monitoringRestartQueue: Promise<void> = Promise.resolve();
   private activitySequence = 0;
@@ -614,6 +655,9 @@ export class ManualWatchlistRuntimeManager {
     this.watchlistStore = options.watchlistStore ?? new WatchlistStore();
     this.watchlistStatePersistence =
       options.watchlistStatePersistence ?? new WatchlistStatePersistence();
+    this.postingPolicySettings = getLiveThreadPostingPolicySettings(
+      options.postingProfile ?? resolveLiveThreadPostingProfile(process.env.WATCHLIST_POSTING_PROFILE),
+    );
     this.optionalPostSettleDelayMs = Math.max(0, options.optionalPostSettleDelayMs ?? 0);
     this.levelSeedTimeoutMs = Math.max(0, options.levelSeedTimeoutMs ?? LEVEL_SEED_TIMEOUT_MS);
     this.queuedActivationSeedGraceTimeoutMs = Math.max(
@@ -1229,66 +1273,66 @@ export class ManualWatchlistRuntimeManager {
     );
   }
 
-  private findNextResistanceAbove(symbol: string, clearedLevel: number): number | null {
+  private findNextResistanceAbove(symbol: string, clearedLevel: number): FinalLevelZone | null {
     return this.options.levelStore
       .getResistanceZones(symbol)
-      .map((zone) => zone.representativePrice)
-      .filter((level) => level > clearedLevel + snapshotPriceTolerance(clearedLevel))
-      .sort((left, right) => left - right)[0] ?? null;
+      .filter((zone) => zone.representativePrice > clearedLevel + snapshotPriceTolerance(clearedLevel))
+      .sort((left, right) => left.representativePrice - right.representativePrice)[0] ?? null;
   }
 
-  private findNextSupportBelow(symbol: string, clearedLevel: number): number | null {
+  private findNextSupportBelow(symbol: string, clearedLevel: number): FinalLevelZone | null {
     return this.options.levelStore
       .getSupportZones(symbol)
-      .map((zone) => zone.representativePrice)
-      .filter((level) => level < clearedLevel - snapshotPriceTolerance(clearedLevel))
-      .sort((left, right) => right - left)[0] ?? null;
+      .filter((zone) => zone.representativePrice < clearedLevel - snapshotPriceTolerance(clearedLevel))
+      .sort((left, right) => right.representativePrice - left.representativePrice)[0] ?? null;
   }
 
   private findFastClearedResistance(
     symbol: string,
     snapshotState: ActiveLevelSnapshotState,
     lastPrice: number,
-  ): number | null {
-    const levels = uniqueSortedLevels(
-      this.options.levelStore.getResistanceZones(symbol).map((zone) => zone.representativePrice),
-      "asc",
-    );
+  ): FinalLevelZone | null {
+    const zones = this.options.levelStore
+      .getResistanceZones(symbol)
+      .sort((left, right) => left.representativePrice - right.representativePrice);
     const lastCleared = snapshotState.lastClearedResistance ?? null;
-    const candidates = levels.filter((level) => {
+    const candidates = zones.filter((zone) => {
+      const level = zone.representativePrice;
+      const clearLine = Math.max(zone.zoneHigh, zone.representativePrice);
       if (
         lastCleared !== null &&
         level <= lastCleared + snapshotPriceTolerance(lastCleared)
       ) {
         return false;
       }
-      return lastPrice >= level * (1 + FAST_LEVEL_CLEAR_CONFIRM_PCT);
+      return lastPrice >= clearLine * (1 + FAST_LEVEL_CLEAR_CONFIRM_PCT);
     });
 
-    return candidates.at(-1) ?? null;
+    return candidates[0] ?? null;
   }
 
   private findFastLostSupport(
     symbol: string,
     snapshotState: ActiveLevelSnapshotState,
     lastPrice: number,
-  ): number | null {
-    const levels = uniqueSortedLevels(
-      this.options.levelStore.getSupportZones(symbol).map((zone) => zone.representativePrice),
-      "desc",
-    );
+  ): FinalLevelZone | null {
+    const zones = this.options.levelStore
+      .getSupportZones(symbol)
+      .sort((left, right) => right.representativePrice - left.representativePrice);
     const lastCleared = snapshotState.lastClearedSupport ?? null;
-    const candidates = levels.filter((level) => {
+    const candidates = zones.filter((zone) => {
+      const level = zone.representativePrice;
+      const clearLine = Math.min(zone.zoneLow, zone.representativePrice);
       if (
         lastCleared !== null &&
         level >= lastCleared - snapshotPriceTolerance(lastCleared)
       ) {
         return false;
       }
-      return lastPrice <= level * (1 - FAST_LEVEL_CLEAR_CONFIRM_PCT);
+      return lastPrice <= clearLine * (1 - FAST_LEVEL_CLEAR_CONFIRM_PCT);
     });
 
-    return candidates.at(-1) ?? null;
+    return candidates[0] ?? null;
   }
 
   private async maybePostFastLevelClear(update: LivePriceUpdate): Promise<void> {
@@ -1300,7 +1344,10 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    const resistance = this.findFastClearedResistance(symbol, snapshotState, update.lastPrice);
+    const resistanceZone = this.findFastClearedResistance(symbol, snapshotState, update.lastPrice);
+    const resistance = resistanceZone?.representativePrice ?? null;
+    const resistanceBreakLine =
+      resistanceZone ? Math.max(resistanceZone.zoneHigh, resistanceZone.representativePrice) : null;
     const lastClearedResistance = snapshotState.lastClearedResistance ?? null;
     const suppressRepeatedResistance =
       resistance !== null &&
@@ -1318,20 +1365,29 @@ export class ManualWatchlistRuntimeManager {
       )
     ) {
       const nextResistance = this.findNextResistanceAbove(symbol, resistance);
-      const title = `${symbol} resistance cleared`;
+      const pullbackSupport = this.findNextSupportBelow(symbol, resistance);
+      const nextResistanceText = formatFastLevelZone(nextResistance, "resistance");
+      const pullbackSupportLevel =
+        pullbackSupport ? formatSnapshotLevel(pullbackSupport.representativePrice) : null;
+      const resistanceLine = formatSnapshotLevel(resistanceBreakLine ?? resistance);
+      const title = `${symbol} resistance crossed`;
       const body = [
-        `price cleared ${formatSnapshotLevel(resistance)}${nextResistance ? ` and is moving toward ${formatSnapshotLevel(nextResistance)}` : ""}`,
+        `price pushed above ${resistanceLine}${nextResistanceText ? `; next resistance is ${nextResistanceText}` : ""}`,
         "",
-        "Status: Cleared",
+        "Status: Testing breakout",
         "",
         "What it means:",
-        `- ${formatSnapshotLevel(resistance)} is no longer immediate resistance`,
-        nextResistance
-          ? `- next decision area is ${formatSnapshotLevel(nextResistance)}`
+        `- ${resistanceLine} is being tested from above, but it still needs to hold`,
+        nextResistanceText
+          ? `- next resistance is ${nextResistanceText}`
           : "- no higher resistance is currently in the surfaced ladder",
         "",
         "What to watch:",
-        `- holding above ${formatSnapshotLevel(resistance)} keeps buyers in control`,
+        `- acceptance above ${resistanceLine} keeps the breakout attempt alive`,
+        `- falling back below ${resistanceLine} means the level is still acting like resistance`,
+        pullbackSupportLevel
+          ? `- if price cannot hold ${resistanceLine}, risk opens back toward ${pullbackSupportLevel}`
+          : `- if price cannot hold ${resistanceLine}, the breakout needs to rebuild`,
       ].join("\n");
       this.activeSnapshotState.set(symbol, {
         ...snapshotState,
@@ -1367,7 +1423,8 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    const support = this.findFastLostSupport(symbol, snapshotState, update.lastPrice);
+    const supportZone = this.findFastLostSupport(symbol, snapshotState, update.lastPrice);
+    const support = supportZone?.representativePrice ?? null;
     const lastClearedSupport = snapshotState.lastClearedSupport ?? null;
     const suppressRepeatedSupport =
       support !== null &&
@@ -1385,20 +1442,28 @@ export class ManualWatchlistRuntimeManager {
       )
     ) {
       const nextSupport = this.findNextSupportBelow(symbol, support);
-      const title = `${symbol} support lost`;
+      const nextSupportText = formatFastLevelZone(nextSupport, "support");
+      const nextSupportLevel = formatFastLevelOnly(nextSupport);
+      const title = `${symbol} support crossed lower`;
       const body = [
-        `price lost ${formatSnapshotLevel(support)}${nextSupport ? ` and is moving toward ${formatSnapshotLevel(nextSupport)}` : ""}`,
+        `price slipped below ${formatSnapshotLevel(support)}${nextSupportText ? `; next support is ${nextSupportText}` : ""}`,
         "",
-        "Status: Lost",
+        "Status: Testing breakdown",
         "",
         "What it means:",
-        `- ${formatSnapshotLevel(support)} is no longer immediate support`,
-        nextSupport
-          ? `- next decision area is ${formatSnapshotLevel(nextSupport)}`
+        `- ${formatSnapshotLevel(support)} is being tested from below, but it can still be reclaimed`,
+        nextSupportText
+          ? `- next support is ${nextSupportText}`
           : "- no lower support is currently in the surfaced ladder",
         "",
         "What to watch:",
         `- reclaiming ${formatSnapshotLevel(support)} is needed to repair the level`,
+        nextSupportText
+          ? `- next support reaction area: ${nextSupportText}; buyers need stabilization there or a reclaim of ${formatSnapshotLevel(support)}`
+          : "- wait for buyers to stabilize before treating the drop as repaired",
+        nextSupportLevel
+          ? `- below ${formatSnapshotLevel(support)}, risk stays open toward ${nextSupportLevel}`
+          : `- below ${formatSnapshotLevel(support)}, risk stays elevated until a new support forms`,
       ].join("\n");
       this.activeSnapshotState.set(symbol, {
         ...snapshotState,
@@ -1991,6 +2056,8 @@ export class ManualWatchlistRuntimeManager {
     symbol: string;
     timestamp: number;
     eventType?: string | null;
+    progressLabel?: OpportunityProgressUpdate["progressLabel"] | null;
+    directionalReturnPct?: number | null;
   }): boolean {
     const timestampForPrune = params.timestamp + OPTIONAL_POST_CRITICAL_PREEMPT_WINDOW_MS;
     const recentStoryCritical = this.pruneStoryCriticalState(params.symbol, timestampForPrune);
@@ -2028,74 +2095,90 @@ export class ManualWatchlistRuntimeManager {
     kind: NarrationBurstKind;
     eventType?: string | null;
   }): boolean {
-    const state = this.pruneNarrationBurstState(params.symbol, params.timestamp);
-    const recentKind = state.filter((entry) => entry.kind === params.kind);
-    const reactiveEvent =
-      params.eventType !== undefined &&
-      params.eventType !== null &&
-      ["level_touch", "compression"].includes(params.eventType);
-    const fragileDirectionalEvent =
-      params.eventType !== undefined &&
-      params.eventType !== null &&
-      ["fake_breakout", "fake_breakdown", "rejection"].includes(params.eventType);
-    const burstLimit = reactiveEvent || fragileDirectionalEvent ? 2 : 3;
-
-    if (state.length >= burstLimit) {
-      return false;
-    }
-
-    if (
-      params.kind === "recap" &&
-      state.some((entry) => params.timestamp - entry.timestamp <= NARRATION_RECAP_BURST_WINDOW_MS)
-    ) {
-      return false;
-    }
-
-    if (
-      params.kind !== "continuity" &&
-      recentKind.length >= 1 &&
-      recentKind.some((entry) => params.timestamp - entry.timestamp <= CONTINUITY_UPDATE_COOLDOWN_MS)
-    ) {
-      return false;
-    }
-
-    return true;
+    return decideNarrationBurst({
+      state: this.pruneNarrationBurstState(params.symbol, params.timestamp),
+      timestamp: params.timestamp,
+      kind: params.kind,
+      eventType: params.eventType,
+      narrationBurstWindowMs: NARRATION_BURST_WINDOW_MS,
+      recapBurstWindowMs: NARRATION_RECAP_BURST_WINDOW_MS,
+      continuityCooldownMs: CONTINUITY_UPDATE_COOLDOWN_MS,
+    }).shouldPost;
   }
 
   private pruneFollowThroughPostState(symbol: string, timestamp: number): SymbolFollowThroughPostState {
     const state = this.followThroughPostState.get(symbol) ?? [];
-    const pruned = state.filter(
-      (entry) => timestamp - entry.postedAt <= FOLLOW_THROUGH_UPDATE_REPEAT_COOLDOWN_MS,
-    );
+    const pruned = pruneFollowThroughStoryRecords(state, timestamp, this.postingPolicySettings);
     this.followThroughPostState.set(symbol, pruned);
     return pruned;
   }
 
-  private shouldPostFollowThroughUpdate(evaluation: EvaluatedOpportunity): boolean {
+  private decideFollowThroughUpdate(evaluation: EvaluatedOpportunity): FollowThroughPostDecision {
     const recent = this.pruneFollowThroughPostState(evaluation.symbol, evaluation.evaluatedAt);
-    return !recent.some((entry) => {
-      if (entry.eventType !== evaluation.eventType || entry.label !== evaluation.followThroughLabel) {
-        return false;
-      }
+    return decideFollowThroughPost({ records: recent, evaluation, settings: this.postingPolicySettings });
+  }
 
-      return (
-        Math.abs(entry.entryPrice - evaluation.entryPrice) <=
-        Math.max(snapshotPriceTolerance(evaluation.entryPrice), SAME_LEVEL_PRICE_TOLERANCE_ABSOLUTE)
-      );
+  private pruneIntelligentAlertPostState(symbol: string, timestamp: number): IntelligentAlertStoryRecord[] {
+    const state = this.intelligentAlertPostState.get(symbol) ?? [];
+    const pruned = pruneIntelligentAlertStoryRecords(state, timestamp, this.postingPolicySettings);
+    this.intelligentAlertPostState.set(symbol, pruned);
+    return pruned;
+  }
+
+  private reserveIntelligentAlertPost(alert: IntelligentAlert): IntelligentAlertStoryRecord[] {
+    const previous = [...this.pruneIntelligentAlertPostState(alert.symbol, alert.event.timestamp)];
+    this.intelligentAlertPostState.set(alert.symbol, [
+      ...previous,
+      buildIntelligentAlertStoryRecord({
+        timestamp: alert.event.timestamp,
+        eventType: alert.event.eventType,
+        level: alert.event.level,
+        triggerPrice: alert.event.triggerPrice,
+        severity: alert.severity,
+        score: alert.score,
+      }),
+    ]);
+    return previous;
+  }
+
+  private shouldPostIntelligentAlert(alert: IntelligentAlert): { shouldPost: boolean; reason: string } {
+    const recent = this.pruneIntelligentAlertPostState(alert.symbol, alert.event.timestamp);
+    const decision = decideIntelligentAlertPost({
+      records: recent,
+      timestamp: alert.event.timestamp,
+      eventType: alert.event.eventType,
+      level: alert.event.level,
+      triggerPrice: alert.event.triggerPrice,
+      severity: alert.severity,
+      score: alert.score,
+      settings: this.postingPolicySettings,
     });
+    return { shouldPost: decision.shouldPost, reason: decision.reason };
+  }
+
+  private shouldAllowCriticalLivePost(params: {
+    symbol: string;
+    timestamp: number;
+    kind: CriticalLivePostKind;
+    eventType?: string | null;
+    majorChange: boolean;
+  }): boolean {
+    const state = this.pruneLiveThreadPosts(params.symbol, params.timestamp);
+    return decideCriticalLivePost({
+      criticalPosts: state.critical,
+      timestamp: params.timestamp,
+      kind: params.kind,
+      eventType: params.eventType,
+      majorChange: params.majorChange,
+      settings: this.postingPolicySettings,
+    }).shouldPost;
   }
 
   private reserveFollowThroughUpdate(evaluation: EvaluatedOpportunity): SymbolFollowThroughPostState {
     const previous = [...this.pruneFollowThroughPostState(evaluation.symbol, evaluation.evaluatedAt)];
     this.followThroughPostState.set(evaluation.symbol, [
       ...previous,
-      {
-        eventType: evaluation.eventType,
-        label: evaluation.followThroughLabel,
-        entryPrice: evaluation.entryPrice,
-        postedAt: evaluation.evaluatedAt,
-        directionalReturnPct: evaluation.directionalReturnPct,
-      },
+      buildFollowThroughStoryRecord(evaluation),
     ]);
     return previous;
   }
@@ -2106,152 +2189,28 @@ export class ManualWatchlistRuntimeManager {
     kind: "continuity" | "follow_through_state" | "recap";
     majorChange: boolean;
     eventType?: string | null;
+    progressLabel?: OpportunityProgressUpdate["progressLabel"] | null;
+    directionalReturnPct?: number | null;
   }): boolean {
     const state = this.pruneLiveThreadPosts(params.symbol, params.timestamp);
-    const recentCritical = state.critical.length;
-    const recentOptional = state.optional.length;
-    const recentKind = state.optional.filter((entry) => entry.kind === params.kind).length;
-    const lastCriticalAt = state.critical.at(-1)?.timestamp ?? null;
-    const recentCriticalAge =
-      lastCriticalAt === null ? Number.POSITIVE_INFINITY : params.timestamp - lastCriticalAt;
-    const optionalLead = recentOptional - recentCritical;
-    const reactiveEvent =
-      params.eventType !== undefined &&
-      params.eventType !== null &&
-      ["level_touch", "compression"].includes(params.eventType);
-    const fragileDirectionalEvent =
-      params.eventType !== undefined &&
-      params.eventType !== null &&
-      ["fake_breakout", "fake_breakdown", "rejection"].includes(params.eventType);
-    const trendDirectionalEvent =
-      params.eventType !== undefined &&
-      params.eventType !== null &&
-      ["breakout", "breakdown", "reclaim"].includes(params.eventType);
-    const recentSameEventOptional = state.optional.filter(
-      (entry) =>
-        entry.eventType !== null &&
-        entry.eventType === (params.eventType ?? null) &&
-        params.timestamp - entry.timestamp <= NARRATION_BURST_WINDOW_MS,
-    );
-    const recentSameEventContinuity = recentSameEventOptional.filter((entry) => entry.kind === "continuity").length;
-    const recentSameEventFollowThroughState = recentSameEventOptional.filter(
-      (entry) => entry.kind === "follow_through_state",
-    ).length;
-    const recentSameEventOptionalAttempts = this.pruneNarrationBurstState(params.symbol, params.timestamp).filter(
-      (entry) =>
-        entry.eventType !== null &&
-        entry.eventType === (params.eventType ?? null) &&
-        (entry.kind === "continuity" || entry.kind === "follow_through_state" || entry.kind === "recap"),
-    );
-    const recentSameEventContinuityAttempts = recentSameEventOptionalAttempts.filter(
-      (entry) => entry.kind === "continuity",
-    ).length;
-    const recentSameEventFollowThroughStateAttempts = recentSameEventOptionalAttempts.filter(
-      (entry) => entry.kind === "follow_through_state",
-    ).length;
-
-    if (this.isDeliveryBackoffActive(params.symbol, params.timestamp)) {
-      return false;
-    }
-
-    if (
-      (reactiveEvent || fragileDirectionalEvent) &&
-      (recentSameEventOptional.length >= 1 || recentSameEventOptionalAttempts.length >= 1)
-    ) {
-      return false;
-    }
-
-    if (
-      params.kind === "follow_through_state" &&
-      (recentSameEventContinuity >= 1 || recentSameEventContinuityAttempts >= 1)
-    ) {
-      return false;
-    }
-
-    if (
-      params.kind === "continuity" &&
-      (recentSameEventFollowThroughState >= 1 || recentSameEventFollowThroughStateAttempts >= 1)
-    ) {
-      return false;
-    }
-
-    if (params.majorChange) {
-      return true;
-    }
-
-    if (recentOptional >= OPTIONAL_LIVE_POST_DENSITY_LIMIT && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
-      return false;
-    }
-
-    if (recentKind >= OPTIONAL_LIVE_POST_KIND_LIMIT && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
-      return false;
-    }
-
-    if (optionalLead >= 2 && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
-      return false;
-    }
-
-    if ((reactiveEvent || fragileDirectionalEvent) && params.kind === "recap" && !params.majorChange) {
-      return false;
-    }
-
-    if ((reactiveEvent || fragileDirectionalEvent) && params.kind === "continuity" && recentKind >= 1) {
-      return false;
-    }
-
-    if ((reactiveEvent || fragileDirectionalEvent) && params.kind === "follow_through_state" && recentKind >= 1) {
-      return false;
-    }
-
-    if (fragileDirectionalEvent && recentOptional >= 2 && recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS) {
-      return false;
-    }
-
-    if (params.kind === "recap" && recentOptional >= 2 && recentCriticalAge > CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS) {
-      return false;
-    }
-
-    if (
-      params.kind === "recap" &&
-      recentKind >= 1 &&
-      optionalLead >= 1 &&
-      recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS
-    ) {
-      return false;
-    }
-
-    if (
-      params.kind === "continuity" &&
-      recentKind >= 2 &&
-      optionalLead >= 1 &&
-      recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS
-    ) {
-      return false;
-    }
-
-    if (
-      params.kind === "continuity" &&
-      !trendDirectionalEvent &&
-      recentOptional >= 2 &&
-      recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS
-    ) {
-      return false;
-    }
-
-    if (
-      params.kind === "follow_through_state" &&
-      recentKind >= 1 &&
-      optionalLead >= 1 &&
-      recentCriticalAge > CONTINUITY_UPDATE_COOLDOWN_MS
-    ) {
-      return false;
-    }
-
-    if (params.kind === "follow_through_state" && !trendDirectionalEvent && recentOptional >= 2) {
-      return false;
-    }
-
-    return true;
+    return decideOptionalLivePost({
+      criticalPosts: state.critical,
+      optionalPosts: state.optional,
+      narrationAttempts: this.pruneNarrationBurstState(params.symbol, params.timestamp),
+      timestamp: params.timestamp,
+      kind: params.kind,
+      majorChange: params.majorChange,
+      eventType: params.eventType,
+      progressLabel: params.progressLabel,
+      directionalReturnPct: params.directionalReturnPct,
+      deliveryBackoffActive: this.isDeliveryBackoffActive(params.symbol, params.timestamp),
+      optionalDensityLimit: this.postingPolicySettings.optionalLivePostDensityLimit,
+      optionalKindLimit: this.postingPolicySettings.optionalLivePostKindLimit,
+      continuityCooldownMs: CONTINUITY_UPDATE_COOLDOWN_MS,
+      continuityMajorTransitionCooldownMs: CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS,
+      narrationBurstWindowMs: NARRATION_BURST_WINDOW_MS,
+      settings: this.postingPolicySettings,
+    }).shouldPost;
   }
 
   private shouldPostContinuityUpdate(params: {
@@ -2284,11 +2243,22 @@ export class ManualWatchlistRuntimeManager {
     }
 
     if (!existing) {
-      return !(
+      if (
         recentFollowThroughState ||
         params.label === "setup_forming" &&
         priorStoryCritical.length > 0
-      );
+      ) {
+        return false;
+      }
+
+      const initialMajorChange = params.label === "failed" || params.label === "confirmation";
+      return this.shouldAllowOptionalLivePost({
+        symbol: params.symbol,
+        timestamp: params.timestamp,
+        kind: "continuity",
+        majorChange: initialMajorChange,
+        eventType: params.eventType ?? null,
+      });
     }
 
     const age =
@@ -2343,8 +2313,7 @@ export class ManualWatchlistRuntimeManager {
 
     const majorChange =
       params.label === "failed" ||
-      params.label === "continuation" ||
-      params.label === "weakening";
+      params.label === "confirmation";
     const labelChanged = existing.lastLabel !== params.label;
     const meaningfullyReworded =
       existing.lastMessage !== params.message &&
@@ -2474,7 +2443,7 @@ export class ManualWatchlistRuntimeManager {
         eventType: progressUpdate.eventType,
         message: longCautionEvent
           ? `${eventLabel} caution is stalling, so the long-side risk signal needs fresh confirmation.`
-          : `${eventLabel} is stalling, so the setup is weakening and needs fresh follow-through.`,
+          : `${eventLabel} is stalling, so the setup is weakening and needs a better reaction.`,
       };
     }
 
@@ -2512,8 +2481,8 @@ export class ManualWatchlistRuntimeManager {
         continuityType: "continuation",
         eventType: evaluation.eventType,
         message: longCautionEvent
-          ? `${eventLabel} caution stayed active after the alert; longs need stabilization or a reclaim before trusting the setup.`
-          : `${eventLabel} kept working after the alert, so the setup still has follow-through instead of fading immediately.`,
+          ? `${eventLabel} caution stayed active; longs need stabilization or a reclaim before trusting the setup.`
+          : `${eventLabel} kept working, so the setup still has follow-through instead of fading immediately.`,
       };
     }
 
@@ -2524,8 +2493,8 @@ export class ManualWatchlistRuntimeManager {
         continuityType: "weakening",
         eventType: evaluation.eventType,
         message: longCautionEvent
-          ? `${eventLabel} caution stalled after the alert, so the long-side risk signal is less urgent but still needs confirmation.`
-          : `${eventLabel} stalled after the alert, so the setup weakened instead of following through cleanly.`,
+          ? `${eventLabel} caution stalled, so the long-side risk signal is less urgent but still needs confirmation.`
+          : `${eventLabel} stalled, so the setup weakened instead of following through cleanly.`,
       };
     }
 
@@ -2535,8 +2504,8 @@ export class ManualWatchlistRuntimeManager {
       continuityType: "failed",
       eventType: evaluation.eventType,
       message: longCautionEvent
-        ? `${eventLabel} caution failed after the alert, so the chart needs a fresh setup before acting.`
-        : `${eventLabel} failed after the alert, so the setup should be treated as failed until a new setup forms.`,
+        ? `${eventLabel} caution failed, so the chart needs a fresh setup before acting.`
+        : `${eventLabel} failed, so the setup should be treated as failed until a new setup forms.`,
     };
   }
 
@@ -2765,6 +2734,8 @@ export class ManualWatchlistRuntimeManager {
         kind: "follow_through_state",
         majorChange: progressUpdate.progressLabel === "degrading",
         eventType: progressUpdate.eventType,
+        progressLabel: progressUpdate.progressLabel,
+        directionalReturnPct: progressUpdate.directionalReturnPct,
       })
     ) {
       return false;
@@ -2917,7 +2888,7 @@ export class ManualWatchlistRuntimeManager {
 
     const eventType = (topOpportunity.eventType ?? topOpportunity.type).replaceAll("_", " ");
     if (topOpportunity.clearanceLabel === "tight") {
-      return `What matters next: ${eventType} needs immediate follow-through because room still looks tight.`;
+      return `What matters next: ${eventType} needs a decisive reaction because room still looks tight.`;
     }
 
     if (topOpportunity.pathQualityLabel === "choppy") {
@@ -3037,17 +3008,17 @@ export class ManualWatchlistRuntimeManager {
     ];
     const lines = payload.body.split("\n");
     const cleanedLines: string[] = [];
-    let skippingNextLevels = false;
+    let skippingLevelSection = false;
 
     for (const line of lines) {
-      if (/^Next levels:/i.test(line.trim())) {
-        skippingNextLevels = true;
+      if (/^(Next levels|Key levels):/i.test(line.trim())) {
+        skippingLevelSection = true;
         continue;
       }
 
-      if (skippingNextLevels) {
+      if (skippingLevelSection) {
         if (/^Signal:/i.test(line.trim()) || /^Trigger:/i.test(line.trim())) {
-          skippingNextLevels = false;
+          skippingLevelSection = false;
         } else {
           continue;
         }
@@ -3080,6 +3051,27 @@ export class ManualWatchlistRuntimeManager {
     return safeMetadata;
   }
 
+  private pruneAiSignalStoryState(symbol: string, timestamp: number): AiSignalStoryRecord[] {
+    const normalizedSymbol = normalizeSymbol(symbol);
+    const state = this.aiSignalStoryState.get(normalizedSymbol) ?? [];
+    const pruned = pruneAiSignalStoryRecords(state, timestamp, this.postingPolicySettings);
+    this.aiSignalStoryState.set(normalizedSymbol, pruned);
+    return pruned;
+  }
+
+  private reserveAiSignalStory(symbol: string, timestamp: number, storyKey: string): AiSignalStoryRecord[] {
+    const normalizedSymbol = normalizeSymbol(symbol);
+    const previous = [...this.pruneAiSignalStoryState(normalizedSymbol, timestamp)];
+    this.aiSignalStoryState.set(normalizedSymbol, [
+      ...previous,
+      {
+        storyKey,
+        reservedAt: timestamp,
+      },
+    ]);
+    return previous;
+  }
+
   private async maybePostSignalCommentaryWithAI(params: {
     threadId: string;
     alert: IntelligentAlert;
@@ -3090,17 +3082,56 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
+    const storyKey = buildAiSignalStoryKey({
+      symbol: params.alert.symbol,
+      eventType: params.alert.event.eventType,
+      level: params.alert.event.level,
+      title: params.deterministicPayload.title,
+    });
+    const recentAiStories = this.pruneAiSignalStoryState(params.alert.symbol, params.alert.event.timestamp);
+    const aiDecision = decideAiSignalPost({
+      records: recentAiStories,
+      symbolAiRecords: recentAiStories,
+      timestamp: params.alert.event.timestamp,
+      storyKey,
+      severity: params.alert.severity,
+      confidence: params.alert.confidence,
+      score: params.alert.score,
+      settings: this.postingPolicySettings,
+    });
+    if (!aiDecision.shouldPost) {
+      return;
+    }
+
     if (
-      this.hasRecentLiveThreadPost({
+      !this.shouldAllowOptionalLivePost({
         symbol: params.alert.symbol,
         timestamp: params.alert.event.timestamp,
-        kinds: ["ai_signal_commentary"],
-        critical: false,
-        withinMs: AI_SIGNAL_COMMENTARY_COOLDOWN_MS,
+        kind: "recap",
+        majorChange: false,
+        eventType: params.alert.event.eventType,
+      }) ||
+      !this.shouldAllowNarrationBurst({
+        symbol: params.alert.symbol,
+        timestamp: params.alert.event.timestamp,
+        kind: "recap",
+        eventType: params.alert.event.eventType,
       })
     ) {
       return;
     }
+
+    const previousAiState = this.reserveAiSignalStory(
+      params.alert.symbol,
+      params.alert.event.timestamp,
+      storyKey,
+    );
+    this.recordNarrationAttempt({
+      symbol: params.alert.symbol,
+      timestamp: params.alert.event.timestamp,
+      kind: "recap",
+      eventType: params.alert.event.eventType,
+    });
 
     try {
       const commentary = await aiCommentaryService.explainSignal({
@@ -3167,6 +3198,7 @@ export class ManualWatchlistRuntimeManager {
         eventType: params.alert.event.eventType,
       });
     } catch (error) {
+      this.aiSignalStoryState.set(normalizeSymbol(params.alert.symbol), previousAiState);
       const message = error instanceof Error ? error.message : String(error);
       this.aiCommentaryFailedCount += 1;
       this.lastAiCommentaryFailedAt = Date.now();
@@ -3527,6 +3559,52 @@ export class ManualWatchlistRuntimeManager {
         postingDecisionReason: alertResult.delivery.reason,
       };
       const postAlert = (): void => {
+        const alertPostDecision = this.shouldPostIntelligentAlert(alertResult.rawAlert);
+        if (!alertPostDecision.shouldPost) {
+          this.emitLifecycle("alert_suppressed", {
+            symbol: event.symbol,
+            threadId: entry.discordThreadId,
+            details: {
+              eventType: event.eventType,
+              severity: alertResult.rawAlert.severity,
+              confidence: alertResult.rawAlert.confidence,
+              score: alertResult.rawAlert.score,
+              reason: alertPostDecision.reason,
+            },
+          });
+          return;
+        }
+
+        const criticalMajorChange =
+          event.eventType === "breakout" ||
+          event.eventType === "breakdown" ||
+          event.eventType === "reclaim" ||
+          alertResult.rawAlert.severity === "critical" ||
+          (alertResult.rawAlert.severity === "high" && alertResult.rawAlert.confidence === "high");
+        if (
+          !this.shouldAllowCriticalLivePost({
+            symbol: event.symbol,
+            timestamp: event.timestamp,
+            kind: "intelligent_alert",
+            eventType: event.eventType,
+            majorChange: criticalMajorChange,
+          })
+        ) {
+          this.emitLifecycle("alert_suppressed", {
+            symbol: event.symbol,
+            threadId: entry.discordThreadId,
+            details: {
+              eventType: event.eventType,
+              severity: alertResult.rawAlert.severity,
+              confidence: alertResult.rawAlert.confidence,
+              score: alertResult.rawAlert.score,
+              reason: "critical_burst_governor",
+            },
+          });
+          return;
+        }
+
+        const previousIntelligentAlertPostState = this.reserveIntelligentAlertPost(alertResult.rawAlert);
         this.recordStoryCriticalAttempt({
           symbol: event.symbol,
           timestamp: event.timestamp,
@@ -3574,6 +3652,7 @@ export class ManualWatchlistRuntimeManager {
           })
           .catch((error) => {
             const message = error instanceof Error ? error.message : String(error);
+            this.intelligentAlertPostState.set(event.symbol, previousIntelligentAlertPostState);
             this.emitLifecycle("alert_post_failed", {
               symbol: event.symbol,
               threadId: entry.discordThreadId,
@@ -3667,7 +3746,34 @@ export class ManualWatchlistRuntimeManager {
       return false;
     }
 
-    if (!this.shouldPostFollowThroughUpdate(evaluation)) {
+    const followThroughDecision = this.decideFollowThroughUpdate(evaluation);
+    if (!followThroughDecision.shouldPost) {
+      return false;
+    }
+
+    const followThroughMajorChange =
+      evaluation.followThroughLabel === "failed" ||
+      evaluation.followThroughLabel === "strong" ||
+      (evaluation.directionalReturnPct !== null &&
+        Math.abs(evaluation.directionalReturnPct) >= FOLLOW_THROUGH_MAJOR_MOVE_PCT);
+    if (
+      !this.shouldAllowCriticalLivePost({
+        symbol: evaluation.symbol,
+        timestamp: evaluation.evaluatedAt,
+        kind: "follow_through",
+        eventType: evaluation.eventType,
+        majorChange: followThroughMajorChange,
+      })
+    ) {
+      this.emitLifecycle("alert_suppressed", {
+        symbol: evaluation.symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          eventType: evaluation.eventType,
+          followThroughLabel: evaluation.followThroughLabel,
+          reason: "critical_burst_governor",
+        },
+      });
       return false;
     }
 
@@ -3714,6 +3820,7 @@ export class ManualWatchlistRuntimeManager {
       followThrough,
       entryPrice: evaluation.entryPrice,
       outcomePrice: evaluation.outcomePrice,
+      repeatedOutcomeUpdate: followThroughDecision.reason === "materially_new",
     });
 
     void this.options.discordAlertRouter
@@ -3829,9 +3936,8 @@ export class ManualWatchlistRuntimeManager {
       const continuityUpdate = this.buildContinuityUpdateFromProgress(progressUpdate);
       if (
         continuityUpdate &&
-        (!followThroughStatePosted ||
-          continuityUpdate.continuityType === "continuation" ||
-          continuityUpdate.continuityType === "failed")
+        !followThroughStatePosted &&
+        continuityUpdate.continuityType === "failed"
       ) {
         this.postContinuityUpdate(continuityUpdate);
       }
@@ -3845,10 +3951,7 @@ export class ManualWatchlistRuntimeManager {
     }
 
     for (const evaluation of snapshot.completedEvaluations) {
-      const followThroughPosted = this.postFollowThroughUpdate(evaluation);
-      if (!followThroughPosted) {
-        this.postContinuityUpdate(this.buildContinuityUpdateFromEvaluation(evaluation));
-      }
+      this.postFollowThroughUpdate(evaluation);
       this.maybePostSymbolRecap({
         symbol: evaluation.symbol,
         timestamp: evaluation.evaluatedAt,
@@ -4537,6 +4640,7 @@ export class ManualWatchlistRuntimeManager {
     this.continuityState.delete(normalizedSymbol);
     this.followThroughStatePosts.delete(normalizedSymbol);
     this.followThroughPostState.delete(normalizedSymbol);
+    this.intelligentAlertPostState.delete(normalizedSymbol);
     this.liveThreadPostState.delete(normalizedSymbol);
     this.narrationBurstState.delete(normalizedSymbol);
     this.storyCriticalState.delete(normalizedSymbol);

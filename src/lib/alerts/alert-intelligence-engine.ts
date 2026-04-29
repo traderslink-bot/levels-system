@@ -102,6 +102,7 @@ export class AlertIntelligenceEngine {
         side: event.eventContext.nextBarrierKind,
         price: event.eventContext.nextBarrierLevel,
         distancePct: event.eventContext.nextBarrierDistancePct,
+        strengthLabel: event.eventContext.nextBarrierStrengthLabel,
         clearanceLabel: event.eventContext.clearanceLabel,
         clutterLabel: event.eventContext.barrierClutterLabel,
         nearbyBarrierCount: event.eventContext.nearbyBarrierCount,
@@ -156,6 +157,7 @@ export class AlertIntelligenceEngine {
     return {
       side: barrierSide,
       price: nextBarrier.representativePrice,
+      strengthLabel: nextBarrier.strengthLabel,
       distancePct:
         Math.abs(nextBarrier.representativePrice - event.triggerPrice) /
         Math.max(event.triggerPrice, 0.0001),

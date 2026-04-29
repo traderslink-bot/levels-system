@@ -424,11 +424,11 @@ test("AlertIntelligenceEngine penalizes degraded data quality and preserves rema
   assert.ok(degradedResult.formatted?.meta.context.includes("data_quality_degraded"));
 });
 
-test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", () => {
+test("AlertIntelligenceEngine frames strong support touches as support reaction tests", () => {
   const engine = new AlertIntelligenceEngine();
   const event: MonitoringEvent = {
-    id: "evt-dip-buy",
-    episodeId: "evt-dip-buy-episode",
+    id: "evt-support-reaction",
+    episodeId: "evt-support-reaction-episode",
     symbol: "ALBT",
     type: "level_touch",
     eventType: "level_touch",
@@ -478,7 +478,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
   assert.equal(
     result.formatted?.body,
     [
-      "dip-buy test at heavy support 97.80-98.20",
+      "price testing heavy support 97.80-98.20",
       "why now: price came back into defended support instead of drifting mid-range",
       "movement: price is testing inside support above the lower edge (0.3%)",
       "pressure: buyers still have workable control, but follow-through still matters",
@@ -486,7 +486,7 @@ test("AlertIntelligenceEngine frames strong support touches as dip-buy tests", (
       "quality: support still looks firm with healthy follow-through",
       "room: limited overhead into next resistance 100.50 (+2.4%)",
       "target: first upside objective 100.50 (+2.4%)",
-      "dip-buy quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
+      "support reaction quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
       "setup state: building, so the zone still needs a real decision move",
       "trade map: risk to invalidation 0.3%; room to next resistance 2.4% (~6.9x, favorable skew)",
       "watch: buyers defend 97.80-98.20 before momentum fades",
@@ -636,7 +636,7 @@ test("AlertIntelligenceEngine downgrades crowded low-pressure breakouts instead 
   );
 });
 
-test("AlertIntelligenceEngine treats repeatedly tested support with layered overhead as poor dip-buy tradeability", () => {
+test("AlertIntelligenceEngine treats repeatedly tested support with layered overhead as poor support-reaction tradeability", () => {
   const engine = new AlertIntelligenceEngine();
   const event: MonitoringEvent = {
     id: "evt-tested-support",
@@ -706,7 +706,7 @@ test("AlertIntelligenceEngine treats repeatedly tested support with layered over
   assert.ok((result.rawAlert.scoreComponents.supportTradeability ?? 0) < 0);
   assert.match(
     result.formatted?.body ?? "",
-    /dip-buy quality: tactically poor because support is still there, but repeated testing plus nearby overhead make it more watchable than buyable/,
+    /support reaction quality: tactically poor because support is still there, but repeated testing plus nearby overhead make it more watchable than actionable/,
   );
 });
 
