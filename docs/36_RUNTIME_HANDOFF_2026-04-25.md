@@ -15,7 +15,7 @@ This note is for the next chat so the current manual-watchlist runtime state doe
 
 ### 1. Finnhub first-thread opener is live
 
-Newly created Discord threads now get a pre-level stock-context opener before level generation finishes when `FINNHUB_API_KEY` is present.
+Newly created Discord threads now get a pre-level stock-context opener before level generation finishes when Finnhub and/or Yahoo stock context is enabled. `FINNHUB_API_KEY` adds Finnhub company/profile fields; Yahoo enrichment is enabled by default and can be disabled with `YAHOO_STOCK_CONTEXT_ENABLED=false`.
 
 Current intended opener behavior:
 

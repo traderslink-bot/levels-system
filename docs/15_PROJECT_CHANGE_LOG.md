@@ -21,6 +21,29 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-29 America/Toronto
 
+### Added Yahoo enrichment to the initial stock-context opener
+
+- Updated:
+  - `src/lib/stock-context/yahoo-client.ts`
+  - `src/lib/stock-context/stock-context-provider.ts`
+  - `src/lib/stock-context/finnhub-thread-preview.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/runtime/manual-watchlist-server.ts`
+  - `src/scripts/run-finnhub-thread-preview.ts`
+  - `src/tests/finnhub-thread-preview.test.ts`
+- What changed:
+  - added a Yahoo stock-context client for quote, quote summary, and previous daily range data
+  - the initial Discord stock-context opener now keeps Finnhub company/profile fields and adds source-labeled Yahoo fields when available
+  - Yahoo fields include current regular/premarket/postmarket price context, current day high/low/volume, previous day high/low, 52-week range, market cap, float, shares outstanding, short interest, profitability, cash/debt, revenue/growth, and company description
+  - added a combined stock-context provider so Finnhub and Yahoo can both contribute while failures in one source do not block the other
+  - added `YAHOO_STOCK_CONTEXT_ENABLED=false` as the opt-out switch for Yahoo enrichment
+- Why this matters:
+  - market cap and other fundamentals can differ by source, so the opener now labels Finnhub and Yahoo values separately instead of merging them into one implied truth
+  - the initial Discord thread can show more trader-relevant company context while levels are still loading
+- Verification:
+  - `npx tsx --test src/tests/finnhub-thread-preview.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run build`
+
 ### Tightened trader-view-only Discord language boundary
 
 - Updated:

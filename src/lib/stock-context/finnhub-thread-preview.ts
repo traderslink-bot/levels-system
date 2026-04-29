@@ -1,7 +1,5 @@
-import type {
-  FinnhubCompanyProfile,
-  FinnhubThreadPreview,
-} from "./finnhub-client.js";
+import type { FinnhubThreadPreview } from "./finnhub-client.js";
+import type { StockContextPreview } from "./stock-context-types.js";
 import type { AlertPayload } from "../alerts/alert-types.js";
 
 function formatMarketCap(value: number | undefined): string {
@@ -20,6 +18,72 @@ function formatMarketCap(value: number | undefined): string {
   return `${(value * 1_000).toFixed(2)}K`;
 }
 
+function formatLargeCurrency(value: number | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "n/a";
+  }
+
+  const absolute = Math.abs(value);
+  if (absolute >= 1_000_000_000) {
+    return `$${(value / 1_000_000_000).toFixed(2)}B`;
+  }
+
+  if (absolute >= 1_000_000) {
+    return `$${(value / 1_000_000).toFixed(2)}M`;
+  }
+
+  if (absolute >= 1_000) {
+    return `$${(value / 1_000).toFixed(2)}K`;
+  }
+
+  return `$${value.toFixed(2)}`;
+}
+
+function formatShares(value: number | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "n/a";
+  }
+
+  const absolute = Math.abs(value);
+  if (absolute >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(2)}B`;
+  }
+
+  if (absolute >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)}M`;
+  }
+
+  if (absolute >= 1_000) {
+    return `${(value / 1_000).toFixed(2)}K`;
+  }
+
+  return value.toFixed(0);
+}
+
+function formatPrice(value: number | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "n/a";
+  }
+
+  return value >= 1 ? value.toFixed(2) : value.toFixed(4);
+}
+
+function formatPercent(value: number | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "n/a";
+  }
+
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatPercentChange(value: number | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "n/a";
+  }
+
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
 function normalizeText(value: string | undefined, fallback = "n/a"): string {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : fallback;
@@ -35,19 +99,86 @@ function formatWebsite(value: string | undefined): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview): AlertPayload {
+function truncateDescription(value: string | undefined): string {
+  const normalized = normalizeText(value);
+  if (normalized === "n/a" || normalized.length <= 650) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 647).trim()}...`;
+}
+
+function latestYahooPriceLabel(preview: StockContextPreview): string {
+  const quote = preview.yahoo?.quote;
+  if (!quote) {
+    return "n/a";
+  }
+
+  const candidates = [
+    { label: "postmarket", price: quote.postMarketPrice, time: quote.postMarketTime },
+    { label: "premarket", price: quote.preMarketPrice, time: quote.preMarketTime },
+    { label: "regular", price: quote.regularMarketPrice, time: quote.regularMarketTime },
+  ].filter((candidate) => typeof candidate.price === "number" && Number.isFinite(candidate.price));
+
+  candidates.sort((left, right) => (right.time ?? 0) - (left.time ?? 0));
+  const latest = candidates[0];
+  return latest ? `${formatPrice(latest.price)} (${latest.label})` : "n/a";
+}
+
+function buildYahooLines(preview: StockContextPreview): string[] {
+  const yahoo = preview.yahoo;
+  if (!yahoo) {
+    return [];
+  }
+
+  const quote = yahoo.quote;
+  const summary = yahoo.summary;
+  const previousDay = yahoo.previousDay;
+  if (!quote && !summary && !previousDay) {
+    return ["", "Yahoo context: unavailable"];
+  }
+
+  const lines = [
+    "",
+    "Yahoo context:",
+    `Current price (Yahoo): ${latestYahooPriceLabel(preview)}`,
+    `Regular session (Yahoo): price ${formatPrice(quote?.regularMarketPrice)} | high ${formatPrice(quote?.regularMarketDayHigh)} | low ${formatPrice(quote?.regularMarketDayLow)} | volume ${formatShares(quote?.regularMarketVolume)}`,
+    `Premarket (Yahoo): ${formatPrice(quote?.preMarketPrice)} | change ${formatPrice(quote?.preMarketChange)} (${formatPercentChange(quote?.preMarketChangePercent)})`,
+    `Postmarket (Yahoo): ${formatPrice(quote?.postMarketPrice)} | change ${formatPrice(quote?.postMarketChange)} (${formatPercentChange(quote?.postMarketChangePercent)})`,
+    `Previous day range (Yahoo): high ${formatPrice(previousDay?.high)} | low ${formatPrice(previousDay?.low)}`,
+    `52-week range (Yahoo): high ${formatPrice(quote?.fiftyTwoWeekHigh)} | low ${formatPrice(quote?.fiftyTwoWeekLow)}`,
+    `Market cap (Yahoo): ${formatLargeCurrency(summary?.marketCap ?? quote?.marketCap)}`,
+    `Float / shares (Yahoo): float ${formatShares(summary?.floatShares)} | shares outstanding ${formatShares(summary?.sharesOutstanding)}`,
+    `Short interest (Yahoo): ${formatPercent(summary?.shortPercentOfFloat)} of float | shares short ${formatShares(summary?.sharesShort)} | short ratio ${formatPrice(summary?.shortRatio)}`,
+    `Profitability (Yahoo): profit margin ${formatPercent(summary?.profitMargins)} | operating margin ${formatPercent(summary?.operatingMargins)}`,
+    `Cash / debt (Yahoo): cash ${formatLargeCurrency(summary?.totalCash)} | debt ${formatLargeCurrency(summary?.totalDebt)}`,
+    `Revenue (Yahoo): revenue ${formatLargeCurrency(summary?.totalRevenue)} | revenue growth ${formatPercent(summary?.revenueGrowth)}`,
+  ];
+
+  const description = truncateDescription(summary?.description);
+  if (description !== "n/a") {
+    lines.push(`Company description (Yahoo): ${description}`);
+  }
+
+  return lines;
+}
+
+export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview | StockContextPreview): AlertPayload {
   const profile = preview.profile;
   const symbol = preview.symbol;
+  const stockContextPreview = preview as StockContextPreview;
 
   return {
     title: "",
     body: [
       `Company: ${normalizeText(profile.name, symbol)}`,
-      `Exchange: ${normalizeText(profile.exchange)}`,
-      `Industry: ${normalizeText(profile.finnhubIndustry)}`,
-      `Country: ${normalizeText(profile.country)}`,
-      `Website: ${formatWebsite(profile.weburl)}`,
-      `Market cap: ${formatMarketCap(profile.marketCapitalization)}`,
+      `Exchange (Finnhub): ${normalizeText(profile.exchange)}`,
+      `Industry (Finnhub): ${normalizeText(profile.finnhubIndustry)}`,
+      `Country (Finnhub): ${normalizeText(profile.country)}`,
+      `Website (Finnhub): ${formatWebsite(profile.weburl)}`,
+      `Market cap (Finnhub): ${formatMarketCap(profile.marketCapitalization)}`,
+      `Shares outstanding (Finnhub): ${formatMarketCap(profile.shareOutstanding)}`,
+      ...buildYahooLines(stockContextPreview),
       ``,
       `Levels are loading.`,
     ].join("\n"),
@@ -63,7 +194,7 @@ export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview):
   };
 }
 
-export function formatFinnhubThreadPreview(preview: FinnhubThreadPreview): string {
+export function formatFinnhubThreadPreview(preview: FinnhubThreadPreview | StockContextPreview): string {
   const payload = buildFinnhubThreadPreviewPayload(preview);
   return payload.title ? [payload.title, payload.body].join("\n") : payload.body;
 }

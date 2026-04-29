@@ -6,6 +6,7 @@ import {
   buildFinnhubThreadPreviewPayload,
   formatFinnhubThreadPreview,
 } from "../lib/stock-context/finnhub-thread-preview.js";
+import { YahooClient } from "../lib/stock-context/yahoo-client.js";
 
 test("FinnhubClient assembles a stock context preview from quote and profile data", async () => {
   const requestedPaths: string[] = [];
@@ -90,11 +91,12 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
   const payload = buildFinnhubThreadPreviewPayload(preview);
 
   assert.match(content, /Company: Example Corp/);
-  assert.match(content, /Exchange: NASDAQ/);
-  assert.match(content, /Industry: Technology/);
-  assert.match(content, /Country: US/);
-  assert.match(content, /Website: https:\/\/www\.example\.com/);
-  assert.match(content, /Market cap: 850\.00M/);
+  assert.match(content, /Exchange \(Finnhub\): NASDAQ/);
+  assert.match(content, /Industry \(Finnhub\): Technology/);
+  assert.match(content, /Country \(Finnhub\): US/);
+  assert.match(content, /Website \(Finnhub\): https:\/\/www\.example\.com/);
+  assert.match(content, /Market cap \(Finnhub\): 850\.00M/);
+  assert.match(content, /Shares outstanding \(Finnhub\): 125\.00M/);
   assert.match(content, /Levels are loading\./);
   assert.doesNotMatch(content, /CURRENT PRICE:/);
   assert.doesNotMatch(content, /PERCENT CHANGE:/);
@@ -107,4 +109,205 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
   assert.doesNotMatch(content, /Status:|Signal:|Decision area|setup update|state recap|setup move|operator-only|policy|suppression|replay|simulation/i);
   assert.equal(payload.title, "");
   assert.equal(payload.metadata?.messageKind, "stock_context");
+});
+
+test("YahooClient assembles quote, summary, and previous-day context", async () => {
+  const requestedPaths: string[] = [];
+  const client = new YahooClient({
+    fetchImpl: async (input) => {
+      const url = new URL(typeof input === "string" ? input : input.toString());
+      requestedPaths.push(url.pathname);
+
+      if (url.pathname.endsWith("/finance/quote")) {
+        return new Response(
+          JSON.stringify({
+            quoteResponse: {
+              result: [
+                {
+                  symbol: "EXMP",
+                  longName: "Example Corp",
+                  fullExchangeName: "NasdaqCM",
+                  regularMarketPrice: 12.34,
+                  regularMarketDayHigh: 13,
+                  regularMarketDayLow: 11.5,
+                  regularMarketVolume: 1_250_000,
+                  preMarketPrice: 12.5,
+                  preMarketChange: 0.16,
+                  preMarketChangePercent: 1.3,
+                  postMarketPrice: 12.1,
+                  postMarketChange: -0.24,
+                  postMarketChangePercent: -1.9,
+                  fiftyTwoWeekHigh: 20,
+                  fiftyTwoWeekLow: 4.5,
+                  marketCap: 850_000_000,
+                  regularMarketTime: 100,
+                  preMarketTime: 200,
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.pathname.endsWith("/finance/quoteSummary/EXMP")) {
+        return new Response(
+          JSON.stringify({
+            quoteSummary: {
+              result: [
+                {
+                  assetProfile: {
+                    sector: "Technology",
+                    industry: "Software",
+                    country: "US",
+                    website: "https://www.example.com",
+                    longBusinessSummary: "Example builds trader tools.",
+                  },
+                  price: {
+                    marketCap: { raw: 875_000_000 },
+                  },
+                  defaultKeyStatistics: {
+                    floatShares: { raw: 25_000_000 },
+                    sharesOutstanding: { raw: 40_000_000 },
+                    sharesShort: { raw: 2_500_000 },
+                    shortPercentOfFloat: { raw: 0.1 },
+                    shortRatio: { raw: 1.25 },
+                  },
+                  financialData: {
+                    totalCash: { raw: 50_000_000 },
+                    totalDebt: { raw: 8_000_000 },
+                    totalRevenue: { raw: 120_000_000 },
+                    profitMargins: { raw: -0.08 },
+                    operatingMargins: { raw: -0.12 },
+                    revenueGrowth: { raw: 0.42 },
+                  },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.pathname.endsWith("/finance/chart/EXMP")) {
+        return new Response(
+          JSON.stringify({
+            chart: {
+              result: [
+                {
+                  timestamp: [10, 20, 30],
+                  indicators: {
+                    quote: [
+                      {
+                        high: [10, 11, 12],
+                        low: [8, 9, 10],
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+
+      return new Response("not found", { status: 404 });
+    },
+  });
+
+  const context = await client.getStockContext("exmp");
+
+  assert.equal(context.symbol, "EXMP");
+  assert.equal(context.quote?.preMarketPrice, 12.5);
+  assert.equal(context.summary?.floatShares, 25_000_000);
+  assert.equal(context.previousDay?.high, 12);
+  assert.equal(context.previousDay?.low, 10);
+  assert.deepEqual(
+    requestedPaths.sort(),
+    [
+      "/v7/finance/quote",
+      "/v10/finance/quoteSummary/EXMP",
+      "/v8/finance/chart/EXMP",
+    ].sort(),
+  );
+});
+
+test("formatFinnhubThreadPreview includes Yahoo source-labeled trader context", () => {
+  const content = formatFinnhubThreadPreview({
+    symbol: "EXMP",
+    quote: {
+      c: 12.34,
+      d: 1.23,
+      dp: 11.1,
+      h: 13,
+      l: 11.5,
+      o: 11.75,
+      pc: 11.11,
+      t: 1_700_000_000,
+    },
+    profile: {
+      country: "US",
+      exchange: "NASDAQ",
+      finnhubIndustry: "Technology",
+      marketCapitalization: 850,
+      name: "Example Corp",
+      shareOutstanding: 125,
+      weburl: "https://www.example.com",
+    },
+    yahoo: {
+      source: "Yahoo",
+      symbol: "EXMP",
+      fetchedAt: 1,
+      errors: [],
+      quote: {
+        source: "Yahoo",
+        symbol: "EXMP",
+        regularMarketPrice: 12.34,
+        regularMarketDayHigh: 13,
+        regularMarketDayLow: 11.5,
+        regularMarketVolume: 1_250_000,
+        preMarketPrice: 12.5,
+        preMarketChange: 0.16,
+        preMarketChangePercent: 1.3,
+        fiftyTwoWeekHigh: 20,
+        fiftyTwoWeekLow: 4.5,
+        regularMarketTime: 100,
+        preMarketTime: 200,
+      },
+      previousDay: {
+        source: "Yahoo",
+        high: 11,
+        low: 9,
+        timestamp: 20,
+      },
+      summary: {
+        source: "Yahoo",
+        marketCap: 875_000_000,
+        floatShares: 25_000_000,
+        sharesOutstanding: 40_000_000,
+        sharesShort: 2_500_000,
+        shortPercentOfFloat: 0.1,
+        shortRatio: 1.25,
+        totalCash: 50_000_000,
+        totalDebt: 8_000_000,
+        totalRevenue: 120_000_000,
+        profitMargins: -0.08,
+        operatingMargins: -0.12,
+        revenueGrowth: 0.42,
+        description: "Example builds trader tools.",
+      },
+    },
+  });
+
+  assert.match(content, /Yahoo context:/);
+  assert.match(content, /Current price \(Yahoo\): 12\.50 \(premarket\)/);
+  assert.match(content, /Previous day range \(Yahoo\): high 11\.00 \| low 9\.00/);
+  assert.match(content, /52-week range \(Yahoo\): high 20\.00 \| low 4\.50/);
+  assert.match(content, /Market cap \(Yahoo\): \$875\.00M/);
+  assert.match(content, /Float \/ shares \(Yahoo\): float 25\.00M \| shares outstanding 40\.00M/);
+  assert.match(content, /Short interest \(Yahoo\): 10\.0% of float \| shares short 2\.50M \| short ratio 1\.25/);
+  assert.match(content, /Profitability \(Yahoo\): profit margin -8\.0% \| operating margin -12\.0%/);
+  assert.match(content, /Cash \/ debt \(Yahoo\): cash \$50\.00M \| debt \$8\.00M/);
+  assert.match(content, /Company description \(Yahoo\): Example builds trader tools\./);
 });

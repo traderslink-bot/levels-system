@@ -7,6 +7,8 @@ import { join } from "node:path";
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-commentary-service.js";
 import { createFinnhubClientFromEnv } from "../lib/stock-context/finnhub-client.js";
+import { createYahooClientFromEnv } from "../lib/stock-context/yahoo-client.js";
+import { CombinedStockContextProvider } from "../lib/stock-context/stock-context-provider.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
 import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
@@ -192,6 +194,14 @@ async function main(): Promise<void> {
     ? createOpenAITraderCommentaryServiceFromEnv()
     : null;
   const finnhubClient = createFinnhubClientFromEnv();
+  const yahooClient = createYahooClientFromEnv();
+  const stockContextProvider =
+    finnhubClient || yahooClient
+      ? new CombinedStockContextProvider({
+          finnhubClient,
+          yahooClient,
+        })
+      : null;
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: candleService,
     levelStore,
@@ -200,7 +210,7 @@ async function main(): Promise<void> {
     opportunityRuntimeController,
     historicalLookbackBars,
     aiCommentaryService,
-    stockContextProvider: finnhubClient,
+    stockContextProvider,
     watchlistStatePersistence: new WatchlistStatePersistence(),
     lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
     optionalPostSettleDelayMs: 250,
@@ -237,6 +247,9 @@ async function main(): Promise<void> {
       }
       console.log(
         `[ManualWatchlistRuntime] Finnhub stock context ${finnhubClient ? "enabled" : "disabled (FINNHUB_API_KEY missing)"}.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Yahoo stock context ${yahooClient ? "enabled" : "disabled (YAHOO_STOCK_CONTEXT_ENABLED=false)"}.`,
       );
       await manager.start();
       console.log("[ManualWatchlistRuntime] Runtime startup complete.");

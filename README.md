@@ -29,7 +29,8 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Long-run sessions now also emit structured `manual_watchlist_lifecycle` JSON lines and a local `discord-delivery-audit.jsonl` file so activation/deactivation, snapshot posting, alert posting, and downstream Discord delivery can be reviewed after the fact.
 - Level snapshot audit details are operator-only: `discord-delivery-audit.jsonl` records which support/resistance candidates were displayed, compacted, already on the wrong side of price, or outside the forward planning range without adding that diagnostic detail to Discord posts.
 - The long-run launcher now also refreshes summary artifacts from `discord-delivery-audit.jsonl`, so `session-summary.json`, `thread-summaries.json`, `thread-clutter-report.json`, `session-review.md`, and `trader-thread-recaps.md` keep updating even when runtime stdout goes quiet.
-- Set `FINNHUB_API_KEY` in `.env` to enable a Finnhub-backed stock-context opener on newly created Discord threads before level generation finishes.
+- Set `FINNHUB_API_KEY` in `.env` to include Finnhub company/profile fields in the stock-context opener on newly created Discord threads before level generation finishes.
+- Yahoo stock context is enabled by default for that opener and adds source-labeled quote, volume, 52-week range, float, short-interest, cash/debt, revenue, profitability, and company-description fields when Yahoo returns them. Set `YAHOO_STOCK_CONTEXT_ENABLED=false` to disable Yahoo enrichment.
 - `npm run finnhub:test -- AAPL` still prints that same stock-context card in the terminal so the opener can be iterated separately from the live runtime.
 - The stock-context opener is intentionally limited to ticker/profile data only and does not use Finnhub quote fields for live price context:
   - company name

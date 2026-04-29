@@ -1,19 +1,17 @@
 import "dotenv/config";
 
-import {
-  createFinnhubClientFromEnv,
-} from "../lib/stock-context/finnhub-client.js";
 import { formatFinnhubThreadPreview } from "../lib/stock-context/finnhub-thread-preview.js";
+import { createStockContextProviderFromEnv } from "../lib/stock-context/stock-context-provider.js";
 
 async function main(): Promise<void> {
   const symbols = process.argv.slice(2)
     .map((value) => value.trim().toUpperCase())
     .filter((value) => value.length > 0);
-  const client = createFinnhubClientFromEnv();
+  const client = createStockContextProviderFromEnv();
 
   if (!client) {
     throw new Error(
-      "FINNHUB_API_KEY is not set. Add FINNHUB_API_KEY to .env before running the Finnhub thread preview test.",
+      "No stock-context provider is enabled. Add FINNHUB_API_KEY or leave YAHOO_STOCK_CONTEXT_ENABLED enabled before running this preview test.",
     );
   }
 

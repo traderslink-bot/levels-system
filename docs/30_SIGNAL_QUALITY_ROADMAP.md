@@ -160,6 +160,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added `live-post-profile-comparison.json` / `.md` so saved sessions can compare quiet, balanced, and active profiles before changing the runtime setting.
 - Added `runner-story-report.json` / `.md` so runner reviews can start from rough price path, key events, post quality labels, noisy-repeat samples, candidate missed level clears/losses, and post mix instead of raw Discord/audit rows.
 - Tightened live posting around the current philosophy: critical level changes still post, but minor continuity, tiny follow-through, same-zone chop, and low-value AI commentary stay out of Discord by default.
+- Added Yahoo enrichment to the initial stock-context opener so newly created Discord threads can show source-labeled Yahoo quote, volume, float, short-interest, financial, previous-day range, 52-week range, and company-description context beside Finnhub profile fields.
 
 ## Active Backlog
 

@@ -13,8 +13,8 @@ import {
   type DiscordAlertRouter,
 } from "../alerts/alert-router.js";
 import type { TraderCommentaryService } from "../ai/trader-commentary-service.js";
-import type { FinnhubThreadPreview } from "../stock-context/finnhub-client.js";
 import { buildFinnhubThreadPreviewPayload } from "../stock-context/finnhub-thread-preview.js";
+import type { StockContextPreview } from "../stock-context/stock-context-types.js";
 import type {
   DiscordThreadRoutingResult,
   AlertPayload,
@@ -96,7 +96,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   activationStuckWarningMs?: number;
   levelTouchSupersedeDelayMs?: number;
   stockContextProvider?: {
-    getThreadPreview(symbolInput: string): Promise<FinnhubThreadPreview>;
+    getThreadPreview(symbolInput: string): Promise<StockContextPreview>;
   } | null;
 };
 
@@ -1050,6 +1050,8 @@ export class ManualWatchlistRuntimeManager {
           exchange: preview.profile.exchange?.trim() || null,
           industry: preview.profile.finnhubIndustry?.trim() || null,
           marketCap: preview.profile.marketCapitalization ?? null,
+          yahooMarketCap: preview.yahoo?.summary?.marketCap ?? preview.yahoo?.quote?.marketCap ?? null,
+          yahooFloatShares: preview.yahoo?.summary?.floatShares ?? null,
         },
       });
     } catch (error) {
