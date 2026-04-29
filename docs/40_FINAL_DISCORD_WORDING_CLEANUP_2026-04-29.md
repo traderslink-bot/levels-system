@@ -81,7 +81,7 @@ These are understandable, but still feel a little tool-shaped.
 Rewrite into softer trader-facing labels.
 
 Suggested replacements:
-- `LEVEL SNAPSHOT: ALBT` -> `ALBT level map`
+- `LEVEL SNAPSHOT: ALBT` -> `ALBT support and resistance`
 - `CURRENT READ:` -> `What price is doing now:`
 - `KEY LEVELS:` -> `Closest levels to watch:`
 - `FULL LADDER:` -> `More support and resistance:`

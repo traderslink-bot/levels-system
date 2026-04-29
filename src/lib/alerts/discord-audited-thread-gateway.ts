@@ -317,7 +317,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       this.recordPosted("post_level_snapshot", {
         threadId,
         symbol: payload.symbol,
-        title: `${payload.symbol} level map`,
+        title: `${payload.symbol} support and resistance`,
         body,
         bodyPreview,
         supportCount: payload.supportZones.length,
@@ -328,7 +328,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       this.recordFailed("post_level_snapshot", error, {
         threadId,
         symbol: payload.symbol,
-        title: `${payload.symbol} level map`,
+        title: `${payload.symbol} support and resistance`,
         body,
         bodyPreview,
         supportCount: payload.supportZones.length,

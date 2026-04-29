@@ -762,7 +762,7 @@ export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): strin
   const resistanceLine = formatSnapshotLevelList(payload.resistanceZones, payload.currentPrice);
 
   return [
-    `${payload.symbol} level map`,
+    `${payload.symbol} support and resistance`,
     `Price: ${formatLevel(payload.currentPrice)}`,
     "",
     "What price is doing now:",

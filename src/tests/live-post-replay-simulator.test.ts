@@ -82,7 +82,7 @@ test("runner story report classifies noisy posts and flags candidate missed clea
       timestamp: 1000,
       symbol: "ATER",
       body: [
-        "ATER level map",
+        "ATER support and resistance",
         "Price: 1.00",
         "Resistance: 1.06 (+6.0%, moderate), 1.24 (+24.0%, heavy)",
         "Support: 0.95 (-5.0%, moderate)",
@@ -125,7 +125,7 @@ test("runner story report classifies noisy posts and flags candidate missed clea
       timestamp: 4000,
       symbol: "ATER",
       body: [
-        "ATER level map",
+        "ATER support and resistance",
         "Price: 1.25",
         "Resistance: 1.30 (+4.0%, moderate)",
         "Support: 1.24 (-0.8%, heavy), 1.06 (-15.2%, moderate)",

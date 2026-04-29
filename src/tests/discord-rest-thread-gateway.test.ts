@@ -140,7 +140,7 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
   assert.equal(
     JSON.parse(String(calls[0]?.init?.body)).content,
     [
-      "ALBT level map",
+      "ALBT support and resistance",
       "Price: 2.51",
       "",
       "What price is doing now:",

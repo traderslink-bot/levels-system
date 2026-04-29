@@ -780,7 +780,7 @@ function classifyPostQuality(
   storyCounts.set(storyKey, storyCount);
 
   if (kind === "level_snapshot" || kind === "level_extension") {
-    return { category: "helpfulContext", reason: "level map context" };
+    return { category: "helpfulContext", reason: "support and resistance context" };
   }
 
   if (kind === "intelligent_alert" || kind === "level_clear_update") {

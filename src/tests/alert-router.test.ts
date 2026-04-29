@@ -635,7 +635,7 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       timestamp: 1,
     }),
     [
-      "ALBT level map",
+      "ALBT support and resistance",
       "Price: 2.51",
       "",
       "What price is doing now:",

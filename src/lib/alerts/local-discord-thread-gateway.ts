@@ -242,7 +242,7 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
 
     thread.messages.push({
       type: "level_snapshot",
-      title: `${payload.symbol} level map`,
+      title: `${payload.symbol} support and resistance`,
       body: formatLevelSnapshotMessage(payload),
       symbol: payload.symbol,
       timestamp: payload.timestamp,
