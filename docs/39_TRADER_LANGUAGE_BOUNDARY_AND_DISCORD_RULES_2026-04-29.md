@@ -349,6 +349,186 @@ Assert that AI commentary follows the same rules and never becomes more advisory
 
 ---
 
+## New Work For Codex After The Latest Audit
+
+This section is new and reflects the remaining work still needed after the latest repo audit.
+
+### Current audit conclusion
+
+Codex followed this document substantially, but not fully.
+
+Good progress already made:
+- a dedicated live-thread post-policy layer now exists
+- trader-critical vs optional vs operator-only output is more explicit
+- replay and audit tooling now exist to inspect thread noise
+- AI commentary rules are stricter than before
+- trader-facing alert wording is cleaner than older versions
+
+But the audit still found gaps that need another pass.
+
+### Remaining problems to fix
+
+#### 1. Trader-facing Discord posts still contain some system-shaped labels
+
+Examples that still need cleanup in Discord-visible text:
+- `Status: Cleared`
+- `Signal: high severity | medium confidence`
+- `Decision area`
+- `setup update`
+- `state recap`
+- `setup move`
+
+These are better than raw debugging language, but they still feel system-shaped instead of naturally trader-facing.
+
+#### 2. AI commentary still allows borderline instructional phrasing
+
+A key example that is still too advisory:
+- `Longs should wait for a reclaim before trusting the setup.`
+
+This must be rewritten into observational trader language.
+
+Preferred style:
+- `A reclaim would make the setup cleaner for longs.`
+- `The setup looks cleaner if price can reclaim the area first.`
+
+#### 3. Trader-facing tests are still more formatting-focused than product-language-focused
+
+There are good formatting tests and policy tests already, but there still need to be stronger tests for:
+- newer-trader readability
+- system-language leakage into Discord
+- advisory phrasing leakage into AI recap/commentary
+- overlapping post types that say the same thing in different words
+
+---
+
+## Detailed Next Steps For Codex
+
+### Task 1. Rewrite remaining system-shaped Discord labels
+
+Review all Discord-visible output builders and replace the remaining system-shaped phrases with calmer trader language.
+
+#### File focus
+- `src/lib/alerts/alert-router.ts`
+- `src/lib/alerts/trader-message-language.ts`
+
+#### Specific replacements to implement
+- `Status: Cleared` -> `Price is above resistance for now`
+- `Status: working` -> `The move is still holding up`
+- `Status: failed` -> `The move lost momentum and the setup weakened`
+- `Signal: high severity | medium confidence` -> either remove from trader-facing Discord or rewrite to something softer like `Importance: high | Confidence: medium`
+- `Decision area:` -> `Level that needs to hold:` or `Level to watch closely:`
+- `setup update` -> `What changed`
+- `state recap` -> `Current read` or `Where things stand now`
+- `setup move` -> `Price move since the setup:` or `Move since the signal:`
+
+#### Rule
+If a line sounds like a dashboard label more than trader language, rewrite it.
+
+### Task 2. Tighten AI commentary validation again
+
+#### File focus
+- `src/lib/ai/trader-commentary-service.ts`
+- `src/tests/trader-commentary-service.test.ts`
+
+#### New rule
+Reject or rewrite commentary that uses instruction-like constructions even if they do not use classic buy/sell words.
+
+#### Phrases to block more aggressively
+- `Longs should...`
+- `Traders should...`
+- `Wait for...`
+- `Best entry...`
+- `Good place to add...`
+- `Safe if...`
+- `Can buy if...`
+- `Should trim...`
+- `Should exit...`
+
+#### Allowed replacement style
+- `A reclaim would make the setup cleaner for longs.`
+- `Buyers still need acceptance above resistance.`
+- `The long setup looks weaker while price stays below that area.`
+- `Holding this support would keep the setup in better shape.`
+
+#### Test additions required
+Add explicit tests that reject the above blocked forms and accept the observational rewrites.
+
+### Task 3. Add stronger trader-view-only language tests
+
+#### File focus
+- `src/tests/alert-router.test.ts`
+- add any new focused trader-language test file if needed
+
+#### Add assertions that trader-facing Discord text does not contain:
+- alert direction
+- continuation thread language
+- mapped / remapped
+- operator-only
+- policy / suppression language
+- replay / simulation terms
+- runtime-only labels
+
+#### Add assertions that trader-facing text does contain natural trader hints like:
+- needs to hold
+- buyers need acceptance above
+- reclaim would improve the setup
+- risk opens if support breaks
+- room remains limited until resistance clears
+
+### Task 4. Add repeated-story wording tests
+
+#### Goal
+Not only prevent duplicate posts by policy, but prevent different post types from saying the same thing in slightly different words.
+
+#### File focus
+- `src/tests/manual-watchlist-runtime-manager.test.ts`
+- `src/tests/live-thread-post-policy.test.ts`
+- add targeted wording-level tests if needed
+
+#### Add test scenarios where:
+- a critical alert posts and a weaker continuity post should not restate the same trader meaning
+- a follow-through state post posts and a recap should not say the same thing again in softer words
+- a final follow-through verdict posts and continuity/recap should yield
+
+### Task 5. Keep testing and operator language out of Discord stock-context opener too
+
+#### File focus
+- `src/lib/alerts/discord-rest-thread-gateway.ts`
+- `src/lib/stock-context/finnhub-thread-preview.ts`
+- tests around those files
+
+#### Rule
+The stock-context opener must stay compact and trader-readable.
+It should not become a testing/info dump and should not add operator-style explanation to the thread.
+
+### Task 6. Update docs to reflect the stricter boundary
+
+#### File focus
+- `README.md`
+- `docs/15_PROJECT_CHANGE_LOG.md`
+- `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+- `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+
+#### Required doc update themes
+- Discord posts are trader-view only
+- operator/testing language belongs in artifacts and logs
+- AI commentary is observational and non-instructional
+- remaining system-shaped wording cleanup completed in this pass
+
+---
+
+## Required Acceptance Standard For This Next Pass
+
+This next pass should be considered complete only if all of the following are true:
+
+1. Trader-facing Discord posts no longer contain the main remaining system-shaped labels listed above.
+2. AI commentary no longer permits `Longs should...` or similar borderline-instructional phrasing.
+3. Trader-facing tests explicitly enforce the no-system-language and no-advice boundary.
+4. New tests cover repeated-story wording overlap, not just posting suppression logic.
+5. Docs reflect that Discord is trader-view only and testing language belongs elsewhere.
+
+---
+
 ## Final Rule To Remember
 
 Best summary rule:
