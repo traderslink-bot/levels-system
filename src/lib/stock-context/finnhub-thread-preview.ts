@@ -2,9 +2,9 @@ import type { FinnhubThreadPreview } from "./finnhub-client.js";
 import type { StockContextPreview } from "./stock-context-types.js";
 import type { AlertPayload } from "../alerts/alert-types.js";
 
-function formatMarketCap(value: number | undefined): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "n/a";
+function formatMarketCap(value: number | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
   }
 
   if (value >= 1_000) {
@@ -24,6 +24,15 @@ function formatPrice(value: number | undefined): string {
   }
 
   return value >= 1 ? value.toFixed(2) : value.toFixed(4);
+}
+
+function optionalTextLine(label: string, value: string | undefined): string | null {
+  const normalized = normalizeText(value);
+  return normalized === "n/a" ? null : `${label}: ${normalized}`;
+}
+
+function optionalFormattedLine(label: string, value: string | null): string | null {
+  return value && value !== "n/a" ? `${label}: ${value}` : null;
 }
 
 function currentPriceLabel(preview: StockContextPreview): string | null {
@@ -102,18 +111,21 @@ export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview |
   const symbol = preview.symbol;
   const stockContextPreview = preview as StockContextPreview;
   const currentPrice = currentPriceLabel(stockContextPreview);
+  const profileLines = [
+    `Company: ${normalizeText(profile.name, symbol)}`,
+    optionalFormattedLine("Exchange", formatExchange(profile.exchange)),
+    optionalTextLine("Industry", profile.finnhubIndustry),
+    optionalTextLine("Country", profile.country),
+    optionalFormattedLine("Website", formatWebsite(profile.weburl)),
+    optionalFormattedLine("Market cap", formatMarketCap(profile.marketCapitalization)),
+    optionalFormattedLine("Shares outstanding", formatMarketCap(profile.shareOutstanding)),
+  ].filter((line): line is string => Boolean(line));
 
   return {
     title: "",
     body: [
       ...(currentPrice ? [`Current price: ${currentPrice}`, ""] : []),
-      `Company: ${normalizeText(profile.name, symbol)}`,
-      `Exchange: ${formatExchange(profile.exchange)}`,
-      `Industry: ${normalizeText(profile.finnhubIndustry)}`,
-      `Country: ${normalizeText(profile.country)}`,
-      `Website: ${formatWebsite(profile.weburl)}`,
-      `Market cap: ${formatMarketCap(profile.marketCapitalization)}`,
-      `Shares outstanding: ${formatMarketCap(profile.shareOutstanding)}`,
+      ...profileLines,
       ``,
       `Levels are loading.`,
     ].join("\n"),

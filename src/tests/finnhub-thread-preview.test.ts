@@ -399,6 +399,36 @@ test("formatFinnhubThreadPreview places current price first without source label
   assert.doesNotMatch(content, /Company description/);
 });
 
+test("formatFinnhubThreadPreview omits unusable zero-valued profile numbers", () => {
+  const content = formatFinnhubThreadPreview({
+    symbol: "ZERO",
+    quote: {
+      c: 1.19,
+      d: 0,
+      dp: 0,
+      h: 0,
+      l: 0,
+      o: 0,
+      pc: 0,
+      t: 1_700_000_000,
+    },
+    profile: {
+      exchange: "NASDAQ NMS - GLOBAL MARKET",
+      marketCapitalization: 0,
+      name: "Zero Example",
+      shareOutstanding: 0,
+    },
+  });
+
+  assert.match(content, /^Current price: 1\.19/);
+  assert.match(content, /Company: Zero Example/);
+  assert.match(content, /Exchange: Nasdaq/);
+  assert.doesNotMatch(content, /Market cap:/);
+  assert.doesNotMatch(content, /Shares outstanding:/);
+  assert.doesNotMatch(content, /0\.00K/);
+  assert.doesNotMatch(content, /n\/a/);
+});
+
 test("formatFinnhubThreadPreview omits Yahoo section when only non-current-price Yahoo fields are available", () => {
   const content = formatFinnhubThreadPreview({
     symbol: "EXMP",

@@ -39,6 +39,19 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Verification:
   - `npx tsx --test src/tests/alert-router.test.ts src/tests/manual-watchlist-runtime-manager.test.ts src/tests/alert-intelligence.test.ts`
 
+### Omitted unusable zero-valued stock-context fields
+
+- Updated:
+  - `src/lib/stock-context/finnhub-thread-preview.ts`
+  - `src/tests/finnhub-thread-preview.test.ts`
+- What changed:
+  - treats zero or invalid market cap / shares outstanding values as unavailable
+  - omits unavailable profile rows instead of showing `n/a` or misleading values like `0.00K`
+- Why this matters:
+  - the Discord opener should only show useful context, not source artifacts that look precise but are not meaningful
+- Verification:
+  - `npx tsx --test src/tests/finnhub-thread-preview.test.ts`
+
 ### Added Yahoo enrichment to the initial stock-context opener
 
 - Updated:
