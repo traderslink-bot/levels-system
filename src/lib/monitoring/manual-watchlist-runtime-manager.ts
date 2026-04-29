@@ -3017,7 +3017,7 @@ export class ManualWatchlistRuntimeManager {
       }
 
       if (skippingLevelSection) {
-        if (/^(Signal|Importance):/i.test(line.trim()) || /^Trigger:/i.test(line.trim())) {
+        if (/^(Signal|Importance):/i.test(line.trim()) || /^(?:Trigger|Triggered near):/i.test(line.trim())) {
           skippingLevelSection = false;
         } else {
           continue;

@@ -109,7 +109,8 @@ Inside that folder:
   - append-only local record of thread creation plus snapshot / alert / extension delivery attempts
   - includes both successful and failed downstream posts
   - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, path-quality labels, path-constraint scores, path-window distances, exhaustion labels, dip-buy-quality labels, continuity metadata, AI-origin flags, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, compare tighter first-path windows against cleaner continuation space, compare fresh zones against worn ones, and compare the original alert against what happened afterward
-  - repeated identical extension payloads should now stop after the first post until the extension ladder actually changes, which makes it easier to spot genuine extension movement instead of repeated `NEXT LEVELS` restatements
+  - repeated identical extension payloads should now stop after the first post until the extension ladder actually changes, which makes it easier to spot genuine extension movement instead of repeated next-level restatements
+  - live Discord text should stay trader-view only: system-shaped labels, severity/confidence scoring, and operator/testing wording belong in this audit/review stream rather than in visible posts
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
   - now also refreshes from `discord-delivery-audit.jsonl`, so it should keep moving even after runtime stdout goes quiet

@@ -414,7 +414,7 @@ function parseAlertLevel(entry: ReplayAuditEntry): number | null {
   const text = entry.body ?? entry.bodyPreview ?? "";
   const match = text.match(/\b(?:support|resistance)\s+(?:lost|cleared|at|through|above|below|near)?\s*(?:at\s*)?(?:light|moderate|heavy|major)?\s*(?:support|resistance)?\s*(\d+(?:\.\d+)?)/i)
     ?? text.match(/\b(?:hold above|back below|reclaims?|clears?)\s+(\d+(?:\.\d+)?)/i)
-    ?? text.match(/\bTrigger:\s*(\d+(?:\.\d+)?)/i);
+    ?? text.match(/\b(?:Trigger|Triggered near):\s*(\d+(?:\.\d+)?)/i);
   if (!match?.[1]) {
     return null;
   }
@@ -720,12 +720,12 @@ function parseAllPrices(text: string): number[] {
 
 function priceFromEntry(entry: ReplayAuditEntry): number | null {
   const text = entry.body ?? entry.bodyPreview ?? "";
-  const priceMatch = text.match(/\bPRICE:\s*(\d+(?:\.\d+)?)/i);
+  const priceMatch = text.match(/\bPrice:\s*(\d+(?:\.\d+)?)/i);
   if (priceMatch?.[1]) {
     return Number(priceMatch[1]);
   }
 
-  const triggerMatch = text.match(/\bTrigger:\s*(\d+(?:\.\d+)?)/i);
+  const triggerMatch = text.match(/\b(?:Trigger|Triggered near):\s*(\d+(?:\.\d+)?)/i);
   if (triggerMatch?.[1]) {
     return Number(triggerMatch[1]);
   }

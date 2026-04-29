@@ -152,6 +152,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added a critical live-post burst governor plus stricter completed follow-through transition rules, so runner threads like ATER / BIYA should repeat fewer same-level `working` / `failed` messages.
 - Improved follow-through Discord wording with a `Level to watch closely` section, natural move-state lines, and metadata-only material-repeat context.
 - Tightened the trader-view-only Discord boundary so live posts avoid dashboard-shaped labels like `Status`, `Signal`, `Decision area`, `setup update`, `state recap`, and `setup move`.
+- Removed live Discord severity/confidence lines and softened snapshot / extension headers so labels like `LEVEL SNAPSHOT`, `CURRENT READ`, `KEY LEVELS`, `FULL LADDER`, `NEXT LEVELS`, `SIDE`, and `LEVELS` stay out of trader-visible posts.
 - Tightened AI commentary validation so live AI reads stay observational and reject borderline instruction-like phrasing such as `longs should...`, `wait for...`, `best entry`, `can buy`, `should trim`, and `should exit`.
 - Added `npm run longrun:simulate:posts -- <session-folder>` and `live-post-replay-simulation.json` / `.md`, so saved sessions can be replayed through the current post-policy rules before the next live market test.
 - Routed live AI reads through optional-post and narration-burst discipline before the OpenAI call, keeping reactive AI reads out of already-busy threads and reducing unnecessary API usage.

@@ -2792,10 +2792,8 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
     intelligentAlerts[0]?.payload.body ?? "",
     /Key levels:\n- First resistance: 2\.58/,
   );
-  assert.match(
-    intelligentAlerts[0]?.payload.body ?? "",
-    /Importance: critical \| Confidence: high/,
-  );
+  assert.doesNotMatch(intelligentAlerts[0]?.payload.body ?? "", /Importance:|Confidence:|Signal:/);
+  assert.match(intelligentAlerts[0]?.payload.body ?? "", /Triggered near: 2\.52/);
   assert.doesNotMatch(
     intelligentAlerts[0]?.payload.body ?? "",
     /Status:|Signal:|Decision area|setup update|state recap|setup move|alert direction|after the alert/,

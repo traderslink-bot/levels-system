@@ -192,7 +192,8 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
     lines[2]?.snapshotAudit?.omittedResistanceLevels[0]?.omittedReason,
     "outside_forward_range",
   );
-  assert.match(lines[2]?.body, /LEVEL SNAPSHOT: ALBT/);
+  assert.match(lines[2]?.body, /ALBT level map/);
+  assert.equal(lines[2]?.title, "ALBT level map");
   assert.equal(capturedEntries.length, 3);
 });
 

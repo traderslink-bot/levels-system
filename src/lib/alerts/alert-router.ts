@@ -65,10 +65,6 @@ function formatAlertZoneRange(alert: IntelligentAlert): string | null {
   return representative;
 }
 
-function signalText(value: string): string {
-  return value.toLowerCase();
-}
-
 function simplifyTraderRead(line: string): string {
   return line
     .replace(/^buyers still have workable control, but follow-through still matters$/i, "buyers have some control, but the move still needs follow-through")
@@ -298,8 +294,7 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   }
   output.push(
     "",
-    `Importance: ${signalText(alert.severity)} | Confidence: ${signalText(alert.confidence)}`,
-    `Trigger: ${alert.event.triggerPrice >= 1 ? alert.event.triggerPrice.toFixed(2) : alert.event.triggerPrice.toFixed(4)}`,
+    `Triggered near: ${alert.event.triggerPrice >= 1 ? alert.event.triggerPrice.toFixed(2) : alert.event.triggerPrice.toFixed(4)}`,
   );
   return output.join("\n");
 }
@@ -686,7 +681,7 @@ function buildSnapshotMapLine(payload: LevelSnapshotPayload): string {
     skew = "no nearby ladder";
   }
 
-  return `MAP: nearest support ${supportText} | nearest resistance ${resistanceText} | ${skew}`;
+  return `Nearest support and resistance: support ${supportText} | resistance ${resistanceText} | ${skew}`;
 }
 
 function buildSnapshotReadLines(payload: LevelSnapshotPayload): string[] {
@@ -767,18 +762,18 @@ export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): strin
   const resistanceLine = formatSnapshotLevelList(payload.resistanceZones, payload.currentPrice);
 
   return [
-    `LEVEL SNAPSHOT: ${payload.symbol}`,
-    `PRICE: ${formatLevel(payload.currentPrice)}`,
+    `${payload.symbol} level map`,
+    `Price: ${formatLevel(payload.currentPrice)}`,
     "",
-    "CURRENT READ:",
+    "What price is doing now:",
     ...buildSnapshotReadLines(payload).map((line) => `- ${line}`),
     "",
-    "KEY LEVELS:",
+    "Closest levels to watch:",
     ...keyResistanceLines,
     "",
     ...keySupportLines,
     "",
-    "FULL LADDER:",
+    "More support and resistance:",
     `- Support: ${supportLine}`,
     `- Resistance: ${resistanceLine}`,
   ].join("\n");
@@ -791,9 +786,10 @@ export function formatLevelExtensionMessage(payload: LevelExtensionPayload): str
       : "none";
 
   return [
-    `NEXT LEVELS: ${payload.symbol}`,
-    `SIDE: ${payload.side.toUpperCase()}`,
-    `LEVELS: ${levelsLine}`,
+    `${payload.symbol} next levels to watch`,
+    payload.side === "resistance"
+      ? `Overhead resistance levels: ${levelsLine}`
+      : `Lower support levels: ${levelsLine}`,
   ].join("\n");
 }
 

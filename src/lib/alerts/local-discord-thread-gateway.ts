@@ -242,7 +242,7 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
 
     thread.messages.push({
       type: "level_snapshot",
-      title: `LEVEL SNAPSHOT: ${payload.symbol}`,
+      title: `${payload.symbol} level map`,
       body: formatLevelSnapshotMessage(payload),
       symbol: payload.symbol,
       timestamp: payload.timestamp,
@@ -260,7 +260,7 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
 
     thread.messages.push({
       type: "level_extension",
-      title: `NEXT LEVELS: ${payload.symbol}`,
+      title: `${payload.symbol} next levels to watch`,
       body: formatLevelExtensionMessage(payload),
       symbol: payload.symbol,
       timestamp: payload.timestamp,

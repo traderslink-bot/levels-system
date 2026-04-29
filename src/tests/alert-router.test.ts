@@ -258,8 +258,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       "Key levels:",
       "- First resistance: 2.50",
       "",
-      "Importance: high | Confidence: medium",
-      "Trigger: 2.41",
+      "Triggered near: 2.41",
     ].join("\n"),
   );
   assertTraderFacingDiscordText(payload);
@@ -636,14 +635,14 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       timestamp: 1,
     }),
     [
-      "LEVEL SNAPSHOT: ALBT",
-      "PRICE: 2.51",
+      "ALBT level map",
+      "Price: 2.51",
       "",
-      "CURRENT READ:",
+      "What price is doing now:",
       "- Price is between support 2.40 and resistance 2.60.",
       "- Room is fairly balanced between the nearest support and resistance.",
       "",
-      "KEY LEVELS:",
+      "Closest levels to watch:",
       "Resistance:",
       "2.60 (+3.6%, major, 4h confluence)",
       "2.75 (+9.6%, moderate, extension)",
@@ -652,7 +651,7 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       "2.40 (-4.4%, heavy, daily structure)",
       "2.25 (-10.4%, light, fresh intraday)",
       "",
-      "FULL LADDER:",
+      "More support and resistance:",
       "- Support: 2.40 (-4.4%, heavy, daily structure), 2.25 (-10.4%, light, fresh intraday)",
       "- Resistance: 2.60 (+3.6%, major, 4h confluence), 2.75 (+9.6%, moderate, extension)",
     ].join("\n"),
@@ -700,9 +699,8 @@ test("formatLevelExtensionMessage uses deterministic formatting", () => {
       timestamp: 1,
     }),
     [
-      "NEXT LEVELS: ALBT",
-      "SIDE: RESISTANCE",
-      "LEVELS: 2.90, 3.15",
+      "ALBT next levels to watch",
+      "Overhead resistance levels: 2.90, 3.15",
     ].join("\n"),
   );
 });

@@ -317,7 +317,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       this.recordPosted("post_level_snapshot", {
         threadId,
         symbol: payload.symbol,
-        title: `LEVEL SNAPSHOT: ${payload.symbol}`,
+        title: `${payload.symbol} level map`,
         body,
         bodyPreview,
         supportCount: payload.supportZones.length,
@@ -328,7 +328,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       this.recordFailed("post_level_snapshot", error, {
         threadId,
         symbol: payload.symbol,
-        title: `LEVEL SNAPSHOT: ${payload.symbol}`,
+        title: `${payload.symbol} level map`,
         body,
         bodyPreview,
         supportCount: payload.supportZones.length,
@@ -347,7 +347,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       this.recordPosted("post_level_extension", {
         threadId,
         symbol: payload.symbol,
-        title: `NEXT LEVELS: ${payload.symbol}`,
+        title: `${payload.symbol} next levels to watch`,
         body,
         bodyPreview: previewBody(bodyPreview),
         side: payload.side,
@@ -357,7 +357,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       this.recordFailed("post_level_extension", error, {
         threadId,
         symbol: payload.symbol,
-        title: `NEXT LEVELS: ${payload.symbol}`,
+        title: `${payload.symbol} next levels to watch`,
         body,
         bodyPreview: previewBody(bodyPreview),
         side: payload.side,
