@@ -1374,7 +1374,7 @@ export class ManualWatchlistRuntimeManager {
       const body = [
         `price pushed above ${resistanceLine}${nextResistanceText ? `; next resistance is ${nextResistanceText}` : ""}`,
         "",
-        "Status: Testing breakout",
+        "Breakout attempt is being tested.",
         "",
         "What it means:",
         `- ${resistanceLine} is being tested from above, but it still needs to hold`,
@@ -1448,7 +1448,7 @@ export class ManualWatchlistRuntimeManager {
       const body = [
         `price slipped below ${formatSnapshotLevel(support)}${nextSupportText ? `; next support is ${nextSupportText}` : ""}`,
         "",
-        "Status: Testing breakdown",
+        "Support loss is being tested.",
         "",
         "What it means:",
         `- ${formatSnapshotLevel(support)} is being tested from below, but it can still be reclaimed`,
@@ -2920,7 +2920,7 @@ export class ManualWatchlistRuntimeManager {
       const eventType = (topOpportunity.eventType ?? topOpportunity.type).replaceAll("_", " ");
       const level = topOpportunity.level >= 1 ? topOpportunity.level.toFixed(2) : topOpportunity.level.toFixed(4);
       parts.push(
-        `state recap: ${eventType} is still the lead idea near ${level} with ${topOpportunity.classification.replaceAll("_", " ")} quality.`,
+        `current read: ${eventType} is still the lead idea near ${level} with ${topOpportunity.classification.replaceAll("_", " ")} quality.`,
       );
 
       const pathLine =
@@ -3017,7 +3017,7 @@ export class ManualWatchlistRuntimeManager {
       }
 
       if (skippingLevelSection) {
-        if (/^Signal:/i.test(line.trim()) || /^Trigger:/i.test(line.trim())) {
+        if (/^(Signal|Importance):/i.test(line.trim()) || /^Trigger:/i.test(line.trim())) {
           skippingLevelSection = false;
         } else {
           continue;

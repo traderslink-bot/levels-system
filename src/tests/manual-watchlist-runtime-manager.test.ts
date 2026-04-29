@@ -2782,7 +2782,7 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
   assert.equal(intelligentAlerts[0]?.payload.title, "ALBT breakout");
   assert.match(
     intelligentAlerts[0]?.payload.body ?? "",
-    /bullish breakout through heavy resistance 2\.40-2\.50\n\nStatus: Cleared/,
+    /bullish breakout through heavy resistance 2\.40-2\.50\n\nPrice is above resistance for now\./,
   );
   assert.match(
     intelligentAlerts[0]?.payload.body ?? "",
@@ -2794,7 +2794,11 @@ test("ManualWatchlistRuntimeManager routes intelligence-based alert payloads ins
   );
   assert.match(
     intelligentAlerts[0]?.payload.body ?? "",
-    /Signal: critical severity \| high confidence/,
+    /Importance: critical \| Confidence: high/,
+  );
+  assert.doesNotMatch(
+    intelligentAlerts[0]?.payload.body ?? "",
+    /Status:|Signal:|Decision area|setup update|state recap|setup move|alert direction|after the alert/,
   );
 });
 
@@ -2807,7 +2811,7 @@ test("ManualWatchlistRuntimeManager posts AI signal commentary after determinist
   const aiCommentaryService = {
     async explainSignal(input: any) {
       assert.equal(input.symbol, "ALBT");
-      assert.match(input.deterministicBody, /Status: Cleared/);
+      assert.match(input.deterministicBody, /Price is above resistance for now/);
       assert.doesNotMatch(input.deterministicBody, /Next levels:/);
       assert.doesNotMatch(input.deterministicBody, /Key levels:/);
       assert.equal(input.metadata?.targetSide, undefined);
@@ -2944,7 +2948,7 @@ test("ManualWatchlistRuntimeManager rate-limits AI signal commentary per symbol"
   };
   const deterministicPayload = {
     title: "ALBT breakout",
-    body: "Status: Cleared",
+    body: "Price is above resistance for now.",
     symbol: "ALBT",
     timestamp: 1000,
     metadata: {
@@ -3030,7 +3034,7 @@ test("ManualWatchlistRuntimeManager keeps reactive AI reads out of live threads"
     },
     deterministicPayload: {
       title: "ALBT level touch",
-      body: "Status: Testing",
+      body: "Price is testing resistance.",
       symbol: "ALBT",
       timestamp: 1000,
       metadata: {
@@ -3161,18 +3165,22 @@ test("ManualWatchlistRuntimeManager posts follow-through updates when evaluation
   assert.equal(
     followThroughPosts[0]?.payload.body,
     [
-      "Status: strong",
+      "The move is holding up well.",
       "",
       "What changed:",
       "- breakout stayed strong",
-      "- setup move: +2.38%",
+      "- price change from trigger: +2.38%",
       "",
-      "Decision area:",
+      "Level to watch closely:",
       "- breakout has expanded from 2.52; that level should keep holding for the move to stay clean.",
       "",
       "Path:",
       "- 2.52 -> 2.58 (+2.38% price move)",
     ].join("\n"),
+  );
+  assert.doesNotMatch(
+    followThroughPosts[0]?.payload.body ?? "",
+    /Status:|Signal:|Decision area|setup update|state recap|setup move|alert direction|after the alert/,
   );
   assert.equal(followThroughPosts[0]?.payload.metadata?.messageKind, "follow_through_update");
   assert.equal(followThroughPosts[0]?.payload.metadata?.followThroughLabel, "strong");
@@ -4212,6 +4220,11 @@ test("ManualWatchlistRuntimeManager collapses same-window narration bursts into 
   assert.ok(!messageKinds.includes("follow_through_state_update"));
   assert.ok(!messageKinds.includes("continuity_update"));
   assert.ok(!messageKinds.includes("symbol_recap"));
+  const visibleThreadText = discordAlertRouter.routed
+    .map((entry) => `${entry.payload.title}\n${entry.payload.body}`)
+    .join("\n\n");
+  assert.match(visibleThreadText, /The move is still holding up/);
+  assert.doesNotMatch(visibleThreadText, /is stalling and needs a better reaction|current read:|what changed\n.*stalling/is);
 });
 
 test("ManualWatchlistRuntimeManager lets completed follow-through own the story when progress and evaluation arrive together", async () => {

@@ -28,18 +28,28 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `src/lib/alerts/trader-message-language.ts`
   - `src/lib/ai/trader-commentary-service.ts`
   - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/stock-context/finnhub-thread-preview.ts`
   - `src/tests/alert-router.test.ts`
+  - `src/tests/finnhub-thread-preview.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
   - `src/tests/trader-commentary-service.test.ts`
+  - `README.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
 - What changed:
   - removed the Discord-visible `Update type: existing setup update, not a new setup` line from repeated follow-through posts; the state remains in metadata for audit/review only
-  - tightened AI commentary validation so phrases like `longs should wait`, `traders should wait`, `best entry`, `can buy`, `should add`, `should trim`, `take profit`, and `stop out` are rejected from trader-facing AI reads
+  - replaced remaining dashboard-shaped Discord labels: `Status` became natural current-read / move-state lines, `Signal` became `Importance`, `Decision area` became `Level to watch closely`, `setup move` became `price change from trigger`, `setup update` became `what changed`, and `state recap` became `current read`
+  - tightened AI commentary validation so phrases like `longs should...`, `traders should...`, `wait for...`, `best entry`, `safe if`, `can buy`, `good place to add`, `should add`, `should trim`, `should exit`, `take profit`, and `stop out` are rejected from trader-facing AI reads
   - rewrote remaining deterministic `longs need...` style caution wording into setup-context wording such as `the setup needs stabilization or a reclaim`
   - rewrote a fast support-loss fallback from an operator-like `wait for buyers...` instruction into observational trader context
+  - made the stock-context opener more compact and trader-readable with plain labels and `Levels are loading.`
+  - added trader-facing boundary assertions that reject system/debug/operator language and direct execution advice in Discord-visible payloads
+  - added repeated-story wording coverage so a completed follow-through post owns the visible thread text instead of being echoed by weaker state/recap wording
 - Why this matters:
   - Discord posts are now treated as trader-view only; operator/testing context belongs in logs, audit files, diagnostics, replay reports, and review artifacts
   - AI commentary should not be looser or more advisory than deterministic posts
 - Verification:
-  - `npx tsx --test src/tests/trader-commentary-service.test.ts src/tests/alert-router.test.ts src/tests/alert-intelligence.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/trader-commentary-service.test.ts src/tests/finnhub-thread-preview.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
 
 ### Preserved untested higher-timeframe levels during refreshes
 
@@ -53,7 +63,7 @@ This document tracks concrete implementation changes made to the `levels-system`
   - support-test alerts now use support-reaction language instead of `dip-buy` wording in trader-facing posts
   - support-lost posts now show the failed support as the reclaim / resistance area and show the next lower support separately, so the post does not imply a far overhead resistance is the next decision area
   - level-touch key levels now say `Next support` / `Next resistance` instead of `Nearby`, which avoids overstating distance when the next formal ladder level is far away
-  - follow-through and state-update posts now use trader-facing wording like `setup move` and `stayed strong`, removing internal phrases such as `alert direction` and `after the alert`
+  - follow-through and state-update posts now use trader-facing wording like `price change from trigger` and `stayed strong`, removing internal phrases such as `alert direction` and `after the alert`
   - long-caution follow-through now says `support-loss warning faded` instead of ambiguous wording like `breakdown failed`
   - daily and 4h swing detection now includes controlled barrier-candle highs/lows, so meaningful prior resistance/support inside a strong rising or falling sequence can survive even when it is not a perfect local swing point
   - level refreshes now carry forward unmatched daily/4h support or resistance for a limited window when price has not tested or cleared that level yet

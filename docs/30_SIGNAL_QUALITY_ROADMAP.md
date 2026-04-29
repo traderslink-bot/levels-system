@@ -150,7 +150,9 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added a manual-runtime `Review Artifacts` panel so generated session reports can be previewed from the UI while testing.
 - Added `npm run validation:levels:quality -- <SYMBOL> [output-json-path]` for suspicious forward-ladder cases such as missing-looking overhead resistance or unusually wide first gaps.
 - Added a critical live-post burst governor plus stricter completed follow-through transition rules, so runner threads like ATER / BIYA should repeat fewer same-level `working` / `failed` messages.
-- Improved follow-through Discord wording with a `Decision area` section and existing-setup labeling for material repeated outcomes.
+- Improved follow-through Discord wording with a `Level to watch closely` section, natural move-state lines, and metadata-only material-repeat context.
+- Tightened the trader-view-only Discord boundary so live posts avoid dashboard-shaped labels like `Status`, `Signal`, `Decision area`, `setup update`, `state recap`, and `setup move`.
+- Tightened AI commentary validation so live AI reads stay observational and reject borderline instruction-like phrasing such as `longs should...`, `wait for...`, `best entry`, `can buy`, `should trim`, and `should exit`.
 - Added `npm run longrun:simulate:posts -- <session-folder>` and `live-post-replay-simulation.json` / `.md`, so saved sessions can be replayed through the current post-policy rules before the next live market test.
 - Routed live AI reads through optional-post and narration-burst discipline before the OpenAI call, keeping reactive AI reads out of already-busy threads and reducing unnecessary API usage.
 - Added `WATCHLIST_POSTING_PROFILE=quiet|balanced|active` so live Discord post volume can be adjusted from `.env` without editing code.

@@ -9,6 +9,7 @@ import {
   formatIntelligentAlertAsPayload,
   formatLevelExtensionMessage,
   formatLevelSnapshotMessage,
+  formatSymbolRecapAsPayload,
 } from "../lib/alerts/alert-router.js";
 import type {
   AlertPayload,
@@ -88,6 +89,18 @@ const samplePayload: AlertPayload = {
     notes: ["test"],
   },
 };
+
+const DISCORD_SYSTEM_LANGUAGE_PATTERN =
+  /Status:|Signal:|Decision area|setup update|state recap|setup move|alert direction|after the alert|thread stayed|mapped|remapped|operator-only|policy|suppression|replay|simulation|runtime-only|not a price target/i;
+
+const DISCORD_DIRECT_ADVICE_PATTERN =
+  /\b(?:buy here|buy now|sell now|sell here|take profit|stop out|trim here|add here|exit now|short setup|best entry|safe entry|can buy|should add|should trim|should exit|longs should|traders should|wait for)\b/i;
+
+function assertTraderFacingDiscordText(payload: AlertPayload): void {
+  const visibleText = `${payload.title}\n${payload.body}`;
+  assert.doesNotMatch(visibleText, DISCORD_SYSTEM_LANGUAGE_PATTERN);
+  assert.doesNotMatch(visibleText, DISCORD_DIRECT_ADVICE_PATTERN);
+}
 
 test("DiscordAlertRouter reuses an existing stored thread id when available", async () => {
   const gateway = new FakeDiscordThreadGateway();
@@ -237,7 +250,7 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
     [
       "breakout resistance 2.40-2.50 | strong outermost | fresh",
       "",
-      "Status: Cleared",
+      "Price is above resistance for now.",
       "",
       "What it means:",
       "- price is pushing farther above the zone high and follow-through is building (0.8%)",
@@ -245,10 +258,11 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
       "Key levels:",
       "- First resistance: 2.50",
       "",
-      "Signal: high severity | medium confidence",
+      "Importance: high | Confidence: medium",
       "Trigger: 2.41",
     ].join("\n"),
   );
+  assertTraderFacingDiscordText(payload);
   assert.equal(payload.metadata?.clearanceLabel, "limited");
   assert.equal(payload.metadata?.barrierClutterLabel, "stacked");
   assert.equal(payload.metadata?.nearbyBarrierCount, 2);
@@ -361,6 +375,7 @@ test("formatIntelligentAlertAsPayload shows reclaim area and next support for lo
   assert.doesNotMatch(payload.body, /dip-buy/i);
   assert.doesNotMatch(payload.body, /Nearby resistance/);
   assert.doesNotMatch(payload.body, /\b(Buy|Sell|buy at|sell if|take profit|stop out)\b/);
+  assertTraderFacingDiscordText(payload);
 });
 
 test("formatIntelligentAlertAsPayload shows tested resistance and nearby support for resistance touches", () => {
@@ -446,6 +461,8 @@ test("formatIntelligentAlertAsPayload shows tested resistance and nearby support
 
   assert.match(payload.body, /Key levels:\n- Testing resistance: 2\.61-2\.64\n- Next support: 2\.16/);
   assert.doesNotMatch(payload.body, /Next levels:/);
+  assert.match(payload.body, /buyers need acceptance above 2\.64/);
+  assertTraderFacingDiscordText(payload);
 });
 
 test("formatFollowThroughStateUpdateAsPayload adds live progress metadata", () => {
@@ -463,8 +480,9 @@ test("formatFollowThroughStateUpdateAsPayload adds live progress metadata", () =
   assert.equal(payload.metadata?.progressLabel, "improving");
   assert.equal(payload.metadata?.directionalReturnPct, 0.42);
   assert.match(payload.body, /breakout is improving/);
-  assert.match(payload.body, /setup move: \+0\.42%/);
+  assert.match(payload.body, /price change from trigger: \+0\.42%/);
   assert.doesNotMatch(payload.body, /alert direction|since the alert/);
+  assertTraderFacingDiscordText(payload);
 });
 
 test("formatContinuityUpdateAsPayload adds continuity metadata", () => {
@@ -486,6 +504,32 @@ test("formatContinuityUpdateAsPayload adds continuity metadata", () => {
   assert.equal(payload.metadata?.targetPrice, 2.4);
   assert.equal(payload.metadata?.continuityType, "confirmation");
   assert.match(payload.body, /buyers reacting at support near 2.40/);
+  assertTraderFacingDiscordText(payload);
+});
+
+test("trader-facing continuity and recap titles avoid system-shaped wording", () => {
+  const continuity = formatContinuityUpdateAsPayload({
+    interpretation: {
+      symbol: "ALBT",
+      message: "buyers need acceptance above resistance before continuation looks cleaner",
+      type: "confirmation",
+      eventType: "breakout",
+      level: 2.4,
+      confidence: 0.82,
+      tags: [],
+      timestamp: 13,
+    },
+  });
+  const recap = formatSymbolRecapAsPayload({
+    symbol: "ALBT",
+    timestamp: 14,
+    body: "current read: breakout is still the lead idea near 2.40",
+  });
+
+  assert.equal(continuity.title, "ALBT what changed");
+  assert.equal(recap.title, "ALBT current read");
+  assertTraderFacingDiscordText(continuity);
+  assertTraderFacingDiscordText(recap);
 });
 
 test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through context", () => {
@@ -507,14 +551,14 @@ test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through con
   assert.equal(
     payload.body,
     [
-      "Status: working",
+      "The move is still holding up.",
       "",
       "What changed:",
       "- breakout is still working",
-      "- setup move: +2.90%",
+      "- price change from trigger: +2.90%",
       "",
-      "Decision area:",
-      "- breakout is still active; 2.41 remains the decision level to hold or reclaim before the next setup update matters.",
+      "Level to watch closely:",
+      "- breakout is still active; 2.41 remains the key level to hold or reclaim before the next clean read.",
       "",
       "Path:",
       "- 2.41 -> 2.48 (+2.90% price move)",
@@ -529,6 +573,7 @@ test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through con
   assert.equal(payload.metadata?.directionalReturnPct, 2.9);
   assert.equal(payload.metadata?.rawReturnPct, 2.9);
   assert.equal(payload.metadata?.repeatedOutcomeUpdate, false);
+  assertTraderFacingDiscordText(payload);
 });
 
 test("formatFollowThroughUpdateAsPayload marks repeated outcome updates as existing setup updates", () => {
@@ -548,8 +593,9 @@ test("formatFollowThroughUpdateAsPayload marks repeated outcome updates as exist
   });
 
   assert.doesNotMatch(payload.body, /Update type|existing setup update|not a new setup/);
-  assert.match(payload.body, /for longs, 2\.41 needs to be reclaimed/);
+  assert.match(payload.body, /a reclaim of 2\.41 would make the setup cleaner for longs/);
   assert.equal(payload.metadata?.repeatedOutcomeUpdate, true);
+  assertTraderFacingDiscordText(payload);
 });
 
 test("formatFollowThroughUpdateAsPayload uses long-only wording for breakdown failures", () => {
@@ -569,8 +615,9 @@ test("formatFollowThroughUpdateAsPayload uses long-only wording for breakdown fa
 
   assert.equal(payload.title, "ALBT support-loss warning follow-through");
   assert.match(payload.body, /support-loss warning faded/);
-  assert.match(payload.body, /setup move: -1\.66%/);
+  assert.match(payload.body, /price change from trigger: -1\.66%/);
   assert.doesNotMatch(payload.body, /breakdown failed|after the alert|alert direction/);
+  assertTraderFacingDiscordText(payload);
 });
 
 test("formatLevelSnapshotMessage uses deterministic formatting", () => {

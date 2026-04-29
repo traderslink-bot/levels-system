@@ -42,14 +42,14 @@ export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview):
   return {
     title: "",
     body: [
-      `COMPANY: ${normalizeText(profile.name, symbol)}`,
-      `EXCHANGE: ${normalizeText(profile.exchange)}`,
-      `INDUSTRY: ${normalizeText(profile.finnhubIndustry)}`,
-      `COUNTRY: ${normalizeText(profile.country)}`,
-      `WEBSITE: ${formatWebsite(profile.weburl)}`,
-      `MARKET CAP: ${formatMarketCap(profile.marketCapitalization)}`,
+      `Company: ${normalizeText(profile.name, symbol)}`,
+      `Exchange: ${normalizeText(profile.exchange)}`,
+      `Industry: ${normalizeText(profile.finnhubIndustry)}`,
+      `Country: ${normalizeText(profile.country)}`,
+      `Website: ${formatWebsite(profile.weburl)}`,
+      `Market cap: ${formatMarketCap(profile.marketCapitalization)}`,
       ``,
-      `Levels loading...`,
+      `Levels are loading.`,
     ].join("\n"),
     symbol,
     timestamp:

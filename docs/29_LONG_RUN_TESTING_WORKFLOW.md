@@ -648,7 +648,8 @@ Live thread posting is intentionally stricter than the raw runtime evaluation st
 - if a price-update snapshot already contains a completed evaluation for the same symbol and event type, the completed follow-through post owns that story and weaker progress-driven narration is skipped.
 - recent Discord delivery failures now trigger a short optional-post backoff for that symbol, so the runtime is less likely to push more continuity / live-state / recap posts into a fresh 429 burst.
 - completed follow-through posts now also use a dedicated same-story policy helper, so repeated same-symbol, same-event, same-level outcomes stay suppressed unless the label changes or the directional move has materially changed.
-- completed follow-through posts now require stronger same-level evidence before repeating, avoid weak label drift, and mark material repeats as existing setup updates rather than new setups.
+- completed follow-through posts now require stronger same-level evidence before repeating, avoid weak label drift, and keep material-repeat context in metadata rather than trader-facing Discord copy.
+- trader-facing Discord copy is now treated as trader-view only; testing/operator details belong in audit logs, policy reports, replay/simulation artifacts, diagnostics, and the runtime UI.
 - a critical live-post burst governor now suppresses lower-value critical repeats when a symbol already posted several trader-facing updates in a short window, while still allowing major changes through.
 - live AI reads now use a dedicated same-story policy helper too, so low-value or in-flight duplicate AI commentary is kept out of Discord while deterministic alerts remain the source of truth.
 - live AI reads also pass through optional-post and narration-burst discipline before the OpenAI call, so reactive or recap-like AI output stays out of already-busy threads.

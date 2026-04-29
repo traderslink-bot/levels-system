@@ -48,13 +48,20 @@ test("validateTraderCommentaryText blocks short-side or direct execution wording
   assert.equal(validateTraderCommentaryText("Buy now if it clears resistance."), null);
   assert.equal(validateTraderCommentaryText("Limited downside to support at 1.04."), null);
   assert.equal(validateTraderCommentaryText("Wait to open new longs until price reclaims 3.04."), null);
+  assert.equal(validateTraderCommentaryText("Wait for a reclaim before trusting the setup."), null);
   assert.equal(validateTraderCommentaryText("The next support is near 2.92."), null);
   assert.equal(validateTraderCommentaryText("Longs should wait for a reclaim before trusting the setup."), null);
+  assert.equal(validateTraderCommentaryText("Longs should only trust this setup above resistance."), null);
   assert.equal(validateTraderCommentaryText("Traders should wait for acceptance above resistance."), null);
   assert.equal(validateTraderCommentaryText("Best entry is on a pullback into support."), null);
+  assert.equal(validateTraderCommentaryText("Safe if price holds support."), null);
   assert.equal(validateTraderCommentaryText("Traders can buy if price holds support."), null);
   assert.equal(validateTraderCommentaryText("Good place to add if this level reclaims."), null);
+  assert.equal(validateTraderCommentaryText("Should trim if price loses support."), null);
+  assert.equal(validateTraderCommentaryText("Should exit if support breaks."), null);
   assert.equal(validateTraderCommentaryText("Buyers need acceptance above resistance before continuation looks cleaner."), "Buyers need acceptance above resistance before continuation looks cleaner.");
+  assert.equal(validateTraderCommentaryText("A reclaim would make the setup cleaner for longs."), "A reclaim would make the setup cleaner for longs.");
+  assert.equal(validateTraderCommentaryText("Holding this support would keep the setup in better shape."), "Holding this support would keep the setup in better shape.");
 });
 
 test("OpenAITraderCommentaryService summarizes a symbol thread from output_text", async () => {
@@ -74,7 +81,7 @@ test("OpenAITraderCommentaryService summarizes a symbol thread from output_text"
 
   const result = await service.summarizeSymbolThread({
     symbol: "ALBT",
-    deterministicRecap: "state recap: breakout is still the lead idea near 2.45",
+    deterministicRecap: "current read: breakout is still the lead idea near 2.45",
   });
 
   assert.equal(
@@ -194,7 +201,7 @@ test("OpenAITraderCommentaryService sends long-only rules for signal explanation
   );
   assert.match(
     requestBody?.input?.[0]?.content?.[0]?.text ?? "",
-    /Do not write 'longs should wait'/i,
+    /Do not write 'longs should\.\.\.'/i,
   );
   assert.match(
     requestBody?.input?.[0]?.content?.[0]?.text ?? "",

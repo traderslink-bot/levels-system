@@ -95,11 +95,14 @@ function containsBlockedTraderCommentary(text: string): boolean {
     /\bnext\s+support\b/i,
     /\bfirst\s+support\b/i,
     /\btoward\s+(?:first\s+|next\s+)?support\b/i,
+    /\bwait\s+for\b/i,
     /\bwait\s+to\s+open\b/i,
+    /\b(?:longs|traders)\s+should\b/i,
     /\b(?:longs|traders)\s+should\s+wait\b/i,
     /\b(?:longs|traders)\s+need\s+to\s+wait\b/i,
     /\bbest\s+entry\b/i,
     /\bsafe\s+entry\b/i,
+    /\bsafe\s+if\b/i,
     /\bcan\s+buy\b/i,
     /\bshould\s+(?:add|trim|exit|sell|buy)\b/i,
     /\b(?:good|better|best)\s+place\s+to\s+(?:add|buy|trim|sell|exit)\b/i,
@@ -129,8 +132,8 @@ export function validateTraderCommentaryText(text: string): string | null {
 
 const LIVE_TRADER_COMMENTARY_RULES =
   "This product is for long-only traders. Never suggest shorting, short entries, downside targets, or bearish trade ideas. " +
-  "Do not use the words downside, target, objective, first support, next support, buy now, sell now, wait to open, open new longs, best entry, safe entry, can buy, should add, should trim, should exit, take profit, or stop out. " +
-  "Do not write 'longs should wait' or 'traders should wait'; rewrite that as an observation about the setup needing reclaim, acceptance, or stabilization. " +
+  "Do not use the words downside, target, objective, first support, next support, buy now, sell now, wait for, wait to open, open new longs, best entry, safe entry, safe if, can buy, good place to add, should add, should trim, should exit, take profit, or stop out. " +
+  "Do not write 'longs should...' or 'traders should...'; rewrite that as an observation about the setup needing reclaim, acceptance, or stabilization. " +
   "For weak or bearish conditions, say the setup is not clean for longs yet and name the reclaim or confirmation level. " +
   "For resistance tests, say buyers need acceptance above resistance. For support tests, say buyers need to defend or reclaim support. " +
   "If a support reaction area is provided, mention it only as conditional support where buyers must stabilize. " +

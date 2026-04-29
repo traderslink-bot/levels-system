@@ -89,13 +89,13 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
   const content = formatFinnhubThreadPreview(preview);
   const payload = buildFinnhubThreadPreviewPayload(preview);
 
-  assert.match(content, /COMPANY: Example Corp/);
-  assert.match(content, /EXCHANGE: NASDAQ/);
-  assert.match(content, /INDUSTRY: Technology/);
-  assert.match(content, /COUNTRY: US/);
-  assert.match(content, /WEBSITE: https:\/\/www\.example\.com/);
-  assert.match(content, /MARKET CAP: 850\.00M/);
-  assert.match(content, /Levels loading\.\.\./);
+  assert.match(content, /Company: Example Corp/);
+  assert.match(content, /Exchange: NASDAQ/);
+  assert.match(content, /Industry: Technology/);
+  assert.match(content, /Country: US/);
+  assert.match(content, /Website: https:\/\/www\.example\.com/);
+  assert.match(content, /Market cap: 850\.00M/);
+  assert.match(content, /Levels are loading\./);
   assert.doesNotMatch(content, /CURRENT PRICE:/);
   assert.doesNotMatch(content, /PERCENT CHANGE:/);
   assert.doesNotMatch(content, /OPEN:/);
@@ -104,6 +104,7 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
   assert.doesNotMatch(content, /PREVIOUS CLOSE:/);
   assert.doesNotMatch(content, /STOCK CONTEXT:/);
   assert.doesNotMatch(content, /TICKER:/);
+  assert.doesNotMatch(content, /Status:|Signal:|Decision area|setup update|state recap|setup move|operator-only|policy|suppression|replay|simulation/i);
   assert.equal(payload.title, "");
   assert.equal(payload.metadata?.messageKind, "stock_context");
 });

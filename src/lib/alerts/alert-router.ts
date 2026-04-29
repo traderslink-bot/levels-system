@@ -69,27 +69,6 @@ function signalText(value: string): string {
   return value.toLowerCase();
 }
 
-function eventStatusLabel(eventType: MonitoringEvent["eventType"]): string {
-  switch (eventType) {
-    case "level_touch":
-      return "Testing";
-    case "breakout":
-    case "reclaim":
-      return "Cleared";
-    case "breakdown":
-      return "Lost";
-    case "rejection":
-    case "fake_breakout":
-      return "Rejected";
-    case "fake_breakdown":
-      return "Reclaimed";
-    case "compression":
-      return "Building";
-    default:
-      return "Watching";
-  }
-}
-
 function simplifyTraderRead(line: string): string {
   return line
     .replace(/^buyers still have workable control, but follow-through still matters$/i, "buyers have some control, but the move still needs follow-through")
@@ -97,6 +76,27 @@ function simplifyTraderRead(line: string): string {
     .replace(/^buying and selling pressure still look balanced$/i, "buyers and sellers are still balanced")
     .replace(/^avoid longs until price reclaims (.+)$/i, "long setup stays risky until price reclaims $1")
     .replace(/^hold above /i, "confirmation: hold above ");
+}
+
+function buildCurrentReadLine(alert: IntelligentAlert): string {
+  switch (alert.event.eventType) {
+    case "level_touch":
+      return `Price is testing ${alert.event.zoneKind}.`;
+    case "breakout":
+    case "reclaim":
+      return "Price is above resistance for now.";
+    case "breakdown":
+      return "Support is lost for now.";
+    case "rejection":
+    case "fake_breakout":
+      return "Resistance is still pushing back.";
+    case "fake_breakdown":
+      return "Price reclaimed support for now.";
+    case "compression":
+      return "Price is tightening into a decision zone.";
+    default:
+      return "Price is near an important level.";
+  }
 }
 
 function isLongCautionEventType(eventType: MonitoringEvent["eventType"]): boolean {
@@ -187,7 +187,6 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   const barrierLevel = formatAlertLevel(alert.nextBarrier?.price);
   const barrierText = formatBarrierWithStrength(alert.nextBarrier);
   const eventType = alert.event.eventType;
-  const status = eventStatusLabel(eventType);
   const watchParts = splitWatchLine(watch);
   const supportReactionLine = buildSupportReactionLine(alert, barrierText);
   const holdFailureMapLine = buildHoldFailureMapLine(alert, barrierText);
@@ -275,7 +274,7 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   }
 
   const output = [lead];
-  output.push("", `Status: ${status}`);
+  output.push("", buildCurrentReadLine(alert));
   if (readLines.length > 0) {
     output.push("", "What it means:", ...readLines.slice(0, 3).map((line) => `- ${line}`));
   }
@@ -299,7 +298,7 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   }
   output.push(
     "",
-    `Signal: ${signalText(alert.severity)} severity | ${signalText(alert.confidence)} confidence`,
+    `Importance: ${signalText(alert.severity)} | Confidence: ${signalText(alert.confidence)}`,
     `Trigger: ${alert.event.triggerPrice >= 1 ? alert.event.triggerPrice.toFixed(2) : alert.event.triggerPrice.toFixed(4)}`,
   );
   return output.join("\n");
@@ -379,7 +378,7 @@ function followThroughDecisionArea(params: {
   const eventType = followThroughEventLabel(params.eventType);
   const level = formatAlertPrice(params.entryPrice);
   if (params.label === "failed") {
-    return `${eventType} is no longer confirmed; for longs, ${level} needs to be reclaimed before the setup improves.`;
+    return `${eventType} is no longer confirmed; a reclaim of ${level} would make the setup cleaner for longs.`;
   }
 
   if (params.label === "strong") {
@@ -387,14 +386,42 @@ function followThroughDecisionArea(params: {
   }
 
   if (params.label === "working") {
-    return `${eventType} is still active; ${level} remains the decision level to hold or reclaim before the next setup update matters.`;
+    return `${eventType} is still active; ${level} remains the key level to hold or reclaim before the next clean read.`;
   }
 
   if (params.label === "stalled") {
-    return `${eventType} has stopped making progress; ${level} is the decision level to watch for either recovery or fading momentum.`;
+    return `${eventType} has stopped making progress; ${level} is the key level to watch for either recovery or fading momentum.`;
   }
 
-  return `${eventType} is unresolved; ${level} remains the decision level for the next clean read.`;
+  return `${eventType} is unresolved; ${level} remains the key level for the next clean read.`;
+}
+
+function followThroughStatusLine(label: TraderFollowThroughContext["label"]): string {
+  switch (label) {
+    case "strong":
+      return "The move is holding up well.";
+    case "working":
+      return "The move is still holding up.";
+    case "stalled":
+      return "The move has stalled.";
+    case "failed":
+      return "The move lost momentum and the setup weakened.";
+    default:
+      return "The move is still unresolved.";
+  }
+}
+
+function followThroughProgressLine(progressLabel: "improving" | "stalling" | "degrading"): string {
+  switch (progressLabel) {
+    case "improving":
+      return "The move is improving.";
+    case "stalling":
+      return "The move is stalling.";
+    case "degrading":
+      return "The move is weakening.";
+    default:
+      return "The move is still developing.";
+  }
 }
 
 export function formatFollowThroughUpdateAsPayload(params: {
@@ -421,13 +448,13 @@ export function formatFollowThroughUpdateAsPayload(params: {
   return {
     title: `${symbol} ${eventType} follow-through`,
     body: [
-      `Status: ${followThrough.label}`,
+      followThroughStatusLine(followThrough.label),
       "",
       "What changed:",
       `- ${stripLinePrefix(followThrough.line)}`,
-      `- setup move: ${directionalText}`,
+      `- price change from trigger: ${directionalText}`,
       "",
-      "Decision area:",
+      "Level to watch closely:",
       `- ${followThroughDecisionArea({
         eventType: followThrough.eventType,
         label: followThrough.label,
@@ -476,11 +503,11 @@ export function formatFollowThroughStateUpdateAsPayload(params: {
   return {
     title: `${symbol} ${eventLabel} state update`,
     body: [
-      `Status: ${progressLabel}`,
+      followThroughProgressLine(progressLabel),
       "",
       "What it means:",
       `- ${line}`,
-      `- setup move: ${directionalText}`,
+      `- price change from trigger: ${directionalText}`,
       "",
       "Path:",
       `- ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} -> ${currentPrice >= 1 ? currentPrice.toFixed(2) : currentPrice.toFixed(4)}`,
@@ -528,7 +555,7 @@ export function formatContinuityUpdateAsPayload(params: {
   }
 
   return {
-    title: `${interpretation.symbol} setup update`,
+    title: `${interpretation.symbol} what changed`,
     body: interpretation.message,
     symbol: interpretation.symbol,
     timestamp: interpretation.timestamp,
@@ -548,7 +575,7 @@ export function formatSymbolRecapAsPayload(params: {
   aiGenerated?: boolean;
 }): AlertPayload {
   return {
-    title: `${params.symbol} state recap`,
+    title: `${params.symbol} current read`,
     body: params.body,
     symbol: params.symbol,
     timestamp: params.timestamp,

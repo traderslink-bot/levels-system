@@ -79,13 +79,15 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - a `trade map` line so the user sees rough room-to-next-barrier versus risk-to-invalidation before acting
   - a tactical read of `firm` versus `tired` structure when the zone evidence clearly supports that distinction
   - directional tactical scoring so tired support is penalized for support-hold ideas while tired resistance can help a real breakout case
-  - a compact severity / confidence / score line plus trigger price
+  - a softer `Importance` / `Confidence` line plus trigger price
   - a `watch` / invalidation line
   - nearby barrier context when the next support or resistance is known, including whether room is `tight`, `limited`, or `open`
   - nearby pathing context when overhead or downside gets `stacked` or `dense` beyond the first barrier
 - Completed opportunity evaluations now post live thread follow-through updates, so the trader can see whether a setup stayed `strong`, kept `working`, `stalled`, or `failed` after the original alert.
-- Completed follow-through updates are now stricter in runner threads: repeated same-level outcomes need a larger directional change, weak label drift is suppressed, and material repeats are labeled as existing setup updates instead of new setups.
-- Follow-through posts now include a `Decision area` section that explains the level that needs to hold or be reclaimed without giving direct buy/sell instructions.
+- Discord posts are trader-view only: operator/testing language belongs in logs, audit files, diagnostics, replay reports, and review artifacts instead of live threads.
+- Completed follow-through updates are now stricter in runner threads: repeated same-level outcomes need a larger directional change, weak label drift is suppressed, and material repeat context stays in metadata instead of trader-facing copy.
+- Follow-through posts now include a `Level to watch closely` section that explains the level that needs to hold or be reclaimed without giving direct buy/sell instructions.
+- AI commentary is observational and non-instructional; borderline phrases such as `longs should...`, `wait for...`, `best entry`, `can buy`, `should trim`, and `should exit` are rejected from live trader-facing AI reads.
 - A critical live-post burst governor now helps calm busy runner threads by letting major changes through while suppressing lower-value repeats during short posting bursts.
 - In-flight evaluations can now also post smarter live follow-through state changes such as `improving`, `stalling`, or `degrading` before the final evaluation window closes, with higher thresholds and cooldowns to avoid low-value chatter.
 - Continuity and recap posting are now tighter too: setup-forming chatter is suppressed more aggressively, confirmation/weakening recaps are preferred over generic narration, and optional live context is pushed harder toward operator artifacts when the thread is not genuinely evolving.
