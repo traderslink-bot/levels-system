@@ -84,6 +84,10 @@ function formatPercentChange(value: number | undefined): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
+function hasNumber(value: number | undefined): boolean {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function normalizeText(value: string | undefined, fallback = "n/a"): string {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : fallback;
@@ -138,26 +142,83 @@ function buildYahooLines(preview: StockContextPreview): string[] {
     return ["", "Yahoo context: unavailable"];
   }
 
-  const lines = [
-    "",
-    "Yahoo context:",
-    `Current price (Yahoo): ${latestYahooPriceLabel(preview)}`,
-    `Regular session (Yahoo): price ${formatPrice(quote?.regularMarketPrice)} | high ${formatPrice(quote?.regularMarketDayHigh)} | low ${formatPrice(quote?.regularMarketDayLow)} | volume ${formatShares(quote?.regularMarketVolume)}`,
-    `Premarket (Yahoo): ${formatPrice(quote?.preMarketPrice)} | change ${formatPrice(quote?.preMarketChange)} (${formatPercentChange(quote?.preMarketChangePercent)})`,
-    `Postmarket (Yahoo): ${formatPrice(quote?.postMarketPrice)} | change ${formatPrice(quote?.postMarketChange)} (${formatPercentChange(quote?.postMarketChangePercent)})`,
-    `Previous day range (Yahoo): high ${formatPrice(previousDay?.high)} | low ${formatPrice(previousDay?.low)}`,
-    `52-week range (Yahoo): high ${formatPrice(quote?.fiftyTwoWeekHigh)} | low ${formatPrice(quote?.fiftyTwoWeekLow)}`,
-    `Market cap (Yahoo): ${formatLargeCurrency(summary?.marketCap ?? quote?.marketCap)}`,
-    `Float / shares (Yahoo): float ${formatShares(summary?.floatShares)} | shares outstanding ${formatShares(summary?.sharesOutstanding)}`,
-    `Short interest (Yahoo): ${formatPercent(summary?.shortPercentOfFloat)} of float | shares short ${formatShares(summary?.sharesShort)} | short ratio ${formatPrice(summary?.shortRatio)}`,
-    `Profitability (Yahoo): profit margin ${formatPercent(summary?.profitMargins)} | operating margin ${formatPercent(summary?.operatingMargins)}`,
-    `Cash / debt (Yahoo): cash ${formatLargeCurrency(summary?.totalCash)} | debt ${formatLargeCurrency(summary?.totalDebt)}`,
-    `Revenue (Yahoo): revenue ${formatLargeCurrency(summary?.totalRevenue)} | revenue growth ${formatPercent(summary?.revenueGrowth)}`,
-  ];
+  const lines = ["", "Yahoo context:"];
+
+  if (quote) {
+    const currentPrice = latestYahooPriceLabel(preview);
+    if (currentPrice !== "n/a") {
+      lines.push(`Current price (Yahoo): ${currentPrice}`);
+    }
+    if (
+      hasNumber(quote.regularMarketPrice) ||
+      hasNumber(quote.regularMarketDayHigh) ||
+      hasNumber(quote.regularMarketDayLow) ||
+      hasNumber(quote.regularMarketVolume)
+    ) {
+      lines.push(
+        `Regular session (Yahoo): price ${formatPrice(quote.regularMarketPrice)} | high ${formatPrice(quote.regularMarketDayHigh)} | low ${formatPrice(quote.regularMarketDayLow)} | volume ${formatShares(quote.regularMarketVolume)}`,
+      );
+    }
+    if (hasNumber(quote.preMarketPrice) || hasNumber(quote.preMarketChange) || hasNumber(quote.preMarketChangePercent)) {
+      lines.push(
+        `Premarket (Yahoo): ${formatPrice(quote.preMarketPrice)} | change ${formatPrice(quote.preMarketChange)} (${formatPercentChange(quote.preMarketChangePercent)})`,
+      );
+    }
+    if (hasNumber(quote.postMarketPrice) || hasNumber(quote.postMarketChange) || hasNumber(quote.postMarketChangePercent)) {
+      lines.push(
+        `Postmarket (Yahoo): ${formatPrice(quote.postMarketPrice)} | change ${formatPrice(quote.postMarketChange)} (${formatPercentChange(quote.postMarketChangePercent)})`,
+      );
+    }
+    if (hasNumber(quote.fiftyTwoWeekHigh) || hasNumber(quote.fiftyTwoWeekLow)) {
+      lines.push(`52-week range (Yahoo): high ${formatPrice(quote.fiftyTwoWeekHigh)} | low ${formatPrice(quote.fiftyTwoWeekLow)}`);
+    }
+  }
+
+  if (hasNumber(previousDay?.high) || hasNumber(previousDay?.low)) {
+    lines.push(`Previous day range (Yahoo): high ${formatPrice(previousDay?.high)} | low ${formatPrice(previousDay?.low)}`);
+  }
+
+  const yahooMarketCap = summary?.marketCap ?? quote?.marketCap;
+  if (hasNumber(yahooMarketCap)) {
+    lines.push(`Market cap (Yahoo): ${formatLargeCurrency(yahooMarketCap)}`);
+  }
+
+  if (hasNumber(summary?.floatShares) || hasNumber(summary?.sharesOutstanding)) {
+    lines.push(
+      `Float / shares (Yahoo): float ${formatShares(summary?.floatShares)} | shares outstanding ${formatShares(summary?.sharesOutstanding)}`,
+    );
+  }
+  if (hasNumber(summary?.shortPercentOfFloat) || hasNumber(summary?.sharesShort) || hasNumber(summary?.shortRatio)) {
+    lines.push(
+      `Short interest (Yahoo): ${formatPercent(summary?.shortPercentOfFloat)} of float | shares short ${formatShares(summary?.sharesShort)} | short ratio ${formatPrice(summary?.shortRatio)}`,
+    );
+  }
+  if (hasNumber(summary?.profitMargins) || hasNumber(summary?.operatingMargins)) {
+    lines.push(
+      `Profitability (Yahoo): profit margin ${formatPercent(summary?.profitMargins)} | operating margin ${formatPercent(summary?.operatingMargins)}`,
+    );
+  }
+  if (hasNumber(summary?.totalCash) || hasNumber(summary?.totalDebt)) {
+    lines.push(`Cash / debt (Yahoo): cash ${formatLargeCurrency(summary?.totalCash)} | debt ${formatLargeCurrency(summary?.totalDebt)}`);
+  }
+  if (hasNumber(summary?.totalRevenue) || hasNumber(summary?.revenueGrowth)) {
+    lines.push(`Revenue (Yahoo): revenue ${formatLargeCurrency(summary?.totalRevenue)} | revenue growth ${formatPercent(summary?.revenueGrowth)}`);
+  }
 
   const description = truncateDescription(summary?.description);
   if (description !== "n/a") {
     lines.push(`Company description (Yahoo): ${description}`);
+  }
+
+  if (lines.length === 2) {
+    lines.push("Yahoo quote and financial fields are unavailable for this symbol.");
+  } else {
+    if (!quote) {
+      lines.push("Yahoo quote fields are unavailable for this symbol.");
+    }
+    if (!summary) {
+      lines.push("Yahoo financial fields are unavailable for this symbol.");
+    }
   }
 
   return lines;

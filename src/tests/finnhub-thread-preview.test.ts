@@ -311,3 +311,43 @@ test("formatFinnhubThreadPreview includes Yahoo source-labeled trader context", 
   assert.match(content, /Cash \/ debt \(Yahoo\): cash \$50\.00M \| debt \$8\.00M/);
   assert.match(content, /Company description \(Yahoo\): Example builds trader tools\./);
 });
+
+test("formatFinnhubThreadPreview omits empty Yahoo fields instead of posting n/a blocks", () => {
+  const content = formatFinnhubThreadPreview({
+    symbol: "EXMP",
+    quote: {
+      c: 0,
+      d: 0,
+      dp: 0,
+      h: 0,
+      l: 0,
+      o: 0,
+      pc: 0,
+      t: 0,
+    },
+    profile: {
+      name: "Example Corp",
+    },
+    yahoo: {
+      source: "Yahoo",
+      symbol: "EXMP",
+      fetchedAt: 1,
+      errors: ["Yahoo quote unavailable for EXMP.", "Yahoo quote summary unavailable for EXMP."],
+      previousDay: {
+        source: "Yahoo",
+        high: 1.27,
+        low: 1.16,
+        timestamp: 20,
+      },
+    },
+  });
+
+  assert.match(content, /Yahoo context:/);
+  assert.match(content, /Previous day range \(Yahoo\): high 1\.27 \| low 1\.16/);
+  assert.match(content, /Yahoo quote fields are unavailable for this symbol\./);
+  assert.match(content, /Yahoo financial fields are unavailable for this symbol\./);
+  assert.doesNotMatch(content, /Current price \(Yahoo\): n\/a/);
+  assert.doesNotMatch(content, /Regular session \(Yahoo\): price n\/a/);
+  assert.doesNotMatch(content, /Market cap \(Yahoo\): n\/a/);
+  assert.doesNotMatch(content, /Float \/ shares \(Yahoo\): float n\/a/);
+});
