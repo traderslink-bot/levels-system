@@ -90,14 +90,16 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
   const content = formatFinnhubThreadPreview(preview);
   const payload = buildFinnhubThreadPreviewPayload(preview);
 
+  assert.match(content, /^Current price: 12\.34\n\nCompany: Example Corp/);
   assert.match(content, /Company: Example Corp/);
-  assert.match(content, /Exchange \(Finnhub\): NASDAQ/);
-  assert.match(content, /Industry \(Finnhub\): Technology/);
-  assert.match(content, /Country \(Finnhub\): US/);
-  assert.match(content, /Website \(Finnhub\): https:\/\/www\.example\.com/);
-  assert.match(content, /Market cap \(Finnhub\): 850\.00M/);
-  assert.match(content, /Shares outstanding \(Finnhub\): 125\.00M/);
+  assert.match(content, /Exchange: Nasdaq/);
+  assert.match(content, /Industry: Technology/);
+  assert.match(content, /Country: US/);
+  assert.match(content, /Website: https:\/\/www\.example\.com/);
+  assert.match(content, /Market cap: 850\.00M/);
+  assert.match(content, /Shares outstanding: 125\.00M/);
   assert.match(content, /Levels are loading\./);
+  assert.doesNotMatch(content, /Yahoo|Finnhub/);
   assert.doesNotMatch(content, /CURRENT PRICE:/);
   assert.doesNotMatch(content, /PERCENT CHANGE:/);
   assert.doesNotMatch(content, /OPEN:/);
@@ -315,10 +317,10 @@ test("YahooClient uses chart price when quote endpoint has no usable price", asy
 
   assert.equal(context.quote?.preMarketPrice, 1.27);
   assert.equal(context.quote?.priceSource, "chart");
-  assert.match(content, /Current price \(Yahoo\): 1\.27 \(premarket\)/);
+  assert.match(content, /^Current price: 1\.27 \(premarket\)/);
 });
 
-test("formatFinnhubThreadPreview includes only Yahoo current price in trader context", () => {
+test("formatFinnhubThreadPreview places current price first without source labels", () => {
   const content = formatFinnhubThreadPreview({
     symbol: "EXMP",
     quote: {
@@ -385,16 +387,16 @@ test("formatFinnhubThreadPreview includes only Yahoo current price in trader con
     },
   });
 
-  assert.match(content, /Yahoo context:/);
-  assert.match(content, /Current price \(Yahoo\): 12\.50 \(premarket\)/);
-  assert.doesNotMatch(content, /Previous day range \(Yahoo\)/);
-  assert.doesNotMatch(content, /52-week range \(Yahoo\)/);
-  assert.doesNotMatch(content, /Market cap \(Yahoo\)/);
-  assert.doesNotMatch(content, /Float \/ shares \(Yahoo\)/);
-  assert.doesNotMatch(content, /Short interest \(Yahoo\)/);
-  assert.doesNotMatch(content, /Profitability \(Yahoo\)/);
-  assert.doesNotMatch(content, /Cash \/ debt \(Yahoo\)/);
-  assert.doesNotMatch(content, /Company description \(Yahoo\)/);
+  assert.match(content, /^Current price: 12\.50 \(premarket\)/);
+  assert.match(content, /Exchange: Nasdaq/);
+  assert.doesNotMatch(content, /Yahoo|Finnhub/);
+  assert.doesNotMatch(content, /Previous day range/);
+  assert.doesNotMatch(content, /52-week range/);
+  assert.doesNotMatch(content, /Float \/ shares/);
+  assert.doesNotMatch(content, /Short interest/);
+  assert.doesNotMatch(content, /Profitability/);
+  assert.doesNotMatch(content, /Cash \/ debt/);
+  assert.doesNotMatch(content, /Company description/);
 });
 
 test("formatFinnhubThreadPreview omits Yahoo section when only non-current-price Yahoo fields are available", () => {
@@ -428,12 +430,12 @@ test("formatFinnhubThreadPreview omits Yahoo section when only non-current-price
   });
 
   assert.doesNotMatch(content, /Yahoo context:/);
-  assert.doesNotMatch(content, /Previous day range \(Yahoo\)/);
+  assert.doesNotMatch(content, /Previous day range/);
   assert.doesNotMatch(content, /unavailable/i);
-  assert.doesNotMatch(content, /Current price \(Yahoo\): n\/a/);
-  assert.doesNotMatch(content, /Regular session \(Yahoo\): price n\/a/);
+  assert.doesNotMatch(content, /Current price/);
+  assert.doesNotMatch(content, /Regular session/);
   assert.doesNotMatch(content, /Market cap \(Yahoo\): n\/a/);
-  assert.doesNotMatch(content, /Float \/ shares \(Yahoo\): float n\/a/);
+  assert.doesNotMatch(content, /Float \/ shares/);
 });
 
 test("formatFinnhubThreadPreview omits Yahoo section completely when Yahoo has no usable data", () => {

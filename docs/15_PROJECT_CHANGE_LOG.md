@@ -39,8 +39,9 @@ This document tracks concrete implementation changes made to the `levels-system`
   - added `YAHOO_STOCK_CONTEXT_ENABLED=false` as the opt-out switch for Yahoo enrichment
   - refined the Yahoo opener formatting so live Discord only shows the current Yahoo price mark; other Yahoo fields stay out of the opener for now because availability is inconsistent across small-cap symbols
   - added a Yahoo chart-price fallback so the opener can still show a current Yahoo mark when the quote endpoint is empty but the chart endpoint returns regular/premarket/postmarket bars
+  - moved the current price to the top of the opener, removed source labels from trader-facing text, and normalized exchange display so verbose all-caps exchange names like `NASDAQ NMS - GLOBAL MARKET` show as `Nasdaq`
 - Why this matters:
-  - market cap and other fundamentals can differ by source, so the opener now labels Finnhub and Yahoo values separately instead of merging them into one implied truth
+  - source-specific enrichment stays internal while Discord keeps the opener trader-readable and uncluttered
   - the initial Discord thread can show more trader-relevant company context while levels are still loading
 - Verification:
   - `npx tsx --test src/tests/finnhub-thread-preview.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`

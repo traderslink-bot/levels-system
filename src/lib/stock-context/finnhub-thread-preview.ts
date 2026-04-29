@@ -26,6 +26,20 @@ function formatPrice(value: number | undefined): string {
   return value >= 1 ? value.toFixed(2) : value.toFixed(4);
 }
 
+function currentPriceLabel(preview: StockContextPreview): string | null {
+  const yahooPrice = latestYahooPriceLabel(preview);
+  if (yahooPrice !== "n/a") {
+    return yahooPrice;
+  }
+
+  const finnhubQuote = preview.quote;
+  if (typeof finnhubQuote.c === "number" && Number.isFinite(finnhubQuote.c) && finnhubQuote.c > 0) {
+    return formatPrice(finnhubQuote.c);
+  }
+
+  return null;
+}
+
 function normalizeText(value: string | undefined, fallback = "n/a"): string {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : fallback;
@@ -39,6 +53,31 @@ function formatWebsite(value: string | undefined): string {
 
   const trimmed = normalized.replace(/\/+$/g, "");
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+function formatExchange(value: string | undefined): string {
+  const normalized = normalizeText(value);
+  if (normalized === "n/a") {
+    return normalized;
+  }
+
+  const upper = normalized.toUpperCase();
+  if (upper.includes("NASDAQ")) {
+    return "Nasdaq";
+  }
+  if (upper.includes("NYSE AMERICAN")) {
+    return "NYSE American";
+  }
+  if (upper.includes("NYSE ARCA")) {
+    return "NYSE Arca";
+  }
+  if (upper.includes("NEW YORK STOCK EXCHANGE") || upper === "NYSE") {
+    return "NYSE";
+  }
+
+  return normalized
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function latestYahooPriceLabel(preview: StockContextPreview): string {
@@ -58,43 +97,23 @@ function latestYahooPriceLabel(preview: StockContextPreview): string {
   return latest ? `${formatPrice(latest.price)} (${latest.label})` : "n/a";
 }
 
-function buildYahooLines(preview: StockContextPreview): string[] {
-  const yahoo = preview.yahoo;
-  if (!yahoo) {
-    return [];
-  }
-
-  const quote = yahoo.quote;
-  if (!quote) {
-    return [];
-  }
-
-  const lines = ["", "Yahoo context:"];
-
-  const currentPrice = latestYahooPriceLabel(preview);
-  if (currentPrice !== "n/a") {
-    lines.push(`Current price (Yahoo): ${currentPrice}`);
-  }
-
-  return lines.length > 2 ? lines : [];
-}
-
 export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview | StockContextPreview): AlertPayload {
   const profile = preview.profile;
   const symbol = preview.symbol;
   const stockContextPreview = preview as StockContextPreview;
+  const currentPrice = currentPriceLabel(stockContextPreview);
 
   return {
     title: "",
     body: [
+      ...(currentPrice ? [`Current price: ${currentPrice}`, ""] : []),
       `Company: ${normalizeText(profile.name, symbol)}`,
-      `Exchange (Finnhub): ${normalizeText(profile.exchange)}`,
-      `Industry (Finnhub): ${normalizeText(profile.finnhubIndustry)}`,
-      `Country (Finnhub): ${normalizeText(profile.country)}`,
-      `Website (Finnhub): ${formatWebsite(profile.weburl)}`,
-      `Market cap (Finnhub): ${formatMarketCap(profile.marketCapitalization)}`,
-      `Shares outstanding (Finnhub): ${formatMarketCap(profile.shareOutstanding)}`,
-      ...buildYahooLines(stockContextPreview),
+      `Exchange: ${formatExchange(profile.exchange)}`,
+      `Industry: ${normalizeText(profile.finnhubIndustry)}`,
+      `Country: ${normalizeText(profile.country)}`,
+      `Website: ${formatWebsite(profile.weburl)}`,
+      `Market cap: ${formatMarketCap(profile.marketCapitalization)}`,
+      `Shares outstanding: ${formatMarketCap(profile.shareOutstanding)}`,
       ``,
       `Levels are loading.`,
     ].join("\n"),
