@@ -229,8 +229,93 @@ test("YahooClient assembles quote, summary, and previous-day context", async () 
       "/v7/finance/quote",
       "/v10/finance/quoteSummary/EXMP",
       "/v8/finance/chart/EXMP",
+      "/v8/finance/chart/EXMP",
     ].sort(),
   );
+});
+
+test("YahooClient uses chart price when quote endpoint has no usable price", async () => {
+  const client = new YahooClient({
+    fetchImpl: async (input) => {
+      const url = new URL(typeof input === "string" ? input : input.toString());
+
+      if (url.pathname.endsWith("/finance/quote")) {
+        return new Response(JSON.stringify({ quoteResponse: { result: [] } }), { status: 200 });
+      }
+
+      if (url.pathname.endsWith("/finance/quoteSummary/EXMP")) {
+        return new Response(JSON.stringify({ quoteSummary: { result: [] } }), { status: 200 });
+      }
+
+      if (url.pathname.endsWith("/finance/chart/EXMP") && url.searchParams.get("interval") === "1m") {
+        return new Response(
+          JSON.stringify({
+            chart: {
+              result: [
+                {
+                  meta: {
+                    currency: "USD",
+                    exchangeName: "NasdaqCM",
+                    regularMarketPrice: 1.2,
+                    chartPreviousClose: 1.1,
+                    currentTradingPeriod: {
+                      pre: { start: 100, end: 200 },
+                      regular: { start: 201, end: 500 },
+                      post: { start: 501, end: 700 },
+                    },
+                  },
+                  timestamp: [120, 180],
+                  indicators: {
+                    quote: [
+                      {
+                        close: [1.22, 1.27],
+                        high: [1.23, 1.28],
+                        low: [1.18, 1.2],
+                        volume: [1000, 2500],
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.pathname.endsWith("/finance/chart/EXMP")) {
+        return new Response(
+          JSON.stringify({
+            chart: {
+              result: [
+                {
+                  timestamp: [10],
+                  indicators: {
+                    quote: [{ high: [1.3], low: [1.1] }],
+                  },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+
+      return new Response("not found", { status: 404 });
+    },
+  });
+
+  const context = await client.getStockContext("exmp");
+  const content = formatFinnhubThreadPreview({
+    symbol: "EXMP",
+    quote: { c: 0, d: 0, dp: 0, h: 0, l: 0, o: 0, pc: 0, t: 0 },
+    profile: { name: "Example Corp" },
+    yahoo: context,
+  });
+
+  assert.equal(context.quote?.preMarketPrice, 1.27);
+  assert.equal(context.quote?.priceSource, "chart");
+  assert.match(content, /Current price \(Yahoo\): 1\.27 \(premarket\)/);
 });
 
 test("formatFinnhubThreadPreview includes Yahoo source-labeled trader context", () => {

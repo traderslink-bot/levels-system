@@ -40,6 +40,33 @@ type YahooQuoteSummaryResult = {
   financialData?: Record<string, YahooRawValue<string | number>>;
 };
 
+type YahooChartResult = {
+  meta?: {
+    currency?: string;
+    exchangeName?: string;
+    fullExchangeName?: string;
+    regularMarketPrice?: number;
+    previousClose?: number;
+    chartPreviousClose?: number;
+    currentTradingPeriod?: {
+      pre?: { start?: number; end?: number };
+      regular?: { start?: number; end?: number };
+      post?: { start?: number; end?: number };
+    };
+  };
+  timestamp?: number[];
+  indicators?: {
+    quote?: Array<{
+      close?: Array<number | null>;
+      high?: Array<number | null>;
+      low?: Array<number | null>;
+      volume?: Array<number | null>;
+    }>;
+  };
+};
+
+type YahooTradingPeriods = NonNullable<YahooChartResult["meta"]>["currentTradingPeriod"];
+
 export type YahooStockQuote = {
   source: "Yahoo";
   symbol: string;
@@ -68,6 +95,7 @@ export type YahooStockQuote = {
   regularMarketTime?: number;
   preMarketTime?: number;
   postMarketTime?: number;
+  priceSource?: "quote" | "chart";
 };
 
 export type YahooStockSummary = {
@@ -163,6 +191,79 @@ function readString(
   return rawString(primary?.[key]) ?? fallback;
 }
 
+function latestFiniteBarValue(
+  timestamps: number[],
+  values: Array<number | null> | undefined,
+): { value: number; timestamp: number } | null {
+  if (!values) {
+    return null;
+  }
+
+  for (let index = Math.min(timestamps.length, values.length) - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    const timestamp = timestamps[index];
+    if (
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      typeof timestamp === "number" &&
+      Number.isFinite(timestamp)
+    ) {
+      return { value, timestamp };
+    }
+  }
+
+  return null;
+}
+
+function sessionForTimestamp(
+  timestamp: number,
+  periods: YahooTradingPeriods | undefined,
+): "premarket" | "regular" | "postmarket" | "unknown" {
+  const pre = periods?.pre;
+  const regular = periods?.regular;
+  const post = periods?.post;
+  if (typeof pre?.start === "number" && typeof pre.end === "number" && timestamp >= pre.start && timestamp <= pre.end) {
+    return "premarket";
+  }
+  if (typeof regular?.start === "number" && typeof regular.end === "number" && timestamp >= regular.start && timestamp <= regular.end) {
+    return "regular";
+  }
+  if (typeof post?.start === "number" && typeof post.end === "number" && timestamp >= post.start && timestamp <= post.end) {
+    return "postmarket";
+  }
+  return "unknown";
+}
+
+function mergeYahooQuotes(
+  quote: YahooStockQuote | undefined,
+  chartQuote: YahooStockQuote | undefined,
+): YahooStockQuote | undefined {
+  if (!quote) {
+    return chartQuote;
+  }
+  if (!chartQuote) {
+    return quote;
+  }
+
+  return {
+    ...chartQuote,
+    ...quote,
+    regularMarketPrice: quote.regularMarketPrice ?? chartQuote.regularMarketPrice,
+    regularMarketOpen: quote.regularMarketOpen ?? chartQuote.regularMarketOpen,
+    regularMarketDayHigh: quote.regularMarketDayHigh ?? chartQuote.regularMarketDayHigh,
+    regularMarketDayLow: quote.regularMarketDayLow ?? chartQuote.regularMarketDayLow,
+    regularMarketPreviousClose: quote.regularMarketPreviousClose ?? chartQuote.regularMarketPreviousClose,
+    regularMarketVolume: quote.regularMarketVolume ?? chartQuote.regularMarketVolume,
+    preMarketPrice: quote.preMarketPrice ?? chartQuote.preMarketPrice,
+    preMarketTime: quote.preMarketTime ?? chartQuote.preMarketTime,
+    postMarketPrice: quote.postMarketPrice ?? chartQuote.postMarketPrice,
+    postMarketTime: quote.postMarketTime ?? chartQuote.postMarketTime,
+    currency: quote.currency ?? chartQuote.currency,
+    exchange: quote.exchange ?? chartQuote.exchange,
+    priceSource: quote.priceSource ?? chartQuote.priceSource,
+  };
+}
+
 export class YahooClient {
   private readonly fetchImpl: FetchLike;
   private readonly timeoutMs: number;
@@ -219,6 +320,57 @@ export class YahooClient {
     }
 
     throw new Error(`Yahoo previous day range unavailable for ${symbol}.`);
+  }
+
+  async getChartQuote(symbolInput: string): Promise<YahooStockQuote> {
+    const symbol = symbolInput.trim().toUpperCase();
+    const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
+    url.searchParams.set("range", "1d");
+    url.searchParams.set("interval", "1m");
+    url.searchParams.set("includePrePost", "true");
+
+    const data = await this.requestJson<{ chart?: { result?: YahooChartResult[] } }>(url);
+    const result = data.chart?.result?.[0];
+    if (!result) {
+      throw new Error(`Yahoo chart quote unavailable for ${symbol}.`);
+    }
+
+    const timestamps = result.timestamp ?? [];
+    const quote = result.indicators?.quote?.[0];
+    const latestClose = latestFiniteBarValue(timestamps, quote?.close);
+    const latestHigh = latestFiniteBarValue(timestamps, quote?.high);
+    const latestLow = latestFiniteBarValue(timestamps, quote?.low);
+    const latestVolume = latestFiniteBarValue(timestamps, quote?.volume);
+    const meta = result.meta;
+
+    if (!latestClose && typeof meta?.regularMarketPrice !== "number") {
+      throw new Error(`Yahoo chart quote has no usable price for ${symbol}.`);
+    }
+
+    const latestPrice = latestClose?.value ?? meta?.regularMarketPrice;
+    const latestTime = latestClose?.timestamp;
+    const session =
+      typeof latestTime === "number"
+        ? sessionForTimestamp(latestTime, meta?.currentTradingPeriod)
+        : "regular";
+
+    return {
+      source: "Yahoo",
+      symbol,
+      exchange: meta?.fullExchangeName ?? meta?.exchangeName,
+      currency: meta?.currency,
+      regularMarketPrice: session === "regular" || session === "unknown" ? latestPrice : meta?.regularMarketPrice,
+      regularMarketDayHigh: latestHigh?.value,
+      regularMarketDayLow: latestLow?.value,
+      regularMarketPreviousClose: meta?.previousClose ?? meta?.chartPreviousClose,
+      regularMarketVolume: latestVolume?.value,
+      regularMarketTime: session === "regular" || session === "unknown" ? latestTime : undefined,
+      preMarketPrice: session === "premarket" ? latestPrice : undefined,
+      preMarketTime: session === "premarket" ? latestTime : undefined,
+      postMarketPrice: session === "postmarket" ? latestPrice : undefined,
+      postMarketTime: session === "postmarket" ? latestTime : undefined,
+      priceSource: "chart",
+    };
   }
 
   private async requestJson<T>(url: URL): Promise<T> {
@@ -287,6 +439,7 @@ export class YahooClient {
       regularMarketTime: quote.regularMarketTime,
       preMarketTime: quote.preMarketTime,
       postMarketTime: quote.postMarketTime,
+      priceSource: "quote",
     };
   }
 
@@ -344,8 +497,9 @@ export class YahooClient {
       throw new Error("A ticker symbol is required.");
     }
 
-    const [quoteResult, summaryResult, previousDayResult] = await Promise.allSettled([
+    const [quoteResult, chartQuoteResult, summaryResult, previousDayResult] = await Promise.allSettled([
       this.getQuote(symbol),
+      this.getChartQuote(symbol),
       this.getSummary(symbol),
       this.getPreviousDayRange(symbol),
     ]);
@@ -353,6 +507,9 @@ export class YahooClient {
     const errors: string[] = [];
     if (quoteResult.status === "rejected") {
       errors.push(quoteResult.reason instanceof Error ? quoteResult.reason.message : String(quoteResult.reason));
+    }
+    if (chartQuoteResult.status === "rejected") {
+      errors.push(chartQuoteResult.reason instanceof Error ? chartQuoteResult.reason.message : String(chartQuoteResult.reason));
     }
     if (summaryResult.status === "rejected") {
       errors.push(summaryResult.reason instanceof Error ? summaryResult.reason.message : String(summaryResult.reason));
@@ -365,7 +522,10 @@ export class YahooClient {
       source: "Yahoo",
       symbol,
       fetchedAt: Date.now(),
-      quote: quoteResult.status === "fulfilled" ? quoteResult.value : undefined,
+      quote: mergeYahooQuotes(
+        quoteResult.status === "fulfilled" ? quoteResult.value : undefined,
+        chartQuoteResult.status === "fulfilled" ? chartQuoteResult.value : undefined,
+      ),
       summary: summaryResult.status === "fulfilled" ? summaryResult.value : undefined,
       previousDay: previousDayResult.status === "fulfilled" ? previousDayResult.value : undefined,
       errors,

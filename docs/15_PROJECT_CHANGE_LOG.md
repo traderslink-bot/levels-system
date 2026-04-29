@@ -38,6 +38,7 @@ This document tracks concrete implementation changes made to the `levels-system`
   - added a combined stock-context provider so Finnhub and Yahoo can both contribute while failures in one source do not block the other
   - added `YAHOO_STOCK_CONTEXT_ENABLED=false` as the opt-out switch for Yahoo enrichment
   - refined the Yahoo opener formatting so partial Yahoo responses only show fields that came back with usable data instead of printing large `n/a` blocks or unavailable labels
+  - added a Yahoo chart-price fallback so the opener can still show a current Yahoo mark when the quote endpoint is empty but the chart endpoint returns regular/premarket/postmarket bars
 - Why this matters:
   - market cap and other fundamentals can differ by source, so the opener now labels Finnhub and Yahoo values separately instead of merging them into one implied truth
   - the initial Discord thread can show more trader-relevant company context while levels are still loading
