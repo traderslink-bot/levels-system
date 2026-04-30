@@ -464,6 +464,98 @@ test("formatIntelligentAlertAsPayload shows tested resistance and nearby support
   assertTraderFacingDiscordText(payload);
 });
 
+test("formatIntelligentAlertAsPayload uses nearing-support wording for support approaches", () => {
+  const touchEvent = {
+    ...samplePayload.event!,
+    id: "evt-support-approach",
+    episodeId: "ep-support-approach",
+    type: "level_touch" as const,
+    eventType: "level_touch" as const,
+    zoneKind: "support" as const,
+    level: 2.93,
+    triggerPrice: 2.95,
+    bias: "neutral" as const,
+  };
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-support-approach",
+    symbol: "FATN",
+    title: "FATN level touch",
+    body: [
+      "price nearing major support 2.90-2.93",
+      "pressure: buyers still need to reclaim control",
+      "why now: price is approaching support, making this the next reaction area",
+      "room: open overhead path to next resistance 3.28 (+11.2%)",
+      "watch: buyers stabilize into 2.90-2.93; losing it keeps risk open lower",
+    ].join("\n"),
+    severity: "high",
+    confidence: "high",
+    score: 58,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: touchEvent,
+    zone: {
+      id: "S1",
+      symbol: "FATN",
+      kind: "support",
+      timeframeBias: "daily",
+      zoneLow: 2.90,
+      zoneHigh: 2.93,
+      representativePrice: 2.93,
+      strengthScore: 36,
+      strengthLabel: "major",
+      touchCount: 4,
+      confluenceCount: 2,
+      sourceTypes: ["swing_low"],
+      timeframeSources: ["daily"],
+      reactionQualityScore: 0.7,
+      rejectionScore: 0.4,
+      displacementScore: 0.4,
+      sessionSignificanceScore: 0.4,
+      followThroughScore: 0.6,
+      gapContinuationScore: 0,
+      sourceEvidenceCount: 2,
+      firstTimestamp: 1,
+      lastTimestamp: 1,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    nextBarrier: {
+      side: "resistance",
+      price: 3.28,
+      distancePct: 0.112,
+      clearanceLabel: "open",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+    movement: {
+      label: "inside_band",
+      movementPct: 0.0068,
+      line: "movement: price is still above the support band but close enough for a support reaction watch (0.7%)",
+    },
+    pressure: {
+      label: "moderate",
+      pressureScore: 0.45,
+      line: "pressure: buyers still need to reclaim control",
+    },
+    triggerQuality: null,
+    pathQuality: null,
+    dipBuyQuality: null,
+    exhaustion: null,
+    setupState: null,
+    failureRisk: null,
+    target: null,
+    tradeMap: null,
+  });
+
+  assert.match(payload.body, /^price nearing major support 2\.90-2\.93/);
+  assert.match(payload.body, /Price is nearing support\./);
+  assert.match(payload.body, /Key levels:\n- Nearby support: 2\.90-2\.93\n- Nearby resistance: 3\.28/);
+  assert.doesNotMatch(payload.body, /Testing support/);
+  assertTraderFacingDiscordText(payload);
+});
+
 test("formatFollowThroughStateUpdateAsPayload adds live progress metadata", () => {
   const payload = formatFollowThroughStateUpdateAsPayload({
     symbol: "ALBT",

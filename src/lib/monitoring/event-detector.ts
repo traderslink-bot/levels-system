@@ -3,7 +3,7 @@
 
 import type { FinalLevelZone } from "../levels/level-types.js";
 import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
-import type { MonitoringConfig } from "./monitoring-config.js";
+import { getSupportApproachPct, type MonitoringConfig } from "./monitoring-config.js";
 import type {
   LivePriceUpdate,
   MonitoringDiagnosticEventType,
@@ -508,9 +508,13 @@ export function detectMonitoringEvents(params: {
       });
     }
   } else {
+    const supportApproach =
+      above &&
+      currentState.nearestDistancePct <= getSupportApproachPct(config);
     const levelTouch =
-      inside &&
+      (inside || supportApproach) &&
       previousState.phase !== "touching" &&
+      (!supportApproach || previousState.phase !== "testing") &&
       currentState.updatesNearZone >= 1;
 
     if (levelTouch) {
@@ -523,7 +527,11 @@ export function detectMonitoringEvents(params: {
         currentState,
         symbolState,
         config,
-        notes: ["Price touched support level and opened a new interaction episode."],
+        notes: [
+          supportApproach
+            ? "Price approached support and opened a new support reaction watch."
+            : "Price touched support level and opened a new interaction episode.",
+        ],
       });
     }
 

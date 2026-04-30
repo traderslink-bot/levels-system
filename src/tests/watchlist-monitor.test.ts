@@ -124,6 +124,79 @@ test("WatchlistMonitor reconciles refreshed levels and emits events for the new 
   assert.equal(events[0]?.eventType, "level_touch");
 });
 
+test("WatchlistMonitor emits support approach when price nears the next lower support", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+
+  levelStore.setLevels(buildLevelOutput("FATN", {
+    intradaySupport: [
+      buildZone({
+        id: "S1",
+        symbol: "FATN",
+        kind: "support",
+        zoneLow: 2.90,
+        zoneHigh: 2.93,
+        representativePrice: 2.93,
+        strengthLabel: "major",
+        strengthScore: 36,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "FATN", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  liveProvider.listener?.({
+    symbol: "FATN",
+    timestamp: 1000,
+    lastPrice: 2.95,
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.eventType, "level_touch");
+  assert.equal(events[0]?.zoneKind, "support");
+  assert.equal(events[0]?.zoneId.startsWith("FATN-support-monitored-"), true);
+});
+
+test("WatchlistMonitor does not emit support approach when price is still too far from support", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+
+  levelStore.setLevels(buildLevelOutput("FATN", {
+    intradaySupport: [
+      buildZone({
+        id: "S1",
+        symbol: "FATN",
+        kind: "support",
+        zoneLow: 2.90,
+        zoneHigh: 2.93,
+        representativePrice: 2.93,
+        strengthLabel: "major",
+        strengthScore: 36,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "FATN", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  liveProvider.listener?.({
+    symbol: "FATN",
+    timestamp: 1000,
+    lastPrice: 2.96,
+  });
+
+  assert.equal(events.length, 0);
+});
+
 test("WatchlistMonitor evaluates posted extension zones after they are activated in the level store", async () => {
   const levelStore = new LevelStore();
   const liveProvider = new FakeLivePriceProvider();

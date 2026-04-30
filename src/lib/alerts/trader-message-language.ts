@@ -751,6 +751,12 @@ function buildLeadLine(event: MonitoringEvent, zone?: FinalLevelZone): string {
     case "level_touch":
       if (
         zone.kind === "support" &&
+        event.triggerPrice > zone.zoneHigh
+      ) {
+        return `price nearing ${descriptor} ${zoneRange}`;
+      }
+      if (
+        zone.kind === "support" &&
         (zone.strengthLabel === "strong" || zone.strengthLabel === "major")
       ) {
         return `price testing ${descriptor} ${zoneRange}`;
@@ -793,9 +799,12 @@ function buildWhyNowLine(
     case "compression":
       return "why now: repeated near-zone tests are tightening the range into a decision point";
     case "level_touch":
-      return zone.kind === "support"
-        ? "why now: price came back into defended support instead of drifting mid-range"
-        : "why now: price is back at resistance; buyers need acceptance above the zone";
+      if (zone.kind === "support") {
+        return event.triggerPrice > zone.zoneHigh
+          ? "why now: price is approaching support, making this the next reaction area"
+          : "why now: price came back into defended support instead of drifting mid-range";
+      }
+      return "why now: price is back at resistance; buyers need acceptance above the zone";
     default:
       return null;
   }
@@ -869,6 +878,14 @@ export function deriveTraderMovementContext(
     case "level_touch":
     case "compression":
       if (zone.kind === "support") {
+        if (event.triggerPrice > zone.zoneHigh) {
+          const movementPct = Math.max(0, event.triggerPrice - zone.zoneHigh) / zoneHigh;
+          return {
+            label: "inside_band",
+            movementPct,
+            line: `movement: price is still above the support band but close enough for a support reaction watch (${formatPct(movementPct)})`,
+          };
+        }
         if (event.triggerPrice < zone.zoneLow) {
           const movementPct = Math.max(0, zone.zoneLow - event.triggerPrice) / zoneLow;
           return {
@@ -1011,9 +1028,12 @@ function buildWatchLine(event: MonitoringEvent, zone?: FinalLevelZone): string |
         ? `watch: breakout through ${zoneHigh} or rejection from ${zoneRange}`
         : `watch: bounce from ${zoneRange}; caution if ${zoneLow} fails`;
     case "level_touch":
-      return zone.kind === "support"
-        ? `watch: buyers defend ${zoneRange} before momentum fades`
-        : `watch: buyers need acceptance above ${zoneHigh} before breakout pressure builds`;
+      if (zone.kind === "support") {
+        return event.triggerPrice > zone.zoneHigh
+          ? `watch: buyers stabilize into ${zoneRange}; losing it keeps risk open lower`
+          : `watch: buyers defend ${zoneRange} before momentum fades`;
+      }
+      return `watch: buyers need acceptance above ${zoneHigh} before breakout pressure builds`;
     default:
       return null;
   }

@@ -3,7 +3,7 @@ import {
   deriveZoneTacticalRead,
   resolveZoneTacticalBias,
 } from "../levels/zone-tactical-read.js";
-import type { MonitoringConfig } from "./monitoring-config.js";
+import { getSupportApproachPct, type MonitoringConfig } from "./monitoring-config.js";
 import type {
   BarrierClutterLabel,
   BarrierClearanceLabel,
@@ -386,9 +386,16 @@ export function shouldFilterMonitoringEvent(params: {
     return true;
   }
 
+  const supportApproachTouch =
+    eventType === "level_touch" &&
+    zone.kind === "support" &&
+    update.lastPrice > zone.zoneHigh &&
+    currentState.nearestDistancePct <= getSupportApproachPct(config);
+
   if (
     (eventType === "compression" || eventType === "level_touch") &&
-    currentState.nearestDistancePct > config.nearZonePct
+    currentState.nearestDistancePct > config.nearZonePct &&
+    !supportApproachTouch
   ) {
     return true;
   }

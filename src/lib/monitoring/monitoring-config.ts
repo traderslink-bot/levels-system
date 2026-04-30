@@ -30,3 +30,7 @@ export const DEFAULT_MONITORING_CONFIG: MonitoringConfig = {
   eventCooldownMs: 30 * 1000,
   maxEventsPerSymbolPerUpdate: 2,
 };
+
+export function getSupportApproachPct(config: Pick<MonitoringConfig, "nearZonePct" | "maxConfirmDistancePct">): number {
+  return Math.max(config.nearZonePct * 2, config.maxConfirmDistancePct * 0.7);
+}

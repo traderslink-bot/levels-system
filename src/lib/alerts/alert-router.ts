@@ -77,6 +77,13 @@ function simplifyTraderRead(line: string): string {
 function buildCurrentReadLine(alert: IntelligentAlert): string {
   switch (alert.event.eventType) {
     case "level_touch":
+      if (
+        alert.event.zoneKind === "support" &&
+        alert.zone !== undefined &&
+        alert.event.triggerPrice > alert.zone.zoneHigh
+      ) {
+        return "Price is nearing support.";
+      }
       return `Price is testing ${alert.event.zoneKind}.`;
     case "breakout":
     case "reclaim":
@@ -262,7 +269,11 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
     }
   } else if (eventType === "level_touch") {
     const zoneRange = formatAlertZoneRange(alert);
-    pushNearbyLevel("Testing", alert.event.zoneKind, zoneRange);
+    const supportApproach =
+      alert.event.zoneKind === "support" &&
+      alert.zone !== undefined &&
+      alert.event.triggerPrice > alert.zone.zoneHigh;
+    pushNearbyLevel(supportApproach ? "Nearby" : "Testing", alert.event.zoneKind, zoneRange);
     pushNearbyLevel("Nearby", alert.nextBarrier?.side ?? "", barrierLevel);
   } else {
     pushNearbyLevel("First", alert.target?.side ?? "", targetLevel);
