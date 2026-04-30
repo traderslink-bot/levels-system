@@ -36,6 +36,7 @@ type DiscordMessage = {
 const DEFAULT_SOURCE_PATH = resolve(process.cwd(), "artifacts", "manual-watchlist-state.json");
 const DEFAULT_OUTPUT_PATH = resolve(process.cwd(), "artifacts", "discord-thread-cleanup-plan.json");
 const DISCORD_API_BASE_URL = "https://discord.com/api/v10";
+const DISCORD_RATE_LIMIT_FALLBACK_MS = 1000;
 
 function printUsage(): never {
   console.error(`Usage:
@@ -149,22 +150,47 @@ async function discordRequest<T>(
   init: RequestInit,
   botToken: string,
 ): Promise<T | null> {
-  const response = await fetch(`${DISCORD_API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bot ${botToken}`,
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const response = await fetch(`${DISCORD_API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        "Content-Type": "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
 
-  if (!response.ok) {
     const text = await response.text();
+    if (response.ok) {
+      return text.trim() ? (JSON.parse(text) as T) : null;
+    }
+
+    if (init.method === "DELETE" && response.status === 404) {
+      return null;
+    }
+
+    if (response.status === 429 && attempt < 4) {
+      let retryAfterMs = DISCORD_RATE_LIMIT_FALLBACK_MS;
+      try {
+        const parsed = JSON.parse(text) as { retry_after?: unknown };
+        if (typeof parsed.retry_after === "number" && Number.isFinite(parsed.retry_after)) {
+          retryAfterMs = Math.max(250, parsed.retry_after * 1000);
+        }
+      } catch {
+        const headerRetryAfter = response.headers.get("retry-after");
+        const seconds = Number(headerRetryAfter);
+        if (Number.isFinite(seconds) && seconds >= 0) {
+          retryAfterMs = Math.max(250, seconds * 1000);
+        }
+      }
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, retryAfterMs));
+      continue;
+    }
+
     throw new Error(`Discord API request failed (${response.status}) for ${path}: ${text || response.statusText}`);
   }
 
-  const text = await response.text();
-  return text.trim() ? (JSON.parse(text) as T) : null;
+  throw new Error(`Discord API request failed after retries for ${path}.`);
 }
 
 async function fetchParentChannelMessages(
