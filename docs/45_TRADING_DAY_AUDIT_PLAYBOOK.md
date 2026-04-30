@@ -66,10 +66,23 @@ Review these outputs:
 
 - `artifacts\thread-post-policy-report.md`
 - `artifacts\snapshot-audit-report.md`
+- `artifacts\trading-day-evidence-report.md`
 - `artifacts\runner-story-report.md`
 - `artifacts\live-post-profile-comparison.md`
 - `artifacts\live-post-replay-simulation.md`
 - `artifacts\long-run-tuning-suggestions.md`
+
+## Severity Rubric
+
+Every final audit finding should use one of these severity labels:
+
+- `blocker`: a trader-critical safety or trust issue that should stop release until fixed.
+- `major`: a material trader-facing issue that needs a code, retry, or process fix before relying on the next run.
+- `watch`: a real concern that needs targeted review or live verification, but does not yet prove an immediate code change is needed.
+- `historical_only`: found in saved old posts or artifacts, but current code/runtime proof is still required before changing code.
+- `data_quality_only`: explained by stale, missing, or provider-specific data; do not change trader logic until better data proves the issue.
+
+Do not mark something as fixed because the summary sounds reassuring. The audit needs evidence: saved post excerpts, generated report rows, replay ladder evidence, candle-backed level evidence, or current source/test proof.
 
 ## Per-Ticker Trader Story Audit
 
@@ -86,6 +99,14 @@ For each ticker, record:
 - whether the post sequence underexplained a fast move
 
 The trader-story audit should be done even when the level-quality audit is healthy. Good levels can still produce a confusing thread if the posts arrive in the wrong order, repeat too often, or describe the move too confidently.
+
+For the top 3 to 5 highest-risk or highest-activity symbols, the final audit must include an evidence block with:
+
+- exact saved Discord post excerpts that prove the issue or prove the current wording is clean
+- exact forward support/resistance ladder from replay level-quality output
+- exact candle-backed justification for any claimed missing or misleading level
+- exact reason each missed-event candidate was acceptable suppression or a real bug
+- exact reason each repeated story was useful, noisy, or already fixed by current policy
 
 ## Discord Output Audit
 
@@ -133,6 +154,13 @@ When reviewing posts, ask:
 - Does it repeat the same story too many times?
 - Does it say `next level` in a way that sounds predictive?
 - Does the AI read add value, or does it restate the same alert?
+
+Historical-post versus current-code proof rule:
+
+- Keep old saved Discord wording separate from wording still present in current formatter code.
+- If a bad phrase appears only in an old saved post, mark it `historical_only` and verify current code/tests before changing code.
+- If a bad phrase appears in current source or a fresh runtime post after restart, mark it `major` or `blocker` depending on trader impact.
+- Do not blur old artifacts and current runtime behavior in the final report.
 
 ## Activation And Runtime-State Audit
 
@@ -273,6 +301,13 @@ Check:
 - reclaimed resistance that should become nearby support while price is above it
 - posts that say a level is cleared/lost with too much certainty
 
+Minimum review requirements:
+
+- review at least one broken-support case for nearby resistance behavior
+- review at least one reclaimed-resistance case for nearby support behavior
+- review at least one false-clear or fast-reclaim case for certainty wording
+- include saved post excerpts for each reviewed case
+
 Do not assume every missed-event candidate is a bug. Some are intentionally suppressed by cooldowns, burst controls, poor signal quality, or tiny/temporary crosses. The audit should identify which candidates deserve code changes and which are acceptable suppressions.
 
 ## Cluster-Crossing Audit
@@ -286,6 +321,15 @@ Check:
 - tight clusters such as `2.39 / 2.43 / 2.47`
 - whether the move should have been narrated as one crossed zone
 - whether clustered snapshot display already solved the readability problem
+
+The final audit needs a dedicated cluster-cross section when candidates exist. Include:
+
+- nearby crossed level list
+- saved post sequence
+- timestamps
+- post count
+- whether the thread likely overexplained the move
+- whether one cluster-cross story would be better than several single-level messages
 
 If the same move crosses several nearby levels, prefer future work that posts one cluster-cross message instead of several separate level messages.
 
@@ -319,6 +363,21 @@ Check:
 - whether the system should wait for a better data provider before changing logic
 
 Do not invent volume certainty from missing data. If volume is unavailable or stale, the audit should say that plainly and keep the action item on data quality.
+
+## Critical Delivery-Failure Standard
+
+Treat any trader-critical failed `post_alert` row as `major` unless retry or explicit operator surfacing is proven.
+
+The audit must show:
+
+- failed post title, symbol, event type, and timestamp
+- error message
+- whether the row was trader-critical
+- whether retry was proven
+- whether an equivalent later post reached Discord
+- recommended severity
+
+An equivalent later post is useful context, but it is not proof that retry is working.
 
 ## Trader Actionability Audit
 

@@ -161,6 +161,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added `runner-story-report.json` / `.md` so runner reviews can start from rough price path, key events, post quality labels, noisy-repeat samples, candidate missed level clears/losses, and post mix instead of raw Discord/audit rows.
 - Tightened live posting around the current philosophy: critical level changes still post, but minor continuity, tiny follow-through, same-zone chop, and low-value AI commentary stay out of Discord by default.
 - Added Yahoo enrichment to the initial stock-context opener so newly created Discord threads can show source-labeled Yahoo quote, volume, float, short-interest, financial, previous-day range, 52-week range, and company-description context beside Finnhub profile fields.
+- Added `trading-day-evidence-report.json` / `.md` so post-session audits now include proof sections for trader-critical delivery failures, role-flip candidates, cluster-cross candidates, and representative trader-language excerpts instead of relying only on summary reports.
+- Strengthened level-quality audit markdown so healthy, wide-gap, and thin-ladder findings include their supporting evidence inline.
 
 ## Active Backlog
 
@@ -192,6 +194,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Use `npm run validation:levels:quality -- <SYMBOL>` before changing level detection because a live snapshot appears to have skipped older support/resistance.
 - After the next runner session, compare ATER / BIYA-style threads against the new burst governor and repeated-outcome wording to verify fewer same-story posts reach Discord without hiding genuinely new level clears or failures.
 - Use the replay simulator after every noisy session to estimate whether policy changes would have helped before changing live thresholds again.
+- Use `trading-day-evidence-report.md` after each trading day to verify critical Discord failures, role flips, cluster-cross narration, and trader-language boundaries with saved post excerpts.
 
 ### Detection and ranking improvements
 

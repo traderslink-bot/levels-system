@@ -67,6 +67,7 @@ test("level quality audit flags wide first resistance gaps", () => {
   assert.equal(report.resistance.nearestLevel, 2.1);
   assert.equal(report.findings.some((finding) => finding.code === "wide_first_gap" && finding.severity === "action"), true);
   assert.match(formatLevelQualityAuditReport(report), /wide_first_gap/);
+  assert.match(formatLevelQualityAuditReport(report), /"nearestLevel":2\.1/);
 });
 
 test("level quality audit reports healthy forward ladders when nearby levels exist", () => {
@@ -110,6 +111,36 @@ test("level quality audit flags wide gaps between forward resistance levels", ()
   assert.ok(finding);
   assert.equal(finding.severity, "action");
   assert.deepEqual(finding.evidence.forwardLevels, [1.74, 1.78, 1.83, 2.3146]);
+});
+
+test("level quality audit treats a healthy but thin ladder as watch instead of inventing levels", () => {
+  const report = buildLevelQualityAuditReport(output({
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: ["incomplete_current_session"],
+      freshness: "stale",
+      referencePrice: 0.9,
+    },
+    majorSupport: [zone({ kind: "support", representativePrice: 0.83, sourceTypes: ["swing_low"] })],
+    intermediateSupport: [],
+    intradaySupport: [],
+    intermediateResistance: [
+      zone({ kind: "resistance", representativePrice: 0.97 }),
+      zone({ kind: "resistance", representativePrice: 1.07 }),
+      zone({ kind: "resistance", representativePrice: 1.1 }),
+    ],
+    extensionLevels: {
+      support: [],
+      resistance: [],
+    },
+  }));
+
+  const supportFinding = report.findings.find(
+    (finding) => finding.side === "support" && finding.code === "thin_forward_ladder",
+  );
+  assert.ok(supportFinding);
+  assert.equal(supportFinding.severity, "watch");
+  assert.deepEqual(supportFinding.evidence.forwardLevels, [0.83]);
 });
 
 test("level quality audit flags wide gaps between forward support levels", () => {

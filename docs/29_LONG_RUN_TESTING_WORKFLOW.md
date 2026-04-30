@@ -156,6 +156,14 @@ Inside that folder:
 - `snapshot-audit-report.md`
   - readable version of the snapshot audit report
   - best first file when the trader-facing snapshot looks like it skipped a support or resistance level
+- `trading-day-evidence-report.json`
+  - generated from `discord-delivery-audit.jsonl` at shutdown, or manually with `npm run longrun:audit:reports -- <session-folder>`
+  - collects hard evidence for critical delivery failures, role-flip candidates, cluster-cross candidates, and trader-language examples
+  - includes severity labels (`blocker`, `major`, `watch`, `historical_only`, `data_quality_only`) so audit findings do not all look equally urgent
+  - treats trader-critical failed `post_alert` rows as major unless retry is proven; an equivalent later post is context, not proof of retry
+- `trading-day-evidence-report.md`
+  - readable evidence appendix for the audit process
+  - best file for proving findings with saved Discord excerpts instead of relying on summary language
 - `long-run-tuning-suggestions.json`
   - generated from the policy and snapshot audit reports at shutdown, or manually with `npm run longrun:audit:reports -- <session-folder>`
   - turns repeated-story clusters, post bursts, optional-density pressure, delivery failures, and level-audit warnings into action/watch/info items

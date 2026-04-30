@@ -7,8 +7,10 @@ import test from "node:test";
 import {
   buildSnapshotAuditReport,
   buildThreadPostPolicyReport,
+  buildTradingDayEvidenceReport,
   formatSnapshotAuditMarkdown,
   formatThreadPostPolicyMarkdown,
+  formatTradingDayEvidenceMarkdown,
 } from "../lib/review/discord-audit-reports.js";
 
 test("discord audit reports identify repeated stories and snapshot omissions", () => {
@@ -202,4 +204,118 @@ test("discord audit report ignores optional density on tiny samples", () => {
   assert.equal(biyaPolicy?.optionalDensity, 1);
   assert.equal(biyaPolicy?.dominantRisk, "controlled");
   assert.equal(biyaPolicy?.threadTrustScore, 100);
+});
+
+test("trading day evidence report surfaces delivery, role-flip, cluster, and language proof", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "discord-audit-evidence-"));
+  const auditPath = join(tempDir, "discord-delivery-audit.jsonl");
+  const rows = [
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "failed",
+      timestamp: 1000,
+      symbol: "SEGG",
+      title: "SEGG breakdown",
+      messageKind: "intelligent_alert",
+      eventType: "breakdown",
+      targetSide: "support",
+      targetPrice: 1.2,
+      error: "Discord API 503",
+      body: "support lost at 1.20",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 2000,
+      symbol: "XTLB",
+      title: "XTLB support crossed lower",
+      messageKind: "level_clear_update",
+      eventType: "breakdown",
+      targetSide: "support",
+      targetPrice: 3.56,
+      body: "price slipped below 3.56; next support is 3.34\nreclaiming 3.56 is needed to repair the level",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 3000,
+      symbol: "XTLB",
+      title: "XTLB resistance crossed",
+      messageKind: "level_clear_update",
+      eventType: "breakout",
+      targetSide: "resistance",
+      targetPrice: 3.75,
+      body: "price cleared 3.75 and is moving toward 4.28\nStatus: Cleared\n3.75 is no longer immediate resistance",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 3500,
+      symbol: "XTLB",
+      title: "XTLB resistance crossed",
+      messageKind: "level_clear_update",
+      eventType: "breakout",
+      targetSide: "resistance",
+      targetPrice: 3.8,
+      body: "price pushed above 3.80; next resistance is 3.84",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 4000,
+      symbol: "XTLB",
+      title: "XTLB resistance crossed",
+      messageKind: "level_clear_update",
+      eventType: "breakout",
+      targetSide: "resistance",
+      targetPrice: 3.84,
+      body: "buyers need acceptance above 3.84 before the setup improves",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 5000,
+      symbol: "ATER",
+      title: "ATER current read",
+      messageKind: "ai_signal_commentary",
+      eventType: "breakout",
+      body: "Longs should wait for 1.24 before entering.",
+    },
+  ];
+  writeFileSync(auditPath, rows.map((row) => JSON.stringify(row)).join("\n"), "utf8");
+
+  const report = buildTradingDayEvidenceReport(auditPath);
+
+  assert.equal(report.criticalDeliveryFailures.length, 1);
+  assert.equal(report.criticalDeliveryFailures[0]?.severity, "major");
+  assert.equal(report.criticalDeliveryFailures[0]?.traderCritical, true);
+
+  assert.equal(
+    report.roleFlipCandidates.some((candidate) => candidate.scenario === "broken_support_as_resistance"),
+    true,
+  );
+  assert.equal(
+    report.roleFlipCandidates.some((candidate) => candidate.scenario === "false_clear_certainty"),
+    true,
+  );
+
+  const cluster = report.clusterCrossCandidates.find((candidate) => candidate.symbol === "XTLB");
+  assert.ok(cluster);
+  assert.equal(cluster.severity, "major");
+  assert.deepEqual(cluster.levels, [3.75, 3.8, 3.84]);
+  assert.equal(cluster.preferClusterStory, true);
+
+  assert.equal(report.traderLanguageEvidence.badHistoricalExamples.length > 0, true);
+  assert.equal(report.traderLanguageEvidence.borderlineAdviceExamples.length, 1);
+
+  const markdown = formatTradingDayEvidenceMarkdown(report);
+  assert.match(markdown, /Critical Delivery Failures/);
+  assert.match(markdown, /Cluster-Cross Candidates/);
+  assert.match(markdown, /Longs should wait/);
 });

@@ -49,6 +49,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - `thread-post-policy-report.md` for the readable version of that same policy review
   - `snapshot-audit-report.json` for displayed, compacted, wrong-side, and outside-range level audit summaries
   - `snapshot-audit-report.md` for the readable version of that same level audit
+  - `trading-day-evidence-report.json` / `.md` for proof-oriented audit sections covering trader-critical delivery failures, role-flip candidates, cluster-cross candidates, and representative trader-language excerpts
   - `long-run-tuning-suggestions.json` / `.md` for action/watch/info items generated from the policy and snapshot audit reports
   - `live-post-replay-simulation.json` / `.md` for replaying the saved Discord audit through the current calmer post-policy rules and estimating old-versus-new output
   - `live-post-profile-comparison.json` / `.md` for comparing `quiet`, `balanced`, and `active` posting profiles against the same saved session before changing live behavior

@@ -4,9 +4,11 @@ import { resolve } from "node:path";
 import {
   buildSnapshotAuditReport,
   buildThreadPostPolicyReport,
+  buildTradingDayEvidenceReport,
   defaultReportPaths,
   formatSnapshotAuditMarkdown,
   formatThreadPostPolicyMarkdown,
+  formatTradingDayEvidenceMarkdown,
   writeJsonReport,
   writeTextReport,
 } from "../lib/review/discord-audit-reports.js";
@@ -50,6 +52,8 @@ const paths = isAuditFile
       profileComparisonMarkdownPath: resolve(resolvedInput, "..", "live-post-profile-comparison.md"),
       runnerStoryJsonPath: resolve(resolvedInput, "..", "runner-story-report.json"),
       runnerStoryMarkdownPath: resolve(resolvedInput, "..", "runner-story-report.md"),
+      evidenceJsonPath: resolve(resolvedInput, "..", "trading-day-evidence-report.json"),
+      evidenceMarkdownPath: resolve(resolvedInput, "..", "trading-day-evidence-report.md"),
     }
   : defaultReportPaths(resolvedInput);
 
@@ -60,11 +64,14 @@ if (!existsSync(paths.auditPath)) {
 
 const policyReport = buildThreadPostPolicyReport(paths.auditPath);
 const snapshotReport = buildSnapshotAuditReport(paths.auditPath);
+const evidenceReport = buildTradingDayEvidenceReport(paths.auditPath);
 
 writeJsonReport(paths.policyReportPath, policyReport);
 writeJsonReport(paths.snapshotReportPath, snapshotReport);
+writeJsonReport(paths.evidenceJsonPath, evidenceReport);
 writeTextReport(paths.policyMarkdownPath, formatThreadPostPolicyMarkdown(policyReport));
 writeTextReport(paths.snapshotMarkdownPath, formatSnapshotAuditMarkdown(snapshotReport));
+writeTextReport(paths.evidenceMarkdownPath, formatTradingDayEvidenceMarkdown(evidenceReport));
 writeLongRunTuningSuggestionsReports({
   jsonPath: paths.tuningJsonPath,
   markdownPath: paths.tuningMarkdownPath,
@@ -88,8 +95,10 @@ writeRunnerStoryReports({
 
 console.log(`Wrote ${paths.policyReportPath}`);
 console.log(`Wrote ${paths.snapshotReportPath}`);
+console.log(`Wrote ${paths.evidenceJsonPath}`);
 console.log(`Wrote ${paths.policyMarkdownPath}`);
 console.log(`Wrote ${paths.snapshotMarkdownPath}`);
+console.log(`Wrote ${paths.evidenceMarkdownPath}`);
 console.log(`Wrote ${paths.tuningJsonPath}`);
 console.log(`Wrote ${paths.tuningMarkdownPath}`);
 console.log(`Wrote ${paths.replaySimulationJsonPath}`);

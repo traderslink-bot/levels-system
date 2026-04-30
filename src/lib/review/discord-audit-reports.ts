@@ -16,15 +16,22 @@ type AuditEntry = {
   timestamp?: number;
   symbol?: string;
   title?: string;
+  body?: string;
+  bodyPreview?: string;
   messageKind?: string;
   eventType?: string;
+  severity?: string;
+  confidence?: string;
   followThroughLabel?: string;
   continuityType?: string;
   progressLabel?: string;
+  targetSide?: "support" | "resistance";
   targetPrice?: number;
   directionalReturnPct?: number | null;
   rawReturnPct?: number | null;
   repeatedOutcomeUpdate?: boolean;
+  error?: string;
+  errorMessage?: string;
   snapshotAudit?: {
     referencePrice: number;
     displayTolerance: number;
@@ -37,6 +44,8 @@ type AuditEntry = {
     omittedResistanceLevels: SnapshotAuditLevel[];
   };
 };
+
+type AuditFindingSeverity = "blocker" | "major" | "watch" | "historical_only" | "data_quality_only";
 
 type SnapshotAuditLevel = {
   id: string;
@@ -142,6 +151,80 @@ export type SnapshotAuditReport = {
     outsideForwardRangeLevels: number[];
   }>;
 };
+
+export type TradingDayEvidenceReport = {
+  generatedAt: string;
+  sourceAuditPath: string;
+  severityRubric: Record<AuditFindingSeverity, string>;
+  criticalDeliveryFailures: Array<{
+    symbol: string;
+    timestamp: number;
+    title?: string;
+    messageKind?: string;
+    eventType?: string;
+    traderCritical: boolean;
+    equivalentLaterPost: boolean;
+    equivalentLaterTimestamp?: number;
+    equivalentLaterTitle?: string;
+    retryProven: boolean;
+    severity: AuditFindingSeverity;
+    error?: string;
+    excerpt: string;
+  }>;
+  roleFlipCandidates: Array<{
+    symbol: string;
+    timestamp: number;
+    scenario: "broken_support_as_resistance" | "reclaimed_resistance_as_support" | "false_clear_certainty";
+    level?: number;
+    title?: string;
+    explainedClearly: boolean;
+    severity: AuditFindingSeverity;
+    evidence: string;
+  }>;
+  clusterCrossCandidates: Array<{
+    symbol: string;
+    firstTimestamp: number;
+    lastTimestamp: number;
+    side: "support" | "resistance" | "mixed";
+    levels: number[];
+    postCount: number;
+    likelyOverExplained: boolean;
+    preferClusterStory: boolean;
+    severity: AuditFindingSeverity;
+    titles: string[];
+  }>;
+  traderLanguageEvidence: {
+    goodExamples: Array<TraderLanguageEvidenceExample>;
+    badHistoricalExamples: Array<TraderLanguageEvidenceExample>;
+    borderlineAdviceExamples: Array<TraderLanguageEvidenceExample>;
+  };
+};
+
+type TraderLanguageEvidenceExample = {
+  symbol: string;
+  timestamp: number;
+  title?: string;
+  severity: AuditFindingSeverity;
+  reason: string;
+  excerpt: string;
+};
+
+const SEVERITY_RUBRIC: Record<AuditFindingSeverity, string> = {
+  blocker: "A trader-critical safety or trust issue that should stop release until fixed.",
+  major: "A material trader-facing issue that needs a code, retry, or process fix before relying on the next run.",
+  watch: "A real concern that needs targeted review or live verification, but is not enough evidence for an immediate code change.",
+  historical_only: "Found in saved old posts or artifacts, but current code/runtime proof is still required before changing code.",
+  data_quality_only: "Explained by stale/missing/provider data; do not change trader logic until better data proves the issue.",
+};
+
+const SYSTEM_SHAPED_LANGUAGE =
+  /Status:|Signal:|Decision area|setup update|state update|state recap|setup move|alert direction|after the alert|LEVEL SNAPSHOT|level map|mapped|not a price target|dip-buy/i;
+
+const DIRECT_ADVICE_LANGUAGE =
+  /\b(?:buy here|buy now|sell now|sell here|take profit|stop out|trim here|add here|exit now|short setup|best entry|safe entry|can buy|should add|should trim|should exit|longs should|traders should|wait for)\b/i;
+
+const GOOD_TRADER_LANGUAGE =
+  /\b(?:buyers need acceptance|holding (?:above|this)|reclaim(?:ing)?|risk stays|support|resistance|setup cleaner|price is testing)\b/i;
 
 function readJsonLines(path: string): AuditEntry[] {
   const text = readFileSync(path, "utf8");
@@ -524,6 +607,360 @@ export function buildSnapshotAuditReport(auditPath: string): SnapshotAuditReport
   };
 }
 
+export function buildTradingDayEvidenceReport(auditPath: string): TradingDayEvidenceReport {
+  const entries = readJsonLines(auditPath)
+    .filter((entry) => entry.type === "discord_delivery_audit")
+    .sort((left, right) => (left.timestamp ?? 0) - (right.timestamp ?? 0));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    sourceAuditPath: auditPath,
+    severityRubric: SEVERITY_RUBRIC,
+    criticalDeliveryFailures: buildCriticalDeliveryFailures(entries),
+    roleFlipCandidates: buildRoleFlipCandidates(entries),
+    clusterCrossCandidates: buildClusterCrossCandidates(entries),
+    traderLanguageEvidence: buildTraderLanguageEvidence(entries),
+  };
+}
+
+function buildCriticalDeliveryFailures(
+  entries: AuditEntry[],
+): TradingDayEvidenceReport["criticalDeliveryFailures"] {
+  const failures = entries.filter(
+    (entry) => entry.operation === "post_alert" && entry.status === "failed",
+  );
+
+  return failures.map((failure) => {
+    const kind = messageKindOf(failure);
+    const outputClass = classifyLiveThreadMessage(kind);
+    const traderCritical = outputClass === "trader_critical";
+    const equivalentLater = entries.find(
+      (candidate) =>
+        candidate.status === "posted" &&
+        candidate.operation === "post_alert" &&
+        (candidate.timestamp ?? 0) > (failure.timestamp ?? 0) &&
+        isEquivalentAlert(failure, candidate),
+    );
+    const retryProven = Boolean((failure as { retryOf?: unknown }).retryOf);
+    const severity: AuditFindingSeverity = traderCritical
+      ? retryProven
+        ? "watch"
+        : "major"
+      : "watch";
+
+    return {
+      symbol: symbolOf(failure),
+      timestamp: failure.timestamp ?? 0,
+      title: failure.title,
+      messageKind: kind,
+      eventType: failure.eventType,
+      traderCritical,
+      equivalentLaterPost: Boolean(equivalentLater),
+      equivalentLaterTimestamp: equivalentLater?.timestamp,
+      equivalentLaterTitle: equivalentLater?.title,
+      retryProven,
+      severity,
+      error: failure.error ?? failure.errorMessage,
+      excerpt: excerptFor(failure),
+    };
+  });
+}
+
+function isEquivalentAlert(failed: AuditEntry, posted: AuditEntry): boolean {
+  if (symbolOf(failed) !== symbolOf(posted)) {
+    return false;
+  }
+  const failedKind = messageKindOf(failed);
+  const postedKind = messageKindOf(posted);
+  if (failedKind && postedKind && failedKind !== postedKind) {
+    return false;
+  }
+  if (failed.eventType && posted.eventType && failed.eventType !== posted.eventType) {
+    return false;
+  }
+  if (typeof failed.targetPrice === "number" && typeof posted.targetPrice === "number") {
+    const tolerance = Math.max(Math.abs(failed.targetPrice) * 0.01, 0.01);
+    return Math.abs(failed.targetPrice - posted.targetPrice) <= tolerance;
+  }
+  return normalizeTitle(failed.title) === normalizeTitle(posted.title);
+}
+
+function normalizeTitle(title: string | undefined): string {
+  return title?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
+}
+
+function buildRoleFlipCandidates(
+  entries: AuditEntry[],
+): TradingDayEvidenceReport["roleFlipCandidates"] {
+  const postedAlerts = entries.filter(
+    (entry) => entry.operation === "post_alert" && entry.status === "posted",
+  );
+  const candidates: TradingDayEvidenceReport["roleFlipCandidates"] = [];
+
+  for (const entry of postedAlerts) {
+    const kind = messageKindOf(entry);
+    if (kind !== "level_clear_update" && kind !== "intelligent_alert") {
+      continue;
+    }
+
+    const text = fullText(entry);
+    const lower = text.toLowerCase();
+    const level = typeof entry.targetPrice === "number" ? entry.targetPrice : extractFirstLevel(text);
+
+    if (kind === "level_clear_update" && isSupportLoss(entry, lower)) {
+      const explainedClearly =
+        /\breclaim(?:ing)?\b/i.test(text) &&
+        (/\bresistance\b/i.test(text) || /\btested from below\b/i.test(text) || /\brisk stays open\b/i.test(text));
+      candidates.push({
+        symbol: symbolOf(entry),
+        timestamp: entry.timestamp ?? 0,
+        scenario: "broken_support_as_resistance",
+        level,
+        title: entry.title,
+        explainedClearly,
+        severity: explainedClearly ? "watch" : "major",
+        evidence: excerptFor(entry),
+      });
+    }
+
+    if (kind === "level_clear_update" && isResistanceReclaim(entry, lower)) {
+      const explainedClearly =
+        /\bhold(?:ing)? above\b/i.test(text) ||
+        /\btested from above\b/i.test(text) ||
+        /\bpullbacks? into\b/i.test(text) ||
+        /\bnearby support\b/i.test(text);
+      candidates.push({
+        symbol: symbolOf(entry),
+        timestamp: entry.timestamp ?? 0,
+        scenario: "reclaimed_resistance_as_support",
+        level,
+        title: entry.title,
+        explainedClearly,
+        severity: explainedClearly ? "watch" : "major",
+        evidence: excerptFor(entry),
+      });
+    }
+
+    if (
+      (entry.eventType === "breakout" || /resistance (?:cleared|crossed)/i.test(text)) &&
+      /Status:\s*Cleared|no longer immediate resistance|price cleared .* moving toward/i.test(text)
+    ) {
+      candidates.push({
+        symbol: symbolOf(entry),
+        timestamp: entry.timestamp ?? 0,
+        scenario: "false_clear_certainty",
+        level,
+        title: entry.title,
+        explainedClearly: false,
+        severity: "historical_only",
+        evidence: excerptFor(entry),
+      });
+    }
+  }
+
+  return candidates
+    .sort((left, right) => severityRank(right.severity) - severityRank(left.severity) || left.timestamp - right.timestamp)
+    .slice(0, 60);
+}
+
+function isSupportLoss(entry: AuditEntry, lowerText: string): boolean {
+  return (
+    entry.eventType === "breakdown" ||
+    (entry.targetSide === "support" && /support (?:lost|crossed lower)|slipped below|price lost/i.test(lowerText))
+  );
+}
+
+function isResistanceReclaim(entry: AuditEntry, lowerText: string): boolean {
+  return (
+    entry.eventType === "breakout" ||
+    entry.eventType === "reclaim" ||
+    (entry.targetSide === "resistance" && /resistance (?:cleared|crossed)|pushed above|price cleared/i.test(lowerText))
+  );
+}
+
+function buildClusterCrossCandidates(
+  entries: AuditEntry[],
+): TradingDayEvidenceReport["clusterCrossCandidates"] {
+  const clearRows = entries
+    .filter(
+      (entry) =>
+        entry.operation === "post_alert" &&
+        entry.status === "posted" &&
+        messageKindOf(entry) === "level_clear_update" &&
+        typeof entry.timestamp === "number",
+    )
+    .sort((left, right) => left.timestamp! - right.timestamp!);
+  const bySymbol = new Map<string, AuditEntry[]>();
+  for (const entry of clearRows) {
+    const symbol = symbolOf(entry);
+    bySymbol.set(symbol, [...(bySymbol.get(symbol) ?? []), entry]);
+  }
+
+  const clusters: TradingDayEvidenceReport["clusterCrossCandidates"] = [];
+  for (const [symbol, rows] of bySymbol.entries()) {
+    let index = 0;
+    while (index < rows.length) {
+      const start = rows[index]!;
+      const cluster = [start];
+      let cursor = index + 1;
+      while (cursor < rows.length) {
+        const next = rows[cursor]!;
+        if ((next.timestamp ?? 0) - (start.timestamp ?? 0) > 90 * 1000) {
+          break;
+        }
+        const nextLevel = levelForCluster(next);
+        const clusterLevels = [...cluster.map(levelForCluster), nextLevel].filter(isNumber);
+        if (clusterLevels.length > 0 && relativeSpan(clusterLevels) > 0.035) {
+          break;
+        }
+        cluster.push(next);
+        cursor += 1;
+      }
+
+      const levels = uniqueSorted(cluster.map(levelForCluster).filter(isNumber));
+      if (cluster.length >= 2 && levels.length >= 2) {
+        const sides = new Set(cluster.map((entry) => entry.targetSide).filter(Boolean));
+        const side =
+          sides.size === 1 && sides.has("support")
+            ? "support"
+            : sides.size === 1 && sides.has("resistance")
+              ? "resistance"
+              : "mixed";
+        clusters.push({
+          symbol,
+          firstTimestamp: cluster[0]!.timestamp ?? 0,
+          lastTimestamp: cluster[cluster.length - 1]!.timestamp ?? 0,
+          side,
+          levels,
+          postCount: cluster.length,
+          likelyOverExplained: cluster.length >= 2,
+          preferClusterStory: cluster.length >= 2,
+          severity: cluster.length >= 3 ? "major" : "watch",
+          titles: cluster.map((entry) => entry.title ?? "(untitled)"),
+        });
+      }
+      index = Math.max(index + 1, cursor);
+    }
+  }
+
+  return clusters.sort(
+    (left, right) =>
+      severityRank(right.severity) - severityRank(left.severity) ||
+      right.postCount - left.postCount ||
+      left.symbol.localeCompare(right.symbol),
+  );
+}
+
+function levelForCluster(entry: AuditEntry): number | null {
+  if (typeof entry.targetPrice === "number") {
+    return entry.targetPrice;
+  }
+  return extractFirstLevel(fullText(entry)) ?? null;
+}
+
+function isNumber(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function relativeSpan(levels: number[]): number {
+  if (levels.length === 0) {
+    return 0;
+  }
+  const min = Math.min(...levels);
+  const max = Math.max(...levels);
+  const mid = (min + max) / 2;
+  return mid > 0 ? (max - min) / mid : 0;
+}
+
+function uniqueSorted(levels: number[]): number[] {
+  return [...new Set(levels.map((level) => Number(level.toFixed(level >= 1 ? 4 : 6))))]
+    .sort((left, right) => left - right);
+}
+
+function buildTraderLanguageEvidence(
+  entries: AuditEntry[],
+): TradingDayEvidenceReport["traderLanguageEvidence"] {
+  const posted = entries.filter((entry) => entry.status === "posted" && fullText(entry).trim().length > 0);
+  const goodExamples: TraderLanguageEvidenceExample[] = [];
+  const badHistoricalExamples: TraderLanguageEvidenceExample[] = [];
+  const borderlineAdviceExamples: TraderLanguageEvidenceExample[] = [];
+
+  for (const entry of posted) {
+    const text = fullText(entry);
+    if (borderlineAdviceExamples.length < 8 && DIRECT_ADVICE_LANGUAGE.test(text)) {
+      borderlineAdviceExamples.push(languageExample(entry, "major", "direct or borderline advisory wording"));
+    }
+    if (badHistoricalExamples.length < 12 && SYSTEM_SHAPED_LANGUAGE.test(text)) {
+      badHistoricalExamples.push(languageExample(entry, "historical_only", "system-shaped saved Discord wording"));
+    }
+    if (
+      goodExamples.length < 8 &&
+      GOOD_TRADER_LANGUAGE.test(text) &&
+      !SYSTEM_SHAPED_LANGUAGE.test(text) &&
+      !DIRECT_ADVICE_LANGUAGE.test(text)
+    ) {
+      goodExamples.push(languageExample(entry, "watch", "representative trader-facing wording"));
+    }
+  }
+
+  return {
+    goodExamples,
+    badHistoricalExamples,
+    borderlineAdviceExamples,
+  };
+}
+
+function languageExample(
+  entry: AuditEntry,
+  severity: AuditFindingSeverity,
+  reason: string,
+): TraderLanguageEvidenceExample {
+  return {
+    symbol: symbolOf(entry),
+    timestamp: entry.timestamp ?? 0,
+    title: entry.title,
+    severity,
+    reason,
+    excerpt: excerptFor(entry),
+  };
+}
+
+function fullText(entry: AuditEntry): string {
+  return [entry.title, entry.body, entry.bodyPreview].filter(Boolean).join("\n");
+}
+
+function excerptFor(entry: AuditEntry, maxLength = 360): string {
+  const text = fullText(entry).replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength - 3)}...`;
+}
+
+function extractFirstLevel(text: string): number | undefined {
+  const match = text.match(/\b\d+(?:\.\d+)?\b/);
+  if (!match?.[0]) {
+    return undefined;
+  }
+  const value = Number(match[0]);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function severityRank(severity: AuditFindingSeverity): number {
+  switch (severity) {
+    case "blocker":
+      return 5;
+    case "major":
+      return 4;
+    case "watch":
+      return 3;
+    case "data_quality_only":
+      return 2;
+    case "historical_only":
+      return 1;
+  }
+}
+
 export function writeJsonReport(path: string, value: unknown): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -626,6 +1063,119 @@ export function formatSnapshotAuditMarkdown(report: SnapshotAuditReport): string
   return lines.join("\n");
 }
 
+export function formatTradingDayEvidenceMarkdown(report: TradingDayEvidenceReport): string {
+  const lines: string[] = [
+    "# Trading Day Evidence Report",
+    "",
+    `Generated: ${report.generatedAt}`,
+    `Source: ${report.sourceAuditPath}`,
+    "",
+    "## Severity Rubric",
+    "",
+    ...Object.entries(report.severityRubric).map(([severity, meaning]) => `- \`${severity}\`: ${meaning}`),
+    "",
+    "## Critical Delivery Failures",
+    "",
+  ];
+
+  if (report.criticalDeliveryFailures.length === 0) {
+    lines.push("- No failed `post_alert` rows were found.", "");
+  } else {
+    for (const failure of report.criticalDeliveryFailures) {
+      lines.push(
+        `### ${failure.symbol} - ${failure.title ?? "untitled"}`,
+        "",
+        `- severity: \`${failure.severity}\``,
+        `- time: ${formatTimestamp(failure.timestamp)}`,
+        `- kind: ${failure.messageKind ?? "unknown"} / ${failure.eventType ?? "unknown"}`,
+        `- trader-critical: ${failure.traderCritical ? "yes" : "no"}`,
+        `- retry proven: ${failure.retryProven ? "yes" : "no"}`,
+        `- equivalent later post: ${failure.equivalentLaterPost ? `yes (${formatTimestamp(failure.equivalentLaterTimestamp ?? 0)} ${failure.equivalentLaterTitle ?? ""})` : "no"}`,
+        `- error: ${failure.error ?? "n/a"}`,
+        `- excerpt: ${failure.excerpt}`,
+        "",
+      );
+    }
+  }
+
+  lines.push("## Role-Flip Candidates", "");
+  if (report.roleFlipCandidates.length === 0) {
+    lines.push("- No role-flip candidates were found.", "");
+  } else {
+    for (const item of report.roleFlipCandidates.slice(0, 25)) {
+      lines.push(
+        `### ${item.symbol} - ${item.scenario}`,
+        "",
+        `- severity: \`${item.severity}\``,
+        `- time: ${formatTimestamp(item.timestamp)}`,
+        `- level: ${typeof item.level === "number" ? formatLevelForMarkdown(item.level) : "unknown"}`,
+        `- explained clearly: ${item.explainedClearly ? "yes" : "no"}`,
+        `- title: ${item.title ?? "untitled"}`,
+        `- evidence: ${item.evidence}`,
+        "",
+      );
+    }
+  }
+
+  lines.push("## Cluster-Cross Candidates", "");
+  if (report.clusterCrossCandidates.length === 0) {
+    lines.push("- No cluster-cross candidates were found.", "");
+  } else {
+    for (const item of report.clusterCrossCandidates.slice(0, 25)) {
+      lines.push(
+        `### ${item.symbol} - ${item.side}`,
+        "",
+        `- severity: \`${item.severity}\``,
+        `- window: ${formatTimestamp(item.firstTimestamp)} -> ${formatTimestamp(item.lastTimestamp)}`,
+        `- levels: ${item.levels.map(formatLevelForMarkdown).join(", ")}`,
+        `- post count: ${item.postCount}`,
+        `- likely over-explained: ${item.likelyOverExplained ? "yes" : "no"}`,
+        `- prefer one cluster story: ${item.preferClusterStory ? "yes" : "no"}`,
+        "- titles:",
+        ...item.titles.map((title) => `  - ${title}`),
+        "",
+      );
+    }
+  }
+
+  lines.push("## Trader-Language Evidence Appendix", "");
+  appendLanguageExamples(lines, "Good Trader-Facing Examples", report.traderLanguageEvidence.goodExamples);
+  appendLanguageExamples(lines, "Bad Historical/System-Shaped Examples", report.traderLanguageEvidence.badHistoricalExamples);
+  appendLanguageExamples(lines, "Borderline Advisory Examples", report.traderLanguageEvidence.borderlineAdviceExamples);
+
+  return lines.join("\n");
+}
+
+function appendLanguageExamples(
+  lines: string[],
+  title: string,
+  examples: TraderLanguageEvidenceExample[],
+): void {
+  lines.push(`### ${title}`, "");
+  if (examples.length === 0) {
+    lines.push("- None found.", "");
+    return;
+  }
+
+  for (const example of examples) {
+    lines.push(
+      `- ${example.symbol} at ${formatTimestamp(example.timestamp)} (${example.severity}, ${example.reason}): ${example.title ?? "untitled"} - ${example.excerpt}`,
+    );
+  }
+  lines.push("");
+}
+
+function formatTimestamp(timestamp: number): string {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return "unknown";
+  }
+  return new Date(timestamp).toISOString();
+}
+
+function formatLevelForMarkdown(level: number): string {
+  return level >= 1 ? level.toFixed(2) : level.toFixed(4);
+}
+
 function formatLevelList(levels: number[]): string {
   if (levels.length === 0) {
     return "none";
@@ -650,6 +1200,8 @@ export function defaultReportPaths(sessionDirectory: string): {
   profileComparisonMarkdownPath: string;
   runnerStoryJsonPath: string;
   runnerStoryMarkdownPath: string;
+  evidenceJsonPath: string;
+  evidenceMarkdownPath: string;
 } {
   return {
     auditPath: join(sessionDirectory, "discord-delivery-audit.jsonl"),
@@ -665,5 +1217,7 @@ export function defaultReportPaths(sessionDirectory: string): {
     profileComparisonMarkdownPath: join(sessionDirectory, "live-post-profile-comparison.md"),
     runnerStoryJsonPath: join(sessionDirectory, "runner-story-report.json"),
     runnerStoryMarkdownPath: join(sessionDirectory, "runner-story-report.md"),
+    evidenceJsonPath: join(sessionDirectory, "trading-day-evidence-report.json"),
+    evidenceMarkdownPath: join(sessionDirectory, "trading-day-evidence-report.md"),
   };
 }

@@ -302,9 +302,10 @@ export function formatLevelQualityAuditReport(report: LevelQualityAuditReport): 
     `resistance: displayed ${report.resistance.displayedCount}, extensions ${report.resistance.extensionCount}, nearest ${report.resistance.nearestLevel ?? "n/a"} (${report.resistance.nearestDistancePct ?? "n/a"}%)`,
     "",
     "findings:",
-    ...report.findings.map(
-      (finding) => `- ${finding.severity.toUpperCase()} ${finding.side} ${finding.code}: ${finding.message}`,
-    ),
+    ...report.findings.flatMap((finding) => [
+      `- ${finding.severity.toUpperCase()} ${finding.side} ${finding.code}: ${finding.message}`,
+      `  evidence: ${JSON.stringify(finding.evidence)}`,
+    ]),
   ];
   return lines.join("\n");
 }

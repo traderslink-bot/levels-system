@@ -21,6 +21,32 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-29 America/Toronto
 
+### Added evidence-driven trading-day audit report
+
+- Updated:
+  - `src/lib/review/discord-audit-reports.ts`
+  - `src/scripts/generate-discord-audit-reports.ts`
+  - `src/lib/levels/level-quality-audit.ts`
+  - `src/tests/discord-audit-reports.test.ts`
+  - `src/tests/level-quality-audit.test.ts`
+  - `docs/45_TRADING_DAY_AUDIT_PLAYBOOK.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+  - `docs/30_SIGNAL_QUALITY_ROADMAP.md`
+  - `README.md`
+- What changed:
+  - added `trading-day-evidence-report.json` / `.md` to the generated audit pack
+  - the evidence report surfaces trader-critical delivery failures, role-flip candidates, cluster-cross candidates, and representative trader-language excerpts
+  - added a shared severity rubric for `blocker`, `major`, `watch`, `historical_only`, and `data_quality_only`
+  - strengthened level-quality markdown so findings include inline evidence, not only the finding label
+  - tightened the trading-day audit playbook so top symbols require saved-post excerpts, replay ladder proof, candle-backed level evidence, and explicit suppression-versus-bug reasoning
+- Verification:
+  - `npx tsx --test src/tests/discord-audit-reports.test.ts`
+  - `npx tsx --test src/tests/level-quality-audit.test.ts`
+  - `npm run build`
+  - `npx tsx src/scripts/generate-discord-audit-reports.ts artifacts\2026-04-29-combined-discord-delivery-audit.jsonl`
+
+## 2026-04-29 America/Toronto
+
 ### Promoted credible intermediate levels from cached candle audits
 
 - Updated:
