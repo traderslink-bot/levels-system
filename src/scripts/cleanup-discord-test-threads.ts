@@ -17,6 +17,8 @@ type CleanupOptions = {
   sourceType: "watchlist_state" | "discord_audit";
   action: CleanupAction;
   deleteStarterMessages: boolean;
+  deleteAllParentMessages: boolean;
+  allChannelThreads: boolean;
   includeActive: boolean;
   confirmTestingCleanup: boolean;
   symbols?: string[];
@@ -31,6 +33,16 @@ type DiscordMessage = {
     id?: string;
     name?: string;
   };
+};
+
+type DiscordThreadChannel = {
+  id: string;
+  name?: string;
+  parent_id?: string | null;
+};
+
+type DiscordThreadListResponse = {
+  threads?: DiscordThreadChannel[];
 };
 
 const DEFAULT_SOURCE_PATH = resolve(process.cwd(), "artifacts", "manual-watchlist-state.json");
@@ -62,6 +74,8 @@ Options:
   --archive                       Archive selected threads.
   --delete                        Delete selected thread channels.
   --delete-starter-messages       Also delete matching starter messages in the parent watchlist channel.
+  --all-channel-threads           Delete/preview every fetched thread under the configured watchlist channel.
+  --all-parent-messages           Delete/preview every fetched message in the parent watchlist channel.
   --confirm-testing-cleanup       Required for archive/delete actions.
   --output <path>                 Write cleanup plan JSON. Default: artifacts\\discord-thread-cleanup-plan.json.
 `);
@@ -73,6 +87,8 @@ function parseArgs(argv: string[]): CleanupOptions {
   let sourceType: CleanupOptions["sourceType"] = "watchlist_state";
   let action: CleanupAction = "dry_run";
   let deleteStarterMessages = false;
+  let deleteAllParentMessages = false;
+  let allChannelThreads = false;
   let includeActive = false;
   let confirmTestingCleanup = false;
   let symbols: string[] | undefined;
@@ -118,6 +134,12 @@ function parseArgs(argv: string[]): CleanupOptions {
       case "--delete-starter-messages":
         deleteStarterMessages = true;
         break;
+      case "--all-parent-messages":
+        deleteAllParentMessages = true;
+        break;
+      case "--all-channel-threads":
+        allChannelThreads = true;
+        break;
       case "--confirm-testing-cleanup":
         confirmTestingCleanup = true;
         break;
@@ -137,6 +159,8 @@ function parseArgs(argv: string[]): CleanupOptions {
     sourceType,
     action,
     deleteStarterMessages,
+    deleteAllParentMessages,
+    allChannelThreads,
     includeActive,
     confirmTestingCleanup,
     symbols,
@@ -221,6 +245,56 @@ async function fetchParentChannelMessages(
   return messages;
 }
 
+async function fetchChannelThreads(
+  channelId: string,
+  guildId: string | undefined,
+  botToken: string,
+): Promise<DiscordThreadCleanupCandidate[]> {
+  const threads: DiscordThreadChannel[] = [];
+
+  if (guildId) {
+    try {
+      const active = await discordRequest<DiscordThreadListResponse>(
+        `/guilds/${guildId}/threads/active`,
+        { method: "GET" },
+        botToken,
+      );
+      threads.push(...(active?.threads ?? []).filter((thread) => thread.parent_id === channelId));
+    } catch (error) {
+      console.warn(`Could not list active guild threads: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  try {
+    const archived = await discordRequest<DiscordThreadListResponse>(
+      `/channels/${channelId}/threads/archived/public?limit=100`,
+      { method: "GET" },
+      botToken,
+    );
+    threads.push(...(archived?.threads ?? []).filter((thread) => thread.parent_id === channelId));
+  } catch (error) {
+    console.warn(`Could not list archived channel threads: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  const seen = new Set<string>();
+  return threads
+    .filter((thread) => {
+      if (seen.has(thread.id)) {
+        return false;
+      }
+      seen.add(thread.id);
+      return true;
+    })
+    .map((thread) => ({
+      symbol: (thread.name ?? thread.id).trim().toUpperCase(),
+      threadId: thread.id,
+      active: null,
+      lifecycle: "channel_scan",
+      source: "channel_scan" as const,
+    }))
+    .sort((left, right) => left.symbol.localeCompare(right.symbol));
+}
+
 function findStarterMessages(
   candidates: DiscordThreadCleanupCandidate[],
   parentMessages: DiscordMessage[],
@@ -261,9 +335,10 @@ function loadCandidates(options: CleanupOptions): DiscordThreadCleanupCandidate[
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
-  const candidates = loadCandidates(options);
+  let candidates = loadCandidates(options);
   const botToken = process.env.DISCORD_BOT_TOKEN?.trim();
   const watchlistChannelId = process.env.DISCORD_WATCHLIST_CHANNEL_ID?.trim();
+  const guildId = process.env.DISCORD_GUILD_ID?.trim() || undefined;
   const mutating = options.action !== "dry_run";
 
   if (mutating && !options.confirmTestingCleanup) {
@@ -272,15 +347,29 @@ async function main(): Promise<void> {
   if (mutating && !botToken) {
     throw new Error("DISCORD_BOT_TOKEN is required for archive/delete cleanup.");
   }
-  if (options.deleteStarterMessages && !watchlistChannelId) {
-    throw new Error("DISCORD_WATCHLIST_CHANNEL_ID is required for --delete-starter-messages.");
+  if ((options.deleteStarterMessages || options.deleteAllParentMessages || options.allChannelThreads) && !watchlistChannelId) {
+    throw new Error("DISCORD_WATCHLIST_CHANNEL_ID is required for channel-wide cleanup.");
+  }
+  if ((options.deleteStarterMessages || options.deleteAllParentMessages || options.allChannelThreads) && !botToken) {
+    throw new Error("DISCORD_BOT_TOKEN is required for channel-wide cleanup.");
+  }
+
+  if (options.allChannelThreads && watchlistChannelId && botToken) {
+    candidates = await fetchChannelThreads(watchlistChannelId, guildId, botToken);
   }
 
   const parentMessages =
-    options.deleteStarterMessages && watchlistChannelId && botToken
+    (options.deleteStarterMessages || options.deleteAllParentMessages) && watchlistChannelId && botToken
       ? await fetchParentChannelMessages(watchlistChannelId, botToken, options.maxParentMessagePages)
       : [];
   const starterMessages = findStarterMessages(candidates, parentMessages);
+  const parentMessagesToDelete = options.deleteAllParentMessages
+    ? parentMessages.map((message) => ({
+        symbol: message.thread?.name ?? message.content?.slice(0, 30) ?? "(message)",
+        threadId: message.thread?.id ?? "",
+        messageId: message.id,
+      }))
+    : starterMessages;
 
   const plan = {
     generatedAt: new Date().toISOString(),
@@ -288,11 +377,15 @@ async function main(): Promise<void> {
     sourceType: options.sourceType,
     action: options.action,
     deleteStarterMessages: options.deleteStarterMessages,
+    deleteAllParentMessages: options.deleteAllParentMessages,
+    allChannelThreads: options.allChannelThreads,
     includeActive: options.includeActive,
     candidateCount: candidates.length,
     starterMessageCount: starterMessages.length,
+    parentMessageDeleteCount: parentMessagesToDelete.length,
     candidates,
     starterMessages,
+    parentMessagesToDelete,
   };
 
   mkdirSync(dirname(options.outputPath), { recursive: true });
@@ -300,9 +393,10 @@ async function main(): Promise<void> {
 
   console.log(`Cleanup candidates: ${candidates.length}`);
   console.log(`Starter messages matched: ${starterMessages.length}`);
+  console.log(`Parent messages selected: ${parentMessagesToDelete.length}`);
   console.log(`Plan written: ${options.outputPath}`);
 
-  if (options.action === "dry_run" && !options.deleteStarterMessages) {
+  if (options.action === "dry_run") {
     console.log("Dry run only. No Discord changes were made.");
     return;
   }
@@ -324,8 +418,8 @@ async function main(): Promise<void> {
     }
   }
 
-  if (options.deleteStarterMessages && options.action !== "dry_run") {
-    for (const starter of starterMessages) {
+  if (options.deleteStarterMessages || options.deleteAllParentMessages) {
+    for (const starter of parentMessagesToDelete) {
       await discordRequest(
         `/channels/${watchlistChannelId}/messages/${starter.messageId}`,
         { method: "DELETE" },

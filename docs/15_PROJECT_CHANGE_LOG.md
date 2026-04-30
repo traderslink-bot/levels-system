@@ -34,10 +34,13 @@ This document tracks concrete implementation changes made to the `levels-system`
   - default mode is dry-run and writes `artifacts/discord-thread-cleanup-plan.json`
   - archive/delete mutations require `--confirm-testing-cleanup`
   - optional `--delete-starter-messages` matches the parent-channel starter messages created by the bot so channel clutter can be cleaned along with the threads
+  - added channel-wide cleanup flags `--all-channel-threads` and `--all-parent-messages` for fully clearing a testing watchlist channel
+  - Discord cleanup deletes are now rate-limit aware and tolerate already-deleted thread/message rows
 - Verification:
   - `npx tsx --test src/tests/discord-thread-cleanup.test.ts`
   - `npm run build`
   - `npm run discord:cleanup:threads -- --dry-run --delete-starter-messages`
+  - `npm run discord:cleanup:threads -- --dry-run --all-channel-threads --all-parent-messages --max-parent-message-pages 20`
 
 ## 2026-04-30 America/Toronto
 

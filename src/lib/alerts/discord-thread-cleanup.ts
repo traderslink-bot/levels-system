@@ -6,7 +6,7 @@ export type DiscordThreadCleanupCandidate = {
   active: boolean | null;
   lifecycle?: string;
   lastSeenAt?: number;
-  source: "watchlist_state" | "discord_audit";
+  source: "watchlist_state" | "discord_audit" | "channel_scan";
 };
 
 export type DiscordThreadCleanupFilter = {
