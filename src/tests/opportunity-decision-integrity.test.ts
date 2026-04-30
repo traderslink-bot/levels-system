@@ -509,4 +509,229 @@ describe("opportunity decision integrity", () => {
       ranked.findIndex((opportunity) => opportunity.symbol === "AAPL"));
     assert.ok(tieCandidates.length >= 1);
   });
+
+  it("penalizes otherwise similar bullish setups when upside clearance is tight", () => {
+    const engine = new OpportunityEngine();
+    const now = 11_000_000;
+    const ranked = engine.rank([
+      {
+        ...makeEvent({
+          id: "tight-room",
+          symbol: "ALBT",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.64,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        eventContext: {
+          monitoredZoneId: "ALBT-zone",
+          canonicalZoneId: "ALBT-zone",
+          zoneFreshness: "fresh",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          nextBarrierKind: "resistance",
+          nextBarrierLevel: 10.12,
+          nextBarrierDistancePct: 0.012,
+          clearanceLabel: "tight",
+        },
+      },
+      {
+        ...makeEvent({
+          id: "open-room",
+          symbol: "BIRD",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.64,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        eventContext: {
+          monitoredZoneId: "BIRD-zone",
+          canonicalZoneId: "BIRD-zone",
+          zoneFreshness: "fresh",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          nextBarrierKind: "resistance",
+          nextBarrierLevel: 10.7,
+          nextBarrierDistancePct: 0.07,
+          clearanceLabel: "open",
+        },
+      },
+    ]);
+
+    const bySymbol = new Map(ranked.map((opportunity) => [opportunity.symbol, opportunity]));
+
+    assert.ok(bySymbol.get("BIRD")!.score > bySymbol.get("ALBT")!.score);
+    assert.equal(bySymbol.get("ALBT")?.clearanceLabel, "tight");
+    assert.equal(bySymbol.get("BIRD")?.clearanceLabel, "open");
+  });
+
+  it("downgrades bullish support-hold opportunities when the support already looks tired", () => {
+    const engine = new OpportunityEngine();
+    const now = 12_500_000;
+    const ranked = engine.rank([
+      {
+        ...makeEvent({
+          id: "tired-support",
+          symbol: "WEAK",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.64,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        zoneKind: "support",
+        eventContext: {
+          monitoredZoneId: "WEAK-zone",
+          canonicalZoneId: "WEAK-zone",
+          zoneFreshness: "stale",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          tacticalRead: "tired",
+        },
+      },
+      {
+        ...makeEvent({
+          id: "firm-support",
+          symbol: "FIRM",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.64,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        zoneKind: "support",
+        eventContext: {
+          monitoredZoneId: "FIRM-zone",
+          canonicalZoneId: "FIRM-zone",
+          zoneFreshness: "fresh",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          tacticalRead: "firm",
+        },
+      },
+    ]);
+
+    const bySymbol = new Map(ranked.map((opportunity) => [opportunity.symbol, opportunity]));
+
+    assert.ok(bySymbol.get("FIRM")!.score > bySymbol.get("WEAK")!.score);
+    assert.equal(bySymbol.get("WEAK")?.tacticalRead, "tired");
+    assert.equal(bySymbol.get("FIRM")?.tacticalRead, "firm");
+  });
+
+  it("downgrades support-touch opportunities when repeated testing and layered overhead make them less tradeable", () => {
+    const engine = new OpportunityEngine();
+    const now = 13_000_000;
+    const ranked = engine.rank([
+      {
+        ...makeEvent({
+          id: "tested-layered-support",
+          symbol: "WATCH",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.6,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        zoneKind: "support",
+        eventContext: {
+          monitoredZoneId: "WATCH-zone",
+          canonicalZoneId: "WATCH-zone",
+          zoneFreshness: "stale",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          clearanceLabel: "limited",
+          pathQualityLabel: "layered",
+          pathBarrierCount: 3,
+          exhaustionLabel: "tested",
+        },
+      },
+      {
+        ...makeEvent({
+          id: "fresh-open-support",
+          symbol: "ACTION",
+          timestamp: now,
+          strength: 0.82,
+          confidence: 0.78,
+          priority: 82,
+          pressureScore: 0.6,
+          eventType: "level_touch",
+          type: "level_touch",
+          bias: "bullish",
+        }),
+        zoneKind: "support",
+        eventContext: {
+          monitoredZoneId: "ACTION-zone",
+          canonicalZoneId: "ACTION-zone",
+          zoneFreshness: "fresh",
+          zoneOrigin: "canonical",
+          remapStatus: "new",
+          remappedFromZoneIds: [],
+          dataQualityDegraded: false,
+          recentlyRefreshed: false,
+          recentlyPromotedExtension: false,
+          ladderPosition: "outermost",
+          zoneStrengthLabel: "strong",
+          clearanceLabel: "open",
+          pathQualityLabel: "clean",
+          pathBarrierCount: 1,
+          exhaustionLabel: "fresh",
+        },
+      },
+    ]);
+
+    const bySymbol = new Map(ranked.map((opportunity) => [opportunity.symbol, opportunity]));
+
+    assert.ok(bySymbol.get("ACTION")!.score > bySymbol.get("WATCH")!.score);
+    assert.equal(bySymbol.get("WATCH")?.pathQualityLabel, "layered");
+    assert.equal(bySymbol.get("WATCH")?.exhaustionLabel, "tested");
+    assert.equal(bySymbol.get("ACTION")?.pathQualityLabel, "clean");
+    assert.equal(bySymbol.get("ACTION")?.exhaustionLabel, "fresh");
+  });
 });

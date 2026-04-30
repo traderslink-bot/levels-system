@@ -5,7 +5,11 @@ import type { FinalLevelZone, LevelEngineOutput } from "../lib/levels/level-type
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import type { LivePriceListener, LivePriceProvider } from "../lib/monitoring/live-price-types.js";
-import type { MonitoringEvent, WatchlistEntry } from "../lib/monitoring/monitoring-types.js";
+import type {
+  MonitoringEvent,
+  MonitoringEventDiagnostic,
+  WatchlistEntry,
+} from "../lib/monitoring/monitoring-types.js";
 
 class FakeLivePriceProvider implements LivePriceProvider {
   public listener?: LivePriceListener;
@@ -118,6 +122,79 @@ test("WatchlistMonitor reconciles refreshed levels and emits events for the new 
   assert.equal(events[0]?.eventContext.canonicalZoneId, "R2");
   assert.ok(events[0]?.zoneId.startsWith("ALBT-resistance-monitored-"));
   assert.equal(events[0]?.eventType, "level_touch");
+});
+
+test("WatchlistMonitor emits support approach when price nears the next lower support", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+
+  levelStore.setLevels(buildLevelOutput("FATN", {
+    intradaySupport: [
+      buildZone({
+        id: "S1",
+        symbol: "FATN",
+        kind: "support",
+        zoneLow: 2.90,
+        zoneHigh: 2.93,
+        representativePrice: 2.93,
+        strengthLabel: "major",
+        strengthScore: 36,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "FATN", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  liveProvider.listener?.({
+    symbol: "FATN",
+    timestamp: 1000,
+    lastPrice: 2.95,
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.eventType, "level_touch");
+  assert.equal(events[0]?.zoneKind, "support");
+  assert.equal(events[0]?.zoneId.startsWith("FATN-support-monitored-"), true);
+});
+
+test("WatchlistMonitor does not emit support approach when price is still too far from support", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+
+  levelStore.setLevels(buildLevelOutput("FATN", {
+    intradaySupport: [
+      buildZone({
+        id: "S1",
+        symbol: "FATN",
+        kind: "support",
+        zoneLow: 2.90,
+        zoneHigh: 2.93,
+        representativePrice: 2.93,
+        strengthLabel: "major",
+        strengthScore: 36,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "FATN", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  liveProvider.listener?.({
+    symbol: "FATN",
+    timestamp: 1000,
+    lastPrice: 2.96,
+  });
+
+  assert.equal(events.length, 0);
 });
 
 test("WatchlistMonitor evaluates posted extension zones after they are activated in the level store", async () => {
@@ -237,4 +314,111 @@ test("WatchlistMonitor preserves monitored identity when a refreshed canonical z
   assert.equal(events[0]?.eventContext.canonicalZoneId, "R2");
   assert.equal(events[0]?.eventContext.remapStatus, "replaced");
   assert.equal(events[0]?.eventContext.zoneOrigin, "canonical");
+});
+
+test("WatchlistMonitor emits breakout diagnostics for weak fly-by suppression when enabled", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const diagnostics: MonitoringEventDiagnostic[] = [];
+  const monitor = new WatchlistMonitor(
+    levelStore,
+    liveProvider,
+    undefined,
+    {
+      diagnosticListener: (diagnostic) => diagnostics.push(diagnostic),
+    },
+  );
+
+  levelStore.setLevels(buildLevelOutput("AAPL", {
+    intradayResistance: [
+      buildZone({
+        id: "R1",
+        symbol: "AAPL",
+        kind: "resistance",
+        zoneLow: 100,
+        zoneHigh: 101,
+        representativePrice: 100.5,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "AAPL", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  liveProvider.listener?.({
+    symbol: "AAPL",
+    timestamp: 1,
+    lastPrice: 99.5,
+  });
+
+  liveProvider.listener?.({
+    symbol: "AAPL",
+    timestamp: 2,
+    lastPrice: 101.3,
+  });
+
+  assert.equal(events.some((event) => event.eventType === "breakout"), false);
+
+  const breakoutDiagnostic = diagnostics.find(
+    (diagnostic) =>
+      diagnostic.eventType === "breakout" &&
+      diagnostic.timestamp === 2,
+  );
+
+  assert.ok(breakoutDiagnostic);
+  assert.equal(breakoutDiagnostic?.decision, "suppressed");
+  assert.ok(
+    breakoutDiagnostic?.reasons.includes("missing_prior_interaction_backfill"),
+  );
+});
+
+test("WatchlistMonitor includes nearby barrier clearance in emitted event context", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+
+  levelStore.setLevels(buildLevelOutput("AGPU", {
+    intradaySupport: [
+      buildZone({
+        id: "S1",
+        symbol: "AGPU",
+        kind: "support",
+        zoneLow: 1.95,
+        zoneHigh: 2.0,
+        representativePrice: 1.98,
+        strengthLabel: "strong",
+      }),
+    ],
+    intradayResistance: [
+      buildZone({
+        id: "R1",
+        symbol: "AGPU",
+        kind: "resistance",
+        zoneLow: 2.01,
+        zoneHigh: 2.03,
+        representativePrice: 2.02,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "AGPU", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  liveProvider.listener?.({
+    symbol: "AGPU",
+    timestamp: 100,
+    lastPrice: 1.985,
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.eventType, "level_touch");
+  assert.equal(events[0]?.eventContext.nextBarrierKind, "resistance");
+  assert.equal(events[0]?.eventContext.nextBarrierLevel, 2.02);
+  assert.equal(events[0]?.eventContext.clearanceLabel, "limited");
 });

@@ -28,6 +28,9 @@ export type OpportunityInterpretation = {
   symbol: string;
   message: string;
   type: InterpretationType;
+  eventType: string;
+  level?: number;
+  zoneKind?: "support" | "resistance";
   confidence: number;
   tags: string[];
   timestamp: number;
@@ -69,6 +72,31 @@ function formatTemplate(
   return template.replace("{level}", formatInterpretationLevel(level));
 }
 
+function formatZoneAwareMessage(
+  type: InterpretationType,
+  zoneLabel: "support" | "resistance" | "level",
+  level: number,
+): string {
+  const formattedLevel = formatInterpretationLevel(level);
+
+  switch (type) {
+    case "pre_zone":
+      return `watching pullback into ${zoneLabel} near ${formattedLevel}`;
+    case "in_zone":
+      return `price testing ${zoneLabel} near ${formattedLevel} - watching reaction`;
+    case "confirmation":
+      return zoneLabel === "resistance"
+        ? `sellers reacting at resistance near ${formattedLevel}`
+        : `buyers reacting at ${zoneLabel} near ${formattedLevel}`;
+    case "weakening":
+      return `${zoneLabel} weakening near ${formattedLevel}`;
+    case "neutral":
+      return `potential buy zone below near ${formattedLevel}`;
+    default:
+      return formatTemplate(APPROVED_INTERPRETATION_MESSAGE_TEMPLATES[type], level);
+  }
+}
+
 function stageRank(type: InterpretationType): number {
   switch (type) {
     case "pre_zone":
@@ -87,6 +115,10 @@ function resolveOpportunityEventType(opportunity: AdaptedOpportunity): string {
 }
 
 function resolveZoneLabel(opportunity: AdaptedOpportunity): "support" | "resistance" | "level" {
+  if (opportunity.zoneKind) {
+    return opportunity.zoneKind;
+  }
+
   const eventType = resolveOpportunityEventType(opportunity);
 
   if (
@@ -161,10 +193,14 @@ function applyProgression(
 }
 
 function buildMessage(type: InterpretationType, context: OpportunityInterpretationContext): string {
-  return formatTemplate(
-    APPROVED_INTERPRETATION_MESSAGE_TEMPLATES[type],
-    context.levels.referenceLevel,
-  );
+  if (type === "breakout_context") {
+    return formatTemplate(
+      APPROVED_INTERPRETATION_MESSAGE_TEMPLATES[type],
+      context.levels.referenceLevel,
+    );
+  }
+
+  return formatZoneAwareMessage(type, context.levels.zoneLabel, context.levels.referenceLevel);
 }
 
 function buildTags(
@@ -196,6 +232,9 @@ export function interpretOpportunity(
     symbol: context.opportunity.symbol,
     message: buildMessage(resolvedType, context),
     type: resolvedType,
+    eventType: resolveOpportunityEventType(context.opportunity),
+    level: context.opportunity.level,
+    zoneKind: context.opportunity.zoneKind,
     confidence,
     tags: buildTags(resolvedType, context),
     timestamp: context.opportunity.timestamp,
@@ -208,6 +247,7 @@ export function formatInterpretationForConsole(
   return [
     `SYMBOL: ${interpretation.symbol}`,
     `TYPE: ${interpretation.type}`,
+    `EVENT: ${interpretation.eventType}`,
     `MESSAGE: ${interpretation.message}`,
     `CONFIDENCE: ${interpretation.confidence.toFixed(2)}`,
   ].join("\n");

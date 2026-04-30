@@ -1,10 +1,18 @@
 import type { FinalLevelZone } from "../levels/level-types.js";
-import type { MonitoringConfig } from "./monitoring-config.js";
+import {
+  deriveZoneTacticalRead,
+  resolveZoneTacticalBias,
+} from "../levels/zone-tactical-read.js";
+import { getSupportApproachPct, type MonitoringConfig } from "./monitoring-config.js";
 import type {
+  BarrierClutterLabel,
+  BarrierClearanceLabel,
   LivePriceUpdate,
   MonitoringAlertType,
   MonitoringEventType,
+  PathQualityLabel,
   SymbolMonitoringState,
+  ZoneExhaustionLabel,
   ZoneInteractionState,
 } from "./monitoring-types.js";
 import { buildSymbolContext } from "./symbol-state.js";
@@ -27,6 +35,301 @@ function timeframeImportance(zone: FinalLevelZone): number {
 
 function freshnessImportance(zone: FinalLevelZone): number {
   return zone.freshness === "fresh" ? 1 : zone.freshness === "aging" ? 0.72 : 0.45;
+}
+
+export function deriveBarrierClearanceLabel(
+  distancePct: number | null,
+  config: MonitoringConfig,
+): BarrierClearanceLabel | undefined {
+  if (distancePct === null || !Number.isFinite(distancePct)) {
+    return undefined;
+  }
+
+  if (distancePct <= config.tightClearancePct) {
+    return "tight";
+  }
+
+  if (distancePct <= config.limitedClearancePct) {
+    return "limited";
+  }
+
+  return "open";
+}
+
+function barrierSideForEvent(
+  eventType: MonitoringEventType,
+  zone: FinalLevelZone,
+  bias: SymbolMonitoringState["bias"],
+): "support" | "resistance" {
+  if (
+    eventType === "breakout" ||
+    eventType === "reclaim" ||
+    eventType === "fake_breakdown"
+  ) {
+    return "resistance";
+  }
+
+  if (
+    eventType === "breakdown" ||
+    eventType === "fake_breakout" ||
+    eventType === "rejection"
+  ) {
+    return "support";
+  }
+
+  if (eventType === "level_touch" || eventType === "compression") {
+    return zone.kind === "support" ? "resistance" : "support";
+  }
+
+  return bias === "bearish" ? "support" : "resistance";
+}
+
+function relevantBarriers(params: {
+  eventType: MonitoringEventType;
+  zone: FinalLevelZone;
+  symbolState: SymbolMonitoringState;
+  triggerPrice: number;
+}): Array<{
+  kind: "support" | "resistance";
+  zone: FinalLevelZone;
+  level: number;
+  distancePct: number;
+}> {
+  const { eventType, zone, symbolState, triggerPrice } = params;
+  if (!Number.isFinite(triggerPrice) || triggerPrice <= 0) {
+    return [];
+  }
+
+  const barrierKind = barrierSideForEvent(eventType, zone, symbolState.bias ?? "neutral");
+  const candidateZones =
+    barrierKind === "resistance"
+      ? symbolState.resistanceZones
+      : symbolState.supportZones;
+  const candidates = candidateZones
+    .filter((candidate) => candidate.id !== zone.id)
+    .filter((candidate) =>
+      barrierKind === "resistance"
+        ? candidate.representativePrice > triggerPrice
+        : candidate.representativePrice < triggerPrice,
+    )
+    .sort((left, right) =>
+      barrierKind === "resistance"
+        ? left.representativePrice - right.representativePrice
+        : right.representativePrice - left.representativePrice,
+    )
+    .map((candidate) => ({
+      kind: barrierKind,
+      zone: candidate,
+      level: candidate.representativePrice,
+      distancePct:
+        Math.abs(candidate.representativePrice - triggerPrice) /
+        Math.max(triggerPrice, 0.0001),
+    }));
+
+  return candidates;
+}
+
+export function derivePathQuality(params: {
+  eventType: MonitoringEventType;
+  zone: FinalLevelZone;
+  symbolState: SymbolMonitoringState;
+  triggerPrice: number;
+  config: MonitoringConfig;
+}): {
+  label: PathQualityLabel;
+  barrierCount: number;
+  constraintScore: number;
+  pathWindowDistancePct: number;
+} | null {
+  const barriers = relevantBarriers(params);
+  if (barriers.length === 0) {
+    return null;
+  }
+
+  const pathWindowPct = Math.max(params.config.limitedClearancePct * 3, 0.1);
+  const pathBarriers = barriers
+    .filter((barrier) => barrier.distancePct <= pathWindowPct)
+    .slice(0, 5);
+  const barrierCount = pathBarriers.length;
+
+  if (barrierCount === 0) {
+    return null;
+  }
+
+  const strengthWeight = (zone: FinalLevelZone): number => {
+    switch (zone.strengthLabel) {
+      case "major":
+        return 1.35;
+      case "strong":
+        return 1.2;
+      case "moderate":
+        return 1;
+      default:
+        return 0.8;
+    }
+  };
+
+  const weightedDensity =
+    pathBarriers.reduce((sum, barrier) => {
+      const proximityWeight = Math.max(0, 1 - barrier.distancePct / pathWindowPct);
+      return sum + proximityWeight * strengthWeight(barrier.zone);
+    }, 0) / Math.max(barrierCount, 1);
+
+  if (barrierCount <= 1) {
+    return {
+      label: "clean",
+      barrierCount,
+      constraintScore: clamp(weightedDensity * 0.4),
+      pathWindowDistancePct: pathBarriers[0]!.distancePct,
+    };
+  }
+
+  const gaps = pathBarriers
+    .slice(1)
+    .map((barrier, index) => barrier.distancePct - pathBarriers[index]!.distancePct);
+  const averageGap =
+    gaps.length === 0
+      ? pathBarriers[0]!.distancePct
+      : gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+  const compressionFactor = clamp(
+    1 - averageGap / Math.max(params.config.limitedClearancePct * 1.5, 0.03),
+  );
+  const barrierFactor = clamp((barrierCount - 1) / 4);
+  const constraintScore = clamp(
+    weightedDensity * 0.45 + compressionFactor * 0.3 + barrierFactor * 0.25,
+  );
+  const pathWindowDistancePct = pathBarriers[pathBarriers.length - 1]!.distancePct;
+
+  if (
+    constraintScore >= 0.72 ||
+    (barrierCount >= 4 && averageGap <= Math.max(params.config.limitedClearancePct, 0.025)) ||
+    (barrierCount >= 3 && averageGap <= Math.max(params.config.tightClearancePct, 0.015))
+  ) {
+    return {
+      label: "choppy",
+      barrierCount,
+      constraintScore,
+      pathWindowDistancePct,
+    };
+  }
+
+  if (
+    constraintScore >= 0.4 ||
+    barrierCount >= 3 ||
+    (barrierCount >= 2 && averageGap <= Math.max(params.config.limitedClearancePct, 0.03))
+  ) {
+    return {
+      label: "layered",
+      barrierCount,
+      constraintScore,
+      pathWindowDistancePct,
+    };
+  }
+
+  return {
+    label: "clean",
+    barrierCount,
+    constraintScore,
+    pathWindowDistancePct,
+  };
+}
+
+export function deriveZoneExhaustion(params: {
+  zone: FinalLevelZone;
+  zoneFreshness: FinalLevelZone["freshness"];
+  tacticalRead: ReturnType<typeof deriveZoneTacticalRead>;
+}): ZoneExhaustionLabel {
+  const { zone, zoneFreshness, tacticalRead } = params;
+  const touchStress = clamp((zone.touchCount - 1) / 7);
+  const weakReaction = clamp(
+    ((0.5 - Math.min(zone.followThroughScore, 0.5)) / 0.5) * 0.5 +
+      ((0.5 - Math.min(zone.reactionQualityScore, 0.5)) / 0.5) * 0.5,
+  );
+  const freshnessPenalty = zoneFreshness === "stale" ? 0.28 : zoneFreshness === "aging" ? 0.12 : 0;
+  const tacticalPenalty = tacticalRead === "tired" ? 0.24 : tacticalRead === "balanced" ? 0.08 : 0;
+  const durabilityOffset =
+    zone.strengthLabel === "major"
+      ? -0.08
+      : zone.strengthLabel === "strong"
+        ? -0.04
+        : 0;
+  const exhaustionScore = clamp(
+    touchStress * 0.45 +
+      weakReaction * 0.22 +
+      freshnessPenalty +
+      tacticalPenalty +
+      durabilityOffset,
+  );
+
+  if (exhaustionScore >= 0.82 || (zone.touchCount >= 8 && tacticalRead === "tired")) {
+    return "spent";
+  }
+
+  if (
+    exhaustionScore >= 0.52 ||
+    zone.touchCount >= 6 ||
+    (zone.touchCount >= 5 && tacticalRead === "tired")
+  ) {
+    return "worn";
+  }
+
+  if (exhaustionScore >= 0.24 || zone.touchCount >= 3) {
+    return "tested";
+  }
+
+  return "fresh";
+}
+
+export function findNearestRelevantBarrier(params: {
+  eventType: MonitoringEventType;
+  zone: FinalLevelZone;
+  symbolState: SymbolMonitoringState;
+  triggerPrice: number;
+}): {
+  kind: "support" | "resistance";
+  zone: FinalLevelZone;
+  level: number;
+  distancePct: number;
+} | null {
+  return relevantBarriers(params)[0] ?? null;
+}
+
+export function deriveBarrierClutter(params: {
+  eventType: MonitoringEventType;
+  zone: FinalLevelZone;
+  symbolState: SymbolMonitoringState;
+  triggerPrice: number;
+  config: MonitoringConfig;
+}): {
+  label: BarrierClutterLabel;
+  nearbyBarrierCount: number;
+} | null {
+  const barriers = relevantBarriers(params);
+  if (barriers.length === 0) {
+    return null;
+  }
+
+  const clusteredDistancePct = Math.max(params.config.limitedClearancePct * 2, 0.06);
+  const nearbyBarrierCount = barriers.filter((barrier) => barrier.distancePct <= clusteredDistancePct).length;
+
+  if (nearbyBarrierCount >= 3) {
+    return {
+      label: "dense",
+      nearbyBarrierCount,
+    };
+  }
+
+  if (nearbyBarrierCount >= 2) {
+    return {
+      label: "stacked",
+      nearbyBarrierCount,
+    };
+  }
+
+  return {
+    label: "clear",
+    nearbyBarrierCount: 1,
+  };
 }
 
 function standardizedTypeForEvent(eventType: MonitoringEventType): MonitoringAlertType {
@@ -83,9 +386,16 @@ export function shouldFilterMonitoringEvent(params: {
     return true;
   }
 
+  const supportApproachTouch =
+    eventType === "level_touch" &&
+    zone.kind === "support" &&
+    update.lastPrice > zone.zoneHigh &&
+    currentState.nearestDistancePct <= getSupportApproachPct(config);
+
   if (
     (eventType === "compression" || eventType === "level_touch") &&
-    currentState.nearestDistancePct > config.nearZonePct
+    currentState.nearestDistancePct > config.nearZonePct &&
+    !supportApproachTouch
   ) {
     return true;
   }
@@ -152,6 +462,44 @@ export function scoreMonitoringEvent(params: {
   const episodeScore = clamp(
     currentState.updatesNearZone / Math.max(config.compressionMinUpdates, 1),
   );
+  const nearestBarrier = findNearestRelevantBarrier({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+  });
+  const barrierClutter = deriveBarrierClutter({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+    config,
+  });
+  const pathQuality = derivePathQuality({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+    config,
+  });
+  const clearanceLabel = deriveBarrierClearanceLabel(
+    nearestBarrier?.distancePct ?? null,
+    config,
+  );
+  const tacticalRead = deriveZoneTacticalRead(
+    zone,
+    zoneContext?.zoneFreshness ?? zone.freshness,
+  );
+  const exhaustionLabel = deriveZoneExhaustion({
+    zone,
+    zoneFreshness: zoneContext?.zoneFreshness ?? zone.freshness,
+    tacticalRead,
+  });
+  const tacticalBias = resolveZoneTacticalBias({
+    zoneKind: zone.kind,
+    eventType,
+    tacticalRead,
+  });
   const directionAlignment =
     (eventType === "breakout" || eventType === "reclaim" || eventType === "fake_breakdown") &&
     context.bias === "bullish"
@@ -231,6 +579,54 @@ export function scoreMonitoringEvent(params: {
     (eventType === "level_touch" || eventType === "compression")
       ? 0.04
       : 0;
+  const clearancePenalty =
+    clearanceLabel === "tight"
+      ? 0.08
+      : clearanceLabel === "limited"
+        ? 0.03
+        : 0;
+  const clearanceBonus = clearanceLabel === "open" ? 0.03 : 0;
+  const clutterPenalty =
+    barrierClutter?.label === "dense"
+      ? 0.07
+      : barrierClutter?.label === "stacked"
+        ? 0.03
+        : 0;
+  const clutterTailwind =
+    barrierClutter?.label === "dense" &&
+    ((zone.kind === "resistance" && eventType === "breakout") ||
+      (zone.kind === "support" && eventType === "breakdown"))
+      ? 0.02
+      : 0;
+  const pathQualityPenalty =
+    pathQuality?.label === "choppy"
+      ? 0.08
+      : pathQuality?.label === "layered"
+        ? 0.04
+        : 0;
+  const pathQualityBonus = pathQuality?.label === "clean" ? 0.02 : 0;
+  const tacticalScale =
+    eventType === "level_touch" || eventType === "compression" ? 0.75 : 1;
+  const tacticalTailwindBonus = tacticalBias === "tailwind" ? 0.02 * tacticalScale : 0;
+  const tacticalHeadwindPenalty = tacticalBias === "headwind" ? 0.03 * tacticalScale : 0;
+  const exhaustionPenalty =
+    (exhaustionLabel === "worn" || exhaustionLabel === "spent") &&
+    ((zone.kind === "support" &&
+      (eventType === "level_touch" || eventType === "reclaim" || eventType === "fake_breakdown")) ||
+      (zone.kind === "resistance" &&
+        (eventType === "level_touch" || eventType === "rejection" || eventType === "fake_breakout")))
+      ? exhaustionLabel === "spent"
+        ? 0.08
+        : 0.05
+      : 0;
+  const exhaustionTailwind =
+    (exhaustionLabel === "worn" || exhaustionLabel === "spent") &&
+    ((zone.kind === "resistance" && eventType === "breakout") ||
+      (zone.kind === "support" && eventType === "breakdown"))
+      ? exhaustionLabel === "spent"
+        ? 0.05
+        : 0.03
+      : 0;
 
   const strength = clamp(
     proximityScore * 0.32 +
@@ -248,6 +644,16 @@ export function scoreMonitoringEvent(params: {
       outermostContext +
       refreshedContext +
       extensionContext -
+      clearancePenalty +
+      clearanceBonus -
+      clutterPenalty +
+      clutterTailwind -
+      pathQualityPenalty +
+      pathQualityBonus -
+      tacticalHeadwindPenalty +
+      tacticalTailwindBonus -
+      exhaustionPenalty +
+      exhaustionTailwind -
       dataQualityPenalty -
       staleContextPenalty -
       weakZonePenalty,
@@ -267,6 +673,16 @@ export function scoreMonitoringEvent(params: {
       outermostContext * 0.9 +
       refreshedContext * 0.8 +
       extensionContext * 0.8 -
+      clearancePenalty * 0.7 +
+      clearanceBonus * 0.7 -
+      clutterPenalty * 0.85 +
+      clutterTailwind * 0.75 -
+      pathQualityPenalty * 0.8 +
+      pathQualityBonus * 0.7 -
+      tacticalHeadwindPenalty * 0.85 +
+      tacticalTailwindBonus * 0.75 -
+      exhaustionPenalty * 0.9 +
+      exhaustionTailwind * 0.75 -
       dataQualityPenalty * 0.5 -
       staleContextPenalty * 0.75 -
       weakZonePenalty * 0.6,

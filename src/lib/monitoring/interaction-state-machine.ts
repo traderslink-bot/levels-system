@@ -2,7 +2,7 @@
 // Stateful interaction updater for support and resistance zones.
 
 import type { FinalLevelZone } from "../levels/level-types.js";
-import type { MonitoringConfig } from "./monitoring-config.js";
+import { getSupportApproachPct, type MonitoringConfig } from "./monitoring-config.js";
 import type { LivePriceUpdate, ZoneInteractionState } from "./monitoring-types.js";
 import { distancePctFromZone, isAboveZone, isBelowZone, isInsideZone } from "./zone-utils.js";
 
@@ -33,24 +33,28 @@ export function updateInteractionState(params: {
   const inside = isInsideZone(update.lastPrice, zone);
   const above = isAboveZone(update.lastPrice, zone);
   const below = isBelowZone(update.lastPrice, zone);
+  const supportApproach =
+    zone.kind === "support" &&
+    above &&
+    distancePct <= getSupportApproachPct(config);
 
   let phase = previousState.phase;
   let firstTouchedAt = previousState.firstTouchedAt;
   let breakAttemptAt = previousState.breakAttemptAt;
   let lastBreakPrice = previousState.lastBreakPrice;
-  let updatesNearZone = isNear ? previousState.updatesNearZone + 1 : 0;
+  let updatesNearZone = (isNear || supportApproach) ? previousState.updatesNearZone + 1 : 0;
 
-  if (isNear && !firstTouchedAt) {
+  if ((isNear || supportApproach) && !firstTouchedAt) {
     firstTouchedAt = update.timestamp;
   }
 
-  if (!isNear && !inside) {
+  if (!isNear && !supportApproach && !inside) {
     if (phase !== "confirmed" && phase !== "failed") {
       phase = "idle";
     }
   } else if (inside) {
     phase = "touching";
-  } else if (isNear) {
+  } else if (isNear || supportApproach) {
     phase = "testing";
   }
 
@@ -79,7 +83,7 @@ export function updateInteractionState(params: {
     phase,
     nearestDistancePct: distancePct,
     firstTouchedAt,
-    lastTouchedAt: isNear || inside ? update.timestamp : previousState.lastTouchedAt,
+    lastTouchedAt: isNear || supportApproach || inside ? update.timestamp : previousState.lastTouchedAt,
     breakAttemptAt,
     lastBreakPrice,
     updatesNearZone,

@@ -226,8 +226,8 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
       type: "alert",
       title: payload.title,
       body: payload.body,
-      symbol: payload.event.symbol,
-      timestamp: payload.event.timestamp,
+      symbol: payload.symbol ?? payload.event?.symbol ?? "UNKNOWN",
+      timestamp: payload.timestamp ?? payload.event?.timestamp ?? Date.now(),
     });
     this.saveState(state);
   }
@@ -242,7 +242,7 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
 
     thread.messages.push({
       type: "level_snapshot",
-      title: `LEVEL SNAPSHOT: ${payload.symbol}`,
+      title: `${payload.symbol} support and resistance`,
       body: formatLevelSnapshotMessage(payload),
       symbol: payload.symbol,
       timestamp: payload.timestamp,
@@ -260,7 +260,7 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
 
     thread.messages.push({
       type: "level_extension",
-      title: `NEXT LEVELS: ${payload.symbol}`,
+      title: `${payload.symbol} next levels to watch`,
       body: formatLevelExtensionMessage(payload),
       symbol: payload.symbol,
       timestamp: payload.timestamp,

@@ -57,9 +57,9 @@ describe("opportunity evaluator", () => {
     const start = 2_000_000;
 
     evaluator.track(makeOpportunity({ timestamp: start, type: "breakout" }), 100);
-    assert.equal(evaluator.updatePrice("AAPL", 99.8, start + 30_000).length, 0);
+    assert.equal(evaluator.updatePrice("AAPL", 99.8, start + 30_000).completed.length, 0);
 
-    const completed = evaluator.updatePrice("AAPL", 100.4, start + 60_000);
+    const completed = evaluator.updatePrice("AAPL", 100.4, start + 60_000).completed;
     const summary = evaluator.getSummary();
 
     assert.equal(completed.length, 1);
@@ -87,5 +87,22 @@ describe("opportunity evaluator", () => {
     assert.ok(summary.rollingExpectancy.expectancy < 0);
     assert.equal(summary.performanceDrift.declining, true);
     assert.ok(summary.performanceDrift.delta < 0);
+  });
+
+  it("emits live progress updates before final evaluation", () => {
+    const evaluator = new OpportunityEvaluator(10 * 60 * 1000, false, 10, 0.3, 1.5, 5);
+    const start = 4_000_000;
+
+    evaluator.track(makeOpportunity({ timestamp: start, type: "breakout" }), 100);
+
+    const first = evaluator.updatePrice("AAPL", 100.35, start + 70_000);
+    const second = evaluator.updatePrice("AAPL", 100.12, start + 220_000);
+
+    assert.equal(first.completed.length, 0);
+    assert.equal(first.progressUpdates.length, 1);
+    assert.equal(first.progressUpdates[0]?.progressLabel, "improving");
+    assert.equal(second.completed.length, 0);
+    assert.equal(second.progressUpdates.length, 1);
+    assert.equal(second.progressUpdates[0]?.progressLabel, "stalling");
   });
 });

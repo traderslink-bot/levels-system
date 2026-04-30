@@ -1,11 +1,36 @@
 import type { RankedOpportunity } from "./opportunity-engine.js";
 
+export type OpportunityFollowThroughLabel =
+  | "strong"
+  | "working"
+  | "stalled"
+  | "failed"
+  | "unknown";
+
+export type OpportunityProgressLabel =
+  | "improving"
+  | "stalling"
+  | "degrading";
+
+export type OpportunityProgressUpdate = {
+  symbol: string;
+  eventType: string;
+  timestamp: number;
+  entryPrice: number;
+  currentPrice: number;
+  directionalReturnPct: number | null;
+  progressLabel: OpportunityProgressLabel;
+};
+
 export type EvaluatedOpportunity = {
   symbol: string;
   timestamp: number;
+  evaluatedAt: number;
   entryPrice: number;
   outcomePrice: number;
   returnPct: number;
+  directionalReturnPct: number | null;
+  followThroughLabel: OpportunityFollowThroughLabel;
   success: boolean;
   eventType: string;
 };
@@ -59,6 +84,11 @@ type PendingOpportunity = {
   evaluateAt: number;
   peakPrice: number;
   troughPrice: number;
+  bestDirectionalReturnPct?: number | null;
+  worstDirectionalReturnPct?: number | null;
+  lastProgressLabel?: OpportunityProgressLabel;
+  lastProgressDirectionalReturnPct?: number | null;
+  lastProgressUpdatedAt?: number;
 };
 
 const DEFAULT_EVALUATION_WINDOW_MS = 15 * 60 * 1000;
@@ -98,6 +128,78 @@ function computeReturnPct(entryPrice: number, outcomePrice: number): number {
   }
 
   return ((outcomePrice - entryPrice) / entryPrice) * 100;
+}
+
+function directionalReturnPct(eventType: string, returnPct: number): number | null {
+  if (!Number.isFinite(returnPct)) {
+    return null;
+  }
+
+  if (isBullishType(eventType)) {
+    return returnPct;
+  }
+
+  if (isBearishType(eventType)) {
+    return -1 * returnPct;
+  }
+
+  return Math.abs(returnPct);
+}
+
+function deriveFollowThroughLabel(
+  eventType: string,
+  returnPct: number,
+  success: boolean,
+): OpportunityFollowThroughLabel {
+  const directional = directionalReturnPct(eventType, returnPct);
+  if (directional === null) {
+    return "unknown";
+  }
+
+  if (success && directional >= 1.0) {
+    return "strong";
+  }
+
+  if (success && directional >= 0.3) {
+    return "working";
+  }
+
+  if (directional >= -0.2) {
+    return "stalled";
+  }
+
+  return "failed";
+}
+
+function deriveProgressLabel(
+  eventType: string,
+  returnPct: number,
+  bestDirectionalReturnPct?: number | null,
+): OpportunityProgressLabel {
+  const directional = directionalReturnPct(eventType, returnPct);
+  if (directional === null) {
+    return "stalling";
+  }
+
+  const priorBest = bestDirectionalReturnPct ?? directional;
+  const retraceFromBest = priorBest - directional;
+
+  if (directional <= -0.25 || (priorBest >= 0.35 && retraceFromBest >= 0.75)) {
+    return "degrading";
+  }
+
+  if (
+    (priorBest >= 0.35 && retraceFromBest >= 0.35) ||
+    (directional > -0.1 && directional < 0.2)
+  ) {
+    return "stalling";
+  }
+
+  if (directional >= 0.3) {
+    return "improving";
+  }
+
+  return "stalling";
 }
 
 function determineSuccessWithThreshold(
@@ -282,12 +384,21 @@ export class OpportunityEvaluator {
       evaluateAt: opportunity.timestamp + this.evaluationWindowMs,
       peakPrice: normalizedEntry,
       troughPrice: normalizedEntry,
+      bestDirectionalReturnPct: null,
+      worstDirectionalReturnPct: null,
+      lastProgressLabel: undefined,
+      lastProgressDirectionalReturnPct: null,
+      lastProgressUpdatedAt: undefined,
     });
   }
 
-  updatePrice(symbol: string, price: number, timestamp: number): EvaluatedOpportunity[] {
+  updatePrice(symbol: string, price: number, timestamp: number): {
+    completed: EvaluatedOpportunity[];
+    progressUpdates: OpportunityProgressUpdate[];
+  } {
     const normalizedPrice = round(price);
     const completed: EvaluatedOpportunity[] = [];
+    const progressUpdates: OpportunityProgressUpdate[] = [];
 
     for (const [id, pending] of this.pending) {
       if (pending.opportunity.symbol !== symbol) {
@@ -298,6 +409,50 @@ export class OpportunityEvaluator {
       pending.troughPrice = Math.min(pending.troughPrice, normalizedPrice);
 
       const returnPct = round(computeReturnPct(pending.entryPrice, normalizedPrice));
+      const resolvedEventType = resolveOpportunityEventType(pending.opportunity);
+      const directional = directionalReturnPct(resolvedEventType, returnPct);
+      const priorBestDirectional = pending.bestDirectionalReturnPct;
+      const progressLabel = deriveProgressLabel(
+        resolvedEventType,
+        returnPct,
+        priorBestDirectional,
+      );
+      if (directional !== null) {
+        pending.bestDirectionalReturnPct =
+          pending.bestDirectionalReturnPct === null || pending.bestDirectionalReturnPct === undefined
+            ? directional
+            : Math.max(pending.bestDirectionalReturnPct, directional);
+        pending.worstDirectionalReturnPct =
+          pending.worstDirectionalReturnPct === null || pending.worstDirectionalReturnPct === undefined
+            ? directional
+            : Math.min(pending.worstDirectionalReturnPct, directional);
+      }
+      const shouldEmitProgress =
+        (pending.lastProgressLabel === undefined ||
+          progressLabel !== pending.lastProgressLabel ||
+          (directional !== null &&
+            pending.lastProgressDirectionalReturnPct != null &&
+            Math.abs(directional - pending.lastProgressDirectionalReturnPct) >=
+              (progressLabel === "improving" ? 0.55 : progressLabel === "stalling" ? 0.45 : 0.35))) &&
+        (pending.lastProgressUpdatedAt === undefined ||
+          timestamp - pending.lastProgressUpdatedAt >=
+            (progressLabel === "stalling" ? 2 * 60 * 1000 : 60 * 1000));
+
+      if (shouldEmitProgress) {
+        progressUpdates.push({
+          symbol: pending.opportunity.symbol,
+          eventType: resolvedEventType,
+          timestamp,
+          entryPrice: pending.entryPrice,
+          currentPrice: normalizedPrice,
+          directionalReturnPct: directional,
+          progressLabel,
+        });
+        pending.lastProgressLabel = progressLabel;
+        pending.lastProgressDirectionalReturnPct = directional;
+        pending.lastProgressUpdatedAt = timestamp;
+      }
+
       const reachedMaxWindow = timestamp >= pending.evaluateAt;
       const reachedEarlyExit = shouldExitEarly(
         pending.opportunity,
@@ -309,18 +464,26 @@ export class OpportunityEvaluator {
         continue;
       }
 
+      const success = determineSuccessWithThreshold(
+        pending.opportunity,
+        returnPct,
+        this.successThresholdPct,
+      );
       const evaluatedOpportunity: EvaluatedOpportunity = {
         symbol: pending.opportunity.symbol,
         timestamp: pending.opportunity.timestamp,
+        evaluatedAt: timestamp,
         entryPrice: pending.entryPrice,
         outcomePrice: normalizedPrice,
         returnPct,
-        success: determineSuccessWithThreshold(
-          pending.opportunity,
+        directionalReturnPct: directionalReturnPct(resolvedEventType, returnPct),
+        followThroughLabel: deriveFollowThroughLabel(
+          resolvedEventType,
           returnPct,
-          this.successThresholdPct,
+          success,
         ),
-        eventType: resolveOpportunityEventType(pending.opportunity),
+        success,
+        eventType: resolvedEventType,
       };
 
       this.evaluated.push(evaluatedOpportunity);
@@ -338,7 +501,10 @@ export class OpportunityEvaluator {
       this.logSummary();
     }
 
-    return completed;
+    return {
+      completed,
+      progressUpdates,
+    };
   }
 
   getPendingCount(): number {

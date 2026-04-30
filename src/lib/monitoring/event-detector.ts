@@ -2,26 +2,145 @@
 // Detect monitoring events from state transitions.
 
 import type { FinalLevelZone } from "../levels/level-types.js";
-import type { MonitoringConfig } from "./monitoring-config.js";
+import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
+import { getSupportApproachPct, type MonitoringConfig } from "./monitoring-config.js";
 import type {
   LivePriceUpdate,
+  MonitoringDiagnosticEventType,
   MonitoringEvent,
   MonitoringEventContext,
+  MonitoringEventDiagnostic,
+  MonitoringEventDiagnosticListener,
   SymbolMonitoringState,
   ZoneInteractionState,
 } from "./monitoring-types.js";
 import {
+  deriveBarrierClutter,
   buildInteractionEpisodeId,
+  deriveBarrierClearanceLabel,
+  derivePathQuality,
+  deriveZoneExhaustion,
+  findNearestRelevantBarrier,
   scoreMonitoringEvent,
   shouldFilterMonitoringEvent,
 } from "./monitoring-event-scoring.js";
 import { isAboveZone, isBelowZone, isInsideZone } from "./zone-utils.js";
 
+function buildBreakAttemptAgeMs(
+  state: ZoneInteractionState,
+  timestamp: number,
+): number | null {
+  if (state.breakAttemptAt === undefined) {
+    return null;
+  }
+
+  return Math.max(0, timestamp - state.breakAttemptAt);
+}
+
+function emitMonitoringEventDiagnostic(
+  listener: MonitoringEventDiagnosticListener | undefined,
+  params: {
+    eventType: MonitoringDiagnosticEventType;
+    zone: FinalLevelZone;
+    update: LivePriceUpdate;
+    previousPrice: number | undefined;
+    previousState: ZoneInteractionState;
+    currentState: ZoneInteractionState;
+    decision: "emitted" | "suppressed";
+    reasons: string[];
+    metrics: Record<string, number | boolean | null>;
+  },
+): void {
+  if (!listener) {
+    return;
+  }
+
+  const diagnostic: MonitoringEventDiagnostic = {
+    type: "monitoring_event_diagnostic",
+    symbol: params.zone.symbol,
+    zoneId: params.zone.id,
+    zoneKind: params.zone.kind,
+    eventType: params.eventType,
+    decision: params.decision,
+    reasons: params.reasons,
+    timestamp: params.update.timestamp,
+    triggerPrice: params.update.lastPrice,
+    previousPrice: params.previousPrice ?? null,
+    phaseBefore: params.previousState.phase,
+    phaseAfter: params.currentState.phase,
+    updatesNearZone: params.currentState.updatesNearZone,
+    nearestDistancePct: params.currentState.nearestDistancePct,
+    breakAttemptAgeMs: buildBreakAttemptAgeMs(
+      params.previousState,
+      params.update.timestamp,
+    ),
+    metrics: params.metrics,
+  };
+
+  listener(diagnostic);
+}
+
+function hasInteractionBackfill(state: ZoneInteractionState): boolean {
+  return (
+    state.phase === "touching" ||
+    state.phase === "testing" ||
+    state.phase === "breaking" ||
+    state.updatesNearZone >= 2
+  );
+}
+
+function hasRecentBreakAttempt(
+  state: ZoneInteractionState,
+  timestamp: number,
+  fakeoutWindowMs: number,
+): boolean {
+  return (
+    state.breakAttemptAt !== undefined &&
+    timestamp - state.breakAttemptAt <= fakeoutWindowMs
+  );
+}
+
 function buildMonitoringEventContext(
   zone: FinalLevelZone,
   symbolState: SymbolMonitoringState,
+  update: LivePriceUpdate,
+  eventType: MonitoringEvent["eventType"],
+  config: MonitoringConfig,
 ): MonitoringEventContext {
   const zoneContext = symbolState.zoneContexts[zone.id];
+  const nearestBarrier = findNearestRelevantBarrier({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+  });
+  const barrierClutter = deriveBarrierClutter({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+    config,
+  });
+  const pathQuality = derivePathQuality({
+    eventType,
+    zone,
+    symbolState,
+    triggerPrice: update.lastPrice,
+    config,
+  });
+  const clearanceLabel = deriveBarrierClearanceLabel(
+    nearestBarrier?.distancePct ?? null,
+    config,
+  );
+  const tacticalRead = deriveZoneTacticalRead(
+    zone,
+    zoneContext?.zoneFreshness ?? zone.freshness,
+  );
+  const exhaustionLabel = deriveZoneExhaustion({
+    zone,
+    zoneFreshness: zoneContext?.zoneFreshness ?? zone.freshness,
+    tacticalRead,
+  });
 
   if (zoneContext) {
     return {
@@ -37,6 +156,17 @@ function buildMonitoringEventContext(
       ladderPosition: zoneContext.ladderPosition,
       zoneStrengthLabel: zoneContext.zoneStrengthLabel,
       sourceGeneratedAt: zoneContext.sourceGeneratedAt,
+      nextBarrierKind: nearestBarrier?.kind,
+      nextBarrierLevel: nearestBarrier?.level,
+      nextBarrierDistancePct: nearestBarrier?.distancePct,
+      nextBarrierStrengthLabel: nearestBarrier?.zone.strengthLabel,
+      clearanceLabel,
+      barrierClutterLabel: barrierClutter?.label,
+      nearbyBarrierCount: barrierClutter?.nearbyBarrierCount,
+      pathQualityLabel: pathQuality?.label,
+      pathBarrierCount: pathQuality?.barrierCount,
+      tacticalRead,
+      exhaustionLabel,
     };
   }
 
@@ -53,6 +183,19 @@ function buildMonitoringEventContext(
     ladderPosition: zone.isExtension ? "extension" as const : "inner" as const,
     zoneStrengthLabel: zone.strengthLabel,
     sourceGeneratedAt: symbolState.levelGeneratedAt,
+    nextBarrierKind: nearestBarrier?.kind,
+    nextBarrierLevel: nearestBarrier?.level,
+    nextBarrierDistancePct: nearestBarrier?.distancePct,
+    nextBarrierStrengthLabel: nearestBarrier?.zone.strengthLabel,
+    clearanceLabel,
+    barrierClutterLabel: barrierClutter?.label,
+    nearbyBarrierCount: barrierClutter?.nearbyBarrierCount,
+    pathQualityLabel: pathQuality?.label,
+    pathBarrierCount: pathQuality?.barrierCount,
+    pathConstraintScore: pathQuality?.constraintScore,
+    pathWindowDistancePct: pathQuality?.pathWindowDistancePct,
+    tacticalRead,
+    exhaustionLabel,
   };
 }
 
@@ -92,7 +235,7 @@ function buildEvent(
     priority: signal.priority,
     bias: signal.bias ?? "neutral",
     pressureScore: signal.pressureScore,
-    eventContext: buildMonitoringEventContext(zone, symbolState),
+    eventContext: buildMonitoringEventContext(zone, symbolState, update, eventType, config),
     timestamp: update.timestamp,
     notes,
   };
@@ -111,7 +254,7 @@ function pushEventIfRelevant(
     config: MonitoringConfig;
     notes: string[];
   },
-): void {
+): boolean {
   if (
     shouldFilterMonitoringEvent({
       eventType: params.eventType,
@@ -123,7 +266,7 @@ function pushEventIfRelevant(
       symbolState: params.symbolState,
     })
   ) {
-    return;
+    return false;
   }
 
   events.push(
@@ -139,6 +282,8 @@ function pushEventIfRelevant(
       params.notes,
     ),
   );
+
+  return true;
 }
 
 export function detectMonitoringEvents(params: {
@@ -149,8 +294,18 @@ export function detectMonitoringEvents(params: {
   previousPrice?: number;
   symbolState: SymbolMonitoringState;
   config: MonitoringConfig;
+  diagnosticListener?: MonitoringEventDiagnosticListener;
 }): MonitoringEvent[] {
-  const { previousState, currentState, zone, update, previousPrice, symbolState, config } = params;
+  const {
+    previousState,
+    currentState,
+    zone,
+    update,
+    previousPrice,
+    symbolState,
+    config,
+    diagnosticListener,
+  } = params;
   const events: MonitoringEvent[] = [];
   const inside = isInsideZone(update.lastPrice, zone);
   const above = isAboveZone(update.lastPrice, zone);
@@ -182,14 +337,38 @@ export function detectMonitoringEvents(params: {
       previousPrice !== undefined
         ? !isAboveZone(previousPrice, zone)
         : breakoutDistancePct <= config.breakoutConfirmPct * 1.5;
+    const forcefulBreakout = breakoutDistancePct >= config.breakoutConfirmPct * 2;
+    const breakoutHasBackfill = hasInteractionBackfill(previousState);
     const confirmedBreakout =
       above &&
       freshBreakoutCross &&
       breakoutDistancePct >= config.breakoutConfirmPct &&
-      breakoutDistancePct <= config.maxConfirmDistancePct;
+      breakoutDistancePct <= config.maxConfirmDistancePct &&
+      (breakoutHasBackfill || forcefulBreakout);
 
+    const breakoutReasons: string[] = [];
+    if (!above) {
+      breakoutReasons.push("price_not_above_zone");
+    }
+    if (!freshBreakoutCross) {
+      breakoutReasons.push("not_a_fresh_breakout_cross");
+    }
+    if (breakoutDistancePct < config.breakoutConfirmPct) {
+      breakoutReasons.push("breakout_distance_below_confirm_threshold");
+    }
+    if (breakoutDistancePct > config.maxConfirmDistancePct) {
+      breakoutReasons.push("breakout_distance_above_max_confirm_threshold");
+    }
+    if (!breakoutHasBackfill && !forcefulBreakout) {
+      breakoutReasons.push("missing_prior_interaction_backfill");
+    }
+    if (previousState.phase === "confirmed") {
+      breakoutReasons.push("zone_already_confirmed");
+    }
+
+    let breakoutEmitted = false;
     if (previousState.phase !== "confirmed" && confirmedBreakout) {
-      pushEventIfRelevant(events, {
+      breakoutEmitted = pushEventIfRelevant(events, {
         symbol: zone.symbol,
         eventType: "breakout",
         zone,
@@ -203,16 +382,53 @@ export function detectMonitoringEvents(params: {
         ],
       });
     }
+    if (!breakoutEmitted && previousState.phase !== "confirmed" && confirmedBreakout) {
+      breakoutReasons.push("filtered_by_event_relevance_rules");
+    }
+    emitMonitoringEventDiagnostic(diagnosticListener, {
+      eventType: "breakout",
+      zone,
+      update,
+      previousPrice,
+      previousState,
+      currentState,
+      decision: breakoutEmitted ? "emitted" : "suppressed",
+      reasons: breakoutEmitted ? ["confirmed_breakout_emitted"] : breakoutReasons,
+      metrics: {
+        inside,
+        above,
+        breakoutDistancePct,
+        freshBreakoutCross,
+        forcefulBreakout,
+        hasInteractionBackfill: breakoutHasBackfill,
+      },
+    });
 
-    const fakeBreakout =
+    const hasRecentBreakAttempt =
       previousState.breakAttemptAt !== undefined &&
-      update.timestamp - previousState.breakAttemptAt <= config.fakeoutWindowMs &&
-      (inside ||
-        (zone.zoneHigh - update.lastPrice) / Math.max(zone.zoneHigh, 0.0001) >=
-          config.failureReturnPct);
+      update.timestamp - previousState.breakAttemptAt <= config.fakeoutWindowMs;
+    const returnedInsideResistance = inside;
+    const failureReturnFromResistance =
+      (zone.zoneHigh - update.lastPrice) / Math.max(zone.zoneHigh, 0.0001);
+    const fakeBreakout =
+      hasRecentBreakAttempt &&
+      (returnedInsideResistance ||
+        failureReturnFromResistance >= config.failureReturnPct);
 
+    const fakeBreakoutReasons: string[] = [];
+    if (!hasRecentBreakAttempt) {
+      fakeBreakoutReasons.push("no_recent_break_attempt");
+    }
+    if (!returnedInsideResistance && failureReturnFromResistance < config.failureReturnPct) {
+      fakeBreakoutReasons.push("did_not_fail_back_into_resistance");
+    }
+    if (previousState.phase !== "breaking") {
+      fakeBreakoutReasons.push("zone_not_in_breaking_phase");
+    }
+
+    let fakeBreakoutEmitted = false;
     if (previousState.phase === "breaking" && fakeBreakout) {
-      pushEventIfRelevant(events, {
+      fakeBreakoutEmitted = pushEventIfRelevant(events, {
         symbol: zone.symbol,
         eventType: "fake_breakout",
         zone,
@@ -226,6 +442,25 @@ export function detectMonitoringEvents(params: {
         ],
       });
     }
+    if (!fakeBreakoutEmitted && previousState.phase === "breaking" && fakeBreakout) {
+      fakeBreakoutReasons.push("filtered_by_event_relevance_rules");
+    }
+    emitMonitoringEventDiagnostic(diagnosticListener, {
+      eventType: "fake_breakout",
+      zone,
+      update,
+      previousPrice,
+      previousState,
+      currentState,
+      decision: fakeBreakoutEmitted ? "emitted" : "suppressed",
+      reasons: fakeBreakoutEmitted ? ["fake_breakout_emitted"] : fakeBreakoutReasons,
+      metrics: {
+        inside,
+        above,
+        hasRecentBreakAttempt,
+        failureReturnFromResistance,
+      },
+    });
 
     const rejection =
       previousPrice !== undefined &&
@@ -273,9 +508,13 @@ export function detectMonitoringEvents(params: {
       });
     }
   } else {
+    const supportApproach =
+      above &&
+      currentState.nearestDistancePct <= getSupportApproachPct(config);
     const levelTouch =
-      inside &&
+      (inside || supportApproach) &&
       previousState.phase !== "touching" &&
+      (!supportApproach || previousState.phase !== "testing") &&
       currentState.updatesNearZone >= 1;
 
     if (levelTouch) {
@@ -288,7 +527,11 @@ export function detectMonitoringEvents(params: {
         currentState,
         symbolState,
         config,
-        notes: ["Price touched support level and opened a new interaction episode."],
+        notes: [
+          supportApproach
+            ? "Price approached support and opened a new support reaction watch."
+            : "Price touched support level and opened a new interaction episode.",
+        ],
       });
     }
 
@@ -298,14 +541,38 @@ export function detectMonitoringEvents(params: {
       previousPrice !== undefined
         ? !isBelowZone(previousPrice, zone)
         : breakdownDistancePct <= config.breakoutConfirmPct * 1.5;
+    const forcefulBreakdown = breakdownDistancePct >= config.breakoutConfirmPct * 2;
+    const breakdownHasBackfill = hasInteractionBackfill(previousState);
     const confirmedBreakdown =
       below &&
       freshBreakdownCross &&
       breakdownDistancePct >= config.breakoutConfirmPct &&
-      breakdownDistancePct <= config.maxConfirmDistancePct;
+      breakdownDistancePct <= config.maxConfirmDistancePct &&
+      (breakdownHasBackfill || forcefulBreakdown);
 
+    const breakdownReasons: string[] = [];
+    if (!below) {
+      breakdownReasons.push("price_not_below_zone");
+    }
+    if (!freshBreakdownCross) {
+      breakdownReasons.push("not_a_fresh_breakdown_cross");
+    }
+    if (breakdownDistancePct < config.breakoutConfirmPct) {
+      breakdownReasons.push("breakdown_distance_below_confirm_threshold");
+    }
+    if (breakdownDistancePct > config.maxConfirmDistancePct) {
+      breakdownReasons.push("breakdown_distance_above_max_confirm_threshold");
+    }
+    if (!breakdownHasBackfill && !forcefulBreakdown) {
+      breakdownReasons.push("missing_prior_interaction_backfill");
+    }
+    if (previousState.phase === "confirmed") {
+      breakdownReasons.push("zone_already_confirmed");
+    }
+
+    let breakdownEmitted = false;
     if (previousState.phase !== "confirmed" && confirmedBreakdown) {
-      pushEventIfRelevant(events, {
+      breakdownEmitted = pushEventIfRelevant(events, {
         symbol: zone.symbol,
         eventType: "breakdown",
         zone,
@@ -319,16 +586,56 @@ export function detectMonitoringEvents(params: {
         ],
       });
     }
+    if (!breakdownEmitted && previousState.phase !== "confirmed" && confirmedBreakdown) {
+      breakdownReasons.push("filtered_by_event_relevance_rules");
+    }
+    emitMonitoringEventDiagnostic(diagnosticListener, {
+      eventType: "breakdown",
+      zone,
+      update,
+      previousPrice,
+      previousState,
+      currentState,
+      decision: breakdownEmitted ? "emitted" : "suppressed",
+      reasons: breakdownEmitted ? ["confirmed_breakdown_emitted"] : breakdownReasons,
+      metrics: {
+        inside,
+        below,
+        breakdownDistancePct,
+        freshBreakdownCross,
+        forcefulBreakdown,
+        hasInteractionBackfill: breakdownHasBackfill,
+      },
+    });
 
-    const fakeBreakdown =
+    const reclaimedAboveSupport = update.lastPrice > zone.zoneHigh;
+    const hasRecentSupportBreakAttempt =
       previousState.breakAttemptAt !== undefined &&
-      update.timestamp - previousState.breakAttemptAt <= config.fakeoutWindowMs &&
+      update.timestamp - previousState.breakAttemptAt <= config.fakeoutWindowMs;
+    const failureReturnFromSupport =
+      (update.lastPrice - zone.zoneLow) / Math.max(zone.zoneLow, 0.0001);
+    const fakeBreakdown =
+      hasRecentSupportBreakAttempt &&
       (inside ||
-        (update.lastPrice - zone.zoneLow) / Math.max(zone.zoneLow, 0.0001) >=
-          config.failureReturnPct);
+        (!reclaimedAboveSupport &&
+          failureReturnFromSupport >= config.failureReturnPct));
 
+    const fakeBreakdownReasons: string[] = [];
+    if (!hasRecentSupportBreakAttempt) {
+      fakeBreakdownReasons.push("no_recent_break_attempt");
+    }
+    if (!inside && reclaimedAboveSupport) {
+      fakeBreakdownReasons.push("full_reclaim_routes_to_reclaim_logic");
+    } else if (!inside && failureReturnFromSupport < config.failureReturnPct) {
+      fakeBreakdownReasons.push("did_not_recover_enough_into_support");
+    }
+    if (previousState.phase !== "breaking") {
+      fakeBreakdownReasons.push("zone_not_in_breaking_phase");
+    }
+
+    let fakeBreakdownEmitted = false;
     if (previousState.phase === "breaking" && fakeBreakdown) {
-      pushEventIfRelevant(events, {
+      fakeBreakdownEmitted = pushEventIfRelevant(events, {
         symbol: zone.symbol,
         eventType: "fake_breakdown",
         zone,
@@ -342,14 +649,59 @@ export function detectMonitoringEvents(params: {
         ],
       });
     }
+    if (!fakeBreakdownEmitted && previousState.phase === "breaking" && fakeBreakdown) {
+      fakeBreakdownReasons.push("filtered_by_event_relevance_rules");
+    }
+    emitMonitoringEventDiagnostic(diagnosticListener, {
+      eventType: "fake_breakdown",
+      zone,
+      update,
+      previousPrice,
+      previousState,
+      currentState,
+      decision: fakeBreakdownEmitted ? "emitted" : "suppressed",
+      reasons: fakeBreakdownEmitted ? ["fake_breakdown_emitted"] : fakeBreakdownReasons,
+      metrics: {
+        inside,
+        below,
+        reclaimedAboveSupport,
+        hasRecentBreakAttempt: hasRecentSupportBreakAttempt,
+        failureReturnFromSupport,
+      },
+    });
 
+    const reclaimDistancePct =
+      (update.lastPrice - zone.zoneHigh) / Math.max(zone.zoneHigh, 0.0001);
     const reclaim =
       previousPrice !== undefined &&
       previousPrice < zone.zoneLow &&
-      update.lastPrice > zone.zoneHigh;
+      reclaimedAboveSupport &&
+      reclaimDistancePct >= config.breakoutConfirmPct &&
+      reclaimDistancePct <= config.maxConfirmDistancePct &&
+      hasRecentBreakAttempt(previousState, update.timestamp, config.fakeoutWindowMs);
 
+    const reclaimReasons: string[] = [];
+    if (previousPrice === undefined) {
+      reclaimReasons.push("missing_previous_price");
+    } else if (previousPrice >= zone.zoneLow) {
+      reclaimReasons.push("previous_price_not_below_support");
+    }
+    if (!reclaimedAboveSupport) {
+      reclaimReasons.push("price_not_reclaimed_above_support");
+    }
+    if (reclaimDistancePct < config.breakoutConfirmPct) {
+      reclaimReasons.push("reclaim_distance_below_confirm_threshold");
+    }
+    if (reclaimDistancePct > config.maxConfirmDistancePct) {
+      reclaimReasons.push("reclaim_distance_above_max_confirm_threshold");
+    }
+    if (!hasRecentBreakAttempt(previousState, update.timestamp, config.fakeoutWindowMs)) {
+      reclaimReasons.push("no_recent_break_attempt");
+    }
+
+    let reclaimEmitted = false;
     if (reclaim) {
-      pushEventIfRelevant(events, {
+      reclaimEmitted = pushEventIfRelevant(events, {
         symbol: zone.symbol,
         eventType: "reclaim",
         zone,
@@ -363,6 +715,30 @@ export function detectMonitoringEvents(params: {
         ],
       });
     }
+    if (!reclaimEmitted && reclaim) {
+      reclaimReasons.push("filtered_by_event_relevance_rules");
+    }
+    emitMonitoringEventDiagnostic(diagnosticListener, {
+      eventType: "reclaim",
+      zone,
+      update,
+      previousPrice,
+      previousState,
+      currentState,
+      decision: reclaimEmitted ? "emitted" : "suppressed",
+      reasons: reclaimEmitted ? ["reclaim_emitted"] : reclaimReasons,
+      metrics: {
+        inside,
+        below,
+        reclaimedAboveSupport,
+        reclaimDistancePct,
+        hasRecentBreakAttempt: hasRecentBreakAttempt(
+          previousState,
+          update.timestamp,
+          config.fakeoutWindowMs,
+        ),
+      },
+    });
 
     const compression =
       currentState.updatesNearZone >= config.compressionMinUpdates &&

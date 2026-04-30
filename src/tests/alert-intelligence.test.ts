@@ -153,10 +153,23 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
   assert.equal(result.formatted?.title, "ALBT breakout");
   assert.equal(
     result.formatted?.body,
-    "breakout resistance 100.00-101.00 | major outermost | fresh | refreshed",
+    [
+      "bullish breakout through major resistance 100.00-101.00",
+      "why now: price cleared the outermost resistance instead of stalling underneath it",
+      "movement: price is still just above the zone high, so the breakout is early (0.4%)",
+      "pressure: buyers still have strong control, backing the move",
+      "context: major resistance | outermost | fresh | 5m/4h/daily confluence | recently refreshed",
+      "quality: resistance still looks firm, so a clean break matters more",
+      "trigger quality: clean trigger with early movement, strong control, and unclear room",
+      "setup state: confirmation, so the move still needs acceptance to hold",
+      "trade map: risk to invalidation is about 1.4%; next upside barrier still needs confirmation",
+      "watch: hold above 101.00; invalidates back below 100.00",
+    ].join("\n"),
   );
+  assert.equal(result.rawAlert.tacticalRead, "firm");
   assert.ok(result.rawAlert.tags.includes("outermost"));
   assert.ok(result.rawAlert.scoreComponents.ladderPosition > 0);
+  assert.equal(result.rawAlert.scoreComponents.tacticalRead, -6);
 });
 
 test("AlertIntelligenceEngine suppresses weak low-confidence compression alerts", () => {
@@ -275,9 +288,74 @@ test("AlertIntelligenceEngine preserves promoted extension significance without 
   assert.ok(extensionResult.formatted);
   assert.equal(
     extensionResult.formatted?.body,
-    "level touch resistance 3.25-3.35 | strong promoted extension | fresh",
+    [
+      "price testing heavy resistance 3.25-3.35",
+      "why now: price is back at resistance; buyers need acceptance above the zone",
+      "movement: price is testing inside resistance below the upper edge (1.2%)",
+      "pressure: buyers still have workable control, but follow-through still matters",
+      "context: heavy resistance | promoted extension | fresh | 5m/4h confluence",
+      "setup state: building, so the zone still needs a real decision move",
+      "trade map: risk to invalidation is about 1.2%; next upside barrier still needs confirmation",
+      "watch: buyers need acceptance above 3.35 before breakout pressure builds",
+    ].join("\n"),
   );
   assert.ok(extensionResult.rawAlert.tags.includes("promoted_extension"));
+});
+
+test("AlertIntelligenceEngine formats single-price zones as one readable level", () => {
+  const engine = new AlertIntelligenceEngine();
+  const singlePriceLevels: LevelEngineOutput = {
+    ...levels,
+    majorResistance: [
+      {
+        ...levels.majorResistance[0]!,
+        id: "zone-single-price-resistance",
+        zoneLow: 3.1,
+        zoneHigh: 3.1,
+        representativePrice: 3.1,
+        strengthLabel: "moderate",
+      },
+    ],
+  };
+  const event: MonitoringEvent = {
+    id: "evt-single-price-touch",
+    episodeId: "evt-single-price-touch-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "zone-single-price-resistance",
+    zoneKind: "resistance",
+    level: 3.1,
+    triggerPrice: 3.1,
+    strength: 0.68,
+    confidence: 0.67,
+    priority: 72,
+    bias: "neutral",
+    pressureScore: 0.35,
+    eventContext: {
+      monitoredZoneId: "zone-single-price-resistance",
+      canonicalZoneId: "zone-single-price-resistance",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "moderate",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 15,
+    notes: ["Single-price resistance touch."],
+  };
+
+  const result = engine.processEvent(event, singlePriceLevels);
+
+  assert.ok(result.formatted);
+  assert.match(result.formatted?.body ?? "", /^price testing moderate resistance 3\.10\n/);
+  assert.match(result.formatted?.body ?? "", /watch: buyers need acceptance above 3\.10 before breakout pressure builds/);
+  assert.doesNotMatch(result.formatted?.body ?? "", /3\.10-3\.10/);
 });
 
 test("AlertIntelligenceEngine penalizes degraded data quality and preserves remap context in output", () => {
@@ -331,10 +409,305 @@ test("AlertIntelligenceEngine penalizes degraded data quality and preserves rema
   assert.ok(cleanResult.formatted);
   assert.equal(
     cleanResult.formatted?.body,
-    "reclaim resistance 100.00-101.00 | major outermost | aging | merged | refreshed",
+    [
+      "reclaim back above major resistance 100.00-101.00",
+      "why now: buyers got price back above the zone after a real break attempt",
+      "movement: price is back just above the zone high, so the reclaim is still early (0.2%)",
+      "pressure: buyers still have workable control, but follow-through still matters",
+      "context: major resistance | outermost | aging | 5m/4h/daily confluence | recently refreshed",
+      "setup state: confirmation, so the move still needs acceptance to hold",
+      "trade map: risk to invalidation is about 1.2%; next upside barrier still needs confirmation",
+      "watch: hold above 101.00; invalidates back below 100.00",
+    ].join("\n"),
   );
   assert.ok(cleanResult.formatted?.meta.context.includes("remap:merged"));
   assert.ok(degradedResult.formatted?.meta.context.includes("data_quality_degraded"));
+});
+
+test("AlertIntelligenceEngine frames strong support touches as support reaction tests", () => {
+  const engine = new AlertIntelligenceEngine();
+  const event: MonitoringEvent = {
+    id: "evt-support-reaction",
+    episodeId: "evt-support-reaction-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "zone-major-support",
+    zoneKind: "support",
+    level: 98.1,
+    triggerPrice: 98.14,
+    strength: 0.74,
+    confidence: 0.7,
+    priority: 76,
+    bias: "bullish",
+    pressureScore: 0.51,
+    eventContext: {
+      monitoredZoneId: "zone-major-support",
+      canonicalZoneId: "zone-major-support",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 18,
+    notes: ["Support touch."],
+  };
+  const supportLevels: LevelEngineOutput = {
+    ...levels,
+    majorSupport: [
+      {
+        ...levels.majorResistance[0]!,
+        id: "zone-major-support",
+        kind: "support",
+        zoneLow: 97.8,
+        zoneHigh: 98.2,
+        representativePrice: 98.1,
+        strengthLabel: "strong",
+      },
+    ],
+  };
+
+  const result = engine.processEvent(event, supportLevels);
+
+  assert.equal(
+    result.formatted?.body,
+    [
+      "price testing heavy support 97.80-98.20",
+      "why now: price came back into defended support instead of drifting mid-range",
+      "movement: price is testing inside support above the lower edge (0.3%)",
+      "pressure: buyers still have workable control, but follow-through still matters",
+      "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
+      "quality: support still looks firm with healthy follow-through",
+      "room: limited overhead into next resistance 100.50 (+2.4%)",
+      "target: first upside objective 100.50 (+2.4%)",
+      "support reaction quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
+      "setup state: building, so the zone still needs a real decision move",
+      "trade map: risk to invalidation 0.3%; room to next resistance 2.4% (~6.9x, favorable skew)",
+      "watch: buyers defend 97.80-98.20 before momentum fades",
+    ].join("\n"),
+  );
+  assert.equal(result.rawAlert.tacticalRead, "firm");
+  assert.equal(result.rawAlert.dipBuyQuality?.label, "watch_only");
+  assert.equal(result.rawAlert.scoreComponents.tacticalRead, 4);
+});
+
+test("AlertIntelligenceEngine calls out tired structure when a strong-looking zone is tactically fading", () => {
+  const engine = new AlertIntelligenceEngine();
+  const tiredLevels: LevelEngineOutput = {
+    ...levels,
+    majorResistance: [
+      {
+        ...levels.majorResistance[0]!,
+        id: "zone-tired-resistance",
+        strengthLabel: "strong",
+        touchCount: 6,
+        reactionQualityScore: 0.46,
+        rejectionScore: 0.32,
+        followThroughScore: 0.24,
+        freshness: "aging",
+      },
+    ],
+  };
+  const event: MonitoringEvent = {
+    id: "evt-tired-breakout",
+    episodeId: "evt-tired-breakout-episode",
+    symbol: "ALBT",
+    type: "breakout",
+    eventType: "breakout",
+    zoneId: "zone-tired-resistance",
+    zoneKind: "resistance",
+    level: 100.5,
+    triggerPrice: 101.08,
+    strength: 0.71,
+    confidence: 0.69,
+    priority: 74,
+    bias: "bullish",
+    pressureScore: 0.58,
+    eventContext: {
+      monitoredZoneId: "monitored-zone-tired-resistance",
+      canonicalZoneId: "zone-tired-resistance",
+      zoneFreshness: "aging",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["legacy-zone-tired-resistance"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 28,
+    notes: ["Breakout through tiring resistance."],
+  };
+
+  const result = engine.processEvent(event, tiredLevels);
+
+  assert.ok(result.formatted);
+  assert.equal(result.rawAlert.tacticalRead, "tired");
+  assert.equal(result.rawAlert.scoreComponents.tacticalRead, 4);
+  assert.equal(
+    result.formatted?.body,
+    [
+      "bullish breakout through heavy resistance 100.00-101.00",
+      "why now: price cleared the outermost resistance instead of stalling underneath it",
+      "movement: price is still just above the zone high, so the breakout is early (0.1%)",
+      "pressure: buyers still have workable control, but follow-through still matters",
+      "context: heavy resistance | outermost | aging | 5m/4h/daily confluence",
+      "quality: resistance looked tactically tired before this test",
+      "setup state: confirmation, so the move still needs acceptance to hold",
+      "failure risk: watchful because tired structure",
+      "trade map: risk to invalidation is about 1.1%; next upside barrier still needs confirmation",
+      "watch: hold above 101.00; invalidates back below 100.00",
+    ].join("\n"),
+  );
+});
+
+test("AlertIntelligenceEngine downgrades crowded low-pressure breakouts instead of escalating them to critical", () => {
+  const engine = new AlertIntelligenceEngine();
+  const crowdedEvent: MonitoringEvent = {
+    id: "evt-crowded-breakout",
+    episodeId: "evt-crowded-breakout-episode",
+    symbol: "ALBT",
+    type: "breakout",
+    eventType: "breakout",
+    zoneId: "zone-major-resistance",
+    zoneKind: "resistance",
+    level: 100.5,
+    triggerPrice: 101.25,
+    strength: 0.72,
+    confidence: 0.69,
+    priority: 78,
+    bias: "bullish",
+    pressureScore: 0.31,
+    eventContext: {
+      monitoredZoneId: "monitored-crowded-breakout",
+      canonicalZoneId: "zone-major-resistance",
+      zoneFreshness: "stale",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["legacy-crowded-breakout"],
+      dataQualityDegraded: true,
+      recentlyRefreshed: true,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "moderate",
+      sourceGeneratedAt: 1,
+      nextBarrierKind: "resistance",
+      nextBarrierLevel: 107,
+      nextBarrierDistancePct: 0.0568,
+      clearanceLabel: "open",
+    },
+    timestamp: 38,
+    notes: ["Crowded breakout with weak participation."],
+  };
+
+  const result = engine.processEvent(crowdedEvent, levels);
+
+  assert.ok(result.formatted);
+  assert.equal(result.rawAlert.pressure?.label, "tentative");
+  assert.equal(result.rawAlert.triggerQuality?.label, "crowded");
+  assert.equal(result.rawAlert.setupState?.label, "confirmation");
+  assert.equal(result.rawAlert.failureRisk?.label, "high");
+  assert.ok(result.rawAlert.score < 64);
+  assert.notEqual(result.rawAlert.severity, "critical");
+  assert.notEqual(result.rawAlert.confidence, "high");
+  assert.equal(result.rawAlert.scoreComponents.pressureQuality, -20);
+  assert.equal(result.rawAlert.scoreComponents.triggerQuality, -16);
+  assert.equal(result.rawAlert.scoreComponents.degradedDirectionalRisk, -8);
+  assert.equal(result.rawAlert.scoreComponents.innerDirectionalRisk, -8);
+  assert.match(
+    result.formatted?.body ?? "",
+    /trigger quality: crowded trigger with tentative control and open room/,
+  );
+  assert.match(
+    result.formatted?.body ?? "",
+    /setup state: confirmation, so the move still needs acceptance to hold/,
+  );
+  assert.match(
+    result.formatted?.body ?? "",
+    /failure risk: high because crowded trigger, tentative control, tired structure, degraded data, inner setup/,
+  );
+});
+
+test("AlertIntelligenceEngine treats repeatedly tested support with layered overhead as poor support-reaction tradeability", () => {
+  const engine = new AlertIntelligenceEngine();
+  const event: MonitoringEvent = {
+    id: "evt-tested-support",
+    episodeId: "evt-tested-support-episode",
+    symbol: "ALBT",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: "zone-major-support",
+    zoneKind: "support",
+    level: 98.1,
+    triggerPrice: 98.08,
+    strength: 0.71,
+    confidence: 0.68,
+    priority: 73,
+    bias: "bullish",
+    pressureScore: 0.49,
+    eventContext: {
+      monitoredZoneId: "zone-major-support",
+      canonicalZoneId: "zone-major-support",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "strong",
+      sourceGeneratedAt: 1,
+      exhaustionLabel: "tested",
+      pathQualityLabel: "layered",
+      pathBarrierCount: 3,
+      pathWindowDistancePct: 0.035,
+      pathConstraintScore: 0.61,
+      nextBarrierKind: "resistance",
+      nextBarrierLevel: 100.05,
+      nextBarrierDistancePct: 0.0199,
+      clearanceLabel: "limited",
+      barrierClutterLabel: "stacked",
+    },
+    timestamp: 48,
+    notes: ["Repeated support test with layered overhead."],
+  };
+  const supportLevels: LevelEngineOutput = {
+    ...levels,
+    majorSupport: [
+      {
+        ...levels.majorResistance[0]!,
+        id: "zone-major-support",
+        kind: "support",
+        zoneLow: 97.8,
+        zoneHigh: 98.2,
+        representativePrice: 98.1,
+        strengthLabel: "strong",
+        touchCount: 3,
+        reactionQualityScore: 0.78,
+        rejectionScore: 0.48,
+        followThroughScore: 0.7,
+        freshness: "fresh",
+      },
+    ],
+  };
+
+  const result = engine.processEvent(event, supportLevels);
+
+  assert.equal(result.rawAlert.dipBuyQuality?.label, "poor");
+  assert.ok((result.rawAlert.scoreComponents.supportTradeability ?? 0) < 0);
+  assert.match(
+    result.formatted?.body ?? "",
+    /support reaction quality: tactically poor because support is still there, but repeated testing plus nearby overhead make it more watchable than actionable/,
+  );
 });
 
 test("AlertIntelligenceEngine suppresses near-duplicate alerts for the same structural situation", () => {
@@ -385,6 +758,57 @@ test("AlertIntelligenceEngine suppresses near-duplicate alerts for the same stru
   assert.equal(firstResult.delivery.reason, "posted");
   assert.equal(duplicateResult.formatted, null);
   assert.equal(duplicateResult.delivery.reason, "duplicate_context");
+});
+
+test("AlertIntelligenceEngine suppresses same-zone resolution chatter even after ten minutes when the story has not materially changed", () => {
+  const engine = new AlertIntelligenceEngine();
+  const firstEvent: MonitoringEvent = {
+    id: "evt-slow-dup-1",
+    episodeId: "evt-slow-dup-episode",
+    symbol: "ALBT",
+    type: "breakout",
+    eventType: "breakout",
+    zoneId: "zone-major-resistance",
+    zoneKind: "resistance",
+    level: 100.5,
+    triggerPrice: 101.18,
+    strength: 0.77,
+    confidence: 0.73,
+    priority: 78,
+    bias: "bullish",
+    pressureScore: 0.57,
+    eventContext: {
+      monitoredZoneId: "monitored-slow-dup",
+      canonicalZoneId: "zone-major-resistance",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "preserved",
+      remappedFromZoneIds: ["legacy-slow-dup"],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "major",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 1_000,
+    notes: ["Initial breakout."],
+  };
+  const repeatedEvent: MonitoringEvent = {
+    ...firstEvent,
+    id: "evt-slow-dup-2",
+    timestamp: 1_000 + 10 * 60 * 1000,
+    triggerPrice: 101.21,
+    pressureScore: 0.59,
+  };
+
+  const firstResult = engine.processEvent(firstEvent, levels);
+  const repeatedResult = engine.processEvent(repeatedEvent, levels);
+
+  assert.ok(firstResult.formatted);
+  assert.equal(firstResult.delivery.reason, "posted");
+  assert.equal(repeatedResult.formatted, null);
+  assert.equal(repeatedResult.delivery.reason, "duplicate_context");
 });
 
 test("AlertIntelligenceEngine preserves materially new remap state instead of suppressing it as a duplicate", () => {

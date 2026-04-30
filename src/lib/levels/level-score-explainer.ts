@@ -25,6 +25,14 @@ function strengthLabel(score: number): string {
 function buildDriverPhrases(level: RankedLevel): string[] {
   const phrases: string[] = [];
 
+  if (level.durabilityLabel === "reinforced") {
+    phrases.push("reinforced defense history");
+  } else if (level.durabilityLabel === "durable") {
+    phrases.push("durable reaction history");
+  } else if (level.durabilityLabel === "fragile") {
+    phrases.push("fragility from repeated retests");
+  }
+
   if (level.meaningfulTouchCount >= 3) {
     phrases.push(`${level.meaningfulTouchCount} meaningful ${level.type === "support" ? "defenses" : "rejections"}`);
   }
@@ -60,6 +68,14 @@ function buildDriverPhrases(level: RankedLevel): string[] {
 
 export function explainLevelScore(level: RankedLevel): string {
   const timeframe = strongestTimeframe(level.sourceTimeframes);
+  const durabilityDescriptor =
+    level.durabilityLabel === "reinforced"
+      ? "reinforced"
+      : level.durabilityLabel === "durable"
+        ? "durable"
+        : level.durabilityLabel === "fragile"
+          ? "fragile"
+          : null;
   const statePrefix =
     level.state === "broken"
       ? "Previously strong"
@@ -73,24 +89,24 @@ export function explainLevelScore(level: RankedLevel): string {
   const drivers = buildDriverPhrases(level);
 
   if (level.state === "broken") {
-    return `${statePrefix} ${timeframe} ${level.type} now broken after ${level.cleanBreakCount} clean break${level.cleanBreakCount === 1 ? "" : "s"}`;
+    return `${statePrefix} ${durabilityDescriptor ? `${durabilityDescriptor} ` : ""}${timeframe} ${level.type} now broken after ${level.cleanBreakCount} clean break${level.cleanBreakCount === 1 ? "" : "s"}`;
   }
 
   if (level.state === "reclaimed") {
-    return `${statePrefix} ${timeframe} ${level.type} after ${level.reclaimCount} reclaim${level.reclaimCount === 1 ? "" : "s"} and renewed defense`;
+    return `${statePrefix} ${durabilityDescriptor ? `${durabilityDescriptor} ` : ""}${timeframe} ${level.type} after ${level.reclaimCount} reclaim${level.reclaimCount === 1 ? "" : "s"} and renewed defense`;
   }
 
   if (level.state === "weakened") {
-    return `${statePrefix} ${timeframe} ${level.type} now weakened after repeated shallow tests`;
+    return `${statePrefix} ${durabilityDescriptor ? `${durabilityDescriptor} ` : ""}${timeframe} ${level.type} now weakened after repeated shallow tests`;
   }
 
   if (level.state === "flipped") {
-    return `${statePrefix} ${timeframe} ${level.type} with role-flip history and active defense`;
+    return `${statePrefix} ${durabilityDescriptor ? `${durabilityDescriptor} ` : ""}${timeframe} ${level.type} with role-flip history and active defense`;
   }
 
   if (drivers.length === 0) {
-    return `${statePrefix} ${timeframe} ${level.type} with limited confirmed reaction quality`;
+    return `${statePrefix} ${durabilityDescriptor ? `${durabilityDescriptor} ` : ""}${timeframe} ${level.type} with limited confirmed reaction quality`;
   }
 
-  return `${statePrefix} ${timeframe} ${level.type} with ${drivers.slice(0, 2).join(" and ")}`;
+  return `${statePrefix} ${durabilityDescriptor ? `${durabilityDescriptor} ` : ""}${timeframe} ${level.type} with ${drivers.slice(0, 2).join(" and ")}`;
 }

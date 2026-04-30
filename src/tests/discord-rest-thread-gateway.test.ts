@@ -6,6 +6,7 @@ import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gate
 type MockResponseInit = {
   status?: number;
   body?: unknown;
+  headers?: Record<string, string>;
 };
 
 function jsonResponse(init: MockResponseInit = {}): Response {
@@ -13,6 +14,7 @@ function jsonResponse(init: MockResponseInit = {}): Response {
     status: init.status ?? 200,
     headers: {
       "Content-Type": "application/json",
+      ...(init.headers ?? {}),
     },
   });
 }
@@ -140,10 +142,132 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
   assert.equal(
     JSON.parse(String(calls[0]?.init?.body)).content,
     [
-      "LEVEL SNAPSHOT: ALBT",
-      "PRICE: 2.51",
-      "SUPPORT: 2.40, 2.25",
-      "RESISTANCE: 2.60, 2.75",
+      "ALBT support and resistance",
+      "Price: 2.51",
+      "",
+      "What price is doing now:",
+      "- Price is between support 2.40 and resistance 2.60.",
+      "- Room is fairly balanced between the nearest support and resistance.",
+      "",
+      "Closest levels to watch:",
+      "Resistance:",
+      "2.60 (+3.6%)",
+      "2.75 (+9.6%)",
+      "",
+      "Support:",
+      "2.40 (-4.4%)",
+      "2.25 (-10.4%)",
+      "",
+      "More support and resistance:",
+      "Resistance:",
+      "2.60 (+3.6%)",
+      "2.75 (+9.6%)",
+      "",
+      "Support:",
+      "2.40 (-4.4%)",
+      "2.25 (-10.4%)",
     ].join("\n"),
   );
+});
+
+test("DiscordRestThreadGateway can suppress embeds for plain-text link messages", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return jsonResponse({ body: { id: "message-1" } });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+  });
+
+  await gateway.sendMessage("thread-albt", {
+    title: "",
+    body: [
+      "COMPANY: Example Corp",
+      "WEBSITE: https://example.com/",
+    ].join("\n"),
+    symbol: "EXMP",
+    timestamp: 1,
+    metadata: {
+      messageKind: "stock_context",
+      suppressEmbeds: true,
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.input, "https://discord.com/api/v10/channels/thread-albt/messages");
+  const requestBody = JSON.parse(String(calls[0]?.init?.body));
+  assert.equal(requestBody.content, "COMPANY: Example Corp\nWEBSITE: https://example.com/");
+  assert.equal(requestBody.flags, 4);
+});
+
+test("DiscordRestThreadGateway retries transient message delivery failures", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    if (calls.length === 1) {
+      return jsonResponse({ status: 503, body: { message: "temporary upstream issue" } });
+    }
+
+    return jsonResponse({ body: { id: "message-2" } });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+    transientRetryDelayMs: 0,
+  });
+
+  await gateway.sendMessage("thread-albt", {
+    title: "ALBT breakout",
+    body: "price cleared resistance",
+    symbol: "ALBT",
+    timestamp: 1,
+    metadata: {
+      messageKind: "intelligent_alert",
+    },
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0]?.input, "https://discord.com/api/v10/channels/thread-albt/messages");
+  assert.equal(calls[1]?.input, "https://discord.com/api/v10/channels/thread-albt/messages");
+});
+
+test("DiscordRestThreadGateway fails fast when Discord retry-after would stale an alert", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return jsonResponse({
+      status: 429,
+      body: { message: "rate limited" },
+      headers: { "retry-after": "120" },
+    });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+    transientRetryAttempts: 1,
+    maxTransientRetryDelayMs: 5_000,
+  });
+
+  await assert.rejects(
+    gateway.sendMessage("thread-albt", {
+      title: "ALBT breakout",
+      body: "price cleared resistance",
+      symbol: "ALBT",
+      timestamp: 1,
+      metadata: {
+        messageKind: "intelligent_alert",
+      },
+    }),
+    /retry delay 120000ms exceeds max 5000ms/,
+  );
+
+  assert.equal(calls.length, 1);
 });

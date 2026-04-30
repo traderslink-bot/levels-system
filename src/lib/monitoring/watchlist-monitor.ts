@@ -11,6 +11,7 @@ import { recordMonitoringEvent } from "./symbol-state.js";
 import type {
   LivePriceUpdate,
   MonitoringEvent,
+  MonitoringEventDiagnosticListener,
   MonitoringZoneContext,
   SymbolMonitoringState,
   WatchlistEntry,
@@ -19,6 +20,10 @@ import type {
 import { LevelStore } from "./level-store.js";
 
 export type MonitoringEventListener = (event: MonitoringEvent) => void;
+
+export type WatchlistMonitorOptions = {
+  diagnosticListener?: MonitoringEventDiagnosticListener;
+};
 
 type PendingEvent = {
   event: MonitoringEvent;
@@ -34,6 +39,7 @@ export class WatchlistMonitor {
     private readonly levelStore: LevelStore,
     private readonly livePriceProvider: LivePriceProvider,
     private readonly config: MonitoringConfig = DEFAULT_MONITORING_CONFIG,
+    private readonly options: WatchlistMonitorOptions = {},
   ) {}
 
   private ensureSymbolState(symbol: string): SymbolMonitoringState {
@@ -287,6 +293,7 @@ export class WatchlistMonitor {
         previousPrice: symbolState.previousPrice,
         symbolState,
         config: this.config,
+        diagnosticListener: this.options.diagnosticListener,
       });
 
       for (const event of events) {

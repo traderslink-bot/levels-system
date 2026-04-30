@@ -3,8 +3,28 @@
 
 import type { FinalLevelZone } from "../levels/level-types.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
-import type { AlertConfidence, AlertSeverity, IntelligentAlert } from "./alert-types.js";
+import type {
+  AlertConfidence,
+  AlertSeverity,
+  IntelligentAlert,
+  TraderNextBarrierContext,
+} from "./alert-types.js";
 import type { AlertIntelligenceConfig } from "./alert-config.js";
+import { resolveZoneTacticalBias } from "../levels/zone-tactical-read.js";
+import {
+  buildTraderAlertBody,
+  deriveTraderDipBuyQualityContext,
+  deriveTraderExhaustionContext,
+  deriveTraderFailureRiskContext,
+  deriveTraderMovementContext,
+  deriveTraderPathQualityContext,
+  deriveTraderPressureContext,
+  deriveTraderSetupStateContext,
+  deriveTraderTriggerQualityContext,
+  deriveTraderTargetContext,
+  deriveTraderTradeMapContext,
+  deriveTraderZoneTacticalRead,
+} from "./trader-message-language.js";
 
 function severityForScore(score: number, config: AlertIntelligenceConfig): AlertSeverity {
   if (score >= config.severityThresholds.critical) {
@@ -27,6 +47,24 @@ function confidenceForScore(score: number, config: AlertIntelligenceConfig): Ale
     return "medium";
   }
   return "low";
+}
+
+function applyConfidenceCaps(params: {
+  confidence: AlertConfidence;
+  pressure: ReturnType<typeof deriveTraderPressureContext>;
+  triggerQuality: ReturnType<typeof deriveTraderTriggerQualityContext>;
+}): AlertConfidence {
+  const { confidence, pressure, triggerQuality } = params;
+  if (
+    confidence === "high" &&
+    (pressure.label === "tentative" ||
+      triggerQuality?.label === "crowded" ||
+      triggerQuality?.label === "late")
+  ) {
+    return "medium";
+  }
+
+  return confidence;
 }
 
 function clampScore(value: number): number {
@@ -85,9 +123,46 @@ function contextContributions(
   event: MonitoringEvent,
   zone: FinalLevelZone | undefined,
   config: AlertIntelligenceConfig,
+  nextBarrier?: TraderNextBarrierContext | null,
 ): Record<string, number> {
   const context = event.eventContext;
   const lowValueInnerZone = context.ladderPosition === "inner" && context.zoneStrengthLabel === "weak";
+  const tacticalRead = deriveTraderZoneTacticalRead(zone, context.zoneFreshness);
+  const movement = deriveTraderMovementContext(event, zone);
+  const pressure = deriveTraderPressureContext(event);
+  const triggerQuality = deriveTraderTriggerQualityContext({
+    event,
+    movement,
+    pressure,
+    nextBarrier,
+  });
+  const dipBuyQuality = deriveTraderDipBuyQualityContext({
+    event,
+    zone,
+    pressure,
+    nextBarrier,
+  });
+  const exhaustion = deriveTraderExhaustionContext(event, zone);
+  const pathQuality = deriveTraderPathQualityContext(nextBarrier);
+  const tacticalBias = zone
+    ? resolveZoneTacticalBias({
+      zoneKind: zone.kind,
+      eventType: event.eventType,
+      tacticalRead,
+    })
+    : "neutral";
+  const directionalResolution =
+    event.eventType === "breakout" ||
+    event.eventType === "breakdown" ||
+    event.eventType === "reclaim" ||
+    event.eventType === "fake_breakout" ||
+    event.eventType === "fake_breakdown";
+  const clearanceScore =
+    context.clearanceLabel
+      ? config.clearanceScores[context.clearanceLabel]
+      : nextBarrier && nextBarrier.distancePct >= 0.06
+        ? config.clearanceScores.open
+        : 0;
 
   return {
     baseEvent: config.eventBaseScores[event.eventType],
@@ -104,6 +179,85 @@ function contextContributions(
         ? config.promotedExtensionBonus
         : 0,
     dataQuality: context.dataQualityDegraded ? -config.dataQualityPenalty : 0,
+    degradedDirectionalRisk:
+      directionalResolution && context.dataQualityDegraded
+        ? -config.degradedDirectionalPenalty
+        : 0,
+    clearance: clearanceScore,
+    clutter:
+      context.barrierClutterLabel === "dense"
+        ? -4
+        : context.barrierClutterLabel === "stacked"
+          ? -2
+          : 0,
+    pressureQuality: config.pressureLabelScores[pressure.label],
+    triggerQuality: triggerQuality ? config.triggerQualityScores[triggerQuality.label] : 0,
+    pathQuality:
+      pathQuality?.label === "clean"
+        ? 1.5 + Math.min(0.75, Math.max(0, (pathQuality.pathWindowDistancePct ?? 0) - 0.05) * 8)
+        : pathQuality?.label === "layered"
+          ? -1.5 - Math.max(0, pathQuality.barrierCount - 2) * 0.75
+          : pathQuality?.label === "choppy"
+            ? -4 - Math.max(0, pathQuality.barrierCount - 3) * 0.5
+            : 0,
+    dipBuyQuality:
+      dipBuyQuality?.label === "actionable"
+        ? 2
+        : dipBuyQuality?.label === "watch_only"
+          ? -1.5
+          : dipBuyQuality?.label === "poor"
+            ? -4
+            : 0,
+    supportTradeability:
+      event.zoneKind === "support" && event.eventType === "level_touch"
+        ? dipBuyQuality?.label === "actionable"
+          ? 1
+          : dipBuyQuality?.label === "poor"
+            ? -2.5
+            : dipBuyQuality?.label === "watch_only" &&
+                (
+                  pathQuality?.label !== "clean" ||
+                  nextBarrier?.clearanceLabel !== "open" ||
+                  exhaustion?.label === "tested" ||
+                  exhaustion?.label === "worn" ||
+                  exhaustion?.label === "spent" ||
+                  pressure.label === "tentative" ||
+                  pressure.label === "balanced"
+                )
+              ? -1.25
+              : 0
+        : 0,
+    exhaustion:
+      exhaustion?.label === "fresh"
+        ? 1
+        : exhaustion?.label === "tested"
+          ? -0.5
+          : exhaustion?.label === "worn"
+            ? -3
+            : exhaustion?.label === "spent"
+              ? -5
+              : 0,
+    tacticalRead: config.tacticalBiasScores[tacticalBias],
+    tiredStructureRisk:
+      tacticalRead === "tired" &&
+      ((event.zoneKind === "support" &&
+        (event.eventType === "level_touch" || event.eventType === "reclaim")) ||
+        (event.zoneKind === "resistance" &&
+          (event.eventType === "level_touch" || event.eventType === "rejection")))
+        ? -3
+        : 0,
+    tiredBreakTailwind:
+      tacticalRead === "tired" &&
+      ((event.zoneKind === "resistance" && event.eventType === "breakout") ||
+        (event.zoneKind === "support" && event.eventType === "breakdown"))
+        ? 1.5
+        : 0,
+    innerDirectionalRisk:
+      directionalResolution &&
+      context.ladderPosition === "inner" &&
+      pressure.label !== "strong"
+        ? -config.innerDirectionalPenalty
+        : 0,
     lowValueInnerTouch:
       event.eventType === "level_touch" && lowValueInnerZone ? -config.lowValueInnerTouchPenalty : 0,
     lowValueInnerCompression:
@@ -140,6 +294,18 @@ function tagsForAlert(event: MonitoringEvent, zone?: FinalLevelZone): string[] {
     tags.push(...zone.timeframeSources);
   }
 
+  if (event.eventContext.barrierClutterLabel) {
+    tags.push(`clutter_${event.eventContext.barrierClutterLabel}`);
+  }
+
+  if (event.eventContext.pathQualityLabel) {
+    tags.push(`path_${event.eventContext.pathQualityLabel}`);
+  }
+
+  if (event.eventContext.exhaustionLabel) {
+    tags.push(`exhaustion_${event.eventContext.exhaustionLabel}`);
+  }
+
   return [...new Set(tags)];
 }
 
@@ -147,60 +313,64 @@ function buildHumanTitle(event: MonitoringEvent): string {
   return `${event.symbol} ${event.eventType.replaceAll("_", " ")}`;
 }
 
-function buildHumanBody(event: MonitoringEvent, zone?: FinalLevelZone): string {
-  if (!zone) {
-    return `${event.eventType.replaceAll("_", " ")} at ${event.triggerPrice.toFixed(2)}`;
-  }
-
-  const context = event.eventContext;
-  const zoneText =
-    zone.zoneLow >= 1 && zone.zoneHigh >= 1
-      ? `${zone.zoneLow.toFixed(2)}-${zone.zoneHigh.toFixed(2)}`
-      : `${zone.zoneLow.toFixed(4)}-${zone.zoneHigh.toFixed(4)}`;
-  const ladderText =
-    context.zoneOrigin === "promoted_extension"
-      ? "promoted extension"
-      : context.ladderPosition === "outermost"
-        ? "outermost"
-        : "inner";
-  const freshnessText = context.zoneFreshness;
-  const remapText =
-    context.remapStatus === "new" || context.remapStatus === "preserved"
-      ? null
-      : context.remapStatus.replaceAll("_", " ");
-  const refreshText = context.recentlyRefreshed ? "refreshed" : null;
-  const qualityText = context.dataQualityDegraded ? "data quality degraded" : null;
-
-  return [
-    `${event.eventType.replaceAll("_", " ")} ${event.zoneKind} ${zoneText}`,
-    `${zone.strengthLabel} ${ladderText}`,
-    freshnessText,
-    remapText,
-    refreshText,
-    qualityText,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" | ");
+function buildHumanBody(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+  nextBarrier?: TraderNextBarrierContext | null,
+): string {
+  return buildTraderAlertBody(event, zone, nextBarrier);
 }
 
 export function scoreMonitoringEventToAlert(params: {
   event: MonitoringEvent;
   zone?: FinalLevelZone;
+  nextBarrier?: TraderNextBarrierContext | null;
   config: AlertIntelligenceConfig;
 }): IntelligentAlert {
-  const { event, zone, config } = params;
-  const scoreComponents = contextContributions(event, zone, config);
+  const { event, zone, nextBarrier, config } = params;
+  const scoreComponents = contextContributions(event, zone, config, nextBarrier);
   const totalScore = clampScore(
     Object.values(scoreComponents).reduce((sum, value) => sum + value, 0),
   );
   const severity = severityForScore(totalScore, config);
-  const confidence = confidenceForScore(totalScore, config);
+  const movement = deriveTraderMovementContext(event, zone);
+  const pressure = deriveTraderPressureContext(event);
+  const triggerQuality = deriveTraderTriggerQualityContext({
+    event,
+    movement,
+    pressure,
+    nextBarrier,
+  });
+  const dipBuyQuality = deriveTraderDipBuyQualityContext({
+    event,
+    zone,
+    pressure,
+    nextBarrier,
+  });
+  const pathQuality = deriveTraderPathQualityContext(nextBarrier);
+  const exhaustion = deriveTraderExhaustionContext(event, zone);
+  const setupState = deriveTraderSetupStateContext({
+    event,
+    movement,
+  });
+  const failureRisk = deriveTraderFailureRiskContext({
+    event,
+    zone,
+    pressure,
+    triggerQuality,
+    nextBarrier,
+  });
+  const confidence = applyConfidenceCaps({
+    confidence: confidenceForScore(totalScore, config),
+    pressure,
+    triggerQuality,
+  });
 
   return {
     id: `${event.id}-intelligent`,
     symbol: event.symbol,
     title: buildHumanTitle(event),
-    body: buildHumanBody(event, zone),
+    body: buildHumanBody(event, zone, nextBarrier),
     severity,
     confidence,
     score: totalScore,
@@ -209,5 +379,17 @@ export function scoreMonitoringEventToAlert(params: {
     scoreComponents,
     event,
     zone,
+    nextBarrier,
+    tacticalRead: deriveTraderZoneTacticalRead(zone, event.eventContext.zoneFreshness),
+    movement,
+    pressure,
+    triggerQuality,
+    pathQuality,
+    dipBuyQuality,
+    exhaustion,
+    setupState,
+    failureRisk,
+    target: deriveTraderTargetContext(event, zone, nextBarrier),
+    tradeMap: deriveTraderTradeMapContext(event, zone, nextBarrier),
   };
 }

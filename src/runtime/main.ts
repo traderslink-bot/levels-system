@@ -17,6 +17,7 @@ import {
 } from "../lib/monitoring/opportunity-runtime-controller.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import type { WatchlistEntry } from "../lib/monitoring/monitoring-types.js";
+import { resolveLevelRuntimeSettings } from "../lib/levels/level-runtime-mode.js";
 import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
 import { createIbkrClient } from "../scripts/shared/ibkr-runtime.js";
 
@@ -25,7 +26,16 @@ async function seedLevels(
   fetchService: CandleFetchService,
   levelStore: LevelStore,
 ): Promise<void> {
-  const engine = new LevelEngine(fetchService);
+  const runtimeSettings = resolveLevelRuntimeSettings();
+  const engine = new LevelEngine(fetchService, undefined, {
+    runtimeMode: runtimeSettings.mode,
+    compareActivePath: runtimeSettings.compareActivePath,
+    onComparisonLog: runtimeSettings.compareLoggingEnabled
+      ? (entry) => {
+          console.log(JSON.stringify(entry));
+        }
+      : undefined,
+  });
 
   for (const entry of entries) {
     if (!entry.active) {

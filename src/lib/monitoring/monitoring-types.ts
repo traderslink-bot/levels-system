@@ -2,6 +2,7 @@
 // Shared monitoring types for Phase 2 watchlist monitoring.
 
 import type { FinalLevelZone, LevelDataFreshness } from "../levels/level-types.js";
+import type { ZoneTacticalRead } from "../levels/zone-tactical-read.js";
 
 export type MonitoringEventType =
   | "level_touch"
@@ -12,6 +13,15 @@ export type MonitoringEventType =
   | "fake_breakdown"
   | "reclaim"
   | "compression";
+
+export type MonitoringDiagnosticEventType =
+  | "breakout"
+  | "breakdown"
+  | "fake_breakout"
+  | "fake_breakdown"
+  | "reclaim";
+
+export type MonitoringDiagnosticDecision = "emitted" | "suppressed";
 
 export type MonitoringAlertType =
   | "level_touch"
@@ -38,6 +48,8 @@ export type InteractionPhase =
 export type WatchlistLifecycleState =
   | "inactive"
   | "activating"
+  | "restoring"
+  | "activation_failed"
   | "active"
   | "stale"
   | "refresh_pending"
@@ -59,6 +71,27 @@ export type LadderPositionContext =
   | "inner"
   | "outermost"
   | "extension";
+
+export type BarrierClearanceLabel =
+  | "tight"
+  | "limited"
+  | "open";
+
+export type BarrierClutterLabel =
+  | "clear"
+  | "stacked"
+  | "dense";
+
+export type PathQualityLabel =
+  | "clean"
+  | "layered"
+  | "choppy";
+
+export type ZoneExhaustionLabel =
+  | "fresh"
+  | "tested"
+  | "worn"
+  | "spent";
 
 export type MonitoringZoneContext = {
   monitoredZoneId: string;
@@ -88,7 +121,12 @@ export type WatchlistEntry = {
   activatedAt?: number;
   lastLevelPostAt?: number;
   lastExtensionPostAt?: number;
+  lastPriceUpdateAt?: number;
+  lastThreadPostAt?: number;
+  lastThreadPostKind?: string;
   refreshPending?: boolean;
+  lastError?: string;
+  operationStatus?: string;
 };
 
 export type LivePriceUpdate = {
@@ -144,6 +182,19 @@ export type MonitoringEventContext = {
   ladderPosition: LadderPositionContext;
   zoneStrengthLabel: FinalLevelZone["strengthLabel"];
   sourceGeneratedAt?: number;
+  nextBarrierKind?: "support" | "resistance";
+  nextBarrierLevel?: number;
+  nextBarrierDistancePct?: number;
+  nextBarrierStrengthLabel?: FinalLevelZone["strengthLabel"];
+  clearanceLabel?: BarrierClearanceLabel;
+  barrierClutterLabel?: BarrierClutterLabel;
+  nearbyBarrierCount?: number;
+  pathQualityLabel?: PathQualityLabel;
+  pathBarrierCount?: number;
+  pathConstraintScore?: number;
+  pathWindowDistancePct?: number;
+  tacticalRead?: ZoneTacticalRead;
+  exhaustionLabel?: ZoneExhaustionLabel;
 };
 
 export type MonitoringEvent = {
@@ -166,3 +217,26 @@ export type MonitoringEvent = {
   timestamp: number;
   notes: string[];
 };
+
+export type MonitoringEventDiagnostic = {
+  type: "monitoring_event_diagnostic";
+  symbol: string;
+  zoneId: string;
+  zoneKind: "support" | "resistance";
+  eventType: MonitoringDiagnosticEventType;
+  decision: MonitoringDiagnosticDecision;
+  reasons: string[];
+  timestamp: number;
+  triggerPrice: number;
+  previousPrice: number | null;
+  phaseBefore: InteractionPhase;
+  phaseAfter: InteractionPhase;
+  updatesNearZone: number;
+  nearestDistancePct: number;
+  breakAttemptAgeMs: number | null;
+  metrics: Record<string, number | boolean | null>;
+};
+
+export type MonitoringEventDiagnosticListener = (
+  diagnostic: MonitoringEventDiagnostic,
+) => void;

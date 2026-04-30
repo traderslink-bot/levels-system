@@ -1,244 +1,177 @@
 import "dotenv/config";
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
+import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-commentary-service.js";
+import { createFinnhubClientFromEnv } from "../lib/stock-context/finnhub-client.js";
+import { createYahooClientFromEnv } from "../lib/stock-context/yahoo-client.js";
+import { CombinedStockContextProvider } from "../lib/stock-context/stock-context-provider.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
-import { DiscordAlertRouter } from "../lib/alerts/alert-router.js";
-import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
-import { LocalDiscordThreadGateway } from "../lib/alerts/local-discord-thread-gateway.js";
 import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
-import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
+import {
+  DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS,
+  ManualWatchlistRuntimeManager,
+  type ManualWatchlistHistoricalLookbacks,
+} from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import {
   AdaptiveScoringEngine,
   DEFAULT_ADAPTIVE_SCORING_CONFIG,
 } from "../lib/monitoring/adaptive-scoring.js";
+import { createConsoleManualWatchlistLifecycleListener } from "../lib/monitoring/manual-watchlist-runtime-events.js";
 import { AdaptiveStatePersistence } from "../lib/monitoring/adaptive-state-persistence.js";
 import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
+import { createMonitoringEventDiagnosticListener } from "../lib/monitoring/monitoring-event-diagnostic-logger.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
 import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
-import { createIbkrClient } from "../scripts/shared/ibkr-runtime.js";
+import {
+  createIbkrClient,
+  isIbkrConnected,
+  isIbkrReconnecting,
+} from "../scripts/shared/ibkr-runtime.js";
+import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
+import {
+  LOCAL_BIND_HOST,
+  RequestBodyParseError,
+  readJsonBody,
+  sendJson,
+} from "./manual-watchlist-http.js";
+import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
+import { resolveLiveThreadPostingProfile } from "../lib/monitoring/live-thread-post-policy.js";
 
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
+const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
+const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
+const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
+const AI_MODEL_ENV = "LEVEL_AI_MODEL";
+const MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV = "MANUAL_WATCHLIST_IBKR_TIMEOUT_MS";
+const MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV = "LEVEL_MANUAL_LOOKBACK_DAILY";
+const MANUAL_WATCHLIST_LOOKBACK_4H_ENV = "LEVEL_MANUAL_LOOKBACK_4H";
+const MANUAL_WATCHLIST_LOOKBACK_5M_ENV = "LEVEL_MANUAL_LOOKBACK_5M";
+const WATCHLIST_POSTING_PROFILE_ENV = "WATCHLIST_POSTING_PROFILE";
+const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
+const REVIEW_ARTIFACT_FILES = [
+  "session-review.md",
+  "thread-post-policy-report.md",
+  "long-run-tuning-suggestions.md",
+  "live-post-replay-simulation.md",
+  "live-post-profile-comparison.md",
+  "runner-story-report.md",
+  "snapshot-audit-report.md",
+  "live-post-replay-simulation.json",
+  "live-post-profile-comparison.json",
+  "runner-story-report.json",
+  "thread-clutter-report.json",
+  "thread-summaries.json",
+  "discord-delivery-audit.jsonl",
+] as const;
 
-type DiscordRuntimeEnv = {
-  botToken: string | null;
-  watchlistChannelId: string | null;
-  guildId: string | null;
-};
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
 
-function readDiscordRuntimeEnv(): DiscordRuntimeEnv {
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+function resolvePositiveIntegerEnv(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function resolveManualWatchlistHistoricalLookbacks(): ManualWatchlistHistoricalLookbacks {
   return {
-    botToken: process.env.DISCORD_BOT_TOKEN?.trim() || null,
-    watchlistChannelId: process.env.DISCORD_WATCHLIST_CHANNEL_ID?.trim() || null,
-    guildId: process.env.DISCORD_GUILD_ID?.trim() || null,
+    daily: resolvePositiveIntegerEnv(
+      process.env[MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV],
+      DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS.daily,
+    ),
+    "4h": resolvePositiveIntegerEnv(
+      process.env[MANUAL_WATCHLIST_LOOKBACK_4H_ENV],
+      DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS["4h"],
+    ),
+    "5m": resolvePositiveIntegerEnv(
+      process.env[MANUAL_WATCHLIST_LOOKBACK_5M_ENV],
+      DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS["5m"],
+    ),
   };
 }
 
-function logDiscordRuntimeDiagnostics(env: DiscordRuntimeEnv, mode: "real" | "fallback"): void {
-  console.log("[ManualWatchlistRuntime] Discord env diagnostics:");
-  console.log(`- DISCORD_BOT_TOKEN: ${env.botToken ? "present" : "missing"}`);
-  console.log(
-    `- DISCORD_WATCHLIST_CHANNEL_ID: ${env.watchlistChannelId ? "present" : "missing"}`,
-  );
-  console.log(`- DISCORD_GUILD_ID: ${env.guildId ? "present" : "missing"}`);
-  console.log(
-    `- Discord gateway mode: ${
-      mode === "real" ? "real Discord REST gateway" : "local persisted gateway fallback"
-    }`,
-  );
-}
-
-function createDiscordAlertRouter(): DiscordAlertRouter {
-  const env = readDiscordRuntimeEnv();
-  const hasAnyDiscordConfig = Boolean(env.botToken || env.watchlistChannelId || env.guildId);
-  const shouldUseRealDiscord = Boolean(env.botToken && env.watchlistChannelId);
-
-  if (hasAnyDiscordConfig && !shouldUseRealDiscord) {
-    throw new Error(
-      "Incomplete Discord runtime configuration. Set both DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID to use the real Discord gateway, or remove the partial Discord env values to use the local fallback.",
-    );
+function readReviewArtifacts(sessionDirectory: string | null): Array<{
+  name: string;
+  exists: boolean;
+  sizeBytes: number | null;
+  updatedAt: number | null;
+  preview: string | null;
+}> {
+  if (!sessionDirectory) {
+    return REVIEW_ARTIFACT_FILES.map((name) => ({
+      name,
+      exists: false,
+      sizeBytes: null,
+      updatedAt: null,
+      preview: null,
+    }));
   }
 
-  if (shouldUseRealDiscord) {
-    logDiscordRuntimeDiagnostics(env, "real");
-    if (!env.guildId) {
-      console.log(
-        "[ManualWatchlistRuntime] DISCORD_GUILD_ID is missing. Real Discord posting will still work, but exact-name thread recovery will be limited.",
-      );
+  return REVIEW_ARTIFACT_FILES.map((name) => {
+    const path = join(sessionDirectory, name);
+    if (!existsSync(path)) {
+      return {
+        name,
+        exists: false,
+        sizeBytes: null,
+        updatedAt: null,
+        preview: null,
+      };
     }
 
-    return new DiscordAlertRouter(
-      new DiscordRestThreadGateway({
-        botToken: env.botToken!,
-        watchlistChannelId: env.watchlistChannelId!,
-        guildId: env.guildId ?? undefined,
-      }),
-    );
-  }
-
-  logDiscordRuntimeDiagnostics(env, "fallback");
-  console.log(
-    "[ManualWatchlistRuntime] Set DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID in .env for real Discord posting.",
-  );
-  return new DiscordAlertRouter(new LocalDiscordThreadGateway());
-}
-
-const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Manual Watchlist</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; background: #f5f7fb; color: #1f2937; }
-    main { max-width: 760px; margin: 0 auto; }
-    form, section { background: #fff; border: 1px solid #d7dee8; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    label { display: block; font-size: 14px; margin-bottom: 6px; }
-    input { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
-    button { padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; background: #1d4ed8; color: #fff; }
-    ul { list-style: none; padding: 0; margin: 0; }
-    li { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-top: 1px solid #e5e7eb; padding: 12px 0; }
-    li:first-child { border-top: 0; }
-    .meta { color: #4b5563; font-size: 13px; }
-    .status { min-height: 20px; font-size: 14px; margin-bottom: 12px; color: #1d4ed8; }
-    .danger { background: #b91c1c; }
-  </style>
-</head>
-<body>
-  <main>
-    <form id="watchlist-form">
-      <h1>Manual Watchlist</h1>
-      <div class="status" id="status"></div>
-      <label for="symbol">npm run watchlist:manual</label>
-      <label for="symbol">Symbol</label>
-      <input id="symbol" name="symbol" maxlength="10" required />
-      <label for="note">Note (optional)</label>
-      <input id="note" name="note" maxlength="200" />
-      <button type="submit">Add / Activate</button>
-    </form>
-
-    <section>
-      <h2>Active Tickers</h2>
-      <ul id="active-list"></ul>
-    </section>
-  </main>
-
-  <script>
-    const statusEl = document.getElementById("status");
-    const listEl = document.getElementById("active-list");
-    const formEl = document.getElementById("watchlist-form");
-    const symbolEl = document.getElementById("symbol");
-    const noteEl = document.getElementById("note");
-
-    function setStatus(message, isError = false) {
-      statusEl.textContent = message;
-      statusEl.style.color = isError ? "#b91c1c" : "#1d4ed8";
-    }
-
-    function renderEntries(entries) {
-      listEl.innerHTML = "";
-      if (entries.length === 0) {
-        const empty = document.createElement("li");
-        empty.textContent = "No active tickers";
-        listEl.appendChild(empty);
-        return;
-      }
-
-      for (const entry of entries) {
-        const item = document.createElement("li");
-        const meta = document.createElement("div");
-        const noteText = entry.note ? " | note: " + entry.note : "";
-        meta.innerHTML = "<strong>" + entry.symbol + "</strong><div class=\\"meta\\">thread: " + (entry.discordThreadId || "none") + noteText + "</div>";
-
-        const button = document.createElement("button");
-        button.textContent = "Deactivate";
-        button.className = "danger";
-        button.addEventListener("click", async () => {
-          const response = await fetch("/api/watchlist/deactivate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ symbol: entry.symbol }),
-          });
-          const payload = await response.json();
-          if (!response.ok) {
-            setStatus(payload.error || "Deactivate failed", true);
-            return;
-          }
-          setStatus("Deactivated " + payload.entry.symbol);
-          await loadEntries();
-        });
-
-        item.appendChild(meta);
-        item.appendChild(button);
-        listEl.appendChild(item);
-      }
-    }
-
-    async function loadEntries() {
-      const response = await fetch("/api/watchlist");
-      const payload = await response.json();
-      renderEntries(payload.activeEntries || []);
-    }
-
-    formEl.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const response = await fetch("/api/watchlist/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          symbol: symbolEl.value,
-          note: noteEl.value,
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setStatus(payload.error || "Activate failed", true);
-        return;
-      }
-      setStatus("Activated " + payload.entry.symbol + " in thread " + payload.entry.discordThreadId);
-      symbolEl.value = "";
-      noteEl.value = "";
-      await loadEntries();
-    });
-
-    loadEntries().catch((error) => {
-      setStatus(String(error), true);
-    });
-  </script>
-</body>
-</html>
-`;
-
-function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
-  response.statusCode = statusCode;
-  response.setHeader("Content-Type", "application/json; charset=utf-8");
-  response.end(`${JSON.stringify(payload)}\n`);
-}
-
-async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-
-  if (chunks.length === 0) {
-    return {};
-  }
-
-  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+    const stats = statSync(path);
+    const isPreviewable = name.endsWith(".md") || name.endsWith(".json");
+    const preview = isPreviewable
+      ? readFileSync(path, "utf8").slice(0, 1800)
+      : null;
+    return {
+      name,
+      exists: true,
+      sizeBytes: stats.size,
+      updatedAt: stats.mtimeMs,
+      preview,
+    };
+  });
 }
 
 async function main(): Promise<void> {
   const ib = createIbkrClient();
-  const historicalProvider = new IbkrHistoricalCandleProvider(ib);
+  const manualWatchlistIbkrTimeoutMs = Number(
+    process.env[MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV] ?? DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+  );
+  const historicalLookbackBars = resolveManualWatchlistHistoricalLookbacks();
+  const historicalProvider = new IbkrHistoricalCandleProvider(
+    ib,
+    Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+      ? manualWatchlistIbkrTimeoutMs
+      : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+  );
   const liveProvider = new IBKRLivePriceProvider(ib);
   const candleService = new CandleFetchService(historicalProvider);
   const levelStore = new LevelStore();
-  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+  const monitoringEventDiagnosticsEnabled = isTruthyEnv(
+    process.env[MONITORING_EVENT_DIAGNOSTICS_ENV],
+  );
+  const monitor = new WatchlistMonitor(
+    levelStore,
+    liveProvider,
+    undefined,
+    monitoringEventDiagnosticsEnabled
+      ? {
+          diagnosticListener: createMonitoringEventDiagnosticListener(),
+        }
+      : undefined,
+  );
   const adaptiveStatePersistence = new AdaptiveStatePersistence({
     minMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.minMultiplier,
     maxMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.maxMultiplier,
@@ -253,23 +186,82 @@ async function main(): Promise<void> {
     adaptiveScoringEngine,
     adaptiveStatePersistence,
   });
+  const aiCommentaryEnabled = isTruthyEnv(process.env[AI_COMMENTARY_ENV]);
+  const aiCommentaryModel = process.env[AI_MODEL_ENV]?.trim() || "gpt-5-mini";
+  const postingProfile = resolveLiveThreadPostingProfile(process.env[WATCHLIST_POSTING_PROFILE_ENV]);
+  const openAiApiKeyPresent = Boolean(process.env.OPENAI_API_KEY?.trim());
+  const aiCommentaryService = aiCommentaryEnabled
+    ? createOpenAITraderCommentaryServiceFromEnv()
+    : null;
+  const finnhubClient = createFinnhubClientFromEnv();
+  const yahooClient = createYahooClientFromEnv();
+  const stockContextProvider =
+    finnhubClient || yahooClient
+      ? new CombinedStockContextProvider({
+          finnhubClient,
+          yahooClient,
+        })
+      : null;
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: candleService,
     levelStore,
     monitor,
     discordAlertRouter: createDiscordAlertRouter(),
     opportunityRuntimeController,
+    historicalLookbackBars,
+    aiCommentaryService,
+    stockContextProvider,
     watchlistStatePersistence: new WatchlistStatePersistence(),
+    lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
+    optionalPostSettleDelayMs: 250,
+    postingProfile,
   });
+  const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
+  let startupState: "booting" | "ready" | "error" = "booting";
+  let startupError: string | null = null;
 
-  await waitForIbkrConnection(ib);
-  console.log(
-    `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
-  );
-  await manager.start();
+  const bootRuntime = async (): Promise<void> => {
+    try {
+      await waitForIbkrConnection(ib);
+      startupState = "ready";
+      startupError = null;
+      console.log(
+        `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] IBKR historical timeout: ${Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0 ? manualWatchlistIbkrTimeoutMs : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS}ms.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Historical lookbacks: daily=${historicalLookbackBars.daily}, 4h=${historicalLookbackBars["4h"]}, 5m=${historicalLookbackBars["5m"]}.`,
+      );
+      console.log(`[ManualWatchlistRuntime] Posting profile: ${postingProfile}.`);
+      if (monitoringEventDiagnosticsEnabled) {
+        console.log(
+          `[ManualWatchlistRuntime] Monitoring event diagnostics enabled via ${MONITORING_EVENT_DIAGNOSTICS_ENV}.`,
+        );
+      }
+      if (aiCommentaryEnabled) {
+        console.log(
+          `[ManualWatchlistRuntime] AI commentary ${aiCommentaryService ? "enabled" : "requested but OPENAI_API_KEY is missing"}.`,
+        );
+      }
+      console.log(
+        `[ManualWatchlistRuntime] Finnhub stock context ${finnhubClient ? "enabled" : "disabled (FINNHUB_API_KEY missing)"}.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Yahoo stock context ${yahooClient ? "enabled" : "disabled (YAHOO_STOCK_CONTEXT_ENABLED=false)"}.`,
+      );
+      await manager.start();
+      console.log("[ManualWatchlistRuntime] Runtime startup complete.");
+    } catch (error) {
+      startupState = "error";
+      startupError = error instanceof Error ? error.message : String(error);
+      console.error(`[ManualWatchlistRuntime] Startup failed: ${startupError}`);
+    }
+  };
 
   const server = createServer(async (request, response) => {
-    const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+    const url = new URL(request.url ?? "/", `http://${LOCAL_BIND_HOST}`);
 
     if (request.method === "GET" && url.pathname === "/") {
       response.statusCode = 200;
@@ -281,11 +273,66 @@ async function main(): Promise<void> {
     if (request.method === "GET" && url.pathname === "/api/watchlist") {
       sendJson(response, 200, {
         activeEntries: manager.getActiveEntries(),
+        startupState,
+        startupError,
+      });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/runtime/status") {
+      const runtimeHealth = manager.getRuntimeHealth();
+      sendJson(response, 200, {
+        providerName: candleService.getProviderName(),
+        diagnosticsEnabled: monitoringEventDiagnosticsEnabled,
+        aiCommentaryEnabled: aiCommentaryService !== null,
+        runtimeConfig: {
+          bindHost: LOCAL_BIND_HOST,
+          port: PORT,
+          historicalProvider: candleService.getProviderName(),
+          liveProvider: "ibkr",
+          ibkrHistoricalTimeoutMs:
+            Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+              ? manualWatchlistIbkrTimeoutMs
+              : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+          historicalLookbackBars: manager.getHistoricalLookbackBars(),
+          postingProfile,
+          monitoringDiagnosticsRequested: monitoringEventDiagnosticsEnabled,
+          aiCommentaryRequested: aiCommentaryEnabled,
+          aiCommentaryServiceAvailable: aiCommentaryService !== null,
+          aiCommentaryModel,
+          openAiApiKeyPresent,
+          aiCommentaryRoute: "symbol recaps and live alert AI reads",
+        },
+        activeSymbolCount: manager.getActiveEntries().length,
+        ibkrConnected: isIbkrConnected(ib),
+        ibkrReconnecting: isIbkrReconnecting(ib),
+        runtimeHealth,
+        recentActivity: manager.getRecentActivity(),
+        sessionDirectory,
+        startupState,
+        startupError,
+      });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/runtime/review-artifacts") {
+      sendJson(response, 200, {
+        sessionDirectory,
+        artifacts: readReviewArtifacts(sessionDirectory),
       });
       return;
     }
 
     if (request.method === "POST" && url.pathname === "/api/watchlist/activate") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
       try {
         const body = await readJsonBody(request);
         const symbol = typeof body.symbol === "string" ? body.symbol : "";
@@ -296,10 +343,15 @@ async function main(): Promise<void> {
           return;
         }
 
-        const entry = await manager.activateSymbol({ symbol, note });
-        sendJson(response, 200, { entry });
+        const entry = await manager.queueActivation({ symbol, note });
+        sendJson(response, 202, { entry, queued: true });
       } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Activation failed: ${message}`);
         sendJson(response, 500, { error: message });
       }
       return;
@@ -323,6 +375,56 @@ async function main(): Promise<void> {
 
         sendJson(response, 200, { entry });
       } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/refresh-levels") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+
+        if (symbol.trim().length === 0) {
+          sendJson(response, 400, { error: "Symbol is required." });
+          return;
+        }
+
+        const entry = await manager.refreshSymbolLevels(symbol);
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/repost-snapshot") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+
+        if (symbol.trim().length === 0) {
+          sendJson(response, 400, { error: "Symbol is required." });
+          return;
+        }
+
+        const entry = await manager.repostLevelSnapshot(symbol);
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
       }
@@ -356,9 +458,11 @@ async function main(): Promise<void> {
     void shutdown("SIGTERM").finally(() => process.exit(0));
   });
 
-  server.listen(PORT, () => {
+  server.listen(PORT, LOCAL_BIND_HOST, () => {
     console.log(`Manual watchlist server running at http://127.0.0.1:${PORT}`);
   });
+
+  void bootRuntime();
 }
 
 main().catch((error) => {
