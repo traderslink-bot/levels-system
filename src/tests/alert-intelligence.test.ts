@@ -479,7 +479,7 @@ test("AlertIntelligenceEngine frames strong support touches as support reaction 
     result.formatted?.body,
     [
       "price testing heavy support 97.80-98.20",
-      "why now: price came back into defended support instead of drifting mid-range",
+      "why now: price is back at support, so buyers need to stabilize before the setup improves",
       "movement: price is testing inside support above the lower edge (0.3%)",
       "pressure: buyers still have workable control, but follow-through still matters",
       "context: heavy support | outermost | fresh | 5m/4h/daily confluence",
@@ -489,7 +489,7 @@ test("AlertIntelligenceEngine frames strong support touches as support reaction 
       "support reaction quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
       "setup state: building, so the zone still needs a real decision move",
       "trade map: risk to invalidation 0.3%; room to next resistance 2.4% (~6.9x, favorable skew)",
-      "watch: buyers defend 97.80-98.20 before momentum fades",
+      "watch: buyers stabilize at 97.80-98.20; losing it keeps risk open lower",
     ].join("\n"),
   );
   assert.equal(result.rawAlert.tacticalRead, "firm");

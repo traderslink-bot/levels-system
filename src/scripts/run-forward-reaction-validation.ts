@@ -17,7 +17,7 @@ import {
   resolveValidationLookbacks,
 } from "../lib/validation/validation-lookback-config.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
-import { createIbkrClient } from "./shared/ibkr-runtime.js";
+import { createValidationIbkrClient } from "./shared/ibkr-runtime.js";
 import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
 
 const DEFAULT_FORWARD_HORIZON_BARS = 48;
@@ -125,7 +125,7 @@ async function main(): Promise<void> {
   const forwardHorizonMs = forwardHorizonBars * 5 * 60 * 1000;
   const generationEndTimeMs = Date.now() - forwardHorizonMs;
   const needsIbkr = providerName === "ibkr";
-  const ib = needsIbkr ? createIbkrClient() : undefined;
+  const ib = needsIbkr ? createValidationIbkrClient() : undefined;
 
   try {
     if (needsIbkr && ib) {

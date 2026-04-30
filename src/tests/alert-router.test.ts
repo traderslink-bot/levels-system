@@ -466,6 +466,79 @@ test("formatIntelligentAlertAsPayload shows tested resistance and nearby support
   assertTraderFacingDiscordText(payload);
 });
 
+test("formatIntelligentAlertAsPayload shows cleared resistance below price as a hold area", () => {
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-role-flip",
+    symbol: "AKAN",
+    title: "AKAN level touch",
+    body: [
+      "price testing moderate resistance 62.55",
+      "pressure: buyers are present, but control still looks tentative",
+      "why now: price is back at resistance; buyers need acceptance above the zone",
+      "room: open lower path to hold area near 55.13 (-11.9%)",
+      "watch: buyers need acceptance above 62.55 before breakout pressure builds",
+    ].join("\n"),
+    severity: "high",
+    confidence: "high",
+    score: 61.38,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: {
+      ...samplePayload.event!,
+      symbol: "AKAN",
+      eventType: "level_touch",
+      type: "level_touch",
+      zoneId: "R-test",
+      zoneKind: "resistance",
+      level: 62.55,
+      triggerPrice: 62.49,
+    },
+    zone: {
+      id: "R-test",
+      symbol: "AKAN",
+      kind: "resistance",
+      timeframeBias: "daily",
+      zoneLow: 62.4,
+      zoneHigh: 62.55,
+      representativePrice: 62.55,
+      strengthScore: 35,
+      strengthLabel: "moderate",
+      touchCount: 3,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["daily"],
+      reactionQualityScore: 0.62,
+      rejectionScore: 0.4,
+      displacementScore: 0.55,
+      sessionSignificanceScore: 0.25,
+      followThroughScore: 0.7,
+      gapContinuationScore: 0,
+      sourceEvidenceCount: 2,
+      firstTimestamp: 1,
+      lastTimestamp: 2,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    nextBarrier: {
+      side: "support",
+      price: 55.13,
+      distancePct: 0.119,
+      strengthLabel: "strong",
+      roleFlipFromSide: "resistance",
+      clearanceLabel: "open",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+  });
+
+  assert.match(payload.body, /hold area near 55\.13/);
+  assert.match(payload.body, /Key levels:\n- Testing resistance: 62\.40-62\.55\n- Nearby hold area: 55\.13/);
+  assert.doesNotMatch(payload.body, /Nearby support: 42\.41/);
+  assertTraderFacingDiscordText(payload);
+});
+
 test("formatIntelligentAlertAsPayload uses nearing-support wording for support approaches", () => {
   const touchEvent = {
     ...samplePayload.event!,

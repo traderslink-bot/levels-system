@@ -422,3 +422,60 @@ test("WatchlistMonitor includes nearby barrier clearance in emitted event contex
   assert.equal(events[0]?.eventContext.nextBarrierLevel, 2.02);
   assert.equal(events[0]?.eventContext.clearanceLabel, "limited");
 });
+
+test("WatchlistMonitor treats recently cleared resistance below price as a nearby hold area", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+
+  levelStore.setLevels(buildLevelOutput("AKAN", {
+    intradaySupport: [
+      buildZone({
+        id: "S1",
+        symbol: "AKAN",
+        kind: "support",
+        zoneLow: 42.2,
+        zoneHigh: 42.6,
+        representativePrice: 42.41,
+      }),
+    ],
+    intradayResistance: [
+      buildZone({
+        id: "R-cleared",
+        symbol: "AKAN",
+        kind: "resistance",
+        zoneLow: 54.65,
+        zoneHigh: 55.13,
+        representativePrice: 55.13,
+        strengthLabel: "strong",
+      }),
+      buildZone({
+        id: "R-test",
+        symbol: "AKAN",
+        kind: "resistance",
+        zoneLow: 62.4,
+        zoneHigh: 62.55,
+        representativePrice: 62.55,
+        strengthLabel: "moderate",
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "AKAN", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  liveProvider.listener?.({
+    symbol: "AKAN",
+    timestamp: 100,
+    lastPrice: 62.49,
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.eventType, "level_touch");
+  assert.equal(events[0]?.eventContext.nextBarrierKind, "support");
+  assert.equal(events[0]?.eventContext.nextBarrierLevel, 55.13);
+  assert.equal(events[0]?.eventContext.nextBarrierRoleFlipFromKind, "resistance");
+});

@@ -18,7 +18,7 @@ import {
   resolveValidationLookbacks,
 } from "../lib/validation/validation-lookback-config.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
-import { createIbkrClient } from "./shared/ibkr-runtime.js";
+import { createValidationIbkrClient } from "./shared/ibkr-runtime.js";
 import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
 
 const DEFAULT_WINDOW_COUNT = 6;
@@ -122,7 +122,7 @@ async function main(): Promise<void> {
   const ibkrTimeoutMs = resolveOptionalPositiveInteger(process.env.LEVEL_VALIDATION_IBKR_TIMEOUT_MS);
   const stepMs = stepMinutes * 60 * 1000;
   const needsIbkr = providerName === "ibkr";
-  const ib = needsIbkr ? createIbkrClient() : undefined;
+  const ib = needsIbkr ? createValidationIbkrClient() : undefined;
 
   try {
     if (needsIbkr && ib) {

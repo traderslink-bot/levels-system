@@ -3313,6 +3313,7 @@ export class ManualWatchlistRuntimeManager {
           severity: params.alert.severity,
           confidence: params.alert.confidence,
           score: params.alert.score,
+          targetPrice: params.alert.event.level,
           aiGenerated: true,
           suppressEmbeds: true,
         },

@@ -103,6 +103,7 @@ export class AlertIntelligenceEngine {
         price: event.eventContext.nextBarrierLevel,
         distancePct: event.eventContext.nextBarrierDistancePct,
         strengthLabel: event.eventContext.nextBarrierStrengthLabel,
+        roleFlipFromSide: event.eventContext.nextBarrierRoleFlipFromKind,
         clearanceLabel: event.eventContext.clearanceLabel,
         clutterLabel: event.eventContext.barrierClutterLabel,
         nearbyBarrierCount: event.eventContext.nearbyBarrierCount,

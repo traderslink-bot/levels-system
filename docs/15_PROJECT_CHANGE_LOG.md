@@ -21,6 +21,49 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-30 America/Toronto
 
+### Hardened strict audit validation and role-flip level context
+
+- Updated:
+  - `src/lib/market-data/ibkr-historical-candle-provider.ts`
+  - `src/scripts/shared/ibkr-runtime.ts`
+  - `src/scripts/run-level-quality-audit.ts`
+  - `src/scripts/run-level-validation-batch.ts`
+  - `src/scripts/run-level-candle-health-check.ts`
+  - `src/scripts/run-level-persistence-validation.ts`
+  - `src/scripts/run-forward-reaction-validation.ts`
+  - `src/lib/monitoring/monitoring-event-scoring.ts`
+  - `src/lib/monitoring/event-detector.ts`
+  - `src/lib/monitoring/monitoring-types.ts`
+  - `src/lib/alerts/alert-intelligence-engine.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/alerts/trader-message-language.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/ibkr-historical-candle-provider.test.ts`
+  - `src/tests/watchlist-monitor.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/alert-intelligence.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `docs/45_TRADING_DAY_AUDIT_PLAYBOOK.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+- What changed:
+  - validation scripts can now use `LEVEL_VALIDATION_IBKR_CLIENT_ID`, `LEVEL_VALIDATION_IBKR_HOST`, and `LEVEL_VALIDATION_IBKR_PORT` so strict audits do not collide with the live manual watchlist IBKR client
+  - fixed IBKR daily candle timestamp parsing for `YYYYMMDD` daily bars so fresh level audits do not silently turn daily candles into `1970` dates
+  - level-touch and compression alerts can now treat recently cleared resistance below price as a nearby hold area, and recently broken support above price as a nearby reclaim area
+  - trader-facing key-level text now says `Nearby hold area` / `Nearby reclaim area` for those role-flip cases instead of jumping to a much deeper native support/resistance
+  - AI commentary audit rows now carry the alert level as metadata so repeated-story reports can prove which level the AI read belonged to
+  - the audit playbook now requires validation-client isolation, daily timestamp sanity checks, every-active-ticker level validation, and explicit role-flip hold/reclaim review
+- Evidence from the April 30 strict audit:
+  - active app health was good: IBKR connected, no Discord delivery failures, and 10 active symbols
+  - candle-backed live validation passed healthy forward ladders for `HCAI`, `FATN`, `ABTS`, `CANF`, `CYCU`, `OSRH`, `ISPC`, `VLN`, and `BYND`
+  - `AKAN` correctly remained an `action/watch` case because the raw support ladder had wide gaps, but the Discord issue was narrowed to nearby role-flip context around cleared resistance
+- Verification:
+  - `npx tsx --test src/tests/watchlist-monitor.test.ts src/tests/alert-router.test.ts src/tests/alert-intelligence.test.ts src/tests/ibkr-historical-candle-provider.test.ts`
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/live-thread-post-policy.test.ts`
+  - `npm run build`
+
+## 2026-04-30 America/Toronto
+
 ### Cleaned live AI signal posts after post-market audit
 
 - Updated:

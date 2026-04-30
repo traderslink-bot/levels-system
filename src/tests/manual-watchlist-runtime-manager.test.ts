@@ -2912,6 +2912,7 @@ test("ManualWatchlistRuntimeManager posts AI signal commentary after determinist
   assert.match(aiPosts[0]?.payload.body ?? "", /AI says buyers need acceptance above resistance/);
   assert.doesNotMatch(aiPosts[0]?.payload.body ?? "", /AI read:|Based on:/);
   assert.equal(aiPosts[0]?.payload.metadata?.aiGenerated, true);
+  assert.equal(aiPosts[0]?.payload.metadata?.targetPrice, 2.45);
 });
 
 test("ManualWatchlistRuntimeManager rate-limits AI signal commentary per symbol", async () => {
@@ -3153,6 +3154,7 @@ test("ManualWatchlistRuntimeManager suppresses stale AI signal commentary and al
   );
   assert.equal(aiPosts.length, 1);
   assert.equal(aiPosts[0]?.payload.title, "ALBT setup read");
+  assert.equal(aiPosts[0]?.payload.metadata?.targetPrice, 2.45);
 });
 
 test("ManualWatchlistRuntimeManager posts follow-through updates when evaluations complete", async () => {

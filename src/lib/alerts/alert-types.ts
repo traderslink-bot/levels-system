@@ -167,6 +167,7 @@ export type AlertPayload = {
     nearbyBarrierCount?: number;
     nextBarrierSide?: "support" | "resistance";
     nextBarrierDistancePct?: number;
+    nextBarrierRoleFlipFromSide?: "support" | "resistance";
     tacticalRead?: TraderZoneTacticalRead;
     movementLabel?: TraderMovementLabel;
     movementPct?: number;
@@ -206,6 +207,7 @@ export type TraderNextBarrierContext = {
   price: number;
   distancePct: number;
   strengthLabel?: FinalLevelZone["strengthLabel"];
+  roleFlipFromSide?: "support" | "resistance";
   clearanceLabel?: BarrierClearanceLabel;
   clutterLabel?: BarrierClutterLabel;
   nearbyBarrierCount?: number;

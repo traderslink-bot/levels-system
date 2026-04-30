@@ -214,11 +214,20 @@ Use replay mode first so the audit reads the saved candle data captured during t
 Set validation environment values:
 
 ```powershell
+$env:LEVEL_VALIDATION_IBKR_CLIENT_ID='202'
 $env:LEVEL_VALIDATION_CACHE_MODE='replay'
 $env:LEVEL_VALIDATION_LOOKBACK_DAILY='520'
 $env:LEVEL_VALIDATION_LOOKBACK_4H='180'
 $env:LEVEL_VALIDATION_LOOKBACK_5M='100'
 ```
+
+Use a validation-only IBKR client id whenever the app is still running. The live manual watchlist runtime and the audit scripts must not share the same IBKR client id. If the audit needs fresh candles instead of replayed saved candles, keep `LEVEL_VALIDATION_IBKR_CLIENT_ID` set and use:
+
+```powershell
+$env:LEVEL_VALIDATION_CACHE_MODE='refresh'
+```
+
+After the first fresh validation pass, inspect at least one output file and confirm daily candle timestamps are real trading dates, not epoch-looking `1970` dates. A bad provider timestamp parse can make the level engine look wrong even when the candle request succeeded.
 
 Run every active ticker from the trading day:
 
@@ -240,12 +249,16 @@ Review each report for:
 - data-quality flags
 - nearest support/resistance distance
 - displayed count versus extension count
+- timestamp sanity for daily/4h/5m candles
+- whether a supposedly far next level should actually be a role-flip hold/reclaim area from a recently crossed level
 
 Do not treat all warnings equally:
 
 - `action` usually means code or data needs review.
 - `watch` means inspect candles before deciding.
 - `thin_forward_ladder` may be legitimate if candle history truly has little structure.
+
+For a strict audit, run this candle-backed check for every active ticker from the session, not just the ticker that looked strange in Discord. The final audit should name which tickers were validated, which passed, which produced `action` or `watch` findings, and which files contain the evidence.
 
 ## Manual Candle Gap Review
 
@@ -291,6 +304,8 @@ Specific patterns to catch:
 - Multiple nearby levels display as clutter instead of one zone.
 - A broken support is not treated as nearby resistance when price is below it.
 - A reclaimed or crossed resistance is not treated as nearby support / breakout support while price is above it.
+- A level-touch or compression post near upper resistance points to deep native support while ignoring a recently cleared resistance directly below price.
+- A level-touch or compression post near lower support points to distant native resistance while ignoring recently broken support directly above price.
 - A barely crossed resistance is described as fully cleared too early.
 - The app says there is no resistance when older daily candles show clear overhead levels.
 - A post says resistance/support was crossed but does not include a clear `Key levels` style section for the crossed level and the next level above/below.

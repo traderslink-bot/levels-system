@@ -84,7 +84,11 @@ function describeBarrierRoom(nextBarrier: TraderNextBarrierContext): string {
   const pctText = formatBarrierPct(nextBarrier.side, nextBarrier.distancePct);
   const sideText = clearanceDirectionForSide(nextBarrier.side);
   const barrierText =
-    nextBarrier.side === "support"
+    nextBarrier.side === "support" && nextBarrier.roleFlipFromSide === "resistance"
+      ? `hold area near ${formatLevel(nextBarrier.price)}`
+      : nextBarrier.side === "resistance" && nextBarrier.roleFlipFromSide === "support"
+        ? `reclaim area near ${formatLevel(nextBarrier.price)}`
+        : nextBarrier.side === "support"
       ? `support near ${formatLevel(nextBarrier.price)}`
       : `next resistance ${formatLevel(nextBarrier.price)}`;
   const clutterText =

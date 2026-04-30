@@ -94,6 +94,7 @@ function relevantBarriers(params: {
   zone: FinalLevelZone;
   level: number;
   distancePct: number;
+  roleFlipFromKind?: "support" | "resistance";
 }> {
   const { eventType, zone, symbolState, triggerPrice } = params;
   if (!Number.isFinite(triggerPrice) || triggerPrice <= 0) {
@@ -101,30 +102,55 @@ function relevantBarriers(params: {
   }
 
   const barrierKind = barrierSideForEvent(eventType, zone, symbolState.bias ?? "neutral");
-  const candidateZones =
+  const directCandidateZones =
     barrierKind === "resistance"
       ? symbolState.resistanceZones
       : symbolState.supportZones;
-  const candidates = candidateZones
+
+  const includeRoleFlipCandidates =
+    eventType === "level_touch" || eventType === "compression";
+  const roleFlipCandidateZones = includeRoleFlipCandidates
+    ? barrierKind === "support"
+      ? symbolState.resistanceZones
+      : symbolState.supportZones
+    : [];
+
+  const buildCandidate = (
+    candidate: FinalLevelZone,
+    roleFlipFromKind?: "support" | "resistance",
+  ) => ({
+    kind: barrierKind,
+    zone: candidate,
+    level: candidate.representativePrice,
+    distancePct:
+      Math.abs(candidate.representativePrice - triggerPrice) /
+      Math.max(triggerPrice, 0.0001),
+    roleFlipFromKind,
+  });
+
+  const directCandidates = directCandidateZones
     .filter((candidate) => candidate.id !== zone.id)
     .filter((candidate) =>
       barrierKind === "resistance"
         ? candidate.representativePrice > triggerPrice
         : candidate.representativePrice < triggerPrice,
     )
-    .sort((left, right) =>
+    .map((candidate) => buildCandidate(candidate));
+
+  const roleFlipCandidates = roleFlipCandidateZones
+    .filter((candidate) => candidate.id !== zone.id)
+    .filter((candidate) =>
       barrierKind === "resistance"
-        ? left.representativePrice - right.representativePrice
-        : right.representativePrice - left.representativePrice,
+        ? candidate.representativePrice > triggerPrice
+        : candidate.representativePrice < triggerPrice,
     )
-    .map((candidate) => ({
-      kind: barrierKind,
-      zone: candidate,
-      level: candidate.representativePrice,
-      distancePct:
-        Math.abs(candidate.representativePrice - triggerPrice) /
-        Math.max(triggerPrice, 0.0001),
-    }));
+    .map((candidate) => buildCandidate(candidate, candidate.kind));
+
+  const candidates = [...directCandidates, ...roleFlipCandidates].sort((left, right) =>
+    barrierKind === "resistance"
+      ? left.level - right.level
+      : right.level - left.level,
+  );
 
   return candidates;
 }
@@ -290,6 +316,7 @@ export function findNearestRelevantBarrier(params: {
   zone: FinalLevelZone;
   level: number;
   distancePct: number;
+  roleFlipFromKind?: "support" | "resistance";
 } | null {
   return relevantBarriers(params)[0] ?? null;
 }

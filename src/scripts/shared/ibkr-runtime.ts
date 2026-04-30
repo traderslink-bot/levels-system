@@ -147,6 +147,25 @@ export function createIbkrClient(
   return initializeIbkrRuntime(ib);
 }
 
+function resolvePositiveInteger(rawValue: string | undefined): number | undefined {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+export function createValidationIbkrClient(): IBApi {
+  const clientId =
+    resolvePositiveInteger(process.env.LEVEL_VALIDATION_IBKR_CLIENT_ID) ??
+    DEFAULT_IBKR_CLIENT_ID;
+  const port =
+    resolvePositiveInteger(process.env.LEVEL_VALIDATION_IBKR_PORT) ??
+    DEFAULT_IBKR_PORT;
+  const host =
+    process.env.LEVEL_VALIDATION_IBKR_HOST?.trim() ||
+    DEFAULT_IBKR_HOST;
+
+  return createIbkrClient(clientId, host, port);
+}
+
 export function isIbkrConnected(ib: IBApi): boolean {
   const state = runtimeStateByClient.get(ib);
   return state?.isConnected ?? ib.isConnected;

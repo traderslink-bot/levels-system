@@ -123,6 +123,18 @@ function formatBarrierWithStrength(barrier: TraderNextBarrierContext | null | un
   return `${barrier.side} near ${level}`;
 }
 
+function formatBarrierKeyLevelLabel(barrier: TraderNextBarrierContext | null | undefined): string {
+  if (barrier?.side === "support" && barrier.roleFlipFromSide === "resistance") {
+    return "Nearby hold area";
+  }
+
+  if (barrier?.side === "resistance" && barrier.roleFlipFromSide === "support") {
+    return "Nearby reclaim area";
+  }
+
+  return "Nearby";
+}
+
 function formatLostSupportAsResistance(alert: IntelligentAlert): string | null {
   if (!isLongCautionEventType(alert.event.eventType)) {
     return null;
@@ -209,6 +221,7 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   const targetLevel = formatAlertLevel(alert.target?.price);
   const barrierLevel = formatAlertLevel(alert.nextBarrier?.price);
   const barrierText = formatBarrierWithStrength(alert.nextBarrier);
+  const barrierKeyLevelLabel = formatBarrierKeyLevelLabel(alert.nextBarrier);
   const eventType = alert.event.eventType;
   const watchParts = splitWatchLine(watch);
   const supportReactionLine = buildSupportReactionLine(alert, barrierText);
@@ -279,7 +292,7 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
       return;
     }
     seenNearbyLevelKeys.add(key);
-    nearbyLevels.push(`${label} ${side}: ${level}`);
+    nearbyLevels.push(side ? `${label} ${side}: ${level}` : `${label}: ${level}`);
   };
   if (isLongCautionEventType(eventType)) {
     const reclaimArea = formatLostSupportAsResistance(alert);
@@ -296,10 +309,18 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
       alert.zone !== undefined &&
       alert.event.triggerPrice > alert.zone.zoneHigh;
     pushNearbyLevel(supportApproach ? "Nearby" : "Testing", alert.event.zoneKind, zoneRange);
-    pushNearbyLevel("Nearby", alert.nextBarrier?.side ?? "", barrierLevel);
+    pushNearbyLevel(
+      barrierKeyLevelLabel,
+      alert.nextBarrier?.roleFlipFromSide ? "" : alert.nextBarrier?.side ?? "",
+      barrierLevel,
+    );
   } else {
     pushNearbyLevel("First", alert.target?.side ?? "", targetLevel);
-    pushNearbyLevel("Nearby", alert.nextBarrier?.side ?? "", barrierLevel);
+    pushNearbyLevel(
+      barrierKeyLevelLabel,
+      alert.nextBarrier?.roleFlipFromSide ? "" : alert.nextBarrier?.side ?? "",
+      barrierLevel,
+    );
   }
 
   const output = [lead];
@@ -350,6 +371,7 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       nearbyBarrierCount: alert.nextBarrier?.nearbyBarrierCount,
       nextBarrierSide: alert.nextBarrier?.side,
       nextBarrierDistancePct: alert.nextBarrier?.distancePct,
+      nextBarrierRoleFlipFromSide: alert.nextBarrier?.roleFlipFromSide,
       tacticalRead: alert.tacticalRead,
       movementLabel: alert.movement?.label,
       movementPct: alert.movement?.movementPct,

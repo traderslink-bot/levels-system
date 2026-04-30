@@ -131,6 +131,44 @@ test("IbkrHistoricalCandleProvider returns an empty candle set when IBKR sends n
   assert.equal(response.provider, "ibkr");
 });
 
+test("IbkrHistoricalCandleProvider parses IBKR daily dates before numeric epoch fallback", async () => {
+  sharedIbkrPacingQueue.resetForTests();
+  const ib = new FakeHistoricalIbApi();
+  const provider = new IbkrHistoricalCandleProvider(ib as any, 100);
+  const plan = buildHistoricalFetchPlan(
+    {
+      symbol: "AKAN",
+      timeframe: "daily",
+      lookbackBars: 2,
+    },
+    "ibkr",
+  );
+
+  const fetchPromise = provider.fetchCandles(
+    {
+      symbol: "AKAN",
+      timeframe: "daily",
+      lookbackBars: 2,
+    },
+    plan,
+  );
+
+  const reqId = await waitForHistoricalRequest(ib);
+  ib.emit(EventName.historicalData, reqId, "20260429", 40, 45, 38, 42, 10_000);
+  ib.emit(EventName.historicalData, reqId, 20260430, 42, 64, 40, 58, 50_000);
+  ib.emit("historicalDataEnd", reqId, "start", "end");
+
+  const response = await fetchPromise;
+
+  assert.deepEqual(
+    response.candles.map((candle) => candle.timestamp),
+    [
+      new Date(2026, 3, 29).getTime(),
+      new Date(2026, 3, 30).getTime(),
+    ],
+  );
+});
+
 test("IbkrHistoricalCandleProvider cancels requests when IBKR returns a request-scoped error", async () => {
   sharedIbkrPacingQueue.resetForTests();
   const ib = new FakeHistoricalIbApi();

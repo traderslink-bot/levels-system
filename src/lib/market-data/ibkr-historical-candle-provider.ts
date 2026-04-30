@@ -298,6 +298,10 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
 
   private parseIbkrTimestamp(rawTime: string | number): number {
     if (typeof rawTime === "number") {
+      if (Number.isInteger(rawTime) && rawTime >= 19000101 && rawTime <= 21001231) {
+        return this.parseIbkrDailyDate(String(rawTime));
+      }
+
       const timestamp = rawTime * 1000;
       if (!Number.isFinite(timestamp)) {
         throw new Error(`Invalid IBKR numeric timestamp: ${rawTime}`);
@@ -308,25 +312,16 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
 
     const trimmed = rawTime.trim();
 
+    if (/^\d{8}$/.test(trimmed)) {
+      return this.parseIbkrDailyDate(trimmed);
+    }
+
     if (/^\d+$/.test(trimmed)) {
       const numericValue = Number(trimmed);
       const timestamp = trimmed.length <= 10 ? numericValue * 1000 : numericValue;
 
       if (!Number.isFinite(timestamp)) {
         throw new Error(`Invalid IBKR numeric timestamp: ${rawTime}`);
-      }
-
-      return timestamp;
-    }
-
-    if (/^\d{8}$/.test(trimmed)) {
-      const year = Number(trimmed.slice(0, 4));
-      const monthIndex = Number(trimmed.slice(4, 6)) - 1;
-      const day = Number(trimmed.slice(6, 8));
-      const timestamp = new Date(year, monthIndex, day).getTime();
-
-      if (!Number.isFinite(timestamp)) {
-        throw new Error(`Invalid IBKR daily timestamp: ${rawTime}`);
       }
 
       return timestamp;
@@ -357,6 +352,19 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     }
 
     return fallbackTimestamp;
+  }
+
+  private parseIbkrDailyDate(rawDate: string): number {
+    const year = Number(rawDate.slice(0, 4));
+    const monthIndex = Number(rawDate.slice(4, 6)) - 1;
+    const day = Number(rawDate.slice(6, 8));
+    const timestamp = new Date(year, monthIndex, day).getTime();
+
+    if (!Number.isFinite(timestamp)) {
+      throw new Error(`Invalid IBKR daily timestamp: ${rawDate}`);
+    }
+
+    return timestamp;
   }
 
   private getFallbackDuration(timeframe: CandleTimeframe): string {
