@@ -21,6 +21,26 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-30 America/Toronto
 
+### Added guarded Discord testing-thread cleanup tool
+
+- Updated:
+  - `package.json`
+  - `src/lib/alerts/discord-thread-cleanup.ts`
+  - `src/scripts/cleanup-discord-test-threads.ts`
+  - `src/tests/discord-thread-cleanup.test.ts`
+  - `README.md`
+- What changed:
+  - added `npm run discord:cleanup:threads` for previewing, archiving, or deleting testing-only Discord ticker threads from saved watchlist state or Discord audit rows
+  - default mode is dry-run and writes `artifacts/discord-thread-cleanup-plan.json`
+  - archive/delete mutations require `--confirm-testing-cleanup`
+  - optional `--delete-starter-messages` matches the parent-channel starter messages created by the bot so channel clutter can be cleaned along with the threads
+- Verification:
+  - `npx tsx --test src/tests/discord-thread-cleanup.test.ts`
+  - `npm run build`
+  - `npm run discord:cleanup:threads -- --dry-run --delete-starter-messages`
+
+## 2026-04-30 America/Toronto
+
 ### Added trader-critical Discord retry proof and clustered level-cross posts
 
 - Updated:
