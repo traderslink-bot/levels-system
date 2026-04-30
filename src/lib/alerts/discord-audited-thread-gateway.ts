@@ -13,6 +13,7 @@ import {
   formatLevelSnapshotMessage,
   type DiscordThreadGateway,
 } from "./alert-router.js";
+import { classifyLiveThreadMessage } from "../monitoring/live-thread-post-policy.js";
 
 export type DiscordDeliveryAuditOperation =
   | "create_thread"
@@ -64,6 +65,10 @@ export type DiscordDeliveryAuditEntry = {
   targetSide?: string;
   targetPrice?: number;
   targetDistancePct?: number;
+  crossedLevels?: number[];
+  clusterLow?: number;
+  clusterHigh?: number;
+  clusteredLevelClear?: boolean;
   followThroughLabel?: string;
   progressLabel?: string;
   continuityType?: string;
@@ -86,6 +91,9 @@ export type DiscordDeliveryAuditEntry = {
   };
   side?: string;
   levelCount?: number;
+  retryAttempt?: number;
+  retryOf?: number;
+  retryReason?: string;
   error?: string;
 };
 
@@ -93,6 +101,8 @@ export type DiscordAuditedThreadGatewayOptions = {
   gatewayMode: "real" | "local";
   auditFilePath?: string;
   auditListener?: (entry: DiscordDeliveryAuditEntry) => void;
+  alertMaxRetries?: number;
+  alertRetryDelayMs?: number;
 };
 
 type DiscordDeliveryAuditPayload = Omit<
@@ -105,6 +115,15 @@ const DEFAULT_AUDIT_FILE_PATH = resolve(
   "artifacts",
   "discord-delivery-audit.jsonl",
 );
+const DEFAULT_ALERT_MAX_RETRIES = 1;
+const DEFAULT_ALERT_RETRY_DELAY_MS = 750;
+
+function delay(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
 
 function previewBody(body: string): string {
   const singleLine = body.replace(/\s+/g, " ").trim();
@@ -168,17 +187,86 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
     error: unknown,
     payload: DiscordDeliveryAuditPayload,
   ): never {
+    this.recordFailedAttempt(operation, error, payload);
+    throw error;
+  }
+
+  private recordFailedAttempt(
+    operation: DiscordDeliveryAuditOperation,
+    error: unknown,
+    payload: DiscordDeliveryAuditPayload,
+  ): number {
     const message = error instanceof Error ? error.message : String(error);
+    const timestamp = Date.now();
     this.writeAudit({
       type: "discord_delivery_audit",
       operation,
       status: "failed",
       gatewayMode: this.options.gatewayMode,
-      timestamp: Date.now(),
+      timestamp,
       error: message,
       ...payload,
     });
-    throw error;
+    return timestamp;
+  }
+
+  private buildAlertAuditPayload(
+    threadId: string,
+    payload: AlertPayload,
+  ): DiscordDeliveryAuditPayload {
+    return {
+      threadId,
+      symbol: payload.symbol ?? payload.event?.symbol,
+      title: payload.title,
+      body: payload.body,
+      bodyPreview: previewBody(payload.body),
+      messageKind: payload.metadata?.messageKind,
+      eventType: payload.metadata?.eventType,
+      severity: payload.metadata?.severity,
+      confidence: payload.metadata?.confidence,
+      score: payload.metadata?.score,
+      postingFamily: payload.metadata?.postingFamily,
+      postingDecisionReason: payload.metadata?.postingDecisionReason,
+      clearanceLabel: payload.metadata?.clearanceLabel,
+      barrierClutterLabel: payload.metadata?.barrierClutterLabel,
+      nearbyBarrierCount: payload.metadata?.nearbyBarrierCount,
+      nextBarrierSide: payload.metadata?.nextBarrierSide,
+      nextBarrierDistancePct: payload.metadata?.nextBarrierDistancePct,
+      tacticalRead: payload.metadata?.tacticalRead,
+      movementLabel: payload.metadata?.movementLabel,
+      movementPct: payload.metadata?.movementPct,
+      pressureLabel: payload.metadata?.pressureLabel,
+      pressureScore: payload.metadata?.pressureScore,
+      triggerQualityLabel: payload.metadata?.triggerQualityLabel,
+      pathQualityLabel: payload.metadata?.pathQualityLabel,
+      pathConstraintScore: payload.metadata?.pathConstraintScore,
+      pathWindowDistancePct: payload.metadata?.pathWindowDistancePct,
+      dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
+      exhaustionLabel: payload.metadata?.exhaustionLabel,
+      setupStateLabel: payload.metadata?.setupStateLabel,
+      failureRiskLabel: payload.metadata?.failureRiskLabel,
+      tradeMapLabel: payload.metadata?.tradeMapLabel,
+      riskPct: payload.metadata?.riskPct,
+      roomToRiskRatio: payload.metadata?.roomToRiskRatio,
+      targetSide: payload.metadata?.targetSide,
+      targetPrice: payload.metadata?.targetPrice,
+      targetDistancePct: payload.metadata?.targetDistancePct,
+      crossedLevels: payload.metadata?.crossedLevels,
+      clusterLow: payload.metadata?.clusterLow,
+      clusterHigh: payload.metadata?.clusterHigh,
+      clusteredLevelClear: payload.metadata?.clusteredLevelClear,
+      followThroughLabel: payload.metadata?.followThroughLabel,
+      progressLabel: payload.metadata?.progressLabel,
+      continuityType: payload.metadata?.continuityType,
+      aiGenerated: payload.metadata?.aiGenerated,
+      directionalReturnPct: payload.metadata?.directionalReturnPct,
+      rawReturnPct: payload.metadata?.rawReturnPct,
+      repeatedOutcomeUpdate: payload.metadata?.repeatedOutcomeUpdate,
+    };
+  }
+
+  private shouldRetryAlert(payload: AlertPayload): boolean {
+    return classifyLiveThreadMessage(payload.metadata?.messageKind) === "trader_critical";
   }
 
   async getThreadById(threadId: string): Promise<DiscordThread | null> {
@@ -209,99 +297,42 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
   }
 
   async sendMessage(threadId: string, payload: AlertPayload): Promise<void> {
+    const auditPayload = this.buildAlertAuditPayload(threadId, payload);
     try {
       await this.inner.sendMessage(threadId, payload);
-      this.recordPosted("post_alert", {
-        threadId,
-        symbol: payload.symbol ?? payload.event?.symbol,
-        title: payload.title,
-        body: payload.body,
-        bodyPreview: previewBody(payload.body),
-        messageKind: payload.metadata?.messageKind,
-        eventType: payload.metadata?.eventType,
-        severity: payload.metadata?.severity,
-        confidence: payload.metadata?.confidence,
-        score: payload.metadata?.score,
-        postingFamily: payload.metadata?.postingFamily,
-        postingDecisionReason: payload.metadata?.postingDecisionReason,
-        clearanceLabel: payload.metadata?.clearanceLabel,
-        barrierClutterLabel: payload.metadata?.barrierClutterLabel,
-        nearbyBarrierCount: payload.metadata?.nearbyBarrierCount,
-        nextBarrierSide: payload.metadata?.nextBarrierSide,
-        nextBarrierDistancePct: payload.metadata?.nextBarrierDistancePct,
-        tacticalRead: payload.metadata?.tacticalRead,
-        movementLabel: payload.metadata?.movementLabel,
-        movementPct: payload.metadata?.movementPct,
-        pressureLabel: payload.metadata?.pressureLabel,
-        pressureScore: payload.metadata?.pressureScore,
-        triggerQualityLabel: payload.metadata?.triggerQualityLabel,
-        pathQualityLabel: payload.metadata?.pathQualityLabel,
-        pathConstraintScore: payload.metadata?.pathConstraintScore,
-        pathWindowDistancePct: payload.metadata?.pathWindowDistancePct,
-        dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
-        exhaustionLabel: payload.metadata?.exhaustionLabel,
-        setupStateLabel: payload.metadata?.setupStateLabel,
-        failureRiskLabel: payload.metadata?.failureRiskLabel,
-        tradeMapLabel: payload.metadata?.tradeMapLabel,
-        riskPct: payload.metadata?.riskPct,
-        roomToRiskRatio: payload.metadata?.roomToRiskRatio,
-        targetSide: payload.metadata?.targetSide,
-        targetPrice: payload.metadata?.targetPrice,
-        targetDistancePct: payload.metadata?.targetDistancePct,
-        followThroughLabel: payload.metadata?.followThroughLabel,
-        progressLabel: payload.metadata?.progressLabel,
-        continuityType: payload.metadata?.continuityType,
-        aiGenerated: payload.metadata?.aiGenerated,
-        directionalReturnPct: payload.metadata?.directionalReturnPct,
-        rawReturnPct: payload.metadata?.rawReturnPct,
-        repeatedOutcomeUpdate: payload.metadata?.repeatedOutcomeUpdate,
-      });
+      this.recordPosted("post_alert", auditPayload);
     } catch (error) {
-      this.recordFailed("post_alert", error, {
-        threadId,
-        symbol: payload.symbol ?? payload.event?.symbol,
-        title: payload.title,
-        body: payload.body,
-        bodyPreview: previewBody(payload.body),
-        messageKind: payload.metadata?.messageKind,
-        eventType: payload.metadata?.eventType,
-        severity: payload.metadata?.severity,
-        confidence: payload.metadata?.confidence,
-        score: payload.metadata?.score,
-        postingFamily: payload.metadata?.postingFamily,
-        postingDecisionReason: payload.metadata?.postingDecisionReason,
-        clearanceLabel: payload.metadata?.clearanceLabel,
-        barrierClutterLabel: payload.metadata?.barrierClutterLabel,
-        nearbyBarrierCount: payload.metadata?.nearbyBarrierCount,
-        nextBarrierSide: payload.metadata?.nextBarrierSide,
-        nextBarrierDistancePct: payload.metadata?.nextBarrierDistancePct,
-        tacticalRead: payload.metadata?.tacticalRead,
-        movementLabel: payload.metadata?.movementLabel,
-        movementPct: payload.metadata?.movementPct,
-        pressureLabel: payload.metadata?.pressureLabel,
-        pressureScore: payload.metadata?.pressureScore,
-        triggerQualityLabel: payload.metadata?.triggerQualityLabel,
-        pathQualityLabel: payload.metadata?.pathQualityLabel,
-        pathConstraintScore: payload.metadata?.pathConstraintScore,
-        pathWindowDistancePct: payload.metadata?.pathWindowDistancePct,
-        dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
-        exhaustionLabel: payload.metadata?.exhaustionLabel,
-        setupStateLabel: payload.metadata?.setupStateLabel,
-        failureRiskLabel: payload.metadata?.failureRiskLabel,
-        tradeMapLabel: payload.metadata?.tradeMapLabel,
-        riskPct: payload.metadata?.riskPct,
-        roomToRiskRatio: payload.metadata?.roomToRiskRatio,
-        targetSide: payload.metadata?.targetSide,
-        targetPrice: payload.metadata?.targetPrice,
-        targetDistancePct: payload.metadata?.targetDistancePct,
-        followThroughLabel: payload.metadata?.followThroughLabel,
-        progressLabel: payload.metadata?.progressLabel,
-        continuityType: payload.metadata?.continuityType,
-        aiGenerated: payload.metadata?.aiGenerated,
-        directionalReturnPct: payload.metadata?.directionalReturnPct,
-        rawReturnPct: payload.metadata?.rawReturnPct,
-        repeatedOutcomeUpdate: payload.metadata?.repeatedOutcomeUpdate,
-      });
+      const failedAt = this.recordFailedAttempt("post_alert", error, auditPayload);
+      const maxRetries = this.options.alertMaxRetries ?? DEFAULT_ALERT_MAX_RETRIES;
+      if (!this.shouldRetryAlert(payload) || maxRetries <= 0) {
+        throw error;
+      }
+
+      let lastError = error;
+      for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+        await delay(this.options.alertRetryDelayMs ?? DEFAULT_ALERT_RETRY_DELAY_MS);
+        try {
+          await this.inner.sendMessage(threadId, payload);
+          this.recordPosted("post_alert", {
+            ...auditPayload,
+            retryAttempt: attempt,
+            retryOf: failedAt,
+            retryReason: error instanceof Error ? error.message : String(error),
+          });
+          return;
+        } catch (retryError) {
+          lastError = retryError;
+          if (attempt >= maxRetries) {
+            this.recordFailed("post_alert", retryError, {
+              ...auditPayload,
+              retryAttempt: attempt,
+              retryOf: failedAt,
+              retryReason: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      }
+      throw lastError;
     }
   }
 

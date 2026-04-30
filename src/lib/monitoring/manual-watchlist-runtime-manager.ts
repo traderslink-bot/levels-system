@@ -205,6 +205,7 @@ const ACTIVATION_WATCHDOG_INTERVAL_MS = 15 * 1000;
 const MAX_ACTIVITY_ENTRIES = 80;
 const LEVEL_TOUCH_SUPERSEDE_DELAY_MS = 1200;
 const FAST_LEVEL_CLEAR_CONFIRM_PCT = 0.0025;
+const FAST_LEVEL_CLUSTER_MAX_SPAN_PCT = 0.035;
 const FOLLOW_THROUGH_MAJOR_MOVE_PCT = 2;
 export const DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS: ManualWatchlistHistoricalLookbacks = {
   daily: 520,
@@ -294,6 +295,29 @@ function formatFastLevelZone(zone: FinalLevelZone | null, side: "support" | "res
 
 function formatFastLevelOnly(zone: FinalLevelZone | null): string | null {
   return zone ? formatSnapshotLevel(zone.representativePrice) : null;
+}
+
+function relativeLevelSpan(levels: number[]): number {
+  if (levels.length <= 1) {
+    return 0;
+  }
+  const min = Math.min(...levels);
+  const max = Math.max(...levels);
+  const midpoint = (min + max) / 2;
+  return midpoint > 0 ? (max - min) / midpoint : 0;
+}
+
+function formatFastLevelRange(levels: number[]): string {
+  const validLevels = levels.filter((level) => Number.isFinite(level) && level > 0);
+  if (validLevels.length === 0) {
+    return "unknown";
+  }
+  const low = Math.min(...validLevels);
+  const high = Math.max(...validLevels);
+  if (Math.abs(high - low) <= snapshotPriceTolerance(low)) {
+    return formatSnapshotLevel(high);
+  }
+  return `${formatSnapshotLevel(low)}-${formatSnapshotLevel(high)}`;
 }
 
 function deriveSnapshotLevelSourceLabel(zone: FinalLevelZone): string {
@@ -1289,11 +1313,23 @@ export class ManualWatchlistRuntimeManager {
       .sort((left, right) => right.representativePrice - left.representativePrice)[0] ?? null;
   }
 
-  private findFastClearedResistance(
+  private findTightLevelCluster(zones: FinalLevelZone[]): FinalLevelZone[] {
+    const cluster: FinalLevelZone[] = [];
+    for (const zone of zones) {
+      const levels = [...cluster, zone].map((candidate) => candidate.representativePrice);
+      if (cluster.length > 0 && relativeLevelSpan(levels) > FAST_LEVEL_CLUSTER_MAX_SPAN_PCT) {
+        break;
+      }
+      cluster.push(zone);
+    }
+    return cluster;
+  }
+
+  private findFastClearedResistanceCluster(
     symbol: string,
     snapshotState: ActiveLevelSnapshotState,
     lastPrice: number,
-  ): FinalLevelZone | null {
+  ): FinalLevelZone[] {
     const zones = this.options.levelStore
       .getResistanceZones(symbol)
       .sort((left, right) => left.representativePrice - right.representativePrice);
@@ -1310,14 +1346,14 @@ export class ManualWatchlistRuntimeManager {
       return lastPrice >= clearLine * (1 + FAST_LEVEL_CLEAR_CONFIRM_PCT);
     });
 
-    return candidates[0] ?? null;
+    return this.findTightLevelCluster(candidates);
   }
 
-  private findFastLostSupport(
+  private findFastLostSupportCluster(
     symbol: string,
     snapshotState: ActiveLevelSnapshotState,
     lastPrice: number,
-  ): FinalLevelZone | null {
+  ): FinalLevelZone[] {
     const zones = this.options.levelStore
       .getSupportZones(symbol)
       .sort((left, right) => right.representativePrice - left.representativePrice);
@@ -1334,7 +1370,7 @@ export class ManualWatchlistRuntimeManager {
       return lastPrice <= clearLine * (1 - FAST_LEVEL_CLEAR_CONFIRM_PCT);
     });
 
-    return candidates[0] ?? null;
+    return this.findTightLevelCluster(candidates);
   }
 
   private async maybePostFastLevelClear(update: LivePriceUpdate): Promise<void> {
@@ -1346,10 +1382,15 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    const resistanceZone = this.findFastClearedResistance(symbol, snapshotState, update.lastPrice);
+    const resistanceCluster = this.findFastClearedResistanceCluster(symbol, snapshotState, update.lastPrice);
+    const resistanceZone = resistanceCluster[resistanceCluster.length - 1] ?? null;
+    const resistanceLevels = resistanceCluster.map((zone) => zone.representativePrice);
+    const isResistanceCluster = resistanceLevels.length > 1;
     const resistance = resistanceZone?.representativePrice ?? null;
     const resistanceBreakLine =
-      resistanceZone ? Math.max(resistanceZone.zoneHigh, resistanceZone.representativePrice) : null;
+      resistanceCluster.length > 0
+        ? Math.max(...resistanceCluster.map((zone) => Math.max(zone.zoneHigh, zone.representativePrice)))
+        : null;
     const lastClearedResistance = snapshotState.lastClearedResistance ?? null;
     const suppressRepeatedResistance =
       resistance !== null &&
@@ -1372,8 +1413,28 @@ export class ManualWatchlistRuntimeManager {
       const pullbackSupportLevel =
         pullbackSupport ? formatSnapshotLevel(pullbackSupport.representativePrice) : null;
       const resistanceLine = formatSnapshotLevel(resistanceBreakLine ?? resistance);
-      const title = `${symbol} resistance crossed`;
-      const body = [
+      const resistanceRange = formatFastLevelRange(resistanceLevels);
+      const title = isResistanceCluster
+        ? `${symbol} resistance cluster crossed`
+        : `${symbol} resistance crossed`;
+      const body = isResistanceCluster ? [
+        `price pushed through nearby resistance cluster ${resistanceRange}${nextResistanceText ? `; nearby resistance above is ${nextResistanceText}` : ""}`,
+        "",
+        "Breakout attempt is being tested.",
+        "",
+        "What it means:",
+        `- ${resistanceRange} was crossed in the same move and now needs to hold as a zone`,
+        nextResistanceText
+          ? `- nearby resistance above is ${nextResistanceText}`
+          : "- no higher resistance is currently in the surfaced ladder",
+        "",
+        "What to watch:",
+        `- acceptance above ${resistanceLine} keeps the breakout attempt alive`,
+        `- falling back into ${resistanceRange} means the cluster is still acting like resistance`,
+        pullbackSupportLevel
+          ? `- if price cannot hold ${resistanceRange}, risk opens back toward ${pullbackSupportLevel}`
+          : `- if price cannot hold ${resistanceLine}, the breakout needs to rebuild`,
+      ].join("\n") : [
         `price pushed above ${resistanceLine}${nextResistanceText ? `; nearby resistance above is ${nextResistanceText}` : ""}`,
         "",
         "Breakout attempt is being tested.",
@@ -1406,6 +1467,10 @@ export class ManualWatchlistRuntimeManager {
           eventType: "breakout",
           targetSide: "resistance",
           targetPrice: resistance,
+          crossedLevels: isResistanceCluster ? resistanceLevels : undefined,
+          clusterLow: isResistanceCluster ? Math.min(...resistanceLevels) : undefined,
+          clusterHigh: isResistanceCluster ? Math.max(...resistanceLevels) : undefined,
+          clusteredLevelClear: isResistanceCluster ? true : undefined,
         },
       });
       this.recordLiveThreadPost({
@@ -1425,7 +1490,10 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    const supportZone = this.findFastLostSupport(symbol, snapshotState, update.lastPrice);
+    const supportCluster = this.findFastLostSupportCluster(symbol, snapshotState, update.lastPrice);
+    const supportZone = supportCluster[supportCluster.length - 1] ?? null;
+    const supportLevels = supportCluster.map((zone) => zone.representativePrice);
+    const isSupportCluster = supportLevels.length > 1;
     const support = supportZone?.representativePrice ?? null;
     const lastClearedSupport = snapshotState.lastClearedSupport ?? null;
     const suppressRepeatedSupport =
@@ -1446,8 +1514,31 @@ export class ManualWatchlistRuntimeManager {
       const nextSupport = this.findNextSupportBelow(symbol, support);
       const nextSupportText = formatFastLevelZone(nextSupport, "support");
       const nextSupportLevel = formatFastLevelOnly(nextSupport);
-      const title = `${symbol} support crossed lower`;
-      const body = [
+      const supportRange = formatFastLevelRange(supportLevels);
+      const supportRepairLine = formatSnapshotLevel(Math.max(...supportLevels));
+      const title = isSupportCluster
+        ? `${symbol} support cluster crossed lower`
+        : `${symbol} support crossed lower`;
+      const body = isSupportCluster ? [
+        `price slipped through nearby support cluster ${supportRange}${nextSupportText ? `; nearby support below is ${nextSupportText}` : ""}`,
+        "",
+        "Support loss is being tested.",
+        "",
+        "What it means:",
+        `- ${supportRange} was crossed in the same move and can still be reclaimed as a zone`,
+        nextSupportText
+          ? `- nearby support below is ${nextSupportText}`
+          : "- no lower support is currently in the surfaced ladder",
+        "",
+        "What to watch:",
+        `- reclaiming ${supportRepairLine} is needed to repair the zone`,
+        nextSupportText
+          ? `- nearby support reaction area: ${nextSupportText}; buyers need stabilization there or a reclaim of ${supportRepairLine}`
+          : "- buyers need to stabilize before the drop looks repaired",
+        nextSupportLevel
+          ? `- below ${supportRange}, risk stays open toward ${nextSupportLevel}`
+          : `- below ${supportRange}, risk stays elevated until a new support forms`,
+      ].join("\n") : [
         `price slipped below ${formatSnapshotLevel(support)}${nextSupportText ? `; nearby support below is ${nextSupportText}` : ""}`,
         "",
         "Support loss is being tested.",
@@ -1482,6 +1573,10 @@ export class ManualWatchlistRuntimeManager {
           eventType: "breakdown",
           targetSide: "support",
           targetPrice: support,
+          crossedLevels: isSupportCluster ? supportLevels : undefined,
+          clusterLow: isSupportCluster ? Math.min(...supportLevels) : undefined,
+          clusterHigh: isSupportCluster ? Math.max(...supportLevels) : undefined,
+          clusteredLevelClear: isSupportCluster ? true : undefined,
         },
       });
       this.recordLiveThreadPost({

@@ -108,7 +108,9 @@ Inside that folder:
 - `discord-delivery-audit.jsonl`
   - append-only local record of thread creation plus snapshot / alert / extension delivery attempts
   - includes both successful and failed downstream posts
+  - trader-critical `post_alert` failures now get one downstream retry; successful retries include `retryAttempt`, `retryOf`, and `retryReason`
   - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, path-quality labels, path-constraint scores, path-window distances, exhaustion labels, dip-buy-quality labels, continuity metadata, AI-origin flags, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, compare tighter first-path windows against cleaner continuation space, compare fresh zones against worn ones, and compare the original alert against what happened afterward
+  - tight cluster-cross level updates include `crossedLevels`, `clusterLow`, `clusterHigh`, and `clusteredLevelClear`, so audits can prove the runtime grouped nearby levels without hiding them
   - repeated identical extension payloads should now stop after the first post until the extension ladder actually changes, which makes it easier to spot genuine extension movement instead of repeated next-level restatements
   - live Discord text should stay trader-view only: system-shaped labels, severity/confidence scoring, and operator/testing wording belong in this audit/review stream rather than in visible posts
 - `session-summary.json`
@@ -161,6 +163,7 @@ Inside that folder:
   - collects hard evidence for critical delivery failures, role-flip candidates, cluster-cross candidates, and trader-language examples
   - includes severity labels (`blocker`, `major`, `watch`, `historical_only`, `data_quality_only`) so audit findings do not all look equally urgent
   - treats trader-critical failed `post_alert` rows as major unless retry is proven; an equivalent later post is context, not proof of retry
+  - ignores already-clustered level-clear posts as unresolved cluster-cross overposting when the audit metadata proves the grouped story carried each crossed level
 - `trading-day-evidence-report.md`
   - readable evidence appendix for the audit process
   - best file for proving findings with saved Discord excerpts instead of relying on summary language

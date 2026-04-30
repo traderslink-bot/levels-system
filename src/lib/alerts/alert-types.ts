@@ -186,6 +186,10 @@ export type AlertPayload = {
     targetSide?: "support" | "resistance";
     targetPrice?: number;
     targetDistancePct?: number;
+    crossedLevels?: number[];
+    clusterLow?: number;
+    clusterHigh?: number;
+    clusteredLevelClear?: boolean;
     followThroughLabel?: TraderFollowThroughLabel;
     progressLabel?: "improving" | "stalling" | "degrading";
     continuityType?: string;

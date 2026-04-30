@@ -163,6 +163,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added Yahoo enrichment to the initial stock-context opener so newly created Discord threads can show source-labeled Yahoo quote, volume, float, short-interest, financial, previous-day range, 52-week range, and company-description context beside Finnhub profile fields.
 - Added `trading-day-evidence-report.json` / `.md` so post-session audits now include proof sections for trader-critical delivery failures, role-flip candidates, cluster-cross candidates, and representative trader-language excerpts instead of relying only on summary reports.
 - Strengthened level-quality audit markdown so healthy, wide-gap, and thin-ladder findings include their supporting evidence inline.
+- Added one automatic retry for trader-critical Discord alert posts and audit proof fields (`retryAttempt`, `retryOf`, `retryReason`) so failed downstream delivery is no longer only a post-run observation.
+- Added cluster-cross metadata and grouped fast level-clear wording, so tight nearby levels can be narrated as one crossed zone while still preserving each candle-backed level for audit review.
 
 ## Active Backlog
 
@@ -195,6 +197,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - After the next runner session, compare ATER / BIYA-style threads against the new burst governor and repeated-outcome wording to verify fewer same-story posts reach Discord without hiding genuinely new level clears or failures.
 - Use the replay simulator after every noisy session to estimate whether policy changes would have helped before changing live thresholds again.
 - Use `trading-day-evidence-report.md` after each trading day to verify critical Discord failures, role flips, cluster-cross narration, and trader-language boundaries with saved post excerpts.
+- When the evidence report shows cluster-cross candidates after this change, treat them as unresolved only if the saved posts lack grouped `crossedLevels` proof or still over-explain the same tight move.
 
 ### Detection and ranking improvements
 

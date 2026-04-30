@@ -19,7 +19,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 - Manual activation seeding is now bounded by a timeout, so a symbol that hangs during level generation should fail explicitly instead of sitting in `refresh_pending` forever.
 - The manual runtime now gives IBKR historical seeding more breathing room by default during first activation; set `MANUAL_WATCHLIST_IBKR_TIMEOUT_MS` if you want to override the default `90000` ms timeout.
 - Manual watchlist level seeding uses deeper daily history by default (`LEVEL_MANUAL_LOOKBACK_DAILY=520`, `LEVEL_MANUAL_LOOKBACK_4H=180`, `LEVEL_MANUAL_LOOKBACK_5M=100` defaults) so older overhead resistance can be included when a runner clears recent levels.
-- Fast runner level updates advance through support/resistance ladders one step at a time, so a price jump does not intentionally skip intermediate levels just to reduce post volume.
+- Fast runner level updates preserve intermediate support/resistance levels; when several tight nearby levels cross in the same move, the runtime can post one cluster-cross story while recording each crossed level in audit metadata.
 - Set `LEVEL_MONITORING_EVENT_DIAGNOSTICS=1` before `npm run watchlist:manual` to emit filtered `monitoring_event_diagnostic` JSON lines for breakout / breakdown / fakeout / reclaim decisions.
 - Set `WATCHLIST_POSTING_PROFILE=quiet`, `balanced`, or `active` to tune live Discord post volume without code changes. `balanced` is the default; `quiet` suppresses more narration/chop, while `active` allows more follow-through and continuity context.
 - Diagnostic logging is intentionally filtered:
@@ -27,6 +27,7 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
   - suppressed decisions only log when they are near the threshold, carry meaningful state, change reason, or recur after cooldown
 - For multi-hour manual testing on Windows, use `scripts/start-manual-watchlist-long-run.ps1` so each session gets a timestamped full log plus a smaller filtered review log under `artifacts/long-run/`.
 - Long-run sessions now also emit structured `manual_watchlist_lifecycle` JSON lines and a local `discord-delivery-audit.jsonl` file so activation/deactivation, snapshot posting, alert posting, and downstream Discord delivery can be reviewed after the fact.
+- Trader-critical Discord alert posts now get one downstream retry, and successful retries are recorded in `discord-delivery-audit.jsonl` with retry proof.
 - Level snapshot audit details are operator-only: `discord-delivery-audit.jsonl` records which support/resistance candidates were displayed, compacted, already on the wrong side of price, or outside the forward planning range without adding that diagnostic detail to Discord posts.
 - The long-run launcher now also refreshes summary artifacts from `discord-delivery-audit.jsonl`, so `session-summary.json`, `thread-summaries.json`, `thread-clutter-report.json`, `session-review.md`, and `trader-thread-recaps.md` keep updating even when runtime stdout goes quiet.
 - Set `FINNHUB_API_KEY` in `.env` to include Finnhub company/profile fields in the stock-context opener on newly created Discord threads before level generation finishes.

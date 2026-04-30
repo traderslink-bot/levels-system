@@ -19,6 +19,29 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-04-30 America/Toronto
+
+### Added trader-critical Discord retry proof and clustered level-cross posts
+
+- Updated:
+  - `src/lib/alerts/discord-audited-thread-gateway.ts`
+  - `src/lib/alerts/alert-types.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/review/discord-audit-reports.ts`
+  - `src/tests/discord-audited-thread-gateway.test.ts`
+  - `src/tests/discord-audit-reports.test.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - trader-critical downstream `post_alert` Discord failures now get one automatic retry
+  - successful retries write audit proof with `retryAttempt`, `retryOf`, and `retryReason`
+  - the trading-day evidence report now treats a trader-critical failure as `watch` only when a matching retry is proven
+  - fast moves through tight nearby support/resistance levels now post one cluster-cross story with `crossedLevels`, `clusterLow`, `clusterHigh`, and `clusteredLevelClear` metadata
+  - cluster-cross audit candidates now ignore already-clustered runtime posts, so future reports focus on unresolved overposting rather than fixed behavior
+- Verification:
+  - `npx tsx --test src/tests/discord-audited-thread-gateway.test.ts src/tests/discord-audit-reports.test.ts src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `npm run build`
+  - `npx tsx src/scripts/generate-discord-audit-reports.ts artifacts\2026-04-29-combined-discord-delivery-audit.jsonl`
+
 ## 2026-04-29 America/Toronto
 
 ### Added evidence-driven trading-day audit report

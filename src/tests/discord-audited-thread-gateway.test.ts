@@ -220,6 +220,7 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   const audited = new DiscordAuditedThreadGateway(gateway, {
     gatewayMode: "local",
     auditFilePath,
+    alertMaxRetries: 0,
   });
 
   await assert.rejects(
@@ -291,4 +292,69 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.targetPrice, 2.38);
   assert.equal(line.targetDistancePct, 0.011);
   assert.match(line.error, /Discord rejected post/);
+});
+
+test("DiscordAuditedThreadGateway retries trader-critical alert deliveries and records proof", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "discord-audit-"));
+  const auditFilePath = join(tempDir, "discord-delivery-audit.jsonl");
+  let attempts = 0;
+  const gateway: DiscordThreadGateway = {
+    async getThreadById(threadId) {
+      return { id: threadId, name: "ALBT" };
+    },
+    async findThreadByName(name) {
+      return { id: "thread-1", name };
+    },
+    async createThread(name) {
+      return { id: "thread-created", name };
+    },
+    async sendMessage() {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error("temporary Discord outage");
+      }
+    },
+    async sendLevelSnapshot() {},
+    async sendLevelExtension() {},
+  };
+
+  const audited = new DiscordAuditedThreadGateway(gateway, {
+    gatewayMode: "real",
+    auditFilePath,
+    alertMaxRetries: 1,
+    alertRetryDelayMs: 0,
+  });
+
+  await audited.sendMessage("thread-1", {
+    title: "ALBT resistance crossed",
+    body: "price pushed above 2.50; nearby resistance above is 2.80",
+    symbol: "ALBT",
+    metadata: {
+      messageKind: "level_clear_update",
+      eventType: "breakout",
+      targetSide: "resistance",
+      targetPrice: 2.5,
+      crossedLevels: [2.48, 2.5],
+      clusterLow: 2.48,
+      clusterHigh: 2.5,
+      clusteredLevelClear: true,
+    },
+  });
+
+  const lines = readFileSync(auditFilePath, "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+
+  assert.equal(attempts, 2);
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0]?.status, "failed");
+  assert.equal(lines[0]?.operation, "post_alert");
+  assert.match(lines[0]?.error, /temporary Discord outage/);
+  assert.equal(lines[1]?.status, "posted");
+  assert.equal(lines[1]?.retryAttempt, 1);
+  assert.equal(lines[1]?.retryOf, lines[0]?.timestamp);
+  assert.match(lines[1]?.retryReason, /temporary Discord outage/);
+  assert.deepEqual(lines[1]?.crossedLevels, [2.48, 2.5]);
+  assert.equal(lines[1]?.clusteredLevelClear, true);
 });

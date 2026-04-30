@@ -1795,9 +1795,11 @@ test("ManualWatchlistRuntimeManager does not skip intermediate resistance when p
   );
   assert.equal(clearPosts.length, 2);
   assert.equal(clearPosts[0]?.payload.metadata?.targetPrice, 1.32);
-  assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.39);
+  assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.41);
+  assert.deepEqual(clearPosts[1]?.payload.metadata?.crossedLevels, [1.39, 1.41]);
   assert.match(clearPosts[0]?.payload.body ?? "", /falling back below 1\.32 means the level is still acting like resistance/);
   assert.match(clearPosts[0]?.payload.body ?? "", /risk opens back toward 1\.22/);
+  assert.match(clearPosts[1]?.payload.body ?? "", /resistance cluster 1\.39-1\.41/);
 });
 
 test("ManualWatchlistRuntimeManager does not skip intermediate support when price drops through multiple levels", async () => {
@@ -1880,7 +1882,10 @@ test("ManualWatchlistRuntimeManager does not skip intermediate support when pric
   );
   assert.equal(clearPosts.length, 2);
   assert.equal(clearPosts[0]?.payload.metadata?.targetPrice, 1.22);
-  assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.08);
+  assert.equal(clearPosts[1]?.payload.title, "ALBT support cluster crossed lower");
+  assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.06);
+  assert.deepEqual(clearPosts[1]?.payload.metadata?.crossedLevels, [1.08, 1.06]);
+  assert.equal(clearPosts[1]?.payload.metadata?.clusteredLevelClear, true);
   assert.match(clearPosts[0]?.payload.body ?? "", /price slipped below 1\.22; nearby support below is moderate support 1\.08/);
   assert.match(clearPosts[0]?.payload.body ?? "", /nearby support below is moderate support 1\.08/);
   assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /price target/);
@@ -1888,6 +1893,8 @@ test("ManualWatchlistRuntimeManager does not skip intermediate support when pric
   assert.match(clearPosts[0]?.payload.body ?? "", /nearby support reaction area: moderate support 1\.08; buyers need stabilization there or a reclaim of 1\.22/);
   assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /dip-buy/i);
   assert.match(clearPosts[0]?.payload.body ?? "", /below 1\.22, risk stays open toward 1\.08/);
+  assert.match(clearPosts[1]?.payload.body ?? "", /price slipped through nearby support cluster 1\.06-1\.08/);
+  assert.match(clearPosts[1]?.payload.body ?? "", /reclaiming 1\.08 is needed to repair the zone/);
 });
 
 test("ManualWatchlistRuntimeManager suppresses overlapping fast level-clear posts before routing resolves", async () => {

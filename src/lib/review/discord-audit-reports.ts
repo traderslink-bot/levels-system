@@ -27,6 +27,13 @@ type AuditEntry = {
   progressLabel?: string;
   targetSide?: "support" | "resistance";
   targetPrice?: number;
+  crossedLevels?: number[];
+  clusterLow?: number;
+  clusterHigh?: number;
+  clusteredLevelClear?: boolean;
+  retryAttempt?: number;
+  retryOf?: number;
+  retryReason?: string;
   directionalReturnPct?: number | null;
   rawReturnPct?: number | null;
   repeatedOutcomeUpdate?: boolean;
@@ -638,10 +645,16 @@ function buildCriticalDeliveryFailures(
       (candidate) =>
         candidate.status === "posted" &&
         candidate.operation === "post_alert" &&
-        (candidate.timestamp ?? 0) > (failure.timestamp ?? 0) &&
+        (candidate.timestamp ?? 0) >= (failure.timestamp ?? 0) &&
         isEquivalentAlert(failure, candidate),
     );
-    const retryProven = Boolean((failure as { retryOf?: unknown }).retryOf);
+    const retryProven = Boolean(
+      equivalentLater &&
+        (
+          equivalentLater.retryOf === failure.timestamp ||
+          (typeof equivalentLater.retryAttempt === "number" && equivalentLater.retryAttempt > 0)
+        ),
+    );
     const severity: AuditFindingSeverity = traderCritical
       ? retryProven
         ? "watch"
@@ -787,6 +800,7 @@ function buildClusterCrossCandidates(
         entry.operation === "post_alert" &&
         entry.status === "posted" &&
         messageKindOf(entry) === "level_clear_update" &&
+        entry.clusteredLevelClear !== true &&
         typeof entry.timestamp === "number",
     )
     .sort((left, right) => left.timestamp! - right.timestamp!);

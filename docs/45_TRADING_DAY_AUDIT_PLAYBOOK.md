@@ -119,6 +119,7 @@ For each active ticker, inspect:
 - AI commentary repeats
 - Discord delivery failures
 - whether trader-critical delivery failures retried or were clearly surfaced for operator review
+- whether retry proof exists in the audit row (`retryAttempt`, `retryOf`, `retryReason`)
 - snapshots that showed wrong-side levels
 - snapshots with compacted or omitted levels
 - level clear/lost posts that sounded too certain
@@ -331,7 +332,7 @@ The final audit needs a dedicated cluster-cross section when candidates exist. I
 - whether the thread likely overexplained the move
 - whether one cluster-cross story would be better than several single-level messages
 
-If the same move crosses several nearby levels, prefer future work that posts one cluster-cross message instead of several separate level messages.
+If the same move crosses several nearby levels, prefer future work that posts one cluster-cross message instead of several separate level messages. If current runtime output already posts one cluster-cross story, verify that the audit row includes `crossedLevels`, `clusterLow`, `clusterHigh`, and `clusteredLevelClear`; do not count that as unresolved overposting.
 
 ## Follow-Through Accuracy Audit
 
@@ -378,6 +379,8 @@ The audit must show:
 - recommended severity
 
 An equivalent later post is useful context, but it is not proof that retry is working.
+
+A proven retry must preserve the same trader-critical story context and point back to the failed row with `retryOf`. Use `retryReason` to confirm the retry is tied to the same downstream failure.
 
 ## Trader Actionability Audit
 

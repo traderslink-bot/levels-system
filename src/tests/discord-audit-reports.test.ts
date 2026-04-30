@@ -319,3 +319,63 @@ test("trading day evidence report surfaces delivery, role-flip, cluster, and lan
   assert.match(markdown, /Cluster-Cross Candidates/);
   assert.match(markdown, /Longs should wait/);
 });
+
+test("trading day evidence report treats retried trader-critical failures as proven watch items", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "discord-audit-evidence-retry-"));
+  const auditPath = join(tempDir, "discord-delivery-audit.jsonl");
+  const rows = [
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "failed",
+      timestamp: 1000,
+      symbol: "SEGG",
+      title: "SEGG resistance crossed",
+      messageKind: "level_clear_update",
+      eventType: "breakout",
+      targetSide: "resistance",
+      targetPrice: 1.52,
+      error: "Discord API 503",
+      body: "price pushed above 1.52",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 1500,
+      symbol: "SEGG",
+      title: "SEGG resistance crossed",
+      messageKind: "level_clear_update",
+      eventType: "breakout",
+      targetSide: "resistance",
+      targetPrice: 1.52,
+      retryAttempt: 1,
+      retryOf: 1000,
+      retryReason: "Discord API 503",
+      body: "price pushed above 1.52",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 2000,
+      symbol: "SEGG",
+      title: "SEGG resistance cluster crossed",
+      messageKind: "level_clear_update",
+      eventType: "breakout",
+      targetSide: "resistance",
+      targetPrice: 1.54,
+      crossedLevels: [1.52, 1.54],
+      clusteredLevelClear: true,
+      body: "price pushed through nearby resistance cluster 1.52-1.54",
+    },
+  ];
+  writeFileSync(auditPath, rows.map((row) => JSON.stringify(row)).join("\n"), "utf8");
+
+  const report = buildTradingDayEvidenceReport(auditPath);
+
+  assert.equal(report.criticalDeliveryFailures.length, 1);
+  assert.equal(report.criticalDeliveryFailures[0]?.retryProven, true);
+  assert.equal(report.criticalDeliveryFailures[0]?.severity, "watch");
+  assert.equal(report.clusterCrossCandidates.length, 0);
+});
