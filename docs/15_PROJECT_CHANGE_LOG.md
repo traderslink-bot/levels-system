@@ -21,6 +21,21 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-30 America/Toronto
 
+### Cleaned trader-facing recap wording after live audit
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/trader-facing-replay-language.test.ts`
+- What changed:
+  - removed Discord-visible recap prefixes such as `current read:`, `What matters next:`, `Live follow-through`, `directional progress`, and `AI note:`
+  - AI recap text now flows as trader-facing commentary instead of being labeled as an AI/system note
+  - added regression coverage so symbol recaps stay free of those operator-shaped labels
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/trader-facing-replay-language.test.ts`
+
+## 2026-04-30 America/Toronto
+
 ### Added guarded Discord testing-thread cleanup tool
 
 - Updated:

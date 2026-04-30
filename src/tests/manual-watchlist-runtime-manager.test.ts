@@ -4072,6 +4072,79 @@ test("ManualWatchlistRuntimeManager suppresses symbol recaps right after story-c
   );
 });
 
+test("ManualWatchlistRuntimeManager keeps recap Discord body trader-facing without system or AI labels", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    aiCommentaryService: {
+      summarizeSymbolThread: async () => ({
+        text: "Buyers still need acceptance above resistance before the setup looks cleaner.",
+        model: "test-model",
+      }),
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  (manager as any).maybePostSymbolRecap({
+    symbol: "ALBT",
+    timestamp: 20_000,
+    snapshot: {
+      top: [
+        {
+          symbol: "ALBT",
+          type: "breakout",
+          eventType: "breakout",
+          level: 2.45,
+          classification: "high_conviction",
+          clearanceLabel: "limited",
+          pathQualityLabel: "layered",
+          exhaustionLabel: "fresh",
+        },
+      ],
+    },
+    progressUpdate: {
+      symbol: "ALBT",
+      timestamp: 20_000,
+      eventType: "breakout",
+      progressLabel: "improving",
+      directionalReturnPct: 1.24,
+      entryPrice: 2.45,
+      currentPrice: 2.48,
+    },
+  });
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+
+  const recap = discordAlertRouter.routed.find(
+    (entry) => entry.payload.metadata?.messageKind === "symbol_recap",
+  );
+  assert.ok(recap);
+  const visibleThreadText = `${recap.payload.title}\n${recap.payload.body}`;
+  assert.match(visibleThreadText, /breakout is still the lead read near 2\.45/);
+  assert.match(visibleThreadText, /Follow-through is improving, with price change from the key level \+1\.24%/);
+  assert.match(visibleThreadText, /Buyers still need acceptance above resistance/);
+  assert.doesNotMatch(
+    visibleThreadText,
+    /current read:|Current read:|What matters next:|Live follow-through|directional progress|Latest tracked follow-through|AI note:/i,
+  );
+});
+
 test("ManualWatchlistRuntimeManager collapses same-window narration bursts into a smaller set of live posts", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();

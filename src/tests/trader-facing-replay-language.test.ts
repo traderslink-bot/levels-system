@@ -8,7 +8,7 @@ import {
 } from "../lib/alerts/alert-router.js";
 
 const SYSTEM_OR_OPERATOR_LANGUAGE =
-  /Status:|Signal:|Decision area|setup update|state update|state recap|setup move|alert direction|after the alert|LEVEL SNAPSHOT|level map|mapped|remapped|operator-only|policy|suppression|replay|simulation|runtime-only|not a price target/i;
+  /Status:|Signal:|Decision area|setup update|state update|state recap|setup move|alert direction|after the alert|current read:|What matters next:|AI note:|directional progress|LEVEL SNAPSHOT|level map|mapped|remapped|operator-only|policy|suppression|replay|simulation|runtime-only|not a price target/i;
 
 const DIRECT_ADVICE_LANGUAGE =
   /\b(?:buy here|buy now|sell now|sell here|take profit|stop out|trim here|add here|exit now|short setup|best entry|safe entry|can buy|should add|should trim|should exit|longs should|traders should|wait for)\b/i;

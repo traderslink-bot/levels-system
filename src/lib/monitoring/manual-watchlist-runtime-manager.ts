@@ -2985,21 +2985,21 @@ export class ManualWatchlistRuntimeManager {
 
     const eventType = (topOpportunity.eventType ?? topOpportunity.type).replaceAll("_", " ");
     if (topOpportunity.clearanceLabel === "tight") {
-      return `What matters next: ${eventType} needs a decisive reaction because room still looks tight.`;
+      return `${eventType} needs a decisive reaction because room still looks tight.`;
     }
 
     if (topOpportunity.pathQualityLabel === "choppy") {
-      return `What matters next: ${eventType} needs cleaner acceptance because the path ahead still looks choppy.`;
+      return `${eventType} needs cleaner acceptance because the path ahead still looks choppy.`;
     }
 
     if (
       topOpportunity.exhaustionLabel === "worn" ||
       topOpportunity.exhaustionLabel === "spent"
     ) {
-      return `What matters next: ${eventType} needs a decisive reaction because the active level is getting too worn to trust on weak follow-through.`;
+      return `${eventType} needs a decisive reaction because the active level is getting too worn to trust on weak follow-through.`;
     }
 
-    return `What matters next: ${eventType} still needs clean acceptance so the setup can keep following through.`;
+    return `${eventType} still needs clean acceptance so the setup can keep following through.`;
   }
 
   private buildSymbolRecapBody(params: {
@@ -3017,7 +3017,7 @@ export class ManualWatchlistRuntimeManager {
       const eventType = (topOpportunity.eventType ?? topOpportunity.type).replaceAll("_", " ");
       const level = topOpportunity.level >= 1 ? topOpportunity.level.toFixed(2) : topOpportunity.level.toFixed(4);
       parts.push(
-        `current read: ${eventType} is still the lead idea near ${level} with ${topOpportunity.classification.replaceAll("_", " ")} quality.`,
+        `${eventType} is still the lead read near ${level} with ${topOpportunity.classification.replaceAll("_", " ")} quality.`,
       );
 
       const pathLine =
@@ -3047,12 +3047,12 @@ export class ManualWatchlistRuntimeManager {
     }
 
     if (params.interpretation) {
-      parts.push(`Current read: ${params.interpretation.message}.`);
+      parts.push(`${params.interpretation.message}.`);
     }
 
     if (params.progressUpdate) {
       parts.push(
-        `Live follow-through is ${params.progressUpdate.progressLabel}, with directional progress ${
+        `Follow-through is ${params.progressUpdate.progressLabel}, with price change from the key level ${
           params.progressUpdate.directionalReturnPct === null
             ? "still unclear"
             : `${params.progressUpdate.directionalReturnPct >= 0 ? "+" : "-"}${Math.abs(params.progressUpdate.directionalReturnPct).toFixed(2)}%`
@@ -3060,11 +3060,11 @@ export class ManualWatchlistRuntimeManager {
       );
     } else if (params.evaluation) {
       parts.push(
-        `Latest tracked follow-through finished ${params.evaluation.followThroughLabel} at ${
+        `The latest follow-through check finished ${params.evaluation.followThroughLabel} at ${
           params.evaluation.directionalReturnPct === null
             ? "n/a"
             : `${params.evaluation.directionalReturnPct >= 0 ? "+" : "-"}${Math.abs(params.evaluation.directionalReturnPct).toFixed(2)}%`
-        } directional return.`,
+        } from the key level.`,
       );
     }
 
@@ -3361,7 +3361,7 @@ export class ManualWatchlistRuntimeManager {
       });
 
       return {
-        body: `${params.deterministicBody}\nAI note: ${commentary.text}`,
+        body: `${params.deterministicBody}\n\n${commentary.text}`,
         aiGenerated: true,
       };
     } catch (error) {
