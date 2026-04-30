@@ -21,6 +21,20 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-30 America/Toronto
 
+### Added key-level blocks to resistance-cross posts
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+- What changed:
+  - fast `resistance crossed` and `resistance cluster crossed` posts now include a `Key levels` block with `Breakout support` and `Resistance above`
+  - resistance-cross risk wording now treats the crossed resistance as the first support/reclaim area instead of jumping straight to a much lower support level
+  - deeper support is still shown as secondary context when available
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts`
+
+## 2026-04-30 America/Toronto
+
 ### Cleaned trader-facing recap wording after live audit
 
 - Updated:

@@ -1432,8 +1432,14 @@ export class ManualWatchlistRuntimeManager {
         `- acceptance above ${resistanceLine} keeps the breakout attempt alive`,
         `- falling back into ${resistanceRange} means the cluster is still acting like resistance`,
         pullbackSupportLevel
-          ? `- if price cannot hold ${resistanceRange}, risk opens back toward ${pullbackSupportLevel}`
+          ? `- if price cannot hold ${resistanceRange}, the breakout needs to rebuild; deeper support is ${pullbackSupportLevel}`
           : `- if price cannot hold ${resistanceLine}, the breakout needs to rebuild`,
+        "",
+        "Key levels:",
+        `- Breakout support: ${resistanceRange}`,
+        nextResistanceText
+          ? `- Resistance above: ${nextResistanceText}`
+          : "- Resistance above: none currently surfaced",
       ].join("\n") : [
         `price pushed above ${resistanceLine}${nextResistanceText ? `; nearby resistance above is ${nextResistanceText}` : ""}`,
         "",
@@ -1449,8 +1455,14 @@ export class ManualWatchlistRuntimeManager {
         `- acceptance above ${resistanceLine} keeps the breakout attempt alive`,
         `- falling back below ${resistanceLine} means the level is still acting like resistance`,
         pullbackSupportLevel
-          ? `- if price cannot hold ${resistanceLine}, risk opens back toward ${pullbackSupportLevel}`
+          ? `- if price cannot hold ${resistanceLine}, the breakout needs to rebuild; deeper support is ${pullbackSupportLevel}`
           : `- if price cannot hold ${resistanceLine}, the breakout needs to rebuild`,
+        "",
+        "Key levels:",
+        `- Breakout support: ${resistanceLine}`,
+        nextResistanceText
+          ? `- Resistance above: ${nextResistanceText}`
+          : "- Resistance above: none currently surfaced",
       ].join("\n");
       this.activeSnapshotState.set(symbol, {
         ...snapshotState,

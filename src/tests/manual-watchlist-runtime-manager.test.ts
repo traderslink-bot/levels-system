@@ -1513,6 +1513,7 @@ test("ManualWatchlistRuntimeManager posts a compact update when nearest snapshot
   assert.equal(clearPosts[0]?.payload.title, "ALBT resistance crossed");
   assert.match(clearPosts[0]?.payload.body ?? "", /price pushed above 2\.90; nearby resistance above is moderate resistance 3\.10/);
   assert.match(clearPosts[0]?.payload.body ?? "", /nearby resistance above is moderate resistance 3\.10/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /Key levels:\n- Breakout support: 2\.90\n- Resistance above: moderate resistance 3\.10/);
   assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /price target/);
   assert.doesNotMatch(clearPosts[0]?.payload.body ?? "", /mapped/);
 
@@ -1612,6 +1613,7 @@ test("ManualWatchlistRuntimeManager waits for full resistance zone clearance bef
   assert.equal(clearPosts.length, 1);
   assert.match(clearPosts[0]?.payload.body ?? "", /price pushed above 7\.04; nearby resistance above is moderate resistance 7\.73/);
   assert.match(clearPosts[0]?.payload.body ?? "", /falling back below 7\.04 means the level is still acting like resistance/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /Resistance above: moderate resistance 7\.73/);
 });
 
 test("ManualWatchlistRuntimeManager advances fast resistance clears through runner ladders", async () => {
@@ -1712,6 +1714,8 @@ test("ManualWatchlistRuntimeManager advances fast resistance clears through runn
   assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.33);
   assert.equal(clearPosts[2]?.payload.metadata?.targetPrice, 1.39);
   assert.match(clearPosts[2]?.payload.body ?? "", /price pushed above 1\.39; nearby resistance above is moderate resistance 1\.41/);
+  assert.match(clearPosts[2]?.payload.body ?? "", /Breakout support: 1\.39/);
+  assert.match(clearPosts[2]?.payload.body ?? "", /Resistance above: moderate resistance 1\.41/);
   assert.doesNotMatch(clearPosts[2]?.payload.body ?? "", /mapped/);
 });
 
@@ -1798,8 +1802,10 @@ test("ManualWatchlistRuntimeManager does not skip intermediate resistance when p
   assert.equal(clearPosts[1]?.payload.metadata?.targetPrice, 1.41);
   assert.deepEqual(clearPosts[1]?.payload.metadata?.crossedLevels, [1.39, 1.41]);
   assert.match(clearPosts[0]?.payload.body ?? "", /falling back below 1\.32 means the level is still acting like resistance/);
-  assert.match(clearPosts[0]?.payload.body ?? "", /risk opens back toward 1\.22/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /the breakout needs to rebuild; deeper support is 1\.22/);
+  assert.match(clearPosts[0]?.payload.body ?? "", /Breakout support: 1\.32/);
   assert.match(clearPosts[1]?.payload.body ?? "", /resistance cluster 1\.39-1\.41/);
+  assert.match(clearPosts[1]?.payload.body ?? "", /Breakout support: 1\.39-1\.41/);
 });
 
 test("ManualWatchlistRuntimeManager does not skip intermediate support when price drops through multiple levels", async () => {
