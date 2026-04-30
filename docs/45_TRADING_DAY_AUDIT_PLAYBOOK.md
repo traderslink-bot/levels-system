@@ -71,6 +71,22 @@ Review these outputs:
 - `artifacts\live-post-replay-simulation.md`
 - `artifacts\long-run-tuning-suggestions.md`
 
+## Per-Ticker Trader Story Audit
+
+Reconstruct the full story for every ticker from first Discord post to last Discord post.
+
+For each ticker, record:
+
+- first post time and last post time
+- first price, last price, low price, and high price from saved posts
+- main posted events in order
+- whether the thread would make sense to a trader reading it later
+- whether the thread clearly showed what needed to hold, reclaim, or clear
+- whether the post sequence overexplained a choppy move
+- whether the post sequence underexplained a fast move
+
+The trader-story audit should be done even when the level-quality audit is healthy. Good levels can still produce a confusing thread if the posts arrive in the wrong order, repeat too often, or describe the move too confidently.
+
 ## Discord Output Audit
 
 For each active ticker, inspect:
@@ -81,6 +97,7 @@ For each active ticker, inspect:
 - repeated story clusters
 - AI commentary repeats
 - Discord delivery failures
+- whether trader-critical delivery failures retried or were clearly surfaced for operator review
 - snapshots that showed wrong-side levels
 - snapshots with compacted or omitted levels
 - level clear/lost posts that sounded too certain
@@ -114,8 +131,48 @@ When reviewing posts, ask:
 - Does it clearly say what level needs to hold or reclaim without giving direct advice?
 - Does it distinguish support from resistance correctly after a level is lost or reclaimed?
 - Does it repeat the same story too many times?
-- Does it say “next level” in a way that sounds predictive?
+- Does it say `next level` in a way that sounds predictive?
 - Does the AI read add value, or does it restate the same alert?
+
+## Activation And Runtime-State Audit
+
+Review every trading-day `session-summary.json`, `thread-summaries.json`, and operational log.
+
+Check:
+
+- activation queued / started / completed counts
+- restore started / completed counts
+- seed failures
+- IBKR failures
+- Discord failures
+- symbols that appear in state but not in the visible active list
+- active/activating/pending counters that do not match the listed tickers
+- sessions with `endedAt: null`
+- repeated restart patterns
+- tickers that repeatedly restored or reseeded instead of cleanly monitoring
+
+Separate findings into:
+
+- transient provider/session problems
+- app state drift
+- Discord delivery issues
+- expected restarts caused by manual testing
+
+## Stock-Context Opener Audit
+
+Review initial stock-context posts for every newly activated ticker.
+
+Check:
+
+- current price appears first when available
+- source labels such as `Yahoo` and `Finnhub` are not visible to traders
+- unavailable values are omitted, not shown as `n/a`
+- zero-valued rows like `Shares outstanding: 0.00K` are omitted
+- exchange names are normal trader-friendly labels, such as `Nasdaq`
+- market cap and shares are only shown when meaningful
+- the opener does not become a wall of fundamentals
+
+If a saved post used an older opener format, confirm whether current source and tests already fixed it before changing code again.
 
 ## Candle-Backed Level Audit
 
@@ -202,6 +259,83 @@ Specific patterns to catch:
 - A barely crossed resistance is described as fully cleared too early.
 - The app says there is no resistance when older daily candles show clear overhead levels.
 
+## Missed Event, False-Clear, And Role-Flip Audit
+
+Compare saved price movement against known support/resistance levels.
+
+Check:
+
+- crossed resistance that did not produce a clear/breakout/crossed-resistance post
+- crossed support that did not produce a lost-support/breakdown/crossed-lower post
+- resistance-cleared posts where price only barely tapped above the level and fell back quickly
+- support-lost posts where price reclaimed the level quickly
+- broken support that should become nearby resistance while price is below it
+- reclaimed resistance that should become nearby support while price is above it
+- posts that say a level is cleared/lost with too much certainty
+
+Do not assume every missed-event candidate is a bug. Some are intentionally suppressed by cooldowns, burst controls, poor signal quality, or tiny/temporary crosses. The audit should identify which candidates deserve code changes and which are acceptable suppressions.
+
+## Cluster-Crossing Audit
+
+Look for fast moves through several nearby support/resistance levels.
+
+Check:
+
+- multiple level-clear posts seconds apart
+- multiple support-lost posts seconds apart
+- tight clusters such as `2.39 / 2.43 / 2.47`
+- whether the move should have been narrated as one crossed zone
+- whether clustered snapshot display already solved the readability problem
+
+If the same move crosses several nearby levels, prefer future work that posts one cluster-cross message instead of several separate level messages.
+
+## Follow-Through Accuracy Audit
+
+Review follow-through posts against the price path that came after the original level event.
+
+Check:
+
+- whether `working`, `stalling`, and `failed` labels matched the actual price movement
+- whether the follow-through post repeated the original setup without adding useful new context
+- whether the post explained what level needed to hold, reclaim, or clear next
+- whether a failed breakout was still treated as resistance until it was reclaimed
+- whether a failed support test still explained the next support below and nearby resistance above
+- whether follow-through posts arrived too soon after the original event to be meaningful
+
+Follow-through should help a trader understand the state of the move now. If it only says that a previous alert worked, stalled, or failed, it is probably too system-shaped.
+
+## Volume, Halt, And Fast-Move Audit
+
+Review whether the system handled the hard parts of runner behavior.
+
+Check:
+
+- volume surge context when price clears an important level
+- volume fading context when a move stalls
+- halted symbols that stop producing fresh price movement
+- fast moves that skip over a level and only post after the move is stale
+- candles or ticks that arrive late from the provider
+- whether missing recent candles explain a missing clear/lost event
+- whether the system should wait for a better data provider before changing logic
+
+Do not invent volume certainty from missing data. If volume is unavailable or stale, the audit should say that plainly and keep the action item on data quality.
+
+## Trader Actionability Audit
+
+Read each ticker thread as if a long-biased trader is already in the trade.
+
+Check whether the thread answers:
+
+- what level is price testing right now
+- what nearby support needs to hold for the setup to stay healthy
+- what resistance needs to clear before the move improves
+- what level would repair a failed support or resistance test
+- where risk opens if support fails
+- where upside gets tighter if resistance is nearby
+- whether a pullback area is only a possible reaction zone, not an instruction to buy
+
+The thread should give useful context without telling traders what to do. Prefer language like `buyers need acceptance above 3.75` or `holding 3.20 keeps the setup cleaner` over direct instructions.
+
 ## Posting Frequency Audit
 
 Review every high-volume runner, especially symbols with more than 30 posts.
@@ -212,7 +346,7 @@ Check:
 - posts per 5-minute and 10-minute window
 - repeated alert/follow-through/AI stories
 - whether optional narration is posting after critical alerts already told the same story
-- whether “working/stalling/failed” follow-through messages are meaningful or just churn
+- whether `working/stalling/failed` follow-through messages are meaningful or just churn
 - whether level-clear updates fire too many times when price crosses a tight cluster
 
 Use profile comparison:
@@ -246,8 +380,8 @@ Check:
 - Does it add clarity, or only restate the alert?
 - Does it stay observational?
 - Does it avoid direct advice?
-- Does it avoid “Longs should...” and “Traders should...”?
-- Does it avoid “wait for,” “best entry,” “can buy,” “should trim,” and “should exit”?
+- Does it avoid `Longs should...` and `Traders should...`?
+- Does it avoid `wait for`, `best entry`, `can buy`, `should trim`, and `should exit`?
 - Does it repeat the same setup several times within a short window?
 - Does it mention support/reclaim/acceptance in a trader-readable way?
 
