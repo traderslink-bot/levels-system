@@ -40,7 +40,7 @@ The work should be done in this order so the app can add richer signal context w
 
 During the same review, ABTS showed a suspicious resistance jump from `1.83` to `2.31` in a live snapshot example.
 
-The local IBKR level-quality audit could not be rerun because TWS/IBKR was not reachable on `127.0.0.1:7497`.
+The local IBKR level-quality audit could not initially be rerun because TWS/IBKR was not reachable on `127.0.0.1:7497`.
 
 An independent Yahoo daily/hourly sanity check found repeated highs between `1.83` and `2.31`, especially around:
 
@@ -54,4 +54,20 @@ Follow-up: when IBKR is available again, rerun:
 npm run validation:levels:quality -- ABTS artifacts\abts-level-quality-audit.json
 ```
 
-If the IBKR audit also shows a wide resistance gap, review the level candidate/selection rules so meaningful intermediate daily or 4h resistance is not skipped.
+After IBKR was restarted, the audit was rerun with manual-style lookbacks:
+
+```powershell
+$env:LEVEL_VALIDATION_LOOKBACK_DAILY='520'
+$env:LEVEL_VALIDATION_LOOKBACK_4H='180'
+$env:LEVEL_VALIDATION_LOOKBACK_5M='100'
+npm run validation:levels:quality -- ABTS artifacts\abts-level-quality-audit-manual-lookbacks.json
+```
+
+Result:
+
+- IBKR surfaced resistance at `1.74`, `1.78`, `1.83`, `2.3146`, and `2.4526`.
+- IBKR daily candles still contained intermediate highs between `1.83` and `2.3146`, especially around `1.93-2.00` and `2.09-2.14`.
+- IBKR 4h candles also contained intermediate highs around `1.94-1.99`, `2.13`, and `2.20-2.22`.
+- The current level-quality audit still reported `healthy_forward_ladder`, so the audit is not strict enough to flag this kind of trader-visible intermediate-resistance gap.
+
+Follow-up: review the level candidate/selection rules and/or level-quality audit so meaningful intermediate daily or 4h resistance is not skipped when the live ladder jumps from a nearby level to a much farther level.
