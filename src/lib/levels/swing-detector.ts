@@ -180,12 +180,12 @@ export function detectSwingPoints(
     }
 
     if (options.includeBarrierCandles) {
-      const upperQuartile = lowest + displacement * 0.72;
-      const lowerQuartile = highest - displacement * 0.72;
+      const upperBarrierArea = lowest + displacement * 0.5;
+      const lowerBarrierArea = highest - displacement * 0.5;
 
       if (
         !isResistanceSwing &&
-        current.high >= upperQuartile &&
+        current.high >= upperBarrierArea &&
         hasMeaningfulBarrierReaction(candles, index, "resistance", options.swingWindow)
       ) {
         candidateSwings.push(
@@ -202,7 +202,7 @@ export function detectSwingPoints(
 
       if (
         !isSupportSwing &&
-        current.low <= lowerQuartile &&
+        current.low <= lowerBarrierArea &&
         hasMeaningfulBarrierReaction(candles, index, "support", options.swingWindow)
       ) {
         candidateSwings.push(

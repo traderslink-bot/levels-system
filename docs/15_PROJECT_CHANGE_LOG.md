@@ -21,6 +21,23 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-29 America/Toronto
 
+### Improved intermediate resistance detection and ladder gap auditing
+
+- Updated:
+  - `src/lib/levels/swing-detector.ts`
+  - `src/lib/levels/level-quality-audit.ts`
+  - `src/tests/level-quality-audit.test.ts`
+- What changed:
+  - loosened higher-timeframe barrier-candle promotion so meaningful interior daily/4h highs and lows inside a larger move can become level candidates instead of requiring only very clean local swing extremes
+  - added `wide_internal_gap` to the level-quality audit so a ladder with enough visible levels can still be flagged when it jumps too far between adjacent forward support/resistance levels
+  - verified the ABTS manual-lookback audit now surfaces intermediate resistance around `2.14` between `1.83` and `2.31`
+- Why this matters:
+  - trader-facing ladders should not imply there is no meaningful resistance between two far-apart levels when the daily or 4h chart has visible structure inside that space
+- Verification:
+  - `npx tsx --test src/tests/level-engine.test.ts`
+  - `npx tsx --test src/tests/level-quality-audit.test.ts`
+  - `$env:LEVEL_VALIDATION_LOOKBACK_DAILY='520'; $env:LEVEL_VALIDATION_LOOKBACK_4H='180'; $env:LEVEL_VALIDATION_LOOKBACK_5M='100'; npm run validation:levels:quality -- ABTS artifacts\abts-level-quality-audit-manual-lookbacks-after-gap-fix.json`
+
 ### Calmed remaining trader-facing level wording from live log review
 
 - Updated:

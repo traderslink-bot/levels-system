@@ -83,3 +83,31 @@ test("level quality audit reports healthy forward ladders when nearby levels exi
   }));
   assert.equal(report.findings.some((finding) => finding.code === "healthy_forward_ladder" && finding.side === "resistance"), true);
 });
+
+test("level quality audit flags wide gaps between forward resistance levels", () => {
+  const report = buildLevelQualityAuditReport(output({
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 1.55,
+    },
+    intermediateResistance: [
+      zone({ kind: "resistance", representativePrice: 1.74 }),
+      zone({ kind: "resistance", representativePrice: 1.78 }),
+      zone({ kind: "resistance", representativePrice: 1.83 }),
+      zone({ kind: "resistance", representativePrice: 2.3146 }),
+    ],
+    extensionLevels: {
+      support: [],
+      resistance: [],
+    },
+  }));
+
+  const finding = report.findings.find(
+    (candidate) => candidate.code === "wide_internal_gap" && candidate.side === "resistance",
+  );
+  assert.ok(finding);
+  assert.equal(finding.severity, "action");
+  assert.deepEqual(finding.evidence.forwardLevels, [1.74, 1.78, 1.83, 2.3146]);
+});

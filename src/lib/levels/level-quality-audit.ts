@@ -8,6 +8,7 @@ export type LevelQualityAuditFinding = {
   code:
     | "no_forward_levels"
     | "wide_first_gap"
+    | "wide_internal_gap"
     | "thin_forward_ladder"
     | "extension_only_forward_ladder"
     | "healthy_forward_ladder";
@@ -187,6 +188,37 @@ function buildSideFindings(params: {
       evidence: {
         referencePrice: params.referencePrice,
         forwardLevels: sortedForward.map((zone) => zone.representativePrice),
+      },
+    });
+  }
+
+  const internalGaps = sortedForward
+    .slice(1)
+    .map((zone, index) => {
+      const previous = sortedForward[index]!;
+      return {
+        fromLevel: previous.representativePrice,
+        toLevel: zone.representativePrice,
+        gapPct: pctDistance(previous.representativePrice, zone.representativePrice),
+      };
+    })
+    .filter((gap) => gap.gapPct >= 18);
+
+  if (internalGaps.length > 0) {
+    const widestGap = [...internalGaps].sort((left, right) => right.gapPct - left.gapPct)[0]!;
+    findings.push({
+      severity: widestGap.gapPct >= 25 ? "action" : "watch",
+      side: params.side,
+      code: "wide_internal_gap",
+      message: `Forward ${params.side} ladder has a ${rounded(widestGap.gapPct)}% gap between visible levels; verify intermediate daily or 4h structure was not missed.`,
+      evidence: {
+        referencePrice: params.referencePrice,
+        forwardLevels: sortedForward.map((zone) => zone.representativePrice),
+        gaps: internalGaps.map((gap) => ({
+          fromLevel: gap.fromLevel,
+          toLevel: gap.toLevel,
+          gapPct: rounded(gap.gapPct),
+        })),
       },
     });
   }

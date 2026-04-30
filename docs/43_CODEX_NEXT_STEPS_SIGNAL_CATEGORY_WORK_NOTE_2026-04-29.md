@@ -70,4 +70,10 @@ Result:
 - IBKR 4h candles also contained intermediate highs around `1.94-1.99`, `2.13`, and `2.20-2.22`.
 - The current level-quality audit still reported `healthy_forward_ladder`, so the audit is not strict enough to flag this kind of trader-visible intermediate-resistance gap.
 
-Follow-up: review the level candidate/selection rules and/or level-quality audit so meaningful intermediate daily or 4h resistance is not skipped when the live ladder jumps from a nearby level to a much farther level.
+Fix implemented:
+
+- Higher-timeframe barrier-candle promotion was loosened so meaningful interior daily/4h highs and lows inside a larger move can become level candidates.
+- The level-quality audit now flags `wide_internal_gap` when adjacent forward levels are too far apart even if the ladder has enough total levels.
+- The ABTS manual-lookback audit now surfaces forward resistance at `1.66`, `1.74`, `1.78`, `1.83`, and `2.14`, removing the prior visible jump from `1.83` directly to `2.3146`.
+
+Remaining risk: the system should still avoid inventing tiny levels just to fill space. Future reviews should treat wide-gap audit findings as chart-review prompts, not automatic proof that every price inside the gap deserves a Discord-visible level.
