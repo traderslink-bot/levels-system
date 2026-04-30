@@ -125,6 +125,9 @@ For each active ticker, inspect:
 - level clear/lost posts that sounded too certain
 - wording that implies a target instead of a nearby level
 - any remaining system-shaped labels
+- crossed-resistance / crossed-support posts that mention a next level only in prose, but do not show it clearly in the trader-facing level section
+- posts where the current hold/reclaim level is skipped and the risk line jumps straight to a much farther support/resistance
+- posts generated before the latest restart that may not represent current repo code
 
 High-priority language failures:
 
@@ -162,6 +165,7 @@ Historical-post versus current-code proof rule:
 - If a bad phrase appears only in an old saved post, mark it `historical_only` and verify current code/tests before changing code.
 - If a bad phrase appears in current source or a fresh runtime post after restart, mark it `major` or `blocker` depending on trader impact.
 - Do not blur old artifacts and current runtime behavior in the final report.
+- Always record the runtime start time, latest commit, and session folder when reviewing live posts. If a post was produced by an older running process, say that explicitly before calling it a current bug.
 
 ## Activation And Runtime-State Audit
 
@@ -277,6 +281,7 @@ For each ticker, compare:
 - candle gap candidates
 - actual intraday price path
 - posts that claimed a level was cleared/lost
+- whether every trader-facing clear/lost/breakout/breakdown post displayed the next relevant support/resistance clearly enough for a trader to see it quickly
 
 Specific patterns to catch:
 
@@ -285,8 +290,20 @@ Specific patterns to catch:
 - Nearest support/resistance disappears because a farther level scored higher.
 - Multiple nearby levels display as clutter instead of one zone.
 - A broken support is not treated as nearby resistance when price is below it.
+- A reclaimed or crossed resistance is not treated as nearby support / breakout support while price is above it.
 - A barely crossed resistance is described as fully cleared too early.
 - The app says there is no resistance when older daily candles show clear overhead levels.
+- A post says resistance/support was crossed but does not include a clear `Key levels` style section for the crossed level and the next level above/below.
+- A post says risk opens toward a far support while skipping the crossed resistance that should first act as the hold/reclaim area.
+
+When a post does not show a next resistance/support level, investigate before accepting it:
+
+- Check whether the latest snapshot ladder had a valid next level.
+- Check whether the level-quality audit says the forward ladder was thin, missing, or extension-only.
+- Check whether a level existed in the full ladder but was filtered by display range, ranking, compaction, or stale runtime state.
+- Check whether the post was from an older app instance that had not loaded the latest formatter.
+- If the ladder truly has no next level, classify the finding as `data_quality_only` or `watch` with candle evidence.
+- If the ladder has a next level but Discord did not surface it clearly, classify it as `major` when trader readability is materially affected.
 
 ## Missed Event, False-Clear, And Role-Flip Audit
 
@@ -300,6 +317,8 @@ Check:
 - support-lost posts where price reclaimed the level quickly
 - broken support that should become nearby resistance while price is below it
 - reclaimed resistance that should become nearby support while price is above it
+- crossed resistance that should become the first breakout support / hold area before pointing to deeper support
+- crossed support that should become the first overhead reclaim area before pointing to higher resistance
 - posts that say a level is cleared/lost with too much certainty
 
 Minimum review requirements:
@@ -362,6 +381,8 @@ Check:
 - candles or ticks that arrive late from the provider
 - whether missing recent candles explain a missing clear/lost event
 - whether the system should wait for a better data provider before changing logic
+- whether a post arrived late enough that the level story was stale by the time it reached Discord
+- whether audit rows include enough timing proof (`sourceTimestamp`, `deliveryLagMs`, `sendStartedAt`, `sendDurationMs`) to separate provider lag, runtime lag, and Discord delivery lag
 
 Do not invent volume certainty from missing data. If volume is unavailable or stale, the audit should say that plainly and keep the action item on data quality.
 

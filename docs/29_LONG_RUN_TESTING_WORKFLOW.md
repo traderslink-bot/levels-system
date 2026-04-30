@@ -645,6 +645,15 @@ npm run validation:levels:quality -- <SYMBOL> [output-json-path]
 
 The audit checks the generated ladder for missing forward levels, wide first gaps, thin forward ladders, and extension-only forward ladders. It is meant to catch ATER-style "did we miss older daily resistance?" questions before changing level-engine tuning by feel.
 
+When reviewing Discord posts after a live run, also verify the running app version before treating a post as a current-code bug:
+
+- note the active session folder and runtime start time from `/api/runtime/status`
+- note the latest local commit with `git log --oneline -3`
+- separate posts produced before the latest restart from posts produced after the latest code was loaded
+- for every resistance/support crossed post, confirm the trader-facing text shows both the crossed level and the next relevant level clearly
+- if a post says risk opens toward a far support/resistance, check whether the crossed level should first be shown as the hold/reclaim area
+- if no next resistance/support appears, investigate whether the ladder truly had no next level, whether display/ranking hid it, or whether the post came from stale runtime code
+
 ## Current Live-Post Discipline
 
 Live thread posting is intentionally stricter than the raw runtime evaluation stream.

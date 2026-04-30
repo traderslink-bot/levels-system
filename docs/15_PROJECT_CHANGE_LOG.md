@@ -21,6 +21,20 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-30 America/Toronto
 
+### Updated audit playbook for next-level and stale-runtime checks
+
+- Updated:
+  - `docs/45_TRADING_DAY_AUDIT_PLAYBOOK.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+- What changed:
+  - added explicit audit checks for missing or weak next support/resistance visibility in Discord posts
+  - added role-flip checks for crossed resistance becoming breakout support and crossed support becoming the first reclaim area
+  - added checks for far-away risk lines that skip the immediate crossed level
+  - added runtime-version proof requirements so old posts from a pre-restart app are not confused with current-code bugs
+  - added delivery-lag evidence checks for stale fast-move posts
+
+## 2026-04-30 America/Toronto
+
 ### Added key-level blocks to resistance-cross posts
 
 - Updated:
