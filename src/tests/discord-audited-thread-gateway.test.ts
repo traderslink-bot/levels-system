@@ -161,6 +161,9 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[2]?.operation, "post_level_snapshot");
   assert.equal(lines[1]?.status, "posted");
   assert.equal(lines[1]?.symbol, "ALBT");
+  assert.equal(lines[1]?.sourceTimestamp, 1);
+  assert.equal(typeof lines[1]?.deliveryLagMs, "number");
+  assert.equal(typeof lines[1]?.sendDurationMs, "number");
   assert.equal(lines[1]?.body, "breakout resistance 2.40-2.50");
   assert.equal(lines[1]?.messageKind, "intelligent_alert");
   assert.equal(lines[1]?.eventType, "breakout");
@@ -187,6 +190,9 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.targetDistancePct, 0.024);
   assert.equal(lines[2]?.supportCount, 1);
   assert.equal(lines[2]?.resistanceCount, 1);
+  assert.equal(lines[2]?.sourceTimestamp, 2);
+  assert.equal(typeof lines[2]?.deliveryLagMs, "number");
+  assert.equal(typeof lines[2]?.sendDurationMs, "number");
   assert.equal(lines[2]?.snapshotAudit?.omittedResistanceCount, 1);
   assert.equal(
     lines[2]?.snapshotAudit?.omittedResistanceLevels[0]?.omittedReason,
@@ -268,6 +274,9 @@ test("DiscordAuditedThreadGateway records failed downstream deliveries before re
   assert.equal(line.operation, "post_alert");
   assert.equal(line.status, "failed");
   assert.equal(line.gatewayMode, "local");
+  assert.equal(line.sourceTimestamp, 1);
+  assert.equal(typeof line.deliveryLagMs, "number");
+  assert.equal(typeof line.sendDurationMs, "number");
   assert.equal(line.messageKind, "intelligent_alert");
   assert.equal(line.eventType, "breakout");
   assert.equal(line.postingFamily, "bullish_resolution");

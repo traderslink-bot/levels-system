@@ -6,6 +6,7 @@ import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gate
 type MockResponseInit = {
   status?: number;
   body?: unknown;
+  headers?: Record<string, string>;
 };
 
 function jsonResponse(init: MockResponseInit = {}): Response {
@@ -13,6 +14,7 @@ function jsonResponse(init: MockResponseInit = {}): Response {
     status: init.status ?? 200,
     headers: {
       "Content-Type": "application/json",
+      ...(init.headers ?? {}),
     },
   });
 }
@@ -157,8 +159,13 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
       "2.25 (-10.4%)",
       "",
       "More support and resistance:",
-      "- Support: 2.40 (-4.4%), 2.25 (-10.4%)",
-      "- Resistance: 2.60 (+3.6%), 2.75 (+9.6%)",
+      "Resistance:",
+      "2.60 (+3.6%)",
+      "2.75 (+9.6%)",
+      "",
+      "Support:",
+      "2.40 (-4.4%)",
+      "2.25 (-10.4%)",
     ].join("\n"),
   );
 });
@@ -228,4 +235,39 @@ test("DiscordRestThreadGateway retries transient message delivery failures", asy
   assert.equal(calls.length, 2);
   assert.equal(calls[0]?.input, "https://discord.com/api/v10/channels/thread-albt/messages");
   assert.equal(calls[1]?.input, "https://discord.com/api/v10/channels/thread-albt/messages");
+});
+
+test("DiscordRestThreadGateway fails fast when Discord retry-after would stale an alert", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return jsonResponse({
+      status: 429,
+      body: { message: "rate limited" },
+      headers: { "retry-after": "120" },
+    });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+    transientRetryAttempts: 1,
+    maxTransientRetryDelayMs: 5_000,
+  });
+
+  await assert.rejects(
+    gateway.sendMessage("thread-albt", {
+      title: "ALBT breakout",
+      body: "price cleared resistance",
+      symbol: "ALBT",
+      timestamp: 1,
+      metadata: {
+        messageKind: "intelligent_alert",
+      },
+    }),
+    /retry delay 120000ms exceeds max 5000ms/,
+  );
+
+  assert.equal(calls.length, 1);
 });

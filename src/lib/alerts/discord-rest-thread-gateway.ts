@@ -35,12 +35,16 @@ export type DiscordRestThreadGatewayOptions = {
   autoArchiveDurationMinutes?: 60 | 1440 | 4320 | 10080;
   transientRetryAttempts?: number;
   transientRetryDelayMs?: number;
+  maxTransientRetryDelayMs?: number;
+  requestTimeoutMs?: number;
 };
 
 const DEFAULT_API_BASE_URL = "https://discord.com/api/v10";
 const DISCORD_FLAG_SUPPRESS_EMBEDS = 1 << 2;
 const DEFAULT_TRANSIENT_RETRY_ATTEMPTS = 1;
 const DEFAULT_TRANSIENT_RETRY_DELAY_MS = 750;
+const DEFAULT_MAX_TRANSIENT_RETRY_DELAY_MS = 10_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
 function normalizeNonEmpty(value: string | undefined, label: string): string {
   const normalized = value?.trim();
@@ -91,6 +95,8 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   private readonly autoArchiveDurationMinutes: 60 | 1440 | 4320 | 10080;
   private readonly transientRetryAttempts: number;
   private readonly transientRetryDelayMs: number;
+  private readonly maxTransientRetryDelayMs: number;
+  private readonly requestTimeoutMs: number;
 
   constructor(options: DiscordRestThreadGatewayOptions) {
     this.botToken = normalizeNonEmpty(options.botToken, "Discord bot token");
@@ -104,19 +110,50 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     this.autoArchiveDurationMinutes = options.autoArchiveDurationMinutes ?? 1440;
     this.transientRetryAttempts = Math.max(0, Math.floor(options.transientRetryAttempts ?? DEFAULT_TRANSIENT_RETRY_ATTEMPTS));
     this.transientRetryDelayMs = Math.max(0, Math.floor(options.transientRetryDelayMs ?? DEFAULT_TRANSIENT_RETRY_DELAY_MS));
+    this.maxTransientRetryDelayMs = Math.max(
+      0,
+      Math.floor(options.maxTransientRetryDelayMs ?? DEFAULT_MAX_TRANSIENT_RETRY_DELAY_MS),
+    );
+    this.requestTimeoutMs = Math.max(0, Math.floor(options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS));
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     let lastError: Error | null = null;
     for (let attempt = 0; attempt <= this.transientRetryAttempts; attempt += 1) {
-      const response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
-        ...init,
-        headers: {
-          Authorization: `Bot ${this.botToken}`,
-          "Content-Type": "application/json",
-          ...(init?.headers ?? {}),
-        },
-      });
+      const controller = this.requestTimeoutMs > 0 ? new AbortController() : null;
+      const timeout = controller
+        ? setTimeout(() => controller.abort(), this.requestTimeoutMs)
+        : null;
+      let response: Response;
+
+      try {
+        response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
+          ...init,
+          signal: init?.signal ?? controller?.signal,
+          headers: {
+            Authorization: `Bot ${this.botToken}`,
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {}),
+          },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        lastError = new Error(
+          controller?.signal.aborted
+            ? `Discord API request timed out after ${this.requestTimeoutMs}ms for ${path}.`
+            : `Discord API request failed for ${path}: ${message}`,
+        );
+        if (attempt < this.transientRetryAttempts) {
+          await delay(this.transientRetryDelayMs);
+          continue;
+        }
+
+        throw lastError;
+      } finally {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+      }
 
       if (response.ok) {
         return (await parseDiscordJson<T>(response)) as T;
@@ -127,7 +164,13 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
         `Discord API request failed (${response.status}) for ${path}: ${body || response.statusText}`,
       );
       if (attempt < this.transientRetryAttempts && isTransientDiscordStatus(response.status)) {
-        await delay(parseRetryAfterMs(response, this.transientRetryDelayMs));
+        const retryDelayMs = parseRetryAfterMs(response, this.transientRetryDelayMs);
+        if (retryDelayMs > this.maxTransientRetryDelayMs) {
+          throw new Error(
+            `Discord transient retry delay ${retryDelayMs}ms exceeds max ${this.maxTransientRetryDelayMs}ms for ${path}: ${body || response.statusText}`,
+          );
+        }
+        await delay(retryDelayMs);
         continue;
       }
 

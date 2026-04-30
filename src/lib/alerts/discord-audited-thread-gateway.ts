@@ -29,6 +29,10 @@ export type DiscordDeliveryAuditEntry = {
   status: DiscordDeliveryAuditStatus;
   gatewayMode: "real" | "local";
   timestamp: number;
+  sourceTimestamp?: number;
+  deliveryLagMs?: number;
+  sendStartedAt?: number;
+  sendDurationMs?: number;
   threadId?: string;
   symbol?: string;
   title?: string;
@@ -171,13 +175,21 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
   private recordPosted(
     operation: DiscordDeliveryAuditOperation,
     payload: DiscordDeliveryAuditPayload,
+    timing?: { sendStartedAt?: number; sendDurationMs?: number },
   ): void {
+    const timestamp = Date.now();
+    const sourceTimestamp = payload.sourceTimestamp;
     this.writeAudit({
       type: "discord_delivery_audit",
       operation,
       status: "posted",
       gatewayMode: this.options.gatewayMode,
-      timestamp: Date.now(),
+      timestamp,
+      deliveryLagMs:
+        typeof sourceTimestamp === "number" && Number.isFinite(sourceTimestamp)
+          ? timestamp - sourceTimestamp
+          : undefined,
+      ...timing,
       ...payload,
     });
   }
@@ -186,8 +198,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
     operation: DiscordDeliveryAuditOperation,
     error: unknown,
     payload: DiscordDeliveryAuditPayload,
+    timing?: { sendStartedAt?: number; sendDurationMs?: number },
   ): never {
-    this.recordFailedAttempt(operation, error, payload);
+    this.recordFailedAttempt(operation, error, payload, timing);
     throw error;
   }
 
@@ -195,15 +208,22 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
     operation: DiscordDeliveryAuditOperation,
     error: unknown,
     payload: DiscordDeliveryAuditPayload,
+    timing?: { sendStartedAt?: number; sendDurationMs?: number },
   ): number {
     const message = error instanceof Error ? error.message : String(error);
     const timestamp = Date.now();
+    const sourceTimestamp = payload.sourceTimestamp;
     this.writeAudit({
       type: "discord_delivery_audit",
       operation,
       status: "failed",
       gatewayMode: this.options.gatewayMode,
       timestamp,
+      deliveryLagMs:
+        typeof sourceTimestamp === "number" && Number.isFinite(sourceTimestamp)
+          ? timestamp - sourceTimestamp
+          : undefined,
+      ...timing,
       error: message,
       ...payload,
     });
@@ -218,6 +238,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       threadId,
       symbol: payload.symbol ?? payload.event?.symbol,
       title: payload.title,
+      sourceTimestamp: payload.event?.timestamp ?? payload.timestamp,
       body: payload.body,
       bodyPreview: previewBody(payload.body),
       messageKind: payload.metadata?.messageKind,
@@ -298,11 +319,18 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
 
   async sendMessage(threadId: string, payload: AlertPayload): Promise<void> {
     const auditPayload = this.buildAlertAuditPayload(threadId, payload);
+    const sendStartedAt = Date.now();
     try {
       await this.inner.sendMessage(threadId, payload);
-      this.recordPosted("post_alert", auditPayload);
+      this.recordPosted("post_alert", auditPayload, {
+        sendStartedAt,
+        sendDurationMs: Date.now() - sendStartedAt,
+      });
     } catch (error) {
-      const failedAt = this.recordFailedAttempt("post_alert", error, auditPayload);
+      const failedAt = this.recordFailedAttempt("post_alert", error, auditPayload, {
+        sendStartedAt,
+        sendDurationMs: Date.now() - sendStartedAt,
+      });
       const maxRetries = this.options.alertMaxRetries ?? DEFAULT_ALERT_MAX_RETRIES;
       if (!this.shouldRetryAlert(payload) || maxRetries <= 0) {
         throw error;
@@ -311,6 +339,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       let lastError = error;
       for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
         await delay(this.options.alertRetryDelayMs ?? DEFAULT_ALERT_RETRY_DELAY_MS);
+        const retryStartedAt = Date.now();
         try {
           await this.inner.sendMessage(threadId, payload);
           this.recordPosted("post_alert", {
@@ -318,6 +347,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
             retryAttempt: attempt,
             retryOf: failedAt,
             retryReason: error instanceof Error ? error.message : String(error),
+          }, {
+            sendStartedAt: retryStartedAt,
+            sendDurationMs: Date.now() - retryStartedAt,
           });
           return;
         } catch (retryError) {
@@ -328,6 +360,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
               retryAttempt: attempt,
               retryOf: failedAt,
               retryReason: error instanceof Error ? error.message : String(error),
+            }, {
+              sendStartedAt: retryStartedAt,
+              sendDurationMs: Date.now() - retryStartedAt,
             });
           }
         }
@@ -342,6 +377,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       `price ${payload.currentPrice}; support ${payload.supportZones.length}; ` +
       `resistance ${payload.resistanceZones.length}`;
     const snapshotAudit = buildSnapshotAuditPreview(payload.audit);
+    const sendStartedAt = Date.now();
 
     try {
       await this.inner.sendLevelSnapshot(threadId, payload);
@@ -349,22 +385,30 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         threadId,
         symbol: payload.symbol,
         title: `${payload.symbol} support and resistance`,
+        sourceTimestamp: payload.timestamp,
         body,
         bodyPreview,
         supportCount: payload.supportZones.length,
         resistanceCount: payload.resistanceZones.length,
         snapshotAudit,
+      }, {
+        sendStartedAt,
+        sendDurationMs: Date.now() - sendStartedAt,
       });
     } catch (error) {
       this.recordFailed("post_level_snapshot", error, {
         threadId,
         symbol: payload.symbol,
         title: `${payload.symbol} support and resistance`,
+        sourceTimestamp: payload.timestamp,
         body,
         bodyPreview,
         supportCount: payload.supportZones.length,
         resistanceCount: payload.resistanceZones.length,
         snapshotAudit,
+      }, {
+        sendStartedAt,
+        sendDurationMs: Date.now() - sendStartedAt,
       });
     }
   }
@@ -372,6 +416,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
   async sendLevelExtension(threadId: string, payload: LevelExtensionPayload): Promise<void> {
     const body = formatLevelExtensionMessage(payload);
     const bodyPreview = `${payload.side} ${payload.levels.join(", ")}`;
+    const sendStartedAt = Date.now();
 
     try {
       await this.inner.sendLevelExtension(threadId, payload);
@@ -379,20 +424,28 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         threadId,
         symbol: payload.symbol,
         title: `${payload.symbol} next levels to watch`,
+        sourceTimestamp: payload.timestamp,
         body,
         bodyPreview: previewBody(bodyPreview),
         side: payload.side,
         levelCount: payload.levels.length,
+      }, {
+        sendStartedAt,
+        sendDurationMs: Date.now() - sendStartedAt,
       });
     } catch (error) {
       this.recordFailed("post_level_extension", error, {
         threadId,
         symbol: payload.symbol,
         title: `${payload.symbol} next levels to watch`,
+        sourceTimestamp: payload.timestamp,
         body,
         bodyPreview: previewBody(bodyPreview),
         side: payload.side,
         levelCount: payload.levels.length,
+      }, {
+        sendStartedAt,
+        sendDurationMs: Date.now() - sendStartedAt,
       });
     }
   }
