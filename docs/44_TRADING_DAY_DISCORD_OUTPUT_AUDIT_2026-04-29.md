@@ -280,6 +280,9 @@ Implementation update:
 - Critical burst handling now applies before major-change bypasses, so runner windows stay calmer.
 - AI commentary same-story / same-symbol cooldowns were extended.
 - Realistic trader-language replay tests now enforce that trader-visible posts avoid old system-shaped wording.
+- A follow-up candle-backed level pass promoted credible intermediate daily/4h levels inside large forward gaps and added a nearest-level safeguard.
+- After the follow-up replay audit, `SKYQ`, `ATER`, `BIYA`, `SEGG`, `SAGT`, `VSME`, `ABTS`, `XTLB`, `SLGB`, `OSRH`, and `DRCT` showed healthy forward ladders against the cached April 29 IBKR candles.
+- `KIDZ` still showed a thin support ladder because the cached candles only exposed one forward support; this was left as a data/structure warning rather than forced.
 - Current replay against the combined April 29 audit file:
   - quiet: 387 original posts -> 318 simulated posts
   - balanced: 387 original posts -> 338 simulated posts

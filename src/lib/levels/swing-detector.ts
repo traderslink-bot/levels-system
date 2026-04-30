@@ -102,9 +102,13 @@ function selectDominantSwings(
     const matchedIndex =
       previousIndex === -1 ? -1 : selected.length - 1 - previousIndex;
     const previous = matchedIndex === -1 ? undefined : selected[matchedIndex];
+    const sameLocalPriceBand = previous
+      ? Math.abs(swing.price - previous.price) / Math.max(Math.max(swing.price, previous.price), 0.0001) <= 0.06
+      : false;
     if (
       previous &&
-      swing.index - previous.index < minimumSeparationBars
+      swing.index - previous.index < minimumSeparationBars &&
+      sameLocalPriceBand
     ) {
       if (swing.strength > previous.strength) {
         selected[matchedIndex] = swing;

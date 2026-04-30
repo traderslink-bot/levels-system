@@ -184,6 +184,30 @@ test("detectSwingPoints can retain higher-timeframe barrier highs inside a risin
   assert.ok(barrierAwareSwings.some((swing) => swing.kind === "resistance" && swing.price === 7.28));
 });
 
+test("detectSwingPoints keeps distinct nearby-in-time barrier levels when prices are materially different", () => {
+  const baseTimestamp = Date.parse("2026-02-10T14:30:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = [
+    { timestamp: baseTimestamp, open: 3.05, high: 3.20, low: 2.85, close: 2.94, volume: 1000 },
+    { timestamp: baseTimestamp + dayMs, open: 2.62, high: 2.72, low: 2.53, close: 2.53, volume: 1300 },
+    { timestamp: baseTimestamp + 2 * dayMs, open: 2.51, high: 2.64, low: 2.28, close: 2.30, volume: 1200 },
+    { timestamp: baseTimestamp + 3 * dayMs, open: 2.35, high: 2.41, low: 2.02, close: 2.03, volume: 1500 },
+    { timestamp: baseTimestamp + 4 * dayMs, open: 2.17, high: 2.36, low: 1.84, close: 1.86, volume: 2400 },
+    { timestamp: baseTimestamp + 5 * dayMs, open: 1.89, high: 2.25, low: 1.77, close: 2.07, volume: 1800 },
+    { timestamp: baseTimestamp + 6 * dayMs, open: 2.10, high: 2.33, low: 1.39, close: 1.60, volume: 2000 },
+  ];
+
+  const swings = detectSwingPoints(candles, {
+    swingWindow: 1,
+    minimumDisplacementPct: 0.02,
+    minimumSeparationBars: 4,
+    includeBarrierCandles: true,
+  });
+
+  assert.ok(swings.some((swing) => swing.kind === "resistance" && swing.price === 2.64));
+  assert.ok(swings.some((swing) => swing.kind === "resistance" && swing.price === 2.41));
+});
+
 test("clusterRawLevelCandidates preserves the strongest nearby wick-led representative instead of averaging it away", () => {
   const candidates = [
     {

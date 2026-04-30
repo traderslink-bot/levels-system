@@ -21,6 +21,26 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-29 America/Toronto
 
+### Promoted credible intermediate levels from cached candle audits
+
+- Updated:
+  - `src/lib/levels/swing-detector.ts`
+  - `src/lib/levels/level-ranker.ts`
+  - `src/tests/level-engine.test.ts`
+- What changed:
+  - changed dominant swing selection so nearby-in-time higher-timeframe candles only replace each other when they are also price-near
+  - added a surfaced-ladder gap-fill pass that promotes credible daily/4h candidates inside large forward support/resistance gaps
+  - added a nearest-forward safeguard so the closest valid support/resistance near live price is not skipped just because a farther historical level has a higher score
+- Replay result from the April 29 cached IBKR candles:
+  - `SKYQ`, `ATER`, `BIYA`, `SEGG`, `SAGT`, `VSME`, `ABTS`, `XTLB`, `SLGB`, `OSRH`, and `DRCT` now report healthy forward support/resistance ladders
+  - `KIDZ` still reports a thin support ladder because the cached candle data only exposes one forward support; no synthetic support was forced
+- Verification:
+  - `npx tsx --test src/tests/level-engine.test.ts src/tests/level-quality-audit.test.ts`
+  - `npm run build`
+  - replay quality audits using `LEVEL_VALIDATION_CACHE_MODE=replay`, `LEVEL_VALIDATION_LOOKBACK_DAILY=520`, `LEVEL_VALIDATION_LOOKBACK_4H=180`, and `LEVEL_VALIDATION_LOOKBACK_5M=100`
+
+## 2026-04-29 America/Toronto
+
 ### Added clustered level display and calmer live-post replay controls
 
 - Updated:
