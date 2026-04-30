@@ -834,19 +834,6 @@ function buildSnapshotReadLines(payload: LevelSnapshotPayload): string[] {
   return ["No nearby support or resistance is available in the current ladder."];
 }
 
-function formatSnapshotLevelList(
-  zones: LevelSnapshotDisplayZone[],
-  currentPrice: number,
-  side: "support" | "resistance",
-  limit?: number,
-): string {
-  const entries = compactSnapshotDisplayEntries(zones, side);
-  const selected = limit === undefined ? entries : entries.slice(0, limit);
-  return selected.length > 0
-    ? selected.map((entry) => formatSnapshotDisplayEntry(entry, currentPrice)).join(", ")
-    : "none";
-}
-
 function formatSnapshotLevelBlock(
   label: "Resistance" | "Support",
   zones: LevelSnapshotDisplayZone[],
@@ -869,8 +856,8 @@ function formatSnapshotLevelBlock(
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
   const keyResistanceLines = formatSnapshotLevelBlock("Resistance", payload.resistanceZones, payload.currentPrice, 3);
   const keySupportLines = formatSnapshotLevelBlock("Support", payload.supportZones, payload.currentPrice, 3);
-  const supportLine = formatSnapshotLevelList(payload.supportZones, payload.currentPrice, "support");
-  const resistanceLine = formatSnapshotLevelList(payload.resistanceZones, payload.currentPrice, "resistance");
+  const fullResistanceLines = formatSnapshotLevelBlock("Resistance", payload.resistanceZones, payload.currentPrice);
+  const fullSupportLines = formatSnapshotLevelBlock("Support", payload.supportZones, payload.currentPrice);
 
   return [
     `${payload.symbol} support and resistance`,
@@ -885,8 +872,9 @@ export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): strin
     ...keySupportLines,
     "",
     "More support and resistance:",
-    `- Support: ${supportLine}`,
-    `- Resistance: ${resistanceLine}`,
+    ...fullResistanceLines,
+    "",
+    ...fullSupportLines,
   ].join("\n");
 }
 

@@ -653,8 +653,13 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       "2.25 (-10.4%, light, fresh intraday)",
       "",
       "More support and resistance:",
-      "- Support: 2.40 (-4.4%, heavy, daily structure), 2.25 (-10.4%, light, fresh intraday)",
-      "- Resistance: 2.60 (+3.6%, major, 4h confluence), 2.75 (+9.6%, moderate, extension)",
+      "Resistance:",
+      "2.60 (+3.6%, major, 4h confluence)",
+      "2.75 (+9.6%, moderate, extension)",
+      "",
+      "Support:",
+      "2.40 (-4.4%, heavy, daily structure)",
+      "2.25 (-10.4%, light, fresh intraday)",
     ].join("\n"),
   );
 });
