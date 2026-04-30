@@ -177,6 +177,26 @@ function splitWatchLine(watch: string | null): { confirm: string | null; invalid
   };
 }
 
+function buildSupportTouchPrimaryRead(alert: IntelligentAlert): string | null {
+  if (
+    alert.event.eventType !== "level_touch" ||
+    alert.event.zoneKind !== "support" ||
+    !alert.zone
+  ) {
+    return null;
+  }
+
+  if (alert.event.triggerPrice > alert.zone.zoneHigh) {
+    return "price is nearing support; buyers need stabilization before the setup improves";
+  }
+
+  if (alert.event.triggerPrice < alert.zone.zoneLow) {
+    return "price is below support; buyers need a reclaim before risk improves";
+  }
+
+  return "price is testing support after the pullback; buyers need stabilization here";
+}
+
 function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   const lines = alert.body.split("\n").map((line) => line.trim()).filter(Boolean);
   const lead = lines[0] ?? alert.title;
@@ -220,12 +240,14 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
       readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(room))));
     }
   } else if (eventType === "level_touch") {
+    const supportTouchRead = buildSupportTouchPrimaryRead(alert);
     readLines.push(
-      pressure
+      supportTouchRead ??
+      (pressure
         ? simplifyTraderRead(lowercaseFirst(stripLinePrefix(pressure)))
         : whyNow
           ? simplifyTraderRead(lowercaseFirst(stripLinePrefix(whyNow)))
-          : "price is testing a key zone",
+          : "price is testing a key zone"),
     );
     if (whyNow) {
       readLines.push(simplifyTraderRead(lowercaseFirst(stripLinePrefix(whyNow))));

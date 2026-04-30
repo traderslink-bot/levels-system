@@ -802,7 +802,7 @@ function buildWhyNowLine(
       if (zone.kind === "support") {
         return event.triggerPrice > zone.zoneHigh
           ? "why now: price is approaching support, making this the next reaction area"
-          : "why now: price came back into defended support instead of drifting mid-range";
+          : "why now: price is back at support, so buyers need to stabilize before the setup improves";
       }
       return "why now: price is back at resistance; buyers need acceptance above the zone";
     default:
@@ -1031,7 +1031,7 @@ function buildWatchLine(event: MonitoringEvent, zone?: FinalLevelZone): string |
       if (zone.kind === "support") {
         return event.triggerPrice > zone.zoneHigh
           ? `watch: buyers stabilize into ${zoneRange}; losing it keeps risk open lower`
-          : `watch: buyers defend ${zoneRange} before momentum fades`;
+          : `watch: buyers stabilize at ${zoneRange}; losing it keeps risk open lower`;
       }
       return `watch: buyers need acceptance above ${zoneHigh} before breakout pressure builds`;
     default:

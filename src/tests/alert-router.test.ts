@@ -556,6 +556,93 @@ test("formatIntelligentAlertAsPayload uses nearing-support wording for support a
   assertTraderFacingDiscordText(payload);
 });
 
+test("formatIntelligentAlertAsPayload avoids generic balanced wording for support touches after pullbacks", () => {
+  const touchEvent = {
+    ...samplePayload.event!,
+    id: "evt-support-touch",
+    episodeId: "ep-support-touch",
+    type: "level_touch" as const,
+    eventType: "level_touch" as const,
+    zoneKind: "support" as const,
+    level: 2.93,
+    triggerPrice: 2.92,
+    bias: "neutral" as const,
+  };
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-support-touch",
+    symbol: "FATN",
+    title: "FATN level touch",
+    body: [
+      "price testing major support 2.91-2.93",
+      "pressure: buying and selling pressure still look balanced",
+      "why now: price is back at support, so buyers need to stabilize before the setup improves",
+      "room: limited overhead into next resistance 2.98 (+2.1%)",
+      "watch: buyers stabilize at 2.91-2.93; losing it keeps risk open lower",
+    ].join("\n"),
+    severity: "high",
+    confidence: "high",
+    score: 58,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: touchEvent,
+    zone: {
+      id: "S1",
+      symbol: "FATN",
+      kind: "support",
+      timeframeBias: "daily",
+      zoneLow: 2.91,
+      zoneHigh: 2.93,
+      representativePrice: 2.93,
+      strengthScore: 36,
+      strengthLabel: "major",
+      touchCount: 4,
+      confluenceCount: 2,
+      sourceTypes: ["swing_low"],
+      timeframeSources: ["daily"],
+      reactionQualityScore: 0.7,
+      rejectionScore: 0.4,
+      displacementScore: 0.4,
+      sessionSignificanceScore: 0.4,
+      followThroughScore: 0.6,
+      gapContinuationScore: 0,
+      sourceEvidenceCount: 2,
+      firstTimestamp: 1,
+      lastTimestamp: 1,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    nextBarrier: {
+      side: "resistance",
+      price: 2.98,
+      distancePct: 0.021,
+      clearanceLabel: "limited",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+    movement: null,
+    pressure: {
+      label: "balanced",
+      pressureScore: 0.5,
+      line: "pressure: buying and selling pressure still look balanced",
+    },
+    triggerQuality: null,
+    pathQuality: null,
+    dipBuyQuality: null,
+    exhaustion: null,
+    setupState: null,
+    failureRisk: null,
+    target: null,
+    tradeMap: null,
+  });
+
+  assert.match(payload.body, /price is testing support after the pullback; buyers need stabilization here/);
+  assert.match(payload.body, /buyers need to stabilize/);
+  assert.doesNotMatch(payload.body, /buyers and sellers are still balanced/);
+  assertTraderFacingDiscordText(payload);
+});
+
 test("formatFollowThroughStateUpdateAsPayload adds live progress metadata", () => {
   const payload = formatFollowThroughStateUpdateAsPayload({
     symbol: "ALBT",
