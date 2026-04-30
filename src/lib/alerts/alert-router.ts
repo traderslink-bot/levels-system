@@ -69,7 +69,7 @@ function simplifyTraderRead(line: string): string {
   return line
     .replace(/^buyers still have workable control, but follow-through still matters$/i, "buyers have some control, but the move still needs follow-through")
     .replace(/^buyers still have strong control, backing the move$/i, "buyers are in control right now")
-    .replace(/^buying and selling pressure still look balanced$/i, "buyers and sellers are still balanced")
+    .replace(/^buying and selling pressure still look balanced$/i, "buyers still need stronger acceptance")
     .replace(/^avoid longs until price reclaims (.+)$/i, "long setup stays risky until price reclaims $1")
     .replace(/^hold above /i, "confirmation: hold above ");
 }

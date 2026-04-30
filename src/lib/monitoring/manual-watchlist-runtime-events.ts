@@ -29,6 +29,7 @@ export type ManualWatchlistLifecycleEventName =
   | "recap_posted"
   | "recap_post_failed"
   | "ai_commentary_generated"
+  | "ai_commentary_suppressed"
   | "ai_commentary_failed"
   | "deactivated"
   | "restore_failed";

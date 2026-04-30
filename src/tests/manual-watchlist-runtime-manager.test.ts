@@ -2908,8 +2908,9 @@ test("ManualWatchlistRuntimeManager posts AI signal commentary after determinist
   );
   assert.equal(aiPosts.length, 1);
   assert.equal(aiPosts[0]?.threadId, "thread-ALBT");
-  assert.equal(aiPosts[0]?.payload.title, "ALBT AI read");
+  assert.equal(aiPosts[0]?.payload.title, "ALBT setup read");
   assert.match(aiPosts[0]?.payload.body ?? "", /AI says buyers need acceptance above resistance/);
+  assert.doesNotMatch(aiPosts[0]?.payload.body ?? "", /AI read:|Based on:/);
   assert.equal(aiPosts[0]?.payload.metadata?.aiGenerated, true);
 });
 
@@ -3061,6 +3062,97 @@ test("ManualWatchlistRuntimeManager keeps reactive AI reads out of live threads"
     ).length,
     0,
   );
+});
+
+test("ManualWatchlistRuntimeManager suppresses stale AI signal commentary and allows a fresh retry", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  let aiCalls = 0;
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    aiCommentaryService: {
+      async explainSignal() {
+        aiCalls += 1;
+        return {
+          text: "Buyers need acceptance above resistance before the setup looks cleaner.",
+          model: "test-model",
+        };
+      },
+    } as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ALBT" });
+  discordAlertRouter.routed.length = 0;
+
+  const deterministicPayload = {
+    title: "ALBT breakout",
+    body: "Price is above resistance for now.",
+    symbol: "ALBT",
+    timestamp: Date.now() - 20_000,
+    metadata: {
+      messageKind: "intelligent_alert",
+    },
+  };
+  const alert = {
+    symbol: "ALBT",
+    event: {
+      symbol: "ALBT",
+      eventType: "breakout",
+      level: 2.45,
+      timestamp: Date.now() - 20_000,
+    },
+    severity: "critical",
+    confidence: "high",
+    score: 90,
+  };
+
+  await (manager as any).maybePostSignalCommentaryWithAI({
+    threadId: "thread-ALBT",
+    alert,
+    deterministicPayload,
+  });
+  assert.equal(aiCalls, 1);
+  assert.equal(
+    discordAlertRouter.routed.filter(
+      (entry) => entry.payload.metadata?.messageKind === "ai_signal_commentary",
+    ).length,
+    0,
+  );
+
+  await (manager as any).maybePostSignalCommentaryWithAI({
+    threadId: "thread-ALBT",
+    alert: {
+      ...alert,
+      event: {
+        ...alert.event,
+        timestamp: Date.now() + 120_000,
+      },
+    },
+    deterministicPayload: {
+      ...deterministicPayload,
+      timestamp: Date.now() + 120_000,
+    },
+  });
+
+  assert.equal(aiCalls, 2);
+  const aiPosts = discordAlertRouter.routed.filter(
+    (entry) => entry.payload.metadata?.messageKind === "ai_signal_commentary",
+  );
+  assert.equal(aiPosts.length, 1);
+  assert.equal(aiPosts[0]?.payload.title, "ALBT setup read");
 });
 
 test("ManualWatchlistRuntimeManager posts follow-through updates when evaluations complete", async () => {

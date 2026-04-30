@@ -21,6 +21,23 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-30 America/Toronto
 
+### Cleaned live AI signal posts after post-market audit
+
+- Updated:
+  - `src/lib/monitoring/manual-watchlist-runtime-manager.ts`
+  - `src/lib/monitoring/manual-watchlist-runtime-events.ts`
+  - `src/lib/alerts/alert-router.ts`
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/alert-router.test.ts`
+- What changed:
+  - live AI signal commentary no longer posts Discord-visible `AI read:` / `Based on:` labels or titles
+  - stale AI signal commentary is suppressed when generation takes too long after the deterministic alert
+  - AI suppression now emits a typed lifecycle event with `reason: stale_ai_commentary`
+  - resistance-touch balanced-pressure wording now says buyers need stronger acceptance instead of `buyers and sellers are still balanced`
+- Verification:
+  - `npx tsx --test src/tests/manual-watchlist-runtime-manager.test.ts src/tests/alert-router.test.ts src/tests/trader-facing-replay-language.test.ts src/tests/trader-commentary-service.test.ts`
+  - `npm run build`
+
 ### Updated audit playbook for next-level and stale-runtime checks
 
 - Updated:

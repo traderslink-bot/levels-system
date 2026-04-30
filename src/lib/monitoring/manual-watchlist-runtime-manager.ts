@@ -157,6 +157,10 @@ function normalizeSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
 }
 
+function isEpochTimestamp(timestamp: number): boolean {
+  return Number.isFinite(timestamp) && timestamp > 1_000_000_000_000;
+}
+
 type ActiveLevelSnapshotState = {
   lastSnapshot: string;
   highestResistance: number | null;
@@ -183,6 +187,7 @@ const SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE = 0.01;
 const SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 0.5;
 const SYMBOL_RECAP_COOLDOWN_MS = 30 * 60 * 1000;
 const AI_SIGNAL_COMMENTARY_COOLDOWN_MS = 10 * 60 * 1000;
+const AI_SIGNAL_COMMENTARY_MAX_DELIVERY_LAG_MS = 8 * 1000;
 const RECAP_AFTER_STORY_MIN_GAP_MS = 3 * 60 * 1000;
 const CONTINUITY_UPDATE_COOLDOWN_MS = 5 * 60 * 1000;
 const CONTINUITY_MAJOR_TRANSITION_COOLDOWN_MS = 12 * 60 * 1000;
@@ -3258,6 +3263,25 @@ export class ManualWatchlistRuntimeManager {
         return;
       }
 
+      const commentaryLagMs = Date.now() - params.alert.event.timestamp;
+      if (
+        isEpochTimestamp(params.alert.event.timestamp) &&
+        commentaryLagMs > AI_SIGNAL_COMMENTARY_MAX_DELIVERY_LAG_MS
+      ) {
+        this.aiSignalStoryState.set(normalizeSymbol(params.alert.symbol), previousAiState);
+        this.emitLifecycle("ai_commentary_suppressed", {
+          symbol: params.alert.symbol,
+          threadId: params.threadId,
+          details: {
+            commentaryType: "intelligent_alert",
+            eventType: params.alert.event.eventType,
+            reason: "stale_ai_commentary",
+            lagMs: commentaryLagMs,
+          },
+        });
+        return;
+      }
+
       this.aiCommentaryGeneratedCount += 1;
       this.lastAiCommentaryGeneratedAt = Date.now();
       this.lastAiCommentaryGeneratedSymbol = params.alert.symbol;
@@ -3278,13 +3302,8 @@ export class ManualWatchlistRuntimeManager {
       }
 
       await this.options.discordAlertRouter.routeAlert(params.threadId, {
-        title: `${params.alert.symbol} AI read`,
-        body: [
-          "AI read:",
-          commentary.text,
-          "",
-          `Based on: ${params.deterministicPayload.title}`,
-        ].join("\n"),
+        title: `${params.alert.symbol} setup read`,
+        body: commentary.text,
         event: params.alert.event,
         symbol: params.alert.symbol,
         timestamp: params.alert.event.timestamp,

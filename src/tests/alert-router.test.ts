@@ -460,6 +460,8 @@ test("formatIntelligentAlertAsPayload shows tested resistance and nearby support
 
   assert.match(payload.body, /Key levels:\n- Testing resistance: 2\.61-2\.64\n- Nearby support: 2\.16/);
   assert.doesNotMatch(payload.body, /Next levels:/);
+  assert.match(payload.body, /buyers still need stronger acceptance/);
+  assert.doesNotMatch(payload.body, /buyers and sellers are still balanced/);
   assert.match(payload.body, /buyers need acceptance above 2\.64/);
   assertTraderFacingDiscordText(payload);
 });
