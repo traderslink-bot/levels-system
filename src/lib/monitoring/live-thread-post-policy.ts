@@ -155,8 +155,8 @@ const FOLLOW_THROUGH_STORY_WINDOW_MS = 30 * 60 * 1000;
 const INTELLIGENT_ALERT_STORY_WINDOW_MS = 30 * 60 * 1000;
 const INTELLIGENT_ALERT_SAME_STORY_COOLDOWN_MS = 20 * 60 * 1000;
 const INTELLIGENT_ALERT_ZONE_CHOP_WINDOW_MS = 5 * 60 * 1000;
-const AI_SIGNAL_STORY_WINDOW_MS = 20 * 60 * 1000;
-const AI_SIGNAL_SYMBOL_WINDOW_MS = 10 * 60 * 1000;
+const AI_SIGNAL_STORY_WINDOW_MS = 45 * 60 * 1000;
+const AI_SIGNAL_SYMBOL_WINDOW_MS = 20 * 60 * 1000;
 const SAME_STORY_LEVEL_PCT = 0.006;
 const SAME_STORY_LEVEL_ABSOLUTE = 0.02;
 const MATERIAL_FOLLOW_THROUGH_DELTA_PCT = 2;
@@ -166,8 +166,8 @@ const MATERIAL_ALERT_SCORE_ESCALATION = 15;
 const MATERIAL_ZONE_REVERSAL_MOVE_PCT = 1.25;
 const CRITICAL_BURST_WINDOW_MS = 5 * 60 * 1000;
 const CRITICAL_EXTENDED_BURST_WINDOW_MS = 10 * 60 * 1000;
-const CRITICAL_BURST_LIMIT = 5;
-const CRITICAL_EXTENDED_BURST_LIMIT = 8;
+const CRITICAL_BURST_LIMIT = 4;
+const CRITICAL_EXTENDED_BURST_LIMIT = 6;
 const FOLLOW_THROUGH_KIND_BURST_LIMIT = 2;
 const MIN_FOLLOW_THROUGH_STATE_MOVE_PCT = 1;
 
@@ -222,8 +222,8 @@ export function getLiveThreadPostingPolicySettings(
       minInitialFollowThroughMovePct: 1.75,
       minInitialFailedFollowThroughMovePct: 1.25,
       materialFollowThroughDeltaPct: 2.75,
-      criticalBurstLimit: 4,
-      criticalExtendedBurstLimit: 6,
+      criticalBurstLimit: 3,
+      criticalExtendedBurstLimit: 5,
       followThroughKindBurstLimit: 2,
       aiHighConfidenceMinScore: 68,
       aiAlwaysPostMinScore: 72,
@@ -242,8 +242,8 @@ export function getLiveThreadPostingPolicySettings(
       minInitialFollowThroughMovePct: 0.75,
       minInitialFailedFollowThroughMovePct: 0.65,
       materialFollowThroughDeltaPct: 1.25,
-      criticalBurstLimit: 7,
-      criticalExtendedBurstLimit: 10,
+      criticalBurstLimit: 6,
+      criticalExtendedBurstLimit: 9,
       followThroughKindBurstLimit: 4,
       aiHighConfidenceMinScore: 52,
       aiAlwaysPostMinScore: 58,
@@ -531,10 +531,6 @@ export function decideCriticalLivePost(params: {
   settings?: LiveThreadPostingPolicySettings;
 }): CriticalLivePostDecision {
   const settings = params.settings ?? getLiveThreadPostingPolicySettings();
-  if (params.majorChange) {
-    return { shouldPost: true, reason: "allowed" };
-  }
-
   const recentCritical = params.criticalPosts.filter(
     (entry) => params.timestamp - entry.timestamp >= 0 && params.timestamp - entry.timestamp <= settings.criticalBurstWindowMs,
   );
@@ -546,6 +542,10 @@ export function decideCriticalLivePost(params: {
 
   if (recentCritical.length >= settings.criticalBurstLimit || extendedCritical.length >= settings.criticalExtendedBurstLimit) {
     return { shouldPost: false, reason: "critical_burst" };
+  }
+
+  if (params.majorChange) {
+    return { shouldPost: true, reason: "allowed" };
   }
 
   const recentKind = recentCritical.filter((entry) => entry.kind === params.kind);

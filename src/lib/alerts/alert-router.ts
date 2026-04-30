@@ -628,6 +628,113 @@ function formatSnapshotDisplayZone(
   return `${formatLevel(zone.representativePrice)} (${suffix})`;
 }
 
+type SnapshotDisplayEntry =
+  | { type: "single"; zone: LevelSnapshotDisplayZone }
+  | {
+      type: "cluster";
+      zones: LevelSnapshotDisplayZone[];
+      lowPrice: number;
+      highPrice: number;
+      representativePrice: number;
+      strengthLabel?: LevelSnapshotDisplayZone["strengthLabel"];
+    };
+
+function strengthRank(label: LevelSnapshotDisplayZone["strengthLabel"]): number {
+  switch (label) {
+    case "major":
+      return 4;
+    case "strong":
+      return 3;
+    case "moderate":
+      return 2;
+    case "weak":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function pickClusterStrength(zones: LevelSnapshotDisplayZone[]): LevelSnapshotDisplayZone["strengthLabel"] | undefined {
+  return [...zones].sort((left, right) => strengthRank(right.strengthLabel) - strengthRank(left.strengthLabel))[0]?.strengthLabel;
+}
+
+function compactSnapshotDisplayEntries(
+  zones: LevelSnapshotDisplayZone[],
+  side: "support" | "resistance",
+): SnapshotDisplayEntry[] {
+  const sorted = [...zones].sort((left, right) =>
+    side === "support"
+      ? right.representativePrice - left.representativePrice
+      : left.representativePrice - right.representativePrice,
+  );
+  const entries: SnapshotDisplayEntry[] = [];
+  let index = 0;
+
+  while (index < sorted.length) {
+    const group = [sorted[index]!];
+    let cursor = index + 1;
+
+    while (cursor < sorted.length) {
+      const candidate = sorted[cursor]!;
+      const prices = [...group.map((zone) => zone.representativePrice), candidate.representativePrice];
+      const lowPrice = Math.min(...prices);
+      const highPrice = Math.max(...prices);
+      const widthPct = (highPrice - lowPrice) / Math.max(lowPrice, 0.0001);
+      if (widthPct > 0.04) {
+        break;
+      }
+      group.push(candidate);
+      cursor += 1;
+    }
+
+    if (group.length >= 3) {
+      const prices = group.map((zone) => zone.representativePrice);
+      const lowPrice = Math.min(...prices);
+      const highPrice = Math.max(...prices);
+      entries.push({
+        type: "cluster",
+        zones: group,
+        lowPrice,
+        highPrice,
+        representativePrice: side === "support" ? highPrice : lowPrice,
+        strengthLabel: pickClusterStrength(group),
+      });
+      index += group.length;
+      continue;
+    }
+
+    entries.push({ type: "single", zone: sorted[index]! });
+    index += 1;
+  }
+
+  return entries;
+}
+
+function formatDistanceRangeFromPrice(lowPrice: number, highPrice: number, currentPrice: number): string | null {
+  const lowDistance = formatDistancePctFromPrice(lowPrice, currentPrice);
+  const highDistance = formatDistancePctFromPrice(highPrice, currentPrice);
+  if (!lowDistance || !highDistance) {
+    return null;
+  }
+  return lowDistance === highDistance ? lowDistance : `${lowDistance} to ${highDistance}`;
+}
+
+function formatSnapshotDisplayEntry(
+  entry: SnapshotDisplayEntry,
+  currentPrice: number,
+): string {
+  if (entry.type === "single") {
+    return formatSnapshotDisplayZone(entry.zone, currentPrice);
+  }
+
+  const distance = formatDistanceRangeFromPrice(entry.lowPrice, entry.highPrice, currentPrice);
+  const descriptor = entry.strengthLabel ? describeZoneStrength(entry.strengthLabel) : null;
+  const suffix = [distance, descriptor, "clustered levels"]
+    .filter((value): value is string => Boolean(value))
+    .join(", ");
+  return `${formatLevel(entry.lowPrice)}-${formatLevel(entry.highPrice)} zone (${suffix})`;
+}
+
 function nearestSnapshotLevel(
   zones: LevelSnapshotDisplayZone[],
   currentPrice: number,
@@ -730,11 +837,13 @@ function buildSnapshotReadLines(payload: LevelSnapshotPayload): string[] {
 function formatSnapshotLevelList(
   zones: LevelSnapshotDisplayZone[],
   currentPrice: number,
+  side: "support" | "resistance",
   limit?: number,
 ): string {
-  const selected = limit === undefined ? zones : zones.slice(0, limit);
+  const entries = compactSnapshotDisplayEntries(zones, side);
+  const selected = limit === undefined ? entries : entries.slice(0, limit);
   return selected.length > 0
-    ? selected.map((zone) => formatSnapshotDisplayZone(zone, currentPrice)).join(", ")
+    ? selected.map((entry) => formatSnapshotDisplayEntry(entry, currentPrice)).join(", ")
     : "none";
 }
 
@@ -744,22 +853,24 @@ function formatSnapshotLevelBlock(
   currentPrice: number,
   limit?: number,
 ): string[] {
-  const selected = limit === undefined ? zones : zones.slice(0, limit);
+  const side = label === "Resistance" ? "resistance" : "support";
+  const entries = compactSnapshotDisplayEntries(zones, side);
+  const selected = limit === undefined ? entries : entries.slice(0, limit);
   if (selected.length === 0) {
     return [`${label}:`, "none"];
   }
 
   return [
     `${label}:`,
-    ...selected.map((zone) => formatSnapshotDisplayZone(zone, currentPrice)),
+    ...selected.map((entry) => formatSnapshotDisplayEntry(entry, currentPrice)),
   ];
 }
 
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
   const keyResistanceLines = formatSnapshotLevelBlock("Resistance", payload.resistanceZones, payload.currentPrice, 3);
   const keySupportLines = formatSnapshotLevelBlock("Support", payload.supportZones, payload.currentPrice, 3);
-  const supportLine = formatSnapshotLevelList(payload.supportZones, payload.currentPrice);
-  const resistanceLine = formatSnapshotLevelList(payload.resistanceZones, payload.currentPrice);
+  const supportLine = formatSnapshotLevelList(payload.supportZones, payload.currentPrice, "support");
+  const resistanceLine = formatSnapshotLevelList(payload.resistanceZones, payload.currentPrice, "resistance");
 
   return [
     `${payload.symbol} support and resistance`,

@@ -272,6 +272,19 @@ Recommended fix:
 
 ## Recommended Next Work
 
+Implementation update:
+
+- Steps 1-5 below were implemented after this audit.
+- Discord snapshots now collapse tight three-plus-level groups into trader-facing zones while preserving raw level data internally.
+- Support-side wide internal gap test coverage was added.
+- Critical burst handling now applies before major-change bypasses, so runner windows stay calmer.
+- AI commentary same-story / same-symbol cooldowns were extended.
+- Realistic trader-language replay tests now enforce that trader-visible posts avoid old system-shaped wording.
+- Current replay against the combined April 29 audit file:
+  - quiet: 387 original posts -> 318 simulated posts
+  - balanced: 387 original posts -> 338 simulated posts
+  - active: 387 original posts -> 351 simulated posts
+
 1. Build trader-facing clustered-zone display.
    - Keep raw levels internally.
    - Collapse tight three-plus-level clusters in Discord.
@@ -301,4 +314,3 @@ The biggest remaining product improvement is not more alerts. It is better compr
 - wide-gap audits that catch missing structure
 - no system-shaped wording in Discord
 - one clear story when price crosses multiple levels quickly
-

@@ -168,7 +168,12 @@ test("intelligent alert policy suppresses same-zone chatter", () => {
 });
 
 test("critical live post policy blocks bursts while allowing major changes", () => {
-  const criticalPosts = Array.from({ length: 5 }, (_, index) => ({
+  const mixedCriticalPosts = Array.from({ length: 4 }, (_, index) => ({
+    kind: index % 2 === 0 ? "follow_through" as const : "intelligent_alert" as const,
+    timestamp: 1000 + index * 1000,
+    eventType: "breakdown",
+  }));
+  const repeatedFollowThroughPosts = Array.from({ length: 3 }, (_, index) => ({
     kind: "follow_through" as const,
     timestamp: 1000 + index * 1000,
     eventType: "breakdown",
@@ -176,7 +181,7 @@ test("critical live post policy blocks bursts while allowing major changes", () 
 
   assert.deepEqual(
     decideCriticalLivePost({
-      criticalPosts,
+      criticalPosts: mixedCriticalPosts,
       timestamp: 7000,
       kind: "follow_through",
       eventType: "breakdown",
@@ -190,7 +195,21 @@ test("critical live post policy blocks bursts while allowing major changes", () 
 
   assert.deepEqual(
     decideCriticalLivePost({
-      criticalPosts,
+      criticalPosts: repeatedFollowThroughPosts,
+      timestamp: 7000,
+      kind: "follow_through",
+      eventType: "breakdown",
+      majorChange: false,
+    }),
+    {
+      shouldPost: false,
+      reason: "critical_kind_burst",
+    },
+  );
+
+  assert.deepEqual(
+    decideCriticalLivePost({
+      criticalPosts: repeatedFollowThroughPosts,
       timestamp: 7000,
       kind: "follow_through",
       eventType: "breakdown",
@@ -228,6 +247,28 @@ test("AI signal policy blocks in-flight duplicate stories and low-value repeats"
       score: 35,
     }).reason,
     "low_value_repeat",
+  );
+});
+
+test("AI signal policy keeps same-symbol reads quiet after a recent AI post", () => {
+  const firstStory = "SAGT|breakout|2.90|sagt breakout";
+  const secondStory = "SAGT|breakout|3.30|sagt breakout";
+
+  assert.deepEqual(
+    decideAiSignalPost({
+      records: [],
+      symbolAiRecords: [{ storyKey: firstStory, reservedAt: 1000 }],
+      timestamp: 12 * 60 * 1000,
+      storyKey: secondStory,
+      severity: "critical",
+      confidence: "high",
+      score: 74,
+    }),
+    {
+      shouldPost: false,
+      reason: "recent_symbol_ai",
+      storyKey: secondStory,
+    },
   );
 });
 

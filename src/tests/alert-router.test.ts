@@ -659,6 +659,29 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
   );
 });
 
+test("formatLevelSnapshotMessage collapses crowded trader-facing levels into zones", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "SAGT",
+    currentPrice: 2.37,
+    supportZones: [
+      { representativePrice: 2.16, strengthLabel: "major", sourceLabel: "daily confluence" },
+      { representativePrice: 1.85, strengthLabel: "moderate", sourceLabel: "4h structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 2.39, strengthLabel: "weak", sourceLabel: "4h structure" },
+      { representativePrice: 2.43, strengthLabel: "major", sourceLabel: "daily confluence" },
+      { representativePrice: 2.47, strengthLabel: "moderate", sourceLabel: "4h structure" },
+      { representativePrice: 2.64, strengthLabel: "major", sourceLabel: "daily confluence" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message, /2\.39-2\.47 zone \(\+0\.8% to \+4\.2%, major, clustered levels\)/);
+  assert.doesNotMatch(message, /2\.39 \(\+0\.8%/);
+  assert.doesNotMatch(message, /2\.43 \(\+2\.5%/);
+  assert.doesNotMatch(message, /2\.47 \(\+4\.2%/);
+});
+
 test("DiscordAlertRouter routes level snapshots separately from alerts", async () => {
   const gateway = new FakeDiscordThreadGateway();
   const router = new DiscordAlertRouter(gateway);

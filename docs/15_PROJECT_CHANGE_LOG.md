@@ -21,6 +21,31 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-29 America/Toronto
 
+### Added clustered level display and calmer live-post replay controls
+
+- Updated:
+  - `src/lib/alerts/alert-router.ts`
+  - `src/lib/monitoring/live-thread-post-policy.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/level-quality-audit.test.ts`
+  - `src/tests/live-thread-post-policy.test.ts`
+  - `src/tests/trader-facing-replay-language.test.ts`
+- What changed:
+  - tight three-plus-level clusters in Discord snapshots now display as one trader-readable zone while keeping raw levels intact internally
+  - added support-side wide internal gap coverage so support ladders get the same audit protection as resistance ladders
+  - tightened critical burst limits so major-change alerts no longer bypass the global burst window when a symbol is already posting heavily
+  - extended AI commentary same-story and same-symbol cooldowns so repeat AI reads stay quieter on runner days
+  - added realistic replay language coverage to guard against old system wording and repeated-story overlap in trader-visible posts
+- Replay result from the combined April 29 audit file:
+  - balanced profile: `387` original posts -> `338` simulated posts, a `12.7%` reduction
+  - quiet profile: `387` original posts -> `318` simulated posts, a `17.8%` reduction
+  - max simulated balanced burst windows dropped to `5` posts per 5 minutes and `7` posts per 10 minutes
+- Verification:
+  - `npx tsx src/scripts/generate-discord-audit-reports.ts artifacts\2026-04-29-combined-discord-delivery-audit.jsonl`
+  - `npx tsx --test src/tests/alert-router.test.ts src/tests/live-thread-post-policy.test.ts src/tests/level-quality-audit.test.ts src/tests/trader-facing-replay-language.test.ts src/tests/trader-commentary-service.test.ts`
+
+## 2026-04-29 America/Toronto
+
 ### Improved intermediate resistance detection and ladder gap auditing
 
 - Updated:

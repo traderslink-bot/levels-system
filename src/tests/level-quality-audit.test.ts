@@ -111,3 +111,38 @@ test("level quality audit flags wide gaps between forward resistance levels", ()
   assert.equal(finding.severity, "action");
   assert.deepEqual(finding.evidence.forwardLevels, [1.74, 1.78, 1.83, 2.3146]);
 });
+
+test("level quality audit flags wide gaps between forward support levels", () => {
+  const report = buildLevelQualityAuditReport(output({
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 6.3,
+    },
+    majorSupport: [
+      zone({ kind: "support", representativePrice: 6.18, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 6.1, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 4.95, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 2.55, sourceTypes: ["swing_low"] }),
+    ],
+    intermediateSupport: [],
+    intradaySupport: [],
+    intermediateResistance: [
+      zone({ kind: "resistance", representativePrice: 6.43 }),
+      zone({ kind: "resistance", representativePrice: 6.74 }),
+      zone({ kind: "resistance", representativePrice: 7.0 }),
+    ],
+    extensionLevels: {
+      support: [],
+      resistance: [],
+    },
+  }));
+
+  const finding = report.findings.find(
+    (candidate) => candidate.code === "wide_internal_gap" && candidate.side === "support",
+  );
+  assert.ok(finding);
+  assert.equal(finding.severity, "action");
+  assert.deepEqual(finding.evidence.forwardLevels, [6.18, 6.1, 4.95, 2.55]);
+});
