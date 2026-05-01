@@ -653,6 +653,8 @@ $env:LEVEL_VALIDATION_IBKR_CLIENT_ID='202'
 
 Use replay mode when the goal is to audit exactly what the session saw. Use refresh mode only when the goal is to compare the current provider response against the saved session. In either case, check the output for daily timestamp sanity before trusting level findings; daily candles should show real trading dates, not `1970` epoch dates.
 
+Replay mode is expected to work even when TWS/IB Gateway is closed. If a replay audit tries to open `127.0.0.1:7497`, fix the validation tooling before continuing; replay should read cached candle evidence and only report cache misses when evidence is unavailable.
+
 When reviewing Discord posts after a live run, also verify the running app version before treating a post as a current-code bug:
 
 - note the active session folder and runtime start time from `/api/runtime/status`
@@ -662,6 +664,7 @@ When reviewing Discord posts after a live run, also verify the running app versi
 - if a post says risk opens toward a far support/resistance, check whether the crossed level should first be shown as the hold/reclaim area
 - for level-touch and compression posts near an upper/lower edge, check whether recently crossed resistance/support should be surfaced as a nearby hold/reclaim area
 - if no next resistance/support appears, investigate whether the ladder truly had no next level, whether display/ranking hid it, or whether the post came from stale runtime code
+- when reviewing missed-event candidates, distinguish real missed clears/losses from audit false positives caused by zone posts, cluster-cross posts, exact level touches, or follow-through path prices being mistaken for structural levels
 
 ## Current Live-Post Discipline
 

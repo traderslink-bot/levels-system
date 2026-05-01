@@ -21,6 +21,40 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-04-30 America/Toronto
 
+### Fixed replay audit reliability and missed-event false positives
+
+- Updated:
+  - `src/scripts/shared/validation-candle-cache.ts`
+  - `src/scripts/run-level-quality-audit.ts`
+  - `src/scripts/run-level-validation-batch.ts`
+  - `src/scripts/run-level-candle-health-check.ts`
+  - `src/scripts/run-level-persistence-validation.ts`
+  - `src/scripts/run-forward-reaction-validation.ts`
+  - `src/lib/review/live-post-replay-simulator.ts`
+  - `src/tests/live-post-replay-simulator.test.ts`
+  - `docs/45_TRADING_DAY_AUDIT_PLAYBOOK.md`
+  - `docs/29_LONG_RUN_TESTING_WORKFLOW.md`
+- What changed:
+  - validation replay mode no longer opens an IBKR socket before checking cached candle evidence
+  - added a replay-only historical provider guard so replay audits fail with cache-miss evidence instead of provider-connection errors
+  - runner-story missed-event detection now treats posted zone/cluster breakout messages as covering nearby levels inside that zone
+  - missed-event detection no longer treats follow-through path prices as structural support/resistance levels
+  - missed-event detection now distinguishes support-touch posts from resistance posts even when the same body mentions nearby resistance context
+  - exact prints at a level are treated as touches/tests, not automatically as missed clears/losses
+- Evidence from the April 30 evening strict audit:
+  - latest saved session `artifacts\long-run\2026-04-30_18-09-00` had `122` posted Discord rows, `0` delivery failures, `0` repeated-story clusters, and `0` trader-language boundary hits
+  - replay level validation completed for all ten session symbols while IBKR was offline
+  - `HCAI`, `FATN`, `ABTS`, `CANF`, `CYCU`, `OSRH`, `ISPC`, `VLN`, and `BYND` had healthy forward ladders
+  - `AKAN` remained the only support/resistance action/watch case, which is expected to require human review because the session involved a volatile micro-float move
+  - after fixing audit false positives, runner-story reports showed no missed-event candidates from saved price samples
+- Remaining watch:
+  - ISPC had two tight cluster-cross sequences; the runtime did surface the levels, so no change was made that would hide levels, but cluster-cross readability should remain on the audit watchlist
+- Verification:
+  - `npx tsx --test src/tests/live-post-replay-simulator.test.ts src/tests/validation-candle-cache.test.ts`
+  - `npm run build`
+
+## 2026-04-30 America/Toronto
+
 ### Hardened strict audit validation and role-flip level context
 
 - Updated:

@@ -138,7 +138,96 @@ test("runner story report classifies noisy posts and flags candidate missed clea
   assert.equal(symbol?.symbol, "ATER");
   assert.equal(symbol.qualitySummary.noisyRepeat, 2);
   assert.equal(symbol.missingEventCandidates[0]?.side, "resistance");
-  assert.equal(symbol.missingEventCandidates[0]?.level, 1.06);
+  assert.equal(symbol.missingEventCandidates[0]?.level, 1.24);
   assert.match(formatRunnerStoryMarkdown(report), /Missing Event Candidates/);
   assert.match(formatRunnerStoryMarkdown(report), /Tuning Suggestions/);
+});
+
+test("runner story report treats a posted breakout zone as covering nearby crossed resistance", () => {
+  const auditPath = writeAudit([
+    {
+      type: "discord_delivery_audit",
+      operation: "post_level_snapshot",
+      status: "posted",
+      timestamp: 1000,
+      symbol: "CANF",
+      body: [
+        "CANF support and resistance",
+        "Price: 3.06",
+        "Resistance:",
+        "3.08-3.18 zone (+0.7% to +3.9%, major, clustered levels)",
+        "3.32 (+8.5%, major, daily confluence)",
+        "",
+        "Support:",
+        "3.01 (-1.6%, major, daily confluence)",
+      ].join("\n"),
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 2000,
+      symbol: "CANF",
+      messageKind: "intelligent_alert",
+      eventType: "breakout",
+      targetPrice: 3.32,
+      title: "CANF breakout",
+      body: [
+        "bullish breakout through major resistance 3.16-3.19",
+        "",
+        "Price is above resistance for now.",
+        "",
+        "Triggered near: 3.21",
+      ].join("\n"),
+    },
+  ]);
+
+  const report = buildRunnerStoryReport(auditPath, ["CANF"]);
+  assert.deepEqual(report.symbols[0]?.missingEventCandidates, []);
+});
+
+test("runner story report treats support-touch posts as support even when they mention nearby resistance", () => {
+  const auditPath = writeAudit([
+    {
+      type: "discord_delivery_audit",
+      operation: "post_level_snapshot",
+      status: "posted",
+      timestamp: 1000,
+      symbol: "BYND",
+      body: [
+        "BYND support and resistance",
+        "Price: 1.03",
+        "Resistance:",
+        "1.04 (+1.0%, major, daily confluence)",
+        "",
+        "Support:",
+        "1.01 (-1.9%, major, daily confluence)",
+      ].join("\n"),
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 2000,
+      symbol: "BYND",
+      messageKind: "intelligent_alert",
+      eventType: "level_touch",
+      targetPrice: 1.04,
+      title: "BYND level touch",
+      body: [
+        "price testing major support 1.01",
+        "",
+        "Price is testing support.",
+        "",
+        "Key levels:",
+        "- Testing support: 1.01",
+        "- Nearby resistance: 1.04",
+        "",
+        "Triggered near: 1.01",
+      ].join("\n"),
+    },
+  ]);
+
+  const report = buildRunnerStoryReport(auditPath, ["BYND"]);
+  assert.deepEqual(report.symbols[0]?.missingEventCandidates, []);
 });

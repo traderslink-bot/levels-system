@@ -19,7 +19,10 @@ import {
 } from "../lib/validation/validation-lookback-config.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
 import { createValidationIbkrClient } from "./shared/ibkr-runtime.js";
-import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
+import {
+  createReplayOnlyHistoricalProvider,
+  createValidationCandleFetchService,
+} from "./shared/validation-candle-cache.js";
 
 const DEFAULT_WINDOW_COUNT = 6;
 const DEFAULT_STEP_MINUTES = 15;
@@ -121,7 +124,8 @@ async function main(): Promise<void> {
   const lookbacks = resolveValidationLookbacks();
   const ibkrTimeoutMs = resolveOptionalPositiveInteger(process.env.LEVEL_VALIDATION_IBKR_TIMEOUT_MS);
   const stepMs = stepMinutes * 60 * 1000;
-  const needsIbkr = providerName === "ibkr";
+  const replayOnly = process.env.LEVEL_VALIDATION_CACHE_MODE?.trim().toLowerCase() === "replay";
+  const needsIbkr = providerName === "ibkr" && !replayOnly;
   const ib = needsIbkr ? createValidationIbkrClient() : undefined;
 
   try {
@@ -129,12 +133,14 @@ async function main(): Promise<void> {
       await waitForIbkrConnection(ib);
     }
 
-    const provider = createHistoricalCandleProvider({
-      provider: providerName,
-      ib,
-      twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
-      ibkrTimeoutMs,
-    });
+    const provider = replayOnly
+      ? createReplayOnlyHistoricalProvider(providerName)
+      : createHistoricalCandleProvider({
+          provider: providerName,
+          ib,
+          twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
+          ibkrTimeoutMs,
+        });
     const baseFetchService = new CandleFetchService(provider);
     const { candleFetchService, cacheMode, cacheDirectoryPath } =
       createValidationCandleFetchService(baseFetchService);

@@ -745,16 +745,34 @@ function parseOutcomePathPrice(entry: ReplayAuditEntry): number | null {
 
 function sideForEntry(entry: ReplayAuditEntry): "support" | "resistance" | null {
   const text = `${entry.title ?? ""} ${entry.body ?? entry.bodyPreview ?? ""}`.toLowerCase();
+  if (entry.eventType === "breakout" || entry.eventType === "reclaim") {
+    return "resistance";
+  }
+  if (entry.eventType === "breakdown") {
+    return "support";
+  }
+
   if (
-    entry.eventType === "breakout" ||
-    entry.eventType === "reclaim" ||
-    text.includes("resistance") ||
-    text.includes("breakout")
+    /\b(?:testing|nearing|near|into|at|from|below|lost|crossed lower)\s+(?:major|heavy|moderate|light)?\s*support\b/i.test(text) ||
+    /\bsupport\s+(?:lost|crossed lower|weakening)\b/i.test(text)
+  ) {
+    return "support";
+  }
+
+  if (
+    /\b(?:testing|nearing|near|into|at|through|above|cleared|crossed)\s+(?:major|heavy|moderate|light)?\s*resistance\b/i.test(text) ||
+    /\bresistance\s+(?:cleared|crossed|weakening)\b/i.test(text)
   ) {
     return "resistance";
   }
-  if (entry.eventType === "breakdown" || text.includes("support") || text.includes("breakdown")) {
+
+  const supportIndex = text.indexOf("support");
+  const resistanceIndex = text.indexOf("resistance");
+  if (supportIndex >= 0 && (resistanceIndex < 0 || supportIndex < resistanceIndex)) {
     return "support";
+  }
+  if (resistanceIndex >= 0) {
+    return "resistance";
   }
   return null;
 }
@@ -875,8 +893,44 @@ function hasNearbyPostedLevelEvent(params: {
       return false;
     }
     const level = parseAlertLevel(entry);
-    return level !== null && Math.abs(level - params.level) <= tolerance;
+    if (level !== null && Math.abs(level - params.level) <= tolerance) {
+      return true;
+    }
+
+    const text = `${entry.title ?? ""} ${entry.body ?? entry.bodyPreview ?? ""}`;
+    if (levelRangesCover(text, params.level, tolerance)) {
+      return true;
+    }
+
+    const entryPrice = priceFromEntry(entry);
+    if (entryPrice === null) {
+      return false;
+    }
+
+    if (params.side === "resistance") {
+      return entryPrice >= params.level - tolerance;
+    }
+
+    return entryPrice <= params.level + tolerance;
   });
+}
+
+function levelRangesCover(text: string, level: number, tolerance: number): boolean {
+  for (const match of text.matchAll(/\b(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\b/g)) {
+    const first = Number(match[1]);
+    const second = Number(match[2]);
+    if (!Number.isFinite(first) || !Number.isFinite(second)) {
+      continue;
+    }
+
+    const low = Math.min(first, second) - tolerance;
+    const high = Math.max(first, second) + tolerance;
+    if (level >= low && level <= high) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function buildMissingEventCandidates(
@@ -892,7 +946,8 @@ function buildMissingEventCandidates(
     for (const level of parseSnapshotLevels(entry, "resistance")) {
       resistanceLevels.add(level);
     }
-    const alertLevel = parseAlertLevel(entry);
+    const kind = messageKindOf(entry);
+    const alertLevel = kind === "level_clear_update" ? parseAlertLevel(entry) : null;
     const side = sideForEntry(entry);
     if (alertLevel !== null && side === "support") {
       supportLevels.add(alertLevel);
@@ -910,7 +965,7 @@ function buildMissingEventCandidates(
       for (const level of resistanceLevels) {
         if (
           previous.price < level &&
-          current.price >= level &&
+          current.price > level &&
           !hasNearbyPostedLevelEvent({ entries: symbolEntries, timestamp: current.timestamp, side: "resistance", level })
         ) {
           const key = `resistance|${level >= 1 ? level.toFixed(2) : level.toFixed(4)}`;
@@ -931,7 +986,7 @@ function buildMissingEventCandidates(
       for (const level of supportLevels) {
         if (
           previous.price > level &&
-          current.price <= level &&
+          current.price < level &&
           !hasNearbyPostedLevelEvent({ entries: symbolEntries, timestamp: current.timestamp, side: "support", level })
         ) {
           const key = `support|${level >= 1 ? level.toFixed(2) : level.toFixed(4)}`;

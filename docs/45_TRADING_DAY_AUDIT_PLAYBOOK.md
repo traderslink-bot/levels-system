@@ -229,6 +229,8 @@ $env:LEVEL_VALIDATION_CACHE_MODE='refresh'
 
 After the first fresh validation pass, inspect at least one output file and confirm daily candle timestamps are real trading dates, not epoch-looking `1970` dates. A bad provider timestamp parse can make the level engine look wrong even when the candle request succeeded.
 
+Replay mode must not require a live IBKR socket. If `LEVEL_VALIDATION_CACHE_MODE='replay'` still attempts to connect to IBKR, treat that as an audit tooling bug and fix it before accepting the audit as complete. If replay mode has a cache miss, record the cache miss separately from provider downtime.
+
 Run every active ticker from the trading day:
 
 ```powershell
@@ -344,6 +346,14 @@ Minimum review requirements:
 - include saved post excerpts for each reviewed case
 
 Do not assume every missed-event candidate is a bug. Some are intentionally suppressed by cooldowns, burst controls, poor signal quality, or tiny/temporary crosses. The audit should identify which candidates deserve code changes and which are acceptable suppressions.
+
+Before calling a missed-event candidate real, check for audit false positives:
+
+- a posted breakout/breakdown through a zone can cover several nearby levels inside that zone
+- a cluster-cross post can cover multiple levels with one Discord message
+- follow-through path prices are not support/resistance levels by themselves
+- a price sample that only prints exactly at a level is a touch/test, not necessarily a clear/loss
+- support-touch posts may mention nearby resistance; classify them by the setup side, not by the first later level they mention
 
 ## Cluster-Crossing Audit
 

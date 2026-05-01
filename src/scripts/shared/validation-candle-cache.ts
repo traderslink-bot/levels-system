@@ -1,6 +1,12 @@
 import { join } from "node:path";
 
 import { CandleFetchService } from "../../lib/market-data/candle-fetch-service.js";
+import type { CandleProviderName } from "../../lib/market-data/candle-types.js";
+import type {
+  HistoricalCandleProvider,
+  HistoricalFetchPlan,
+  HistoricalFetchRequest,
+} from "../../lib/market-data/provider-types.js";
 import {
   ValidationCachedCandleFetchService,
   resolveValidationCandleCacheMode,
@@ -12,6 +18,22 @@ export type ValidationCandleCacheRuntime = {
   cacheMode: ValidationCandleCacheMode;
   cacheDirectoryPath: string;
 };
+
+export function createReplayOnlyHistoricalProvider(
+  providerName: CandleProviderName,
+): HistoricalCandleProvider {
+  return {
+    providerName,
+    async fetchCandles(
+      request: HistoricalFetchRequest,
+      _plan: HistoricalFetchPlan,
+    ) {
+      throw new Error(
+        `Validation replay cache miss for ${request.symbol.toUpperCase()} ${request.timeframe}; ${providerName} provider fetch is disabled in replay mode.`,
+      );
+    },
+  };
+}
 
 export function createValidationCandleFetchService(
   candleFetchService: CandleFetchService,
