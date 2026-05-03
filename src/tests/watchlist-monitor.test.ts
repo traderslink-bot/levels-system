@@ -197,6 +197,98 @@ test("WatchlistMonitor does not emit support approach when price is still too fa
   assert.equal(events.length, 0);
 });
 
+test("WatchlistMonitor suppresses a one-off extreme live price anomaly before alerts use it", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const acceptedUpdates: number[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+
+  levelStore.setLevels(buildLevelOutput("PBM", {
+    intradaySupport: [
+      buildZone({
+        id: "S1",
+        symbol: "PBM",
+        kind: "support",
+        zoneLow: 5.30,
+        zoneHigh: 5.36,
+        representativePrice: 5.33,
+        strengthLabel: "major",
+        strengthScore: 40,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "PBM", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+    (update) => acceptedUpdates.push(update.lastPrice),
+  );
+
+  liveProvider.listener?.({
+    symbol: "PBM",
+    timestamp: 1_000,
+    lastPrice: 6.02,
+  });
+  liveProvider.listener?.({
+    symbol: "PBM",
+    timestamp: 2_000,
+    lastPrice: 0.9415,
+  });
+  liveProvider.listener?.({
+    symbol: "PBM",
+    timestamp: 3_000,
+    lastPrice: 6.01,
+  });
+
+  assert.deepEqual(acceptedUpdates, [6.02, 6.01]);
+  assert.equal(events.some((event) => event.eventType === "breakdown"), false);
+});
+
+test("WatchlistMonitor accepts an extreme live price move after a nearby confirming print", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const acceptedUpdates: number[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+
+  levelStore.setLevels(buildLevelOutput("MOVE", {
+    intradaySupport: [
+      buildZone({
+        id: "S1",
+        symbol: "MOVE",
+        kind: "support",
+        zoneLow: 5.30,
+        zoneHigh: 5.36,
+        representativePrice: 5.33,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "MOVE", active: true, priority: 1, tags: ["manual"] }],
+    () => {},
+    (update) => acceptedUpdates.push(update.lastPrice),
+  );
+
+  liveProvider.listener?.({
+    symbol: "MOVE",
+    timestamp: 1_000,
+    lastPrice: 6.02,
+  });
+  liveProvider.listener?.({
+    symbol: "MOVE",
+    timestamp: 2_000,
+    lastPrice: 0.9415,
+  });
+  liveProvider.listener?.({
+    symbol: "MOVE",
+    timestamp: 3_000,
+    lastPrice: 0.95,
+  });
+
+  assert.deepEqual(acceptedUpdates, [6.02, 0.95]);
+});
+
 test("WatchlistMonitor evaluates posted extension zones after they are activated in the level store", async () => {
   const levelStore = new LevelStore();
   const liveProvider = new FakeLivePriceProvider();
@@ -421,6 +513,68 @@ test("WatchlistMonitor includes nearby barrier clearance in emitted event contex
   assert.equal(events[0]?.eventContext.nextBarrierKind, "resistance");
   assert.equal(events[0]?.eventContext.nextBarrierLevel, 2.02);
   assert.equal(events[0]?.eventContext.clearanceLabel, "limited");
+});
+
+test("WatchlistMonitor attaches stable 5m structure metadata after enough live buckets", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+  const fiveMinutes = 5 * 60 * 1000;
+
+  levelStore.setLevels(buildLevelOutput("STBL", {
+    intradayResistance: [
+      buildZone({
+        id: "R1",
+        symbol: "STBL",
+        kind: "resistance",
+        zoneLow: 2.40,
+        zoneHigh: 2.50,
+        representativePrice: 2.45,
+        strengthLabel: "major",
+        strengthScore: 40,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "STBL", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  [
+    2.00,
+    2.08,
+    1.98,
+    2.10,
+    2.01,
+    2.12,
+    2.03,
+    2.14,
+    2.05,
+    2.16,
+    2.08,
+    2.18,
+    2.45,
+  ].forEach((price, index) => {
+    liveProvider.listener?.({
+      symbol: "STBL",
+      timestamp: index * fiveMinutes,
+      lastPrice: price,
+      volume: 1000 + index * 100,
+    });
+  });
+
+  const eventWithStructure = events.find(
+    (event) => event.eventContext.stableMarketStructureState,
+  );
+  assert.ok(eventWithStructure);
+  assert.equal(typeof eventWithStructure.eventContext.stableMarketStructureKey, "string");
+  assert.ok(eventWithStructure.eventContext.stableMarketStructureConfidence);
+  assert.equal(
+    typeof eventWithStructure.eventContext.stableMarketStructureMaterialityScore,
+    "number",
+  );
 });
 
 test("WatchlistMonitor treats recently cleared resistance below price as a nearby hold area", async () => {

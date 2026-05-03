@@ -4,13 +4,18 @@ import { dirname } from "node:path";
 import {
   buildFollowThroughStoryRecord,
   buildIntelligentAlertStoryRecord,
+  buildThreadStoryPhaseAreaKey,
+  buildThreadStoryPhaseRecord,
   classifyLiveThreadMessage,
   decideCriticalLivePost,
   decideFollowThroughPost,
   decideIntelligentAlertPost,
   decideNarrationBurst,
   decideOptionalLivePost,
+  decideThreadStoryPhasePost,
+  deriveThreadStoryPhase,
   getLiveThreadPostingPolicySettings,
+  pruneThreadStoryPhaseRecords,
   resolveLiveThreadPostingProfile,
   type CriticalLivePostKind,
   type FollowThroughStoryRecord,
@@ -21,8 +26,11 @@ import {
   type LiveThreadRuntimePostKind,
   type NarrationBurstRecord,
   type OptionalLivePostKind,
+  type ThreadStoryPhaseRecord,
 } from "../monitoring/live-thread-post-policy.js";
 import type { EvaluatedOpportunity } from "../monitoring/opportunity-evaluator.js";
+import type { PracticalTradeStructureState } from "../monitoring/monitoring-types.js";
+import type { CandleMarketStructureState } from "../structure/index.js";
 
 type ReplayAuditEntry = {
   type?: string;
@@ -44,6 +52,15 @@ type ReplayAuditEntry = {
   targetPrice?: number;
   directionalReturnPct?: number | null;
   rawReturnPct?: number | null;
+  clusteredLevelClear?: boolean;
+  side?: string;
+  levelCount?: number;
+  practicalStructureState?: PracticalTradeStructureState;
+  practicalZoneKey?: string;
+  practicalStructureMaterialChange?: boolean;
+  stableMarketStructureState?: CandleMarketStructureState;
+  stableMarketStructureKey?: string;
+  stableMarketStructureMaterialChange?: boolean;
 };
 
 type ReplaySymbolState = {
@@ -60,6 +77,8 @@ type ReplaySymbolState = {
   narrationState: NarrationBurstRecord[];
   followThroughRecords: FollowThroughStoryRecord[];
   intelligentAlertRecords: IntelligentAlertStoryRecord[];
+  threadStoryPhaseRecords: ThreadStoryPhaseRecord[];
+  lastLevelExtensionPostKey: string | null;
   sampleSuppressions: Array<{
     timestamp: number;
     messageKind: string;
@@ -81,6 +100,7 @@ export type LivePostReplaySimulationReport = {
     simulatedMaxPostsInFiveMinutes: number;
     originalMaxPostsInTenMinutes: number;
     simulatedMaxPostsInTenMinutes: number;
+    threadStorySuppressions: number;
   };
   perSymbol: Array<{
     symbol: string;
@@ -95,6 +115,7 @@ export type LivePostReplaySimulationReport = {
     originalByKind: Record<string, number>;
     simulatedByKind: Record<string, number>;
     suppressedByReason: Record<string, number>;
+    threadStorySuppressions: number;
     sampleSuppressions: Array<{
       timestamp: number;
       messageKind: string;
@@ -178,6 +199,12 @@ type PostQualityCategory = keyof RunnerStoryReport["symbols"][number]["qualitySu
 type ClassifiedPostQuality = {
   category: PostQualityCategory;
   reason: string;
+};
+
+type ParsedSnapshotLevel = {
+  level: number;
+  zoneLow: number;
+  zoneHigh: number;
 };
 
 type PricePoint = {
@@ -287,7 +314,9 @@ function pctReduction(original: number, simulated: number): number {
 
 function parseFirstPathPrice(entry: ReplayAuditEntry): number | null {
   const text = entry.body ?? entry.bodyPreview ?? "";
-  const match = text.match(/(?:Path:\s*)?-?\s*(\d+(?:\.\d+)?)\s*->/i);
+  const match =
+    text.match(/(?:Path:\s*)?-?\s*(\d+(?:\.\d+)?)\s*->/i) ??
+    text.match(/\b(?:tracked\s+)?from\s+(\d+(?:\.\d+)?)\s+to\b/i);
   if (!match?.[1]) {
     return null;
   }
@@ -326,6 +355,31 @@ function buildEvaluation(entry: ReplayAuditEntry): EvaluatedOpportunity | null {
   };
 }
 
+function parseRecapFollowThroughMovePct(entry: ReplayAuditEntry): number | null {
+  const text = entry.body ?? entry.bodyPreview ?? "";
+  const match = text.match(/follow-through[^.\n]*(?:finished|is|at)\s+(?:failed|stalled|strong|working)?[^-\d+]*(?<value>[+-]?\d+(?:\.\d+)?)%/i)
+    ?? text.match(/price change from the watched level is\s+(?<value>[+-]?\d+(?:\.\d+)?)%/i);
+  const value = match?.groups?.value ? Number(match.groups.value) : null;
+  return value !== null && Number.isFinite(value) ? value : null;
+}
+
+function isMinorSavedRecap(entry: ReplayAuditEntry): boolean {
+  if (messageKindOf(entry) !== "symbol_recap") {
+    return false;
+  }
+
+  const text = `${entry.title ?? ""}\n${entry.body ?? entry.bodyPreview ?? ""}`;
+  const movePct = parseRecapFollowThroughMovePct(entry);
+  const weakFollowThrough =
+    /\bfollow-through\b/i.test(text) &&
+    /\b(?:failed|stalled)\b/i.test(text) &&
+    (movePct === null || Math.abs(movePct) < FOLLOW_THROUGH_MAJOR_MOVE_PCT);
+  const noStructuralTurn =
+    !/\b(?:confirmed|weakened|cleared|new high|new low|expanded|breakout through)\b/i.test(text);
+
+  return weakFollowThrough && noStructuralTurn;
+}
+
 function getState(map: Map<string, ReplaySymbolState>, symbol: string): ReplaySymbolState {
   const existing = map.get(symbol);
   if (existing) {
@@ -346,6 +400,8 @@ function getState(map: Map<string, ReplaySymbolState>, symbol: string): ReplaySy
     narrationState: [],
     followThroughRecords: [],
     intelligentAlertRecords: [],
+    threadStoryPhaseRecords: [],
+    lastLevelExtensionPostKey: null,
     sampleSuppressions: [],
   };
   map.set(symbol, created);
@@ -356,6 +412,7 @@ function pruneState(state: ReplaySymbolState, timestamp: number): void {
   state.criticalPosts = state.criticalPosts.filter((entry) => timestamp - entry.timestamp <= OPTIONAL_LIVE_POST_WINDOW_MS);
   state.optionalPosts = state.optionalPosts.filter((entry) => timestamp - entry.timestamp <= OPTIONAL_LIVE_POST_WINDOW_MS);
   state.narrationState = state.narrationState.filter((entry) => timestamp - entry.timestamp <= NARRATION_BURST_WINDOW_MS);
+  state.threadStoryPhaseRecords = pruneThreadStoryPhaseRecords(state.threadStoryPhaseRecords, timestamp);
 }
 
 function recordSuppression(
@@ -406,6 +463,72 @@ function shouldTreatAlertAsMajor(entry: ReplayAuditEntry): boolean {
   );
 }
 
+function buildLevelExtensionPostKey(entry: ReplayAuditEntry): string {
+  const side = entry.side ?? "unknown";
+  const body = (entry.body ?? entry.bodyPreview ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  const levelCount = typeof entry.levelCount === "number" ? entry.levelCount : null;
+  return JSON.stringify({ side, body, levelCount });
+}
+
+function shouldPostReplayPhase(params: {
+  state: ReplaySymbolState;
+  entry: ReplayAuditEntry;
+  timestamp: number;
+  eventType?: string | null;
+  level: number;
+  triggerPrice: number;
+  followThroughLabel?: string | null;
+  practicalStructureState?: PracticalTradeStructureState;
+  practicalZoneKey?: string;
+  materialChange?: boolean;
+  majorChange?: boolean;
+  settings: LiveThreadPostingPolicySettings;
+}): { shouldPost: boolean; reason?: string; record?: ThreadStoryPhaseRecord } {
+  const phase = deriveThreadStoryPhase({
+    eventType: params.eventType,
+    practicalStructureState: params.practicalStructureState ?? params.entry.practicalStructureState,
+    followThroughLabel: params.followThroughLabel,
+    zoneKind: sideForEntry(params.entry),
+  });
+  if (!phase) {
+    return { shouldPost: true };
+  }
+
+  const areaKey = buildThreadStoryPhaseAreaKey({
+    eventType: params.eventType,
+    level: params.level,
+    practicalZoneKey: params.practicalZoneKey ?? params.entry.practicalZoneKey,
+  });
+  const decision = decideThreadStoryPhasePost({
+    records: params.state.threadStoryPhaseRecords,
+    timestamp: params.timestamp,
+    phase,
+    areaKey,
+    triggerPrice: params.triggerPrice,
+    eventType: params.eventType,
+    materialChange: params.materialChange,
+    majorChange: params.majorChange,
+    settings: params.settings,
+  });
+  if (!decision.shouldPost) {
+    return { shouldPost: false, reason: `phase_${decision.reason}` };
+  }
+
+  return {
+    shouldPost: true,
+    record: buildThreadStoryPhaseRecord({
+    timestamp: params.timestamp,
+    phase,
+    areaKey,
+    triggerPrice: params.triggerPrice,
+    eventType: params.eventType,
+    }),
+  };
+}
+
 function parseAlertLevel(entry: ReplayAuditEntry): number | null {
   if (typeof entry.targetPrice === "number") {
     return entry.targetPrice;
@@ -441,8 +564,16 @@ function simulateEntry(
   }
 
   pruneState(state, timestamp);
+  let pendingPhaseRecord: ThreadStoryPhaseRecord | undefined;
 
-  if (messageKind === "follow_through_update") {
+  if (messageKind === "level_extension") {
+    const extensionKey = buildLevelExtensionPostKey(entry);
+    if (state.lastLevelExtensionPostKey === extensionKey) {
+      recordSuppression(state, entry, messageKind, "extension_duplicate_payload");
+      return;
+    }
+    state.lastLevelExtensionPostKey = extensionKey;
+  } else if (messageKind === "follow_through_update") {
     const evaluation = buildEvaluation(entry);
     if (evaluation) {
       const decision = decideFollowThroughPost({
@@ -460,6 +591,23 @@ function simulateEntry(
         evaluation.followThroughLabel === "strong" ||
         (evaluation.directionalReturnPct !== null &&
           Math.abs(evaluation.directionalReturnPct) >= FOLLOW_THROUGH_MAJOR_MOVE_PCT);
+      const phaseDecision = shouldPostReplayPhase({
+        state,
+        entry,
+        timestamp,
+        eventType: evaluation.eventType,
+        level: evaluation.entryPrice,
+        triggerPrice: evaluation.outcomePrice,
+        followThroughLabel: evaluation.followThroughLabel,
+        majorChange,
+        settings,
+      });
+      if (!phaseDecision.shouldPost) {
+        recordSuppression(state, entry, messageKind, phaseDecision.reason ?? "phase_suppressed");
+        return;
+      }
+      pendingPhaseRecord = phaseDecision.record;
+
       const criticalDecision = decideCriticalLivePost({
         criticalPosts: state.criticalPosts,
         timestamp,
@@ -493,14 +641,25 @@ function simulateEntry(
   } else if (messageKind === "intelligent_alert") {
     const level = parseAlertLevel(entry);
     if (entry.eventType && level !== null) {
+      const triggerPrice = parseFirstPathPrice(entry) ?? level;
+      const practicalStructureState = entry.practicalStructureState;
+      const practicalZoneKey = entry.practicalZoneKey;
+      const stableMarketStructureState = entry.stableMarketStructureState;
+      const stableMarketStructureKey = entry.stableMarketStructureKey;
       const alertDecision = decideIntelligentAlertPost({
         records: state.intelligentAlertRecords,
         timestamp,
         eventType: entry.eventType,
         level,
-        triggerPrice: parseFirstPathPrice(entry) ?? level,
+        triggerPrice,
         severity: entry.severity,
         score: typeof entry.score === "number" ? entry.score : undefined,
+        practicalStructureState,
+        practicalZoneKey,
+        practicalStructureMaterialChange: entry.practicalStructureMaterialChange,
+        stableMarketStructureState,
+        stableMarketStructureKey,
+        stableMarketStructureMaterialChange: entry.stableMarketStructureMaterialChange,
         settings,
       });
       if (!alertDecision.shouldPost) {
@@ -508,13 +667,36 @@ function simulateEntry(
         return;
       }
 
+      const phaseDecision = shouldPostReplayPhase({
+        state,
+        entry,
+        timestamp,
+        eventType: entry.eventType,
+        level,
+        triggerPrice,
+        practicalStructureState,
+        practicalZoneKey: entry.practicalZoneKey,
+        materialChange: entry.practicalStructureMaterialChange,
+        majorChange: shouldTreatAlertAsMajor(entry),
+        settings,
+      });
+      if (!phaseDecision.shouldPost) {
+        recordSuppression(state, entry, messageKind, phaseDecision.reason ?? "phase_suppressed");
+        return;
+      }
+      pendingPhaseRecord = phaseDecision.record;
+
       state.intelligentAlertRecords.push(buildIntelligentAlertStoryRecord({
         timestamp,
         eventType: entry.eventType,
         level,
-        triggerPrice: parseFirstPathPrice(entry) ?? level,
+        triggerPrice,
         severity: entry.severity,
         score: typeof entry.score === "number" ? entry.score : undefined,
+        practicalStructureState,
+        practicalZoneKey,
+        stableMarketStructureState,
+        stableMarketStructureKey,
       }));
     }
 
@@ -526,6 +708,78 @@ function simulateEntry(
         majorChange: shouldTreatAlertAsMajor(entry),
         settings,
       });
+    if (!criticalDecision.shouldPost) {
+      recordSuppression(state, entry, messageKind, criticalDecision.reason);
+      return;
+    }
+  } else if (messageKind === "level_clear_update") {
+    const level = parseAlertLevel(entry);
+    if (level !== null) {
+      const practicalStructureState = entry.practicalStructureState;
+      const practicalZoneKey = entry.practicalZoneKey;
+      const stableMarketStructureState = entry.stableMarketStructureState;
+      const stableMarketStructureKey = entry.stableMarketStructureKey;
+      const triggerPrice = parseFirstPathPrice(entry) ?? level;
+      const alertDecision = decideIntelligentAlertPost({
+        records: state.intelligentAlertRecords,
+        timestamp,
+        eventType: entry.eventType ?? "level_clear_update",
+        level,
+        triggerPrice,
+        severity: entry.severity,
+        score: typeof entry.score === "number" ? entry.score : undefined,
+        practicalStructureState,
+        practicalZoneKey,
+        practicalStructureMaterialChange: entry.practicalStructureMaterialChange,
+        stableMarketStructureState,
+        stableMarketStructureKey,
+        stableMarketStructureMaterialChange: entry.stableMarketStructureMaterialChange,
+        settings,
+      });
+      if (!alertDecision.shouldPost) {
+        recordSuppression(state, entry, messageKind, `alert_${alertDecision.reason}`);
+        return;
+      }
+
+      const phaseDecision = shouldPostReplayPhase({
+        state,
+        entry,
+        timestamp,
+        eventType: entry.eventType ?? "level_clear_update",
+        level,
+        triggerPrice,
+        practicalStructureState,
+        practicalZoneKey: entry.practicalZoneKey,
+        majorChange: Boolean(entry.clusteredLevelClear),
+        settings,
+      });
+      if (!phaseDecision.shouldPost) {
+        recordSuppression(state, entry, messageKind, phaseDecision.reason ?? "phase_suppressed");
+        return;
+      }
+      pendingPhaseRecord = phaseDecision.record;
+      state.intelligentAlertRecords.push(buildIntelligentAlertStoryRecord({
+        timestamp,
+        eventType: entry.eventType ?? "level_clear_update",
+        level,
+        triggerPrice,
+        severity: entry.severity,
+        score: typeof entry.score === "number" ? entry.score : undefined,
+        practicalStructureState,
+        practicalZoneKey,
+        stableMarketStructureState,
+        stableMarketStructureKey,
+      }));
+    }
+
+    const criticalDecision = decideCriticalLivePost({
+      criticalPosts: state.criticalPosts,
+      timestamp,
+      kind: "level_clear_update",
+      eventType: entry.eventType ?? null,
+      majorChange: Boolean(entry.clusteredLevelClear),
+      settings,
+    });
     if (!criticalDecision.shouldPost) {
       recordSuppression(state, entry, messageKind, criticalDecision.reason);
       return;
@@ -545,6 +799,11 @@ function simulateEntry(
         !(typeof entry.score === "number" && entry.score >= settings.aiAlwaysPostMinScore)
       ) {
         recordSuppression(state, entry, messageKind, "ai_low_value_repeat");
+        return;
+      }
+
+      if (isMinorSavedRecap(entry)) {
+        recordSuppression(state, entry, messageKind, "optional_minor_recap");
         return;
       }
 
@@ -589,6 +848,9 @@ function simulateEntry(
     }
   }
 
+  if (pendingPhaseRecord) {
+    state.threadStoryPhaseRecords.push(pendingPhaseRecord);
+  }
   recordSimulatedPost(state, entry, messageKind, runtimeKind);
 }
 
@@ -633,6 +895,9 @@ export function buildLivePostReplaySimulationReport(
       originalByKind: state.originalByKind,
       simulatedByKind: state.simulatedByKind,
       suppressedByReason: state.suppressedByReason,
+      threadStorySuppressions: Object.entries(state.suppressedByReason)
+        .filter(([reason]) => reason.startsWith("phase_"))
+        .reduce((sum, [, count]) => sum + count, 0),
       sampleSuppressions: state.sampleSuppressions,
     }))
     .sort((left, right) => right.suppressed - left.suppressed || left.symbol.localeCompare(right.symbol));
@@ -653,6 +918,7 @@ export function buildLivePostReplaySimulationReport(
       simulatedMaxPostsInFiveMinutes: Math.max(0, ...perSymbol.map((symbol) => symbol.simulatedMaxPostsInFiveMinutes)),
       originalMaxPostsInTenMinutes: Math.max(0, ...perSymbol.map((symbol) => symbol.originalMaxPostsInTenMinutes)),
       simulatedMaxPostsInTenMinutes: Math.max(0, ...perSymbol.map((symbol) => symbol.simulatedMaxPostsInTenMinutes)),
+      threadStorySuppressions: perSymbol.reduce((sum, symbol) => sum + symbol.threadStorySuppressions, 0),
     },
     perSymbol,
   };
@@ -744,11 +1010,21 @@ function parseOutcomePathPrice(entry: ReplayAuditEntry): number | null {
 }
 
 function sideForEntry(entry: ReplayAuditEntry): "support" | "resistance" | null {
-  const text = `${entry.title ?? ""} ${entry.body ?? entry.bodyPreview ?? ""}`.toLowerCase();
+  const body = entry.body ?? entry.bodyPreview ?? "";
+  const text = `${entry.title ?? ""} ${body}`.toLowerCase();
   if (entry.eventType === "breakout" || entry.eventType === "reclaim") {
     return "resistance";
   }
   if (entry.eventType === "breakdown") {
+    return "support";
+  }
+
+  const firstBodyLine = body.split(/\r?\n/).find((line) => line.trim().length > 0)?.toLowerCase() ?? "";
+  const primaryText = `${entry.title ?? ""} ${firstBodyLine}`.toLowerCase();
+  if (/\b(?:resistance\s+(?:crossed|cleared|weakening)|price\s+(?:testing|nearing|compressing into|pushed above|cleared|back at).*resistance|breakout\s+through.*resistance)\b/i.test(primaryText)) {
+    return "resistance";
+  }
+  if (/\b(?:support\s+(?:lost|crossed lower|weakening)|price\s+(?:testing|nearing|compressing into|slipped below|back at).*support|breakdown\s+through.*support)\b/i.test(primaryText)) {
     return "support";
   }
 
@@ -839,22 +1115,82 @@ function classifyPostQuality(
   return { category: "unknown", reason: "unclassified post kind" };
 }
 
-function parseSnapshotLevels(entry: ReplayAuditEntry, side: "support" | "resistance"): number[] {
-  const text = entry.body ?? entry.bodyPreview ?? "";
-  const prefix = side === "support" ? "Support" : "Resistance";
-  const levels = new Set<number>();
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim().toLowerCase().startsWith(prefix.toLowerCase())) {
+function parseLevelFragment(fragment: string, side: "support" | "resistance"): ParsedSnapshotLevel[] {
+  const levels: ParsedSnapshotLevel[] = [];
+  for (const rawSegment of fragment.split(/,\s*(?=\d)/)) {
+    const segment = rawSegment.trim();
+    if (segment.length === 0) {
       continue;
     }
-    for (const match of line.matchAll(/\b\d+(?:\.\d+)?\b/g)) {
-      const value = Number(match[0]);
-      if (Number.isFinite(value) && value > 0 && value < 1000) {
-        levels.add(value);
+    const match = segment.match(/^(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?/);
+    if (!match?.[1]) {
+      continue;
+    }
+
+    const first = Number(match[1]);
+    const second = match[2] === undefined ? first : Number(match[2]);
+    if (!Number.isFinite(first) || !Number.isFinite(second) || first <= 0 || second <= 0 || first >= 1000 || second >= 1000) {
+      continue;
+    }
+
+    const zoneLow = Math.min(first, second);
+    const zoneHigh = Math.max(first, second);
+    levels.push({
+      level: side === "resistance" ? zoneHigh : zoneLow,
+      zoneLow,
+      zoneHigh,
+    });
+  }
+  return levels;
+}
+
+function parseSnapshotLevelDetails(entry: ReplayAuditEntry, side: "support" | "resistance"): ParsedSnapshotLevel[] {
+  const text = entry.body ?? entry.bodyPreview ?? "";
+  const target = side.toLowerCase();
+  const opposite = side === "support" ? "resistance" : "support";
+  const levels = new Map<string, ParsedSnapshotLevel>();
+  let activeSide: "support" | "resistance" | null = null;
+
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) {
+      activeSide = null;
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^(Support|Resistance):\s*(.*)$/i);
+    if (headingMatch?.[1] !== undefined) {
+      activeSide = headingMatch[1].toLowerCase() as "support" | "resistance";
+      if (activeSide === side && headingMatch[2] !== undefined) {
+        for (const level of parseLevelFragment(headingMatch[2], side)) {
+          levels.set(`${level.zoneLow}:${level.zoneHigh}`, level);
+        }
+      }
+      continue;
+    }
+
+    if (
+      /^(Closest levels to watch|More support and resistance|What price is doing now|What it means|What to watch|Key levels|Triggered near|Price:)/i.test(trimmed)
+    ) {
+      activeSide = null;
+      continue;
+    }
+
+    if (activeSide !== target && activeSide !== opposite) {
+      continue;
+    }
+
+    if (activeSide === side) {
+      for (const level of parseLevelFragment(trimmed, side)) {
+        levels.set(`${level.zoneLow}:${level.zoneHigh}`, level);
       }
     }
   }
-  return [...levels].sort((left, right) => left - right);
+  return [...levels.values()].sort((left, right) => left.level - right.level);
+}
+
+function parseSnapshotLevels(entry: ReplayAuditEntry, side: "support" | "resistance"): number[] {
+  return parseSnapshotLevelDetails(entry, side).map((level) => level.level);
 }
 
 function buildPricePoints(symbolEntries: ReplayAuditEntry[]): PricePoint[] {
@@ -915,6 +1251,37 @@ function hasNearbyPostedLevelEvent(params: {
   });
 }
 
+function hasPostedLevelEventAtOrBefore(params: {
+  entries: ReplayAuditEntry[];
+  timestamp: number;
+  side: "support" | "resistance";
+  level: number;
+}): boolean {
+  const tolerance = Math.max(0.01, params.level * 0.0125);
+  return params.entries.some((entry) => {
+    if ((entry.timestamp ?? 0) > params.timestamp) {
+      return false;
+    }
+
+    const kind = messageKindOf(entry);
+    if (kind !== "intelligent_alert" && kind !== "level_clear_update") {
+      return false;
+    }
+
+    if (sideForEntry(entry) !== params.side) {
+      return false;
+    }
+
+    const level = parseAlertLevel(entry);
+    if (level !== null && Math.abs(level - params.level) <= tolerance) {
+      return true;
+    }
+
+    const text = `${entry.title ?? ""} ${entry.body ?? entry.bodyPreview ?? ""}`;
+    return levelRangesCover(text, params.level, tolerance);
+  });
+}
+
 function levelRangesCover(text: string, level: number, tolerance: number): boolean {
   for (const match of text.matchAll(/\b(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\b/g)) {
     const first = Number(match[1]);
@@ -937,22 +1304,32 @@ function buildMissingEventCandidates(
   symbolEntries: ReplayAuditEntry[],
   pricePoints: PricePoint[],
 ): RunnerStoryReport["symbols"][number]["missingEventCandidates"] {
-  const supportLevels = new Set<number>();
-  const resistanceLevels = new Set<number>();
+  const supportLevels = new Map<string, { level: number; firstSeen: number }>();
+  const resistanceLevels = new Map<string, { level: number; firstSeen: number }>();
+  const addKnownLevel = (side: "support" | "resistance", level: number, firstSeen: number): void => {
+    const key = level >= 1 ? level.toFixed(4) : level.toFixed(6);
+    const map = side === "support" ? supportLevels : resistanceLevels;
+    const previous = map.get(key);
+    if (previous === undefined || firstSeen < previous.firstSeen) {
+      map.set(key, { level, firstSeen });
+    }
+  };
+
   for (const entry of symbolEntries) {
+    const firstSeen = entry.timestamp ?? 0;
     for (const level of parseSnapshotLevels(entry, "support")) {
-      supportLevels.add(level);
+      addKnownLevel("support", level, firstSeen);
     }
     for (const level of parseSnapshotLevels(entry, "resistance")) {
-      resistanceLevels.add(level);
+      addKnownLevel("resistance", level, firstSeen);
     }
     const kind = messageKindOf(entry);
     const alertLevel = kind === "level_clear_update" ? parseAlertLevel(entry) : null;
     const side = sideForEntry(entry);
     if (alertLevel !== null && side === "support") {
-      supportLevels.add(alertLevel);
+      addKnownLevel("support", alertLevel, firstSeen);
     } else if (alertLevel !== null && side === "resistance") {
-      resistanceLevels.add(alertLevel);
+      addKnownLevel("resistance", alertLevel, firstSeen);
     }
   }
 
@@ -962,10 +1339,15 @@ function buildMissingEventCandidates(
     const previous = pricePoints[index - 1]!;
     const current = pricePoints[index]!;
     if (current.price > previous.price) {
-      for (const level of resistanceLevels) {
+      for (const knownLevel of resistanceLevels.values()) {
+        const level = knownLevel.level;
+        if (knownLevel.firstSeen > previous.timestamp) {
+          continue;
+        }
         if (
           previous.price < level &&
           current.price > level &&
+          !hasPostedLevelEventAtOrBefore({ entries: symbolEntries, timestamp: current.timestamp, side: "resistance", level }) &&
           !hasNearbyPostedLevelEvent({ entries: symbolEntries, timestamp: current.timestamp, side: "resistance", level })
         ) {
           const key = `resistance|${level >= 1 ? level.toFixed(2) : level.toFixed(4)}`;
@@ -983,10 +1365,15 @@ function buildMissingEventCandidates(
         }
       }
     } else if (current.price < previous.price) {
-      for (const level of supportLevels) {
+      for (const knownLevel of supportLevels.values()) {
+        const level = knownLevel.level;
+        if (knownLevel.firstSeen > previous.timestamp) {
+          continue;
+        }
         if (
           previous.price > level &&
           current.price < level &&
+          !hasPostedLevelEventAtOrBefore({ entries: symbolEntries, timestamp: current.timestamp, side: "support", level }) &&
           !hasNearbyPostedLevelEvent({ entries: symbolEntries, timestamp: current.timestamp, side: "support", level })
         ) {
           const key = `support|${level >= 1 ? level.toFixed(2) : level.toFixed(4)}`;
@@ -1251,6 +1638,7 @@ export function formatLivePostReplaySimulationMarkdown(report: LivePostReplaySim
       `- posts: ${symbol.originalPosted} -> ${symbol.simulatedPosted} (${symbol.reductionPct}% reduction)`,
       `- max burst 5m: ${symbol.originalMaxPostsInFiveMinutes} -> ${symbol.simulatedMaxPostsInFiveMinutes}`,
       `- max burst 10m: ${symbol.originalMaxPostsInTenMinutes} -> ${symbol.simulatedMaxPostsInTenMinutes}`,
+      `- thread-story suppressions: ${symbol.threadStorySuppressions}`,
       `- suppressed by reason: ${JSON.stringify(symbol.suppressedByReason)}`,
       `- original by kind: ${JSON.stringify(symbol.originalByKind)}`,
       `- simulated by kind: ${JSON.stringify(symbol.simulatedByKind)}`,

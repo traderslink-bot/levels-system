@@ -14,6 +14,7 @@ import type {
   SymbolMonitoringState,
   ZoneInteractionState,
 } from "./monitoring-types.js";
+import type { VolumeActivityContext } from "./volume-activity.js";
 import {
   deriveBarrierClutter,
   buildInteractionEpisodeId,
@@ -24,6 +25,9 @@ import {
   scoreMonitoringEvent,
   shouldFilterMonitoringEvent,
 } from "./monitoring-event-scoring.js";
+import { derivePracticalTradeStructureContext } from "./practical-trade-structure.js";
+import { buildTradeStoryIntelligenceContext } from "./trade-story-intelligence.js";
+import { buildSymbolContext } from "./symbol-state.js";
 import { isAboveZone, isBelowZone, isInsideZone } from "./zone-utils.js";
 
 function buildBreakAttemptAgeMs(
@@ -100,14 +104,52 @@ function hasRecentBreakAttempt(
   );
 }
 
+function volumeActivityForEvent(
+  symbolState: SymbolMonitoringState,
+  eventType: MonitoringEvent["eventType"],
+  zoneId: string,
+): VolumeActivityContext | undefined {
+  const context = symbolState.volumeActivity;
+  if (!context) {
+    return undefined;
+  }
+
+  const repeatedStory = symbolState.recentEvents
+    .slice(-8)
+    .some(
+      (event) =>
+        event.zoneId === zoneId &&
+        event.eventType === eventType &&
+        event.eventContext.volumeActivity?.reliability === context.reliability &&
+        event.eventContext.volumeActivity?.label === context.label,
+    );
+
+  if (!repeatedStory || !context.traderLine) {
+    return context;
+  }
+
+  return {
+    ...context,
+    traderLine: undefined,
+    reason: `same volume/activity story already shown for this ${eventType} setup`,
+  };
+}
+
 function buildMonitoringEventContext(
   zone: FinalLevelZone,
   symbolState: SymbolMonitoringState,
   update: LivePriceUpdate,
   eventType: MonitoringEvent["eventType"],
+  currentState: ZoneInteractionState,
   config: MonitoringConfig,
 ): MonitoringEventContext {
   const zoneContext = symbolState.zoneContexts[zone.id];
+  const symbolContext = buildSymbolContext({
+    symbolState,
+    zone,
+    currentState,
+    referenceTimestamp: update.timestamp,
+  });
   const nearestBarrier = findNearestRelevantBarrier({
     eventType,
     zone,
@@ -141,6 +183,24 @@ function buildMonitoringEventContext(
     zoneFreshness: zoneContext?.zoneFreshness ?? zone.freshness,
     tacticalRead,
   });
+  const tradeStructure = derivePracticalTradeStructureContext({
+    symbolState,
+    zone,
+    eventType,
+    price: update.lastPrice,
+    timestamp: update.timestamp,
+  });
+  const volumeActivity = volumeActivityForEvent(symbolState, eventType, zone.id);
+  const stableMarketStructure = symbolState.stableMarketStructure;
+  const tradeStory = buildTradeStoryIntelligenceContext({
+    symbolState,
+    zone,
+    eventType,
+    price: update.lastPrice,
+    timestamp: update.timestamp,
+    tradeStructure,
+    stableMaterialChange: stableMarketStructure?.materialChange,
+  });
 
   if (zoneContext) {
     return {
@@ -166,8 +226,28 @@ function buildMonitoringEventContext(
       nearbyBarrierCount: barrierClutter?.nearbyBarrierCount,
       pathQualityLabel: pathQuality?.label,
       pathBarrierCount: pathQuality?.barrierCount,
+      pathConstraintScore: pathQuality?.constraintScore,
+      pathWindowDistancePct: pathQuality?.pathWindowDistancePct,
       tacticalRead,
       exhaustionLabel,
+      marketStructureType: symbolContext.structureType ?? undefined,
+      marketStructureStrength: symbolContext.structureStrength,
+      rangeCompressionScore: symbolContext.rangeCompressionScore,
+      tradeStructure,
+      stableMarketStructureState: stableMarketStructure?.state,
+      stableMarketStructurePreviousState: stableMarketStructure?.previousState,
+      stableMarketStructureKey: stableMarketStructure?.structureKey,
+      stableMarketStructureMaterialChange: stableMarketStructure?.materialChange,
+      stableMarketStructureConfidence: stableMarketStructure?.confidence,
+      stableMarketStructureMaterialityScore: stableMarketStructure?.materialityScore,
+      volumeActivity,
+      tradeStoryState: tradeStory.storyState,
+      rangeBox: tradeStory.rangeBox,
+      acceptance: tradeStory.acceptance,
+      supportImportance: tradeStory.supportImportance,
+      behaviorBudget: tradeStory.behaviorBudget,
+      primaryTradeArea: tradeStory.primaryTradeArea,
+      failedLevelMemory: tradeStory.failedLevelMemory,
     };
   }
 
@@ -198,6 +278,24 @@ function buildMonitoringEventContext(
     pathWindowDistancePct: pathQuality?.pathWindowDistancePct,
     tacticalRead,
     exhaustionLabel,
+    marketStructureType: symbolContext.structureType ?? undefined,
+    marketStructureStrength: symbolContext.structureStrength,
+    rangeCompressionScore: symbolContext.rangeCompressionScore,
+    tradeStructure,
+    stableMarketStructureState: stableMarketStructure?.state,
+    stableMarketStructurePreviousState: stableMarketStructure?.previousState,
+    stableMarketStructureKey: stableMarketStructure?.structureKey,
+    stableMarketStructureMaterialChange: stableMarketStructure?.materialChange,
+    stableMarketStructureConfidence: stableMarketStructure?.confidence,
+    stableMarketStructureMaterialityScore: stableMarketStructure?.materialityScore,
+    volumeActivity,
+    tradeStoryState: tradeStory.storyState,
+    rangeBox: tradeStory.rangeBox,
+    acceptance: tradeStory.acceptance,
+    supportImportance: tradeStory.supportImportance,
+    behaviorBudget: tradeStory.behaviorBudget,
+    primaryTradeArea: tradeStory.primaryTradeArea,
+    failedLevelMemory: tradeStory.failedLevelMemory,
   };
 }
 
@@ -237,7 +335,14 @@ function buildEvent(
     priority: signal.priority,
     bias: signal.bias ?? "neutral",
     pressureScore: signal.pressureScore,
-    eventContext: buildMonitoringEventContext(zone, symbolState, update, eventType, config),
+    eventContext: buildMonitoringEventContext(
+      zone,
+      symbolState,
+      update,
+      eventType,
+      currentState,
+      config,
+    ),
     timestamp: update.timestamp,
     notes,
   };

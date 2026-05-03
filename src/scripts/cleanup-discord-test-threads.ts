@@ -20,6 +20,7 @@ type CleanupOptions = {
   deleteAllParentMessages: boolean;
   allChannelThreads: boolean;
   includeActive: boolean;
+  olderThanDays?: number;
   confirmTestingCleanup: boolean;
   symbols?: string[];
   outputPath: string;
@@ -70,6 +71,7 @@ Options:
   --state <path>                  Use a manual-watchlist-state.json source.
   --symbols ATER,BIYA             Limit cleanup to specific symbols.
   --include-active                Include active symbols. Omitted by default.
+  --older-than-days <days>        Only include threads whose last saved activity is older than this many days.
   --dry-run                       Preview only. Default action.
   --archive                       Archive selected threads.
   --delete                        Delete selected thread channels.
@@ -90,6 +92,7 @@ function parseArgs(argv: string[]): CleanupOptions {
   let deleteAllParentMessages = false;
   let allChannelThreads = false;
   let includeActive = false;
+  let olderThanDays: number | undefined;
   let confirmTestingCleanup = false;
   let symbols: string[] | undefined;
   let outputPath = DEFAULT_OUTPUT_PATH;
@@ -121,6 +124,15 @@ function parseArgs(argv: string[]): CleanupOptions {
         break;
       case "--include-active":
         includeActive = true;
+        break;
+      case "--older-than-days":
+        {
+          const parsedOlderThanDays = Number(argv[++index] ?? "0");
+          olderThanDays =
+            Number.isFinite(parsedOlderThanDays) && parsedOlderThanDays > 0
+              ? parsedOlderThanDays
+              : undefined;
+        }
         break;
       case "--dry-run":
         action = "dry_run";
@@ -162,6 +174,7 @@ function parseArgs(argv: string[]): CleanupOptions {
     deleteAllParentMessages,
     allChannelThreads,
     includeActive,
+    olderThanDays,
     confirmTestingCleanup,
     symbols,
     outputPath,
@@ -327,10 +340,18 @@ function loadCandidates(options: CleanupOptions): DiscordThreadCleanupCandidate[
       ? loadThreadCleanupCandidatesFromDiscordAudit(options.sourcePath)
       : loadThreadCleanupCandidatesFromWatchlistState(options.sourcePath);
 
-  return filterThreadCleanupCandidates(candidates, {
+  const filtered = filterThreadCleanupCandidates(candidates, {
     symbols: options.symbols,
     includeActive: options.includeActive,
   });
+  if (options.olderThanDays === undefined || options.olderThanDays <= 0) {
+    return filtered;
+  }
+
+  const cutoff = Date.now() - options.olderThanDays * 24 * 60 * 60 * 1000;
+  return filtered.filter(
+    (candidate) => candidate.lastSeenAt === undefined || candidate.lastSeenAt <= cutoff,
+  );
 }
 
 async function main(): Promise<void> {
@@ -380,6 +401,7 @@ async function main(): Promise<void> {
     deleteAllParentMessages: options.deleteAllParentMessages,
     allChannelThreads: options.allChannelThreads,
     includeActive: options.includeActive,
+    olderThanDays: options.olderThanDays ?? null,
     candidateCount: candidates.length,
     starterMessageCount: starterMessages.length,
     parentMessageDeleteCount: parentMessagesToDelete.length,

@@ -24,6 +24,18 @@ import {
   writeLivePostProfileComparisonReports,
   writeRunnerStoryReports,
 } from "../lib/review/live-post-replay-simulator.js";
+import {
+  buildTraderPostQualityReport,
+  writeTraderPostQualityReport,
+} from "../lib/review/trader-post-quality-grader.js";
+import {
+  buildPostReasonAuditReport,
+  writePostReasonAuditReport,
+} from "../lib/review/post-reason-audit-report.js";
+import {
+  buildKnownBadPostPatternReport,
+  writeKnownBadPostPatternReport,
+} from "../lib/review/known-bad-post-patterns.js";
 
 function printUsage(): never {
   console.error("Usage: npm run longrun:audit:reports -- <session-folder-or-discord-audit.jsonl>");
@@ -54,6 +66,12 @@ const paths = isAuditFile
       runnerStoryMarkdownPath: resolve(resolvedInput, "..", "runner-story-report.md"),
       evidenceJsonPath: resolve(resolvedInput, "..", "trading-day-evidence-report.json"),
       evidenceMarkdownPath: resolve(resolvedInput, "..", "trading-day-evidence-report.md"),
+      traderPostQualityJsonPath: resolve(resolvedInput, "..", "trader-post-quality-report.json"),
+      traderPostQualityMarkdownPath: resolve(resolvedInput, "..", "trader-post-quality-report.md"),
+      postReasonAuditJsonPath: resolve(resolvedInput, "..", "post-reason-audit.json"),
+      postReasonAuditMarkdownPath: resolve(resolvedInput, "..", "post-reason-audit.md"),
+      knownBadPostPatternsJsonPath: resolve(resolvedInput, "..", "known-bad-post-patterns.json"),
+      knownBadPostPatternsMarkdownPath: resolve(resolvedInput, "..", "known-bad-post-patterns.md"),
     }
   : defaultReportPaths(resolvedInput);
 
@@ -92,6 +110,21 @@ writeRunnerStoryReports({
   markdownPath: paths.runnerStoryMarkdownPath,
   report: buildRunnerStoryReport(paths.auditPath),
 });
+writeTraderPostQualityReport({
+  jsonPath: paths.traderPostQualityJsonPath,
+  markdownPath: paths.traderPostQualityMarkdownPath,
+  report: buildTraderPostQualityReport(paths.auditPath),
+});
+writePostReasonAuditReport({
+  jsonPath: paths.postReasonAuditJsonPath,
+  markdownPath: paths.postReasonAuditMarkdownPath,
+  report: buildPostReasonAuditReport(paths.auditPath),
+});
+writeKnownBadPostPatternReport({
+  jsonPath: paths.knownBadPostPatternsJsonPath,
+  markdownPath: paths.knownBadPostPatternsMarkdownPath,
+  report: buildKnownBadPostPatternReport(paths.auditPath),
+});
 
 console.log(`Wrote ${paths.policyReportPath}`);
 console.log(`Wrote ${paths.snapshotReportPath}`);
@@ -107,3 +140,9 @@ console.log(`Wrote ${paths.profileComparisonJsonPath}`);
 console.log(`Wrote ${paths.profileComparisonMarkdownPath}`);
 console.log(`Wrote ${paths.runnerStoryJsonPath}`);
 console.log(`Wrote ${paths.runnerStoryMarkdownPath}`);
+console.log(`Wrote ${paths.traderPostQualityJsonPath}`);
+console.log(`Wrote ${paths.traderPostQualityMarkdownPath}`);
+console.log(`Wrote ${paths.postReasonAuditJsonPath}`);
+console.log(`Wrote ${paths.postReasonAuditMarkdownPath}`);
+console.log(`Wrote ${paths.knownBadPostPatternsJsonPath}`);
+console.log(`Wrote ${paths.knownBadPostPatternsMarkdownPath}`);

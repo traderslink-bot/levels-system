@@ -126,6 +126,18 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     typeof value.lastThreadPostKind === "string" && value.lastThreadPostKind.trim().length > 0
       ? value.lastThreadPostKind.trim()
       : undefined;
+  const lastTradeStoryState =
+    typeof value.lastTradeStoryState === "string" && value.lastTradeStoryState.trim().length > 0
+      ? value.lastTradeStoryState.trim()
+      : undefined;
+  const lastPrice =
+    typeof value.lastPrice === "number" && Number.isFinite(value.lastPrice)
+      ? value.lastPrice
+      : undefined;
+  const lastTriggerPrice =
+    typeof value.lastTriggerPrice === "number" && Number.isFinite(value.lastTriggerPrice)
+      ? value.lastTriggerPrice
+      : undefined;
 
   return {
     symbol: value.symbol.trim().toUpperCase(),
@@ -150,8 +162,14 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     lastLevelPostAt: normalizeOptionalTimestamp(value.lastLevelPostAt),
     lastExtensionPostAt: normalizeOptionalTimestamp(value.lastExtensionPostAt),
     lastPriceUpdateAt: normalizeOptionalTimestamp(value.lastPriceUpdateAt),
+    ...(lastPrice !== undefined ? { lastPrice } : {}),
     lastThreadPostAt: normalizeOptionalTimestamp(value.lastThreadPostAt),
     ...(lastThreadPostKind !== undefined ? { lastThreadPostKind } : {}),
+    ...(lastTradeStoryState !== undefined ? { lastTradeStoryState } : {}),
+    ...(normalizeOptionalTimestamp(value.lastTradeStoryAt) !== undefined
+      ? { lastTradeStoryAt: normalizeOptionalTimestamp(value.lastTradeStoryAt) }
+      : {}),
+    ...(lastTriggerPrice !== undefined ? { lastTriggerPrice } : {}),
     refreshPending: typeof value.refreshPending === "boolean" ? value.refreshPending : false,
     ...(lastError !== undefined ? { lastError } : {}),
     ...(operationStatus !== undefined ? { operationStatus } : {}),

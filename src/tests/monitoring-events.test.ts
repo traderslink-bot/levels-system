@@ -155,6 +155,76 @@ test("compression is emitted once when a zone first enters a compression episode
   );
 });
 
+test("volume activity trader line is suppressed when same setup already carried same story", () => {
+  const symbolState = createSymbolState();
+  symbolState.volumeActivity = {
+    label: "expanding",
+    reliability: "reliable",
+    currentBucketVolume: 1500,
+    baselineAverageVolume: 1000,
+    relativeVolumeRatio: 1.5,
+    direction: "increasing",
+    reason: "current 5m bucket is 1.50x recent average",
+    traderLine: "activity: activity is expanding into resistance, which makes the test more meaningful",
+  };
+  symbolState.recentEvents.push({
+    id: "prior",
+    episodeId: "prior-episode",
+    symbol: "AAPL",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: resistanceZone.id,
+    zoneKind: "resistance",
+    level: resistanceZone.representativePrice,
+    triggerPrice: 100.5,
+    strength: 0.5,
+    confidence: 0.5,
+    priority: 50,
+    bias: "neutral",
+    pressureScore: 0.5,
+    eventContext: {
+      monitoredZoneId: resistanceZone.id,
+      canonicalZoneId: resistanceZone.id,
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "strong",
+      volumeActivity: symbolState.volumeActivity,
+    },
+    timestamp: 1,
+    notes: [],
+  });
+
+  const previousState = createInitialInteractionState("AAPL", resistanceZone);
+  const update = makeUpdate(2, 100.6);
+  const currentState = updateInteractionState({
+    previousState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 99.9,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  const [event] = detectMonitoringEvents({
+    previousState,
+    currentState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 99.9,
+    symbolState,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  assert.equal(event?.eventContext.volumeActivity?.label, "expanding");
+  assert.equal(event?.eventContext.volumeActivity?.traderLine, undefined);
+  assert.match(event?.eventContext.volumeActivity?.reason ?? "", /same volume\/activity story/);
+});
+
 test("compression can re-emit after price leaves the zone and returns later", () => {
   let previousState = createInitialInteractionState("AAPL", resistanceZone);
   let previousPrice: number | undefined;

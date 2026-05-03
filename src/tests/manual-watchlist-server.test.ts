@@ -29,8 +29,12 @@ test("manual watchlist page builds entry metadata without innerHTML interpolatio
 
 test("manual watchlist page shows runtime status and separate review surfaces", () => {
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Status/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Config/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Monday Live Review/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Last Why Posted/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /symbol post budget/);
   assert.match(MANUAL_WATCHLIST_PAGE, /AI commentary can add separate AI read posts after deterministic alerts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-operational\.log/);
   assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-diagnostics\.log/);
@@ -40,6 +44,20 @@ test("manual watchlist page shows runtime status and separate review surfaces", 
   assert.match(MANUAL_WATCHLIST_PAGE, /fetch\("\/api\/runtime\/status"\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /fetch\("\/api\/runtime\/review-artifacts"\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /renderReviewArtifacts/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /renderMondayReview/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /renderProviderHealth/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Historical Data/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Pending Seeds/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /restart-readiness-list/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Seed Attempts/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Seed Timeouts/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Seeds In Flight/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Candle Cache/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Candle Cache/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Startup Cache/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /lastTradeStoryState/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /levels age/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /price age/);
   assert.match(MANUAL_WATCHLIST_PAGE, /artifact\.name/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Refresh Levels/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Repost Snapshot/);

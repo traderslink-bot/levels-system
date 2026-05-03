@@ -134,7 +134,7 @@ export function validateCandleResponse(
 
   if (
     response.sessionMetadataAvailable &&
-    response.timeframe === "5m" &&
+    (response.timeframe === "1m" || response.timeframe === "5m") &&
     lastCandle &&
     response.requestedEndTimestamp - lastCandle.timestamp > expectedIntervalMs
   ) {

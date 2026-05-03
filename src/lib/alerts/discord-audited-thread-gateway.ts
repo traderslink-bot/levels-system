@@ -43,6 +43,9 @@ export type DiscordDeliveryAuditEntry = {
   severity?: string;
   confidence?: string;
   score?: number;
+  signalCategory?: string;
+  signalCategoryLiveEnabled?: boolean;
+  supportingSignalCategories?: string[];
   postingFamily?: string;
   postingDecisionReason?: string;
   clearanceLabel?: string;
@@ -62,6 +65,37 @@ export type DiscordDeliveryAuditEntry = {
   dipBuyQualityLabel?: string;
   exhaustionLabel?: string;
   setupStateLabel?: string;
+  practicalStructureState?: string;
+  practicalStructureKey?: string;
+  practicalZoneKey?: string;
+  practicalStructureMaterialChange?: boolean;
+  stableMarketStructureState?: string;
+  stableMarketStructurePreviousState?: string | null;
+  stableMarketStructureKey?: string;
+  stableMarketStructureMaterialChange?: boolean;
+  stableMarketStructureConfidence?: string;
+  stableMarketStructureMaterialityScore?: number;
+  volumeActivityLabel?: string;
+  volumeActivityReliability?: string;
+  volumeActivityRatio?: number | null;
+  volumeActivityDirection?: string;
+  volumeActivityShown?: boolean;
+  volumeActivitySuppressedReason?: string;
+  tradeStoryState?: string;
+  rangeBoxLabel?: string;
+  rangeBoxWidthPct?: number | null;
+  acceptanceLabel?: string;
+  acceptanceBeyondZonePct?: number | null;
+  supportImportanceLabel?: string;
+  behaviorBudgetLabel?: string;
+  behaviorBudgetMaxUsefulPosts?: number;
+  primaryTradeAreaLocked?: boolean;
+  primaryTradeAreaEscapeSide?: string;
+  primaryTradeAreaEscapeConfidence?: string;
+  failedLevelOutcome?: string;
+  failedLevelFailureCount?: number;
+  levelImportanceLabel?: string;
+  levelImportanceScore?: number;
   failureRiskLabel?: string;
   tradeMapLabel?: string;
   riskPct?: number;
@@ -80,6 +114,9 @@ export type DiscordDeliveryAuditEntry = {
   directionalReturnPct?: number | null;
   rawReturnPct?: number | null;
   repeatedOutcomeUpdate?: boolean;
+  whyPosted?: string;
+  postBudgetSymbolType?: string;
+  noLevelReason?: string;
   supportCount?: number;
   resistanceCount?: number;
   snapshotAudit?: {
@@ -98,6 +135,9 @@ export type DiscordDeliveryAuditEntry = {
   retryAttempt?: number;
   retryOf?: number;
   retryReason?: string;
+  runtimeVersion?: string;
+  runtimeStartedAt?: string;
+  runtimePid?: number;
   error?: string;
 };
 
@@ -121,6 +161,11 @@ const DEFAULT_AUDIT_FILE_PATH = resolve(
 );
 const DEFAULT_ALERT_MAX_RETRIES = 1;
 const DEFAULT_ALERT_RETRY_DELAY_MS = 750;
+const RUNTIME_STARTED_AT = new Date().toISOString();
+
+function runtimeVersion(): string {
+  return process.env.LEVEL_RUNTIME_VERSION?.trim() || process.env.npm_package_version || "dev";
+}
 
 function delay(ms: number): Promise<void> {
   if (ms <= 0) {
@@ -191,6 +236,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
           : undefined,
       ...timing,
       ...payload,
+      runtimeVersion: runtimeVersion(),
+      runtimeStartedAt: RUNTIME_STARTED_AT,
+      runtimePid: process.pid,
     });
   }
 
@@ -226,6 +274,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       ...timing,
       error: message,
       ...payload,
+      runtimeVersion: runtimeVersion(),
+      runtimeStartedAt: RUNTIME_STARTED_AT,
+      runtimePid: process.pid,
     });
     return timestamp;
   }
@@ -246,6 +297,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       severity: payload.metadata?.severity,
       confidence: payload.metadata?.confidence,
       score: payload.metadata?.score,
+      signalCategory: payload.metadata?.signalCategory,
+      signalCategoryLiveEnabled: payload.metadata?.signalCategoryLiveEnabled,
+      supportingSignalCategories: payload.metadata?.supportingSignalCategories,
       postingFamily: payload.metadata?.postingFamily,
       postingDecisionReason: payload.metadata?.postingDecisionReason,
       clearanceLabel: payload.metadata?.clearanceLabel,
@@ -265,6 +319,37 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       dipBuyQualityLabel: payload.metadata?.dipBuyQualityLabel,
       exhaustionLabel: payload.metadata?.exhaustionLabel,
       setupStateLabel: payload.metadata?.setupStateLabel,
+      practicalStructureState: payload.metadata?.practicalStructureState,
+      practicalStructureKey: payload.metadata?.practicalStructureKey,
+      practicalZoneKey: payload.metadata?.practicalZoneKey,
+      practicalStructureMaterialChange: payload.metadata?.practicalStructureMaterialChange,
+      stableMarketStructureState: payload.metadata?.stableMarketStructureState,
+      stableMarketStructurePreviousState: payload.metadata?.stableMarketStructurePreviousState,
+      stableMarketStructureKey: payload.metadata?.stableMarketStructureKey,
+      stableMarketStructureMaterialChange: payload.metadata?.stableMarketStructureMaterialChange,
+      stableMarketStructureConfidence: payload.metadata?.stableMarketStructureConfidence,
+      stableMarketStructureMaterialityScore: payload.metadata?.stableMarketStructureMaterialityScore,
+      volumeActivityLabel: payload.metadata?.volumeActivityLabel,
+      volumeActivityReliability: payload.metadata?.volumeActivityReliability,
+      volumeActivityRatio: payload.metadata?.volumeActivityRatio,
+      volumeActivityDirection: payload.metadata?.volumeActivityDirection,
+      volumeActivityShown: payload.metadata?.volumeActivityShown,
+      volumeActivitySuppressedReason: payload.metadata?.volumeActivitySuppressedReason,
+      tradeStoryState: payload.metadata?.tradeStoryState,
+      rangeBoxLabel: payload.metadata?.rangeBoxLabel,
+      rangeBoxWidthPct: payload.metadata?.rangeBoxWidthPct,
+      acceptanceLabel: payload.metadata?.acceptanceLabel,
+      acceptanceBeyondZonePct: payload.metadata?.acceptanceBeyondZonePct,
+      supportImportanceLabel: payload.metadata?.supportImportanceLabel,
+      behaviorBudgetLabel: payload.metadata?.behaviorBudgetLabel,
+      behaviorBudgetMaxUsefulPosts: payload.metadata?.behaviorBudgetMaxUsefulPosts,
+      primaryTradeAreaLocked: payload.metadata?.primaryTradeAreaLocked,
+      primaryTradeAreaEscapeSide: payload.metadata?.primaryTradeAreaEscapeSide,
+      primaryTradeAreaEscapeConfidence: payload.metadata?.primaryTradeAreaEscapeConfidence,
+      failedLevelOutcome: payload.metadata?.failedLevelOutcome,
+      failedLevelFailureCount: payload.metadata?.failedLevelFailureCount,
+      levelImportanceLabel: payload.metadata?.levelImportanceLabel,
+      levelImportanceScore: payload.metadata?.levelImportanceScore,
       failureRiskLabel: payload.metadata?.failureRiskLabel,
       tradeMapLabel: payload.metadata?.tradeMapLabel,
       riskPct: payload.metadata?.riskPct,
@@ -283,6 +368,9 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       directionalReturnPct: payload.metadata?.directionalReturnPct,
       rawReturnPct: payload.metadata?.rawReturnPct,
       repeatedOutcomeUpdate: payload.metadata?.repeatedOutcomeUpdate,
+      whyPosted: payload.metadata?.whyPosted,
+      postBudgetSymbolType: payload.metadata?.postBudgetSymbolType,
+      noLevelReason: payload.metadata?.noLevelReason,
     };
   }
 

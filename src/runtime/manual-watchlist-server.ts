@@ -5,6 +5,10 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
+import {
+  ValidationCachedCandleFetchService,
+  resolveValidationCandleCacheMode,
+} from "../lib/validation/validation-candle-cache.js";
 import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-commentary-service.js";
 import { createFinnhubClientFromEnv } from "../lib/stock-context/finnhub-client.js";
 import { createYahooClientFromEnv } from "../lib/stock-context/yahoo-client.js";
@@ -49,11 +53,18 @@ const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
 const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
 const AI_MODEL_ENV = "LEVEL_AI_MODEL";
 const MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV = "MANUAL_WATCHLIST_IBKR_TIMEOUT_MS";
+const MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_ENV = "MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS";
+const MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_ENV = "MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS";
+const MANUAL_WATCHLIST_CANDLE_CACHE_MODE_ENV = "MANUAL_WATCHLIST_CANDLE_CACHE_MODE";
+const MANUAL_WATCHLIST_CANDLE_CACHE_DIR_ENV = "MANUAL_WATCHLIST_CANDLE_CACHE_DIR";
+const MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE_ENV = "MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE";
 const MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV = "LEVEL_MANUAL_LOOKBACK_DAILY";
 const MANUAL_WATCHLIST_LOOKBACK_4H_ENV = "LEVEL_MANUAL_LOOKBACK_4H";
 const MANUAL_WATCHLIST_LOOKBACK_5M_ENV = "LEVEL_MANUAL_LOOKBACK_5M";
 const WATCHLIST_POSTING_PROFILE_ENV = "WATCHLIST_POSTING_PROFILE";
 const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
+const DEFAULT_MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS = 90_000;
+const DEFAULT_MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS = 5000;
 const REVIEW_ARTIFACT_FILES = [
   "session-review.md",
   "thread-post-policy-report.md",
@@ -61,6 +72,21 @@ const REVIEW_ARTIFACT_FILES = [
   "live-post-replay-simulation.md",
   "live-post-profile-comparison.md",
   "runner-story-report.md",
+  "trader-post-quality-report.md",
+  "post-reason-audit.md",
+  "known-bad-post-patterns.md",
+  "all-symbol-stress-report.md",
+  "trader-usefulness-replay-score.md",
+  "trader-usefulness-replay-score.json",
+  "daily-trader-review.md",
+  "daily-trader-review.html",
+  "daily-trader-review.json",
+  "end-of-day-symbol-verdict.md",
+  "end-of-day-symbol-verdict.json",
+  "missed-meaningful-move-audit.md",
+  "missed-meaningful-move-audit.json",
+  "session-behavior-audit.md",
+  "session-behavior-audit.json",
   "snapshot-audit-report.md",
   "live-post-replay-simulation.json",
   "live-post-profile-comparison.json",
@@ -106,6 +132,7 @@ function readReviewArtifacts(sessionDirectory: string | null): Array<{
   sizeBytes: number | null;
   updatedAt: number | null;
   preview: string | null;
+  readError: string | null;
 }> {
   if (!sessionDirectory) {
     return REVIEW_ARTIFACT_FILES.map((name) => ({
@@ -114,6 +141,7 @@ function readReviewArtifacts(sessionDirectory: string | null): Array<{
       sizeBytes: null,
       updatedAt: null,
       preview: null,
+      readError: null,
     }));
   }
 
@@ -126,21 +154,36 @@ function readReviewArtifacts(sessionDirectory: string | null): Array<{
         sizeBytes: null,
         updatedAt: null,
         preview: null,
+        readError: null,
       };
     }
 
-    const stats = statSync(path);
-    const isPreviewable = name.endsWith(".md") || name.endsWith(".json");
-    const preview = isPreviewable
-      ? readFileSync(path, "utf8").slice(0, 1800)
-      : null;
-    return {
-      name,
-      exists: true,
-      sizeBytes: stats.size,
-      updatedAt: stats.mtimeMs,
-      preview,
-    };
+    try {
+      const stats = statSync(path);
+      const isPreviewable = name.endsWith(".md") || name.endsWith(".json");
+      const preview = isPreviewable
+        ? readFileSync(path, "utf8").slice(0, 1800)
+        : null;
+      return {
+        name,
+        exists: true,
+        sizeBytes: stats.size,
+        updatedAt: stats.mtimeMs,
+        preview,
+        readError: null,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ManualWatchlistRuntime] Review artifact ${name} is temporarily unreadable: ${message}`);
+      return {
+        name,
+        exists: true,
+        sizeBytes: null,
+        updatedAt: null,
+        preview: null,
+        readError: message,
+      };
+    }
   });
 }
 
@@ -148,6 +191,14 @@ async function main(): Promise<void> {
   const ib = createIbkrClient();
   const manualWatchlistIbkrTimeoutMs = Number(
     process.env[MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV] ?? DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+  );
+  const manualWatchlistLevelSeedTimeoutMs = resolvePositiveIntegerEnv(
+    process.env[MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_ENV],
+    DEFAULT_MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS,
+  );
+  const manualWatchlistFastLevelClearCoalesceMs = resolvePositiveIntegerEnv(
+    process.env[MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_ENV],
+    DEFAULT_MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS,
   );
   const historicalLookbackBars = resolveManualWatchlistHistoricalLookbacks();
   const historicalProvider = new IbkrHistoricalCandleProvider(
@@ -157,7 +208,32 @@ async function main(): Promise<void> {
       : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
   );
   const liveProvider = new IBKRLivePriceProvider(ib);
-  const candleService = new CandleFetchService(historicalProvider);
+  const rawCandleService = new CandleFetchService(historicalProvider);
+  const requestedCandleCacheMode = resolveValidationCandleCacheMode(
+    process.env[MANUAL_WATCHLIST_CANDLE_CACHE_MODE_ENV],
+  );
+  const candleCacheDirectoryPath = process.env[MANUAL_WATCHLIST_CANDLE_CACHE_DIR_ENV]?.trim() ||
+    join(process.cwd(), ".validation-cache", "candles");
+  const startupCandleCacheEnabled =
+    requestedCandleCacheMode !== "off" &&
+    process.env[MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE_ENV]?.trim() !== "0";
+  const runtimeCandleCacheMode =
+    startupCandleCacheEnabled && requestedCandleCacheMode === "read_write"
+      ? "refresh"
+      : requestedCandleCacheMode;
+  const candleService =
+    runtimeCandleCacheMode === "off"
+      ? rawCandleService
+      : new ValidationCachedCandleFetchService(rawCandleService, {
+          cacheDirectoryPath: candleCacheDirectoryPath,
+          mode: runtimeCandleCacheMode,
+        });
+  const startupCachedCandleFetchService = startupCandleCacheEnabled
+    ? new ValidationCachedCandleFetchService(rawCandleService, {
+        cacheDirectoryPath: candleCacheDirectoryPath,
+        mode: "replay",
+      })
+    : null;
   const levelStore = new LevelStore();
   const monitoringEventDiagnosticsEnabled = isTruthyEnv(
     process.env[MONITORING_EVENT_DIAGNOSTICS_ENV],
@@ -204,6 +280,7 @@ async function main(): Promise<void> {
       : null;
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: candleService,
+    startupCachedCandleFetchService,
     levelStore,
     monitor,
     discordAlertRouter: createDiscordAlertRouter(),
@@ -215,6 +292,8 @@ async function main(): Promise<void> {
     lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
     optionalPostSettleDelayMs: 250,
     postingProfile,
+    levelSeedTimeoutMs: manualWatchlistLevelSeedTimeoutMs,
+    fastLevelClearCoalesceMs: manualWatchlistFastLevelClearCoalesceMs,
   });
   const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
   let startupState: "booting" | "ready" | "error" = "booting";
@@ -228,8 +307,19 @@ async function main(): Promise<void> {
       console.log(
         `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
       );
+      if (requestedCandleCacheMode !== "off") {
+        console.log(
+          `[ManualWatchlistRuntime] Candle cache: requested=${requestedCandleCacheMode}, runtime=${runtimeCandleCacheMode}, startup=${startupCandleCacheEnabled ? "enabled" : "disabled"}, path=${candleCacheDirectoryPath}.`,
+        );
+      }
       console.log(
         `[ManualWatchlistRuntime] IBKR historical timeout: ${Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0 ? manualWatchlistIbkrTimeoutMs : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS}ms.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Level seed timeout: ${manualWatchlistLevelSeedTimeoutMs}ms.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Fast level-clear coalesce window: ${manualWatchlistFastLevelClearCoalesceMs}ms.`,
       );
       console.log(
         `[ManualWatchlistRuntime] Historical lookbacks: daily=${historicalLookbackBars.daily}, 4h=${historicalLookbackBars["4h"]}, 5m=${historicalLookbackBars["5m"]}.`,
@@ -294,6 +384,12 @@ async function main(): Promise<void> {
             Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
               ? manualWatchlistIbkrTimeoutMs
               : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+          levelSeedTimeoutMs: manualWatchlistLevelSeedTimeoutMs,
+          fastLevelClearCoalesceMs: manualWatchlistFastLevelClearCoalesceMs,
+          candleCacheMode: requestedCandleCacheMode,
+          runtimeCandleCacheMode,
+          candleCacheDirectoryPath,
+          startupCandleCacheEnabled,
           historicalLookbackBars: manager.getHistoricalLookbackBars(),
           postingProfile,
           monitoringDiagnosticsRequested: monitoringEventDiagnosticsEnabled,

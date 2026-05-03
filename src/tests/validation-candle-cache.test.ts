@@ -65,8 +65,13 @@ test("ValidationCachedCandleFetchService writes through on first fetch and reuse
 
   const first = await service.fetchCandles(request);
   const second = await service.fetchCandles(request);
+  const cacheInfo = service.getCacheRuntimeInfo();
 
   assert.equal(callCount, 1);
+  assert.equal(cacheInfo.misses, 1);
+  assert.equal(cacheInfo.writes, 1);
+  assert.equal(cacheInfo.exactHits, 1);
+  assert.equal(cacheInfo.reusableHits, 0);
   const normalizedEndTime = Math.floor(request.endTimeMs! / (5 * 60 * 1000)) * 5 * 60 * 1000;
   assert.equal(first.provider, response.provider);
   assert.deepEqual(first.candles, response.candles);
@@ -101,6 +106,7 @@ test("ValidationCachedCandleFetchService replay mode errors on cache miss", asyn
     service.fetchCandles(request),
     /Validation candle cache miss/,
   );
+  assert.equal(service.getCacheRuntimeInfo().misses, 1);
 });
 
 test("ValidationCachedCandleFetchService reuses the nearest prior cached file within one bar", async () => {

@@ -70,6 +70,9 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       targetSide: "resistance",
       targetPrice: 2.5,
       targetDistancePct: 0.024,
+      whyPosted: "event passed breakout policy",
+      postBudgetSymbolType: "small_cap",
+      noLevelReason: "higher resistance not available in active snapshot or extension cache",
     },
   });
   await audited.sendLevelSnapshot("thread-1", {
@@ -188,6 +191,9 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.targetSide, "resistance");
   assert.equal(lines[1]?.targetPrice, 2.5);
   assert.equal(lines[1]?.targetDistancePct, 0.024);
+  assert.equal(lines[1]?.whyPosted, "event passed breakout policy");
+  assert.equal(lines[1]?.postBudgetSymbolType, "small_cap");
+  assert.equal(lines[1]?.noLevelReason, "higher resistance not available in active snapshot or extension cache");
   assert.equal(lines[2]?.supportCount, 1);
   assert.equal(lines[2]?.resistanceCount, 1);
   assert.equal(lines[2]?.sourceTimestamp, 2);

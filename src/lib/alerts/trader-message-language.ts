@@ -4,11 +4,13 @@
 import type { FinalLevelZone } from "../levels/level-types.js";
 import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
+import { isSignalCategoryEnabledForSurface } from "../signals/signal-category-config.js";
 import type {
   TraderDipBuyQualityContext,
   TraderExhaustionContext,
   TraderFailureRiskContext,
   TraderFollowThroughContext,
+  TraderMarketStructureContext,
   TraderMovementContext,
   TraderNextBarrierContext,
   TraderPathQualityContext,
@@ -17,6 +19,7 @@ import type {
   TraderTriggerQualityContext,
   TraderTargetContext,
   TraderTradeMapContext,
+  TraderVolumeActivityContext,
   TraderZoneTacticalRead,
 } from "./alert-types.js";
 
@@ -385,6 +388,265 @@ export function deriveTraderSetupStateContext(params: {
   }
 }
 
+function stableStructureLabel(
+  state: MonitoringEvent["eventContext"]["stableMarketStructureState"],
+): TraderMarketStructureContext["label"] | null {
+  switch (state) {
+    case "base_building":
+    case "pressing_range_high":
+    case "breakout_attempt":
+    case "breakout_holding":
+    case "higher_lows_intact":
+    case "trend_intact":
+      return "bullish_building";
+    case "range_bound":
+    case "pullback_to_structure":
+      return "compression";
+    case "failed_breakout":
+      return "weakening";
+    case "trend_damaged":
+    case "pivot_lost":
+      return "damaged";
+    case "reclaim_attempt":
+    case "reclaim_confirmed":
+      return "repaired";
+    default:
+      return null;
+  }
+}
+
+function deriveStableCandleMarketStructureContext(
+  event: MonitoringEvent,
+  zone: FinalLevelZone,
+): TraderMarketStructureContext | null {
+  const state = event.eventContext.stableMarketStructureState;
+  const label = stableStructureLabel(state);
+  if (!state || !label || event.eventContext.stableMarketStructureConfidence === "low") {
+    return null;
+  }
+
+  const isMaterialChange = event.eventContext.stableMarketStructureMaterialChange === true;
+  const isFirstStableRead = event.eventContext.stableMarketStructurePreviousState == null;
+  if (!isMaterialChange && !isFirstStableRead) {
+    return null;
+  }
+
+  const zoneHigh = formatLevel(zone.zoneHigh);
+  const zoneLow = formatLevel(zone.zoneLow);
+  const repairLevel = zoneHigh;
+  const supportLevel = zone.kind === "support" ? zoneLow : zoneHigh;
+  const line = (() => {
+    switch (state) {
+      case "range_bound":
+        return "market structure: 5m structure is still range-bound, so small moves inside the range are lower-quality noise";
+      case "base_building":
+        return `market structure: 5m structure is building a base; expansion through ${zoneHigh} would make the setup cleaner`;
+      case "pressing_range_high":
+        return `market structure: 5m structure is pressing the range high; acceptance above ${zoneHigh} would improve the setup`;
+      case "breakout_attempt":
+      case "breakout_holding":
+        return `market structure: 5m structure is trying to hold above the prior range; staying above ${zoneHigh} keeps the breakout attempt cleaner`;
+      case "failed_breakout":
+        return `market structure: the 5m breakout attempt faded; reclaiming ${repairLevel} would repair the setup`;
+      case "pullback_to_structure":
+        return `market structure: the 5m pullback is testing structure support near ${supportLevel}; the reaction matters more than tiny moves inside the area`;
+      case "higher_lows_intact":
+      case "trend_intact":
+        return `market structure: 5m higher lows are still holding, keeping the long-side structure constructive`;
+      case "trend_damaged":
+      case "pivot_lost":
+        return `market structure: 5m structure is damaged after losing a pivot; reclaiming ${repairLevel} would repair the setup`;
+      case "reclaim_attempt":
+      case "reclaim_confirmed":
+        return `market structure: 5m structure is repairing after a reclaim; holding above ${repairLevel} keeps it cleaner`;
+      default:
+        return null;
+    }
+  })();
+
+  return line
+    ? {
+        label,
+        structureType: event.eventContext.marketStructureType,
+        strength: event.eventContext.marketStructureStrength,
+        line,
+      }
+    : null;
+}
+
+export function deriveTraderMarketStructureContext(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+): TraderMarketStructureContext | null {
+  if (!zone || !isSignalCategoryEnabledForSurface("market_structure", "liveDiscord")) {
+    return null;
+  }
+
+  const zoneHigh = formatLevel(zone.zoneHigh);
+  const zoneLow = formatLevel(zone.zoneLow);
+  const structureType = event.eventContext.marketStructureType;
+  const strength = event.eventContext.marketStructureStrength;
+  const practicalStructure = event.eventContext.tradeStructure;
+  const stableCandleStructure = deriveStableCandleMarketStructureContext(event, zone);
+
+  if (stableCandleStructure && event.eventContext.stableMarketStructureMaterialChange === true) {
+    return stableCandleStructure;
+  }
+
+  if (practicalStructure) {
+    const label: TraderMarketStructureContext["label"] =
+      practicalStructure.state === "support_failing" ||
+      practicalStructure.state === "structure_broken" ||
+      practicalStructure.state === "breakout_failed"
+        ? "damaged"
+        : practicalStructure.state === "reclaim_attempt" ||
+          practicalStructure.state === "reclaim_holding"
+          ? "repaired"
+          : practicalStructure.state === "range_bound"
+            ? "compression"
+            : "bullish_building";
+    return {
+      label,
+      structureType,
+      strength,
+      line: practicalStructure.traderLine,
+    };
+  }
+
+  if (stableCandleStructure) {
+    return stableCandleStructure;
+  }
+
+  if (event.eventType === "breakdown" || event.eventType === "fake_breakout") {
+    return {
+      label: "damaged",
+      structureType,
+      strength,
+      line: `market structure: support did not hold; reclaiming ${zoneHigh} would repair the setup for longs`,
+    };
+  }
+
+  if (event.eventType === "reclaim" || event.eventType === "fake_breakdown") {
+    return {
+      label: "repaired",
+      structureType,
+      strength,
+      line: `market structure: buyers repaired the support break; holding above ${zoneLow} keeps the structure cleaner`,
+    };
+  }
+
+  if (event.eventType === "breakout") {
+    return {
+      label: "bullish_building",
+      structureType,
+      strength,
+      line: `market structure: resistance is trying to become support; holding above ${zoneHigh} keeps the structure improving`,
+    };
+  }
+
+  if (structureType === "breakout_setup") {
+    return {
+      label: "bullish_building",
+      structureType,
+      strength,
+      line:
+        zone.kind === "resistance"
+          ? `market structure: buyers are building pressure under resistance; clearing ${zoneHigh} would improve structure`
+          : `market structure: buyers are trying to build from support; holding ${zoneLow} keeps the structure intact`,
+    };
+  }
+
+  if (structureType === "rejection_setup") {
+    return {
+      label: "weakening",
+      structureType,
+      strength,
+      line: `market structure: the prior push is weakening; reclaiming ${zoneHigh} would repair the setup for longs`,
+    };
+  }
+
+  if (structureType === "compression") {
+    return {
+      label: "compression",
+      structureType,
+      strength,
+      line:
+        zone.kind === "support"
+          ? `market structure: price is compressing above support; holding ${zoneLow} keeps the structure intact`
+          : `market structure: price is compressing below resistance; clearing ${zoneHigh} would improve structure`,
+    };
+  }
+
+  return null;
+}
+
+export function deriveTraderVolumeActivityContext(
+  event: MonitoringEvent,
+  zone?: FinalLevelZone,
+): TraderVolumeActivityContext | null {
+  if (!zone || !isSignalCategoryEnabledForSurface("volume_activity", "liveDiscord")) {
+    return null;
+  }
+
+  const context = event.eventContext.volumeActivity;
+  if (!context || context.reliability !== "reliable" || !context.traderLine) {
+    return null;
+  }
+
+  const line = (() => {
+    if (event.eventType === "breakout" || event.eventType === "reclaim") {
+      if (context.label === "strong" || context.label === "expanding") {
+        return "activity: activity is expanding into the move, which makes the breakout attempt more meaningful";
+      }
+      if (context.label === "thin") {
+        return "activity: activity is still thin, so buyers need stronger acceptance above the level";
+      }
+    }
+
+    if (event.eventType === "breakdown" || event.eventType === "fake_breakout") {
+      if (context.label === "fading" || context.label === "thin") {
+        return "activity: activity is fading while support is under pressure, so buyers still need a reclaim";
+      }
+      if (context.label === "strong" || context.label === "expanding") {
+        return "activity: activity picked up during the support loss, so buyers need a stronger repair";
+      }
+    }
+
+    if (event.eventType === "level_touch") {
+      if (zone.kind === "support") {
+        if (context.label === "strong" || context.label === "expanding") {
+          return "activity: activity picked up at support, which makes the reaction more meaningful";
+        }
+        if (context.label === "thin" || context.label === "fading") {
+          return "activity: activity is still thin at support, so buyers need a better reaction";
+        }
+      }
+
+      if (zone.kind === "resistance") {
+        if (context.label === "strong" || context.label === "expanding") {
+          return "activity: activity is expanding into resistance, which makes the test more meaningful";
+        }
+        if (context.label === "thin" || context.label === "fading") {
+          return "activity: activity is still thin into resistance, so buyers need stronger acceptance";
+        }
+      }
+    }
+
+    if (context.label === "normal") {
+      return null;
+    }
+
+    return context.traderLine;
+  })();
+
+  return line
+    ? {
+        ...context,
+        traderLine: line,
+      }
+    : null;
+}
+
 export function deriveTraderFailureRiskContext(params: {
   event: MonitoringEvent;
   zone?: FinalLevelZone;
@@ -645,11 +907,11 @@ export function deriveTraderFollowThroughContext(params: {
   const { eventType, returnPct, directionalReturnPct, followThroughLabel } = params;
   const longCautionLabel =
     eventType === "breakdown"
-      ? "support-loss warning"
+      ? "support loss"
       : eventType === "fake_breakout"
-        ? "failed-breakout warning"
+        ? "failed breakout"
         : eventType === "rejection"
-          ? "rejection warning"
+          ? "rejection"
           : null;
   const eventLabel = longCautionLabel ?? eventType.replaceAll("_", " ");
   const line =
@@ -1016,7 +1278,7 @@ function buildWatchLine(event: MonitoringEvent, zone?: FinalLevelZone): string |
     case "breakout":
       return `watch: hold above ${zoneHigh}; invalidates back below ${zoneLow}`;
     case "breakdown":
-      return `watch: long setup stays risky until price reclaims ${zoneHigh}; risk stays elevated below ${zoneLow}`;
+      return `watch: long setup needs a reclaim of ${zoneRange}; a clean loss of the whole area weakens the structure`;
     case "reclaim":
       return `watch: hold above ${zoneHigh}; invalidates back below ${zoneLow}`;
     case "fake_breakout":
@@ -1026,7 +1288,7 @@ function buildWatchLine(event: MonitoringEvent, zone?: FinalLevelZone): string |
     case "rejection":
       return zone.kind === "resistance"
         ? `watch: long setup needs acceptance above ${zoneHigh} before risk improves`
-        : `watch: buyers keep price above ${zoneLow}; invalidates on clean loss below it`;
+        : `watch: buyers keep price above ${zoneRange}; structure weakens on a clean loss of the whole area`;
     case "compression":
       return zone.kind === "resistance"
         ? `watch: breakout through ${zoneHigh} or rejection from ${zoneRange}`
@@ -1034,8 +1296,8 @@ function buildWatchLine(event: MonitoringEvent, zone?: FinalLevelZone): string |
     case "level_touch":
       if (zone.kind === "support") {
         return event.triggerPrice > zone.zoneHigh
-          ? `watch: buyers stabilize into ${zoneRange}; losing it keeps risk open lower`
-          : `watch: buyers stabilize at ${zoneRange}; losing it keeps risk open lower`;
+          ? `watch: buyers stabilize into ${zoneRange}; a clean loss of the whole area weakens the setup`
+          : `watch: buyers stabilize at ${zoneRange}; a clean loss of the whole area weakens the setup`;
       }
       return `watch: buyers need acceptance above ${zoneHigh} before breakout pressure builds`;
     default:
@@ -1078,6 +1340,8 @@ export function buildTraderAlertBody(
     event,
     movement,
   });
+  const marketStructure = deriveTraderMarketStructureContext(event, zone);
+  const volumeActivity = deriveTraderVolumeActivityContext(event, zone);
   const failureRisk = deriveTraderFailureRiskContext({
     event,
     zone,
@@ -1134,6 +1398,8 @@ export function buildTraderAlertBody(
     target?.line ?? null,
     includeTriggerQuality ? triggerQuality?.line ?? null : null,
     dipBuyQuality?.line ?? null,
+    marketStructure?.line ?? null,
+    volumeActivity?.traderLine ?? null,
     setupState?.line ?? null,
     includeFailureRisk ? failureRisk?.line ?? null : null,
     tradeMap?.line ?? null,

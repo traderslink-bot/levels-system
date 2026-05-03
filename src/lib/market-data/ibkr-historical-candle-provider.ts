@@ -1,6 +1,6 @@
 import { EventName, IBApi, WhatToShow } from "@stoqey/ib";
 
-import type { BaseCandleProviderResponse, Candle, CandleTimeframe } from "./candle-types.js";
+import type { BaseCandleProviderResponse, Candle, CandleFetchTimeframe } from "./candle-types.js";
 import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "./provider-types.js";
 import { sharedIbkrPacingQueue } from "./ibkr-pacing-queue.js";
 
@@ -275,7 +275,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
   private mapBarToCandle(
     bar: IbkrHistoricalBar,
     symbol: string,
-    timeframe: CandleTimeframe,
+    timeframe: CandleFetchTimeframe,
     index: number,
   ): Candle {
     const timestamp = this.parseIbkrTimestamp(bar.time);
@@ -367,8 +367,10 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     return timestamp;
   }
 
-  private getFallbackDuration(timeframe: CandleTimeframe): string {
+  private getFallbackDuration(timeframe: CandleFetchTimeframe): string {
     switch (timeframe) {
+      case "1m":
+        return "2 D";
       case "5m":
         return "3 D";
       case "4h":
@@ -382,7 +384,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     value: number,
     fieldName: string,
     symbol: string,
-    timeframe: CandleTimeframe,
+    timeframe: CandleFetchTimeframe,
     index: number,
   ): number {
     if (!Number.isFinite(value)) {

@@ -82,6 +82,13 @@ function rounded(value: number | null, decimals = 2): number | null {
   return Math.round(value * factor) / factor;
 }
 
+function countLevelsBeforeGap(sortedForward: FinalLevelZone[], gapFromLevel: number): number {
+  const gapIndex = sortedForward.findIndex(
+    (zone) => Math.abs(zone.representativePrice - gapFromLevel) <= Math.max(gapFromLevel * 0.0001, 0.0001),
+  );
+  return gapIndex >= 0 ? gapIndex + 1 : 0;
+}
+
 function summarizeSide(params: {
   side: "support" | "resistance";
   referencePrice: number | null;
@@ -116,6 +123,7 @@ function buildSideFindings(params: {
   referencePrice: number | null;
   displayedZones: FinalLevelZone[];
   extensionZones: FinalLevelZone[];
+  dataQualityFlags: string[];
 }): LevelQualityAuditFinding[] {
   if (params.referencePrice === null || params.referencePrice <= 0) {
     return [];
@@ -135,17 +143,21 @@ function buildSideFindings(params: {
   const first = sortedForward[0] ?? null;
   const firstDistance = first ? pctDistance(referencePrice, first.representativePrice) : null;
   const sideLabel = params.side === "resistance" ? "overhead resistance" : "downside support";
+  const degradedData = params.dataQualityFlags.length > 0;
 
   if (!first) {
     return [{
-      severity: "action",
+      severity: degradedData ? "watch" : "action",
       side: params.side,
       code: "no_forward_levels",
-      message: `No ${sideLabel} is available beyond the reference price.`,
+      message: degradedData
+        ? `No ${sideLabel} is available beyond the reference price, but provider data quality is degraded; verify with better candle coverage before changing level logic.`
+        : `No ${sideLabel} is available beyond the reference price.`,
       evidence: {
         referencePrice: params.referencePrice,
         displayedCount: params.displayedZones.length,
         extensionCount: params.extensionZones.length,
+        dataQualityFlags: params.dataQualityFlags,
       },
     }];
   }
@@ -206,14 +218,25 @@ function buildSideFindings(params: {
 
   if (internalGaps.length > 0) {
     const widestGap = [...internalGaps].sort((left, right) => right.gapPct - left.gapPct)[0]!;
+    const widestGapStartsPctFromReference = pctDistance(referencePrice, widestGap.fromLevel);
+    const levelsBeforeWidestGap = countLevelsBeforeGap(sortedForward, widestGap.fromLevel);
+    const hasNearPriceLadderBeforeDeepGap =
+      widestGapStartsPctFromReference > 35 &&
+      levelsBeforeWidestGap >= 4;
+    const severity: LevelQualityAuditFindingSeverity =
+      widestGap.gapPct >= 25 && !hasNearPriceLadderBeforeDeepGap ? "action" : "watch";
     findings.push({
-      severity: widestGap.gapPct >= 25 ? "action" : "watch",
+      severity,
       side: params.side,
       code: "wide_internal_gap",
-      message: `Forward ${params.side} ladder has a ${rounded(widestGap.gapPct)}% gap between visible levels; verify intermediate daily or 4h structure was not missed.`,
+      message: hasNearPriceLadderBeforeDeepGap
+        ? `Forward ${params.side} ladder has a ${rounded(widestGap.gapPct)}% deep historical gap, but near-price structure is populated; review without treating it as an immediate ladder failure.`
+        : `Forward ${params.side} ladder has a ${rounded(widestGap.gapPct)}% gap between visible levels; verify intermediate daily or 4h structure was not missed.`,
       evidence: {
         referencePrice: params.referencePrice,
         forwardLevels: sortedForward.map((zone) => zone.representativePrice),
+        widestGapStartsPctFromReference: rounded(widestGapStartsPctFromReference),
+        levelsBeforeWidestGap,
         gaps: internalGaps.map((gap) => ({
           fromLevel: gap.fromLevel,
           toLevel: gap.toLevel,
@@ -257,12 +280,13 @@ export function buildLevelQualityAuditReport(output: LevelEngineOutput): LevelQu
   const displayedResistance = allResistanceZones(output);
   const extensionSupport = output.extensionLevels.support;
   const extensionResistance = output.extensionLevels.resistance;
+  const dataQualityFlags = output.metadata.dataQualityFlags;
 
   return {
     symbol: output.symbol,
     referencePrice,
     generatedAt: output.generatedAt,
-    dataQualityFlags: output.metadata.dataQualityFlags,
+    dataQualityFlags,
     support: summarizeSide({
       side: "support",
       referencePrice,
@@ -281,12 +305,14 @@ export function buildLevelQualityAuditReport(output: LevelEngineOutput): LevelQu
         referencePrice,
         displayedZones: displayedSupport,
         extensionZones: extensionSupport,
+        dataQualityFlags,
       }),
       ...buildSideFindings({
         side: "resistance",
         referencePrice,
         displayedZones: displayedResistance,
         extensionZones: extensionResistance,
+        dataQualityFlags,
       }),
     ],
   };

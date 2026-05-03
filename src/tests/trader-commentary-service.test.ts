@@ -59,9 +59,13 @@ test("validateTraderCommentaryText blocks short-side or direct execution wording
   assert.equal(validateTraderCommentaryText("Good place to add if this level reclaims."), null);
   assert.equal(validateTraderCommentaryText("Should trim if price loses support."), null);
   assert.equal(validateTraderCommentaryText("Should exit if support breaks."), null);
+  assert.equal(validateTraderCommentaryText("Follow-through check failed after the alert."), null);
+  assert.equal(validateTraderCommentaryText("The trade returned -0.64% from entry 6.21 to outcome 6.17."), null);
+  assert.equal(validateTraderCommentaryText("The setup failed, labeled \"failed\" by the system."), null);
   assert.equal(validateTraderCommentaryText("Buyers need acceptance above resistance before continuation looks cleaner."), "Buyers need acceptance above resistance before continuation looks cleaner.");
   assert.equal(validateTraderCommentaryText("A reclaim would make the setup cleaner for longs."), "A reclaim would make the setup cleaner for longs.");
   assert.equal(validateTraderCommentaryText("Holding this support would keep the setup in better shape."), "Holding this support would keep the setup in better shape.");
+  assert.equal(validateTraderCommentaryText("The setup is not clean for longs yet-buyers need to reclaim 3.70."), "The setup is not clean for longs yet; buyers need to reclaim 3.70.");
 });
 
 test("OpenAITraderCommentaryService summarizes a symbol thread from output_text", async () => {

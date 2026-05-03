@@ -38,7 +38,107 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Do not use AI as the raw market-data source or sole execution engine.
 - Feed AI structured event facts after the deterministic engine has already made the core call.
 
+### 5. Volume / activity context
+
+- Treat volume as supporting context, not a standalone signal stream.
+- Use recent 5-minute candle volume as the baseline when available.
+- Trust live IBKR volume only while it behaves like monotonic cumulative daily volume.
+- Omit trader-facing volume text when the read is missing, stale, non-monotonic, repeated too long, or too thinly sampled.
+- Avoid certainty phrases such as `volume confirms`; activity can make a setup more meaningful, but it does not prove follow-through.
+
+### 6. Modular signal category discipline
+
+- Keep each signal family owned by an explicit category contract before adding trader-facing wording.
+- Enforce the live/operator/internal surface matrix in code, not only in docs.
+- Keep enrichment-only categories, such as market structure and volume/activity, inside existing useful posts instead of creating new standalone Discord streams.
+- Keep audit metadata rich enough to prove which category produced a post and whether that category was allowed live.
+
 ## Shipped Progress
+
+### 2026-05-03
+
+- Added structured shared-engine `referenceLevels` so previous-day, premarket, opening-range, and current-session anchors are first-class facts instead of scattered special fields.
+- Added initial `gapStructure` context for nearest open gaps, recent gaps, and fill status. This stays diagnostic/shared context until saved-data audits prove trader-facing wording is useful.
+- Added dynamic level price context so shared consumers can see price versus VWAP, EMA9, and EMA20 without adding those lines to Discord by default.
+- Added `buildExecutionLevelRelations(...)` for generic nearest-level, room, stacked-barrier, open-air, and reference-level relation facts.
+- Added warehouse-backed shared context builders plus bulk candle backfill planning so website tools can reuse stored candles and avoid repeated provider fetches.
+- Added `npm run engine:capabilities`, `npm run candles:audit`, `npm run candles:calibrate`, and `npm run candles:import-readiness` so the shared candle engine, durable warehouse, saved-session candle-intelligence facts, and future bulk-import coverage can be audited separately from Discord post quality.
+- Expanded saved-session candle calibration to scan all long-run sessions, tag known problem symbols, and show inline reference/gap/relation evidence before those facts influence trader-facing output.
+- Added `npm run candles:backfill` as a dry-run-first provider-safe path from missing-range plans to durable warehouse writes. Provider throttling and concurrency controls live in `levels-system` so consumer apps do not need IBKR-specific logic.
+- Added `npm run candles:bulk-sim` so months-style imported trade pressure can be simulated without live provider calls. The planner now coalesces same-symbol/session/timeframe requests across different execution timestamps.
+- Added `npm run audit:execution-relations` so saved Discord posts can be replayed against cached candle evidence for nearest levels, room, reference levels, VWAP/EMA distance, and market-structure state.
+- Strengthened `npm run volume:warehouse` with interaction buckets such as expanding into resistance, activity pickup on reclaim, fading while retesting, thin activity chop, and stale/unreliable context.
+- Added `npm run candles:provider-compare` so cached provider coverage and drift can be reviewed before switching away from IBKR or trusting another provider.
+- Added `npm run candles:regression-pack` so weak first snapshots, volume-context examples, execution relation gaps, and missing-forward-level candidates become reusable saved-data cases.
+
+### 2026-05-02
+
+- Added level-importance tiers so trader-facing maps and audit rows can separate major decision levels, active trade boundaries, useful references, minor noise, and extension context without deleting valid levels from the ladder.
+- Added primary trade-area context so range-bound tickers can stay anchored to one support/resistance battlefield until price escapes with acceptance or material structure change.
+- Added failed-level memory so tiny probes above resistance or below support remain `probe_only` / `testing` until price proves acceptance; this reduces overconfident cleared/lost wording.
+- Updated the first snapshot trade map to split main support and main resistance into separate trader-readable lines and use `shift attention toward` wording for the next area.
+- Added `npm run audit:thread-health` and `npm run audit:lifecycle` so post-noise and trade-story quality can be scored after a session without waiting for manual review.
+- Added `npm run audit:usefulness` so saved Discord posts can be scored for trader usefulness, same-story noise, late delivery, missing next-level context, ticker personality, and ladder confidence.
+- Added `npm run audit:daily-review` so saved sessions produce operator-only daily recaps, expected post budgets by ticker behavior, no-post evidence coverage, best/worst examples, and post-timing flags.
+- Added a provider-health dashboard to the manual UI so price-feed age, Discord delivery health, historical seed backlog, and stuck seeding are visible without reading terminal output.
+- Added first-snapshot `Level context` wording and active-row price/story/level freshness in the manual UI.
+- Extended visual audit replay with a symbol index and issue flags for weak probes, locked-area posts, missing next-level context, and minor-level posts.
+- Added a shared candle-based market-structure module that builds confirmed 5m swing highs/lows, higher-low and lower-high structure, active range context, pivot reclaim/loss events, trend intact/damaged state, confidence reasons, and a safe optional trader line.
+- Threaded the new `marketStructure` output through the shared support/resistance APIs so this app and `trader-intelligence-v2` can consume the same structure facts without creating new Discord post noise.
+- Added `npm run structure:replay` so cached IBKR 5m candles can be replayed through the new market-structure engine before any live Discord wording or post-policy rules depend on it.
+- First structure replay scanned 56 cached files across 37 symbols and flagged high state-transition counts in names such as `AKAN`, `FATN`, `HCAI`, `PBM`, and `SAGT`, so the next product step is smoothing/materiality before live wording.
+- Added stable market-structure smoothing and materiality scoring. The same replay now shows high raw-transition cases at `10`, high stable-transition cases at `0`, and average transition reduction at `60.1%`, which makes stable structure a safer candidate for later post-policy testing.
+- Added `npm run structure:discord-align -- --limit all` to compare actual saved Discord posts against stable 5m structure near each post. The first all-artifacts pass scanned 10,472 posted rows, aligned 7,136 to cached 5m candles, and found 4,531 same-structure repeat posts plus 632 raw-chop candidates.
+- Added the stable 5m structure metadata boundary to alert payloads, Discord audit rows, replay simulation, and live post policy. This does not add market-structure Discord posts; unchanged stable structure can reduce repeated level-flicker stories, while material structure transitions can still pass through.
+- Added a live stable-structure runtime bridge. The monitor now buckets live ticks into 5-minute candles and supplies stable structure metadata to monitoring events after enough buckets exist, allowing the existing policy to use candle-backed materiality during live runs.
+- Added guarded trader-facing stable 5m structure wording. Existing alerts can now include a short structure line only when the stable 5m candle story materially changes or the first stable read is safe enough; unchanged or low-confidence structure stays out of Discord wording.
+- Hardened thread-story phase control so same-area phase cycling is treated as churn instead of a fresh story unless the move expands, structure materially changes, or the event is major. Broad saved-data replay now reports `5,075 -> 2,030` simulated posts, `60.0%` reduction, and `12` thread-story suppressions; the count is conservative for old rows that lack newer structure metadata.
+- Strengthened the first support/resistance post so the `Trade map` now names current structure, upside path, support that matters, broader failure area, and short-term momentum support with distance-from-price context.
+- Kept the opener observational and small-cap aware: nearby penny-level supports are treated as areas, and the wording avoids direct buy/sell advice or one-cent failure language.
+- Tightened post-story compression for small caps: low-priced same-story buckets are wider, practical-zone drift alone no longer creates a fresh story, and repeated breakout/reclaim cycling inside the same practical area needs expansion or a real structure change.
+- Added price-aware range/chop compression so low-priced repeated touch/break/reclaim/rejection chatter inside the same boxed area stays quieter unless the symbol expands, escalates, or changes structure.
+- Added a noisy-symbol regression pack to the all-symbol stress report so future tuning starts from the worst saved symbols and sessions, not a small named sample.
+- Added a broader saved-data replay pack to the all-symbol stress report so closed-market validation now covers tight chop, runners, missed-event candidates, language-boundary risk, and high-activity watch symbols without relying on a few named examples.
+- Added a trader post quality grader and `npm run quality:posts` so saved Discord threads can be audited for system-shaped wording, direct-advice risk, over-certain phrasing, tiny small-cap risk language, missing-level claims, and repeated-story overlap without waiting for live-market data.
+- Added quiet-profile totals to the all-symbol stress report so closed-market reviews can tell whether a symbol would still be too noisy even under the stricter profile.
+- Tightened first snapshot trade-map wording: `Cleaner above` now names the condition needed before the next resistance area matters, and `Support that matters` can combine nearby penny-level supports into one practical area for commentary while preserving the full ladder below.
+- Added symbol-style post budgets to the all-symbol stress report so low-priced chop, normal range-bound symbols, active runners, and extreme runners are reviewed against different expected post-count limits.
+- Added operator-only `whyPosted`, `postBudgetSymbolType`, and `noLevelReason` audit fields so the system can explain post eligibility and missing next-level cases without putting debug/testing language into Discord.
+- Added a `Monday Live Review` panel to the manual UI with recent critical/optional post counts, post-budget status, and checklist guidance for the next market-open run.
+- Added per-symbol post-budget rows to the manual UI's Monday review panel, so live review can quickly show which symbols are calm, busy, or optional-heavy without reading raw JSON.
+- Added `npm run replay:monday` as a one-command closed-market readiness checklist covering build, broad saved-data replay, small-cap scenario replay, saved-data regression, latest-session report regeneration, post-quality grading, post-reason audit, known-bad wording scan, and volume replay.
+- Added `npm run audit:post-reasons` plus `post-reason-audit.json` / `.md` so audits can explain `whyPosted`, post-budget style, missing post-reason rows, and no-next-level cases from saved audit data.
+- Added `npm run audit:known-bad-posts` plus `known-bad-post-patterns.json` / `.md` so confusing historical trader-facing phrases are tracked as a regression pack instead of depending on memory.
+- Strengthened first-post snapshot wording with a plain `Main decision` line that names the upside decision area and the support area that needs to keep holding.
+- Added validation candle-cache runtime counters for exact hits, reusable hits, misses, and writes so restart / validation speedups can be measured instead of guessed.
+- Added `--older-than-days` to the Discord test-thread cleanup script so stale testing threads can be archived or deleted without sweeping fresh trade threads.
+- Added a quiet `traderContext` bundle to the shared support/resistance output. It now computes liquidity/tradability, catalyst/profile risk, session/gap anchors, candle reaction quality, move extension/exhaustion, and story-memory decisions without creating new standalone Discord posts.
+- Added new quiet signal categories for `liquidity_tradability`, `catalyst_context`, `session_context`, `move_extension`, and `story_memory`; they are operator/internal by default and can support scoring or audits before any trader-facing wording is allowed.
+- Added deterministic trader-context tests covering messy spreads, thin dollar volume, nano-cap / low-float profile risk, prior-day / premarket anchors, candle acceptance versus wick rejection, stretched moves, and same-story cooldown behavior.
+- Re-ran the all-symbol saved-data stress audit after the tuning: `5075 -> 2035` simulated posts, `59.9%` reduction, and still-noisy symbols down from `14` to `9`.
+
+### 2026-05-01
+
+- Added a practical 5-minute market-structure state layer that derives range-bound, base-building, pressing-resistance, breakout-attempt, support-failing, clean-break, reclaim-attempt, and reclaim-holding context around existing levels.
+- Threaded practical structure state through monitoring events, trader-facing market-structure wording, post-policy materiality, replay simulation, Discord audit metadata, and trading-day evidence reports.
+- Same-level alert repeats can now be allowed when the practical structure truly changes, but suppressed when the ticker is still telling the same range/chop story.
+- Added an offline small-cap scenario simulator for closed-market validation. `npm run scenario:smallcap` now tests range chop, base-to-breakout, fake breakout, support-area loss, and reclaim-after-flush paths through the real monitor, alert engine, formatter, and live post policy.
+- Added broad all-symbol saved-data stress testing with `npm run stress:all-symbols`, which scans saved long-run Discord audit streams, dedupes identical files, aggregates all tickers, and ranks overposting, tight-range chop, runner cascades, missed-event candidates, and trader-language boundary hits.
+- Tightened small-cap same-area post budgets and replay parsing; the broad saved-data scorecard now replays `5075 -> 2323` posts across 57 saved symbols, with still-noisy symbols down to `15`.
+- Added thread story phase control so repeated same-area posts are suppressed when the ticker is still in the same practical phase. The latest broad saved-data scorecard now replays `5075 -> 2210` posts across 57 saved symbols, while CYCU in the latest high-activity saved session improves from `31 -> 7`.
+- Added post-budget labels to the all-symbol stress report so future reviews separate `excessive_chop` from `runner_review` instead of treating every higher-count thread as the same problem.
+- Reworked the first support/resistance post into a practical `Trade map` so traders see the range, breakout area, main support area, broader failure area, and short-term momentum support instead of only a raw ladder.
+- Added small-cap zone-aware wording so nearby penny-level supports are treated as one area when appropriate; a one-cent move should not be narrated as if the whole trade changed.
+- Tightened same-story alert suppression so repeated breakouts, breakdowns, and touches at the same level need a material trigger change, severity change, or score change before reaching Discord again.
+- Replay evidence on the latest high-activity saved session improved from `530 -> 286` balanced simulated posts, with CYCU improving from `31 -> 11`.
+- Added range-bound chop gating so repeated level-touch, support-loss, rejection, and compression stories inside the same tight price band are suppressed after the thread has already explained the area.
+- Made fast support/resistance bridge posts participate in the same alert-memory rules as normal intelligent alerts.
+- Tightened symbol recap posting so minor failed/stalled follow-through inside ordinary chop does not create extra recap posts.
+- Extended replay reporting with `optional_minor_recap` evidence so old saved sessions show which recap posts current rules would suppress.
+- Added explicit signal-category contracts and routing for current monitoring events and Discord message kinds.
+- Enforced live-Discord category surfaces in the alert filter, so `range_compression` remains operator/internal by default unless explicitly enabled.
+- Added signal-category metadata to alert payloads and Discord delivery audit rows, making category ownership auditable after a trading session.
+- Added regression coverage for category contracts, event/message routing, and category-surface live suppression.
 
 ### 2026-04-22
 
@@ -198,6 +298,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Use the replay simulator after every noisy session to estimate whether policy changes would have helped before changing live thresholds again.
 - Use `trading-day-evidence-report.md` after each trading day to verify critical Discord failures, role flips, cluster-cross narration, and trader-language boundaries with saved post excerpts.
 - When the evidence report shows cluster-cross candidates after this change, treat them as unresolved only if the saved posts lack grouped `crossedLevels` proof or still over-explain the same tight move.
+- Use `missed-meaningful-move-audit.md` after post-noise changes to verify that quieter posting did not hide candle-backed upside breaks, downside support losses, or large 5-minute expansions.
+- Use `session-behavior-audit.md` after closed-market tuning to review candle readiness, first-post quality, current-session behavior profile, thread balance, and runtime marker coverage before trusting a live-session conclusion.
 
 ### Detection and ranking improvements
 
@@ -279,3 +381,7 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 19. Expand the AI commentary layer carefully, starting with recap enhancement, per-thread summaries, and session summaries, before considering top-alert commentary.
 20. Use real support-test sessions to decide whether `watch_only` support should still get live continuity at all or whether more of that story belongs only in review artifacts until tradeability improves.
 21. Validate the current first-activation flow in live use and decide whether the next improvement should be stronger activation-failure visibility in the UI rather than more tolerance or more startup complexity.
+22. Validate the new quiet trader-context stack against saved and live sessions: small-cap volatility normalization should reduce penny-noise stories, data-quality gates should soften weak reads, and first-post trade-plan lines should improve the initial support/resistance post without creating new standalone Discord traffic.
+23. Validate the new trade-story state fields against saved sessions: weak probes inside active range boxes should decline, accepted breaks should still post, and end-of-thread recap plus visual replay reports should make noisy threads easier to diagnose without reading every Discord message manually.
+24. Pair every post-noise tightening pass with the missed meaningful move audit so the roadmap optimizes for fewer useless posts without suppressing trader-critical changes.
+25. Pair every session-level conclusion with candle-readiness and runtime-marker proof so old/stale data does not look like a current-code signal-quality finding.

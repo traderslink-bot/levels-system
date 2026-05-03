@@ -165,7 +165,7 @@ The final audit must clearly separate:
 - wording found in saved historical Discord posts
 - wording still present in current source / runtime formatters
 
-Do not allow a vague statement like “current source should already fix this” without at least one proof point.
+Do not allow a vague statement like "current source should already fix this" without at least one proof point.
 
 ---
 
@@ -259,13 +259,13 @@ Strengthen `src/tests/level-quality-audit.test.ts` with more edge cases for:
 - role-flip-sensitive ladders
 - tight clusters that should act like one zone
 - healthy-but-thin ladders where extra levels should not be invented
-- false “no resistance” or “no support” states caused by ranking
+- false "no resistance" or "no support" states caused by ranking
 
 ### 3E. Replay-language tests
 
 Strengthen `src/tests/trader-facing-replay-language.test.ts` so it catches:
 - too-certain clear/lost phrasing
-- overly predictive “next level” language
+- overly predictive "next level" language
 - lingering system/operator language in replay text
 - cluster-cross wording that sounds too noisy or fragmented
 

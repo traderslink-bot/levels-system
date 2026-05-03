@@ -7,9 +7,25 @@ import type {
   BarrierClutterLabel,
   BarrierClearanceLabel,
   MonitoringEvent,
+  MarketStructureType,
   PathQualityLabel,
+  PracticalTradeStructureState,
   ZoneExhaustionLabel,
 } from "../monitoring/monitoring-types.js";
+import type { CandleMarketStructureConfidence, CandleMarketStructureState } from "../structure/index.js";
+import type { VolumeActivityContext } from "../monitoring/volume-activity.js";
+import type { SignalCategoryKey } from "../signals/signal-category-config.js";
+import type { FirstPostTradePlanContext } from "../trader-context/index.js";
+import type {
+  AcceptanceContext,
+  BehaviorBudgetContext,
+  RangeBoxContext,
+  SupportImportanceContext,
+  TradeStoryState,
+} from "../monitoring/trade-story-intelligence.js";
+import type { PrimaryTradeAreaContext } from "../monitoring/primary-trade-area.js";
+import type { FailedLevelMemoryContext } from "../monitoring/failed-level-memory.js";
+import type { LevelImportanceLabel } from "../monitoring/level-importance.js";
 
 export type AlertSeverity = "low" | "medium" | "high" | "critical";
 
@@ -93,6 +109,22 @@ export type TraderSetupStateContext = {
   line: string;
 };
 
+export type TraderMarketStructureLabel =
+  | "bullish_building"
+  | "compression"
+  | "weakening"
+  | "repaired"
+  | "damaged";
+
+export type TraderMarketStructureContext = {
+  label: TraderMarketStructureLabel;
+  structureType?: MarketStructureType;
+  strength?: number;
+  line: string;
+};
+
+export type TraderVolumeActivityContext = VolumeActivityContext;
+
 export type TraderFailureRiskLabel =
   | "contained"
   | "watchful"
@@ -160,6 +192,9 @@ export type AlertPayload = {
     severity?: AlertSeverity;
     confidence?: AlertConfidence;
     score?: number;
+    signalCategory?: SignalCategoryKey;
+    signalCategoryLiveEnabled?: boolean;
+    supportingSignalCategories?: SignalCategoryKey[];
     postingFamily?: AlertPostingFamily;
     postingDecisionReason?: AlertPostingDecisionReason;
     clearanceLabel?: BarrierClearanceLabel;
@@ -180,6 +215,40 @@ export type AlertPayload = {
     dipBuyQualityLabel?: TraderDipBuyQualityLabel;
     exhaustionLabel?: TraderExhaustionLabel;
     setupStateLabel?: TraderSetupStateLabel;
+    marketStructureLabel?: TraderMarketStructureLabel;
+    marketStructureType?: MarketStructureType;
+    marketStructureStrength?: number;
+    practicalStructureState?: PracticalTradeStructureState;
+    practicalStructureKey?: string;
+    practicalZoneKey?: string;
+    practicalStructureMaterialChange?: boolean;
+    stableMarketStructureState?: CandleMarketStructureState;
+    stableMarketStructurePreviousState?: CandleMarketStructureState | null;
+    stableMarketStructureKey?: string;
+    stableMarketStructureMaterialChange?: boolean;
+    stableMarketStructureConfidence?: CandleMarketStructureConfidence["label"];
+    stableMarketStructureMaterialityScore?: number;
+    volumeActivityLabel?: VolumeActivityContext["label"];
+    volumeActivityReliability?: VolumeActivityContext["reliability"];
+    volumeActivityRatio?: number | null;
+    volumeActivityDirection?: VolumeActivityContext["direction"];
+    volumeActivityShown?: boolean;
+    volumeActivitySuppressedReason?: string;
+    tradeStoryState?: TradeStoryState;
+    rangeBoxLabel?: RangeBoxContext["label"];
+    rangeBoxWidthPct?: number | null;
+    acceptanceLabel?: AcceptanceContext["label"];
+    acceptanceBeyondZonePct?: number | null;
+    supportImportanceLabel?: SupportImportanceContext["label"];
+    behaviorBudgetLabel?: BehaviorBudgetContext["label"];
+    behaviorBudgetMaxUsefulPosts?: number;
+    primaryTradeAreaLocked?: boolean;
+    primaryTradeAreaEscapeSide?: PrimaryTradeAreaContext["escapeSide"];
+    primaryTradeAreaEscapeConfidence?: PrimaryTradeAreaContext["escapeConfidence"];
+    failedLevelOutcome?: FailedLevelMemoryContext["outcome"];
+    failedLevelFailureCount?: number;
+    levelImportanceLabel?: LevelImportanceLabel;
+    levelImportanceScore?: number;
     failureRiskLabel?: TraderFailureRiskLabel;
     tradeMapLabel?: TraderTradeMapLabel;
     riskPct?: number;
@@ -198,6 +267,10 @@ export type AlertPayload = {
     directionalReturnPct?: number | null;
     rawReturnPct?: number | null;
     repeatedOutcomeUpdate?: boolean;
+    whyPosted?: string;
+    postBudgetSymbolType?: string;
+    noLevelReason?: string;
+    needsFreshLevelCheck?: boolean;
     suppressEmbeds?: boolean;
   };
 };
@@ -288,6 +361,7 @@ export type LevelSnapshotPayload = {
   resistanceZones: LevelSnapshotDisplayZone[];
   timestamp: number;
   audit?: LevelSnapshotAudit;
+  tradePlan?: FirstPostTradePlanContext;
 };
 
 export type LevelExtensionPayload = {
@@ -319,6 +393,8 @@ export type IntelligentAlert = {
   dipBuyQuality?: TraderDipBuyQualityContext | null;
   exhaustion?: TraderExhaustionContext | null;
   setupState?: TraderSetupStateContext | null;
+  marketStructure?: TraderMarketStructureContext | null;
+  volumeActivity?: TraderVolumeActivityContext | null;
   failureRisk?: TraderFailureRiskContext | null;
   tradeMap?: TraderTradeMapContext | null;
   target?: TraderTargetContext | null;

@@ -1,5 +1,6 @@
 import type { FinalLevelZone } from "../levels/level-types.js";
 import type {
+  MarketStructureType,
   MonitoringEvent,
   MonitoringEventType,
   SymbolBias,
@@ -15,7 +16,7 @@ const COMPRESSION_INTERVAL_ACCELERATION_THRESHOLD = 0.9;
 const REJECTION_SETUP_THRESHOLD = 0.85;
 const RANGE_COMPRESSION_THRESHOLD = 0.18;
 
-type StructureType = "compression" | "breakout_setup" | "rejection_setup" | null;
+type StructureType = MarketStructureType | null;
 
 const EVENT_TYPE_DECAY_MS: Record<MonitoringEventType, number> = {
   breakout: 15 * 60 * 1000,

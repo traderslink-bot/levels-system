@@ -80,6 +80,18 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     </section>
 
     <section>
+      <h2>Provider Health</h2>
+      <div class="runtime-grid" id="provider-health-grid"></div>
+      <ul class="activity-list" id="restart-readiness-list"></ul>
+    </section>
+
+    <section>
+      <h2>Monday Live Review</h2>
+      <div class="runtime-grid" id="monday-review-grid"></div>
+      <ul class="activity-list" id="monday-review-list"></ul>
+    </section>
+
+    <section>
       <h2>Review Artifacts</h2>
       <div class="artifact-list" id="artifact-list"></div>
     </section>
@@ -101,6 +113,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const listEl = document.getElementById("active-list");
     const watchlistHealthEl = document.getElementById("watchlist-health");
     const runtimeGridEl = document.getElementById("runtime-grid");
+    const providerHealthGridEl = document.getElementById("provider-health-grid");
+    const restartReadinessListEl = document.getElementById("restart-readiness-list");
+    const mondayReviewGridEl = document.getElementById("monday-review-grid");
+    const mondayReviewListEl = document.getElementById("monday-review-list");
     const artifactListEl = document.getElementById("artifact-list");
     const configGridEl = document.getElementById("config-grid");
     const aiNoticeEl = document.getElementById("ai-notice");
@@ -128,6 +144,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     function lifecycleLabel(value) {
       return String(value || "unknown").replace(/_/g, " ");
+    }
+
+    function formatNumber(value) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        return "";
+      }
+      return value >= 1 ? value.toFixed(2) : value.toFixed(4);
     }
 
     function lifecycleBadgeClass(value) {
@@ -163,6 +186,15 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const lastPostText = formatTime(entry.lastLevelPostAt);
       const lastLiveText = formatTime(entry.lastPriceUpdateAt);
       const lastThreadPostText = formatTime(entry.lastThreadPostAt);
+      const lastStoryText = entry.lastTradeStoryState
+        ? lifecycleLabel(entry.lastTradeStoryState) + (entry.lastTradeStoryAt ? " at " + formatTime(entry.lastTradeStoryAt) : "")
+        : "";
+      const priceFreshness = entry.lastPriceUpdateAt
+        ? formatAge(Date.now() - entry.lastPriceUpdateAt)
+        : "";
+      const levelFreshness = entry.lastLevelPostAt
+        ? formatAge(Date.now() - entry.lastLevelPostAt)
+        : "";
 
       meta.className = "entry-main";
       header.className = "entry-title";
@@ -176,8 +208,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       );
       appendMetaValue(details, "last snapshot", lastPostText);
       appendMetaValue(details, "last price", lastLiveText);
+      appendMetaValue(details, "price", formatNumber(entry.lastPrice));
+      appendMetaValue(details, "price age", priceFreshness);
       appendMetaValue(details, "last post", lastThreadPostText);
       appendMetaValue(details, "post type", entry.lastThreadPostKind);
+      appendMetaValue(details, "story", lastStoryText);
+      appendMetaValue(details, "trigger", formatNumber(entry.lastTriggerPrice));
+      appendMetaValue(details, "levels age", levelFreshness);
       appendMetaValue(details, "note", entry.note);
 
       meta.appendChild(header);
@@ -250,6 +287,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     function renderRuntimeStatus(status) {
       runtimeGridEl.innerHTML = "";
       renderWatchlistHealth(status);
+      renderProviderHealth(status);
+      renderMondayReview(status);
 
       const health = status.runtimeHealth || {};
       const lastPrice = health.lastPriceUpdateAt
@@ -283,6 +322,154 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    function formatAge(value) {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      const seconds = Math.round(value / 1000);
+      if (seconds < 90) {
+        return seconds + "s ago";
+      }
+      const minutes = Math.round(seconds / 60);
+      if (minutes < 90) {
+        return minutes + "m ago";
+      }
+      return Math.round(minutes / 60) + "h ago";
+    }
+
+    function renderProviderHealth(status) {
+      const health = status.runtimeHealth?.providerHealth || {};
+      const seedStats = health.seedStats || {};
+      providerHealthGridEl.innerHTML = "";
+      restartReadinessListEl.innerHTML = "";
+      const notes = Array.isArray(health.notes) ? health.notes.join(" | ") : "";
+      const lastPrice =
+        health.lastPriceSymbol && health.lastPriceAgeMs !== null && health.lastPriceAgeMs !== undefined
+          ? health.lastPriceSymbol + " " + formatAge(health.lastPriceAgeMs)
+          : "";
+      const lastPost = health.lastPostAgeMs !== null && health.lastPostAgeMs !== undefined
+        ? formatAge(health.lastPostAgeMs)
+        : "";
+      const seedAverage = seedStats.averageDurationMs !== null && seedStats.averageDurationMs !== undefined
+        ? formatAge(seedStats.averageDurationMs).replace(" ago", "")
+        : "";
+      const lastSeed = seedStats.lastSymbol
+        ? seedStats.lastSymbol +
+          (seedStats.lastDurationMs !== null && seedStats.lastDurationMs !== undefined
+            ? " " + formatAge(seedStats.lastDurationMs).replace(" ago", "")
+            : "")
+        : "";
+      const cards = [
+        ["Price Feed", lifecycleLabel(health.priceFeedStatus || "waiting")],
+        ["Last Price Age", lastPrice],
+        ["Discord Delivery", lifecycleLabel(health.discordStatus || "waiting")],
+        ["Last Post Age", lastPost],
+        ["Historical Data", lifecycleLabel(health.historicalDataStatus || "waiting")],
+        ["Pending Seeds", String(health.pendingActivationCount || 0)],
+        ["Stuck Seeds", String(health.stuckActivationCount || 0)],
+        ["Seed Attempts", String(seedStats.attempts || 0)],
+        ["Seed Success / Fail", String(seedStats.successes || 0) + " / " + String(seedStats.failures || 0)],
+        ["Seed Timeouts", String(seedStats.timeouts || 0)],
+        ["Seeds In Flight", String(seedStats.inFlight || 0)],
+        ["Avg Seed Time", seedAverage],
+        ["Last Seed", lastSeed],
+        ["Notes", notes],
+      ];
+      for (const [label, value] of cards) {
+        providerHealthGridEl.appendChild(createRuntimeCard(label, value));
+      }
+
+      const readiness = Array.isArray(health.restartReadiness) ? health.restartReadiness.slice(0, 16) : [];
+      if (readiness.length === 0) {
+        const empty = document.createElement("li");
+        empty.textContent = "No active symbols to check for restart readiness";
+        restartReadinessListEl.appendChild(empty);
+        return;
+      }
+
+      for (const item of readiness) {
+        const row = document.createElement("li");
+        const body = document.createElement("div");
+        const detail = document.createElement("div");
+        const priceAge = item.lastPriceAgeMs !== null && item.lastPriceAgeMs !== undefined
+          ? " | price " + formatAge(item.lastPriceAgeMs)
+          : "";
+        const levelAge = item.lastLevelPostAgeMs !== null && item.lastLevelPostAgeMs !== undefined
+          ? " | levels " + formatAge(item.lastLevelPostAgeMs)
+          : "";
+        body.className = "activity-message";
+        body.textContent =
+          item.symbol +
+          ": levels " +
+          lifecycleLabel(item.levelStatus) +
+          " | price " +
+          lifecycleLabel(item.priceStatus) +
+          " | Discord " +
+          lifecycleLabel(item.discordStatus);
+        detail.className = "activity-detail";
+        detail.textContent = (item.reason || "readiness check") + priceAge + levelAge;
+        body.appendChild(detail);
+        row.appendChild(body);
+        restartReadinessListEl.appendChild(row);
+      }
+    }
+
+    function renderMondayReview(status) {
+      const review = status.runtimeHealth?.mondayReview || {};
+      mondayReviewGridEl.innerHTML = "";
+      mondayReviewListEl.innerHTML = "";
+
+      const cards = [
+        ["Post Budget", lifecycleLabel(review.postBudgetStatus || "calm")],
+        ["Posts 15m", String(review.postsLast15m || 0)],
+        ["Critical 15m", String(review.criticalPostsLast15m || 0)],
+        ["Optional 15m", String(review.optionalPostsLast15m || 0)],
+        ["Last Why Posted", review.lastWhyPosted || ""],
+      ];
+      for (const [label, value] of cards) {
+        mondayReviewGridEl.appendChild(createRuntimeCard(label, value));
+      }
+
+      const checklist = review.checklist || [];
+      const symbolBudgets = review.symbolBudgets || [];
+      for (const symbolBudget of symbolBudgets) {
+        const item = document.createElement("li");
+        const body = document.createElement("div");
+        const detail = document.createElement("div");
+        body.className = "activity-message";
+        body.textContent =
+          symbolBudget.symbol +
+          ": " +
+          lifecycleLabel(symbolBudget.status) +
+          " | posts 15m " +
+          symbolBudget.postsLast15m +
+          " | critical " +
+          symbolBudget.criticalPostsLast15m +
+          " | optional " +
+          symbolBudget.optionalPostsLast15m;
+        detail.className = "activity-detail";
+        detail.textContent = "symbol post budget";
+        body.appendChild(detail);
+        item.appendChild(body);
+        mondayReviewListEl.appendChild(item);
+      }
+
+      if (checklist.length === 0) {
+        const empty = document.createElement("li");
+        empty.textContent = "No live review checklist yet";
+        mondayReviewListEl.appendChild(empty);
+        return;
+      }
+      for (const itemText of checklist) {
+        const item = document.createElement("li");
+        const body = document.createElement("div");
+        body.className = "activity-message";
+        body.textContent = itemText;
+        item.appendChild(body);
+        mondayReviewListEl.appendChild(item);
+      }
+    }
+
     function renderRuntimeConfig(status) {
       const config = status.runtimeConfig || {};
       const health = status.runtimeHealth || {};
@@ -303,6 +490,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Historical Provider", config.historicalProvider],
         ["Live Provider", config.liveProvider],
         ["IBKR Timeout", config.ibkrHistoricalTimeoutMs ? config.ibkrHistoricalTimeoutMs + "ms" : ""],
+        ["Candle Cache", config.candleCacheMode],
+        ["Runtime Candle Cache", config.runtimeCandleCacheMode],
+        ["Startup Cache", config.startupCandleCacheEnabled ? "enabled" : "disabled"],
+        ["Candle Cache Dir", config.candleCacheDirectoryPath],
         ["Diagnostics Requested", config.monitoringDiagnosticsRequested ? "yes" : "no"],
         ["AI Requested", config.aiCommentaryRequested ? "yes" : "no"],
         ["AI Service", config.aiCommentaryServiceAvailable ? "available" : "unavailable"],
@@ -354,6 +545,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         meta.textContent = artifact.exists
           ? [formatBytes(artifact.sizeBytes), artifact.updatedAt ? "updated " + formatTime(artifact.updatedAt) : ""].filter(Boolean).join(" | ")
           : "not generated yet";
+        if (artifact.readError) {
+          meta.textContent = "temporarily unavailable";
+        }
         head.appendChild(title);
         head.appendChild(createBadge(artifact.exists ? "ready" : "missing", artifact.exists ? "badge badge-active" : "badge"));
         card.appendChild(head);
@@ -364,6 +558,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           preview.className = "artifact-preview";
           preview.textContent = artifact.preview;
           card.appendChild(preview);
+        }
+
+        if (artifact.readError) {
+          const notice = document.createElement("div");
+          notice.className = "notice";
+          notice.textContent = "This review file is locked right now. Refresh again in a moment.";
+          card.appendChild(notice);
         }
 
         artifactListEl.appendChild(card);

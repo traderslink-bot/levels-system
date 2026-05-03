@@ -96,6 +96,7 @@ const DEFAULT_SUMMARY_INTERVAL = 10;
 const DEFAULT_SUCCESS_THRESHOLD_PCT = 0.3;
 const DEFAULT_EARLY_EXIT_THRESHOLD_PCT = 0.3;
 const DEFAULT_ROLLING_WINDOW_SIZE = 20;
+const LEVEL_TOUCH_FAILURE_THRESHOLD_PCT = -2.0;
 
 function clamp(value: number, min: number = 0, max: number = 1): number {
   return Math.max(min, Math.min(max, value));
@@ -112,6 +113,10 @@ function resolveOpportunityEventType(opportunity: RankedOpportunity): string {
 
 function isBullishType(type: string): boolean {
   return type === "breakout" || type === "reclaim" || type === "fake_breakdown";
+}
+
+function isLongFavorableType(type: string): boolean {
+  return isBullishType(type) || type === "level_touch";
 }
 
 function isBearishType(type: string): boolean {
@@ -135,7 +140,7 @@ function directionalReturnPct(eventType: string, returnPct: number): number | nu
     return null;
   }
 
-  if (isBullishType(eventType)) {
+  if (isLongFavorableType(eventType)) {
     return returnPct;
   }
 
@@ -164,6 +169,10 @@ function deriveFollowThroughLabel(
     return "working";
   }
 
+  if (eventType === "level_touch" && directional >= LEVEL_TOUCH_FAILURE_THRESHOLD_PCT) {
+    return "stalled";
+  }
+
   if (directional >= -0.2) {
     return "stalled";
   }
@@ -183,8 +192,10 @@ function deriveProgressLabel(
 
   const priorBest = bestDirectionalReturnPct ?? directional;
   const retraceFromBest = priorBest - directional;
+  const failureThreshold =
+    eventType === "level_touch" ? LEVEL_TOUCH_FAILURE_THRESHOLD_PCT : -0.25;
 
-  if (directional <= -0.25 || (priorBest >= 0.35 && retraceFromBest >= 0.75)) {
+  if (directional <= failureThreshold || (priorBest >= 0.35 && retraceFromBest >= 0.75)) {
     return "degrading";
   }
 
@@ -209,7 +220,7 @@ function determineSuccessWithThreshold(
 ): boolean {
   const eventType = resolveOpportunityEventType(opportunity);
 
-  if (isBullishType(eventType)) {
+  if (isLongFavorableType(eventType)) {
     return returnPct >= successThresholdPct;
   }
 
@@ -227,7 +238,7 @@ function shouldExitEarly(
 ): boolean {
   const eventType = resolveOpportunityEventType(opportunity);
 
-  if (isBullishType(eventType)) {
+  if (isLongFavorableType(eventType)) {
     return returnPct >= exitThresholdPct || returnPct <= -exitThresholdPct;
   }
 
@@ -245,7 +256,7 @@ function approximateDrawdownPct(pending: PendingOpportunity): number {
 
   const eventType = resolveOpportunityEventType(pending.opportunity);
 
-  if (isBullishType(eventType)) {
+  if (isLongFavorableType(eventType)) {
     return ((pending.troughPrice - pending.entryPrice) / pending.entryPrice) * 100;
   }
 

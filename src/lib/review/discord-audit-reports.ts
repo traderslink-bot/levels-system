@@ -31,12 +31,33 @@ type AuditEntry = {
   clusterLow?: number;
   clusterHigh?: number;
   clusteredLevelClear?: boolean;
+  deliveryLagMs?: number;
+  sendDurationMs?: number;
   retryAttempt?: number;
   retryOf?: number;
   retryReason?: string;
   directionalReturnPct?: number | null;
   rawReturnPct?: number | null;
   repeatedOutcomeUpdate?: boolean;
+  whyPosted?: string;
+  postBudgetSymbolType?: string;
+  noLevelReason?: string;
+  practicalStructureState?: string;
+  practicalStructureKey?: string;
+  practicalZoneKey?: string;
+  practicalStructureMaterialChange?: boolean;
+  stableMarketStructureState?: string;
+  stableMarketStructurePreviousState?: string | null;
+  stableMarketStructureKey?: string;
+  stableMarketStructureMaterialChange?: boolean;
+  stableMarketStructureConfidence?: string;
+  stableMarketStructureMaterialityScore?: number;
+  volumeActivityLabel?: string;
+  volumeActivityReliability?: string;
+  volumeActivityRatio?: number | null;
+  volumeActivityDirection?: string;
+  volumeActivityShown?: boolean;
+  volumeActivitySuppressedReason?: string;
   error?: string;
   errorMessage?: string;
   snapshotAudit?: {
@@ -178,6 +199,17 @@ export type TradingDayEvidenceReport = {
     error?: string;
     excerpt: string;
   }>;
+  staleCriticalDeliveries: Array<{
+    symbol: string;
+    timestamp: number;
+    title?: string;
+    messageKind?: string;
+    eventType?: string;
+    deliveryLagMs: number;
+    sendDurationMs?: number;
+    severity: AuditFindingSeverity;
+    excerpt: string;
+  }>;
   roleFlipCandidates: Array<{
     symbol: string;
     timestamp: number;
@@ -204,6 +236,34 @@ export type TradingDayEvidenceReport = {
     goodExamples: Array<TraderLanguageEvidenceExample>;
     badHistoricalExamples: Array<TraderLanguageEvidenceExample>;
     borderlineAdviceExamples: Array<TraderLanguageEvidenceExample>;
+  };
+  volumeActivityEvidence: {
+    reliableSymbols: string[];
+    unreliableSymbols: string[];
+    shownExamples: Array<TraderLanguageEvidenceExample>;
+    suppressedExamples: Array<TraderLanguageEvidenceExample>;
+  };
+  practicalStructureEvidence: {
+    statesBySymbol: Array<{
+      symbol: string;
+      postCount: number;
+      states: Record<string, number>;
+      practicalZones: string[];
+      materialChanges: number;
+    }>;
+    rangeBoundExamples: Array<TraderLanguageEvidenceExample>;
+    materialChangeExamples: Array<TraderLanguageEvidenceExample>;
+  };
+  stableMarketStructureEvidence: {
+    statesBySymbol: Array<{
+      symbol: string;
+      postCount: number;
+      states: Record<string, number>;
+      structureKeys: string[];
+      materialChanges: number;
+    }>;
+    rangeBoundExamples: Array<TraderLanguageEvidenceExample>;
+    materialChangeExamples: Array<TraderLanguageEvidenceExample>;
   };
 };
 
@@ -232,6 +292,9 @@ const DIRECT_ADVICE_LANGUAGE =
 
 const GOOD_TRADER_LANGUAGE =
   /\b(?:buyers need acceptance|holding (?:above|this)|reclaim(?:ing)?|risk stays|support|resistance|setup cleaner|price is testing)\b/i;
+
+const STALE_TRADER_CRITICAL_DELIVERY_MS = 2 * 60 * 1000;
+const BLOCKER_TRADER_CRITICAL_DELIVERY_MS = 5 * 60 * 1000;
 
 function readJsonLines(path: string): AuditEntry[] {
   const text = readFileSync(path, "utf8");
@@ -624,9 +687,181 @@ export function buildTradingDayEvidenceReport(auditPath: string): TradingDayEvid
     sourceAuditPath: auditPath,
     severityRubric: SEVERITY_RUBRIC,
     criticalDeliveryFailures: buildCriticalDeliveryFailures(entries),
+    staleCriticalDeliveries: buildStaleCriticalDeliveries(entries),
     roleFlipCandidates: buildRoleFlipCandidates(entries),
     clusterCrossCandidates: buildClusterCrossCandidates(entries),
     traderLanguageEvidence: buildTraderLanguageEvidence(entries),
+    volumeActivityEvidence: buildVolumeActivityEvidence(entries),
+    practicalStructureEvidence: buildPracticalStructureEvidence(entries),
+    stableMarketStructureEvidence: buildStableMarketStructureEvidence(entries),
+  };
+}
+
+function buildPracticalStructureEvidence(
+  entries: AuditEntry[],
+): TradingDayEvidenceReport["practicalStructureEvidence"] {
+  const postedAlerts = entries.filter(
+    (entry) => entry.operation === "post_alert" && entry.status === "posted",
+  );
+  const bySymbol = new Map<string, {
+    symbol: string;
+    postCount: number;
+    states: Record<string, number>;
+    practicalZones: Set<string>;
+    materialChanges: number;
+  }>();
+  const rangeBoundExamples: TraderLanguageEvidenceExample[] = [];
+  const materialChangeExamples: TraderLanguageEvidenceExample[] = [];
+
+  for (const entry of postedAlerts) {
+    if (!entry.practicalStructureState) {
+      continue;
+    }
+
+    const symbol = symbolOf(entry);
+    const current = bySymbol.get(symbol) ?? {
+      symbol,
+      postCount: 0,
+      states: {},
+      practicalZones: new Set<string>(),
+      materialChanges: 0,
+    };
+    current.postCount += 1;
+    current.states[entry.practicalStructureState] = (current.states[entry.practicalStructureState] ?? 0) + 1;
+    if (entry.practicalZoneKey) {
+      current.practicalZones.add(entry.practicalZoneKey);
+    }
+    if (entry.practicalStructureMaterialChange) {
+      current.materialChanges += 1;
+      if (materialChangeExamples.length < 12) {
+        materialChangeExamples.push(languageExample(entry, "watch", "practical structure state changed materially"));
+      }
+    }
+    if (entry.practicalStructureState === "range_bound" && rangeBoundExamples.length < 12) {
+      rangeBoundExamples.push(languageExample(entry, "watch", "range-bound structure reached Discord"));
+    }
+    bySymbol.set(symbol, current);
+  }
+
+  return {
+    statesBySymbol: [...bySymbol.values()]
+      .map((item) => ({
+        symbol: item.symbol,
+        postCount: item.postCount,
+        states: item.states,
+        practicalZones: [...item.practicalZones].sort(),
+        materialChanges: item.materialChanges,
+      }))
+      .sort((left, right) => right.postCount - left.postCount || left.symbol.localeCompare(right.symbol)),
+    rangeBoundExamples,
+    materialChangeExamples,
+  };
+}
+
+function buildStableMarketStructureEvidence(
+  entries: AuditEntry[],
+): TradingDayEvidenceReport["stableMarketStructureEvidence"] {
+  const postedAlerts = entries.filter(
+    (entry) => entry.operation === "post_alert" && entry.status === "posted",
+  );
+  const bySymbol = new Map<string, {
+    symbol: string;
+    postCount: number;
+    states: Record<string, number>;
+    structureKeys: Set<string>;
+    materialChanges: number;
+  }>();
+  const rangeBoundExamples: TraderLanguageEvidenceExample[] = [];
+  const materialChangeExamples: TraderLanguageEvidenceExample[] = [];
+
+  for (const entry of postedAlerts) {
+    if (!entry.stableMarketStructureState) {
+      continue;
+    }
+
+    const symbol = symbolOf(entry);
+    const current = bySymbol.get(symbol) ?? {
+      symbol,
+      postCount: 0,
+      states: {},
+      structureKeys: new Set<string>(),
+      materialChanges: 0,
+    };
+    current.postCount += 1;
+    current.states[entry.stableMarketStructureState] =
+      (current.states[entry.stableMarketStructureState] ?? 0) + 1;
+    if (entry.stableMarketStructureKey) {
+      current.structureKeys.add(entry.stableMarketStructureKey);
+    }
+    if (entry.stableMarketStructureMaterialChange) {
+      current.materialChanges += 1;
+      if (materialChangeExamples.length < 12) {
+        materialChangeExamples.push(languageExample(entry, "watch", "stable 5m structure changed materially"));
+      }
+    }
+    if (entry.stableMarketStructureState === "range_bound" && rangeBoundExamples.length < 12) {
+      rangeBoundExamples.push(languageExample(entry, "watch", "stable 5m range-bound structure reached Discord"));
+    }
+    bySymbol.set(symbol, current);
+  }
+
+  return {
+    statesBySymbol: [...bySymbol.values()]
+      .map((item) => ({
+        symbol: item.symbol,
+        postCount: item.postCount,
+        states: item.states,
+        structureKeys: [...item.structureKeys].sort(),
+        materialChanges: item.materialChanges,
+      }))
+      .sort((left, right) => right.postCount - left.postCount || left.symbol.localeCompare(right.symbol)),
+    rangeBoundExamples,
+    materialChangeExamples,
+  };
+}
+
+function buildVolumeActivityEvidence(
+  entries: AuditEntry[],
+): TradingDayEvidenceReport["volumeActivityEvidence"] {
+  const postedAlerts = entries.filter(
+    (entry) => entry.operation === "post_alert" && entry.status === "posted",
+  );
+  const reliableSymbols = new Set<string>();
+  const unreliableSymbols = new Set<string>();
+  const shownExamples: TraderLanguageEvidenceExample[] = [];
+  const suppressedExamples: TraderLanguageEvidenceExample[] = [];
+
+  for (const entry of postedAlerts) {
+    const symbol = symbolOf(entry);
+    if (entry.volumeActivityReliability === "reliable") {
+      reliableSymbols.add(symbol);
+    }
+    if (entry.volumeActivityReliability === "unreliable") {
+      unreliableSymbols.add(symbol);
+    }
+
+    if (entry.volumeActivityShown && shownExamples.length < 12) {
+      shownExamples.push(languageExample(entry, "watch", "reliable volume/activity enriched the post"));
+    } else if (
+      !entry.volumeActivityShown &&
+      entry.volumeActivitySuppressedReason &&
+      suppressedExamples.length < 12
+    ) {
+      suppressedExamples.push(
+        languageExample(
+          entry,
+          entry.volumeActivityReliability === "unreliable" ? "data_quality_only" : "watch",
+          `volume/activity omitted: ${entry.volumeActivitySuppressedReason}`,
+        ),
+      );
+    }
+  }
+
+  return {
+    reliableSymbols: [...reliableSymbols].sort(),
+    unreliableSymbols: [...unreliableSymbols].sort(),
+    shownExamples,
+    suppressedExamples,
   };
 }
 
@@ -677,6 +912,38 @@ function buildCriticalDeliveryFailures(
       excerpt: excerptFor(failure),
     };
   });
+}
+
+function buildStaleCriticalDeliveries(
+  entries: AuditEntry[],
+): TradingDayEvidenceReport["staleCriticalDeliveries"] {
+  return entries
+    .filter((entry) => {
+      if (entry.operation !== "post_alert" || entry.status !== "posted") {
+        return false;
+      }
+      const outputClass = classifyLiveThreadMessage(messageKindOf(entry));
+      return outputClass === "trader_critical" &&
+        typeof entry.deliveryLagMs === "number" &&
+        entry.deliveryLagMs >= STALE_TRADER_CRITICAL_DELIVERY_MS;
+    })
+    .map((entry) => {
+      const deliveryLagMs = entry.deliveryLagMs ?? 0;
+      const severity: AuditFindingSeverity =
+        deliveryLagMs >= BLOCKER_TRADER_CRITICAL_DELIVERY_MS ? "major" : "watch";
+      return {
+        symbol: symbolOf(entry),
+        timestamp: entry.timestamp ?? 0,
+        title: entry.title,
+        messageKind: messageKindOf(entry),
+        eventType: entry.eventType,
+        deliveryLagMs,
+        sendDurationMs: entry.sendDurationMs,
+        severity,
+        excerpt: excerptFor(entry),
+      };
+    })
+    .sort((left, right) => right.deliveryLagMs - left.deliveryLagMs);
 }
 
 function isEquivalentAlert(failed: AuditEntry, posted: AuditEntry): boolean {
@@ -1112,6 +1379,25 @@ export function formatTradingDayEvidenceMarkdown(report: TradingDayEvidenceRepor
     }
   }
 
+  lines.push("## Stale Critical Deliveries", "");
+  if (report.staleCriticalDeliveries.length === 0) {
+    lines.push("- No trader-critical `post_alert` rows were delivered after the stale threshold.", "");
+  } else {
+    for (const item of report.staleCriticalDeliveries.slice(0, 25)) {
+      lines.push(
+        `### ${item.symbol} - ${item.title ?? "untitled"}`,
+        "",
+        `- severity: \`${item.severity}\``,
+        `- time: ${formatTimestamp(item.timestamp)}`,
+        `- kind: ${item.messageKind ?? "unknown"} / ${item.eventType ?? "unknown"}`,
+        `- delivery lag: ${Math.round(item.deliveryLagMs / 1000)}s`,
+        `- send duration: ${typeof item.sendDurationMs === "number" ? `${Math.round(item.sendDurationMs / 1000)}s` : "n/a"}`,
+        `- excerpt: ${item.excerpt}`,
+        "",
+      );
+    }
+  }
+
   lines.push("## Role-Flip Candidates", "");
   if (report.roleFlipCandidates.length === 0) {
     lines.push("- No role-flip candidates were found.", "");
@@ -1156,6 +1442,51 @@ export function formatTradingDayEvidenceMarkdown(report: TradingDayEvidenceRepor
   appendLanguageExamples(lines, "Good Trader-Facing Examples", report.traderLanguageEvidence.goodExamples);
   appendLanguageExamples(lines, "Bad Historical/System-Shaped Examples", report.traderLanguageEvidence.badHistoricalExamples);
   appendLanguageExamples(lines, "Borderline Advisory Examples", report.traderLanguageEvidence.borderlineAdviceExamples);
+
+  lines.push("## Volume / Activity Evidence", "");
+  lines.push(
+    `- reliable symbols: ${report.volumeActivityEvidence.reliableSymbols.join(", ") || "none"}`,
+    `- unreliable symbols: ${report.volumeActivityEvidence.unreliableSymbols.join(", ") || "none"}`,
+    "",
+  );
+  appendLanguageExamples(lines, "Volume Activity Shown", report.volumeActivityEvidence.shownExamples);
+  appendLanguageExamples(lines, "Volume Activity Suppressed", report.volumeActivityEvidence.suppressedExamples);
+
+  lines.push("## Practical Structure Evidence", "");
+  if (report.practicalStructureEvidence.statesBySymbol.length === 0) {
+    lines.push("- No practical structure metadata was found in posted alert rows.", "");
+  } else {
+    for (const item of report.practicalStructureEvidence.statesBySymbol.slice(0, 20)) {
+      const stateSummary = Object.entries(item.states)
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([state, count]) => `${state}: ${count}`)
+        .join(", ");
+      lines.push(
+        `- ${item.symbol}: ${item.postCount} posts | material changes ${item.materialChanges} | states ${stateSummary || "none"} | zones ${item.practicalZones.slice(0, 4).join("; ") || "none"}`,
+      );
+    }
+    lines.push("");
+  }
+  appendLanguageExamples(lines, "Range-Bound Structure Examples", report.practicalStructureEvidence.rangeBoundExamples);
+  appendLanguageExamples(lines, "Material Structure Change Examples", report.practicalStructureEvidence.materialChangeExamples);
+
+  lines.push("## Stable 5m Market Structure Evidence", "");
+  if (report.stableMarketStructureEvidence.statesBySymbol.length === 0) {
+    lines.push("- No stable 5m market-structure metadata was found in posted alert rows.", "");
+  } else {
+    for (const item of report.stableMarketStructureEvidence.statesBySymbol.slice(0, 20)) {
+      const stateSummary = Object.entries(item.states)
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([state, count]) => `${state}: ${count}`)
+        .join(", ");
+      lines.push(
+        `- ${item.symbol}: ${item.postCount} posts | material changes ${item.materialChanges} | stable states ${stateSummary || "none"} | keys ${item.structureKeys.slice(0, 4).join("; ") || "none"}`,
+      );
+    }
+    lines.push("");
+  }
+  appendLanguageExamples(lines, "Stable Range-Bound Examples", report.stableMarketStructureEvidence.rangeBoundExamples);
+  appendLanguageExamples(lines, "Stable Material Structure Change Examples", report.stableMarketStructureEvidence.materialChangeExamples);
 
   return lines.join("\n");
 }
@@ -1216,6 +1547,12 @@ export function defaultReportPaths(sessionDirectory: string): {
   runnerStoryMarkdownPath: string;
   evidenceJsonPath: string;
   evidenceMarkdownPath: string;
+  traderPostQualityJsonPath: string;
+  traderPostQualityMarkdownPath: string;
+  postReasonAuditJsonPath: string;
+  postReasonAuditMarkdownPath: string;
+  knownBadPostPatternsJsonPath: string;
+  knownBadPostPatternsMarkdownPath: string;
 } {
   return {
     auditPath: join(sessionDirectory, "discord-delivery-audit.jsonl"),
@@ -1233,5 +1570,11 @@ export function defaultReportPaths(sessionDirectory: string): {
     runnerStoryMarkdownPath: join(sessionDirectory, "runner-story-report.md"),
     evidenceJsonPath: join(sessionDirectory, "trading-day-evidence-report.json"),
     evidenceMarkdownPath: join(sessionDirectory, "trading-day-evidence-report.md"),
+    traderPostQualityJsonPath: join(sessionDirectory, "trader-post-quality-report.json"),
+    traderPostQualityMarkdownPath: join(sessionDirectory, "trader-post-quality-report.md"),
+    postReasonAuditJsonPath: join(sessionDirectory, "post-reason-audit.json"),
+    postReasonAuditMarkdownPath: join(sessionDirectory, "post-reason-audit.md"),
+    knownBadPostPatternsJsonPath: join(sessionDirectory, "known-bad-post-patterns.json"),
+    knownBadPostPatternsMarkdownPath: join(sessionDirectory, "known-bad-post-patterns.md"),
   };
 }

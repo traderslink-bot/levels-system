@@ -72,6 +72,50 @@ Review these outputs:
 - `artifacts\live-post-replay-simulation.md`
 - `artifacts\long-run-tuning-suggestions.md`
 
+For broad post-frequency work, also run:
+
+```powershell
+npm run stress:all-symbols
+```
+
+Review `artifacts\all-symbol-stress\all-symbol-stress-report.md`, especially `Post-Budget Attention` and `Noisy-Symbol Regression Pack`. The regression pack is the default evidence set for post-noise changes because it selects the highest-risk saved symbols and target sessions automatically.
+
+Also run the trader post quality grader for the session being audited:
+
+```powershell
+npm run quality:posts -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+```
+
+Review `trader-post-quality-report.md` before calling a thread trader-ready. Blocker or major findings mean the Discord-visible wording still contains direct advice, system-shaped labels, over-certain phrasing, small-cap-naive risk language, missing-level claims, or repeated-story overlap that needs explanation or a code fix.
+
+Run the thread health and lifecycle reports too:
+
+```powershell
+npm run audit:thread-health -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run audit:lifecycle -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run audit:visual-replay -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run audit:missed-moves -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run audit:session-behavior -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+```
+
+Review:
+
+- `thread-health-score.md` for repeated adjacent stories, weak probes, delivery failures, missing next-level context, and high post-count flags.
+- `trade-lifecycle-summary.md` for the ticker-level story: range-bound, breakout-working, breakout-failed, support-damaged, extended-runner, or insufficient-data.
+- `visual-audit-replay.html` for the symbol index and issue flags around weak probes, locked-area posts, missing next-level context, and minor-level posts.
+- `missed-meaningful-move-audit.md` for candle-backed 5-minute move candidates that were covered, weakly covered, or missed by saved Discord posts.
+- `session-behavior-audit.md` for candle readiness, first-post trade-map score, thread balance, current-session behavior profile, candle/post timeline samples, and runtime marker coverage.
+
+Also review `thread-story suppressions` in the stress report. A healthy noise-control pass should prove whether repeated posts were suppressed by:
+
+- same-story alert gates
+- range-bound chop gates
+- structure budgets
+- thread-story phase churn gates
+- optional recap/follow-through gates
+
+If `thread-story suppressions` is low while a symbol is still noisy, inspect whether the saved rows are old and missing practical/stable structure metadata. Do not assume the phase model failed until you check whether current runtime rows include `practicalStructureState`, `practicalZoneKey`, `stableMarketStructureState`, and `stableMarketStructureMaterialChange`.
+
 ## Severity Rubric
 
 Every final audit finding should use one of these severity labels:
@@ -97,6 +141,11 @@ For each ticker, record:
 - whether the thread clearly showed what needed to hold, reclaim, or clear
 - whether the post sequence overexplained a choppy move
 - whether the post sequence underexplained a fast move
+- whether `missed-meaningful-move-audit.md` shows weak or missed coverage after a quiet-posting change
+- whether repeated posts were the same thread story in a different micro-phase, such as pressure -> early breakout -> pressure again inside the same practical area
+- whether the symbol stayed inside one primary trade area and should have remained quiet until the area actually escaped
+- whether weak probes above resistance or below support were treated as tests instead of cleanly cleared/lost levels
+- whether the first post correctly ranked main support/resistance ahead of minor nearby levels
 
 The trader-story audit should be done even when the level-quality audit is healthy. Good levels can still produce a confusing thread if the posts arrive in the wrong order, repeat too often, or describe the move too confidently.
 
@@ -127,6 +176,8 @@ For each active ticker, inspect:
 - any remaining system-shaped labels
 - crossed-resistance / crossed-support posts that mention a next level only in prose, but do not show it clearly in the trader-facing level section
 - posts where the current hold/reclaim level is skipped and the risk line jumps straight to a much farther support/resistance
+- missed-event candidates where the audit may be wrong because price only touched the lower edge of a wider resistance zone, the upper edge was not cleared, or the level was already covered by an earlier cluster-cross post
+- missed-event candidates created by future posts leaking backward into the timeline; a level should only be audited as "known" after it appeared in a saved snapshot, alert, or crossed-level post
 - posts generated before the latest restart that may not represent current repo code
 
 High-priority language failures:
@@ -154,10 +205,39 @@ When reviewing posts, ask:
 - Would a new trader understand this?
 - Does it explain what price is testing now?
 - Does it clearly say what level needs to hold or reclaim without giving direct advice?
+- For small-cap and microcap tickers, is the message treating a practical support/resistance area as the story, or is it overreacting to one-cent and two-cent wiggles?
 - Does it distinguish support from resistance correctly after a level is lost or reclaimed?
 - Does it repeat the same story too many times?
 - Does it say `next level` in a way that sounds predictive?
 - Does the AI read add value, or does it restate the same alert?
+- Does any risk wording describe actual downside/extension risk, or is it really describing setup quality, crowding, chop, or degraded data? If the evidence is mostly crowded/tight/inner/degraded structure, trader-facing text should say the setup is fragile or messy, not that `risk is high`.
+- For range-bound symbols, count the whole thread, not only alert posts. A ticker stuck inside a tight band should not keep posting level touch, support-loss, follow-through, bridge, and recap variations unless price expands, reclaims, loses a structurally meaningful area, or volume/activity materially changes the read.
+- For low-priced range-bound symbols, check whether the current policy compressed repeated touch/break/reclaim/rejection chatter inside the same boxed area. The first meaningful event family can still post, but repeated same-family flicker should usually show as `range_bound_chop`, `same_story_not_material`, or `structure_budget` in replay.
+- For low-priced symbols, treat one-cent or tiny-percentage `risk opens toward...` / `risk stays open toward...` wording as a major wording failure unless the level is part of a broader support area and the post explains that broader area clearly.
+- Check `levelImportanceLabel`, `primaryTradeAreaLocked`, `primaryTradeAreaEscapeConfidence`, and `failedLevelOutcome` in audit rows when available. These fields should explain whether a post was a major decision, a range repeat, a weak probe, or a cleaner accepted expansion.
+- If `primaryTradeAreaLocked=true` and the post is only a weak probe/testing read, require proof that it added a new trader story. Otherwise classify it as noisy or already fixed by current policy.
+- If `failedLevelOutcome=probe_only` or `testing`, trader-facing language should not sound like the level was cleanly cleared or cleanly lost.
+- If a post says no higher resistance or no lower support is available, verify the snapshot ladder, extension ladder, and candle-backed level audit. If levels existed but were not surfaced, classify the finding as `major`; if the cache lacked enough history, classify it as `data_quality_only`.
+- Check whether fast `support crossed lower` / `resistance crossed` bridge posts are adding a new level story or just narrating tiny back-and-forth crosses inside the same cluster.
+- Check whether symbol recaps are summarizing a real change or merely restating a minor failed/stalled follow-through move. Minor chop recaps should be treated as noise.
+- Check whether a repeated same-level breakout, breakdown, level-touch, reclaim, or rejection post is materially different from the last one. If the trigger price, severity, score, and level area are essentially unchanged, it should usually be suppressed.
+- Check whether a low-priced ticker is only flickering a cent or two inside the same practical area. Current policy should group that as the same story unless price expands, score/severity escalates, or the practical structure state actually changes.
+- For $5-$10 small caps, check whether failed follow-through posts are reacting to a normal 1-2% wobble. A small move should not be framed as a clean failed setup unless the larger support/resistance story also changed.
+- Check whether `support crossed lower` / `resistance crossed` bridge posts are participating in the same story memory as intelligent alerts. A bridge post should not reset the thread into a fresh story unless it crosses a truly new level or cluster.
+- Check the first support/resistance post for a practical trade map:
+  - main support area
+  - breakout area
+  - next resistance above the breakout area
+  - broader support if the whole support area fails cleanly
+  - short-term momentum support when recent 5-minute/intraday structure is available
+- Check practical structure metadata in `trading-day-evidence-report.md`:
+  - `range_bound` should not keep repeating unless price expands from the area
+  - `pressing_resistance` should appear only when repeated tests are actually building pressure
+  - `support_failing` should not be treated the same as `structure_broken`
+  - `reclaim_attempt` and `reclaim_holding` should explain repair/hold context without direct buy instructions
+  - a repeated same-level post should have a practical state change, practical zone change, severity/score escalation, or real trigger expansion
+- For runner symbols, compare the daily/4h ladder with recent 5-minute structure. A fast 30-50% move can fail against a recent intraday base or higher-low area even when the daily ladder still looks wide.
+- Treat `If 1.01 fails, risk opens toward 1.00` style wording as a major language problem on low-priced small caps. The audit should prefer whole-area language such as `if the support area keeps failing cleanly, broader support is...`.
 
 Historical-post versus current-code proof rule:
 
@@ -312,10 +392,12 @@ Specific patterns to catch:
 - The app says there is no resistance when older daily candles show clear overhead levels.
 - A post says resistance/support was crossed but does not include a clear `Key levels` style section for the crossed level and the next level above/below.
 - A post says risk opens toward a far support while skipping the crossed resistance that should first act as the hold/reclaim area.
+- A post says `risk is high` when the underlying reasons are crowded trigger, tight room, dense barriers, degraded data, or inner setup. Treat this as wording debt unless there is actual price-extension/downside evidence that makes the risk label trader-meaningful.
 
 When a post does not show a next resistance/support level, investigate before accepting it:
 
 - Check whether the latest snapshot ladder had a valid next level.
+- Check whether the latest snapshot displayed extension levels above/below the crossed level; fast crossed-level posts must not ignore extension levels that traders already saw in the snapshot.
 - Check whether the level-quality audit says the forward ladder was thin, missing, or extension-only.
 - Check whether a level existed in the full ladder but was filtered by display range, ranking, compaction, or stale runtime state.
 - Check whether the post was from an older app instance that had not loaded the latest formatter.
@@ -444,6 +526,28 @@ Check whether the thread answers:
 
 The thread should give useful context without telling traders what to do. Prefer language like `buyers need acceptance above 3.75` or `holding 3.20 keeps the setup cleaner` over direct instructions.
 
+## First Snapshot Trade-Map Audit
+
+The initial support/resistance post should read like a practical trade map, not a raw calculator output.
+
+Check whether the first snapshot answers:
+
+- where price is relative to the practical support area and practical resistance area
+- what resistance area matters above price without implying a guaranteed move toward it
+- what support area matters below price without treating a one-cent small-cap wiggle as a full trade failure
+- whether nearby penny-level supports were described as one practical area in the commentary when appropriate
+- whether the full ladder still preserves the underlying support/resistance levels even when the commentary groups them into an area
+
+For low-priced small caps, treat wording such as `If 1.02 fails, risk opens toward 1.00` as a major wording problem unless `1.00` is part of a broader meaningful support area and the text says that clearly. Prefer `Support that matters: major support 1.00-1.02 area` and `if the whole area fails cleanly, next broader support is...`.
+
+When reviewing saved data while the market is closed, regenerate the broad replay evidence:
+
+```powershell
+npm run stress:all-symbols
+```
+
+Use the `Broad Saved-Data Replay Pack` section to sample tight chop, runners, missed-event candidates, language-boundary risk, and high-activity watch symbols before claiming the first-post wording is broadly safe.
+
 ## Posting Frequency Audit
 
 Review every high-volume runner, especially symbols with more than 30 posts.
@@ -463,6 +567,36 @@ Use profile comparison:
 Get-Content artifacts\live-post-profile-comparison.md -TotalCount 160
 ```
 
+Use stable structure / Discord alignment when cached 5-minute candles exist:
+
+```powershell
+npm run structure:discord-align -- --limit all
+```
+
+This audit compares saved Discord posts with the stable 5-minute market-structure state near each post. Treat a high same-structure repeat count as evidence that the thread may be reacting to tiny level flickers instead of a meaningful trade-story change. This is especially important for low-priced small caps that move a cent or two inside the same range.
+
+When current audit rows include stable 5-minute structure metadata, also review the `Stable 5m Market Structure Evidence` section in the generated trading-day evidence report. It should show whether posted alerts were mostly repeating the same stable structure, whether material transitions were present, and whether range-bound states are reaching Discord too often.
+
+For every full audit after the 2026-05-02 stable-structure runtime bridge, check:
+
+- whether new `post_alert` rows include `stableMarketStructureState`
+- whether `stableMarketStructureMaterialChange` appears only on real structure shifts, not tiny same-range flicker
+- whether range/consolidation symbols show low material-change counts and low posted counts
+- whether runner symbols still post on real expansion, pivot loss, reclaim, or breakout-holding transitions
+- whether stable-state wobble without `stableMarketStructureMaterialChange=true` is being treated as a repeat, not a fresh story
+
+Closed-market regression requirement:
+
+```powershell
+npm run scenario:smallcap
+npx tsx --test src/tests/offline-small-cap-scenario-simulator.test.ts
+```
+
+The scenario pack must include both:
+
+- a boring consolidation path that proves many raw touches do not become many posts
+- a runner structure-change path that proves the policy still allows real breakout / reclaim / expansion stories
+
 Interpretation:
 
 - `quiet` is the lower-noise option.
@@ -476,6 +610,7 @@ If reducing noise, prefer:
 - burst-window caps
 - optional-post suppression after critical posts
 - stronger material-change thresholds
+- stable market-structure materiality as an additional suppression input after replay proof
 
 Do not hide real support/resistance levels just to reduce post count.
 
@@ -535,6 +670,7 @@ Good code-change candidates:
 - gap audit needs stronger coverage
 - post policy allowed repeated same-story bursts
 - formatter used unclear trader wording
+- risk/quality wording that makes a choppy or fragile setup sound like a high-probability downside call
 - AI validation allowed direct advice
 
 Poor code-change candidates:

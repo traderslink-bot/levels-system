@@ -2,6 +2,7 @@
 // Main phase 1 support and resistance engine orchestrator with refined clustering and scoring.
 
 import type { CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
+import { buildVolumeBaselineFromCandles } from "../monitoring/volume-activity.js";
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import { DEFAULT_LEVEL_ENGINE_CONFIG, type LevelEngineConfig } from "./level-config.js";
 import { clusterRawLevelCandidates } from "./level-clusterer.js";
@@ -150,6 +151,7 @@ export class LevelEngine {
       seriesMap["5m"].candles.at(-1)?.close ??
       seriesMap["4h"].candles.at(-1)?.close ??
       seriesMap.daily.candles.at(-1)?.close;
+    const fiveMinuteVolumeBaseline = buildVolumeBaselineFromCandles(seriesMap["5m"].candles);
 
     return {
       providerByTimeframe: {
@@ -160,6 +162,9 @@ export class LevelEngine {
       dataQualityFlags,
       freshness,
       referencePrice,
+      volumeBaselineByTimeframe: {
+        ...(fiveMinuteVolumeBaseline ? { "5m": fiveMinuteVolumeBaseline } : {}),
+      },
     };
   }
 

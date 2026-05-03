@@ -23,6 +23,135 @@ Use this workflow when you want to test things like:
 - long-session reliability
 - whether the app recovers cleanly after IBKR hiccups or restarts
 
+## When The Market Is Closed
+
+Use the offline small-cap scenario simulator when the market is closed or when there is not enough fresh live data to judge a post-noise change.
+
+Command:
+
+```powershell
+npm run scenario:smallcap
+npm run stress:all-symbols
+npm run quality:posts -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run structure:replay -- --max-files-per-symbol 2
+npm run structure:discord-align -- --limit all
+npm run engine:capabilities
+npm run candles:audit -- data/candles
+npm run candles:calibrate -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run candles:calibrate -- --all-sessions
+npm run candles:bulk-sim
+npm run candles:import-readiness -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run candles:backfill -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS --max-tasks 8
+npm run audit:execution-relations -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run candles:provider-compare -- --primary ibkr --comparison twelve_data
+npm run candles:regression-pack -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run replay:monday -- --skip-slow
+```
+
+This writes:
+
+- `artifacts/offline-scenarios/small-cap-scenario-simulation.json`
+- `artifacts/offline-scenarios/small-cap-scenario-simulation.md`
+
+The simulator uses deterministic small-cap paths for:
+
+- range chop between practical support and resistance
+- base building into resistance
+- fake breakout and return into range
+- full support-area loss
+- reclaim after a flush
+
+It runs those paths through the real monitor, alert intelligence engine, trader formatter, and live-thread post policy. Use it to prove that calmer posting rules suppress repeated same-zone noise without hiding real breakout, support-loss, or reclaim changes.
+
+`npm run replay:monday -- --skip-slow` is the one-command closed-market checklist for the next market-open prep pass. It runs the core build, broad saved-data replay, small-cap scenarios, saved-data regression, latest-session audit reports, post-quality grading, trader-usefulness replay scoring, daily trader review, missed meaningful move audit, session behavior/readiness audit, post-reason audit, known-bad pattern scan, and volume replay when a latest session is available. Use the full command without `--skip-slow` when you also want the slower structure replay and stable-structure / Discord alignment checks.
+
+`npm run engine:capabilities` writes `shared-engine-capabilities.json` / `.md` under `artifacts/shared-engine-capabilities`. Use it after shared candle-engine changes to confirm the public boundary, scripts, data dependencies, implemented capabilities, partial capabilities, and planned capabilities are visible in one place.
+
+`npm run candles:audit -- data/candles` writes `candle-warehouse-audit.json` / `.md` under `artifacts/candle-warehouse-audit`. Use it when durable candle warehouse rows exist to check provider/symbol/timeframe groups, duplicate timestamps, invalid OHLC rows, zero-volume rows, and warehouse health.
+
+`npm run candles:calibrate -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-intelligence-calibration.json` / `.md`. Use it after a long-run session to compare saved Discord posts with cached daily / `4h` / `5m` candle evidence and classify `referenceLevels`, `gapStructure`, and `executionRelations` as trusted, watch, experimental, or broken.
+
+`npm run candles:calibrate -- --all-sessions` scans every saved long-run Discord audit file under `artifacts/long-run`. Use this when checking whether a candle-engine change holds across the full evidence set instead of only the latest session.
+
+`npm run candles:bulk-sim` writes `bulk-candle-import-simulation.json` / `.md`. Use it to model months-style imported trade pressure and verify that repeated same-symbol/session/timeframe requests are deduped before any provider fetch.
+
+`npm run candles:import-readiness -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-import-readiness.json` / `.md`. Use it to estimate how much candle data the durable warehouse can already reuse for a saved session and what provider/symbol/session/timeframe ranges still need backfill.
+
+`npm run candles:backfill -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-warehouse-backfill.json` / `.md`. It defaults to dry-run and should be used first with `--max-tasks`. Add `--execute` only when you intentionally want provider calls and durable warehouse writes. Use `--concurrency` and `--throttle-ms` to keep IBKR or future providers protected.
+
+`npm run audit:execution-relations -- <session-folder-or-discord-delivery-audit.jsonl>` writes `execution-relation-replay.json` / `.md`. Use it when a saved post is missing next-level context, sounds too vague, or claims no forward level. The report rebuilds support/resistance from cached candles at the saved timestamp and shows whether relation facts were available or blocked by missing candle evidence.
+
+`npm run candles:provider-compare -- --primary ibkr --comparison twelve_data` writes `provider-comparison-readiness.json` / `.md`. Use it before changing data providers to compare cached coverage, latest close drift, VWAP/EMA drift, and basic support/resistance count drift.
+
+`npm run candles:regression-pack -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-intelligence-regression-pack.json` / `.md`. Use it to turn weak first snapshots, useful/hidden volume examples, missing relation evidence, and missing-forward-resistance candidates into reusable cases for future code changes.
+
+`npm run discord:preflight` is the non-destructive Discord permission check. Run it before a live session when permissions were changed, old threads were deleted, or a 403/50001/50013 appeared. Use `npm run discord:preflight -- --post-test` only when you want the bot to send and delete one temporary channel message to prove write permissions.
+
+`npm run startup:preflight` is the operator-only startup artifact checklist. Run it after a restart or before a live session to see whether the latest long-run review artifacts exist, which audit files are missing, and what should be regenerated before trusting the next review pass.
+
+`npm run stress:all-symbols` is the wider saved-data check. It scans every saved long-run Discord audit stream, dedupes identical audit files, aggregates all symbols, replays the current balanced post policy, and ranks overposting, tight-range chop, fast-runner cascades, missed-event candidates, and trader-language boundary issues. Use it when the question is broad behavior across the whole evidence set, not one named ticker.
+
+The all-symbol stress report also shows quiet-profile simulated totals. Review `Quiet-Mode Replay Attention` when a symbol is still too noisy under `balanced`; if it is also too noisy under `quiet`, the issue is usually story interpretation or level-flicker handling, not simply a profile threshold.
+
+`npm run quality:posts -- <session-folder-or-discord-delivery-audit.jsonl>` is the trader post quality grader. It scans saved Discord-visible output for system/operator wording, direct or borderline advice, over-certain phrasing, tiny small-cap risk language, missing-level claims, and repeated story overlap. Run it whenever a thread “feels wrong” even if the replay post count looks acceptable.
+
+`npm run audit:post-reasons -- <session-folder-or-discord-delivery-audit.jsonl>` is the operator-only post reason report. It summarizes `whyPosted`, `postBudgetSymbolType`, and `noLevelReason` evidence so an audit can explain why a post fired and why a nearby support/resistance level was unavailable without putting that reasoning into Discord.
+
+`npm run audit:known-bad-posts -- <session-folder-or-discord-delivery-audit.jsonl>` is the known-bad wording regression scan. It looks for saved Discord-visible patterns that have caused real confusion, including `surfaced ladder`, `after the alert`, `alert direction move`, tiny penny-level risk language, predictive `moving toward` wording, direct advice, and old dip-buy wording.
+
+`npm run audit:end-recap -- <session-folder-or-discord-delivery-audit.jsonl>` builds `thread-end-recap-report.json` / `.md`, which summarizes each symbol thread after a test run. Use it when a ticker is deactivated, archived, or done for the day and you want a calm summary of what the thread actually told traders.
+
+`npm run audit:thread-health -- <session-folder-or-discord-delivery-audit.jsonl>` builds `thread-health-score.json` / `.md`, which scores each symbol thread for repeated adjacent stories, weak probes that reached Discord, missing next-level context, high post counts, and delivery failures. Start here when a thread feels noisy but you need evidence instead of vibes.
+
+`npm run audit:usefulness -- <session-folder-or-discord-delivery-audit.jsonl>` builds `trader-usefulness-replay-score.json` / `.md`, which labels saved posts as useful changes, early-but-relevant context, repeat noise, late, or missing context. It also assigns each symbol a ticker personality and ladder-confidence label. Use it when the main question is whether Discord posts helped a trader follow the ticker or just restated the same zone.
+
+`npm run audit:daily-review -- <session-folder-or-discord-delivery-audit.jsonl>` builds `daily-trader-review.json` / `.md` / `.html`, which gives an operator-only end-of-day style recap for each symbol, expected post budget by ticker behavior, no-post evidence coverage, best/worst examples, late-post evidence, and same-minute burst flags.
+
+`npm run audit:eod-verdict -- <session-folder-or-discord-delivery-audit.jsonl>` builds `end-of-day-symbol-verdict.json` / `.md`, which gives one practical verdict per symbol: whether the first post gave a usable trade map, whether post volume was reasonable, whether candle-backed missed-move review is still needed, whether levels looked complete enough, and whether trader-facing wording stayed clean.
+
+`npm run audit:missed-moves -- <session-folder-or-discord-delivery-audit.jsonl>` builds `missed-meaningful-move-audit.json` / `.md`, which compares cached 5-minute candles against saved Discord posts. Use it after post-noise tuning to make sure calmer rules did not hide meaningful breakouts, support losses, or large candle moves.
+
+`npm run audit:session-behavior -- <session-folder-or-discord-delivery-audit.jsonl>` builds `session-behavior-audit.json` / `.md`, which combines candle freshness/readiness, first-post trade-map scoring, thread balance, candle/post timeline samples, current-session behavior profiles, and runtime marker coverage. Use it when deciding whether a thread is too noisy, too quiet, balanced, or impossible to judge because candle evidence is stale.
+
+`npm run audit:lifecycle -- <session-folder-or-discord-delivery-audit.jsonl>` builds `trade-lifecycle-summary.json` / `.md`, which summarizes the day-level ticker story: starting/ending price evidence, main support, main resistance, breakout/support events, and final state such as `range_bound`, `breakout_working`, `support_damaged`, or `extended_runner`.
+
+`npm run audit:visual-replay -- <session-folder-or-discord-delivery-audit.jsonl>` builds `visual-audit-replay.json` and `visual-audit-replay.html`. Open the HTML when you want a quick visual timeline of where posts fired by symbol, including event type, acceptance state, range-box state, behavior budget, and approximate posted price when available.
+
+The visual replay now includes a symbol index and issue flags for weak probes, locked-area posts, missing next-level context, and minor-level posts. Use those flags to jump directly into suspicious threads before reading every saved Discord line.
+
+`npm run structure:replay` is the candle-only market-structure check. It scans cached IBKR 5-minute candles and compares raw structure transitions to the stable/materiality-smoothed structure read.
+
+`npm run structure:discord-align -- --limit all` is the saved Discord alignment check. It compares posted rows with the stable 5-minute structure state near each post, then flags repeated posts that happened while structure did not materially change. Use it before wiring market structure into live post policy.
+
+After changing post-noise policy, compare the new all-symbol scorecard against the previous scorecard. The current practical small-cap tuning target is not just a higher reduction percentage; it should also reduce `still noisy after current policy`, max posts per session, and max 5-minute bursts while keeping missed-event candidates from increasing. Start the manual review with the `Noisy-Symbol Regression Pack` section because it lists the worst saved symbols, why they were selected, and the exact sessions that should be replayed after each policy change.
+
+The current post-noise policy includes thread story phase control. When reviewing a replay, look for `phase_same_phase_repeat` suppressions. Those mean the current code would keep a repeated same-area, same-phase post out of Discord while preserving the underlying support/resistance level in the ladder and audit metadata.
+
+The all-symbol stress report also includes post-budget labels:
+
+- `within_budget`: current replay count is acceptable for review
+- `watch`: count is above the healthy budget and needs a human skim before changing policy
+- `excessive_chop`: tight-range saved sessions are still producing too many simulated posts
+- `runner_review`: a fast runner still posts heavily, so the audit should prove those posts are meaningful expansion, hold/failure, reclaim, or support/resistance beats
+
+The same report now includes a noisy-symbol regression pack. Use it as the default saved-data test set for post-frequency work. It should include tight-range chop names, fast-runner review names, missed-event candidates, and language-boundary risk, with target sessions such as `2026-05-01_10-48-03 (53->27)`.
+
+The all-symbol stress report also includes a `Broad Saved-Data Replay Pack`. Use this when changing post-noise policy, first snapshot wording, support/resistance significance wording, or trader-language boundaries. It intentionally samples across:
+
+- tight-range chop
+- fast-runner cascades
+- missed-event candidates
+- language-boundary risk
+- high-activity watch symbols
+
+This is the default closed-market evidence set when the concern is "does this still work across many tickers?" rather than one hand-picked ticker. The pack should be regenerated after every meaningful posting-policy or snapshot-format change with:
+
+```powershell
+npm run stress:all-symbols
+```
+
+Use these labels before tightening live posting. A runner-review symbol should not be treated the same as a low-range chop symbol.
+
 ## Prerequisites
 
 Before starting a testing session:
@@ -110,9 +239,20 @@ Inside that folder:
   - includes both successful and failed downstream posts
   - trader-critical `post_alert` failures now get one downstream retry; successful retries include `retryAttempt`, `retryOf`, and `retryReason`
   - alert rows now also carry movement labels / movement percentages, setup-state labels, failure-risk labels, trade-map metadata, barrier-clutter labels, path-quality labels, path-constraint scores, path-window distances, exhaustion labels, dip-buy-quality labels, continuity metadata, AI-origin flags, and follow-through metadata so post-run review can separate early moves from already-stretched ones, compare building/confirmation/continuation versus weakening/failed setups, compare contained setups against elevated-risk ones, compare clean paths against crowded ones, compare tighter first-path windows against cleaner continuation space, compare fresh zones against worn ones, and compare the original alert against what happened afterward
+  - alert rows now also carry `signalCategory`, `signalCategoryLiveEnabled`, and supporting category metadata, so audits can prove whether a post belonged to support/resistance, reaction quality, breakout/reclaim quality, follow-through, trader commentary, or an explicitly enabled optional category
   - tight cluster-cross level updates include `crossedLevels`, `clusterLow`, `clusterHigh`, and `clusteredLevelClear`, so audits can prove the runtime grouped nearby levels without hiding them
+  - alert rows can now include operator-only `whyPosted`, `postBudgetSymbolType`, and `noLevelReason`, so audits can explain why a post fired, how the symbol was budgeted, and why a next support/resistance was unavailable without putting that language into Discord
   - repeated identical extension payloads should now stop after the first post until the extension ladder actually changes, which makes it easier to spot genuine extension movement instead of repeated next-level restatements
   - live Discord text should stay trader-view only: system-shaped labels, severity/confidence scoring, and operator/testing wording belong in this audit/review stream rather than in visible posts
+  - repeated same-level alert stories should now require a material trigger/score/severity change before reposting; post-run replay should prove this with `alert_same_story_not_material` suppressions on choppy small-cap symbols
+  - first snapshot posts should show a practical `Trade map` that treats nearby penny-level supports as one support area when appropriate, names the upside path above resistance, identifies the support that matters, and avoids making tiny one-cent moves sound like full trade failures
+- first snapshot posts should use conditional `Cleaner above` wording for the next resistance area rather than predictive `next level` wording
+  - first snapshot trade maps should separate main support and main resistance, rank the practical importance of levels, and avoid making minor low-priced flickers sound like major trade failures
+  - alert rows can carry practical structure metadata (`practicalStructureState`, `practicalStructureKey`, `practicalZoneKey`, and `practicalStructureMaterialChange`) so audits can prove whether a post represented a real range/base/breakout/support-failure/reclaim state change
+  - alert rows can carry level-importance, primary-trade-area, and failed-level-memory metadata so audits can prove whether a post was a major decision, a locked-range repeat, a weak probe, or a clean accepted expansion
+  - current post-policy replay also keeps thread story phase state, so repeated same-area phases can be identified as `phase_same_phase_repeat` instead of becoming another Discord-visible post
+  - small-cap story buckets are wider than raw price precision, so a one- or two-cent flicker should usually appear as `alert_same_story_not_material`, `alert_zone_chop`, or `alert_structure_budget` unless price expands, severity/score escalates, or practical structure changes
+  - level-clear updates are included in replay story memory, so repeated crossed-level chatter can be suppressed by the same policy that governs intelligent alerts
 - `session-summary.json`
   - live-updated quick rollup of lifecycle counts, delivery counts, failures, compare entries, diagnostic volume, and per-symbol activity
   - now also refreshes from `discord-delivery-audit.jsonl`, so it should keep moving even after runtime stdout goes quiet
@@ -164,9 +304,42 @@ Inside that folder:
   - includes severity labels (`blocker`, `major`, `watch`, `historical_only`, `data_quality_only`) so audit findings do not all look equally urgent
   - treats trader-critical failed `post_alert` rows as major unless retry is proven; an equivalent later post is context, not proof of retry
   - ignores already-clustered level-clear posts as unresolved cluster-cross overposting when the audit metadata proves the grouped story carried each crossed level
+  - includes volume/activity evidence when available: reliable symbols, unreliable symbols, examples where activity enriched a post, and examples where activity was suppressed
+  - category metadata should be reviewed when a noisy-looking post appears; operator/internal categories such as `range_compression` should stay out of live Discord unless the corresponding `SIGNAL_CATEGORY_*_LIVE_DISCORD` override was intentionally enabled
 - `trading-day-evidence-report.md`
   - readable evidence appendix for the audit process
   - best file for proving findings with saved Discord excerpts instead of relying on summary language
+- `post-reason-audit.json`
+  - generated from `discord-delivery-audit.jsonl` by `npm run longrun:audit:reports -- <session-folder>` or directly with `npm run audit:post-reasons -- <session-folder>`
+  - summarizes `whyPosted`, `postBudgetSymbolType`, `noLevelReason`, missing post-reason rows, and per-symbol reason counts
+  - best file when the question is "why did this post fire?" or "why did the post not name a next support/resistance?"
+- `post-reason-audit.md`
+  - readable version of the post reason audit
+  - keeps operator/testing explanation out of Discord while still making the audit evidence reviewable
+- `known-bad-post-patterns.json`
+  - generated from `discord-delivery-audit.jsonl` by `npm run longrun:audit:reports -- <session-folder>` or directly with `npm run audit:known-bad-posts -- <session-folder>`
+  - lists saved Discord-visible text that matches known confusing patterns such as system-shaped labels, over-certain next-level language, tiny penny-risk wording, direct advice, and old dip-buy language
+  - findings can be historical if they came from old saved posts; compare against current-code tests before calling them live regressions
+- `known-bad-post-patterns.md`
+  - readable evidence appendix for the known-bad pattern pack
+  - useful after the trader says a post sounded wrong and we want to know whether that exact wording class still appears in saved output
+- `saved-data-regression-report.json`
+  - generated with `npm run saved-data:test -- --limit 8`
+  - checks recent saved `discord-delivery-audit.jsonl` files through the current report/replay builders
+  - fails on current-format category, trader-language, direct-advice, or volume-reliability rule violations
+  - reports old saved wording and missing new metadata as historical/info findings instead of pretending old Discord output came from the current runtime
+- `saved-data-regression-report.md`
+  - readable version of the saved-data regression run
+  - useful before a market-open test when you want to make sure current report/replay logic still handles the saved evidence already on disk
+- `all-symbol-stress-report.json`
+  - generated with `npm run stress:all-symbols`
+  - scans all saved long-run Discord audit files by default and aggregates every symbol into broad stress patterns
+  - includes the noisy-symbol regression pack for targeted saved-data replay after policy changes
+  - useful when deciding which app behavior class deserves the next tuning pass
+- `all-symbol-stress-report.md`
+  - readable version of the all-symbol stress test
+  - best file for broad post-noise review across all saved tickers rather than one hand-picked example
+  - use the `Noisy-Symbol Regression Pack` section before drawing conclusions from any single ticker
 - `long-run-tuning-suggestions.json`
   - generated from the policy and snapshot audit reports at shutdown, or manually with `npm run longrun:audit:reports -- <session-folder>`
   - turns repeated-story clusters, post bursts, optional-density pressure, delivery failures, and level-audit warnings into action/watch/info items
@@ -379,14 +552,23 @@ If the app behaves oddly:
    when you want a post-run AI commentary layer over the deterministic artifacts
 16. optionally run:
    - `npm run longrun:audit:reports -- <session-folder>`
-   when you want to regenerate the policy and snapshot audit reports from the latest Discord audit file
-17. only check:
+   when you want to regenerate the policy, snapshot, post-reason, known-bad-pattern, evidence, replay, and tuning reports from the latest Discord audit file
+17. optionally run:
+   - `npm run audit:post-reasons -- <session-folder>`
+   when you want only the post-reason / no-level audit without rebuilding every report
+18. optionally run:
+   - `npm run audit:known-bad-posts -- <session-folder>`
+   when you want only the known-bad trader wording scan
+19. optionally run:
+   - `npm run replay:monday -- --skip-slow`
+   when the market is closed and you want the core checklist before the next live run
+20. only check:
    - `manual-watchlist-diagnostics.log`
    when the question is specifically about breakout / reclaim / fakeout reasoning
-18. only check:
+21. only check:
    - `manual-watchlist-full.log`
    if the operational and diagnostic logs still do not explain enough
-19. check:
+22. check:
    - `discord-delivery-audit.jsonl`
    when you want to confirm exactly what Discord received or whether a post failed downstream
 
@@ -604,8 +786,12 @@ That writes:
 - `live-post-profile-comparison.md`
 - `runner-story-report.json`
 - `runner-story-report.md`
+- `post-reason-audit.json`
+- `post-reason-audit.md`
+- `known-bad-post-patterns.json`
+- `known-bad-post-patterns.md`
 
-Use the tuning suggestions first when you want a quick action list. Use the policy report before reading raw audit rows when the question is "did this symbol post too many repeated versions of the same thing?" Use the snapshot report before reading raw audit rows when the question is "why did this level not show in the Discord snapshot?"
+Use the tuning suggestions first when you want a quick action list. Use the policy report before reading raw audit rows when the question is "did this symbol post too many repeated versions of the same thing?" Use the snapshot report before reading raw audit rows when the question is "why did this level not show in the Discord snapshot?" Use the post-reason audit when the question is "why did this post fire?" Use the known-bad pattern report when the question is "is this trader-facing wording still leaking old confusing language?"
 
 You can also run only the replay simulator:
 
@@ -632,6 +818,8 @@ The manual UI includes a `Review Artifacts` section. During long-run sessions it
 - `live-post-profile-comparison.md`
 - `runner-story-report.md`
 - `snapshot-audit-report.md`
+- `post-reason-audit.md`
+- `known-bad-post-patterns.md`
 
 This is an operator convenience surface only; it does not change what gets posted to Discord.
 

@@ -3,6 +3,7 @@ import { LevelEngine } from "../levels/level-engine.js";
 import { resolveLevelRuntimeSettings } from "../levels/level-runtime-mode.js";
 import type { FinalLevelZone } from "../levels/level-types.js";
 import { decideLevelRefresh } from "../levels/level-refresh-policy.js";
+import { assessFinalLevelImportance } from "./level-importance.js";
 import { AlertIntelligenceEngine } from "../alerts/alert-intelligence-engine.js";
 import {
   formatContinuityUpdateAsPayload,
@@ -14,6 +15,11 @@ import {
 } from "../alerts/alert-router.js";
 import type { TraderCommentaryService } from "../ai/trader-commentary-service.js";
 import { buildFinnhubThreadPreviewPayload } from "../stock-context/finnhub-thread-preview.js";
+import {
+  isSignalCategoryLiveEnabled,
+  resolvePrimarySignalCategoryForAlert,
+  routeMessageKindToSignalCategory,
+} from "../signals/signal-category-routing.js";
 import type { StockContextPreview } from "../stock-context/stock-context-types.js";
 import type {
   DiscordThreadRoutingResult,
@@ -31,6 +37,7 @@ import { LevelStore } from "./level-store.js";
 import type {
   LivePriceUpdate,
   MonitoringEvent,
+  PracticalTradeStructureState,
   WatchlistEntry,
   WatchlistLifecycleState,
 } from "./monitoring-types.js";
@@ -50,15 +57,20 @@ import {
   buildAiSignalStoryKey,
   buildFollowThroughStoryRecord,
   buildIntelligentAlertStoryRecord,
+  buildThreadStoryPhaseAreaKey,
+  buildThreadStoryPhaseRecord,
   decideCriticalLivePost,
   decideIntelligentAlertPost,
   decideNarrationBurst,
   decideAiSignalPost,
   decideFollowThroughPost,
   decideOptionalLivePost,
+  decideThreadStoryPhasePost,
+  deriveThreadStoryPhase,
   pruneAiSignalStoryRecords,
   pruneFollowThroughStoryRecords,
   pruneIntelligentAlertStoryRecords,
+  pruneThreadStoryPhaseRecords,
   getLiveThreadPostingPolicySettings,
   resolveLiveThreadPostingProfile,
   type AiSignalStoryRecord,
@@ -72,10 +84,12 @@ import {
   type LiveThreadRuntimePostKind,
   type NarrationBurstKind,
   type NarrationBurstRecord,
+  type ThreadStoryPhaseRecord,
 } from "./live-thread-post-policy.js";
 
 export type ManualWatchlistRuntimeManagerOptions = {
   candleFetchService: CandleFetchService;
+  startupCachedCandleFetchService?: CandleFetchService | null;
   levelStore: LevelStore;
   monitor: WatchlistMonitor;
   discordAlertRouter: DiscordAlertRouter;
@@ -95,6 +109,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   activationMaxAutoRetries?: number;
   activationStuckWarningMs?: number;
   levelTouchSupersedeDelayMs?: number;
+  fastLevelClearCoalesceMs?: number;
   stockContextProvider?: {
     getThreadPreview(symbolInput: string): Promise<StockContextPreview>;
   } | null;
@@ -124,7 +139,9 @@ export type ManualWatchlistRuntimeHealth = {
   lastDeliveryFailureSymbol: string | null;
   lastDeliveryFailureMessage: string | null;
   stuckActivations: ManualWatchlistStuckActivation[];
+  providerHealth: ManualWatchlistProviderHealth;
   aiCommentary: ManualWatchlistAiCommentaryHealth;
+  mondayReview: ManualWatchlistMondayReviewHealth;
 };
 
 export type ManualWatchlistActivityEntry = ManualWatchlistLifecycleEvent & {
@@ -143,6 +160,63 @@ export type ManualWatchlistAiCommentaryHealth = {
   lastFailedSymbol: string | null;
   lastFailureMessage: string | null;
   route: "symbol_recaps_and_live_alert_ai_reads";
+};
+
+export type ManualWatchlistMondayReviewHealth = {
+  postBudgetStatus: "calm" | "busy" | "optional_heavy" | "needs_attention";
+  postsLast15m: number;
+  criticalPostsLast15m: number;
+  optionalPostsLast15m: number;
+  lastWhyPosted: string | null;
+  symbolBudgets: Array<{
+    symbol: string;
+    postsLast15m: number;
+    criticalPostsLast15m: number;
+    optionalPostsLast15m: number;
+    status: "calm" | "busy" | "optional_heavy";
+  }>;
+  checklist: string[];
+};
+
+export type ManualWatchlistProviderHealth = {
+  priceFeedStatus: "live" | "stale" | "waiting";
+  lastPriceAgeMs: number | null;
+  lastPriceSymbol: string | null;
+  discordStatus: "ready" | "recent_failure" | "waiting";
+  lastPostAgeMs: number | null;
+  historicalDataStatus: "active" | "waiting" | "degraded";
+  pendingActivationCount: number;
+  stuckActivationCount: number;
+  seedStats: ManualWatchlistLevelSeedStats;
+  restartReadiness: ManualWatchlistRestartReadiness[];
+  notes: string[];
+};
+
+export type ManualWatchlistLevelSeedStats = {
+  attempts: number;
+  successes: number;
+  failures: number;
+  timeouts: number;
+  inFlight: number;
+  averageDurationMs: number | null;
+  lastDurationMs: number | null;
+  lastSymbol: string | null;
+  lastStartedAt: number | null;
+  lastCompletedAt: number | null;
+  lastError: string | null;
+};
+
+export type ManualWatchlistRestartReadiness = {
+  symbol: string;
+  lifecycle: WatchlistLifecycleState;
+  levelStatus: "ready" | "seeding" | "waiting" | "failed";
+  priceStatus: "fresh" | "stale" | "waiting";
+  discordStatus: "ready" | "missing_thread";
+  operationStatus: string | null;
+  lastError: string | null;
+  lastPriceAgeMs: number | null;
+  lastLevelPostAgeMs: number | null;
+  reason: string;
 };
 
 export type ManualWatchlistStuckActivation = {
@@ -166,6 +240,8 @@ type ActiveLevelSnapshotState = {
   highestResistance: number | null;
   lowestSupport: number | null;
   referencePrice: number | null;
+  displayedSupportZones?: LevelSnapshotDisplayZone[];
+  displayedResistanceZones?: LevelSnapshotDisplayZone[];
   lastRefreshTriggerResistance: number | null;
   lastRefreshTriggerSupport: number | null;
   lastRefreshTimestamp: number | null;
@@ -185,7 +261,7 @@ const SNAPSHOT_PRICE_TOLERANCE_ABSOLUTE = 0.001;
 const SNAPSHOT_DISPLAY_COMPACTION_PCT = 0.0075;
 const SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE = 0.01;
 const SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 0.5;
-const SYMBOL_RECAP_COOLDOWN_MS = 30 * 60 * 1000;
+const SYMBOL_RECAP_COOLDOWN_MS = 60 * 60 * 1000;
 const AI_SIGNAL_COMMENTARY_COOLDOWN_MS = 10 * 60 * 1000;
 const AI_SIGNAL_COMMENTARY_MAX_DELIVERY_LAG_MS = 8 * 1000;
 const RECAP_AFTER_STORY_MIN_GAP_MS = 3 * 60 * 1000;
@@ -201,7 +277,7 @@ const NARRATION_RECAP_BURST_WINDOW_MS = 75 * 1000;
 const DELIVERY_FAILURE_BACKOFF_MS = 2 * 60 * 1000;
 const OPTIONAL_POST_SETTLE_DELAY_MS = 250;
 const OPTIONAL_POST_CRITICAL_PREEMPT_WINDOW_MS = 1500;
-const LEVEL_SEED_TIMEOUT_MS = 45 * 1000;
+const LEVEL_SEED_TIMEOUT_MS = 90 * 1000;
 const QUEUED_ACTIVATION_SEED_GRACE_TIMEOUT_MS = 3 * 60 * 1000;
 const ACTIVATION_AUTO_RETRY_DELAY_MS = 90 * 1000;
 const ACTIVATION_MAX_AUTO_RETRIES = 1;
@@ -211,6 +287,7 @@ const MAX_ACTIVITY_ENTRIES = 80;
 const LEVEL_TOUCH_SUPERSEDE_DELAY_MS = 1200;
 const FAST_LEVEL_CLEAR_CONFIRM_PCT = 0.0025;
 const FAST_LEVEL_CLUSTER_MAX_SPAN_PCT = 0.035;
+const FAST_LEVEL_CLEAR_COALESCE_MS = 0;
 const FOLLOW_THROUGH_MAJOR_MOVE_PCT = 2;
 export const DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS: ManualWatchlistHistoricalLookbacks = {
   daily: 520,
@@ -290,16 +367,43 @@ function formatSnapshotLevel(level: number): string {
   return level >= 1 ? level.toFixed(2) : level.toFixed(4);
 }
 
-function formatFastLevelZone(zone: FinalLevelZone | null, side: "support" | "resistance"): string | null {
+type FastLevelReference = {
+  representativePrice: number;
+  strengthLabel?: FinalLevelZone["strengthLabel"];
+};
+
+function formatFastLevelZone(zone: FastLevelReference | null, side: "support" | "resistance"): string | null {
   if (!zone) {
     return null;
   }
 
-  return `${describeZoneStrength(zone.strengthLabel)} ${side} ${formatSnapshotLevel(zone.representativePrice)}`;
+  return `${describeZoneStrength(zone.strengthLabel ?? "moderate")} ${side} ${formatSnapshotLevel(zone.representativePrice)}`;
 }
 
-function formatFastLevelOnly(zone: FinalLevelZone | null): string | null {
+function formatFastLevelOnly(zone: FastLevelReference | null): string | null {
   return zone ? formatSnapshotLevel(zone.representativePrice) : null;
+}
+
+function isTinySmallCapLevelStep(fromLevel: number, toLevel: number): boolean {
+  if (!Number.isFinite(fromLevel) || !Number.isFinite(toLevel) || fromLevel <= 0 || toLevel <= 0) {
+    return false;
+  }
+  const absoluteDistance = Math.abs(fromLevel - toLevel);
+  const distancePct = absoluteDistance / Math.max(fromLevel, 0.0001);
+  return fromLevel < 2 && (absoluteDistance < 0.04 || distancePct < 0.025);
+}
+
+function classifyRuntimePostBudgetSymbolType(price: number): string {
+  if (!Number.isFinite(price) || price <= 0) {
+    return "unknown";
+  }
+  if (price < 2) {
+    return "low_priced_small_cap";
+  }
+  if (price < 10) {
+    return "small_cap";
+  }
+  return "higher_priced_runner";
 }
 
 function relativeLevelSpan(levels: number[]): number {
@@ -619,6 +723,7 @@ class ActivationCancelledError extends Error {
 
 export class ManualWatchlistRuntimeManager {
   private readonly levelEngine: LevelEngine;
+  private readonly startupCachedLevelEngine: LevelEngine | null;
   private readonly watchlistStore: WatchlistStore;
   private readonly watchlistStatePersistence: WatchlistStatePersistence;
   private readonly alertIntelligenceEngine = new AlertIntelligenceEngine();
@@ -631,12 +736,27 @@ export class ManualWatchlistRuntimeManager {
   private readonly followThroughStatePosts = new Map<string, SymbolFollowThroughStatePost>();
   private readonly followThroughPostState = new Map<string, SymbolFollowThroughPostState>();
   private readonly intelligentAlertPostState = new Map<string, IntelligentAlertStoryRecord[]>();
+  private readonly threadStoryPhaseState = new Map<string, ThreadStoryPhaseRecord[]>();
   private readonly aiSignalStoryState = new Map<string, AiSignalStoryRecord[]>();
   private readonly dominantLevelStories = new Map<string, SymbolDominantLevelStory[]>();
   private readonly liveThreadPostState = new Map<string, SymbolLiveThreadPostState>();
   private readonly narrationBurstState = new Map<string, SymbolNarrationBurstState>();
   private readonly storyCriticalState = new Map<string, SymbolStoryCriticalState>();
   private readonly deliveryPressureState = new Map<string, SymbolDeliveryPressureState>();
+  private readonly startupCacheWarmingSymbols = new Set<string>();
+  private readonly levelSeedStats = {
+    attempts: 0,
+    successes: 0,
+    failures: 0,
+    timeouts: 0,
+    inFlight: 0,
+    totalDurationMs: 0,
+    lastDurationMs: null as number | null,
+    lastSymbol: null as string | null,
+    lastStartedAt: null as number | null,
+    lastCompletedAt: null as number | null,
+    lastError: null as string | null,
+  };
   private readonly optionalPostSettleDelayMs: number;
   private readonly levelSeedTimeoutMs: number;
   private readonly queuedActivationSeedGraceTimeoutMs: number;
@@ -644,6 +764,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly activationMaxAutoRetries: number;
   private readonly activationStuckWarningMs: number;
   private readonly levelTouchSupersedeDelayMs: number;
+  private readonly fastLevelClearCoalesceMs: number;
   private readonly historicalLookbackBars: ManualWatchlistHistoricalLookbacks;
   private readonly postingPolicySettings: LiveThreadPostingPolicySettings;
   private readonly recentActivity: ManualWatchlistActivityEntry[] = [];
@@ -652,11 +773,16 @@ export class ManualWatchlistRuntimeManager {
   private readonly stuckActivationWarnings = new Set<string>();
   private activationWatchdogTimer: NodeJS.Timeout | null = null;
   private readonly pendingLevelTouchAlerts = new Map<string, NodeJS.Timeout>();
+  private readonly pendingFastLevelClearAlerts = new Map<string, {
+    timer: NodeJS.Timeout;
+    update: LivePriceUpdate;
+  }>();
   private lastPriceUpdateAt: number | null = null;
   private lastPriceUpdateSymbol: string | null = null;
   private lastThreadPostAt: number | null = null;
   private lastThreadPostSymbol: string | null = null;
   private lastThreadPostKind: LiveThreadPostKind | null = null;
+  private lastThreadPostReason: string | null = null;
   private lastDeliveryFailureAt: number | null = null;
   private lastDeliveryFailureSymbol: string | null = null;
   private lastDeliveryFailureMessage: string | null = null;
@@ -681,6 +807,12 @@ export class ManualWatchlistRuntimeManager {
           }
         : undefined,
     });
+    this.startupCachedLevelEngine = options.startupCachedCandleFetchService
+      ? new LevelEngine(options.startupCachedCandleFetchService, undefined, {
+          runtimeMode: runtimeSettings.mode,
+          compareActivePath: runtimeSettings.compareActivePath,
+        })
+      : null;
     this.watchlistStore = options.watchlistStore ?? new WatchlistStore();
     this.watchlistStatePersistence =
       options.watchlistStatePersistence ?? new WatchlistStatePersistence();
@@ -708,6 +840,10 @@ export class ManualWatchlistRuntimeManager {
     this.levelTouchSupersedeDelayMs = Math.max(
       0,
       options.levelTouchSupersedeDelayMs ?? LEVEL_TOUCH_SUPERSEDE_DELAY_MS,
+    );
+    this.fastLevelClearCoalesceMs = Math.max(
+      0,
+      options.fastLevelClearCoalesceMs ?? FAST_LEVEL_CLEAR_COALESCE_MS,
     );
     this.historicalLookbackBars = {
       daily: Math.max(
@@ -856,6 +992,33 @@ export class ManualWatchlistRuntimeManager {
     });
   }
 
+  private setLevelsReadyOperation(symbol: string): void {
+    const entry = this.watchlistStore.getEntry(symbol);
+    this.setEntryOperation(
+      symbol,
+      entry?.active && entry.lifecycle === "active" ? "monitoring live price" : "levels ready",
+    );
+  }
+
+  private markSeededLevelsReady(symbol: string): void {
+    const entry = this.watchlistStore.getEntry(symbol);
+    if (
+      !entry?.active ||
+      entry.lifecycle === "activating" ||
+      entry.lifecycle === "activation_failed" ||
+      entry.lifecycle === "inactive"
+    ) {
+      return;
+    }
+
+    this.watchlistStore.patchEntry(symbol, {
+      lifecycle: "active",
+      refreshPending: false,
+      lastError: null,
+      operationStatus: "monitoring live price",
+    });
+  }
+
   private isEntryActive(symbol: string): boolean {
     const entry = this.watchlistStore.getEntry(symbol);
     return Boolean(entry?.active && entry.lifecycle !== "inactive");
@@ -999,6 +1162,8 @@ export class ManualWatchlistRuntimeManager {
         highestResistance: payload.resistanceZones.at(-1)?.representativePrice ?? null,
         lowestSupport: payload.supportZones.at(-1)?.representativePrice ?? null,
         referencePrice: payload.currentPrice,
+        displayedSupportZones: payload.supportZones,
+        displayedResistanceZones: payload.resistanceZones,
       });
       this.watchlistStore.patchEntry(symbol, {
         lifecycle: "active",
@@ -1020,6 +1185,7 @@ export class ManualWatchlistRuntimeManager {
       kind: "snapshot",
       critical: true,
       eventType: null,
+      whyPosted: "level snapshot posted after candle seeding",
     });
     this.emitLifecycle("snapshot_posted", {
       symbol,
@@ -1035,6 +1201,8 @@ export class ManualWatchlistRuntimeManager {
       highestResistance: payload.resistanceZones.at(-1)?.representativePrice ?? null,
       lowestSupport: payload.supportZones.at(-1)?.representativePrice ?? null,
       referencePrice: payload.currentPrice,
+      displayedSupportZones: payload.supportZones,
+      displayedResistanceZones: payload.resistanceZones,
       lastRefreshTriggerResistance: null,
       lastRefreshTriggerSupport: null,
       lastRefreshTimestamp: timestamp,
@@ -1070,6 +1238,7 @@ export class ManualWatchlistRuntimeManager {
         kind: "intelligent_alert",
         critical: true,
         eventType: null,
+        whyPosted: payload.metadata?.whyPosted ?? "stock context posted after activation",
       });
       this.clearDeliveryFailure(symbol, timestamp);
       this.emitLifecycle("stock_context_posted", {
@@ -1129,6 +1298,8 @@ export class ManualWatchlistRuntimeManager {
       highestResistance: existingState?.highestResistance ?? null,
       lowestSupport: existingState?.lowestSupport ?? null,
       referencePrice: existingState?.referencePrice ?? null,
+      displayedSupportZones: existingState?.displayedSupportZones,
+      displayedResistanceZones: existingState?.displayedResistanceZones,
       lastRefreshTriggerResistance: existingState?.lastRefreshTriggerResistance ?? null,
       lastRefreshTriggerSupport: existingState?.lastRefreshTriggerSupport ?? null,
       lastRefreshTimestamp: existingState?.lastRefreshTimestamp ?? null,
@@ -1151,6 +1322,7 @@ export class ManualWatchlistRuntimeManager {
         kind: "extension",
         critical: true,
         eventType: null,
+        whyPosted: "level extension posted after price moved beyond snapshot ladder",
       });
       this.emitLifecycle("extension_posted", {
         symbol,
@@ -1166,6 +1338,8 @@ export class ManualWatchlistRuntimeManager {
         highestResistance: existingState?.highestResistance ?? null,
         lowestSupport: existingState?.lowestSupport ?? null,
         referencePrice: existingState?.referencePrice ?? null,
+        displayedSupportZones: existingState?.displayedSupportZones,
+        displayedResistanceZones: existingState?.displayedResistanceZones,
         lastRefreshTriggerResistance: existingState?.lastRefreshTriggerResistance ?? null,
         lastRefreshTriggerSupport: existingState?.lastRefreshTriggerSupport ?? null,
         lastRefreshTimestamp: existingState?.lastRefreshTimestamp ?? null,
@@ -1188,6 +1362,8 @@ export class ManualWatchlistRuntimeManager {
         highestResistance: existingState?.highestResistance ?? null,
         lowestSupport: existingState?.lowestSupport ?? null,
         referencePrice: existingState?.referencePrice ?? null,
+        displayedSupportZones: existingState?.displayedSupportZones,
+        displayedResistanceZones: existingState?.displayedResistanceZones,
         lastRefreshTriggerResistance: existingState?.lastRefreshTriggerResistance ?? null,
         lastRefreshTriggerSupport: existingState?.lastRefreshTriggerSupport ?? null,
         lastRefreshTimestamp: existingState?.lastRefreshTimestamp ?? null,
@@ -1304,16 +1480,69 @@ export class ManualWatchlistRuntimeManager {
     );
   }
 
-  private findNextResistanceAbove(symbol: string, clearedLevel: number): FinalLevelZone | null {
-    return this.options.levelStore
-      .getResistanceZones(symbol)
+  private mergeFastLevelReferences(zones: FastLevelReference[]): FastLevelReference[] {
+    const sorted = [...zones]
+      .filter((zone) => Number.isFinite(zone.representativePrice) && zone.representativePrice > 0)
+      .sort((left, right) => left.representativePrice - right.representativePrice);
+    const merged: FastLevelReference[] = [];
+
+    for (const zone of sorted) {
+      const existing = merged.find(
+        (candidate) =>
+          Math.abs(candidate.representativePrice - zone.representativePrice) <=
+          snapshotPriceTolerance(zone.representativePrice),
+      );
+      if (!existing) {
+        merged.push(zone);
+        continue;
+      }
+
+      if (!existing.strengthLabel && zone.strengthLabel) {
+        existing.strengthLabel = zone.strengthLabel;
+      }
+    }
+
+    return merged;
+  }
+
+  private getFastResistanceReferences(
+    symbol: string,
+    snapshotState?: ActiveLevelSnapshotState,
+  ): FastLevelReference[] {
+    return this.mergeFastLevelReferences([
+      ...(snapshotState?.displayedResistanceZones ?? []),
+      ...this.options.levelStore.getResistanceZones(symbol),
+      ...this.options.levelStore.getExtensionResistanceZones(symbol),
+    ]);
+  }
+
+  private getFastSupportReferences(
+    symbol: string,
+    snapshotState?: ActiveLevelSnapshotState,
+  ): FastLevelReference[] {
+    return this.mergeFastLevelReferences([
+      ...(snapshotState?.displayedSupportZones ?? []),
+      ...this.options.levelStore.getSupportZones(symbol),
+      ...this.options.levelStore.getExtensionSupportZones(symbol),
+    ]);
+  }
+
+  private findNextResistanceAbove(
+    symbol: string,
+    clearedLevel: number,
+    snapshotState?: ActiveLevelSnapshotState,
+  ): FastLevelReference | null {
+    return this.getFastResistanceReferences(symbol, snapshotState)
       .filter((zone) => zone.representativePrice > clearedLevel + snapshotPriceTolerance(clearedLevel))
       .sort((left, right) => left.representativePrice - right.representativePrice)[0] ?? null;
   }
 
-  private findNextSupportBelow(symbol: string, clearedLevel: number): FinalLevelZone | null {
-    return this.options.levelStore
-      .getSupportZones(symbol)
+  private findNextSupportBelow(
+    symbol: string,
+    clearedLevel: number,
+    snapshotState?: ActiveLevelSnapshotState,
+  ): FastLevelReference | null {
+    return this.getFastSupportReferences(symbol, snapshotState)
       .filter((zone) => zone.representativePrice < clearedLevel - snapshotPriceTolerance(clearedLevel))
       .sort((left, right) => right.representativePrice - left.representativePrice)[0] ?? null;
   }
@@ -1404,6 +1633,12 @@ export class ManualWatchlistRuntimeManager {
     if (
       resistance !== null &&
       !suppressRepeatedResistance &&
+      !this.shouldSuppressSameOrLowerValueLevelStory({
+        symbol,
+        level: resistance,
+        eventType: "breakout",
+        timestamp: update.timestamp,
+      }) &&
       (
         !this.hasRecentCriticalPost(symbol, update.timestamp, "breakout") ||
         (
@@ -1412,11 +1647,53 @@ export class ManualWatchlistRuntimeManager {
         )
       )
     ) {
-      const nextResistance = this.findNextResistanceAbove(symbol, resistance);
-      const pullbackSupport = this.findNextSupportBelow(symbol, resistance);
+      const levelClearDecision = this.shouldPostLevelClearUpdate({
+        symbol,
+        timestamp: update.timestamp,
+        eventType: "breakout",
+        level: resistance,
+        triggerPrice: update.lastPrice,
+        majorChange: isResistanceCluster,
+      });
+      if (!levelClearDecision.shouldPost) {
+        this.emitLifecycle("alert_suppressed", {
+          symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: "level_clear_update",
+            reason: levelClearDecision.reason,
+          },
+        });
+        return;
+      }
+      if (
+        !this.shouldAllowCriticalLivePost({
+          symbol,
+          timestamp: update.timestamp,
+          kind: "level_clear_update",
+          eventType: "breakout",
+          majorChange: isResistanceCluster,
+        })
+      ) {
+        this.emitLifecycle("alert_suppressed", {
+          symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: "level_clear_update",
+            reason: "critical_burst_governor",
+          },
+        });
+        return;
+      }
+
+      const nextResistance = this.findNextResistanceAbove(symbol, resistance, snapshotState);
+      const pullbackSupport = this.findNextSupportBelow(symbol, resistance, snapshotState);
       const nextResistanceText = formatFastLevelZone(nextResistance, "resistance");
+      const missingResistanceText = "higher resistance needs a fresh level check before treating the path as open";
       const pullbackSupportLevel =
         pullbackSupport ? formatSnapshotLevel(pullbackSupport.representativePrice) : null;
+      const pullbackIsTinyStep =
+        pullbackSupport !== null && isTinySmallCapLevelStep(resistance, pullbackSupport.representativePrice);
       const resistanceLine = formatSnapshotLevel(resistanceBreakLine ?? resistance);
       const resistanceRange = formatFastLevelRange(resistanceLevels);
       const title = isResistanceCluster
@@ -1425,50 +1702,64 @@ export class ManualWatchlistRuntimeManager {
       const body = isResistanceCluster ? [
         `price pushed through nearby resistance cluster ${resistanceRange}${nextResistanceText ? `; nearby resistance above is ${nextResistanceText}` : ""}`,
         "",
-        "Breakout attempt is being tested.",
+        "Old resistance is being tested as support.",
         "",
         "What it means:",
-        `- ${resistanceRange} was crossed in the same move and now needs to hold as a zone`,
+        `- ${resistanceRange} was resistance. Now buyers need that area to hold as support`,
         nextResistanceText
           ? `- nearby resistance above is ${nextResistanceText}`
-          : "- no higher resistance is currently in the surfaced ladder",
+          : `- ${missingResistanceText}`,
         "",
         "What to watch:",
-        `- acceptance above ${resistanceLine} keeps the breakout attempt alive`,
+        `- holding above ${resistanceLine} keeps the breakout attempt alive`,
         `- falling back into ${resistanceRange} means the cluster is still acting like resistance`,
         pullbackSupportLevel
-          ? `- if price cannot hold ${resistanceRange}, the breakout needs to rebuild; deeper support is ${pullbackSupportLevel}`
+          ? pullbackIsTinyStep
+            ? `- if price cannot hold ${resistanceRange}, treat this as a tight support/retest area rather than a fresh downside story`
+            : `- if price cannot hold ${resistanceRange}, the breakout needs to rebuild; broader support is ${pullbackSupportLevel}`
           : `- if price cannot hold ${resistanceLine}, the breakout needs to rebuild`,
         "",
         "Key levels:",
         `- Breakout support: ${resistanceRange}`,
         nextResistanceText
           ? `- Resistance above: ${nextResistanceText}`
-          : "- Resistance above: none currently surfaced",
+          : "- Resistance above: needs fresh level check",
       ].join("\n") : [
         `price pushed above ${resistanceLine}${nextResistanceText ? `; nearby resistance above is ${nextResistanceText}` : ""}`,
         "",
-        "Breakout attempt is being tested.",
+        "Old resistance is being tested as support.",
         "",
         "What it means:",
-        `- ${resistanceLine} is being tested from above, but it still needs to hold`,
+        `- ${resistanceLine} was resistance. Now buyers need it to hold as support`,
         nextResistanceText
           ? `- nearby resistance above is ${nextResistanceText}`
-          : "- no higher resistance is currently in the surfaced ladder",
+          : `- ${missingResistanceText}`,
         "",
         "What to watch:",
-        `- acceptance above ${resistanceLine} keeps the breakout attempt alive`,
+        `- holding above ${resistanceLine} keeps the breakout attempt alive`,
         `- falling back below ${resistanceLine} means the level is still acting like resistance`,
         pullbackSupportLevel
-          ? `- if price cannot hold ${resistanceLine}, the breakout needs to rebuild; deeper support is ${pullbackSupportLevel}`
+          ? pullbackIsTinyStep
+            ? `- if price cannot hold ${resistanceLine}, treat this as a tight support/retest area rather than a fresh downside story`
+            : `- if price cannot hold ${resistanceLine}, the breakout needs to rebuild; broader support is ${pullbackSupportLevel}`
           : `- if price cannot hold ${resistanceLine}, the breakout needs to rebuild`,
         "",
         "Key levels:",
         `- Breakout support: ${resistanceLine}`,
         nextResistanceText
           ? `- Resistance above: ${nextResistanceText}`
-          : "- Resistance above: none currently surfaced",
+          : "- Resistance above: needs fresh level check",
       ].join("\n");
+      if (this.cancelPendingLevelTouchAlert(symbol)) {
+        this.emitLifecycle("alert_suppressed", {
+          symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: "level_touch",
+            reason: "superseded_by_fast_level_clear",
+          },
+        });
+      }
       this.activeSnapshotState.set(symbol, {
         ...snapshotState,
         lastClearedResistance: resistance,
@@ -1482,13 +1773,27 @@ export class ManualWatchlistRuntimeManager {
         metadata: {
           messageKind: "level_clear_update",
           eventType: "breakout",
+          signalCategory: "breakout_reclaim_quality",
+          signalCategoryLiveEnabled: isSignalCategoryLiveEnabled("breakout_reclaim_quality"),
           targetSide: "resistance",
           targetPrice: resistance,
           crossedLevels: isResistanceCluster ? resistanceLevels : undefined,
           clusterLow: isResistanceCluster ? Math.min(...resistanceLevels) : undefined,
           clusterHigh: isResistanceCluster ? Math.max(...resistanceLevels) : undefined,
           clusteredLevelClear: isResistanceCluster ? true : undefined,
+          whyPosted: isResistanceCluster ? "nearby resistance cluster crossed" : "new resistance level crossed",
+          postBudgetSymbolType: classifyRuntimePostBudgetSymbolType(update.lastPrice),
+          noLevelReason: nextResistance ? undefined : "higher resistance not available in active snapshot or extension cache",
+          needsFreshLevelCheck: nextResistance ? undefined : true,
         },
+      });
+      this.recordLevelClearUpdate({
+        symbol,
+        timestamp: update.timestamp,
+        eventType: "breakout",
+        level: resistance,
+        triggerPrice: update.lastPrice,
+        majorChange: isResistanceCluster,
       });
       this.recordLiveThreadPost({
         symbol,
@@ -1496,6 +1801,7 @@ export class ManualWatchlistRuntimeManager {
         kind: "intelligent_alert",
         critical: true,
         eventType: "breakout",
+        whyPosted: isResistanceCluster ? "nearby resistance cluster crossed" : "new resistance level crossed",
       });
       this.recordDominantLevelStory({
         symbol,
@@ -1520,6 +1826,12 @@ export class ManualWatchlistRuntimeManager {
     if (
       support !== null &&
       !suppressRepeatedSupport &&
+      !this.shouldSuppressSameOrLowerValueLevelStory({
+        symbol,
+        level: support,
+        eventType: "breakdown",
+        timestamp: update.timestamp,
+      }) &&
       (
         !this.hasRecentCriticalPost(symbol, update.timestamp, "breakdown") ||
         (
@@ -1528,9 +1840,51 @@ export class ManualWatchlistRuntimeManager {
         )
       )
     ) {
-      const nextSupport = this.findNextSupportBelow(symbol, support);
+      const levelClearDecision = this.shouldPostLevelClearUpdate({
+        symbol,
+        timestamp: update.timestamp,
+        eventType: "breakdown",
+        level: support,
+        triggerPrice: update.lastPrice,
+        majorChange: isSupportCluster,
+      });
+      if (!levelClearDecision.shouldPost) {
+        this.emitLifecycle("alert_suppressed", {
+          symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: "level_clear_update",
+            reason: levelClearDecision.reason,
+          },
+        });
+        return;
+      }
+      if (
+        !this.shouldAllowCriticalLivePost({
+          symbol,
+          timestamp: update.timestamp,
+          kind: "level_clear_update",
+          eventType: "breakdown",
+          majorChange: isSupportCluster,
+        })
+      ) {
+        this.emitLifecycle("alert_suppressed", {
+          symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: "level_clear_update",
+            reason: "critical_burst_governor",
+          },
+        });
+        return;
+      }
+
+      const nextSupport = this.findNextSupportBelow(symbol, support, snapshotState);
       const nextSupportText = formatFastLevelZone(nextSupport, "support");
+      const missingSupportText = "lower support needs a fresh level check before treating the path as open";
       const nextSupportLevel = formatFastLevelOnly(nextSupport);
+      const nextSupportIsTinyStep =
+        nextSupport !== null && isTinySmallCapLevelStep(support, nextSupport.representativePrice);
       const supportRange = formatFastLevelRange(supportLevels);
       const supportRepairLine = formatSnapshotLevel(Math.max(...supportLevels));
       const title = isSupportCluster
@@ -1539,42 +1893,56 @@ export class ManualWatchlistRuntimeManager {
       const body = isSupportCluster ? [
         `price slipped through nearby support cluster ${supportRange}${nextSupportText ? `; nearby support below is ${nextSupportText}` : ""}`,
         "",
-        "Support loss is being tested.",
+        "Old support is now overhead.",
         "",
         "What it means:",
-        `- ${supportRange} was crossed in the same move and can still be reclaimed as a zone`,
+        `- ${supportRange} was support. Price is below it now, so buyers need a reclaim to repair the zone`,
         nextSupportText
           ? `- nearby support below is ${nextSupportText}`
-          : "- no lower support is currently in the surfaced ladder",
+          : `- ${missingSupportText}`,
         "",
         "What to watch:",
         `- reclaiming ${supportRepairLine} is needed to repair the zone`,
         nextSupportText
           ? `- nearby support reaction area: ${nextSupportText}; buyers need stabilization there or a reclaim of ${supportRepairLine}`
-          : "- buyers need to stabilize before the drop looks repaired",
+          : "- buyers need stabilization or a fresh lower-support check before the path is treated as open",
         nextSupportLevel
-          ? `- below ${supportRange}, risk stays open toward ${nextSupportLevel}`
+          ? nextSupportIsTinyStep
+            ? `- below ${supportRange}, this is still a tight support area; the cleaner story changes on a broader failure or a reclaim`
+            : `- below ${supportRange}, the next broader support area is ${nextSupportLevel}`
           : `- below ${supportRange}, risk stays elevated until a new support forms`,
       ].join("\n") : [
         `price slipped below ${formatSnapshotLevel(support)}${nextSupportText ? `; nearby support below is ${nextSupportText}` : ""}`,
         "",
-        "Support loss is being tested.",
+        "Old support is now overhead.",
         "",
         "What it means:",
-        `- ${formatSnapshotLevel(support)} is being tested from below, but it can still be reclaimed`,
+        `- ${formatSnapshotLevel(support)} was support. Price is below it now, so buyers need a reclaim to repair the level`,
         nextSupportText
           ? `- nearby support below is ${nextSupportText}`
-          : "- no lower support is currently in the surfaced ladder",
+          : `- ${missingSupportText}`,
         "",
         "What to watch:",
         `- reclaiming ${formatSnapshotLevel(support)} is needed to repair the level`,
         nextSupportText
           ? `- nearby support reaction area: ${nextSupportText}; buyers need stabilization there or a reclaim of ${formatSnapshotLevel(support)}`
-          : "- buyers need to stabilize before the drop looks repaired",
+          : "- buyers need stabilization or a fresh lower-support check before the path is treated as open",
         nextSupportLevel
-          ? `- below ${formatSnapshotLevel(support)}, risk stays open toward ${nextSupportLevel}`
+          ? nextSupportIsTinyStep
+            ? `- below ${formatSnapshotLevel(support)}, this is still a tight support area; the cleaner story changes on a broader failure or a reclaim`
+            : `- below ${formatSnapshotLevel(support)}, the next broader support area is ${nextSupportLevel}`
           : `- below ${formatSnapshotLevel(support)}, risk stays elevated until a new support forms`,
       ].join("\n");
+      if (this.cancelPendingLevelTouchAlert(symbol)) {
+        this.emitLifecycle("alert_suppressed", {
+          symbol,
+          threadId: entry.discordThreadId,
+          details: {
+            eventType: "level_touch",
+            reason: "superseded_by_fast_level_clear",
+          },
+        });
+      }
       this.activeSnapshotState.set(symbol, {
         ...snapshotState,
         lastClearedSupport: support,
@@ -1588,13 +1956,27 @@ export class ManualWatchlistRuntimeManager {
         metadata: {
           messageKind: "level_clear_update",
           eventType: "breakdown",
+          signalCategory: "breakout_reclaim_quality",
+          signalCategoryLiveEnabled: isSignalCategoryLiveEnabled("breakout_reclaim_quality"),
           targetSide: "support",
           targetPrice: support,
           crossedLevels: isSupportCluster ? supportLevels : undefined,
           clusterLow: isSupportCluster ? Math.min(...supportLevels) : undefined,
           clusterHigh: isSupportCluster ? Math.max(...supportLevels) : undefined,
           clusteredLevelClear: isSupportCluster ? true : undefined,
+          whyPosted: isSupportCluster ? "nearby support cluster crossed lower" : "new support level crossed lower",
+          postBudgetSymbolType: classifyRuntimePostBudgetSymbolType(update.lastPrice),
+          noLevelReason: nextSupport ? undefined : "lower support not available in active snapshot or extension cache",
+          needsFreshLevelCheck: nextSupport ? undefined : true,
         },
+      });
+      this.recordLevelClearUpdate({
+        symbol,
+        timestamp: update.timestamp,
+        eventType: "breakdown",
+        level: support,
+        triggerPrice: update.lastPrice,
+        majorChange: isSupportCluster,
       });
       this.recordLiveThreadPost({
         symbol,
@@ -1602,6 +1984,7 @@ export class ManualWatchlistRuntimeManager {
         kind: "intelligent_alert",
         critical: true,
         eventType: "breakdown",
+        whyPosted: isSupportCluster ? "nearby support cluster crossed lower" : "new support level crossed lower",
       });
       this.recordDominantLevelStory({
         symbol,
@@ -1611,6 +1994,32 @@ export class ManualWatchlistRuntimeManager {
         label: "cleared",
       });
     }
+  }
+
+  private scheduleFastLevelClear(update: LivePriceUpdate): void {
+    if (this.fastLevelClearCoalesceMs <= 0) {
+      void this.maybePostFastLevelClear(update).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntimeManager] Failed to post fast level clear: ${message}`);
+      });
+      return;
+    }
+
+    const symbol = normalizeSymbol(update.symbol);
+    const existing = this.pendingFastLevelClearAlerts.get(symbol);
+    if (existing) {
+      clearTimeout(existing.timer);
+    }
+
+    const timer = setTimeout(() => {
+      this.pendingFastLevelClearAlerts.delete(symbol);
+      void this.maybePostFastLevelClear(update).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntimeManager] Failed to post fast level clear: ${message}`);
+      });
+    }, this.fastLevelClearCoalesceMs);
+
+    this.pendingFastLevelClearAlerts.set(symbol, { timer, update });
   }
 
   private async maybeRefreshLevelSnapshot(update: LivePriceUpdate): Promise<void> {
@@ -1673,6 +2082,8 @@ export class ManualWatchlistRuntimeManager {
         highestResistance: refreshedState?.highestResistance ?? snapshotState.highestResistance,
         lowestSupport: refreshedState?.lowestSupport ?? snapshotState.lowestSupport,
         referencePrice: refreshedState?.referencePrice ?? snapshotState.referencePrice,
+        displayedSupportZones: refreshedState?.displayedSupportZones ?? snapshotState.displayedSupportZones,
+        displayedResistanceZones: refreshedState?.displayedResistanceZones ?? snapshotState.displayedResistanceZones,
         lastRefreshTriggerResistance:
           side === "resistance" ? boundary : refreshedState?.lastRefreshTriggerResistance ?? snapshotState.lastRefreshTriggerResistance,
         lastRefreshTriggerSupport:
@@ -1700,32 +2111,104 @@ export class ManualWatchlistRuntimeManager {
     }
   }
 
+  private recordLevelSeedStarted(symbol: string): number {
+    const startedAt = Date.now();
+    this.levelSeedStats.attempts += 1;
+    this.levelSeedStats.inFlight += 1;
+    this.levelSeedStats.lastSymbol = symbol;
+    this.levelSeedStats.lastStartedAt = startedAt;
+    this.levelSeedStats.lastError = null;
+    return startedAt;
+  }
+
+  private recordLevelSeedCompleted(symbol: string, startedAt: number): void {
+    const completedAt = Date.now();
+    const durationMs = Math.max(0, completedAt - startedAt);
+    this.levelSeedStats.successes += 1;
+    this.levelSeedStats.inFlight = Math.max(0, this.levelSeedStats.inFlight - 1);
+    this.levelSeedStats.totalDurationMs += durationMs;
+    this.levelSeedStats.lastDurationMs = durationMs;
+    this.levelSeedStats.lastSymbol = symbol;
+    this.levelSeedStats.lastCompletedAt = completedAt;
+    this.levelSeedStats.lastError = null;
+  }
+
+  private recordLevelSeedFailed(symbol: string, startedAt: number, error: unknown): void {
+    const completedAt = Date.now();
+    const durationMs = Math.max(0, completedAt - startedAt);
+    this.levelSeedStats.failures += 1;
+    this.levelSeedStats.inFlight = Math.max(0, this.levelSeedStats.inFlight - 1);
+    this.levelSeedStats.totalDurationMs += durationMs;
+    this.levelSeedStats.lastDurationMs = durationMs;
+    this.levelSeedStats.lastSymbol = symbol;
+    this.levelSeedStats.lastCompletedAt = completedAt;
+    this.levelSeedStats.lastError = error instanceof Error ? error.message : String(error);
+  }
+
+  private recordLevelSeedTimeout(symbol: string, error: unknown): void {
+    if (!(error instanceof LevelSeedTimeoutError)) {
+      return;
+    }
+
+    this.levelSeedStats.timeouts += 1;
+    this.levelSeedStats.lastSymbol = symbol;
+    this.levelSeedStats.lastError = error.message;
+  }
+
+  private getLevelSeedStats(): ManualWatchlistLevelSeedStats {
+    const completed = this.levelSeedStats.successes + this.levelSeedStats.failures;
+    return {
+      attempts: this.levelSeedStats.attempts,
+      successes: this.levelSeedStats.successes,
+      failures: this.levelSeedStats.failures,
+      timeouts: this.levelSeedStats.timeouts,
+      inFlight: this.levelSeedStats.inFlight,
+      averageDurationMs:
+        completed > 0 ? Math.round(this.levelSeedStats.totalDurationMs / completed) : null,
+      lastDurationMs: this.levelSeedStats.lastDurationMs,
+      lastSymbol: this.levelSeedStats.lastSymbol,
+      lastStartedAt: this.levelSeedStats.lastStartedAt,
+      lastCompletedAt: this.levelSeedStats.lastCompletedAt,
+      lastError: this.levelSeedStats.lastError,
+    };
+  }
+
   private beginSeedLevelsForSymbol(symbol: string): Promise<void> {
+    const startedAt = this.recordLevelSeedStarted(symbol);
     return (async (): Promise<void> => {
-      if (this.options.seedSymbolLevels) {
-        await this.options.seedSymbolLevels(symbol);
+      try {
+        if (this.options.seedSymbolLevels) {
+          await this.options.seedSymbolLevels(symbol);
+          this.markSeededLevelsReady(symbol);
+          this.emitLifecycle("levels_seeded", {
+            symbol,
+          });
+          this.recordLevelSeedCompleted(symbol, startedAt);
+          return;
+        }
+
+        const output = await this.levelEngine.generateLevels({
+          symbol,
+          historicalRequests: {
+            daily: { symbol, timeframe: "daily", lookbackBars: this.historicalLookbackBars.daily },
+            "4h": { symbol, timeframe: "4h", lookbackBars: this.historicalLookbackBars["4h"] },
+            "5m": { symbol, timeframe: "5m", lookbackBars: this.historicalLookbackBars["5m"] },
+          },
+        });
+
+        this.options.levelStore.setLevels(output);
+        this.markSeededLevelsReady(symbol);
         this.emitLifecycle("levels_seeded", {
           symbol,
+          details: {
+            generatedAt: output.generatedAt,
+          },
         });
-        return;
+        this.recordLevelSeedCompleted(symbol, startedAt);
+      } catch (error) {
+        this.recordLevelSeedFailed(symbol, startedAt, error);
+        throw error;
       }
-
-      const output = await this.levelEngine.generateLevels({
-        symbol,
-        historicalRequests: {
-          daily: { symbol, timeframe: "daily", lookbackBars: this.historicalLookbackBars.daily },
-          "4h": { symbol, timeframe: "4h", lookbackBars: this.historicalLookbackBars["4h"] },
-          "5m": { symbol, timeframe: "5m", lookbackBars: this.historicalLookbackBars["5m"] },
-        },
-      });
-
-      this.options.levelStore.setLevels(output);
-      this.emitLifecycle("levels_seeded", {
-        symbol,
-        details: {
-          generatedAt: output.generatedAt,
-        },
-      });
     })();
   }
 
@@ -1734,7 +2217,7 @@ export class ManualWatchlistRuntimeManager {
     options: { force?: boolean; graceOnTimeout?: boolean } = {},
   ): Promise<void> {
     if (!options.force && this.options.levelStore.getLevels(symbol)) {
-      this.setEntryOperation(symbol, "levels ready");
+      this.setLevelsReadyOperation(symbol);
       return;
     }
 
@@ -1743,7 +2226,7 @@ export class ManualWatchlistRuntimeManager {
 
     if (this.levelSeedTimeoutMs <= 0) {
       await seedOperation;
-      this.setEntryOperation(symbol, "levels ready");
+      this.setLevelsReadyOperation(symbol);
       return;
     }
 
@@ -1754,6 +2237,7 @@ export class ManualWatchlistRuntimeManager {
         () => new LevelSeedTimeoutError(symbol, this.levelSeedTimeoutMs),
       );
     } catch (error) {
+      this.recordLevelSeedTimeout(symbol, error);
       if (
         options.graceOnTimeout &&
         error instanceof LevelSeedTimeoutError &&
@@ -1772,7 +2256,54 @@ export class ManualWatchlistRuntimeManager {
         throw error;
       }
     }
-    this.setEntryOperation(symbol, "levels ready");
+    this.setLevelsReadyOperation(symbol);
+  }
+
+  private async restoreLevelsFromStartupCache(symbol: string): Promise<boolean> {
+    if (!this.startupCachedLevelEngine) {
+      return false;
+    }
+
+    if (this.options.levelStore.getLevels(symbol)) {
+      return false;
+    }
+
+    try {
+      const output = await this.startupCachedLevelEngine.generateLevels({
+        symbol,
+        historicalRequests: {
+          daily: { symbol, timeframe: "daily", lookbackBars: this.historicalLookbackBars.daily },
+          "4h": { symbol, timeframe: "4h", lookbackBars: this.historicalLookbackBars["4h"] },
+          "5m": { symbol, timeframe: "5m", lookbackBars: this.historicalLookbackBars["5m"] },
+        },
+      });
+      this.options.levelStore.setLevels(output);
+      this.markSeededLevelsReady(symbol);
+      this.startupCacheWarmingSymbols.add(symbol);
+      this.watchlistStore.patchEntry(symbol, {
+        lifecycle: "refresh_pending",
+        refreshPending: true,
+        operationStatus: "levels restored from cache, refreshing candles",
+      });
+      this.emitLifecycle("levels_seeded", {
+        symbol,
+        details: {
+          generatedAt: output.generatedAt,
+          source: "startup_cache",
+          warming: true,
+        },
+      });
+      return true;
+    } catch (error) {
+      this.emitLifecycle("restore_skipped", {
+        symbol,
+        details: {
+          source: "startup_cache",
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+      return false;
+    }
   }
 
   private recapCooldownMs(): number {
@@ -1845,6 +2376,9 @@ export class ManualWatchlistRuntimeManager {
     kind: LiveThreadPostKind;
     critical: boolean;
     eventType?: string | null;
+    whyPosted?: string | null;
+    tradeStoryState?: string | null;
+    triggerPrice?: number | null;
   }): void {
     const state = this.pruneLiveThreadPosts(params.symbol, params.timestamp);
     const target = params.critical ? state.critical : state.optional;
@@ -1856,11 +2390,20 @@ export class ManualWatchlistRuntimeManager {
     this.lastThreadPostAt = params.timestamp;
     this.lastThreadPostSymbol = params.symbol;
     this.lastThreadPostKind = params.kind;
-    this.watchlistStore.patchEntry(params.symbol, {
+    this.lastThreadPostReason = params.whyPosted ?? null;
+    const patch: Partial<WatchlistEntry> = {
       lastThreadPostAt: params.timestamp,
       lastThreadPostKind: params.kind,
       operationStatus: "monitoring live price",
-    });
+    };
+    if (params.tradeStoryState) {
+      patch.lastTradeStoryState = params.tradeStoryState;
+      patch.lastTradeStoryAt = params.timestamp;
+    }
+    if (typeof params.triggerPrice === "number" && Number.isFinite(params.triggerPrice)) {
+      patch.lastTriggerPrice = params.triggerPrice;
+    }
+    this.watchlistStore.patchEntry(params.symbol, patch);
   }
 
   private getDeliveryPressureState(symbol: string): SymbolDeliveryPressureState {
@@ -1894,6 +2437,77 @@ export class ManualWatchlistRuntimeManager {
       state.lastFailureMessage = null;
       this.deliveryPressureState.set(symbol, state);
     }
+  }
+
+  private buildMondayReviewHealth(): ManualWatchlistMondayReviewHealth {
+    const referenceTimestamp = Date.now();
+    let criticalPostsLast15m = 0;
+    let optionalPostsLast15m = 0;
+    const symbolBudgets: ManualWatchlistMondayReviewHealth["symbolBudgets"] = [];
+
+    for (const [symbol, state] of this.liveThreadPostState.entries()) {
+      const pruned = this.pruneLiveThreadPosts(symbol, referenceTimestamp);
+      const symbolCritical = pruned.critical.length;
+      const symbolOptional = pruned.optional.length;
+      const symbolTotal = symbolCritical + symbolOptional;
+      criticalPostsLast15m += symbolCritical;
+      optionalPostsLast15m += symbolOptional;
+      if (symbolTotal > 0) {
+        symbolBudgets.push({
+          symbol,
+          postsLast15m: symbolTotal,
+          criticalPostsLast15m: symbolCritical,
+          optionalPostsLast15m: symbolOptional,
+          status:
+            symbolTotal >= 6
+              ? "busy"
+              : symbolOptional >= 3 && symbolOptional > symbolCritical * 2
+                ? "optional_heavy"
+                : "calm",
+        });
+      }
+    }
+
+    const postsLast15m = criticalPostsLast15m + optionalPostsLast15m;
+    const stuckActivations = this.getStuckActivations(referenceTimestamp);
+    let postBudgetStatus: ManualWatchlistMondayReviewHealth["postBudgetStatus"] = "calm";
+    if (this.lastDeliveryFailureAt !== null || stuckActivations.length > 0) {
+      postBudgetStatus = "needs_attention";
+    } else if (postsLast15m >= 12) {
+      postBudgetStatus = "busy";
+    } else if (optionalPostsLast15m >= 4 && optionalPostsLast15m > criticalPostsLast15m * 2) {
+      postBudgetStatus = "optional_heavy";
+    }
+
+    const checklist = [
+      "Review trader-post-quality-report.md after the next live run.",
+      "Check all-symbol-stress-report.md for symbols above their post budget.",
+      "Spot-check any post with a missing next support or resistance reason.",
+    ];
+    if (postsLast15m >= 12) {
+      checklist.unshift("Post flow is busy; confirm the thread is telling one trade story, not level-by-level chatter.");
+    }
+    if (optionalPostsLast15m >= 4 && optionalPostsLast15m > criticalPostsLast15m * 2) {
+      checklist.unshift("Optional context is heavier than critical alerts; review recap and follow-through settings.");
+    }
+    if (stuckActivations.length > 0) {
+      checklist.unshift("Resolve stuck activations before trusting post-budget counts.");
+    }
+    if (this.lastDeliveryFailureAt !== null) {
+      checklist.unshift("Resolve the latest Discord delivery failure before judging signal quality.");
+    }
+
+    return {
+      postBudgetStatus,
+      postsLast15m,
+      criticalPostsLast15m,
+      optionalPostsLast15m,
+      lastWhyPosted: this.lastThreadPostReason,
+      symbolBudgets: symbolBudgets.sort(
+        (left, right) => right.postsLast15m - left.postsLast15m || left.symbol.localeCompare(right.symbol),
+      ).slice(0, 12),
+      checklist,
+    };
   }
 
   private getStuckActivations(timestamp: number = Date.now()): ManualWatchlistStuckActivation[] {
@@ -2084,6 +2698,65 @@ export class ManualWatchlistRuntimeManager {
     );
   }
 
+  private shouldSuppressSameOrLowerValueLevelStory(params: {
+    symbol: string;
+    level: number;
+    eventType: string;
+    timestamp: number;
+    label?: string | null;
+  }): boolean {
+    if (!Number.isFinite(params.level)) {
+      return false;
+    }
+
+    const priority = this.getStoryPriority(params.eventType, params.label);
+    return this.pruneDominantLevelStories(params.symbol, params.timestamp).some(
+      (story) =>
+        story.label !== "cleared" &&
+        this.isSameStoryLevel(story.level, params.level) &&
+        story.priority >= priority &&
+        story.timestamp <= params.timestamp,
+    );
+  }
+
+  private cancelPendingFastLevelClearIfSameStory(params: {
+    symbol: string;
+    eventType: string;
+    level: number;
+  }): boolean {
+    const normalizedSymbol = normalizeSymbol(params.symbol);
+    const pending = this.pendingFastLevelClearAlerts.get(normalizedSymbol);
+    const snapshotState = this.activeSnapshotState.get(normalizedSymbol);
+    if (!pending || !snapshotState || !Number.isFinite(params.level)) {
+      return false;
+    }
+
+    let pendingLevel: number | null = null;
+    if (params.eventType === "breakout" || params.eventType === "reclaim") {
+      const cluster = this.findFastClearedResistanceCluster(
+        normalizedSymbol,
+        snapshotState,
+        pending.update.lastPrice,
+      );
+      pendingLevel = cluster.at(-1)?.representativePrice ?? null;
+    } else if (params.eventType === "breakdown") {
+      const cluster = this.findFastLostSupportCluster(
+        normalizedSymbol,
+        snapshotState,
+        pending.update.lastPrice,
+      );
+      pendingLevel = cluster.at(-1)?.representativePrice ?? null;
+    }
+
+    if (pendingLevel === null || !this.isSameStoryLevel(pendingLevel, params.level)) {
+      return false;
+    }
+
+    clearTimeout(pending.timer);
+    this.pendingFastLevelClearAlerts.delete(normalizedSymbol);
+    return true;
+  }
+
   private isDeliveryBackoffActive(symbol: string, timestamp: number): boolean {
     const state = this.getDeliveryPressureState(symbol);
     if (state.lastFailureAt === null) {
@@ -2241,6 +2914,9 @@ export class ManualWatchlistRuntimeManager {
 
   private reserveIntelligentAlertPost(alert: IntelligentAlert): IntelligentAlertStoryRecord[] {
     const previous = [...this.pruneIntelligentAlertPostState(alert.symbol, alert.event.timestamp)];
+    const levelImportance = alert.zone
+      ? assessFinalLevelImportance({ zone: alert.zone, price: alert.event.triggerPrice })
+      : null;
     this.intelligentAlertPostState.set(alert.symbol, [
       ...previous,
       buildIntelligentAlertStoryRecord({
@@ -2250,13 +2926,103 @@ export class ManualWatchlistRuntimeManager {
         triggerPrice: alert.event.triggerPrice,
         severity: alert.severity,
         score: alert.score,
+        practicalStructureState: alert.event.eventContext.tradeStructure?.state,
+        practicalZoneKey: alert.event.eventContext.tradeStructure?.practicalZoneKey,
+        stableMarketStructureState: alert.event.eventContext.stableMarketStructureState,
+        stableMarketStructureKey: alert.event.eventContext.stableMarketStructureKey,
+        tradeStoryState: alert.event.eventContext.tradeStoryState,
+        rangeBoxLabel: alert.event.eventContext.rangeBox?.label,
+        acceptanceLabel: alert.event.eventContext.acceptance?.label,
+        behaviorBudgetLabel: alert.event.eventContext.behaviorBudget?.label,
+        primaryTradeAreaLocked: alert.event.eventContext.primaryTradeArea?.locked,
+        primaryTradeAreaEscapeSide: alert.event.eventContext.primaryTradeArea?.escapeSide,
+        primaryTradeAreaEscapeConfidence: alert.event.eventContext.primaryTradeArea?.escapeConfidence,
+        failedLevelOutcome: alert.event.eventContext.failedLevelMemory?.outcome,
+        levelImportanceLabel: levelImportance?.label,
       }),
     ]);
     return previous;
   }
 
+  private pruneThreadStoryPhaseState(symbol: string, timestamp: number): ThreadStoryPhaseRecord[] {
+    const state = this.threadStoryPhaseState.get(symbol) ?? [];
+    const pruned = pruneThreadStoryPhaseRecords(state, timestamp, this.postingPolicySettings);
+    this.threadStoryPhaseState.set(symbol, pruned);
+    return pruned;
+  }
+
+  private shouldPostThreadStoryPhase(params: {
+    symbol: string;
+    timestamp: number;
+    eventType?: string | null;
+    level: number;
+    triggerPrice: number;
+    practicalStructureState?: PracticalTradeStructureState;
+    practicalZoneKey?: string;
+    practicalStructureMaterialChange?: boolean;
+    followThroughLabel?: string | null;
+    zoneKind?: "support" | "resistance" | null;
+    majorChange?: boolean;
+  }): { shouldPost: boolean; reason: string; record?: ThreadStoryPhaseRecord } {
+    const phase = deriveThreadStoryPhase({
+      eventType: params.eventType,
+      practicalStructureState: params.practicalStructureState,
+      followThroughLabel: params.followThroughLabel,
+      zoneKind: params.zoneKind,
+    });
+    if (!phase) {
+      return { shouldPost: true, reason: "no_phase" };
+    }
+
+    const areaKey = buildThreadStoryPhaseAreaKey({
+      eventType: params.eventType,
+      level: params.level,
+      practicalZoneKey: params.practicalZoneKey,
+    });
+    const decision = decideThreadStoryPhasePost({
+      records: this.pruneThreadStoryPhaseState(params.symbol, params.timestamp),
+      timestamp: params.timestamp,
+      phase,
+      areaKey,
+      triggerPrice: params.triggerPrice,
+      eventType: params.eventType,
+      materialChange: params.practicalStructureMaterialChange,
+      majorChange: params.majorChange,
+      settings: this.postingPolicySettings,
+    });
+    if (!decision.shouldPost) {
+      return { shouldPost: false, reason: decision.reason };
+    }
+
+    return {
+      shouldPost: true,
+      reason: decision.reason,
+      record: buildThreadStoryPhaseRecord({
+        timestamp: params.timestamp,
+        phase,
+        areaKey,
+        triggerPrice: params.triggerPrice,
+        eventType: params.eventType,
+      }),
+    };
+  }
+
+  private reserveThreadStoryPhase(params: {
+    symbol: string;
+    record?: ThreadStoryPhaseRecord;
+  }): ThreadStoryPhaseRecord[] {
+    const previous = [...(this.threadStoryPhaseState.get(params.symbol) ?? [])];
+    if (params.record) {
+      this.threadStoryPhaseState.set(params.symbol, [...previous, params.record]);
+    }
+    return previous;
+  }
+
   private shouldPostIntelligentAlert(alert: IntelligentAlert): { shouldPost: boolean; reason: string } {
     const recent = this.pruneIntelligentAlertPostState(alert.symbol, alert.event.timestamp);
+    const levelImportance = alert.zone
+      ? assessFinalLevelImportance({ zone: alert.zone, price: alert.event.triggerPrice })
+      : null;
     const decision = decideIntelligentAlertPost({
       records: recent,
       timestamp: alert.event.timestamp,
@@ -2265,9 +3031,119 @@ export class ManualWatchlistRuntimeManager {
       triggerPrice: alert.event.triggerPrice,
       severity: alert.severity,
       score: alert.score,
+      practicalStructureState: alert.event.eventContext.tradeStructure?.state,
+      practicalZoneKey: alert.event.eventContext.tradeStructure?.practicalZoneKey,
+      practicalStructureMaterialChange: alert.event.eventContext.tradeStructure?.isMaterialStateChange,
+      stableMarketStructureState: alert.event.eventContext.stableMarketStructureState,
+      stableMarketStructureKey: alert.event.eventContext.stableMarketStructureKey,
+      stableMarketStructureMaterialChange: alert.event.eventContext.stableMarketStructureMaterialChange,
+      tradeStoryState: alert.event.eventContext.tradeStoryState,
+      rangeBoxLabel: alert.event.eventContext.rangeBox?.label,
+      acceptanceLabel: alert.event.eventContext.acceptance?.label,
+      behaviorBudgetLabel: alert.event.eventContext.behaviorBudget?.label,
+      primaryTradeAreaLocked: alert.event.eventContext.primaryTradeArea?.locked,
+      primaryTradeAreaEscapeSide: alert.event.eventContext.primaryTradeArea?.escapeSide,
+      primaryTradeAreaEscapeConfidence: alert.event.eventContext.primaryTradeArea?.escapeConfidence,
+      failedLevelOutcome: alert.event.eventContext.failedLevelMemory?.outcome,
+      levelImportanceLabel: levelImportance?.label,
       settings: this.postingPolicySettings,
     });
-    return { shouldPost: decision.shouldPost, reason: decision.reason };
+    if (!decision.shouldPost) {
+      return { shouldPost: false, reason: decision.reason };
+    }
+
+    const phaseDecision = this.shouldPostThreadStoryPhase({
+      symbol: alert.symbol,
+      timestamp: alert.event.timestamp,
+      eventType: alert.event.eventType,
+      level: alert.event.level,
+      triggerPrice: alert.event.triggerPrice,
+      practicalStructureState: alert.event.eventContext.tradeStructure?.state,
+      practicalZoneKey: alert.event.eventContext.tradeStructure?.practicalZoneKey,
+      practicalStructureMaterialChange: alert.event.eventContext.tradeStructure?.isMaterialStateChange,
+      zoneKind: alert.event.zoneKind,
+      majorChange:
+        alert.event.eventType === "breakout" ||
+        alert.event.eventType === "breakdown" ||
+        alert.event.eventType === "reclaim" ||
+        alert.severity === "critical" ||
+        (alert.severity === "high" && alert.confidence === "high"),
+    });
+    return {
+      shouldPost: phaseDecision.shouldPost,
+      reason: phaseDecision.shouldPost ? decision.reason : `phase_${phaseDecision.reason}`,
+    };
+  }
+
+  private shouldPostLevelClearUpdate(params: {
+    symbol: string;
+    timestamp: number;
+    eventType: "breakout" | "breakdown";
+    level: number;
+    triggerPrice: number;
+    majorChange?: boolean;
+  }): { shouldPost: boolean; reason: string } {
+    const recent = this.pruneIntelligentAlertPostState(params.symbol, params.timestamp);
+    const decision = decideIntelligentAlertPost({
+      records: recent,
+      timestamp: params.timestamp,
+      eventType: params.eventType,
+      level: params.level,
+      triggerPrice: params.triggerPrice,
+      settings: this.postingPolicySettings,
+    });
+    if (!decision.shouldPost) {
+      return { shouldPost: false, reason: decision.reason };
+    }
+
+    const phaseDecision = this.shouldPostThreadStoryPhase({
+      symbol: params.symbol,
+      timestamp: params.timestamp,
+      eventType: params.eventType,
+      level: params.level,
+      triggerPrice: params.triggerPrice,
+      zoneKind: params.eventType === "breakdown" ? "support" : "resistance",
+      majorChange: params.majorChange,
+    });
+    return {
+      shouldPost: phaseDecision.shouldPost,
+      reason: phaseDecision.shouldPost ? decision.reason : `phase_${phaseDecision.reason}`,
+    };
+  }
+
+  private recordLevelClearUpdate(params: {
+    symbol: string;
+    timestamp: number;
+    eventType: "breakout" | "breakdown";
+    level: number;
+    triggerPrice: number;
+    majorChange?: boolean;
+  }): void {
+    const previous = this.pruneIntelligentAlertPostState(params.symbol, params.timestamp);
+    this.intelligentAlertPostState.set(params.symbol, [
+      ...previous,
+      buildIntelligentAlertStoryRecord({
+        timestamp: params.timestamp,
+        eventType: params.eventType,
+        level: params.level,
+        triggerPrice: params.triggerPrice,
+      }),
+    ]);
+    const phaseDecision = this.shouldPostThreadStoryPhase({
+      symbol: params.symbol,
+      timestamp: params.timestamp,
+      eventType: params.eventType,
+      level: params.level,
+      triggerPrice: params.triggerPrice,
+      zoneKind: params.eventType === "breakdown" ? "support" : "resistance",
+      majorChange: params.majorChange,
+    });
+    if (phaseDecision.shouldPost) {
+      this.reserveThreadStoryPhase({
+        symbol: params.symbol,
+        record: phaseDecision.record,
+      });
+    }
   }
 
   private shouldAllowCriticalLivePost(params: {
@@ -2718,6 +3594,7 @@ export class ManualWatchlistRuntimeManager {
           kind: "continuity",
           critical: false,
           eventType: update.eventType ?? null,
+          whyPosted: payload.metadata?.whyPosted ?? null,
         });
         this.clearDeliveryFailure(update.symbol, update.timestamp);
         this.emitLifecycle("continuity_posted", {
@@ -2944,6 +3821,7 @@ export class ManualWatchlistRuntimeManager {
           kind: "follow_through_state",
           critical: false,
           eventType: progressUpdate.eventType,
+          whyPosted: payload.metadata?.whyPosted ?? null,
         });
         this.clearDeliveryFailure(progressUpdate.symbol, progressUpdate.timestamp);
         this.followThroughStatePosts.set(progressUpdate.symbol, {
@@ -2983,11 +3861,51 @@ export class ManualWatchlistRuntimeManager {
     progressUpdate?: OpportunityProgressUpdate;
     evaluation?: EvaluatedOpportunity;
   }): boolean {
+    const evaluationMove =
+      params.evaluation?.directionalReturnPct === null || params.evaluation?.directionalReturnPct === undefined
+        ? 0
+        : Math.abs(params.evaluation.directionalReturnPct);
+    const progressMove =
+      params.progressUpdate?.directionalReturnPct === null || params.progressUpdate?.directionalReturnPct === undefined
+        ? 0
+        : Math.abs(params.progressUpdate.directionalReturnPct);
     return (
-      params.evaluation?.followThroughLabel === "failed" ||
-      params.evaluation?.followThroughLabel === "strong" ||
-      params.progressUpdate?.progressLabel === "degrading" ||
+      ((params.evaluation?.followThroughLabel === "failed" || params.evaluation?.followThroughLabel === "strong") &&
+        evaluationMove >= FOLLOW_THROUGH_MAJOR_MOVE_PCT) ||
+      (params.progressUpdate?.progressLabel === "degrading" && progressMove >= FOLLOW_THROUGH_MAJOR_MOVE_PCT) ||
       params.interpretation?.type === "weakening"
+    );
+  }
+
+  private hasMeaningfulRecapCatalyst(params: {
+    interpretation?: OpportunityInterpretation;
+    progressUpdate?: OpportunityProgressUpdate;
+    evaluation?: EvaluatedOpportunity;
+  }): boolean {
+    if (params.interpretation?.type === "confirmation" || params.interpretation?.type === "weakening") {
+      return true;
+    }
+
+    const progressMove =
+      params.progressUpdate?.directionalReturnPct === null || params.progressUpdate?.directionalReturnPct === undefined
+        ? 0
+        : Math.abs(params.progressUpdate.directionalReturnPct);
+    if (
+      params.progressUpdate &&
+      (params.progressUpdate.progressLabel === "improving" || params.progressUpdate.progressLabel === "degrading") &&
+      progressMove >= this.postingPolicySettings.minFollowThroughStateMovePct
+    ) {
+      return true;
+    }
+
+    const evaluationMove =
+      params.evaluation?.directionalReturnPct === null || params.evaluation?.directionalReturnPct === undefined
+        ? 0
+        : Math.abs(params.evaluation.directionalReturnPct);
+    return Boolean(
+      params.evaluation &&
+        (params.evaluation.followThroughLabel === "failed" || params.evaluation.followThroughLabel === "strong") &&
+        evaluationMove >= FOLLOW_THROUGH_MAJOR_MOVE_PCT,
     );
   }
 
@@ -3002,21 +3920,21 @@ export class ManualWatchlistRuntimeManager {
 
     const eventType = (topOpportunity.eventType ?? topOpportunity.type).replaceAll("_", " ");
     if (topOpportunity.clearanceLabel === "tight") {
-      return `${eventType} needs a decisive reaction because room still looks tight.`;
+      return `${eventType} is working with tight room, so buyers need a cleaner reaction.`;
     }
 
     if (topOpportunity.pathQualityLabel === "choppy") {
-      return `${eventType} needs cleaner acceptance because the path ahead still looks choppy.`;
+      return `${eventType} is working through a choppy path, so acceptance still needs to get cleaner.`;
     }
 
     if (
       topOpportunity.exhaustionLabel === "worn" ||
       topOpportunity.exhaustionLabel === "spent"
     ) {
-      return `${eventType} needs a decisive reaction because the active level is getting too worn to trust on weak follow-through.`;
+      return `${eventType} is still near an important level, but weak reactions are less trustworthy here.`;
     }
 
-    return `${eventType} still needs clean acceptance so the setup can keep following through.`;
+    return `${eventType} still needs clean acceptance for the move to stay constructive.`;
   }
 
   private buildSymbolRecapBody(params: {
@@ -3034,7 +3952,7 @@ export class ManualWatchlistRuntimeManager {
       const eventType = (topOpportunity.eventType ?? topOpportunity.type).replaceAll("_", " ");
       const level = topOpportunity.level >= 1 ? topOpportunity.level.toFixed(2) : topOpportunity.level.toFixed(4);
       parts.push(
-        `${eventType} is still the lead read near ${level} with ${topOpportunity.classification.replaceAll("_", " ")} quality.`,
+        `${eventType} is still the main read near ${level}; quality is ${topOpportunity.classification.replaceAll("_", " ")}.`,
       );
 
       const pathLine =
@@ -3053,7 +3971,7 @@ export class ManualWatchlistRuntimeManager {
 
       if (topOpportunity.exhaustionLabel === "worn" || topOpportunity.exhaustionLabel === "spent") {
         parts.push(
-          `The active level still matters structurally, but it now looks ${topOpportunity.exhaustionLabel}, so reactions there are less trustworthy than fresh ones.`,
+          `That level still matters, but it looks ${topOpportunity.exhaustionLabel}, so weak reactions are less trustworthy than fresh ones.`,
         );
       }
 
@@ -3069,7 +3987,7 @@ export class ManualWatchlistRuntimeManager {
 
     if (params.progressUpdate) {
       parts.push(
-        `Follow-through is ${params.progressUpdate.progressLabel}, with price change from the key level ${
+        `Follow-through is ${params.progressUpdate.progressLabel}; price change from the watched level is ${
           params.progressUpdate.directionalReturnPct === null
             ? "still unclear"
             : `${params.progressUpdate.directionalReturnPct >= 0 ? "+" : "-"}${Math.abs(params.progressUpdate.directionalReturnPct).toFixed(2)}%`
@@ -3077,11 +3995,11 @@ export class ManualWatchlistRuntimeManager {
       );
     } else if (params.evaluation) {
       parts.push(
-        `The latest follow-through check finished ${params.evaluation.followThroughLabel} at ${
+        `Follow-through is ${params.evaluation.followThroughLabel}; price change from the watched level is ${
           params.evaluation.directionalReturnPct === null
             ? "n/a"
             : `${params.evaluation.directionalReturnPct >= 0 ? "+" : "-"}${Math.abs(params.evaluation.directionalReturnPct).toFixed(2)}%`
-        } from the key level.`,
+        }.`,
       );
     }
 
@@ -3301,6 +4219,11 @@ export class ManualWatchlistRuntimeManager {
         return;
       }
 
+      const signalCategory = routeMessageKindToSignalCategory({
+        messageKind: "ai_signal_commentary",
+        eventType: params.alert.event.eventType,
+      }).primaryCategory;
+
       await this.options.discordAlertRouter.routeAlert(params.threadId, {
         title: `${params.alert.symbol} setup read`,
         body: commentary.text,
@@ -3310,6 +4233,9 @@ export class ManualWatchlistRuntimeManager {
         metadata: {
           eventType: params.alert.event.eventType,
           messageKind: "ai_signal_commentary",
+          signalCategory,
+          signalCategoryLiveEnabled: isSignalCategoryLiveEnabled(signalCategory),
+          supportingSignalCategories: [resolvePrimarySignalCategoryForAlert(params.alert)],
           severity: params.alert.severity,
           confidence: params.alert.confidence,
           score: params.alert.score,
@@ -3325,6 +4251,7 @@ export class ManualWatchlistRuntimeManager {
         kind: "ai_signal_commentary",
         critical: false,
         eventType: params.alert.event.eventType,
+        whyPosted: "AI commentary posted after deterministic alert",
       });
     } catch (error) {
       this.aiSignalStoryState.set(normalizeSymbol(params.alert.symbol), previousAiState);
@@ -3466,12 +4393,7 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    if (
-      !params.progressUpdate &&
-      !params.evaluation &&
-      (!params.interpretation ||
-        (params.interpretation.type !== "confirmation" && params.interpretation.type !== "weakening"))
-    ) {
+    if (!this.hasMeaningfulRecapCatalyst(params)) {
       return;
     }
 
@@ -3578,6 +4500,7 @@ export class ManualWatchlistRuntimeManager {
             params.progressUpdate?.eventType ??
             params.interpretation?.eventType ??
             null,
+          whyPosted: payload.metadata?.whyPosted ?? null,
         });
         this.clearDeliveryFailure(params.symbol, params.timestamp);
         this.emitLifecycle("recap_posted", {
@@ -3695,10 +4618,20 @@ export class ManualWatchlistRuntimeManager {
             threadId: entry.discordThreadId,
             details: {
               eventType: event.eventType,
+              level: alertResult.rawAlert.event.level,
+              triggerPrice: alertResult.rawAlert.event.triggerPrice,
+              zoneKind: alertResult.rawAlert.event.zoneKind,
               severity: alertResult.rawAlert.severity,
               confidence: alertResult.rawAlert.confidence,
               score: alertResult.rawAlert.score,
               reason: alertPostDecision.reason,
+              whyNotPosted: alertPostDecision.reason,
+              tradeStoryState: alertResult.rawAlert.event.eventContext.tradeStoryState ?? null,
+              rangeBoxLabel: alertResult.rawAlert.event.eventContext.rangeBox?.label ?? null,
+              acceptanceLabel: alertResult.rawAlert.event.eventContext.acceptance?.label ?? null,
+              behaviorBudgetLabel: alertResult.rawAlert.event.eventContext.behaviorBudget?.label ?? null,
+              primaryTradeAreaLocked: alertResult.rawAlert.event.eventContext.primaryTradeArea?.locked ?? null,
+              primaryTradeAreaEscapeSide: alertResult.rawAlert.event.eventContext.primaryTradeArea?.escapeSide ?? null,
             },
           });
           return;
@@ -3724,16 +4657,67 @@ export class ManualWatchlistRuntimeManager {
             threadId: entry.discordThreadId,
             details: {
               eventType: event.eventType,
+              level: alertResult.rawAlert.event.level,
+              triggerPrice: alertResult.rawAlert.event.triggerPrice,
+              zoneKind: alertResult.rawAlert.event.zoneKind,
               severity: alertResult.rawAlert.severity,
               confidence: alertResult.rawAlert.confidence,
               score: alertResult.rawAlert.score,
               reason: "critical_burst_governor",
+              whyNotPosted: "critical_burst_governor",
+              tradeStoryState: alertResult.rawAlert.event.eventContext.tradeStoryState ?? null,
+              rangeBoxLabel: alertResult.rawAlert.event.eventContext.rangeBox?.label ?? null,
+              acceptanceLabel: alertResult.rawAlert.event.eventContext.acceptance?.label ?? null,
+              behaviorBudgetLabel: alertResult.rawAlert.event.eventContext.behaviorBudget?.label ?? null,
+              primaryTradeAreaLocked: alertResult.rawAlert.event.eventContext.primaryTradeArea?.locked ?? null,
+              primaryTradeAreaEscapeSide: alertResult.rawAlert.event.eventContext.primaryTradeArea?.escapeSide ?? null,
+            },
+          });
+          return;
+        }
+
+        const alertPhaseDecision = this.shouldPostThreadStoryPhase({
+          symbol: alertResult.rawAlert.symbol,
+          timestamp: alertResult.rawAlert.event.timestamp,
+          eventType: alertResult.rawAlert.event.eventType,
+          level: alertResult.rawAlert.event.level,
+          triggerPrice: alertResult.rawAlert.event.triggerPrice,
+          practicalStructureState: alertResult.rawAlert.event.eventContext.tradeStructure?.state,
+          practicalZoneKey: alertResult.rawAlert.event.eventContext.tradeStructure?.practicalZoneKey,
+          practicalStructureMaterialChange: alertResult.rawAlert.event.eventContext.tradeStructure?.isMaterialStateChange,
+          zoneKind: alertResult.rawAlert.event.zoneKind,
+          majorChange: criticalMajorChange,
+        });
+        if (!alertPhaseDecision.shouldPost) {
+          this.emitLifecycle("alert_suppressed", {
+            symbol: event.symbol,
+            threadId: entry.discordThreadId,
+            details: {
+              eventType: event.eventType,
+              level: alertResult.rawAlert.event.level,
+              triggerPrice: alertResult.rawAlert.event.triggerPrice,
+              zoneKind: alertResult.rawAlert.event.zoneKind,
+              severity: alertResult.rawAlert.severity,
+              confidence: alertResult.rawAlert.confidence,
+              score: alertResult.rawAlert.score,
+              reason: `phase_${alertPhaseDecision.reason}`,
+              whyNotPosted: `phase_${alertPhaseDecision.reason}`,
+              tradeStoryState: alertResult.rawAlert.event.eventContext.tradeStoryState ?? null,
+              rangeBoxLabel: alertResult.rawAlert.event.eventContext.rangeBox?.label ?? null,
+              acceptanceLabel: alertResult.rawAlert.event.eventContext.acceptance?.label ?? null,
+              behaviorBudgetLabel: alertResult.rawAlert.event.eventContext.behaviorBudget?.label ?? null,
+              primaryTradeAreaLocked: alertResult.rawAlert.event.eventContext.primaryTradeArea?.locked ?? null,
+              primaryTradeAreaEscapeSide: alertResult.rawAlert.event.eventContext.primaryTradeArea?.escapeSide ?? null,
             },
           });
           return;
         }
 
         const previousIntelligentAlertPostState = this.reserveIntelligentAlertPost(alertResult.rawAlert);
+        const previousThreadStoryPhaseState = this.reserveThreadStoryPhase({
+          symbol: alertResult.rawAlert.symbol,
+          record: alertPhaseDecision.record,
+        });
         this.recordStoryCriticalAttempt({
           symbol: event.symbol,
           timestamp: event.timestamp,
@@ -3742,12 +4726,37 @@ export class ManualWatchlistRuntimeManager {
         void this.options.discordAlertRouter
           .routeAlert(entry.discordThreadId!, alert)
           .then(() => {
+            this.recordDominantLevelStory({
+              symbol: event.symbol,
+              level: alertResult.rawAlert.event.level,
+              eventType: event.eventType,
+              timestamp: event.timestamp,
+            });
+            if (
+              this.cancelPendingFastLevelClearIfSameStory({
+                symbol: event.symbol,
+                eventType: event.eventType,
+                level: alertResult.rawAlert.event.level,
+              })
+            ) {
+              this.emitLifecycle("alert_suppressed", {
+                symbol: event.symbol,
+                threadId: entry.discordThreadId,
+                details: {
+                  eventType: "level_clear_update",
+                  reason: "superseded_by_full_alert",
+                },
+              });
+            }
             this.recordLiveThreadPost({
               symbol: event.symbol,
               timestamp: event.timestamp,
               kind: "intelligent_alert",
               critical: true,
               eventType: event.eventType,
+              whyPosted: alert.metadata?.whyPosted ?? alertResult.delivery.reason,
+              tradeStoryState: alertResult.rawAlert.event.eventContext.tradeStoryState,
+              triggerPrice: alertResult.rawAlert.event.triggerPrice,
             });
             this.clearDeliveryFailure(event.symbol, event.timestamp);
             this.emitLifecycle("alert_posted", {
@@ -3782,6 +4791,7 @@ export class ManualWatchlistRuntimeManager {
           .catch((error) => {
             const message = error instanceof Error ? error.message : String(error);
             this.intelligentAlertPostState.set(event.symbol, previousIntelligentAlertPostState);
+            this.threadStoryPhaseState.set(event.symbol, previousThreadStoryPhaseState);
             this.emitLifecycle("alert_post_failed", {
               symbol: event.symbol,
               threadId: entry.discordThreadId,
@@ -3816,6 +4826,9 @@ export class ManualWatchlistRuntimeManager {
         threadId: entry.discordThreadId,
         details: {
           eventType: event.eventType,
+          level: alertResult.rawAlert.event.level,
+          triggerPrice: alertResult.rawAlert.event.triggerPrice,
+          zoneKind: alertResult.rawAlert.event.zoneKind,
           severity: alertResult.rawAlert.severity,
           confidence: alertResult.rawAlert.confidence,
           score: alertResult.rawAlert.score,
@@ -3832,6 +4845,13 @@ export class ManualWatchlistRuntimeManager {
           pathWindowDistancePct: alertResult.rawAlert.pathQuality?.pathWindowDistancePct ?? null,
           dipBuyQualityLabel: alertResult.rawAlert.dipBuyQuality?.label ?? null,
           exhaustionLabel: alertResult.rawAlert.exhaustion?.label ?? null,
+          whyNotPosted: alertResult.delivery.reason,
+          tradeStoryState: alertResult.rawAlert.event.eventContext.tradeStoryState ?? null,
+          rangeBoxLabel: alertResult.rawAlert.event.eventContext.rangeBox?.label ?? null,
+          acceptanceLabel: alertResult.rawAlert.event.eventContext.acceptance?.label ?? null,
+          behaviorBudgetLabel: alertResult.rawAlert.event.eventContext.behaviorBudget?.label ?? null,
+          primaryTradeAreaLocked: alertResult.rawAlert.event.eventContext.primaryTradeArea?.locked ?? null,
+          primaryTradeAreaEscapeSide: alertResult.rawAlert.event.eventContext.primaryTradeArea?.escapeSide ?? null,
         },
       });
     }
@@ -3872,11 +4892,37 @@ export class ManualWatchlistRuntimeManager {
         label: evaluation.followThroughLabel,
       })
     ) {
+      this.emitLifecycle("alert_suppressed", {
+        symbol: evaluation.symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          eventType: evaluation.eventType,
+          followThroughLabel: evaluation.followThroughLabel,
+          level: evaluation.entryPrice,
+          triggerPrice: evaluation.outcomePrice,
+          directionalReturnPct: evaluation.directionalReturnPct,
+          reason: "lower_value_follow_through_story",
+          whyNotPosted: "lower_value_follow_through_story",
+        },
+      });
       return false;
     }
 
     const followThroughDecision = this.decideFollowThroughUpdate(evaluation);
     if (!followThroughDecision.shouldPost) {
+      this.emitLifecycle("alert_suppressed", {
+        symbol: evaluation.symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          eventType: evaluation.eventType,
+          followThroughLabel: evaluation.followThroughLabel,
+          level: evaluation.entryPrice,
+          triggerPrice: evaluation.outcomePrice,
+          directionalReturnPct: evaluation.directionalReturnPct,
+          reason: followThroughDecision.reason,
+          whyNotPosted: followThroughDecision.reason,
+        },
+      });
       return false;
     }
 
@@ -3885,6 +4931,29 @@ export class ManualWatchlistRuntimeManager {
       evaluation.followThroughLabel === "strong" ||
       (evaluation.directionalReturnPct !== null &&
         Math.abs(evaluation.directionalReturnPct) >= FOLLOW_THROUGH_MAJOR_MOVE_PCT);
+    const phaseDecision = this.shouldPostThreadStoryPhase({
+      symbol: evaluation.symbol,
+      timestamp: evaluation.evaluatedAt,
+      eventType: evaluation.eventType,
+      level: evaluation.entryPrice,
+      triggerPrice: evaluation.outcomePrice,
+      followThroughLabel: evaluation.followThroughLabel,
+      zoneKind: evaluation.eventType === "breakdown" ? "support" : "resistance",
+      majorChange: followThroughMajorChange,
+    });
+    if (!phaseDecision.shouldPost) {
+      this.emitLifecycle("alert_suppressed", {
+        symbol: evaluation.symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          eventType: evaluation.eventType,
+          followThroughLabel: evaluation.followThroughLabel,
+          reason: `phase_${phaseDecision.reason}`,
+        },
+      });
+      return false;
+    }
+
     if (
       !this.shouldAllowCriticalLivePost({
         symbol: evaluation.symbol,
@@ -3918,6 +4987,10 @@ export class ManualWatchlistRuntimeManager {
     }
 
     const previousFollowThroughPostState = this.reserveFollowThroughUpdate(evaluation);
+    const previousThreadStoryPhaseState = this.reserveThreadStoryPhase({
+      symbol: evaluation.symbol,
+      record: phaseDecision.record,
+    });
     this.recordNarrationAttempt({
       symbol: evaluation.symbol,
       timestamp: evaluation.evaluatedAt,
@@ -3961,6 +5034,7 @@ export class ManualWatchlistRuntimeManager {
           kind: "follow_through",
           critical: true,
           eventType: evaluation.eventType,
+          whyPosted: payload.metadata?.whyPosted ?? null,
         });
         this.clearDeliveryFailure(evaluation.symbol, evaluation.evaluatedAt);
         this.emitLifecycle("follow_through_posted", {
@@ -3977,6 +5051,7 @@ export class ManualWatchlistRuntimeManager {
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         this.followThroughPostState.set(evaluation.symbol, previousFollowThroughPostState);
+        this.threadStoryPhaseState.set(evaluation.symbol, previousThreadStoryPhaseState);
         this.emitLifecycle("follow_through_post_failed", {
           symbol: evaluation.symbol,
           threadId: entry.discordThreadId,
@@ -3997,13 +5072,11 @@ export class ManualWatchlistRuntimeManager {
     this.lastPriceUpdateSymbol = update.symbol;
     this.watchlistStore.patchEntry(update.symbol, {
       lastPriceUpdateAt: update.timestamp,
+      lastPrice: update.lastPrice,
       operationStatus: "monitoring live price",
     });
 
-    void this.maybePostFastLevelClear(update).catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`[ManualWatchlistRuntimeManager] Failed to post fast level clear: ${message}`);
-    });
+    this.scheduleFastLevelClear(update);
 
     void this.maybeRefreshLevelSnapshot(update).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -4249,12 +5322,27 @@ export class ManualWatchlistRuntimeManager {
           if (!this.isEntryActive(entry.symbol)) {
             continue;
           }
-          await this.refreshLevelsIfNeeded(entry.symbol, Date.now());
+          await this.restoreLevelsFromStartupCache(entry.symbol);
           if (!this.isEntryActive(entry.symbol)) {
             continue;
           }
-          if (!this.options.levelStore.getLevels(entry.symbol)) {
-            await this.seedLevelsForSymbol(entry.symbol, { graceOnTimeout: true });
+          const refreshedLevels = await this.refreshLevelsIfNeeded(entry.symbol, Date.now());
+          if (!this.isEntryActive(entry.symbol)) {
+            continue;
+          }
+          const restoredFromCache = this.startupCacheWarmingSymbols.has(entry.symbol);
+          if (restoredFromCache && refreshedLevels) {
+            this.startupCacheWarmingSymbols.delete(entry.symbol);
+          }
+          if (
+            !this.options.levelStore.getLevels(entry.symbol) ||
+            (restoredFromCache && !refreshedLevels)
+          ) {
+            await this.seedLevelsForSymbol(entry.symbol, {
+              graceOnTimeout: true,
+              force: restoredFromCache,
+            });
+            this.startupCacheWarmingSymbols.delete(entry.symbol);
           }
           if (!this.isEntryActive(entry.symbol)) {
             continue;
@@ -4268,7 +5356,8 @@ export class ManualWatchlistRuntimeManager {
           await this.restartMonitoringWithReadyEntriesOnly();
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          if (this.options.levelStore.getLevels(entry.symbol) && entry.discordThreadId) {
+          const restoredFromCache = this.startupCacheWarmingSymbols.has(entry.symbol);
+          if (!restoredFromCache && this.options.levelStore.getLevels(entry.symbol) && entry.discordThreadId) {
             this.setEntryOperation(entry.symbol, "posting startup snapshot");
             await this.postLevelSnapshot(entry.symbol, entry.discordThreadId, Date.now());
             this.emitLifecycle("restore_completed", {
@@ -4284,13 +5373,16 @@ export class ManualWatchlistRuntimeManager {
               lifecycle: "refresh_pending",
               refreshPending: true,
               lastError: message,
-              operationStatus: "restore needs retry",
+              operationStatus: restoredFromCache
+                ? "levels restored from cache, fresh candle refresh failed"
+                : "restore needs retry",
             });
             this.emitLifecycle("restore_failed", {
               symbol: entry.symbol,
               threadId: entry.discordThreadId ?? null,
               details: {
                 error: message,
+                cachedLevelsHeldForOperator: restoredFromCache,
               },
             });
             console.error(
@@ -4318,6 +5410,10 @@ export class ManualWatchlistRuntimeManager {
       clearTimeout(timer);
     }
     this.pendingLevelTouchAlerts.clear();
+    for (const pending of this.pendingFastLevelClearAlerts.values()) {
+      clearTimeout(pending.timer);
+    }
+    this.pendingFastLevelClearAlerts.clear();
     await this.options.monitor.stop();
     this.isStarted = false;
   }
@@ -4369,6 +5465,7 @@ export class ManualWatchlistRuntimeManager {
       lastDeliveryFailureSymbol: this.lastDeliveryFailureSymbol,
       lastDeliveryFailureMessage: this.lastDeliveryFailureMessage,
       stuckActivations: this.getStuckActivations(),
+      providerHealth: this.buildProviderHealth(pendingActivationCount),
       aiCommentary: {
         serviceAvailable: Boolean(this.options.aiCommentaryService),
         generatedCount: this.aiCommentaryGeneratedCount,
@@ -4381,7 +5478,142 @@ export class ManualWatchlistRuntimeManager {
         lastFailureMessage: this.lastAiCommentaryFailureMessage,
         route: "symbol_recaps_and_live_alert_ai_reads",
       },
+      mondayReview: this.buildMondayReviewHealth(),
     };
+  }
+
+  private buildProviderHealth(pendingActivationCount: number): ManualWatchlistProviderHealth {
+    const now = Date.now();
+    const lastPriceAgeMs = this.lastPriceUpdateAt === null ? null : Math.max(0, now - this.lastPriceUpdateAt);
+    const lastPostAgeMs = this.lastThreadPostAt === null ? null : Math.max(0, now - this.lastThreadPostAt);
+    const stuckActivationCount = this.getStuckActivations().length;
+    const notes: string[] = [];
+
+    const priceFeedStatus =
+      lastPriceAgeMs === null
+        ? "waiting"
+        : lastPriceAgeMs <= 2 * 60 * 1000
+          ? "live"
+          : "stale";
+    if (priceFeedStatus === "waiting") {
+      notes.push("waiting for first live price");
+    } else if (priceFeedStatus === "stale") {
+      notes.push("last live price is stale");
+    }
+
+    const failureAfterLastPost =
+      this.lastDeliveryFailureAt !== null &&
+      (this.lastThreadPostAt === null || this.lastDeliveryFailureAt >= this.lastThreadPostAt);
+    const discordStatus =
+      failureAfterLastPost && now - this.lastDeliveryFailureAt! <= 15 * 60 * 1000
+        ? "recent_failure"
+        : this.lastThreadPostAt === null
+          ? "waiting"
+          : "ready";
+    if (discordStatus === "recent_failure") {
+      notes.push("recent Discord delivery failure");
+    } else if (discordStatus === "waiting") {
+      notes.push("waiting for first Discord post");
+    }
+
+    const historicalDataStatus =
+      stuckActivationCount > 0
+        ? "degraded"
+        : pendingActivationCount > 0
+          ? "waiting"
+          : "active";
+    if (historicalDataStatus === "degraded") {
+      notes.push(`${stuckActivationCount} stuck activation${stuckActivationCount === 1 ? "" : "s"}`);
+    } else if (historicalDataStatus === "waiting") {
+      notes.push(`${pendingActivationCount} activation${pendingActivationCount === 1 ? "" : "s"} still seeding`);
+    }
+
+    return {
+      priceFeedStatus,
+      lastPriceAgeMs,
+      lastPriceSymbol: this.lastPriceUpdateSymbol,
+      discordStatus,
+      lastPostAgeMs,
+      historicalDataStatus,
+      pendingActivationCount,
+      stuckActivationCount,
+      seedStats: this.getLevelSeedStats(),
+      restartReadiness: this.buildRestartReadiness(now),
+      notes,
+    };
+  }
+
+  private buildRestartReadiness(now: number): ManualWatchlistRestartReadiness[] {
+    return this.watchlistStore.getActiveEntries()
+      .map((entry): ManualWatchlistRestartReadiness => {
+        const symbol = normalizeSymbol(entry.symbol);
+        const lifecycle = entry.lifecycle ?? "active";
+        const hasLevels = Boolean(this.options.levelStore.getLevels(symbol));
+        const isSeeding =
+          this.pendingActivations.has(symbol) ||
+          lifecycle === "activating" ||
+          lifecycle === "restoring" ||
+          lifecycle === "refresh_pending" ||
+          lifecycle === "extension_pending";
+        const levelStatus: ManualWatchlistRestartReadiness["levelStatus"] =
+          hasLevels
+            ? "ready"
+            : lifecycle === "activation_failed"
+              ? "failed"
+              : isSeeding
+                ? "seeding"
+                : "waiting";
+        const lastPriceAgeMs =
+          entry.lastPriceUpdateAt === undefined ? null : Math.max(0, now - entry.lastPriceUpdateAt);
+        const lastLevelPostAgeMs =
+          entry.lastLevelPostAt === undefined ? null : Math.max(0, now - entry.lastLevelPostAt);
+        const priceStatus: ManualWatchlistRestartReadiness["priceStatus"] =
+          lastPriceAgeMs === null
+            ? "waiting"
+            : lastPriceAgeMs <= 2 * 60 * 1000
+              ? "fresh"
+              : "stale";
+        const discordStatus: ManualWatchlistRestartReadiness["discordStatus"] =
+          entry.discordThreadId ? "ready" : "missing_thread";
+        const isCacheWarming = this.startupCacheWarmingSymbols.has(symbol);
+        const reason =
+          entry.lastError ||
+          entry.operationStatus ||
+          (isCacheWarming
+            ? "levels restored from cache, waiting for fresh candles"
+            : null) ||
+          (discordStatus === "missing_thread"
+            ? "waiting for Discord thread"
+            : levelStatus !== "ready"
+              ? "waiting for candles and levels"
+              : priceStatus !== "fresh"
+                ? "waiting for fresh live price"
+                : "ready for live monitoring");
+
+        return {
+          symbol,
+          lifecycle,
+          levelStatus,
+          priceStatus,
+          discordStatus,
+          operationStatus: entry.operationStatus ?? null,
+          lastError: entry.lastError ?? null,
+          lastPriceAgeMs,
+          lastLevelPostAgeMs,
+          reason,
+        };
+      })
+      .sort((a, b) => {
+        const score = (item: ManualWatchlistRestartReadiness): number => {
+          if (item.levelStatus === "failed") return 0;
+          if (item.discordStatus === "missing_thread") return 1;
+          if (item.levelStatus !== "ready") return 2;
+          if (item.priceStatus !== "fresh") return 3;
+          return 4;
+        };
+        const scoreDelta = score(a) - score(b);
+        return scoreDelta !== 0 ? scoreDelta : a.symbol.localeCompare(b.symbol);
+      });
   }
 
   private async performActivation(
@@ -4418,6 +5650,7 @@ export class ManualWatchlistRuntimeManager {
             );
           }
         } catch (error) {
+          this.recordLevelSeedTimeout(symbol, error);
           if (
             error instanceof LevelSeedTimeoutError &&
             this.queuedActivationSeedGraceTimeoutMs > 0
@@ -4749,6 +5982,11 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.activeSnapshotState.delete(symbol);
+    const pendingFastClear = this.pendingFastLevelClearAlerts.get(symbol);
+    if (pendingFastClear) {
+      clearTimeout(pendingFastClear.timer);
+      this.pendingFastLevelClearAlerts.delete(symbol);
+    }
     await this.postLevelSnapshot(symbol, entry.discordThreadId, Date.now());
     this.persistWatchlist();
     return this.watchlistStore.getEntry(symbol) ?? entry;
@@ -4764,12 +6002,18 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.activeSnapshotState.delete(normalizedSymbol);
+    const pendingFastClear = this.pendingFastLevelClearAlerts.get(normalizedSymbol);
+    if (pendingFastClear) {
+      clearTimeout(pendingFastClear.timer);
+      this.pendingFastLevelClearAlerts.delete(normalizedSymbol);
+    }
     this.extensionRefreshInFlight.delete(normalizedSymbol);
     this.recapState.delete(normalizedSymbol);
     this.continuityState.delete(normalizedSymbol);
     this.followThroughStatePosts.delete(normalizedSymbol);
     this.followThroughPostState.delete(normalizedSymbol);
     this.intelligentAlertPostState.delete(normalizedSymbol);
+    this.threadStoryPhaseState.delete(normalizedSymbol);
     this.liveThreadPostState.delete(normalizedSymbol);
     this.narrationBurstState.delete(normalizedSymbol);
     this.storyCriticalState.delete(normalizedSymbol);

@@ -288,6 +288,141 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.targetDistancePct, 0.036);
 });
 
+test("formatIntelligentAlertAsPayload can include quiet market structure context", () => {
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-structure",
+    symbol: "ALBT",
+    title: "ALBT breakout",
+    body: "bullish breakout through heavy resistance 2.40-2.50\nmarket structure: resistance is trying to become support; holding above 2.50 keeps the structure improving",
+    severity: "high",
+    confidence: "medium",
+    score: 55,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: {
+      ...samplePayload.event!,
+      eventContext: {
+        ...samplePayload.event!.eventContext,
+        marketStructureType: "breakout_setup",
+        marketStructureStrength: 0.86,
+      },
+    },
+    zone: {
+      id: "R1",
+      symbol: "ALBT",
+      kind: "resistance",
+      timeframeBias: "5m",
+      zoneLow: 2.4,
+      zoneHigh: 2.5,
+      representativePrice: 2.45,
+      strengthScore: 75,
+      strengthLabel: "strong",
+      touchCount: 3,
+      confluenceCount: 1,
+      sourceTypes: ["swing_high"],
+      timeframeSources: ["5m"],
+      reactionQualityScore: 0.7,
+      rejectionScore: 0.4,
+      displacementScore: 0.6,
+      sessionSignificanceScore: 0.4,
+      followThroughScore: 0.65,
+      gapContinuationScore: 0,
+      sourceEvidenceCount: 3,
+      firstTimestamp: 1,
+      lastTimestamp: 1,
+      isExtension: false,
+      freshness: "fresh",
+      notes: [],
+    },
+    nextBarrier: {
+      side: "resistance",
+      price: 2.82,
+      distancePct: 0.13,
+      clearanceLabel: "open",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+    movement: {
+      label: "early",
+      movementPct: 0.004,
+      line: "movement: price is still just above the zone high, so the breakout is early (0.4%)",
+    },
+    pressure: {
+      label: "moderate",
+      pressureScore: 0.58,
+      line: "pressure: buyers still have workable control, but follow-through still matters",
+    },
+    marketStructure: {
+      label: "bullish_building",
+      structureType: "breakout_setup",
+      strength: 0.86,
+      line: "market structure: resistance is trying to become support; holding above 2.50 keeps the structure improving",
+    },
+  });
+
+  assert.match(payload.body, /resistance is trying to become support; holding above 2\.50 keeps the structure improving/);
+  assert.equal(payload.metadata?.marketStructureLabel, "bullish_building");
+  assert.equal(payload.metadata?.marketStructureType, "breakout_setup");
+  assert.equal(payload.metadata?.marketStructureStrength, 0.86);
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload can include gated volume activity context", () => {
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-volume",
+    symbol: "ALBT",
+    title: "ALBT breakout",
+    body: [
+      "bullish breakout through heavy resistance 2.40-2.50",
+      "activity: activity is expanding into the move, which makes the breakout attempt more meaningful",
+    ].join("\n"),
+    severity: "high",
+    confidence: "medium",
+    score: 55,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: {
+      ...samplePayload.event!,
+      eventContext: {
+        ...samplePayload.event!.eventContext,
+        volumeActivity: {
+          label: "expanding",
+          reliability: "reliable",
+          currentBucketVolume: 1500,
+          baselineAverageVolume: 1000,
+          relativeVolumeRatio: 1.5,
+          direction: "increasing",
+          reason: "current 5m bucket is 1.50x recent average",
+          traderLine:
+            "activity: activity is expanding into the move, which makes the breakout attempt more meaningful",
+        },
+      },
+    },
+    volumeActivity: {
+      label: "expanding",
+      reliability: "reliable",
+      currentBucketVolume: 1500,
+      baselineAverageVolume: 1000,
+      relativeVolumeRatio: 1.5,
+      direction: "increasing",
+      reason: "current 5m bucket is 1.50x recent average",
+      traderLine:
+        "activity: activity is expanding into the move, which makes the breakout attempt more meaningful",
+    },
+  });
+
+  assert.match(payload.body, /activity is expanding into the move/);
+  assert.doesNotMatch(payload.body, /confirms|guarantees|best entry|buy now/i);
+  assert.equal(payload.metadata?.volumeActivityLabel, "expanding");
+  assert.equal(payload.metadata?.volumeActivityReliability, "reliable");
+  assert.equal(payload.metadata?.volumeActivityRatio, 1.5);
+  assert.equal(payload.metadata?.volumeActivityDirection, "increasing");
+  assert.equal(payload.metadata?.volumeActivityShown, true);
+  assertTraderFacingDiscordText(payload);
+});
+
 test("formatIntelligentAlertAsPayload shows reclaim area and nearby support for long-caution alerts", () => {
   const breakdownEvent = {
     ...samplePayload.event!,
@@ -367,13 +502,98 @@ test("formatIntelligentAlertAsPayload shows reclaim area and nearby support for 
     tradeMap: null,
   });
 
-  assert.match(payload.body, /What to watch:\n- nearby support reaction area: light support 1\.06; buyers need stabilization there or a reclaim of 1\.24/);
-  assert.match(payload.body, /Hold \/ failure map:\n- 1\.24 is the reclaim line for the long setup; below it, risk stays open toward light support 1\.06 unless buyers stabilize first\./);
+  assert.match(payload.body, /What to watch:\n- nearby support reaction area: light support 1\.06; buyers need stabilization there or a reclaim of the lost support area/);
+  assert.match(payload.body, /Hold \/ failure map:\n- 1\.24 is the repair area for the long setup; if that whole area keeps failing cleanly, next broader support is light support 1\.06\./);
   assert.match(payload.body, /Key levels:\n- Reclaim area: moderate resistance 1\.24\n- Nearby support: light support 1\.06/);
   assert.doesNotMatch(payload.body, /Risk support/);
   assert.doesNotMatch(payload.body, /dip-buy/i);
   assert.doesNotMatch(payload.body, /Nearby resistance/);
   assert.doesNotMatch(payload.body, /\b(Buy|Sell|buy at|sell if|take profit|stop out)\b/);
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload describes high failure risk as fragile setup quality", () => {
+  const breakdownEvent = {
+    ...samplePayload.event!,
+    id: "evt-breakdown-risk",
+    episodeId: "ep-breakdown-risk",
+    type: "breakdown" as const,
+    eventType: "breakdown" as const,
+    zoneKind: "support" as const,
+    level: 1.02,
+    triggerPrice: 1,
+    bias: "bearish" as const,
+  };
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-breakdown-risk",
+    symbol: "CYCU",
+    title: "CYCU breakdown",
+    body: "support lost at major support 1.01-1.02",
+    severity: "high",
+    confidence: "medium",
+    score: 54,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: breakdownEvent,
+    zone: {
+      zoneLow: 1.01,
+      zoneHigh: 1.02,
+      representativePrice: 1.02,
+      strengthLabel: "major",
+      kind: "support",
+    } as any,
+    movement: {
+      label: "early",
+      movementPct: 0.005,
+      line: "movement: price is still just below the support floor, so the setup needs a reclaim (0.5%)",
+    },
+    failureRisk: {
+      label: "high",
+      reasons: ["crowded trigger", "tight room", "dense nearby barriers", "degraded data", "inner setup"],
+      line: "failure risk: high because crowded trigger, tight room, dense nearby barriers, degraded data, inner setup",
+    },
+  });
+
+  assert.match(payload.body, /setup is fragile here: crowded trigger, tight room, dense nearby barriers, degraded data, inner setup/);
+  assert.doesNotMatch(payload.body, /risk is high:/);
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload describes support reclaims without resistance status wording", () => {
+  const reclaimEvent = {
+    ...samplePayload.event!,
+    id: "evt-reclaim",
+    episodeId: "ep-reclaim",
+    type: "reclaim" as const,
+    eventType: "reclaim" as const,
+    zoneKind: "support" as const,
+    level: 1.24,
+    triggerPrice: 1.27,
+    bias: "bullish" as const,
+  };
+
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-reclaim",
+    symbol: "ATER",
+    title: "ATER reclaim",
+    body: "reclaim back above moderate support 1.24",
+    severity: "medium",
+    confidence: "medium",
+    score: 48,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: reclaimEvent,
+    zone: {
+      zoneLow: 1.22,
+      zoneHigh: 1.24,
+      representativePrice: 1.24,
+    } as any,
+  });
+
+  assert.match(payload.body, /Price reclaimed support for now\./);
+  assert.doesNotMatch(payload.body, /Price is above resistance for now/);
   assertTraderFacingDiscordText(payload);
 });
 
@@ -560,7 +780,7 @@ test("formatIntelligentAlertAsPayload uses nearing-support wording for support a
       "pressure: buyers still need to reclaim control",
       "why now: price is approaching support, making this the next reaction area",
       "room: open overhead path to next resistance 3.28 (+11.2%)",
-      "watch: buyers stabilize into 2.90-2.93; losing it keeps risk open lower",
+      "watch: buyers stabilize into 2.90-2.93; a clean loss of the whole area weakens the setup",
     ].join("\n"),
     severity: "high",
     confidence: "high",
@@ -652,7 +872,7 @@ test("formatIntelligentAlertAsPayload avoids generic balanced wording for suppor
       "pressure: buying and selling pressure still look balanced",
       "why now: price is back at support, so buyers need to stabilize before the setup improves",
       "room: limited overhead into next resistance 2.98 (+2.1%)",
-      "watch: buyers stabilize at 2.91-2.93; losing it keeps risk open lower",
+      "watch: buyers stabilize at 2.91-2.93; a clean loss of the whole area weakens the setup",
     ].join("\n"),
     severity: "high",
     confidence: "high",
@@ -863,14 +1083,38 @@ test("formatFollowThroughUpdateAsPayload uses long-only wording for breakdown fa
       eventType: "breakdown",
       directionalReturnPct: -1.66,
       rawReturnPct: 1.66,
-      line: "follow-through: support-loss warning faded",
+      line: "follow-through: support loss faded",
     },
   });
 
-  assert.equal(payload.title, "ALBT support-loss warning follow-through");
-  assert.match(payload.body, /support-loss warning faded/);
+  assert.equal(payload.title, "ALBT support loss follow-through");
+  assert.match(payload.body, /support loss faded/);
   assert.match(payload.body, /price change from trigger: -1\.66%/);
   assert.doesNotMatch(payload.body, /breakdown failed|after the alert|alert direction/);
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatFollowThroughUpdateAsPayload keeps compression follow-through neutral when price moves lower", () => {
+  const payload = formatFollowThroughUpdateAsPayload({
+    symbol: "OSRH",
+    timestamp: 13,
+    entryPrice: 0.6784,
+    outcomePrice: 0.6708,
+    followThrough: {
+      label: "strong",
+      eventType: "compression",
+      directionalReturnPct: 1.12,
+      rawReturnPct: -1.12,
+      line: "follow-through: compression stayed strong",
+    },
+  });
+
+  assert.equal(payload.title, "OSRH compression follow-through");
+  assert.match(payload.body, /Compression produced a stronger reaction/);
+  assert.match(payload.body, /compression produced a stronger reaction/);
+  assert.match(payload.body, /price move from trigger: -1\.12%/);
+  assert.match(payload.body, /0\.6784 -> 0\.6708 \(-1\.12% price move\)/);
+  assert.doesNotMatch(payload.body, /holding up well|price change from trigger: \+1\.12%|should keep holding/);
   assertTraderFacingDiscordText(payload);
 });
 
@@ -892,10 +1136,18 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
     [
       "ALBT support and resistance",
       "Price: 2.51",
+      "Level context: the nearby ladder is thin, so the strongest areas matter more than every small level.",
       "",
-      "What price is doing now:",
-      "- Price is between support 2.40 and resistance 2.60.",
-      "- Room is fairly balanced between the nearest support and resistance.",
+      "Trade map:",
+      "Current structure: ALBT is range-bound between heavy support 2.40 and major resistance 2.58-2.62 area.",
+      "Main resistance: major resistance 2.58-2.62 area is the upside area that needs acceptance.",
+      "Main support: heavy support 2.40 is the area buyers need to keep holding for the range to stay constructive.",
+      "Small pushes inside this band can be noise; the cleaner read comes from expansion above resistance or a clean loss of support.",
+      "Cleaner above: acceptance above major resistance 2.58-2.62 area (+2.8% to +4.4%) would shift attention toward moderate resistance 2.75 (+9.6%).",
+      "Support that matters: heavy support 2.40 (-4.4%) is the first practical area buyers need to keep defending.",
+      "Broader support: a clean loss of heavy support 2.40 as a whole area would shift attention toward light support 2.20-2.28 area (-12.4% to -9.2%).",
+      "Short-term momentum support: light support 2.20-2.28 area (-12.4% to -9.2%).",
+      "Setup quality: mixed and range-bound; better information comes from a clean expansion or a clean support failure.",
       "",
       "Closest levels to watch:",
       "Resistance:",
@@ -916,6 +1168,32 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       "2.25 (-10.4%, light, fresh intraday)",
     ].join("\n"),
   );
+});
+
+test("formatLevelSnapshotMessage can include a first-post trade plan without changing level formatting", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "PLAN",
+    currentPrice: 1.12,
+    supportZones: [
+      { representativePrice: 1.03, strengthLabel: "weak", sourceLabel: "fresh intraday" },
+    ],
+    resistanceZones: [
+      { representativePrice: 1.24, strengthLabel: "strong", sourceLabel: "daily confluence" },
+    ],
+    timestamp: 1,
+    tradePlan: {
+      title: "Trade plan:",
+      lines: [
+        "Primary read: PLAN is a breakout watch, but buyers still need acceptance above resistance.",
+        "Quality check: data quality is trusted.",
+        "Volatility: normal small-cap movement; ignore penny-by-penny noise inside the level band.",
+      ],
+    },
+  });
+
+  assert.match(message, /Trade plan:\nPrimary read: PLAN is a breakout watch/);
+  assert.match(message, /Trade map:\nCurrent structure: PLAN is trading between/);
+  assert.doesNotMatch(message, /\bbuy\b|\bsell\b|best entry|should enter/i);
 });
 
 test("formatLevelSnapshotMessage collapses crowded trader-facing levels into zones", () => {
@@ -939,6 +1217,76 @@ test("formatLevelSnapshotMessage collapses crowded trader-facing levels into zon
   assert.doesNotMatch(message, /2\.39 \(\+0\.8%/);
   assert.doesNotMatch(message, /2\.43 \(\+2\.5%/);
   assert.doesNotMatch(message, /2\.47 \(\+4\.2%/);
+});
+
+test("formatLevelSnapshotMessage uses practical small-cap zones instead of penny-by-penny risk wording", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "CYCU",
+    currentPrice: 1.03,
+    supportZones: [
+      { representativePrice: 1.02, strengthLabel: "major", sourceLabel: "daily confluence" },
+      { representativePrice: 1.00, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 0.9898, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 0.9522, strengthLabel: "major", sourceLabel: "daily confluence" },
+    ],
+    resistanceZones: [
+      { representativePrice: 1.06, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 1.12, strengthLabel: "strong", sourceLabel: "daily confluence" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message, /Current structure: CYCU is range-bound between major support 0\.9898-1\.02 area and moderate resistance 1\.06/);
+  assert.match(message, /Small pushes inside this band can be noise; the cleaner read comes from expansion above resistance or a clean loss of support\./);
+  assert.match(message, /Support that matters: major support 0\.9898-1\.02 area \(-3\.9% to -1\.0%\) is the first practical area buyers need to keep defending\./);
+  assert.match(message, /Broader support: a clean loss of major support 0\.9898-1\.02 area as a whole area would shift attention toward major support 0\.9522 \(-7\.6%\)\./);
+  assert.match(message, /Setup quality: mixed and range-bound; better information comes from a clean expansion or a clean support failure\./);
+  assert.doesNotMatch(message, /If 1\.02 fails|If 1\.01 fails|risk opens toward 1\.00|\btarget\b|\bbuy\b|\bsell\b|stop loss/i);
+});
+
+test("formatLevelSnapshotMessage treats close small-cap support levels as one practical support area in the trade map", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "PENY",
+    currentPrice: 1.05,
+    supportZones: [
+      { representativePrice: 1.02, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 1.00, strengthLabel: "major", sourceLabel: "daily confluence" },
+      { representativePrice: 0.94, strengthLabel: "moderate", sourceLabel: "4h structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 1.12, strengthLabel: "strong", sourceLabel: "daily confluence" },
+      { representativePrice: 1.25, strengthLabel: "major", sourceLabel: "daily structure" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(
+    message,
+    /Support that matters: major support 1\.00-1\.02 area \(-4\.8% to -2\.9%\) is the first practical area buyers need to keep defending\./,
+  );
+  assert.match(message, /Broader support: a clean loss of major support 1\.00-1\.02 area as a whole area would shift attention toward moderate support 0\.9400/);
+  assert.match(message, /More support and resistance:[\s\S]*Support:\n1\.02 .*\n1\.00 .*\n0\.9400/);
+  assert.doesNotMatch(message, /risk opens toward 1\.00|If 1\.02 fails/i);
+});
+
+test("formatLevelSnapshotMessage keeps current no-level wording trader-facing", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "OPEN",
+    currentPrice: 9.8,
+    supportZones: [
+      { representativePrice: 8.9, strengthLabel: "moderate", sourceLabel: "daily structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 10, strengthLabel: "major", sourceLabel: "daily confluence" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message, /higher resistance needs a fresh level check before treating the path as open/);
+  assert.doesNotMatch(
+    message,
+    /surfaced ladder|no higher resistance|none currently surfaced|risk stays open toward|Status:|Signal:/i,
+  );
 });
 
 test("DiscordAlertRouter routes level snapshots separately from alerts", async () => {

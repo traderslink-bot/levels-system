@@ -16,6 +16,7 @@ import {
   deriveTraderDipBuyQualityContext,
   deriveTraderExhaustionContext,
   deriveTraderFailureRiskContext,
+  deriveTraderMarketStructureContext,
   deriveTraderMovementContext,
   deriveTraderPathQualityContext,
   deriveTraderPressureContext,
@@ -23,6 +24,7 @@ import {
   deriveTraderTriggerQualityContext,
   deriveTraderTargetContext,
   deriveTraderTradeMapContext,
+  deriveTraderVolumeActivityContext,
   deriveTraderZoneTacticalRead,
 } from "./trader-message-language.js";
 
@@ -353,6 +355,8 @@ export function scoreMonitoringEventToAlert(params: {
     event,
     movement,
   });
+  const marketStructure = deriveTraderMarketStructureContext(event, zone);
+  const volumeActivity = deriveTraderVolumeActivityContext(event, zone);
   const failureRisk = deriveTraderFailureRiskContext({
     event,
     zone,
@@ -388,6 +392,8 @@ export function scoreMonitoringEventToAlert(params: {
     dipBuyQuality,
     exhaustion,
     setupState,
+    marketStructure,
+    volumeActivity,
     failureRisk,
     target: deriveTraderTargetContext(event, zone, nextBarrier),
     tradeMap: deriveTraderTradeMapContext(event, zone, nextBarrier),

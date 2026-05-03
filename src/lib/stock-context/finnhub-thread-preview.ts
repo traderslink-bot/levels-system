@@ -136,6 +136,8 @@ export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview |
         : Date.now(),
     metadata: {
       messageKind: "stock_context",
+      signalCategory: "support_resistance",
+      signalCategoryLiveEnabled: true,
       suppressEmbeds: true,
     },
   };

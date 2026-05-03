@@ -107,6 +107,10 @@ function containsBlockedTraderCommentary(text: string): boolean {
     /\bshould\s+(?:add|trim|exit|sell|buy)\b/i,
     /\b(?:good|better|best)\s+place\s+to\s+(?:add|buy|trim|sell|exit)\b/i,
     /\b(?:add|trim|exit)\s+here\b/i,
+    /\bthe\s+trade\s+returned\b/i,
+    /\bentry\s+[-+]?\d+(?:\.\d+)?\s*(?:->|to)\s*(?:outcome\s+)?[-+]?\d+(?:\.\d+)?\b/i,
+    /\bfollow-through\s+check\b/i,
+    /\blabeled\s+["']?(?:failed|working|strong|stalled)["']?\b/i,
     /\bbuy\s+here\b/i,
     /\bsell\s+here\b/i,
     /\bopen\s+new\s+longs\b/i,
@@ -123,11 +127,12 @@ export function validateTraderCommentaryText(text: string): string | null {
     .replace(/[–—]/g, "-")
     .replace(/[≈]/g, "about ")
     .replace(/[‑]/g, "-");
-  if (!cleaned || containsBlockedTraderCommentary(cleaned)) {
+  const traderCleaned = cleaned.replace(/\byet\s*-\s*buyers\b/gi, "yet; buyers");
+  if (!traderCleaned || containsBlockedTraderCommentary(traderCleaned)) {
     return null;
   }
 
-  return cleaned;
+  return traderCleaned;
 }
 
 const LIVE_TRADER_COMMENTARY_RULES =
@@ -137,6 +142,7 @@ const LIVE_TRADER_COMMENTARY_RULES =
   "For weak or bearish conditions, say the setup is not clean for longs yet and name the reclaim or confirmation level. " +
   "For resistance tests, say buyers need acceptance above resistance. For support tests, say buyers need to defend or reclaim support. " +
   "If a support reaction area is provided, mention it only as conditional support where buyers must stabilize. " +
+  "Do not expose evaluation mechanics like follow-through check, entry price, outcome price, trade returned, or internal scoring language. " +
   "Do not tell the user to buy now or sell now. Stay faithful to the deterministic facts. Use plain ASCII punctuation.";
 
 export class OpenAITraderCommentaryService implements TraderCommentaryService {

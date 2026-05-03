@@ -241,6 +241,28 @@ test("trading day evidence report surfaces delivery, role-flip, cluster, and lan
       type: "discord_delivery_audit",
       operation: "post_alert",
       status: "posted",
+      timestamp: 2500,
+      symbol: "SEGG",
+      title: "SEGG breakout",
+      messageKind: "intelligent_alert",
+      eventType: "breakout",
+      deliveryLagMs: 360_000,
+      sendDurationMs: 355_000,
+      volumeActivityLabel: "expanding",
+      volumeActivityReliability: "reliable",
+      volumeActivityRatio: 1.5,
+      volumeActivityDirection: "increasing",
+      volumeActivityShown: true,
+      practicalStructureState: "breakout_attempt",
+      practicalStructureKey: "breakout_attempt|support:3.20-3.34|resistance:3.75-3.75",
+      practicalZoneKey: "support:3.20-3.34|resistance:3.75-3.75",
+      practicalStructureMaterialChange: true,
+      body: "bullish breakout through resistance; buyers need acceptance above resistance",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
       timestamp: 3000,
       symbol: "XTLB",
       title: "XTLB resistance crossed",
@@ -248,6 +270,13 @@ test("trading day evidence report surfaces delivery, role-flip, cluster, and lan
       eventType: "breakout",
       targetSide: "resistance",
       targetPrice: 3.75,
+      volumeActivityLabel: "unknown",
+      volumeActivityReliability: "unreliable",
+      volumeActivityShown: false,
+      volumeActivitySuppressedReason: "live volume moved backward or reset",
+      practicalStructureState: "range_bound",
+      practicalStructureKey: "range_bound|support:3.34-3.56|resistance:3.75-3.84",
+      practicalZoneKey: "support:3.34-3.56|resistance:3.75-3.84",
       body: "price cleared 3.75 and is moving toward 4.28\nStatus: Cleared\n3.75 is no longer immediate resistance",
     },
     {
@@ -295,6 +324,9 @@ test("trading day evidence report surfaces delivery, role-flip, cluster, and lan
   assert.equal(report.criticalDeliveryFailures.length, 1);
   assert.equal(report.criticalDeliveryFailures[0]?.severity, "major");
   assert.equal(report.criticalDeliveryFailures[0]?.traderCritical, true);
+  assert.equal(report.staleCriticalDeliveries.length, 1);
+  assert.equal(report.staleCriticalDeliveries[0]?.symbol, "SEGG");
+  assert.equal(report.staleCriticalDeliveries[0]?.severity, "major");
 
   assert.equal(
     report.roleFlipCandidates.some((candidate) => candidate.scenario === "broken_support_as_resistance"),
@@ -313,11 +345,23 @@ test("trading day evidence report surfaces delivery, role-flip, cluster, and lan
 
   assert.equal(report.traderLanguageEvidence.badHistoricalExamples.length > 0, true);
   assert.equal(report.traderLanguageEvidence.borderlineAdviceExamples.length, 1);
+  assert.deepEqual(report.volumeActivityEvidence.reliableSymbols, ["SEGG"]);
+  assert.deepEqual(report.volumeActivityEvidence.unreliableSymbols, ["XTLB"]);
+  assert.equal(report.volumeActivityEvidence.shownExamples.length, 1);
+  assert.equal(report.volumeActivityEvidence.suppressedExamples.length, 1);
+  assert.equal(report.practicalStructureEvidence.statesBySymbol[0]?.symbol, "SEGG");
+  assert.equal(report.practicalStructureEvidence.materialChangeExamples.length, 1);
+  assert.equal(report.practicalStructureEvidence.rangeBoundExamples.length, 1);
 
   const markdown = formatTradingDayEvidenceMarkdown(report);
   assert.match(markdown, /Critical Delivery Failures/);
+  assert.match(markdown, /Stale Critical Deliveries/);
   assert.match(markdown, /Cluster-Cross Candidates/);
   assert.match(markdown, /Longs should wait/);
+  assert.match(markdown, /Volume \/ Activity Evidence/);
+  assert.match(markdown, /live volume moved backward or reset/);
+  assert.match(markdown, /Practical Structure Evidence/);
+  assert.match(markdown, /breakout_attempt/);
 });
 
 test("trading day evidence report treats retried trader-critical failures as proven watch items", () => {

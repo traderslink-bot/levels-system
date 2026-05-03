@@ -88,6 +88,10 @@ export type LevelOutputMetadata = {
   dataQualityFlags: string[];
   freshness: LevelDataFreshness;
   referencePrice?: number;
+  volumeBaselineByTimeframe?: Partial<Record<CandleTimeframe, {
+    averageVolume: number;
+    sampleSize: number;
+  }>>;
 };
 
 export type LevelEngineOutput = {

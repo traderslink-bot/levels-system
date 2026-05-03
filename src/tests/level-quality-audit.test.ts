@@ -177,3 +177,70 @@ test("level quality audit flags wide gaps between forward support levels", () =>
   assert.equal(finding.severity, "action");
   assert.deepEqual(finding.evidence.forwardLevels, [6.18, 6.1, 4.95, 2.55]);
 });
+
+test("level quality audit treats deep historical gaps as watch when near-price ladder is populated", () => {
+  const report = buildLevelQualityAuditReport(output({
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: ["daily:suspicious_gap"],
+      freshness: "fresh",
+      referencePrice: 73.44,
+    },
+    majorSupport: [
+      zone({ kind: "support", representativePrice: 71.1001, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 63.0001, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 59.28, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 57.7, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 54.19, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 44.44, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 37.24, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 28.125, sourceTypes: ["swing_low"] }),
+      zone({ kind: "support", representativePrice: 19.8, sourceTypes: ["swing_low"] }),
+    ],
+    intermediateSupport: [],
+    intradaySupport: [],
+    intermediateResistance: [
+      zone({ kind: "resistance", representativePrice: 77.3438 }),
+      zone({ kind: "resistance", representativePrice: 87.1876 }),
+      zone({ kind: "resistance", representativePrice: 102.8462 }),
+    ],
+    extensionLevels: {
+      support: [],
+      resistance: [],
+    },
+  }));
+
+  const finding = report.findings.find(
+    (candidate) => candidate.code === "wide_internal_gap" && candidate.side === "support",
+  );
+  assert.ok(finding);
+  assert.equal(finding.severity, "watch");
+  assert.match(finding.message, /deep historical gap/);
+  assert.equal(finding.evidence.levelsBeforeWidestGap, 8);
+});
+
+test("level quality audit downgrades no forward levels when candle data is degraded", () => {
+  const report = buildLevelQualityAuditReport(output({
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: ["daily:insufficient_bars", "4h:suspicious_gap"],
+      freshness: "fresh",
+      referencePrice: 13.68,
+    },
+    majorResistance: [],
+    intermediateResistance: [],
+    intradayResistance: [],
+    extensionLevels: {
+      support: [],
+      resistance: [],
+    },
+  }));
+
+  const finding = report.findings.find(
+    (candidate) => candidate.code === "no_forward_levels" && candidate.side === "resistance",
+  );
+  assert.ok(finding);
+  assert.equal(finding.severity, "watch");
+  assert.match(finding.message, /provider data quality is degraded/);
+  assert.deepEqual(finding.evidence.dataQualityFlags, ["daily:insufficient_bars", "4h:suspicious_gap"]);
+});

@@ -161,6 +161,7 @@ test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => 
       "context: major resistance | outermost | fresh | 5m/4h/daily confluence | recently refreshed",
       "quality: resistance still looks firm, so a clean break matters more",
       "trigger quality: clean trigger with early movement, strong control, and unclear room",
+      "market structure: resistance is trying to become support; holding above 101.00 keeps the structure improving",
       "setup state: confirmation, so the move still needs acceptance to hold",
       "trade map: risk to invalidation is about 1.4%; next upside barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
@@ -415,6 +416,7 @@ test("AlertIntelligenceEngine penalizes degraded data quality and preserves rema
       "movement: price is back just above the zone high, so the reclaim is still early (0.2%)",
       "pressure: buyers still have workable control, but follow-through still matters",
       "context: major resistance | outermost | aging | 5m/4h/daily confluence | recently refreshed",
+      "market structure: buyers repaired the support break; holding above 100.00 keeps the structure cleaner",
       "setup state: confirmation, so the move still needs acceptance to hold",
       "trade map: risk to invalidation is about 1.2%; next upside barrier still needs confirmation",
       "watch: hold above 101.00; invalidates back below 100.00",
@@ -489,7 +491,7 @@ test("AlertIntelligenceEngine frames strong support touches as support reaction 
       "support reaction quality: watch-only until buyers prove they can lift through nearby overhead cleanly",
       "setup state: building, so the zone still needs a real decision move",
       "trade map: risk to invalidation 0.3%; room to next resistance 2.4% (~6.9x, favorable skew)",
-      "watch: buyers stabilize at 97.80-98.20; losing it keeps risk open lower",
+      "watch: buyers stabilize at 97.80-98.20; a clean loss of the whole area weakens the setup",
     ].join("\n"),
   );
   assert.equal(result.rawAlert.tacticalRead, "firm");
@@ -561,6 +563,7 @@ test("AlertIntelligenceEngine calls out tired structure when a strong-looking zo
       "pressure: buyers still have workable control, but follow-through still matters",
       "context: heavy resistance | outermost | aging | 5m/4h/daily confluence",
       "quality: resistance looked tactically tired before this test",
+      "market structure: resistance is trying to become support; holding above 101.00 keeps the structure improving",
       "setup state: confirmation, so the move still needs acceptance to hold",
       "failure risk: watchful because tired structure",
       "trade map: risk to invalidation is about 1.1%; next upside barrier still needs confirmation",

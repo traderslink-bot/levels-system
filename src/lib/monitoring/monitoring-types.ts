@@ -3,6 +3,21 @@
 
 import type { FinalLevelZone, LevelDataFreshness } from "../levels/level-types.js";
 import type { ZoneTacticalRead } from "../levels/zone-tactical-read.js";
+import type {
+  CandleMarketStructureConfidence,
+  CandleMarketStructureState,
+  StableMarketStructureDecisionReason,
+} from "../structure/index.js";
+import type { VolumeActivityContext } from "./volume-activity.js";
+import type {
+  AcceptanceContext,
+  BehaviorBudgetContext,
+  RangeBoxContext,
+  SupportImportanceContext,
+  TradeStoryState,
+} from "./trade-story-intelligence.js";
+import type { PrimaryTradeAreaContext } from "./primary-trade-area.js";
+import type { FailedLevelMemoryContext } from "./failed-level-memory.js";
 
 export type MonitoringEventType =
   | "level_touch"
@@ -34,6 +49,72 @@ export type MonitoringAlertType =
   | "consolidation";
 
 export type SymbolBias = "bullish" | "bearish" | "neutral";
+
+export type MarketStructureType =
+  | "compression"
+  | "breakout_setup"
+  | "rejection_setup";
+
+export type PracticalTradeStructureState =
+  | "range_bound"
+  | "building_base"
+  | "pressing_resistance"
+  | "breakout_attempt"
+  | "breakout_holding"
+  | "breakout_failed"
+  | "pullback_to_support"
+  | "support_holding"
+  | "support_failing"
+  | "structure_broken"
+  | "reclaim_attempt"
+  | "reclaim_holding";
+
+export type PracticalTradeArea = {
+  side: "support" | "resistance";
+  low: number;
+  high: number;
+  representative: number;
+  strengthLabel?: FinalLevelZone["strengthLabel"];
+  sourceLabel?: string;
+  zoneCount: number;
+};
+
+export type PracticalTradeStructureContext = {
+  state: PracticalTradeStructureState;
+  previousState?: PracticalTradeStructureState;
+  supportArea?: PracticalTradeArea;
+  resistanceArea?: PracticalTradeArea;
+  momentumSupportArea?: PracticalTradeArea;
+  structureKey: string;
+  practicalZoneKey: string;
+  traderLine: string;
+  reason: string;
+  isMaterialStateChange: boolean;
+};
+
+export type IntradayPriceStructureContext = {
+  bucketMs: number;
+  bucketCount: number;
+  baseLow: number;
+  baseHigh: number;
+  lastClose: number;
+  rangePct: number;
+  higherLowCount: number;
+  lowerHighCount: number;
+  direction: "building" | "fading" | "flat" | "unknown";
+};
+
+export type StableMarketStructureRuntimeContext = {
+  state: CandleMarketStructureState;
+  previousState: CandleMarketStructureState | null;
+  structureKey: string;
+  materialChange: boolean;
+  confidence: CandleMarketStructureConfidence["label"];
+  materialityScore: number;
+  rawState: CandleMarketStructureState;
+  reason: StableMarketStructureDecisionReason;
+  candleCount: number;
+};
 
 export type InteractionPhase =
   | "idle"
@@ -122,8 +203,12 @@ export type WatchlistEntry = {
   lastLevelPostAt?: number;
   lastExtensionPostAt?: number;
   lastPriceUpdateAt?: number;
+  lastPrice?: number;
   lastThreadPostAt?: number;
   lastThreadPostKind?: string;
+  lastTradeStoryState?: string;
+  lastTradeStoryAt?: number;
+  lastTriggerPrice?: number;
   refreshPending?: boolean;
   lastError?: string;
   operationStatus?: string;
@@ -167,6 +252,9 @@ export type SymbolMonitoringState = {
   zoneContexts: Record<string, MonitoringZoneContext>;
   interactions: Record<string, ZoneInteractionState>;
   recentEvents: MonitoringEvent[];
+  intradayStructure?: IntradayPriceStructureContext;
+  stableMarketStructure?: StableMarketStructureRuntimeContext;
+  volumeActivity?: VolumeActivityContext;
 };
 
 export type MonitoringEventContext = {
@@ -196,6 +284,24 @@ export type MonitoringEventContext = {
   pathWindowDistancePct?: number;
   tacticalRead?: ZoneTacticalRead;
   exhaustionLabel?: ZoneExhaustionLabel;
+  marketStructureType?: MarketStructureType;
+  marketStructureStrength?: number;
+  rangeCompressionScore?: number;
+  tradeStructure?: PracticalTradeStructureContext;
+  stableMarketStructureState?: CandleMarketStructureState;
+  stableMarketStructurePreviousState?: CandleMarketStructureState | null;
+  stableMarketStructureKey?: string;
+  stableMarketStructureMaterialChange?: boolean;
+  stableMarketStructureConfidence?: CandleMarketStructureConfidence["label"];
+  stableMarketStructureMaterialityScore?: number;
+  volumeActivity?: VolumeActivityContext;
+  tradeStoryState?: TradeStoryState;
+  rangeBox?: RangeBoxContext;
+  acceptance?: AcceptanceContext;
+  supportImportance?: SupportImportanceContext;
+  behaviorBudget?: BehaviorBudgetContext;
+  primaryTradeArea?: PrimaryTradeAreaContext;
+  failedLevelMemory?: FailedLevelMemoryContext;
 };
 
 export type MonitoringEvent = {

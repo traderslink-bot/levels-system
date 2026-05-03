@@ -101,6 +101,42 @@ test("IbkrHistoricalCandleProvider maps historical bars into candles and honors 
   assert.equal(response.candles.at(-1)?.close, 100.5);
 });
 
+test("IbkrHistoricalCandleProvider can request 1m historical bars", async () => {
+  sharedIbkrPacingQueue.resetForTests();
+  const ib = new FakeHistoricalIbApi();
+  const provider = new IbkrHistoricalCandleProvider(ib as any, 100);
+  const plan = buildHistoricalFetchPlan(
+    {
+      symbol: "aapl",
+      timeframe: "1m",
+      lookbackBars: 2,
+    },
+    "ibkr",
+  );
+
+  const fetchPromise = provider.fetchCandles(
+    {
+      symbol: "aapl",
+      timeframe: "1m",
+      lookbackBars: 2,
+    },
+    plan,
+  );
+
+  const reqId = await waitForHistoricalRequest(ib);
+
+  assert.equal(ib.historicalRequests[0]?.barSizeSetting, "1 min");
+  ib.emit(EventName.historicalData, reqId, "20260415 09:31:00", 10, 10.2, 9.9, 10.1, 1_000);
+  ib.emit(EventName.historicalData, reqId, "20260415 09:32:00", 10.1, 10.3, 10, 10.2, 1_500);
+  ib.emit("historicalDataEnd", reqId, "start", "end");
+
+  const response = await fetchPromise;
+
+  assert.equal(response.timeframe, "1m");
+  assert.equal(response.candles.length, 2);
+  assert.equal(response.providerMetadata?.barSizeSetting, "1 min");
+});
+
 test("IbkrHistoricalCandleProvider returns an empty candle set when IBKR sends no bars", async () => {
   sharedIbkrPacingQueue.resetForTests();
   const ib = new FakeHistoricalIbApi();

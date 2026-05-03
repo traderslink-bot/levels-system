@@ -13,6 +13,10 @@ type DiscordMessageResponse = {
   id: DiscordSnowflake;
 };
 
+type DiscordGuildThreadsResponse = {
+  threads?: DiscordChannelResponse[];
+};
+
 type DiscordChannelResponse = {
   id: DiscordSnowflake;
   name?: string;
@@ -37,6 +41,20 @@ export type DiscordRestThreadGatewayOptions = {
   transientRetryDelayMs?: number;
   maxTransientRetryDelayMs?: number;
   requestTimeoutMs?: number;
+};
+
+export type DiscordPermissionPreflightStatus = "pass" | "fail" | "skipped";
+
+export type DiscordPermissionPreflightCheck = {
+  name: string;
+  status: DiscordPermissionPreflightStatus;
+  detail: string;
+};
+
+export type DiscordPermissionPreflightResult = {
+  ok: boolean;
+  destructive: boolean;
+  checks: DiscordPermissionPreflightCheck[];
 };
 
 const DEFAULT_API_BASE_URL = "https://discord.com/api/v10";
@@ -185,6 +203,105 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
       method: "POST",
       body: JSON.stringify({ content }),
     });
+  }
+
+  private async deleteMessage(channelId: string, messageId: string): Promise<void> {
+    await this.request<unknown>(`/channels/${channelId}/messages/${messageId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async preflightPermissions(
+    options: { postTest?: boolean } = {},
+  ): Promise<DiscordPermissionPreflightResult> {
+    const checks: DiscordPermissionPreflightCheck[] = [];
+    const runCheck = async (
+      name: string,
+      detail: string,
+      check: () => Promise<void>,
+    ): Promise<void> => {
+      try {
+        await check();
+        checks.push({ name, status: "pass", detail });
+      } catch (error) {
+        checks.push({
+          name,
+          status: "fail",
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    await runCheck(
+      "watchlist_channel_read",
+      `can read channel ${this.watchlistChannelId}`,
+      async () => {
+        await this.request<DiscordChannelResponse>(`/channels/${this.watchlistChannelId}`);
+      },
+    );
+
+    if (this.guildId) {
+      await runCheck(
+        "active_threads_read",
+        `can read active threads for guild ${this.guildId}`,
+        async () => {
+          await this.request<DiscordGuildThreadsResponse>(`/guilds/${this.guildId}/threads/active`);
+        },
+      );
+    } else {
+      checks.push({
+        name: "active_threads_read",
+        status: "skipped",
+        detail: "DISCORD_GUILD_ID is not configured, so active-thread recovery cannot be preflighted.",
+      });
+    }
+
+    await runCheck(
+      "archived_threads_read",
+      `can read archived public threads for channel ${this.watchlistChannelId}`,
+      async () => {
+        await this.request<DiscordThreadListResponse>(
+          `/channels/${this.watchlistChannelId}/threads/archived/public?limit=2`,
+        );
+      },
+    );
+
+    if (options.postTest) {
+      let messageId: string | null = null;
+      await runCheck(
+        "watchlist_channel_post",
+        "can send a temporary preflight message in the watchlist channel",
+        async () => {
+          const message = await this.postMessage(
+            this.watchlistChannelId,
+            `TradersLink permission preflight ${new Date().toISOString()}`,
+          );
+          messageId = message.id;
+        },
+      );
+
+      if (messageId) {
+        await runCheck(
+          "watchlist_channel_delete_test_message",
+          "can delete the temporary preflight message",
+          async () => {
+            await this.deleteMessage(this.watchlistChannelId, messageId!);
+          },
+        );
+      }
+    } else {
+      checks.push({
+        name: "watchlist_channel_post",
+        status: "skipped",
+        detail: "post test skipped; rerun with --post-test to verify send/delete permissions.",
+      });
+    }
+
+    return {
+      ok: checks.every((check) => check.status !== "fail"),
+      destructive: Boolean(options.postTest),
+      checks,
+    };
   }
 
   async getThreadById(threadId: string): Promise<DiscordThread | null> {
