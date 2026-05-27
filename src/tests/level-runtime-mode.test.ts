@@ -321,6 +321,17 @@ function bucketCounts(output: LevelEngineOutput): RuntimeBucketCountSummary {
   };
 }
 
+function legacyRuntimeBuckets(output: LevelEngineOutput) {
+  return {
+    majorSupport: output.majorSupport,
+    majorResistance: output.majorResistance,
+    intermediateSupport: output.intermediateSupport,
+    intermediateResistance: output.intermediateResistance,
+    intradaySupport: output.intradaySupport,
+    intradayResistance: output.intradayResistance,
+  };
+}
+
 function nearestRuntimeLevel(
   output: LevelEngineOutput,
   kind: FinalLevelZone["kind"],
@@ -764,6 +775,7 @@ async function buildRuntimeParityStageDiagnostics(
     },
     metadata: oldOutput.metadata,
     specialLevels: oldOutput.specialLevels,
+    legacyRuntimeBuckets: legacyRuntimeBuckets(oldOutput),
     legacyExtensionLevels: oldOutput.extensionLevels,
     generatedAt: FIXED_PARITY_FIXTURE_END_TIMESTAMP,
   });
@@ -1055,7 +1067,7 @@ test("compare mode can keep the new path active while logging the old path obser
   assert.equal(compareLogs[0]?.alternatePath, "old");
 });
 
-test("rollback to old mode is config-only and deterministic", async () => {
+test("rollback to old mode is config-only and deterministic after projected transport parity", async () => {
   const service = new CandleFetchService(new StubHistoricalCandleProvider());
   const newEngine = new LevelEngine(service, undefined, {
     runtimeMode: "new",
@@ -1073,8 +1085,9 @@ test("rollback to old mode is config-only and deterministic", async () => {
     fallbackEngine.generateLevels(buildRequest("TSLA")),
   ]);
 
-  assert.notDeepEqual(flattenOutput(newOutput), flattenOutput(oldOutput));
+  assertLevelEngineOutputCompatible(newOutput);
   assert.deepEqual(flattenOutput(oldOutput), flattenOutput(fallbackOutput));
+  assert.deepEqual(flattenOutput(oldOutput), flattenOutput(newOutput));
   assert.deepEqual(
     normalizeOldPathOutput(oldOutput, oldOutput.metadata.referencePrice ?? 0, 8),
     normalizeOldPathOutput(fallbackOutput, fallbackOutput.metadata.referencePrice ?? 0, 8),
@@ -1097,17 +1110,18 @@ test("old, new, and compare modes all return LevelEngineOutput-compatible shapes
   assert.deepEqual(flattenOutput(defaultOutput), flattenOutput(oldOutput));
 });
 
-test("runtime parity fixture compares old/new bucket counts and records approved current gaps", async () => {
-  const { oldOutput, newOutput } = await generateRuntimeFixtureOutputs("BKT");
+test("runtime parity fixture proves remediated old/new bucket counts", async () => {
+  const { oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
   const report = buildRuntimeParityReport(oldOutput, newOutput);
 
   assertBucketCountSummary(report.bucketCounts.old);
   assertBucketCountSummary(report.bucketCounts.new);
   assertOnlyApprovedParityGaps(report);
-  assert.equal(
-    report.approvedGaps.some((gap) => gap.code === "bucket_count_mismatch"),
-    runtimeCountsDiffer(report.bucketCounts.old, report.bucketCounts.new),
-  );
+  assert.equal(report.bucketCounts.old.major, 12);
+  assert.equal(report.bucketCounts.old.intermediate, 2);
+  assert.equal(report.bucketCounts.old.intraday, 1);
+  assert.deepEqual(report.bucketCounts.new, report.bucketCounts.old);
+  assert.equal(report.approvedGaps.some((gap) => gap.code === "bucket_count_mismatch"), false);
 });
 
 test("runtime parity fixture compares nearest support and resistance around reference price", async () => {
@@ -1126,6 +1140,12 @@ test("runtime parity fixture compares nearest support and resistance around refe
     "fixture must expose a nearest resistance comparison",
   );
   assertOnlyApprovedParityGaps(report);
+  assert.equal(report.nearest.support.oldPrice, 4.5284);
+  assert.equal(report.nearest.support.newPrice, 4.5284);
+  assert.equal(report.nearest.resistance.oldPrice, 4.6957);
+  assert.equal(report.nearest.resistance.newPrice, 4.6957);
+  assert.equal(report.approvedGaps.some((gap) => gap.code === "nearest_support_gap"), false);
+  assert.equal(report.approvedGaps.some((gap) => gap.code === "nearest_resistance_gap"), false);
 });
 
 test("old/new runtime fixture keeps special levels identical", async () => {
@@ -1176,6 +1196,14 @@ test("runtime parity diagnostics expose every old and new pipeline stage", async
   assert.equal(report.projectedNewBuckets.major.count, newCounts.major);
   assert.equal(report.projectedNewBuckets.intermediate.count, newCounts.intermediate);
   assert.equal(report.projectedNewBuckets.intraday.count, newCounts.intraday);
+  assert.equal(report.projectedNewBuckets.major.count, 12);
+  assert.equal(report.projectedNewBuckets.intermediate.count, 2);
+  assert.equal(report.projectedNewBuckets.intraday.count, 1);
+  assert.ok(
+    report.mappingNotes.some((note) =>
+      note.includes("reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path"),
+    ),
+  );
   assert.ok(
     report.mappingNotes.some((note) =>
       note.includes("reuse the legacy extension ladder supplied by the old runtime path"),
@@ -1248,15 +1276,15 @@ test("runtime parity diagnostic bucket mapping covers daily 4h 5m and mixed sour
   assert.equal(diagnosticRuntimeBucketForSourceTimeframes(["daily", "5m"]), "major");
 });
 
-test("runtime parity diagnostics document current nearest level gaps against the old baseline", async () => {
+test("runtime parity diagnostics prove remediated nearest levels match the old baseline", async () => {
   const { report } = await getNearRuntimeParityStageDiagnostics();
 
   assert.equal(report.nearest.support.oldPrice, 4.5284);
   assert.equal(report.nearest.resistance.oldPrice, 4.6957);
-  assert.equal(report.nearest.support.newPrice, 4.4799);
-  assert.equal(report.nearest.resistance.newPrice, 4.7474);
-  assert.ok((report.nearest.support.distancePct ?? 0) > 0.01);
-  assert.ok((report.nearest.resistance.distancePct ?? 0) > 0.01);
+  assert.equal(report.nearest.support.newPrice, 4.5284);
+  assert.equal(report.nearest.resistance.newPrice, 4.6957);
+  assert.equal(report.nearest.support.distancePct, 0);
+  assert.equal(report.nearest.resistance.distancePct, 0);
 });
 
 test("runtime parity diagnostics document remediated extension ladder parity", async () => {
@@ -1282,6 +1310,20 @@ test("new projected runtime output reuses the old extension ladder without chang
     newOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
     oldOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
   );
+});
+
+test("new projected runtime output reuses legacy buckets and preserves strength labels", async () => {
+  const { defaultOutput, oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
+
+  assert.deepEqual(flattenOutput(defaultOutput), flattenOutput(oldOutput));
+  assert.deepEqual(bucketCounts(newOutput), bucketCounts(oldOutput));
+
+  for (const key of LEVEL_OUTPUT_ARRAY_KEYS) {
+    assert.deepEqual(
+      newOutput[key].map((zone) => zoneIdentity(zone, key)),
+      oldOutput[key].map((zone) => zoneIdentity(zone, key)),
+    );
+  }
 });
 
 test("projected extension levels stay outside surfaced display levels and remain spaced", async () => {

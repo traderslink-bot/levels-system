@@ -45,6 +45,16 @@ export type NewRuntimeCompatibleLevelOutput = {
   mappingNotes: string[];
 };
 
+export type LegacyRuntimeBuckets = Pick<
+  LevelEngineOutput,
+  | "majorSupport"
+  | "majorResistance"
+  | "intermediateSupport"
+  | "intermediateResistance"
+  | "intradaySupport"
+  | "intradayResistance"
+>;
+
 export type LevelRuntimeOutputAdapterInput = {
   symbol: string;
   rawCandidates: RawLevelCandidate[];
@@ -397,6 +407,23 @@ function cloneExtensionLevels(
   };
 }
 
+function cloneRuntimeZones(zones: FinalLevelZone[]): FinalLevelZone[] {
+  return zones.map(cloneRuntimeZone);
+}
+
+function cloneLegacyRuntimeBuckets(
+  runtimeBuckets: LegacyRuntimeBuckets,
+): LegacyRuntimeBuckets {
+  return {
+    majorSupport: cloneRuntimeZones(runtimeBuckets.majorSupport),
+    majorResistance: cloneRuntimeZones(runtimeBuckets.majorResistance),
+    intermediateSupport: cloneRuntimeZones(runtimeBuckets.intermediateSupport),
+    intermediateResistance: cloneRuntimeZones(runtimeBuckets.intermediateResistance),
+    intradaySupport: cloneRuntimeZones(runtimeBuckets.intradaySupport),
+    intradayResistance: cloneRuntimeZones(runtimeBuckets.intradayResistance),
+  };
+}
+
 function pushBucketedZone(
   buckets: Record<RuntimeBucket, FinalLevelZone[]>,
   level: RankedLevel,
@@ -465,9 +492,9 @@ export function buildNewRuntimeCompatibleLevelOutput(
     comparableOutput: normalizeSurfacedSelectionOutput(surfacedSelection, 12),
     enrichmentDiagnostics: diagnostics,
     mappingNotes: [
-      "The new projected path reuses rankLevels() for additive richer scoring metadata without replacing FinalLevelZone runtime transport.",
+      "The new surfaced adapter is projected into the legacy bucketed LevelEngineOutput contract for runtime compatibility.",
       input.legacyRuntimeBuckets
-        ? "Runtime buckets reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path so bucket coverage, nearest levels, and legacy strength labels remain stable while richer scoring stays observational."
+        ? "Runtime buckets reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path so bucket coverage, nearest levels, and legacy strength labels remain stable while richer surfaced selection stays observational."
         : "Strength labels are approximated from surfaced-selection scores because no legacy runtime buckets were supplied.",
       input.legacyExtensionLevels
         ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path for practical forward planning."
