@@ -633,6 +633,49 @@ function extensionDiagnostics(output: LevelEngineOutput): RuntimeExtensionDiagno
   };
 }
 
+function surfacedDisplayZones(output: LevelEngineOutput): FinalLevelZone[] {
+  return [
+    ...output.majorSupport,
+    ...output.majorResistance,
+    ...output.intermediateSupport,
+    ...output.intermediateResistance,
+    ...output.intradaySupport,
+    ...output.intradayResistance,
+  ];
+}
+
+function extensionZones(output: LevelEngineOutput): FinalLevelZone[] {
+  return [
+    ...output.extensionLevels.support,
+    ...output.extensionLevels.resistance,
+  ];
+}
+
+function displayPriceKey(zone: FinalLevelZone): string {
+  return zone.representativePrice.toFixed(zone.representativePrice >= 1 ? 2 : 4);
+}
+
+function normalizedDistancePct(leftPrice: number, rightPrice: number): number {
+  return Math.abs(leftPrice - rightPrice) /
+    Math.max(Math.max(leftPrice, rightPrice), 0.0001);
+}
+
+function assertExtensionSpacing(
+  zones: FinalLevelZone[],
+  spacingPct: number,
+): void {
+  for (let leftIndex = 0; leftIndex < zones.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < zones.length; rightIndex += 1) {
+      const left = zones[leftIndex]!;
+      const right = zones[rightIndex]!;
+      assert.ok(
+        normalizedDistancePct(left.representativePrice, right.representativePrice) > spacingPct,
+        `${left.id} and ${right.id} should remain spaced as extension levels`,
+      );
+    }
+  }
+}
+
 function diagnosticRuntimeBucketForSourceTimeframes(timeframes: SourceTimeframe[]): RuntimeBucket {
   const normalized = [...new Set(timeframes.map((timeframe) =>
     timeframe === "daily" || timeframe === "4h" || timeframe === "5m" ? timeframe : "5m",
@@ -721,6 +764,7 @@ async function buildRuntimeParityStageDiagnostics(
     },
     metadata: oldOutput.metadata,
     specialLevels: oldOutput.specialLevels,
+    legacyExtensionLevels: oldOutput.extensionLevels,
     generatedAt: FIXED_PARITY_FIXTURE_END_TIMESTAMP,
   });
   const referencePrice = oldOutput.metadata.referencePrice ?? newOutput.metadata.referencePrice ?? 0;
@@ -1134,7 +1178,7 @@ test("runtime parity diagnostics expose every old and new pipeline stage", async
   assert.equal(report.projectedNewBuckets.intraday.count, newCounts.intraday);
   assert.ok(
     report.mappingNotes.some((note) =>
-      note.includes("deeper anchors instead of recreating the full old extension engine behavior"),
+      note.includes("reuse the legacy extension ladder supplied by the old runtime path"),
     ),
   );
 });
@@ -1215,15 +1259,85 @@ test("runtime parity diagnostics document current nearest level gaps against the
   assert.ok((report.nearest.resistance.distancePct ?? 0) > 0.01);
 });
 
-test("runtime parity diagnostics document current extension ladder gap", async () => {
+test("runtime parity diagnostics document remediated extension ladder parity", async () => {
   const { report } = await getNearRuntimeParityStageDiagnostics();
 
   assert.equal(report.oldExtensionLevels.total, 5);
   assert.equal(report.oldExtensionLevels.support.count, 3);
   assert.equal(report.oldExtensionLevels.resistance.count, 2);
-  assert.equal(report.projectedNewExtensionLevels.total, 2);
-  assert.equal(report.projectedNewExtensionLevels.support.count, 1);
-  assert.equal(report.projectedNewExtensionLevels.resistance.count, 1);
+  assert.equal(report.projectedNewExtensionLevels.total, 5);
+  assert.equal(report.projectedNewExtensionLevels.support.count, 3);
+  assert.equal(report.projectedNewExtensionLevels.resistance.count, 2);
+});
+
+test("new projected runtime output reuses the old extension ladder without changing old output", async () => {
+  const { defaultOutput, oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
+
+  assert.deepEqual(flattenOutput(defaultOutput), flattenOutput(oldOutput));
+  assert.deepEqual(
+    newOutput.extensionLevels.support.map((zone) => zoneIdentity(zone, "support")),
+    oldOutput.extensionLevels.support.map((zone) => zoneIdentity(zone, "support")),
+  );
+  assert.deepEqual(
+    newOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
+    oldOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
+  );
+});
+
+test("projected extension levels stay outside surfaced display levels and remain spaced", async () => {
+  const { newOutput } = await getNearRuntimeParityStageDiagnostics();
+  const surfaced = surfacedDisplayZones(newOutput);
+  const surfacedDisplayKeys = new Set(surfaced.map(displayPriceKey));
+  const surfacedSupportPrices = surfaced
+    .filter((zone) => zone.kind === "support")
+    .map((zone) => zone.representativePrice);
+  const surfacedResistancePrices = surfaced
+    .filter((zone) => zone.kind === "resistance")
+    .map((zone) => zone.representativePrice);
+  const lowestSurfacedSupport = Math.min(...surfacedSupportPrices);
+  const highestSurfacedResistance = Math.max(...surfacedResistancePrices);
+
+  for (const extension of extensionZones(newOutput)) {
+    assert.equal(surfacedDisplayKeys.has(displayPriceKey(extension)), false);
+  }
+
+  for (const support of newOutput.extensionLevels.support) {
+    assert.ok(support.representativePrice < lowestSurfacedSupport);
+  }
+  for (const resistance of newOutput.extensionLevels.resistance) {
+    assert.ok(resistance.representativePrice > highestSurfacedResistance);
+  }
+
+  assertExtensionSpacing(newOutput.extensionLevels.support, 0.01);
+  assertExtensionSpacing(newOutput.extensionLevels.resistance, 0.01);
+});
+
+test("projected extension ladder preserves practical forward-planning coverage from the old path", async () => {
+  const { oldOutput, newOutput } = await getNearRuntimeParityStageDiagnostics();
+  const referencePrice = oldOutput.metadata.referencePrice;
+  assert.ok(referencePrice);
+
+  const highestExtensionResistance = Math.max(
+    ...newOutput.extensionLevels.resistance.map((zone) => zone.representativePrice),
+  );
+  const lowestExtensionSupport = Math.min(
+    ...newOutput.extensionLevels.support.map((zone) => zone.representativePrice),
+  );
+  const upsideCoveragePct = (highestExtensionResistance - referencePrice) / referencePrice;
+  const downsideCoveragePct = (referencePrice - lowestExtensionSupport) / referencePrice;
+
+  assert.ok(upsideCoveragePct >= 0.30);
+  assert.ok(upsideCoveragePct <= 0.50);
+  assert.ok(downsideCoveragePct >= 0.20);
+  assert.ok(downsideCoveragePct <= 0.50);
+  assert.deepEqual(
+    newOutput.extensionLevels.support.map((zone) => zoneIdentity(zone, "support")),
+    oldOutput.extensionLevels.support.map((zone) => zoneIdentity(zone, "support")),
+  );
+  assert.deepEqual(
+    newOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
+    oldOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
+  );
 });
 
 test("compareActivePath old returns old output while exposing comparison data", async () => {
@@ -1259,7 +1373,7 @@ test("compareActivePath new returns new projected output without changing public
   assert.equal(log.alternatePath, "old");
 });
 
-test("low-price runner extension parity gate documents old practical ladder coverage gap", () => {
+test("new projection can reuse low-price runner extension ladder for practical coverage", () => {
   const oldOutput = fixtureOutput("LOW", {
     intradayResistance: [
       fixtureZone({ id: "LOW-intraday-resistance", symbol: "LOW", kind: "resistance", price: 0.33 }),
@@ -1273,28 +1387,37 @@ test("low-price runner extension parity gate documents old practical ladder cove
       ],
     },
   });
-  const newOutput = fixtureOutput("LOW", {
-    intradayResistance: [
-      fixtureZone({ id: "LOW-intraday-resistance", symbol: "LOW", kind: "resistance", price: 0.33 }),
-    ],
-    extensionLevels: {
-      support: [],
-      resistance: [
-        fixtureZone({ id: "LOW-new-deeper-anchor", symbol: "LOW", kind: "resistance", price: 0.36, isExtension: true }),
-      ],
-    },
+  const projection = buildNewRuntimeCompatibleLevelOutput({
+    symbol: "LOW",
+    rawCandidates: [],
+    levelCandidates: [],
+    candlesByTimeframe: {},
+    metadata: oldOutput.metadata,
+    specialLevels: {},
+    legacyExtensionLevels: oldOutput.extensionLevels,
+    generatedAt: 1,
   });
+  const output = projection.output;
+  const referencePrice = oldOutput.metadata.referencePrice;
+  assert.ok(referencePrice);
 
-  const report = buildRuntimeParityReport(oldOutput, newOutput, 0.31);
-
-  assertOnlyApprovedParityGaps(report);
-  assert.equal(report.bucketCounts.old.extension, 3);
-  assert.equal(report.bucketCounts.old.extensionSupport, 0);
-  assert.equal(report.bucketCounts.old.extensionResistance, 3);
-  assert.equal(report.bucketCounts.new.extension, 1);
-  assert.equal(report.bucketCounts.new.extensionSupport, 0);
-  assert.equal(report.bucketCounts.new.extensionResistance, 1);
-  assert.ok(report.approvedGaps.some((gap) => gap.code === "extension_ladder_gap"));
+  assert.equal(output.extensionLevels.support.length, 0);
+  assert.equal(output.extensionLevels.resistance.length, 3);
+  assert.deepEqual(
+    output.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
+    oldOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
+  );
+  assert.ok(
+    (Math.max(...output.extensionLevels.resistance.map((zone) => zone.representativePrice)) -
+      referencePrice) /
+      referencePrice >=
+      0.35,
+  );
+  assert.ok(
+    projection.mappingNotes.some((note) =>
+      note.includes("reuse the legacy extension ladder supplied by the old runtime path"),
+    ),
+  );
 });
 
 test("new projected strength-label mapping is deterministic and documented", async () => {

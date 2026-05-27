@@ -272,6 +272,7 @@ export class LevelEngine {
       },
       metadata,
       specialLevels: special.summary,
+      legacyExtensionLevels: oldOutput.extensionLevels,
     });
 
     if (runtimeMode === "new") {

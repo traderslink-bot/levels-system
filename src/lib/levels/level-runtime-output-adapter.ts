@@ -41,6 +41,7 @@ export type LevelRuntimeOutputAdapterInput = {
   candlesByTimeframe: Partial<Record<CandleTimeframe, Candle[]>>;
   metadata: LevelEngineOutput["metadata"];
   specialLevels: LevelEngineOutput["specialLevels"];
+  legacyExtensionLevels?: LevelEngineOutput["extensionLevels"];
   levelCandidates?: LevelCandidate[];
   generatedAt?: number;
   scoreConfig?: LevelScoreConfig;
@@ -288,6 +289,24 @@ function toRuntimeZone(
   };
 }
 
+function cloneRuntimeZone(zone: FinalLevelZone): FinalLevelZone {
+  return {
+    ...zone,
+    sourceTypes: [...zone.sourceTypes],
+    timeframeSources: [...zone.timeframeSources],
+    notes: [...zone.notes],
+  };
+}
+
+function cloneExtensionLevels(
+  extensionLevels: LevelEngineOutput["extensionLevels"],
+): LevelEngineOutput["extensionLevels"] {
+  return {
+    support: extensionLevels.support.map(cloneRuntimeZone),
+    resistance: extensionLevels.resistance.map(cloneRuntimeZone),
+  };
+}
+
 function pushBucketedZone(
   buckets: Record<RuntimeBucket, FinalLevelZone[]>,
   level: SurfacedLevelSelection,
@@ -343,6 +362,12 @@ export function buildNewRuntimeCompatibleLevelOutput(
   const extensionResistance = surfacedSelection.deeperResistanceAnchor
     ? [toRuntimeZone(surfacedSelection.deeperResistanceAnchor, generatedAt)]
     : [];
+  const extensionLevels = input.legacyExtensionLevels
+    ? cloneExtensionLevels(input.legacyExtensionLevels)
+    : {
+        support: extensionSupport,
+        resistance: extensionResistance,
+      };
 
   const output: LevelEngineOutput = {
     symbol,
@@ -354,10 +379,7 @@ export function buildNewRuntimeCompatibleLevelOutput(
     intermediateResistance: resistanceBuckets.intermediate,
     intradaySupport: supportBuckets.intraday,
     intradayResistance: resistanceBuckets.intraday,
-    extensionLevels: {
-      support: extensionSupport,
-      resistance: extensionResistance,
-    },
+    extensionLevels,
     specialLevels: input.specialLevels,
   };
 
@@ -369,7 +391,9 @@ export function buildNewRuntimeCompatibleLevelOutput(
     mappingNotes: [
       "The new surfaced adapter is projected into the legacy bucketed LevelEngineOutput contract for runtime compatibility.",
       "Strength labels are approximated from surfaced-selection scores because the new path does not emit the old scorer's native label buckets.",
-      "Extension levels currently map only the surfaced adapter's deeper anchors instead of recreating the full old extension engine behavior.",
+      input.legacyExtensionLevels
+        ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path so forward-planning coverage is not limited to one surfaced anchor per side."
+        : "Extension levels fall back to surfaced deeper anchors when no legacy extension ladder is supplied.",
     ],
   };
 }
