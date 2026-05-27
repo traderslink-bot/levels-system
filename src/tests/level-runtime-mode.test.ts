@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CandleFetchService, StubHistoricalCandleProvider } from "../lib/market-data/candle-fetch-service.js";
+import { DEFAULT_LEVEL_ENGINE_CONFIG } from "../lib/levels/level-config.js";
+import { clusterRawLevelCandidates } from "../lib/levels/level-clusterer.js";
 import { LevelEngine } from "../lib/levels/level-engine.js";
 import type { LevelRuntimeComparisonLogEntry } from "../lib/levels/level-runtime-comparison-logger.js";
 import { buildNewRuntimeCompatibleLevelOutput } from "../lib/levels/level-runtime-output-adapter.js";
@@ -13,10 +15,21 @@ import {
   resolveLevelRuntimeSettings,
 } from "../lib/levels/level-runtime-mode.js";
 import { buildDefaultSurfacedShadowCases } from "../lib/levels/level-surfaced-shadow-evaluation.js";
+import type { SurfacedLevelSelection } from "../lib/levels/level-surfaced-selection.js";
 import { normalizeOldPathOutput } from "../lib/levels/level-ranking-comparison.js";
-import type { CandleTimeframe } from "../lib/market-data/candle-types.js";
+import { buildRawLevelCandidates } from "../lib/levels/raw-level-candidate-builder.js";
+import { scoreLevelZones } from "../lib/levels/level-scorer.js";
+import { buildSpecialLevelCandidates } from "../lib/levels/special-level-builder.js";
+import { detectSwingPoints } from "../lib/levels/swing-detector.js";
+import type { CandleProviderResponse, CandleTimeframe } from "../lib/market-data/candle-types.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
-import type { FinalLevelZone, LevelEngineOutput } from "../lib/levels/level-types.js";
+import type {
+  FinalLevelZone,
+  LevelEngineOutput,
+  RawLevelCandidate,
+  RankedLevel,
+  SourceTimeframe,
+} from "../lib/levels/level-types.js";
 
 async function fetchCandlesByTimeframe(
   symbol: string,
@@ -151,6 +164,92 @@ type RuntimeParityReport = {
     code: ApprovedParityGapCode;
     detail: string;
   }>;
+};
+
+type RuntimeBucket = "major" | "intermediate" | "intraday";
+
+type RuntimeStageCountAndIdentities<TIdentity> = {
+  count: number;
+  identities: TIdentity[];
+};
+
+type RuntimeRawCandidateIdentity = {
+  id: string;
+  symbol: string;
+  kind: RawLevelCandidate["kind"];
+  price: number;
+  timeframe: CandleTimeframe;
+  sourceType: RawLevelCandidate["sourceType"];
+  touchCount: number;
+  firstTimestamp: number;
+  lastTimestamp: number;
+};
+
+type RuntimeZoneIdentity = {
+  id: string;
+  kind: FinalLevelZone["kind"];
+  price: number;
+  bucket?: string;
+  strengthLabel: FinalLevelZone["strengthLabel"];
+  strengthScore: number;
+  timeframeBias: FinalLevelZone["timeframeBias"];
+  timeframeSources: CandleTimeframe[];
+  sourceTypes: FinalLevelZone["sourceTypes"];
+  isExtension: boolean;
+};
+
+type RuntimeRankedLevelIdentity = {
+  id: string;
+  type: RankedLevel["type"];
+  price: number;
+  rank: number;
+  state: RankedLevel["state"];
+  confidence: number;
+  sourceTimeframes: SourceTimeframe[];
+  originKinds: RankedLevel["originKinds"];
+};
+
+type RuntimeSurfacedLevelIdentity = RuntimeRankedLevelIdentity & {
+  selectionCategory: "actionable" | "anchor";
+  surfacedSelectionScore: number;
+};
+
+type RuntimeProjectedBucketDiagnostics = Record<
+  RuntimeBucket,
+  RuntimeStageCountAndIdentities<RuntimeZoneIdentity>
+>;
+
+type RuntimeExtensionDiagnostics = {
+  total: number;
+  support: RuntimeStageCountAndIdentities<RuntimeZoneIdentity>;
+  resistance: RuntimeStageCountAndIdentities<RuntimeZoneIdentity>;
+};
+
+type RuntimeParityStageReport = {
+  symbol: string;
+  referencePrice: number;
+  rawCandidates: RuntimeStageCountAndIdentities<RuntimeRawCandidateIdentity>;
+  rawCandidateCountsBySide: Record<RawLevelCandidate["kind"], number>;
+  rawCandidateCountsByTimeframe: Record<CandleTimeframe, number>;
+  oldClusteredZones: RuntimeStageCountAndIdentities<RuntimeZoneIdentity>;
+  oldScoredZones: RuntimeStageCountAndIdentities<RuntimeZoneIdentity>;
+  oldSurfacedBuckets: RuntimeProjectedBucketDiagnostics;
+  oldExtensionLevels: RuntimeExtensionDiagnostics;
+  richerRankedLevels: RuntimeStageCountAndIdentities<RuntimeRankedLevelIdentity>;
+  richerSurfacedLevels: RuntimeStageCountAndIdentities<RuntimeSurfacedLevelIdentity>;
+  projectedNewBuckets: RuntimeProjectedBucketDiagnostics;
+  projectedNewExtensionLevels: RuntimeExtensionDiagnostics;
+  nearest: RuntimeParityReport["nearest"];
+  specialLevelsMatch: boolean;
+  mappingNotes: string[];
+};
+
+type RuntimeParityStageDiagnostics = {
+  report: RuntimeParityStageReport;
+  rawCandidates: RawLevelCandidate[];
+  candlesByTimeframe: Record<CandleTimeframe, CandleProviderResponse>;
+  oldOutput: LevelEngineOutput;
+  newOutput: LevelEngineOutput;
 };
 
 function buildFixedRequest(symbol: string, endTimeMs = FIXED_PARITY_FIXTURE_END_TIMESTAMP) {
@@ -338,6 +437,338 @@ function assertBucketCountSummary(summary: RuntimeBucketCountSummary): void {
     assert.equal(Number.isInteger(value), true);
     assert.ok(value >= 0);
   }
+}
+
+async function fetchFixedCandlesByTimeframe(
+  symbol: string,
+): Promise<Record<CandleTimeframe, CandleProviderResponse>> {
+  const service = new CandleFetchService(new StubHistoricalCandleProvider());
+  const request = buildFixedRequest(symbol);
+  const [daily, fourHour, fiveMinute] = await Promise.all([
+    service.fetchCandles(request.historicalRequests.daily),
+    service.fetchCandles(request.historicalRequests["4h"]),
+    service.fetchCandles(request.historicalRequests["5m"]),
+  ]);
+
+  return {
+    daily,
+    "4h": fourHour,
+    "5m": fiveMinute,
+  };
+}
+
+function deriveReferenceTimestampForDiagnostics(
+  seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+): number {
+  return Math.max(
+    seriesMap.daily.requestedEndTimestamp,
+    seriesMap["4h"].requestedEndTimestamp,
+    seriesMap["5m"].requestedEndTimestamp,
+  );
+}
+
+function buildDiagnosticRawCandidates(
+  symbol: string,
+  seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+): RawLevelCandidate[] {
+  const rawCandidates: RawLevelCandidate[] = [];
+  const normalizedSymbol = symbol.toUpperCase();
+
+  for (const timeframe of ["daily", "4h", "5m"] as const) {
+    const timeframeConfig = DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig[timeframe];
+    const series = seriesMap[timeframe];
+    const swings = detectSwingPoints(series.candles, {
+      swingWindow: timeframeConfig.swingWindow,
+      minimumDisplacementPct: timeframeConfig.minimumDisplacementPct,
+      minimumSeparationBars: timeframeConfig.minimumSwingSeparationBars,
+      includeBarrierCandles: timeframe === "daily" || timeframe === "4h",
+    });
+
+    rawCandidates.push(
+      ...buildRawLevelCandidates({
+        symbol: normalizedSymbol,
+        timeframe,
+        candles: series.candles,
+        swings,
+      }),
+    );
+  }
+
+  rawCandidates.push(
+    ...buildSpecialLevelCandidates(normalizedSymbol, seriesMap["5m"].candles).candidates,
+  );
+
+  return rawCandidates;
+}
+
+function countRawCandidatesBySide(
+  rawCandidates: RawLevelCandidate[],
+): Record<RawLevelCandidate["kind"], number> {
+  return {
+    support: rawCandidates.filter((candidate) => candidate.kind === "support").length,
+    resistance: rawCandidates.filter((candidate) => candidate.kind === "resistance").length,
+  };
+}
+
+function countRawCandidatesByTimeframe(
+  rawCandidates: RawLevelCandidate[],
+): Record<CandleTimeframe, number> {
+  return {
+    daily: rawCandidates.filter((candidate) => candidate.timeframe === "daily").length,
+    "4h": rawCandidates.filter((candidate) => candidate.timeframe === "4h").length,
+    "5m": rawCandidates.filter((candidate) => candidate.timeframe === "5m").length,
+  };
+}
+
+function rawCandidateIdentity(candidate: RawLevelCandidate): RuntimeRawCandidateIdentity {
+  return {
+    id: candidate.id,
+    symbol: candidate.symbol,
+    kind: candidate.kind,
+    price: candidate.price,
+    timeframe: candidate.timeframe,
+    sourceType: candidate.sourceType,
+    touchCount: candidate.touchCount,
+    firstTimestamp: candidate.firstTimestamp,
+    lastTimestamp: candidate.lastTimestamp,
+  };
+}
+
+function zoneIdentity(zone: FinalLevelZone, bucket?: string): RuntimeZoneIdentity {
+  return {
+    id: zone.id,
+    kind: zone.kind,
+    price: zone.representativePrice,
+    bucket,
+    strengthLabel: zone.strengthLabel,
+    strengthScore: zone.strengthScore,
+    timeframeBias: zone.timeframeBias,
+    timeframeSources: [...zone.timeframeSources],
+    sourceTypes: [...zone.sourceTypes],
+    isExtension: zone.isExtension,
+  };
+}
+
+function rankedLevelIdentity(level: RankedLevel): RuntimeRankedLevelIdentity {
+  return {
+    id: level.id,
+    type: level.type,
+    price: level.price,
+    rank: level.rank,
+    state: level.state,
+    confidence: level.confidence,
+    sourceTimeframes: [...level.sourceTimeframes],
+    originKinds: [...level.originKinds],
+  };
+}
+
+function surfacedLevelIdentity(level: SurfacedLevelSelection): RuntimeSurfacedLevelIdentity {
+  return {
+    ...rankedLevelIdentity(level),
+    selectionCategory: level.selectionCategory,
+    surfacedSelectionScore: level.surfacedSelectionScore,
+  };
+}
+
+function stageIdentities<TInput, TIdentity>(
+  items: TInput[],
+  mapper: (item: TInput) => TIdentity,
+): RuntimeStageCountAndIdentities<TIdentity> {
+  return {
+    count: items.length,
+    identities: items.map(mapper),
+  };
+}
+
+function bucketStage(
+  output: LevelEngineOutput,
+  bucket: RuntimeBucket,
+): RuntimeStageCountAndIdentities<RuntimeZoneIdentity> {
+  if (bucket === "major") {
+    return stageIdentities(
+      [
+        ...output.majorSupport.map((zone) => ({ zone, bucket: "majorSupport" })),
+        ...output.majorResistance.map((zone) => ({ zone, bucket: "majorResistance" })),
+      ],
+      ({ zone, bucket: bucketName }) => zoneIdentity(zone, bucketName),
+    );
+  }
+
+  if (bucket === "intermediate") {
+    return stageIdentities(
+      [
+        ...output.intermediateSupport.map((zone) => ({ zone, bucket: "intermediateSupport" })),
+        ...output.intermediateResistance.map((zone) => ({ zone, bucket: "intermediateResistance" })),
+      ],
+      ({ zone, bucket: bucketName }) => zoneIdentity(zone, bucketName),
+    );
+  }
+
+  return stageIdentities(
+    [
+      ...output.intradaySupport.map((zone) => ({ zone, bucket: "intradaySupport" })),
+      ...output.intradayResistance.map((zone) => ({ zone, bucket: "intradayResistance" })),
+    ],
+    ({ zone, bucket: bucketName }) => zoneIdentity(zone, bucketName),
+  );
+}
+
+function bucketDiagnostics(output: LevelEngineOutput): RuntimeProjectedBucketDiagnostics {
+  return {
+    major: bucketStage(output, "major"),
+    intermediate: bucketStage(output, "intermediate"),
+    intraday: bucketStage(output, "intraday"),
+  };
+}
+
+function extensionDiagnostics(output: LevelEngineOutput): RuntimeExtensionDiagnostics {
+  return {
+    total: output.extensionLevels.support.length + output.extensionLevels.resistance.length,
+    support: stageIdentities(output.extensionLevels.support, (zone) =>
+      zoneIdentity(zone, "extensionSupport"),
+    ),
+    resistance: stageIdentities(output.extensionLevels.resistance, (zone) =>
+      zoneIdentity(zone, "extensionResistance"),
+    ),
+  };
+}
+
+function diagnosticRuntimeBucketForSourceTimeframes(timeframes: SourceTimeframe[]): RuntimeBucket {
+  const normalized = [...new Set(timeframes.map((timeframe) =>
+    timeframe === "daily" || timeframe === "4h" || timeframe === "5m" ? timeframe : "5m",
+  ))];
+
+  if (normalized.includes("daily") || normalized.length > 1) {
+    return "major";
+  }
+  if (normalized.includes("4h")) {
+    return "intermediate";
+  }
+  return "intraday";
+}
+
+function buildOldDiagnosticZones(params: {
+  symbol: string;
+  rawCandidates: RawLevelCandidate[];
+  referenceTimestamp: number;
+}): {
+  clustered: FinalLevelZone[];
+  scored: FinalLevelZone[];
+} {
+  const supportTolerance = Math.max(
+    DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig.daily.clusterTolerancePct,
+    DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig["4h"].clusterTolerancePct,
+  );
+  const resistanceTolerance = supportTolerance;
+  const supportClustered = clusterRawLevelCandidates(
+    params.symbol,
+    "support",
+    params.rawCandidates,
+    supportTolerance,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+    params.referenceTimestamp,
+  );
+  const resistanceClustered = clusterRawLevelCandidates(
+    params.symbol,
+    "resistance",
+    params.rawCandidates,
+    resistanceTolerance,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+    params.referenceTimestamp,
+  );
+  const supportScored = scoreLevelZones(
+    supportClustered,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+    params.referenceTimestamp,
+  );
+  const resistanceScored = scoreLevelZones(
+    resistanceClustered,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+    params.referenceTimestamp,
+  );
+
+  return {
+    clustered: [...supportClustered, ...resistanceClustered],
+    scored: [...supportScored, ...resistanceScored],
+  };
+}
+
+async function buildRuntimeParityStageDiagnostics(
+  symbol: string,
+): Promise<RuntimeParityStageDiagnostics> {
+  const request = buildFixedRequest(symbol);
+  const service = new CandleFetchService(new StubHistoricalCandleProvider());
+  const candlesByTimeframe = await fetchFixedCandlesByTimeframe(symbol);
+  const rawCandidates = buildDiagnosticRawCandidates(symbol, candlesByTimeframe);
+  const referenceTimestamp = deriveReferenceTimestampForDiagnostics(candlesByTimeframe);
+  const oldZones = buildOldDiagnosticZones({
+    symbol: symbol.toUpperCase(),
+    rawCandidates,
+    referenceTimestamp,
+  });
+
+  const [oldOutput, newOutput] = await Promise.all([
+    new LevelEngine(service, undefined, { runtimeMode: "old" }).generateLevels(request),
+    new LevelEngine(service, undefined, { runtimeMode: "new" }).generateLevels(request),
+  ]);
+  const projection = buildNewRuntimeCompatibleLevelOutput({
+    symbol,
+    rawCandidates,
+    candlesByTimeframe: {
+      daily: candlesByTimeframe.daily.candles,
+      "4h": candlesByTimeframe["4h"].candles,
+      "5m": candlesByTimeframe["5m"].candles,
+    },
+    metadata: oldOutput.metadata,
+    specialLevels: oldOutput.specialLevels,
+    generatedAt: FIXED_PARITY_FIXTURE_END_TIMESTAMP,
+  });
+  const referencePrice = oldOutput.metadata.referencePrice ?? newOutput.metadata.referencePrice ?? 0;
+  const parityReport = buildRuntimeParityReport(oldOutput, projection.output, referencePrice);
+  const rankedLevels = [
+    ...projection.rankedOutput.supports,
+    ...projection.rankedOutput.resistances,
+  ];
+  const surfacedLevels = [
+    ...projection.surfacedSelection.surfacedSupports,
+    ...projection.surfacedSelection.surfacedResistances,
+  ];
+
+  return {
+    report: {
+      symbol: symbol.toUpperCase(),
+      referencePrice,
+      rawCandidates: stageIdentities(rawCandidates, rawCandidateIdentity),
+      rawCandidateCountsBySide: countRawCandidatesBySide(rawCandidates),
+      rawCandidateCountsByTimeframe: countRawCandidatesByTimeframe(rawCandidates),
+      oldClusteredZones: stageIdentities(oldZones.clustered, (zone) =>
+        zoneIdentity(zone, "oldClustered"),
+      ),
+      oldScoredZones: stageIdentities(oldZones.scored, (zone) =>
+        zoneIdentity(zone, "oldScored"),
+      ),
+      oldSurfacedBuckets: bucketDiagnostics(oldOutput),
+      oldExtensionLevels: extensionDiagnostics(oldOutput),
+      richerRankedLevels: stageIdentities(rankedLevels, rankedLevelIdentity),
+      richerSurfacedLevels: stageIdentities(surfacedLevels, surfacedLevelIdentity),
+      projectedNewBuckets: bucketDiagnostics(projection.output),
+      projectedNewExtensionLevels: extensionDiagnostics(projection.output),
+      nearest: parityReport.nearest,
+      specialLevelsMatch: parityReport.specialLevelsMatch,
+      mappingNotes: projection.mappingNotes,
+    },
+    rawCandidates,
+    candlesByTimeframe,
+    oldOutput,
+    newOutput,
+  };
+}
+
+let cachedNearRuntimeParityStageDiagnostics: Promise<RuntimeParityStageDiagnostics> | null = null;
+
+function getNearRuntimeParityStageDiagnostics(): Promise<RuntimeParityStageDiagnostics> {
+  cachedNearRuntimeParityStageDiagnostics ??= buildRuntimeParityStageDiagnostics("NEAR");
+  return cachedNearRuntimeParityStageDiagnostics;
 }
 
 async function generateRuntimeFixtureOutputs(symbol: string): Promise<{
@@ -660,6 +1091,141 @@ test("old/new runtime fixture keeps special levels identical", async () => {
   assert.deepEqual(newOutput.specialLevels, oldOutput.specialLevels);
 });
 
+test("runtime parity diagnostics expose every old and new pipeline stage", async () => {
+  const { report, newOutput } = await getNearRuntimeParityStageDiagnostics();
+  const newCounts = bucketCounts(newOutput);
+
+  assert.equal(report.symbol, "NEAR");
+  assert.equal(report.referencePrice, 4.6136);
+  assert.ok(report.rawCandidates.count > 0);
+  assert.equal(report.rawCandidates.count, report.rawCandidates.identities.length);
+  assert.equal(
+    report.rawCandidateCountsBySide.support + report.rawCandidateCountsBySide.resistance,
+    report.rawCandidates.count,
+  );
+  assert.equal(
+    report.rawCandidateCountsByTimeframe.daily +
+      report.rawCandidateCountsByTimeframe["4h"] +
+      report.rawCandidateCountsByTimeframe["5m"],
+    report.rawCandidates.count,
+  );
+
+  for (const stage of [
+    report.oldClusteredZones,
+    report.oldScoredZones,
+    report.richerRankedLevels,
+    report.richerSurfacedLevels,
+  ]) {
+    assert.equal(stage.count, stage.identities.length);
+    assert.ok(stage.count > 0);
+  }
+
+  for (const buckets of [report.oldSurfacedBuckets, report.projectedNewBuckets]) {
+    assert.equal(buckets.major.count, buckets.major.identities.length);
+    assert.equal(buckets.intermediate.count, buckets.intermediate.identities.length);
+    assert.equal(buckets.intraday.count, buckets.intraday.identities.length);
+  }
+
+  assert.equal(report.oldSurfacedBuckets.major.count, 12);
+  assert.equal(report.oldSurfacedBuckets.intermediate.count, 2);
+  assert.equal(report.oldSurfacedBuckets.intraday.count, 1);
+  assert.equal(report.projectedNewBuckets.major.count, newCounts.major);
+  assert.equal(report.projectedNewBuckets.intermediate.count, newCounts.intermediate);
+  assert.equal(report.projectedNewBuckets.intraday.count, newCounts.intraday);
+  assert.ok(
+    report.mappingNotes.some((note) =>
+      note.includes("deeper anchors instead of recreating the full old extension engine behavior"),
+    ),
+  );
+});
+
+test("runtime parity diagnostics prove raw candidate conversion preserves identity and evidence basis", async () => {
+  const diagnostics = await getNearRuntimeParityStageDiagnostics();
+  const candidates = diagnostics.rawCandidates.filter(
+    (candidate) => candidate.timeframe === "daily" || candidate.timeframe === "4h",
+  );
+  let selected:
+    | {
+        rawCandidate: RawLevelCandidate;
+        rankedLevel: RankedLevel;
+      }
+    | null = null;
+
+  for (const rawCandidate of candidates) {
+    const projection = buildNewRuntimeCompatibleLevelOutput({
+      symbol: rawCandidate.symbol,
+      rawCandidates: [rawCandidate],
+      candlesByTimeframe: {
+        daily: diagnostics.candlesByTimeframe.daily.candles,
+        "4h": diagnostics.candlesByTimeframe["4h"].candles,
+        "5m": diagnostics.candlesByTimeframe["5m"].candles,
+      },
+      metadata: diagnostics.oldOutput.metadata,
+      specialLevels: {},
+      generatedAt: FIXED_PARITY_FIXTURE_END_TIMESTAMP,
+    });
+    const rankedLevel = [
+      ...projection.rankedOutput.supports,
+      ...projection.rankedOutput.resistances,
+    ].find((level) => level.id === rawCandidate.id);
+
+    if (rankedLevel && rankedLevel.touches.length > 0) {
+      selected = { rawCandidate, rankedLevel };
+      break;
+    }
+  }
+
+  assert.ok(selected, "fixture must include a higher-timeframe raw candidate with touch evidence");
+
+  const { rawCandidate, rankedLevel } = selected;
+  const sourceCandles = diagnostics.candlesByTimeframe[rawCandidate.timeframe].candles;
+  const sourceTimestamps = new Set(sourceCandles.map((candle) => candle.timestamp));
+
+  assert.equal(rankedLevel.symbol, rawCandidate.symbol);
+  assert.equal(rankedLevel.type, rawCandidate.kind);
+  assert.equal(rankedLevel.price, rawCandidate.price);
+  assert.deepEqual(rankedLevel.sourceTimeframes, [rawCandidate.timeframe]);
+  assert.deepEqual(rankedLevel.originKinds, [rawCandidate.sourceType]);
+  assert.ok(rawCandidate.firstTimestamp <= rawCandidate.lastTimestamp);
+  assert.ok(sourceTimestamps.has(rawCandidate.firstTimestamp));
+  assert.ok(sourceTimestamps.has(rawCandidate.lastTimestamp));
+  assert.ok(rankedLevel.touches.length > 0);
+
+  for (const touch of rankedLevel.touches) {
+    assert.ok(sourceTimestamps.has(touch.candleTimestamp));
+  }
+});
+
+test("runtime parity diagnostic bucket mapping covers daily 4h 5m and mixed source timeframes", () => {
+  assert.equal(diagnosticRuntimeBucketForSourceTimeframes(["daily"]), "major");
+  assert.equal(diagnosticRuntimeBucketForSourceTimeframes(["4h"]), "intermediate");
+  assert.equal(diagnosticRuntimeBucketForSourceTimeframes(["5m"]), "intraday");
+  assert.equal(diagnosticRuntimeBucketForSourceTimeframes(["4h", "5m"]), "major");
+  assert.equal(diagnosticRuntimeBucketForSourceTimeframes(["daily", "5m"]), "major");
+});
+
+test("runtime parity diagnostics document current nearest level gaps against the old baseline", async () => {
+  const { report } = await getNearRuntimeParityStageDiagnostics();
+
+  assert.equal(report.nearest.support.oldPrice, 4.5284);
+  assert.equal(report.nearest.resistance.oldPrice, 4.6957);
+  assert.equal(report.nearest.support.newPrice, 4.4799);
+  assert.equal(report.nearest.resistance.newPrice, 4.7474);
+  assert.ok((report.nearest.support.distancePct ?? 0) > 0.01);
+  assert.ok((report.nearest.resistance.distancePct ?? 0) > 0.01);
+});
+
+test("runtime parity diagnostics document current extension ladder gap", async () => {
+  const { report } = await getNearRuntimeParityStageDiagnostics();
+
+  assert.equal(report.oldExtensionLevels.total, 5);
+  assert.equal(report.oldExtensionLevels.support.count, 3);
+  assert.equal(report.oldExtensionLevels.resistance.count, 2);
+  assert.equal(report.projectedNewExtensionLevels.total, 2);
+  assert.equal(report.projectedNewExtensionLevels.support.count, 1);
+  assert.equal(report.projectedNewExtensionLevels.resistance.count, 1);
+});
+
 test("compareActivePath old returns old output while exposing comparison data", async () => {
   const { oldOutput, compareOldOutput, compareOldLogs } = await generateRuntimeFixtureOutputs("CMPO");
   const log = compareOldLogs[0];
@@ -722,6 +1288,12 @@ test("low-price runner extension parity gate documents old practical ladder cove
   const report = buildRuntimeParityReport(oldOutput, newOutput, 0.31);
 
   assertOnlyApprovedParityGaps(report);
+  assert.equal(report.bucketCounts.old.extension, 3);
+  assert.equal(report.bucketCounts.old.extensionSupport, 0);
+  assert.equal(report.bucketCounts.old.extensionResistance, 3);
+  assert.equal(report.bucketCounts.new.extension, 1);
+  assert.equal(report.bucketCounts.new.extensionSupport, 0);
+  assert.equal(report.bucketCounts.new.extensionResistance, 1);
   assert.ok(report.approvedGaps.some((gap) => gap.code === "extension_ladder_gap"));
 });
 
