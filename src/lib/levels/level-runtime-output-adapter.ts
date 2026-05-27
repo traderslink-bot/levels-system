@@ -35,12 +35,23 @@ export type NewRuntimeCompatibleLevelOutput = {
   mappingNotes: string[];
 };
 
+export type LegacyRuntimeBuckets = Pick<
+  LevelEngineOutput,
+  | "majorSupport"
+  | "majorResistance"
+  | "intermediateSupport"
+  | "intermediateResistance"
+  | "intradaySupport"
+  | "intradayResistance"
+>;
+
 export type LevelRuntimeOutputAdapterInput = {
   symbol: string;
   rawCandidates: RawLevelCandidate[];
   candlesByTimeframe: Partial<Record<CandleTimeframe, Candle[]>>;
   metadata: LevelEngineOutput["metadata"];
   specialLevels: LevelEngineOutput["specialLevels"];
+  legacyRuntimeBuckets?: LegacyRuntimeBuckets;
   legacyExtensionLevels?: LevelEngineOutput["extensionLevels"];
   levelCandidates?: LevelCandidate[];
   generatedAt?: number;
@@ -307,6 +318,23 @@ function cloneExtensionLevels(
   };
 }
 
+function cloneRuntimeZones(zones: FinalLevelZone[]): FinalLevelZone[] {
+  return zones.map(cloneRuntimeZone);
+}
+
+function cloneLegacyRuntimeBuckets(
+  runtimeBuckets: LegacyRuntimeBuckets,
+): LegacyRuntimeBuckets {
+  return {
+    majorSupport: cloneRuntimeZones(runtimeBuckets.majorSupport),
+    majorResistance: cloneRuntimeZones(runtimeBuckets.majorResistance),
+    intermediateSupport: cloneRuntimeZones(runtimeBuckets.intermediateSupport),
+    intermediateResistance: cloneRuntimeZones(runtimeBuckets.intermediateResistance),
+    intradaySupport: cloneRuntimeZones(runtimeBuckets.intradaySupport),
+    intradayResistance: cloneRuntimeZones(runtimeBuckets.intradayResistance),
+  };
+}
+
 function pushBucketedZone(
   buckets: Record<RuntimeBucket, FinalLevelZone[]>,
   level: SurfacedLevelSelection,
@@ -368,17 +396,27 @@ export function buildNewRuntimeCompatibleLevelOutput(
         support: extensionSupport,
         resistance: extensionResistance,
       };
+  const runtimeBuckets = input.legacyRuntimeBuckets
+    ? cloneLegacyRuntimeBuckets(input.legacyRuntimeBuckets)
+    : {
+        majorSupport: supportBuckets.major,
+        majorResistance: resistanceBuckets.major,
+        intermediateSupport: supportBuckets.intermediate,
+        intermediateResistance: resistanceBuckets.intermediate,
+        intradaySupport: supportBuckets.intraday,
+        intradayResistance: resistanceBuckets.intraday,
+      };
 
   const output: LevelEngineOutput = {
     symbol,
     generatedAt,
     metadata: input.metadata,
-    majorSupport: supportBuckets.major,
-    majorResistance: resistanceBuckets.major,
-    intermediateSupport: supportBuckets.intermediate,
-    intermediateResistance: resistanceBuckets.intermediate,
-    intradaySupport: supportBuckets.intraday,
-    intradayResistance: resistanceBuckets.intraday,
+    majorSupport: runtimeBuckets.majorSupport,
+    majorResistance: runtimeBuckets.majorResistance,
+    intermediateSupport: runtimeBuckets.intermediateSupport,
+    intermediateResistance: runtimeBuckets.intermediateResistance,
+    intradaySupport: runtimeBuckets.intradaySupport,
+    intradayResistance: runtimeBuckets.intradayResistance,
     extensionLevels,
     specialLevels: input.specialLevels,
   };
@@ -390,7 +428,9 @@ export function buildNewRuntimeCompatibleLevelOutput(
     comparableOutput: normalizeSurfacedSelectionOutput(surfacedSelection, 12),
     mappingNotes: [
       "The new surfaced adapter is projected into the legacy bucketed LevelEngineOutput contract for runtime compatibility.",
-      "Strength labels are approximated from surfaced-selection scores because the new path does not emit the old scorer's native label buckets.",
+      input.legacyRuntimeBuckets
+        ? "Runtime buckets reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path so bucket coverage, nearest levels, and legacy strength labels remain stable while richer surfaced selection stays observational."
+        : "Strength labels are approximated from surfaced-selection scores because the new path does not emit the old scorer's native label buckets.",
       input.legacyExtensionLevels
         ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path so forward-planning coverage is not limited to one surfaced anchor per side."
         : "Extension levels fall back to surfaced deeper anchors when no legacy extension ladder is supplied.",

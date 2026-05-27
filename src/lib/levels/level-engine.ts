@@ -272,6 +272,14 @@ export class LevelEngine {
       },
       metadata,
       specialLevels: special.summary,
+      legacyRuntimeBuckets: {
+        majorSupport: oldOutput.majorSupport,
+        majorResistance: oldOutput.majorResistance,
+        intermediateSupport: oldOutput.intermediateSupport,
+        intermediateResistance: oldOutput.intermediateResistance,
+        intradaySupport: oldOutput.intradaySupport,
+        intradayResistance: oldOutput.intradayResistance,
+      },
       legacyExtensionLevels: oldOutput.extensionLevels,
     });
 
