@@ -1,4 +1,8 @@
 import type { BaseCandleProviderResponse, Candle, CandleProviderName, CandleTimeframe } from "../market-data/candle-types.js";
+import {
+  filterCandlesByCloseAsOf,
+  type CandleAsOfFilterDiagnostic,
+} from "../market-data/candle-as-of-filter.js";
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import type { HistoricalCandleProvider, HistoricalFetchPlan } from "../market-data/provider-types.js";
 import { LevelEngine, type LevelEngineRuntimeOptions } from "../levels/level-engine.js";
@@ -79,6 +83,7 @@ export type SupportResistanceContext = {
   dynamicLevels: DynamicLevelsFromCandles;
   marketStructure: CandleMarketStructureContext;
   traderContext: TraderIntelligenceContext;
+  candleFilterDiagnostics?: CandleAsOfFilterDiagnostic[];
 };
 
 export async function buildSupportResistanceContextFromNormalizedCandles(params: {
@@ -95,9 +100,34 @@ export async function buildSupportResistanceContextFromNormalizedCandles(params:
   config?: LevelEngineConfig;
   runtimeOptions?: LevelEngineRuntimeOptions;
 }): Promise<SupportResistanceContext> {
+  const dailyFilter = filterCandlesByCloseAsOf({
+    candles: params.candlesByTimeframe.daily,
+    timeframe: "daily",
+    asOfTimestamp: params.asOfTimestamp,
+  });
+  const fourHourFilter = filterCandlesByCloseAsOf({
+    candles: params.candlesByTimeframe["4h"],
+    timeframe: "4h",
+    asOfTimestamp: params.asOfTimestamp,
+  });
+  const fiveMinuteFilter = filterCandlesByCloseAsOf({
+    candles: params.candlesByTimeframe["5m"] ?? [],
+    timeframe: "5m",
+    asOfTimestamp: params.asOfTimestamp,
+  });
+  const candlesByTimeframe: NormalizedSupportResistanceCandleMap = {
+    daily: dailyFilter.candles,
+    "4h": fourHourFilter.candles,
+    "5m": fiveMinuteFilter.candles,
+  };
+  const candleFilterDiagnostics = [
+    ...dailyFilter.diagnostics,
+    ...fourHourFilter.diagnostics,
+    ...fiveMinuteFilter.diagnostics,
+  ];
   const provider = new InMemoryHistoricalCandleProvider(
     params.symbol,
-    params.candlesByTimeframe,
+    candlesByTimeframe,
     params.providerByTimeframe,
   );
   const fetchService = new CandleFetchService(provider);
@@ -106,27 +136,27 @@ export async function buildSupportResistanceContextFromNormalizedCandles(params:
   const levels = await engine.generateLevels({
     symbol: params.symbol,
     historicalRequests: {
-      daily: requestForSeries(params.symbol, "daily", params.candlesByTimeframe.daily),
-      "4h": requestForSeries(params.symbol, "4h", params.candlesByTimeframe["4h"]),
-      "5m": requestForSeries(params.symbol, "5m", params.candlesByTimeframe["5m"] ?? []),
+      daily: requestForSeries(params.symbol, "daily", candlesByTimeframe.daily),
+      "4h": requestForSeries(params.symbol, "4h", candlesByTimeframe["4h"]),
+      "5m": requestForSeries(params.symbol, "5m", candlesByTimeframe["5m"] ?? []),
     },
   });
 
-  const currentPrice = params.currentPrice ?? params.candlesByTimeframe["5m"]?.at(-1)?.close;
+  const currentPrice = params.currentPrice ?? candlesByTimeframe["5m"]?.at(-1)?.close;
   const referenceLevels = buildReferenceLevels({
-    dailyCandles: params.candlesByTimeframe.daily,
-    intradayCandles: params.candlesByTimeframe["5m"] ?? [],
+    dailyCandles: candlesByTimeframe.daily,
+    intradayCandles: candlesByTimeframe["5m"] ?? [],
     sessionDate: params.sessionDate,
   });
   const gapStructure = buildGapStructure({
-    candles: params.candlesByTimeframe.daily,
+    candles: candlesByTimeframe.daily,
     currentPrice,
   });
-  const dynamicLevels = buildDynamicLevelsFromCandles(params.candlesByTimeframe["5m"], {
-      sessionDate: params.sessionDate,
-      emaPeriods: [9, 20],
-      currentPrice,
-    });
+  const dynamicLevels = buildDynamicLevelsFromCandles(candlesByTimeframe["5m"], {
+    sessionDate: params.sessionDate,
+    emaPeriods: [9, 20],
+    currentPrice,
+  });
 
   return {
     symbol: params.symbol,
@@ -136,14 +166,14 @@ export async function buildSupportResistanceContextFromNormalizedCandles(params:
     dynamicLevels,
     marketStructure: buildCandleMarketStructureContext({
       symbol: params.symbol,
-      candles: params.candlesByTimeframe["5m"] ?? [],
+      candles: candlesByTimeframe["5m"] ?? [],
       asOfTimestamp: params.asOfTimestamp,
       currentPrice,
     }),
     traderContext: buildTraderIntelligenceContext({
       symbol: params.symbol,
-      dailyCandles: params.candlesByTimeframe.daily,
-      intradayCandles: params.candlesByTimeframe["5m"] ?? [],
+      dailyCandles: candlesByTimeframe.daily,
+      intradayCandles: candlesByTimeframe["5m"] ?? [],
       currentPrice,
       bid: params.bid,
       ask: params.ask,
@@ -153,6 +183,7 @@ export async function buildSupportResistanceContextFromNormalizedCandles(params:
       levels,
       timestamp: params.asOfTimestamp,
     }),
+    candleFilterDiagnostics,
   };
 }
 
@@ -215,12 +246,14 @@ export function sortSharedCandles(candles: Candle[] | undefined): Candle[] {
 export function normalizeSharedSupportResistanceCandles(
   candles: SharedSupportResistanceCandle[] | undefined,
   asOfTimestamp?: number,
+  options: { timeframe?: CandleTimeframe | "1m" } = {},
 ): Candle[] {
-  return sortSharedCandles(
-    (candles ?? [])
-      .map(normalizeCandle)
-      .filter((candle) => asOfTimestamp === undefined || candle.timestamp <= asOfTimestamp),
-  );
+  const normalized = (candles ?? []).map(normalizeCandle);
+  return filterCandlesByCloseAsOf({
+    candles: normalized,
+    timeframe: options.timeframe ?? "5m",
+    asOfTimestamp,
+  }).candles;
 }
 
 function requestForSeries(symbol: string, timeframe: CandleTimeframe, candles: Candle[]): HistoricalFetchRequest {
@@ -298,9 +331,9 @@ export async function buildSupportResistanceContextFromCandles(
   const asOfTimestamp =
     request.asOfTimestamp === undefined ? undefined : parseSharedCandleTimestamp(request.asOfTimestamp);
   const normalizedCandles: NormalizedSupportResistanceCandleMap = {
-    daily: normalizeSharedSupportResistanceCandles(request.candlesByTimeframe.daily, asOfTimestamp),
-    "4h": normalizeSharedSupportResistanceCandles(request.candlesByTimeframe["4h"], asOfTimestamp),
-    "5m": normalizeSharedSupportResistanceCandles(request.candlesByTimeframe["5m"], asOfTimestamp),
+    daily: normalizeSharedSupportResistanceCandles(request.candlesByTimeframe.daily, asOfTimestamp, { timeframe: "daily" }),
+    "4h": normalizeSharedSupportResistanceCandles(request.candlesByTimeframe["4h"], asOfTimestamp, { timeframe: "4h" }),
+    "5m": normalizeSharedSupportResistanceCandles(request.candlesByTimeframe["5m"], asOfTimestamp, { timeframe: "5m" }),
   };
   return buildSupportResistanceContextFromNormalizedCandles({
     symbol,

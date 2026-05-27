@@ -4,6 +4,10 @@ import {
   type HistoricalFetchRequest,
 } from "../market-data/candle-fetch-service.js";
 import type { CandleProviderName, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
+import {
+  filterCandlesByCloseAsOf,
+  type CandleAsOfFilterDiagnostic,
+} from "../market-data/candle-as-of-filter.js";
 import type { StockContextPreview } from "../stock-context/stock-context-types.js";
 import type { LevelEngineRuntimeOptions } from "../levels/level-engine.js";
 import type { LevelEngineConfig } from "../levels/level-config.js";
@@ -19,6 +23,8 @@ export type SupportResistanceSymbolContextDiagnosticCode =
   | "fetched_candle_group"
   | "missing_optional_5m_candles"
   | "missing_required_higher_timeframe"
+  | "future_candles_filtered"
+  | "partial_candles_filtered"
   | "provider_warning";
 
 export type SupportResistanceSymbolContextDiagnostic = {
@@ -46,6 +52,7 @@ export type BuildSupportResistanceContextForSymbolRequest = {
   symbol: string;
   sessionDate?: string;
   asOfTimestamp?: SharedCandleTimestamp;
+  asOfTimestampByTimeframe?: Partial<Record<CandleTimeframe, SharedCandleTimestamp>>;
   lookbackBars?: Partial<Record<CandleTimeframe, number>>;
   fetchService?: CandleFetchService;
   fetchServiceOptions?: CandleFetchServiceOptions;
@@ -165,6 +172,17 @@ function diagnosticsFromResponses(
   return diagnostics;
 }
 
+function diagnosticsFromCandleFilters(
+  diagnostics: CandleAsOfFilterDiagnostic[],
+): SupportResistanceSymbolContextDiagnostic[] {
+  return diagnostics.map((diagnostic) => ({
+    code: diagnostic.code,
+    severity: diagnostic.severity,
+    timeframe: diagnostic.timeframe === "1m" ? "5m" : diagnostic.timeframe,
+    message: diagnostic.message,
+  }));
+}
+
 export async function buildSupportResistanceContextForSymbol(
   request: BuildSupportResistanceContextForSymbolRequest,
 ): Promise<SupportResistanceSymbolContext> {
@@ -174,6 +192,13 @@ export async function buildSupportResistanceContextForSymbol(
     request.asOfTimestamp === undefined
       ? undefined
       : parseSharedCandleTimestamp(request.asOfTimestamp);
+  const endTimeMsByTimeframe: Partial<Record<CandleTimeframe, number>> = {};
+  for (const timeframe of ["daily", "4h", "5m"] as const) {
+    const timestamp = request.asOfTimestampByTimeframe?.[timeframe];
+    if (timestamp !== undefined) {
+      endTimeMsByTimeframe[timeframe] = parseSharedCandleTimestamp(timestamp);
+    }
+  }
   const requestedTimeframes: CandleTimeframe[] = ["daily", "4h", "5m"];
 
   const settled = await Promise.allSettled(
@@ -182,7 +207,7 @@ export async function buildSupportResistanceContextForSymbol(
         symbol,
         timeframe,
         lookbackBars: request.lookbackBars?.[timeframe] ?? DEFAULT_LOOKBACK_BARS[timeframe],
-        endTimeMs,
+        endTimeMs: endTimeMsByTimeframe[timeframe] ?? endTimeMs,
         preferredProvider: request.preferredProvider,
       }),
     ),
@@ -207,21 +232,51 @@ export async function buildSupportResistanceContextForSymbol(
     });
   }
 
-  const diagnostics = [...failedDiagnostics, ...diagnosticsFromResponses(responses)];
+  const responseDiagnostics = diagnosticsFromResponses(responses);
+  const preliminaryDiagnostics = [...failedDiagnostics, ...responseDiagnostics];
   const daily = responses.daily;
   const fourHour = responses["4h"];
   if (!daily || !fourHour) {
+    const diagnosticSummary = preliminaryDiagnostics
+      .filter((diagnostic) => diagnostic.severity === "error" || diagnostic.timeframe === "daily" || diagnostic.timeframe === "4h")
+      .map((diagnostic) => `${diagnostic.timeframe ?? "context"}: ${diagnostic.message}`)
+      .join(" | ");
     throw new Error(
-      `Cannot build full support/resistance context for ${symbol}: daily and 4h candles are required.`,
+      `Cannot build full support/resistance context for ${symbol}: daily and 4h candles are required.${diagnosticSummary ? ` Higher-timeframe diagnostics: ${diagnosticSummary}` : ""}`,
     );
   }
+
+  const dailyFilter = filterCandlesByCloseAsOf({
+    candles: daily.candles,
+    timeframe: "daily",
+    asOfTimestamp: endTimeMsByTimeframe.daily ?? endTimeMs,
+  });
+  const fourHourFilter = filterCandlesByCloseAsOf({
+    candles: fourHour.candles,
+    timeframe: "4h",
+    asOfTimestamp: endTimeMsByTimeframe["4h"] ?? endTimeMs,
+  });
+  const fiveMinuteFilter = filterCandlesByCloseAsOf({
+    candles: responses["5m"]?.candles ?? [],
+    timeframe: "5m",
+    asOfTimestamp: endTimeMsByTimeframe["5m"] ?? endTimeMs,
+  });
+  const candleFilterDiagnostics = [
+    ...dailyFilter.diagnostics,
+    ...fourHourFilter.diagnostics,
+    ...fiveMinuteFilter.diagnostics,
+  ];
+  const diagnostics = [
+    ...preliminaryDiagnostics,
+    ...diagnosticsFromCandleFilters(candleFilterDiagnostics),
+  ];
 
   const baseContext = await buildSupportResistanceContextFromNormalizedCandles({
     symbol,
     candlesByTimeframe: {
-      daily: sortSharedCandles(daily.candles),
-      "4h": sortSharedCandles(fourHour.candles),
-      "5m": sortSharedCandles(responses["5m"]?.candles),
+      daily: sortSharedCandles(dailyFilter.candles),
+      "4h": sortSharedCandles(fourHourFilter.candles),
+      "5m": sortSharedCandles(fiveMinuteFilter.candles),
     },
     providerByTimeframe: {
       daily: daily.provider,
@@ -245,6 +300,7 @@ export async function buildSupportResistanceContextForSymbol(
     candleFetchingOwnedBy: "levels-system",
     requestedTimeframes,
     fetches: Object.values(responses).map(fetchSummary),
+    candleFilterDiagnostics,
     diagnostics,
   };
 }

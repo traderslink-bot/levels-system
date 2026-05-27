@@ -145,7 +145,9 @@ export function buildSupportResistanceContextFromSingleTimeframeCandles(
   assertSharedSingleTimeframe(request.timeframe);
   const asOfTimestamp =
     request.asOfTimestamp === undefined ? undefined : parseSharedCandleTimestamp(request.asOfTimestamp);
-  const candles = normalizeSharedSupportResistanceCandles(request.candles, asOfTimestamp);
+  const candles = normalizeSharedSupportResistanceCandles(request.candles, asOfTimestamp, {
+    timeframe: request.timeframe,
+  });
   const fiveMinuteCandles =
     request.timeframe === "1m" ? aggregateCandlesToFiveMinutes(candles) : candles;
   const marketStructure = buildCandleMarketStructureContext({

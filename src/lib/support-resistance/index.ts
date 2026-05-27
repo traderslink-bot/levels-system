@@ -35,6 +35,23 @@ export {
   type WarehouseBackedSharedContextOptions,
 } from "./warehouse-context.js";
 export {
+  DEFAULT_ON_DEMAND_IBKR_CLIENT_ID,
+  DEFAULT_ON_DEMAND_IBKR_CONNECTION_TIMEOUT_MS,
+  DEFAULT_ON_DEMAND_IBKR_HISTORICAL_TIMEOUT_MS,
+  DEFAULT_ON_DEMAND_IBKR_HOST,
+  DEFAULT_ON_DEMAND_IBKR_PORT,
+  createIbkrClient,
+  createIbkrOnDemandCandleFetchServiceOptions,
+  getOrCreateIbkrClient,
+  initializeIbkrRuntime,
+  isIbkrConnected,
+  isIbkrReconnecting,
+  onIbkrDisconnect,
+  onIbkrReconnect,
+  waitForIbkrConnection,
+  type CreateIbkrOnDemandCandleFetchServiceOptionsArgs,
+} from "./ibkr-on-demand-runtime.js";
+export {
   buildTradeAnalysisCandleContext,
   type BuildTradeAnalysisCandleContextRequest,
   type TradeAnalysisCandleContext,
@@ -47,6 +64,16 @@ export {
   type TradeAnalysisExecutionRelationDiagnostic,
   type TradeAnalysisExecutionRelationDiagnosticCode,
   type TradeAnalysisExecutionRelationFact,
+  type TradeAnalysisMarketFacts,
+  type MarketFactBenchmarkDefinition,
+  type MarketFactBenchmarkRelation,
+  type MarketFactCalculationBasis,
+  type MarketFactDiagnostic,
+  type MarketFactDisagreementSummary,
+  type MarketFactExecutionSnapshot,
+  type MarketFactQuality,
+  type MarketFactsBenchmarkProfile,
+  type MarketFactsContractVersion,
 } from "./trade-analysis-context.js";
 export {
   buildDynamicLevelsFromCandles,
@@ -85,9 +112,11 @@ export {
 } from "./execution-level-relations.js";
 export {
   buildCandleMarketStructureContext,
+  buildFormalMarketStructureContext,
   buildStableMarketStructureContext,
   scoreMarketStructureMateriality,
   type BuildCandleMarketStructureRequest,
+  type BuildFormalMarketStructureRequest,
   type BuildStableMarketStructureRequest,
   type CandleMarketStructureConfidence,
   type CandleMarketStructureContext,
@@ -100,12 +129,26 @@ export {
   type CandleMarketStructureState,
   type CandleMarketStructureTrend,
   type CandleStructurePivot,
+  type FormalBreakConfirmation,
+  type FormalMarketStructureContext,
+  type FormalMarketStructureDiagnostic,
+  type FormalMarketStructureOptions,
+  type FormalStructureBias,
+  type FormalStructureConfidenceLabel,
+  type FormalStructureEvent,
+  type FormalStructureEventType,
+  type FormalStructureSwing,
+  type FormalStructureTimeframe,
+  type FormalSwingKind,
+  type FormalSwingLabel,
+  type FormalSwingScope,
   type StableMarketStructureContext,
   type StableMarketStructureDecision,
   type StableMarketStructureDecisionReason,
 } from "../structure/index.js";
 
 export type {
+  BaseCandleProviderResponse,
   Candle,
   CandleFetchTimeframe,
   CandleProviderName,
@@ -114,6 +157,15 @@ export type {
   CandleTimeframe,
   CandleValidationIssue,
 } from "../market-data/candle-types.js";
+export {
+  candleCloseTimestamp,
+  candleIsClosedAsOf,
+  filterCandlesByCloseAsOf,
+  type CandleAsOfFilterDiagnostic,
+  type CandleAsOfFilterDiagnosticCode,
+  type FilterCandlesByCloseAsOfRequest,
+  type FilterCandlesByCloseAsOfResult,
+} from "../market-data/candle-as-of-filter.js";
 export {
   CandleFetchService,
   StubHistoricalCandleProvider,
@@ -124,8 +176,11 @@ export {
   DurableCandleWarehouse,
   DurableCandleWarehouseFetchService,
   type CandleWarehouseCoverage,
+  type CandleBasisValidationStatus,
+  type CandleWarehouseAdjustmentMode,
   type CandleWarehouseMissingRange,
   type CandleWarehouseRangeRequest,
+  type CandleWarehouseSourceMetadata,
   type CandleWarehouseUpsertRequest,
   type DurableCandleWarehouseFetchServiceOptions,
   type DurableCandleWarehouseRow,
@@ -135,6 +190,7 @@ export {
   type CandleWarehouseBackfillMode,
   type CandleWarehouseBackfillReadiness,
   type CandleWarehouseBackfillResult,
+  type CandleWarehouseBackfillTaskKey,
   type CandleWarehouseBackfillTaskResult,
   type ExecuteCandleWarehouseBackfillRequest,
 } from "../candle-warehouse/index.js";
@@ -154,7 +210,10 @@ export {
 export {
   planWarehouseMissingCandleBackfill,
   planBulkCandleBackfill,
+  groupBackfillTasksIntoProviderBatches,
+  type BulkCandleBackfillBatchingOptions,
   type BulkCandleBackfillPlan,
+  type BulkCandleBackfillProviderBatch,
   type BulkCandleBackfillTask,
   type BulkCandleBackfillTradeInput,
   type PlanBulkCandleBackfillRequest,
@@ -197,6 +256,10 @@ export {
   LiveStableMarketStructureTracker,
   type LiveStableMarketStructureTrackerOptions,
 } from "../monitoring/live-stable-market-structure.js";
+export {
+  LiveFormalMarketStructureTracker,
+  type LiveFormalMarketStructureTrackerOptions,
+} from "../monitoring/live-formal-market-structure.js";
 export {
   VolumeActivityTracker,
   buildVolumeBaselineFromCandles,

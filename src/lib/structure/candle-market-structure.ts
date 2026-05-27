@@ -1,4 +1,5 @@
 import type { Candle } from "../market-data/candle-types.js";
+import { filterCandlesByCloseAsOf } from "../market-data/candle-as-of-filter.js";
 
 export type CandleMarketStructureState =
   | "insufficient_data"
@@ -19,6 +20,7 @@ export type CandleMarketStructureState =
 export type CandleMarketStructureDiagnosticCode =
   | "insufficient_candles"
   | "future_candles_filtered"
+  | "partial_candles_filtered"
   | "no_confirmed_pivots"
   | "choppy_structure"
   | "derived_from_1m";
@@ -199,7 +201,7 @@ function lowConfidence(reason: string): CandleMarketStructureConfidence {
 
 function sortedUsableCandles(candles: Candle[], asOfTimestamp?: number): {
   candles: Candle[];
-  filteredFutureCount: number;
+  diagnostics: CandleMarketStructureDiagnostic[];
 } {
   const sorted = [...candles]
     .filter((candle) =>
@@ -211,12 +213,18 @@ function sortedUsableCandles(candles: Candle[], asOfTimestamp?: number): {
       candle.high >= candle.low,
     )
     .sort((left, right) => left.timestamp - right.timestamp);
-  const filtered = asOfTimestamp === undefined
-    ? sorted
-    : sorted.filter((candle) => candle.timestamp <= asOfTimestamp);
+  const filtered = filterCandlesByCloseAsOf({
+    candles: sorted,
+    timeframe: "5m",
+    asOfTimestamp,
+  });
   return {
-    candles: filtered,
-    filteredFutureCount: sorted.length - filtered.length,
+    candles: filtered.candles,
+    diagnostics: filtered.diagnostics.map((diagnostic) => ({
+      code: diagnostic.code,
+      severity: diagnostic.severity,
+      message: diagnostic.message,
+    })),
   };
 }
 
@@ -699,16 +707,10 @@ export function buildCandleMarketStructureContext(
   const leftBars = Math.max(1, options.leftBars ?? DEFAULT_LEFT_BARS);
   const rightBars = Math.max(1, options.rightBars ?? DEFAULT_RIGHT_BARS);
   const minCandles = Math.max(leftBars + rightBars + 2, options.minCandles ?? DEFAULT_MIN_CANDLES);
-  const { candles, filteredFutureCount } = sortedUsableCandles(request.candles, asOfTimestamp);
+  const { candles, diagnostics: filterDiagnostics } = sortedUsableCandles(request.candles, asOfTimestamp);
   const diagnostics: CandleMarketStructureDiagnostic[] = [];
 
-  if (filteredFutureCount > 0) {
-    diagnostics.push({
-      code: "future_candles_filtered",
-      severity: "info",
-      message: `${filteredFutureCount} future candle(s) were excluded from market-structure context.`,
-    });
-  }
+  diagnostics.push(...filterDiagnostics);
   if (options.sourceTimeframe === "1m") {
     diagnostics.push({
       code: "derived_from_1m",
