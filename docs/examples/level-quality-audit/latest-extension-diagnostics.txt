@@ -1,0 +1,115 @@
+Level extension diagnostics multi-sample review
+
+## Inputs
+- docs\examples\level-quality-audit\choppy-level-output.json
+- docs\examples\level-quality-audit\clean-technical-level-output.json
+- docs\examples\level-quality-audit\higher-priced-level-output.json
+- docs\examples\level-quality-audit\low-price-runner-level-output.json
+- docs\examples\level-quality-audit\thin-liquidity-level-output.json
+
+## Summary
+- Sample count: 5
+- Missing support extension samples: 1
+- Missing resistance extension samples: 2
+- Limited upside coverage samples: 0
+- Limited downside coverage samples: 2
+- Insufficient candidate inventory samples: 2
+- Undetermined rejection reasons: 0
+
+## Samples
+### CHOP
+- Input: docs\examples\level-quality-audit\choppy-level-output.json
+- Reference price: 5.15
+- Support extensions: 0
+- Resistance extensions: 0
+- Lowest support extension: n/a
+- Highest resistance extension: n/a
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Warnings: missing_support_extension, missing_resistance_extension, insufficient_candidate_inventory
+- Support candidate pool: 5.09, 5.05, 4.85
+- Resistance candidate pool: 5.12, 5.18, 5.45
+- Support selected: none
+- Resistance selected: none
+- Support insufficient inventory: true
+- Resistance insufficient inventory: true
+- Undetermined reasons: 0
+
+### CLNT
+- Input: docs\examples\level-quality-audit\clean-technical-level-output.json
+- Reference price: 24.4
+- Support extensions: 1
+- Resistance extensions: 1
+- Lowest support extension: 20
+- Highest resistance extension: 29.5
+- Downside coverage: 18.0328%
+- Upside coverage: 20.9016%
+- Warnings: limited_downside_extension_coverage
+- Support candidate pool: 24.2, 23.8, 22, 20
+- Resistance candidate pool: 24.8, 25.2, 27, 29.5
+- Support selected: 20
+- Resistance selected: 29.5
+- Support insufficient inventory: false
+- Resistance insufficient inventory: false
+- Undetermined reasons: 0
+
+### HIPO
+- Input: docs\examples\level-quality-audit\higher-priced-level-output.json
+- Reference price: 186.5
+- Support extensions: 1
+- Resistance extensions: 1
+- Lowest support extension: 158
+- Highest resistance extension: 226
+- Downside coverage: 15.2815%
+- Upside coverage: 21.1796%
+- Warnings: limited_downside_extension_coverage
+- Support candidate pool: 186, 184, 172, 158
+- Resistance candidate pool: 188, 192, 205, 226
+- Support selected: 158
+- Resistance selected: 226
+- Support insufficient inventory: false
+- Resistance insufficient inventory: false
+- Undetermined reasons: 0
+
+### LPRN
+- Input: docs\examples\level-quality-audit\low-price-runner-level-output.json
+- Reference price: 0.84
+- Support extensions: 1
+- Resistance extensions: 2
+- Lowest support extension: 0.56
+- Highest resistance extension: 1.36
+- Downside coverage: 33.3333%
+- Upside coverage: 61.9048%
+- Warnings: none
+- Support candidate pool: 0.83, 0.78, 0.62, 0.56
+- Resistance candidate pool: 0.86, 0.88, 0.96, 1.18, 1.36
+- Support selected: 0.56
+- Resistance selected: 1.18, 1.36
+- Support insufficient inventory: false
+- Resistance insufficient inventory: false
+- Undetermined reasons: 0
+
+### THIN
+- Input: docs\examples\level-quality-audit\thin-liquidity-level-output.json
+- Reference price: 1.74
+- Support extensions: 1
+- Resistance extensions: 0
+- Lowest support extension: 1.3
+- Highest resistance extension: n/a
+- Downside coverage: 25.2874%
+- Upside coverage: n/a
+- Warnings: missing_resistance_extension, insufficient_candidate_inventory
+- Support candidate pool: 1.7, 1.5, 1.3
+- Resistance candidate pool: 1.76, 1.82, 2.1
+- Support selected: 1.3
+- Resistance selected: none
+- Support insufficient inventory: false
+- Resistance insufficient inventory: true
+- Undetermined reasons: 0
+
+## Safety
+- Extension generation unchanged: true
+- Support/resistance detection unchanged: true
+- Runtime behavior unchanged: true
+- Scoring unchanged: true
+- Review only: true
