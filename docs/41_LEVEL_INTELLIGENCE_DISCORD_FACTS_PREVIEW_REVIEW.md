@@ -40,7 +40,7 @@ npm test
 
 The facts-enhanced preview is better than the previous no-facts preview for market-reading context. It now shows why each existing support/resistance zone relates to supplied session landmarks, volume conditions, volume shelves, and market context. The output remains facts-only and does not alter the supplied level map.
 
-The main downside is density. The prior dry-run text artifact was about 6,075 characters. The facts-enhanced text artifact is about 12,759 characters and creates 8 preview messages with section truncation. The extra facts are useful, but the Discord-facing presentation is too verbose for a polished live preview.
+The compact Discord presentation now keeps the same useful facts while reducing repetition. The prior dense facts preview created 8 Discord-sized messages with section truncation. The compact preview creates 2 Discord-sized messages with no truncation.
 
 ## Session Facts Appearing
 
@@ -74,12 +74,12 @@ The preview states that volume shelves remain facts-only. The shelves are not co
 
 ## Message Count And Length
 
-- Preview messages: `8`
+- Preview messages: `2`
 - Max message length: `1800`
-- Truncated: `true`
+- Truncated: `false`
 - Sections: `11`
 
-The message count is acceptable for review, but not ideal for a live Discord-facing preview. Several lines are shortened because the formatter includes all volume fact groups and context tags for every level.
+The message count is suitable for test-channel review. The compact preview keeps grouped levels, key session facts, shelf facts, a single volume/context summary, diagnostics, and safety flags without repeating the same volume/context lines under every level.
 
 ## Wording Review
 
@@ -105,14 +105,12 @@ No forbidden wording was found for:
 
 ## Next Recommended Gate
 
-Add a compact Discord preview tuning gate before any broader Discord rollout. The next gate can keep the same facts-input path but reduce duplication by prioritizing:
+Move to a shadow/test Discord send review using the compact preview output before any broader Discord rollout. The next gate verifies:
 
-- one concise facts summary per level,
-- only nearby session facts,
-- only nearby shelf facts,
-- compressed volume facts,
-- fewer context-tag lines,
-- a shorter diagnostics section,
-- clear separation between review-mode detail and Discord-ready compact mode.
+- the 2-message compact preview renders cleanly in the test channel,
+- facts remain readable on mobile,
+- no recommendation/coaching/grading wording appears,
+- no live alert routing changes are required,
+- full detail remains available through `detailMode: "full"` for local review/debugging.
 
 Do not change level selection or scoring as part of that gate.

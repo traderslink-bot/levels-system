@@ -29,7 +29,10 @@ export type LevelIntelligenceDiscordPreview = {
   truncated: boolean;
 };
 
+export type LevelIntelligenceDiscordPreviewDetailMode = "compact" | "full";
+
 export type FormatLevelIntelligenceDiscordPreviewOptions = {
+  detailMode?: LevelIntelligenceDiscordPreviewDetailMode;
   maxMessageLength?: number;
   maxLineLength?: number;
   maxLinesPerSection?: number;
@@ -38,6 +41,7 @@ export type FormatLevelIntelligenceDiscordPreviewOptions = {
 const DEFAULT_MAX_MESSAGE_LENGTH = 1800;
 const DEFAULT_MAX_LINE_LENGTH = 220;
 const DEFAULT_MAX_LINES_PER_SECTION = 24;
+const DEFAULT_COMPACT_MAX_LINE_LENGTH = 180;
 const MIN_MESSAGE_LENGTH = 240;
 const TRUNCATION_SUFFIX = " ... [truncated]";
 
@@ -129,6 +133,169 @@ function previewSections(report: FormattedLevelIntelligenceReport): FormattedLev
     .sort((left, right) => sectionPriority(left.title) - sectionPriority(right.title));
 }
 
+function firstLineStarting(lines: string[], prefix: string): string | undefined {
+  return lines.find((line) => line.startsWith(prefix) && isAllowedLine(line));
+}
+
+function firstLineAcross(
+  sections: FormattedLevelIntelligenceReportSection[],
+  prefix: string,
+): string | undefined {
+  for (const section of sections) {
+    const line = firstLineStarting(section.lines, prefix);
+    if (line) {
+      return line;
+    }
+  }
+
+  return undefined;
+}
+
+function compactDelimitedLine(line: string, maxItems: number): string {
+  const separatorIndex = line.indexOf(": ");
+  if (separatorIndex < 0) {
+    return line;
+  }
+
+  const label = line.slice(0, separatorIndex);
+  const body = line.slice(separatorIndex + 2);
+  const pieces = body.split(" | ").filter((piece) => piece.length > 0);
+
+  if (pieces.length <= maxItems) {
+    return line;
+  }
+
+  return `${label}: ${pieces.slice(0, maxItems).join(" | ")} | +${pieces.length - maxItems} more`;
+}
+
+function compactVolumeFactsLine(line: string): string {
+  return line.replace(/^Volume facts:/, "Volume context:");
+}
+
+function compactCountsLine(line: string): string {
+  const match = line.match(
+    /^Counts: major support (\d+), major resistance (\d+), intermediate support (\d+), intermediate resistance (\d+), intraday support (\d+), intraday resistance (\d+), extension support (\d+), extension resistance (\d+)$/,
+  );
+
+  if (!match) {
+    return line;
+  }
+
+  const [, majorSupport, majorResistance, intermediateSupport, intermediateResistance, intradaySupport, intradayResistance, extensionSupport, extensionResistance] = match;
+
+  return [
+    `Counts: major S/R ${majorSupport}/${majorResistance}`,
+    `intermediate S/R ${intermediateSupport}/${intermediateResistance}`,
+    `intraday S/R ${intradaySupport}/${intradayResistance}`,
+    `extension S/R ${extensionSupport}/${extensionResistance}`,
+  ].join("; ");
+}
+
+function compactSafetyLine(report: FormattedLevelIntelligenceReport): string {
+  return [
+    `facts-only ${report.safety.factsOnly}`,
+    `VWAP facts-only ${report.safety.vwapFactsOnly}`,
+    `shelves facts-only ${report.safety.shelvesAreFactsOnly}`,
+    `runtime unchanged ${report.safety.noRuntimeBehaviorChange}`,
+  ].join("; ");
+}
+
+function compactSummarySection(
+  report: FormattedLevelIntelligenceReport,
+  sections: FormattedLevelIntelligenceReportSection[],
+): FormattedLevelIntelligenceReportSection {
+  const summary = sections.find((section) => section.title === "Summary");
+  const lines = (summary?.lines ?? [])
+    .filter((line) => line.startsWith("Symbol:") || line.startsWith("Profiled levels:") || line.startsWith("Counts:"))
+    .map((line) => (line.startsWith("Counts:") ? compactCountsLine(line) : line));
+  const marketContext = firstLineAcross(sections, "Market context facts:");
+  const volumeContext = firstLineAcross(sections, "Volume facts:");
+  const diagnostics = report.diagnostics.filter(isAllowedLine);
+
+  if (marketContext) {
+    lines.push(marketContext);
+  }
+  if (volumeContext) {
+    lines.push(compactVolumeFactsLine(volumeContext));
+  }
+  if (diagnostics.length > 0) {
+    lines.push(`Diagnostics: ${diagnostics.slice(0, 3).join(" | ")}${diagnostics.length > 3 ? ` | +${diagnostics.length - 3} more` : ""}`);
+  }
+  lines.push(`Safety: ${compactSafetyLine(report)}`);
+
+  return {
+    title: "Summary",
+    lines,
+  };
+}
+
+function compactLevelSection(section: FormattedLevelIntelligenceReportSection): FormattedLevelIntelligenceReportSection {
+  const lines: string[] = [];
+  const firstLine = section.lines.find(isAllowedLine);
+  const distance = firstLineStarting(section.lines, "Distance:");
+  const reaction = firstLineStarting(section.lines, "Reaction:");
+  const sessionFacts = firstLineStarting(section.lines, "Session facts:");
+  const shelfFacts = firstLineStarting(section.lines, "Shelf facts:");
+
+  if (firstLine) {
+    lines.push(firstLine);
+  }
+  if (distance) {
+    lines.push(distance);
+  }
+  if (reaction) {
+    lines.push(reaction);
+  }
+  if (sessionFacts) {
+    lines.push(compactDelimitedLine(sessionFacts, 2));
+  }
+  if (shelfFacts) {
+    lines.push(compactDelimitedLine(shelfFacts, 1));
+  }
+
+  return {
+    title: section.title,
+    lines,
+  };
+}
+
+function compactDiagnosticsSection(report: FormattedLevelIntelligenceReport): FormattedLevelIntelligenceReportSection {
+  const diagnostics = report.diagnostics.filter(isAllowedLine);
+
+  return {
+    title: "Diagnostics",
+    lines: diagnostics.length > 0 ? [diagnostics.join(" | ")] : ["none"],
+  };
+}
+
+function compactSafetySection(report: FormattedLevelIntelligenceReport): FormattedLevelIntelligenceReportSection {
+  return {
+    title: "Safety",
+    lines: [
+      compactSafetyLine(report),
+      "Preview/test path only; no Discord posting or runtime behavior change.",
+    ],
+  };
+}
+
+function compactPreviewSections(report: FormattedLevelIntelligenceReport): FormattedLevelIntelligenceReportSection[] {
+  const sections = previewSections(report);
+  const compact: FormattedLevelIntelligenceReportSection[] = [compactSummarySection(report, sections)];
+
+  for (const section of sections) {
+    if (section.title === "Summary" || section.title === "Diagnostics" || section.title === "Safety") {
+      continue;
+    }
+
+    compact.push(compactLevelSection(section));
+  }
+
+  compact.push(compactDiagnosticsSection(report));
+  compact.push(compactSafetySection(report));
+
+  return compact;
+}
+
 function formatSection(
   section: FormattedLevelIntelligenceReportSection,
   options: Required<Pick<FormatLevelIntelligenceDiscordPreviewOptions, "maxLineLength" | "maxLinesPerSection">>,
@@ -216,10 +383,13 @@ export function formatLevelIntelligenceDiscordPreview(
   options: FormatLevelIntelligenceDiscordPreviewOptions = {},
 ): LevelIntelligenceDiscordPreview {
   const report = normalizeReport(input);
+  const detailMode = options.detailMode ?? "compact";
   const maxMessageLength = Math.max(MIN_MESSAGE_LENGTH, options.maxMessageLength ?? DEFAULT_MAX_MESSAGE_LENGTH);
-  const maxLineLength = Math.max(80, options.maxLineLength ?? DEFAULT_MAX_LINE_LENGTH);
+  const defaultLineLength = detailMode === "compact" ? DEFAULT_COMPACT_MAX_LINE_LENGTH : DEFAULT_MAX_LINE_LENGTH;
+  const maxLineLength = Math.max(80, options.maxLineLength ?? defaultLineLength);
   const maxLinesPerSection = Math.max(1, options.maxLinesPerSection ?? DEFAULT_MAX_LINES_PER_SECTION);
-  const sections = previewSections(report).map((section) =>
+  const sectionSource = detailMode === "compact" ? compactPreviewSections(report) : previewSections(report);
+  const sections = sectionSource.map((section) =>
     formatSection(section, { maxLineLength, maxLinesPerSection }),
   );
   const header = `**${report.symbol} Level Intelligence Preview**\n${report.summary}`;

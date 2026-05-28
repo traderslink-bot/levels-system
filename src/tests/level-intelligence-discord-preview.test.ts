@@ -251,7 +251,7 @@ test("includes support resistance and extension sections", () => {
 });
 
 test("includes diagnostics safety notes facts and confluences", () => {
-  const preview = formatLevelIntelligenceDiscordPreview(report());
+  const preview = formatLevelIntelligenceDiscordPreview(report(), { detailMode: "full" });
   const text = allText(preview);
 
   assert.ok(text.includes("session_facts_missing"));
@@ -260,6 +260,42 @@ test("includes diagnostics safety notes facts and confluences", () => {
   assert.ok(text.includes("Volume facts nearby: Volume state is extreme."));
   assert.ok(text.includes("Shelf facts: Level overlaps volume shelf TEST-volume-shelf"));
   assert.ok(text.includes("Context tags: tag_major-support"));
+});
+
+test("compact mode produces fewer and smaller messages than full detail for a fact-rich report", () => {
+  const input = report();
+  const compact = formatLevelIntelligenceDiscordPreview(input);
+  const full = formatLevelIntelligenceDiscordPreview(input, { detailMode: "full" });
+
+  assert.ok(compact.messages.length <= full.messages.length);
+  assert.ok(allText(compact).length < allText(full).length);
+  assert.equal(compact.sections.some((item) => item.lines.some((line) => line.startsWith("Context tags:"))), false);
+  assert.ok(allText(compact).includes("Volume context: state extreme; relative 4; dollar 4000000; liquidity good; acceleration surging"));
+});
+
+test("compact output keeps important buckets and facts without excessive repetition", () => {
+  const preview = formatLevelIntelligenceDiscordPreview(report());
+  const text = allText(preview);
+  const volumeContextMatches = text.match(/Volume context:/g) ?? [];
+
+  assert.ok(section(preview, "Major Support").text.includes("support zone 9.5"));
+  assert.ok(section(preview, "Major Resistance").text.includes("resistance zone 10.5"));
+  assert.ok(section(preview, "Intraday Support").text.includes("support zone 9.75"));
+  assert.ok(section(preview, "Extension Resistance").text.includes("resistance zone 11.25"));
+  assert.ok(text.includes("Session facts: major-support is near a supplied session fact."));
+  assert.ok(text.includes("Shelf facts: Level overlaps volume shelf TEST-volume-shelf"));
+  assert.ok(text.includes("Safety: facts-only true; VWAP facts-only true; shelves facts-only true; runtime unchanged true"));
+  assert.ok(volumeContextMatches.length > 0);
+  assert.ok(volumeContextMatches.length < report().counts.total);
+});
+
+test("full detail mode remains available", () => {
+  const preview = formatLevelIntelligenceDiscordPreview(report(), { detailMode: "full" });
+  const text = allText(preview);
+
+  assert.ok(text.includes("Volume facts nearby: Volume state is extreme."));
+  assert.ok(text.includes("Context tags: tag_major-support"));
+  assert.ok(text.includes("Reason: Facts-only profile for support zone 9.5."));
 });
 
 test("truncates long lines and splits messages under the configured length", () => {
@@ -283,8 +319,8 @@ test("preserves VWAP and volume shelves as facts-only text", () => {
   const preview = formatLevelIntelligenceDiscordPreview(report());
   const text = allText(preview);
 
-  assert.ok(text.includes("VWAP is facts-only context"));
-  assert.ok(text.includes("Volume shelves facts-only: true"));
+  assert.ok(text.includes("VWAP facts-only true"));
+  assert.ok(text.includes("shelves facts-only true"));
   assert.ok(text.includes("volume shelf TEST-volume-shelf"));
   assertNoForbiddenLanguage(preview);
 });
