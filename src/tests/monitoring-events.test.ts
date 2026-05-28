@@ -36,6 +36,17 @@ const resistanceZone: FinalLevelZone = {
   notes: ["Test resistance zone."],
 };
 
+const supportZone: FinalLevelZone = {
+  ...resistanceZone,
+  id: "AAPL-support-zone-1",
+  kind: "support",
+  zoneLow: 99,
+  zoneHigh: 100,
+  representativePrice: 99.5,
+  sourceTypes: ["swing_low"],
+  notes: ["Test support zone."],
+};
+
 function makeUpdate(timestamp: number, lastPrice: number): LivePriceUpdate {
   return {
     symbol: "AAPL",
@@ -58,6 +69,34 @@ function createSymbolState(): SymbolMonitoringState {
         remappedFromZoneIds: [],
         zoneFreshness: resistanceZone.freshness,
         zoneStrengthLabel: resistanceZone.strengthLabel,
+        dataQualityDegraded: false,
+        recentlyRefreshed: false,
+        recentlyPromotedExtension: false,
+        ladderPosition: "inner",
+        activeSince: 1,
+      },
+    },
+    interactions: {},
+    recentEvents: [],
+    bias: "neutral",
+    pressureScore: 0,
+  };
+}
+
+function createSupportSymbolState(): SymbolMonitoringState {
+  return {
+    symbol: "AAPL",
+    supportZones: [supportZone],
+    resistanceZones: [],
+    zoneContexts: {
+      [supportZone.id]: {
+        monitoredZoneId: supportZone.id,
+        canonicalZoneId: supportZone.id,
+        origin: "canonical",
+        remapStatus: "new",
+        remappedFromZoneIds: [],
+        zoneFreshness: supportZone.freshness,
+        zoneStrengthLabel: supportZone.strengthLabel,
         dataQualityDegraded: false,
         recentlyRefreshed: false,
         recentlyPromotedExtension: false,
@@ -114,6 +153,76 @@ test("compression is emitted once when a zone first enters a compression episode
     emittedEventTypes.filter((eventType) => eventType === "compression").length,
     1,
   );
+});
+
+test("volume activity trader line is suppressed when same setup already carried same story", () => {
+  const symbolState = createSymbolState();
+  symbolState.volumeActivity = {
+    label: "expanding",
+    reliability: "reliable",
+    currentBucketVolume: 1500,
+    baselineAverageVolume: 1000,
+    relativeVolumeRatio: 1.5,
+    direction: "increasing",
+    reason: "current 5m bucket is 1.50x recent average",
+    traderLine: "activity: activity is expanding into resistance, which makes the test more meaningful",
+  };
+  symbolState.recentEvents.push({
+    id: "prior",
+    episodeId: "prior-episode",
+    symbol: "AAPL",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneId: resistanceZone.id,
+    zoneKind: "resistance",
+    level: resistanceZone.representativePrice,
+    triggerPrice: 100.5,
+    strength: 0.5,
+    confidence: 0.5,
+    priority: 50,
+    bias: "neutral",
+    pressureScore: 0.5,
+    eventContext: {
+      monitoredZoneId: resistanceZone.id,
+      canonicalZoneId: resistanceZone.id,
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "inner",
+      zoneStrengthLabel: "strong",
+      volumeActivity: symbolState.volumeActivity,
+    },
+    timestamp: 1,
+    notes: [],
+  });
+
+  const previousState = createInitialInteractionState("AAPL", resistanceZone);
+  const update = makeUpdate(2, 100.6);
+  const currentState = updateInteractionState({
+    previousState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 99.9,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  const [event] = detectMonitoringEvents({
+    previousState,
+    currentState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 99.9,
+    symbolState,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  assert.equal(event?.eventContext.volumeActivity?.label, "expanding");
+  assert.equal(event?.eventContext.volumeActivity?.traderLine, undefined);
+  assert.match(event?.eventContext.volumeActivity?.reason ?? "", /same volume\/activity story/);
 });
 
 test("compression can re-emit after price leaves the zone and returns later", () => {
@@ -198,4 +307,138 @@ test("rejection is emitted once per resistance test sequence", () => {
   }
 
   assert.equal(rejectionCount, 1);
+});
+
+test("breakout is suppressed for weak fly-by confirmation without prior interaction", () => {
+  const symbolState = createSymbolState();
+  const previousState = createInitialInteractionState("AAPL", resistanceZone);
+  const update = makeUpdate(1, 101.3);
+
+  const currentState = updateInteractionState({
+    previousState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 100.95,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  const events = detectMonitoringEvents({
+    previousState,
+    currentState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 100.95,
+    symbolState,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  assert.equal(events.some((event) => event.eventType === "breakout"), false);
+});
+
+test("breakout still emits for a forceful confirmation move without prior interaction", () => {
+  const symbolState = createSymbolState();
+  const previousState = createInitialInteractionState("AAPL", resistanceZone);
+  const update = makeUpdate(1, 101.7);
+
+  const currentState = updateInteractionState({
+    previousState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 100.95,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  const events = detectMonitoringEvents({
+    previousState,
+    currentState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 100.95,
+    symbolState,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  assert.equal(events.some((event) => event.eventType === "breakout"), true);
+});
+
+test("full support reclaim emits reclaim instead of fake breakdown when a recent break attempt exists", () => {
+  const symbolState = createSupportSymbolState();
+  let previousState = createInitialInteractionState("AAPL", supportZone);
+  let previousPrice: number | undefined;
+
+  for (const update of [
+    makeUpdate(1, 99.8),
+    makeUpdate(2, 99.4),
+    makeUpdate(3, 98.7),
+  ]) {
+    const currentState = updateInteractionState({
+      previousState,
+      zone: supportZone,
+      update,
+      previousPrice,
+      config: DEFAULT_MONITORING_CONFIG,
+    });
+
+    const events = detectMonitoringEvents({
+      previousState,
+      currentState,
+      zone: supportZone,
+      update,
+      previousPrice,
+      symbolState,
+      config: DEFAULT_MONITORING_CONFIG,
+    });
+
+    events.forEach((event) => recordMonitoringEvent(symbolState, event));
+    previousState = currentState;
+    previousPrice = update.lastPrice;
+  }
+
+  const reclaimUpdate = makeUpdate(4, 100.4);
+  const reclaimState = updateInteractionState({
+    previousState,
+    zone: supportZone,
+    update: reclaimUpdate,
+    previousPrice,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  const reclaimEvents = detectMonitoringEvents({
+    previousState,
+    currentState: reclaimState,
+    zone: supportZone,
+    update: reclaimUpdate,
+    previousPrice,
+    symbolState,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  assert.equal(reclaimEvents.some((event) => event.eventType === "reclaim"), true);
+  assert.equal(reclaimEvents.some((event) => event.eventType === "fake_breakdown"), false);
+});
+
+test("reclaim is suppressed when price jumps above support without a recent observed breakdown", () => {
+  const symbolState = createSupportSymbolState();
+  const previousState = createInitialInteractionState("AAPL", supportZone);
+  const update = makeUpdate(1, 100.4);
+
+  const currentState = updateInteractionState({
+    previousState,
+    zone: supportZone,
+    update,
+    previousPrice: 98.8,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  const events = detectMonitoringEvents({
+    previousState,
+    currentState,
+    zone: supportZone,
+    update,
+    previousPrice: 98.8,
+    symbolState,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  assert.equal(events.some((event) => event.eventType === "reclaim"), false);
 });

@@ -1,26 +1,31 @@
-import type { CandleProviderName, CandleTimeframe } from "./candle-types.js";
+import type { CandleFetchTimeframe, CandleProviderName } from "./candle-types.js";
 import type { HistoricalFetchPlan, HistoricalFetchRequest } from "./provider-types.js";
 
-const TIMEFRAME_TO_INTERVAL_MS: Record<CandleTimeframe, number> = {
+const TIMEFRAME_TO_INTERVAL_MS: Record<CandleFetchTimeframe, number> = {
+  "1m": 60 * 1000,
   daily: 24 * 60 * 60 * 1000,
   "4h": 4 * 60 * 60 * 1000,
   "5m": 5 * 60 * 1000,
 };
 
-const TIMEFRAME_TO_BAR_SIZE: Record<CandleTimeframe, string> = {
+const TIMEFRAME_TO_BAR_SIZE: Record<CandleFetchTimeframe, string> = {
+  "1m": "1 min",
   daily: "1 day",
   "4h": "4 hours",
   "5m": "5 mins",
 };
 
-const TIMEFRAME_TO_REMOTE_INTERVAL: Record<CandleTimeframe, string> = {
+const TIMEFRAME_TO_REMOTE_INTERVAL: Record<CandleFetchTimeframe, string> = {
+  "1m": "1min",
   daily: "1day",
   "4h": "4h",
   "5m": "5min",
 };
 
-function resolvePlannedBarCount(timeframe: CandleTimeframe, lookbackBars: number): number {
+function resolvePlannedBarCount(timeframe: CandleFetchTimeframe, lookbackBars: number): number {
   switch (timeframe) {
+    case "1m":
+      return Math.max(lookbackBars + 120, Math.ceil(lookbackBars * 1.8));
     case "daily":
       return Math.max(lookbackBars + 40, Math.ceil(lookbackBars * 1.25));
     case "4h":
@@ -74,7 +79,7 @@ export function buildHistoricalFetchPlan(
     requestStartTimestamp,
     requestEndTimestamp,
     intervalMs,
-    sessionMetadataAvailable: request.timeframe === "5m",
+    sessionMetadataAvailable: request.timeframe === "1m" || request.timeframe === "5m",
     providerRequest,
   };
 }

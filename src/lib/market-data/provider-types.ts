@@ -1,12 +1,12 @@
 import type {
   BaseCandleProviderResponse,
   CandleProviderName,
-  CandleTimeframe,
+  CandleFetchTimeframe,
 } from "./candle-types.js";
 
 export type HistoricalFetchRequest = {
   symbol: string;
-  timeframe: CandleTimeframe;
+  timeframe: CandleFetchTimeframe;
   lookbackBars: number;
   endTimeMs?: number;
   preferredProvider?: CandleProviderName;
@@ -14,7 +14,7 @@ export type HistoricalFetchRequest = {
 
 export type HistoricalFetchPlan = {
   provider: CandleProviderName;
-  timeframe: CandleTimeframe;
+  timeframe: CandleFetchTimeframe;
   requestedLookbackBars: number;
   plannedBarCount: number;
   requestStartTimestamp: number;

@@ -2,6 +2,11 @@
 // Config for Phase 3 alert intelligence.
 
 import type { MonitoringEventType } from "../monitoring/monitoring-types.js";
+import type { ZoneTacticalBias } from "../levels/zone-tactical-read.js";
+import type {
+  TraderPressureLabel,
+  TraderTriggerQualityLabel,
+} from "./alert-types.js";
 
 export type AlertIntelligenceConfig = {
   eventBaseScores: Record<MonitoringEventType, number>;
@@ -51,6 +56,16 @@ export type AlertIntelligenceConfig = {
   dataQualityPenalty: number;
   lowValueInnerTouchPenalty: number;
   lowValueInnerCompressionPenalty: number;
+  innerDirectionalPenalty: number;
+  degradedDirectionalPenalty: number;
+  clearanceScores: {
+    tight: number;
+    limited: number;
+    open: number;
+  };
+  pressureLabelScores: Record<TraderPressureLabel, number>;
+  triggerQualityScores: Record<TraderTriggerQualityLabel, number>;
+  tacticalBiasScores: Record<ZoneTacticalBias, number>;
   structureStrengthScale: number;
   postingWindowsMs: {
     zone_context: number;
@@ -118,12 +133,36 @@ export const DEFAULT_ALERT_INTELLIGENCE_CONFIG: AlertIntelligenceConfig = {
   dataQualityPenalty: 12,
   lowValueInnerTouchPenalty: 10,
   lowValueInnerCompressionPenalty: 14,
+  innerDirectionalPenalty: 8,
+  degradedDirectionalPenalty: 8,
+  clearanceScores: {
+    tight: -12,
+    limited: -5,
+    open: 4,
+  },
+  pressureLabelScores: {
+    strong: 4,
+    moderate: 0,
+    tentative: -20,
+    balanced: -14,
+  },
+  triggerQualityScores: {
+    clean: 4,
+    workable: 0,
+    crowded: -16,
+    late: -20,
+  },
+  tacticalBiasScores: {
+    tailwind: 4,
+    neutral: 0,
+    headwind: -6,
+  },
   structureStrengthScale: 10,
   postingWindowsMs: {
-    zone_context: 5 * 60 * 1000,
-    bullish_resolution: 8 * 60 * 1000,
-    bearish_resolution: 8 * 60 * 1000,
-    failure: 8 * 60 * 1000,
+    zone_context: 12 * 60 * 1000,
+    bullish_resolution: 15 * 60 * 1000,
+    bearish_resolution: 15 * 60 * 1000,
+    failure: 15 * 60 * 1000,
   },
-  materialScoreDeltaForRepost: 8,
+  materialScoreDeltaForRepost: 12,
 };

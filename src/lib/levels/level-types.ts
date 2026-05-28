@@ -76,6 +76,7 @@ export type FinalLevelZone = {
   isExtension: boolean;
   freshness: LevelDataFreshness;
   notes: string[];
+  enrichedAnalysis?: EnrichedLevelAnalysis;
 };
 
 export type LevelLadderExtension = {
@@ -88,6 +89,10 @@ export type LevelOutputMetadata = {
   dataQualityFlags: string[];
   freshness: LevelDataFreshness;
   referencePrice?: number;
+  volumeBaselineByTimeframe?: Partial<Record<CandleTimeframe, {
+    averageVolume: number;
+    sampleSize: number;
+  }>>;
 };
 
 export type LevelEngineOutput = {
@@ -126,6 +131,12 @@ export type LevelState =
   | "broken"
   | "reclaimed"
   | "flipped";
+
+export type LevelDurabilityLabel =
+  | "fragile"
+  | "tested"
+  | "durable"
+  | "reinforced";
 
 export type LevelReactionType =
   | "tap"
@@ -204,6 +215,9 @@ export type LevelScoreBreakdown = {
   roleFlipScore: number;
   defenseScore: number;
   recencyScore: number;
+  durabilityScore?: number;
+  durabilityAdjustment?: number;
+  breakDamagePenalty: number;
   overtestPenalty: number;
   clusterPenalty: number;
   structuralStrengthScore: number;
@@ -214,6 +228,19 @@ export type LevelScoreBreakdown = {
   currentInteractionScore: number;
   activeRelevanceScore: number;
   finalLevelScore: number;
+};
+
+export type EnrichedLevelAnalysis = {
+  source: "rankLevels";
+  structuralStrengthScore: number;
+  activeRelevanceScore: number;
+  finalLevelScore: number;
+  confidence: number;
+  state: LevelState;
+  rank: number;
+  explanation: string;
+  scoreBreakdown: LevelScoreBreakdown;
+  touchStats: Omit<LevelTouchAnalysisResult, "touches">;
 };
 
 export type RankedLevel = {
@@ -247,6 +274,7 @@ export type RankedLevel = {
   rank: number;
   confidence: number;
   state: LevelState;
+  durabilityLabel?: LevelDurabilityLabel;
   isClusterRepresentative: boolean;
   clusterId: string | null;
   explanation: string;

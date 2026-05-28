@@ -1,4 +1,5 @@
 import type { MonitoringEvent } from "./monitoring-types.js";
+import { resolveZoneTacticalBias } from "../levels/zone-tactical-read.js";
 
 export type OpportunityClassification = "high_conviction" | "medium" | "low";
 
@@ -6,6 +7,7 @@ export type RankedOpportunity = {
   symbol: string;
   type: string;
   eventType?: string;
+  zoneKind?: "support" | "resistance";
   level: number;
   strength: number;
   confidence: number;
@@ -18,6 +20,14 @@ export type RankedOpportunity = {
   score: number;
   normalizedScore: number;
   classification: OpportunityClassification;
+  nextBarrierDistancePct?: number;
+  clearanceLabel?: "tight" | "limited" | "open";
+  barrierClutterLabel?: "clear" | "stacked" | "dense";
+  nearbyBarrierCount?: number;
+  pathQualityLabel?: "clean" | "layered" | "choppy";
+  pathBarrierCount?: number;
+  tacticalRead?: "firm" | "balanced" | "tired";
+  exhaustionLabel?: "fresh" | "tested" | "worn" | "spent";
 };
 
 type MonitoringEventWithStructure = MonitoringEvent & {
@@ -150,6 +160,142 @@ function classifyOpportunity(score: number, confidence: number): OpportunityClas
   return "low";
 }
 
+function clearanceAdjustment(event: MonitoringEvent): number {
+  const clearanceLabel = event.eventContext.clearanceLabel;
+  const barrierDistancePct = event.eventContext.nextBarrierDistancePct;
+
+  if (clearanceLabel === "tight") {
+    return -0.16;
+  }
+
+  if (clearanceLabel === "limited") {
+    return -0.08;
+  }
+
+  if (clearanceLabel === "open") {
+    return 0.04;
+  }
+
+  if (typeof barrierDistancePct === "number" && barrierDistancePct >= 0.06) {
+    return 0.03;
+  }
+
+  return 0;
+}
+
+function tacticalAdjustment(event: MonitoringEvent): number {
+  const tacticalBias = resolveZoneTacticalBias({
+    zoneKind: event.zoneKind,
+    eventType: event.eventType,
+    tacticalRead: event.eventContext.tacticalRead,
+  });
+
+  if (tacticalBias === "tailwind") {
+    return 0.05;
+  }
+
+  if (tacticalBias === "headwind") {
+    return -0.07;
+  }
+
+  return 0;
+}
+
+function clutterAdjustment(event: MonitoringEvent): number {
+  const clutterLabel = event.eventContext.barrierClutterLabel;
+
+  if (clutterLabel === "dense") {
+    return -0.08;
+  }
+
+  if (clutterLabel === "stacked") {
+    return -0.04;
+  }
+
+  return 0;
+}
+
+function pathQualityAdjustment(event: MonitoringEvent): number {
+  const label = event.eventContext.pathQualityLabel;
+  const barrierCount = event.eventContext.pathBarrierCount ?? 0;
+  const pathWindowDistancePct = event.eventContext.pathWindowDistancePct ?? 0;
+
+  if (label === "choppy") {
+    return -0.08 - Math.max(0, barrierCount - 3) * 0.01;
+  }
+
+  if (label === "layered") {
+    return -0.04 - Math.max(0, barrierCount - 2) * 0.01;
+  }
+
+  if (label === "clean") {
+    return 0.02 + Math.min(0.02, Math.max(0, pathWindowDistancePct - 0.05) * 0.2);
+  }
+
+  return 0;
+}
+
+function exhaustionAdjustment(event: MonitoringEvent): number {
+  const label = event.eventContext.exhaustionLabel;
+
+  if (
+    (label === "worn" || label === "spent") &&
+    ((event.zoneKind === "support" &&
+      (event.eventType === "level_touch" || event.eventType === "reclaim")) ||
+      (event.zoneKind === "resistance" &&
+        (event.eventType === "level_touch" || event.eventType === "rejection")))
+  ) {
+    return label === "spent" ? -0.1 : -0.055;
+  }
+
+  if (
+    (label === "worn" || label === "spent") &&
+    ((event.zoneKind === "resistance" && event.eventType === "breakout") ||
+      (event.zoneKind === "support" && event.eventType === "breakdown"))
+  ) {
+    return label === "spent" ? 0.045 : 0.025;
+  }
+
+  return 0;
+}
+
+function supportTradeabilityAdjustment(event: MonitoringEvent): number {
+  if (event.zoneKind !== "support" || event.eventType !== "level_touch") {
+    return 0;
+  }
+
+  const exhaustion = event.eventContext.exhaustionLabel;
+  const pathQuality = event.eventContext.pathQualityLabel;
+  const clearance = event.eventContext.clearanceLabel;
+
+  if (
+    exhaustion === "spent" &&
+    (clearance === "tight" || pathQuality === "choppy" || pathQuality === "layered")
+  ) {
+    return -0.08;
+  }
+
+  if (
+    exhaustion === "worn" &&
+    (clearance === "tight" || clearance === "limited" || pathQuality === "choppy" || pathQuality === "layered")
+  ) {
+    return -0.05;
+  }
+
+  if (
+    exhaustion === "tested" &&
+    (clearance === "tight" || clearance === "limited" || pathQuality === "layered" || pathQuality === "choppy")
+  ) {
+    return -0.03;
+  }
+
+  if (exhaustion === "fresh" && clearance === "open" && pathQuality === "clean") {
+    return 0.015;
+  }
+
+  return 0;
+}
+
 export class OpportunityEngine {
   constructor(private readonly debug: boolean = false) {}
 
@@ -183,6 +329,12 @@ export class OpportunityEngine {
         resolvedStructureType,
       );
       const qualityWeight = 0.65 + clamp(event.strength) * 0.2 + clamp(event.confidence) * 0.15;
+      const resolvedClearanceAdjustment = clearanceAdjustment(event);
+      const resolvedClutterAdjustment = clutterAdjustment(event);
+      const resolvedPathQualityAdjustment = pathQualityAdjustment(event);
+      const resolvedTacticalAdjustment = tacticalAdjustment(event);
+      const resolvedExhaustionAdjustment = exhaustionAdjustment(event);
+      const resolvedSupportTradeabilityAdjustment = supportTradeabilityAdjustment(event);
 
       const score =
         nonlinearScore *
@@ -193,7 +345,13 @@ export class OpportunityEngine {
             resolvedStructureBoost +
             resolvedBiasBoost +
             resolvedStackingBoost -
-            conflictPenalty,
+            conflictPenalty +
+            resolvedClearanceAdjustment +
+            resolvedClutterAdjustment +
+            resolvedPathQualityAdjustment +
+            resolvedTacticalAdjustment +
+            resolvedExhaustionAdjustment +
+            resolvedSupportTradeabilityAdjustment,
         ) *
         typeWeight(event.eventType) *
         qualityWeight;
@@ -202,6 +360,7 @@ export class OpportunityEngine {
         symbol: event.symbol,
         type: event.type,
         eventType: event.eventType,
+        zoneKind: event.zoneKind,
         level: event.level,
         strength: event.strength,
         confidence: event.confidence,
@@ -214,6 +373,14 @@ export class OpportunityEngine {
         score: Number(score.toFixed(4)),
         normalizedScore: 0,
         classification: "low" as OpportunityClassification,
+        nextBarrierDistancePct: event.eventContext.nextBarrierDistancePct,
+        clearanceLabel: event.eventContext.clearanceLabel,
+        barrierClutterLabel: event.eventContext.barrierClutterLabel,
+        nearbyBarrierCount: event.eventContext.nearbyBarrierCount,
+        pathQualityLabel: event.eventContext.pathQualityLabel,
+        pathBarrierCount: event.eventContext.pathBarrierCount,
+        tacticalRead: event.eventContext.tacticalRead,
+        exhaustionLabel: event.eventContext.exhaustionLabel,
       };
     });
 

@@ -2,6 +2,203 @@
 
 Candle-based support/resistance, watchlist monitoring, and alert-intelligence tooling for TraderLink.
 
+## Quickstart
+
+1. Install dependencies with `npm ci`.
+2. Create a local `.env` only when you want real integrations such as Discord or provider credentials.
+3. Ensure IBKR/TWS or IB Gateway is running before using live/manual runtime paths.
+4. Run `npm run check` to verify the repo.
+
+## Runtime notes
+
+- `npm run watchlist:manual` starts the manual watchlist server on `127.0.0.1:3010` by default.
+- The manual UI now binds immediately, even while IBKR connection and persisted-symbol restore are still booting in the background, so the browser should show the app instead of `ERR_CONNECTION_REFUSED` during long startup restores.
+- `/api/runtime/status` and `/api/watchlist` now expose `startupState` and `startupError`, and activate/deactivate requests return `503` until runtime startup is actually ready.
+- `startupState=ready` now means the runtime is connected and can accept requests, even if the slower persisted-symbol restore pass is still finishing in the background.
+- New activations still wait for `startupState=ready`, but deactivation is allowed during startup so slow restoring symbols can be stopped immediately from the UI.
+- Manual activation seeding is now bounded by a timeout, so a symbol that hangs during level generation should fail explicitly instead of sitting in `refresh_pending` forever.
+- The manual runtime now gives IBKR historical seeding more breathing room by default during activation and startup restore; set `MANUAL_WATCHLIST_IBKR_TIMEOUT_MS` for the IBKR request timeout and `MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS` for the app-level seed guard. Both default to `90000` ms.
+- The manual runtime can now restore active symbols from the disk candle cache on restart so the UI becomes useful faster. Cached startup levels are marked as warming, live/runtime seeding refreshes from the provider and writes back to disk by default, and Discord startup snapshots are held until fresh candle seeding succeeds. Use `MANUAL_WATCHLIST_CANDLE_CACHE_MODE`, `MANUAL_WATCHLIST_CANDLE_CACHE_DIR`, and `MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE=0` to tune or disable this behavior.
+- Fast crossed-level posts can be coalesced for cleaner runner threads with `MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS` (default `5000` ms in the manual watchlist server). This keeps real crossed levels in the message while reducing same-second and few-second single-level cascades.
+- Manual watchlist level seeding uses deeper daily history by default (`LEVEL_MANUAL_LOOKBACK_DAILY=520`, `LEVEL_MANUAL_LOOKBACK_4H=180`, `LEVEL_MANUAL_LOOKBACK_5M=100` defaults) so older overhead resistance can be included when a runner clears recent levels.
+- Fast runner level updates preserve intermediate support/resistance levels; when several tight nearby levels cross in the same move, the runtime can post one cluster-cross story while recording each crossed level in audit metadata.
+- Set `LEVEL_MONITORING_EVENT_DIAGNOSTICS=1` before `npm run watchlist:manual` to emit filtered `monitoring_event_diagnostic` JSON lines for breakout / breakdown / fakeout / reclaim decisions.
+- Set `WATCHLIST_POSTING_PROFILE=quiet`, `balanced`, or `active` to tune live Discord post volume without code changes. `balanced` is the default; `quiet` suppresses more narration/chop, while `active` allows more follow-through and continuity context.
+- Level snapshot posts now start with a practical `Trade map` instead of a raw current-read paragraph. The map frames current structure, the cleaner-above condition at resistance, the support area that matters, the broader failure area, and short-term momentum support when recent intraday structure is available.
+- Same-level live alerts now need a material change before reposting after the cooldown. This keeps small-cap threads focused on meaningful zone changes instead of repeating every tiny support/resistance tap.
+- Low-priced same-story buckets are intentionally wider than the raw level precision, so one- or two-cent small-cap flickers do not create a fresh Discord story unless the setup expands or the structure changes.
+- Practical same-area budgets also limit repeated range-bound, support-holding, and pullback posts unless price expands or the structure truly changes. This affects Discord post frequency only; it does not hide support/resistance levels from the ladder.
+- Repeated breakout/reclaim cycling inside the same practical area also participates in that story budget; first attempts and real expansions can still post, but repeated flicker needs stronger evidence.
+- Low-priced range/chop detection is price-aware, so repeated touch/break/reclaim/rejection posts inside the same boxed area are compressed while the first meaningful event family and real expansion remain eligible to post.
+- Failed follow-through wording is more conservative for $5-$10 small caps, where a 1-2% wobble is often normal movement rather than a clean failed setup.
+- Thread story phase control now adds another safety layer for live alerts, level-clear updates, and follow-through posts. Repeated same-area, same-phase stories are suppressed unless the phase changes, the area changes, price expands materially, or the move is a major clustered level change.
+- Monitoring events now carry a practical 5-minute structure read around existing levels, such as `range_bound`, `pressing_resistance`, `breakout_attempt`, `support_failing`, `structure_broken`, `reclaim_attempt`, and `reclaim_holding`. The post policy can use this state to allow real structure changes while suppressing repeated same-zone noise.
+- Live prices are also bucketed into 5-minute structure windows so recent higher-low or lower-high behavior can support the structure read without creating standalone posts or inventing levels.
+- Closed-market post-noise tuning can be tested with `npm run scenario:smallcap`, which runs deterministic range-chop, base-to-breakout, fakeout, support-loss, and reclaim scenarios through the real monitor, alert engine, formatter, and post policy.
+- Broad saved-data stress testing can be run with `npm run stress:all-symbols`; it scans all long-run Discord audit streams, dedupes identical files, aggregates every saved symbol, and ranks overposting, tight-range chop, runner cascades, missed-event candidates, and language-boundary issues.
+- Trader-facing post quality can be graded with `npm run quality:posts -- <session-folder-or-discord-delivery-audit.jsonl>`; it writes `trader-post-quality-report.json` / `.md` and flags system-shaped language, direct advice, over-certain phrasing, tiny small-cap risk wording, missing-level claims, and repeated-story overlap.
+- Trader usefulness replay can be scored with `npm run audit:usefulness -- <session-folder-or-discord-delivery-audit.jsonl>`; it writes `trader-usefulness-replay-score.json` / `.md` and labels posts as useful changes, early-but-relevant, repeat noise, late, or missing context while also assigning ticker personality and ladder-confidence labels.
+- Daily trader review can be generated with `npm run audit:daily-review -- <session-folder-or-discord-delivery-audit.jsonl>`; it writes `daily-trader-review.json` / `.md` / `.html` with operator-only daily recaps, expected post budgets, no-post evidence coverage, best/worst examples, and post-timing flags.
+- End-of-day symbol verdicts can be generated with `npm run audit:eod-verdict -- <session-folder-or-discord-delivery-audit.jsonl>`; it writes `end-of-day-symbol-verdict.json` / `.md` and answers the practical review questions per symbol: first-post map quality, post volume, missed-move audit need, level completeness, and trader wording.
+- Missed meaningful move audit can be generated with `npm run audit:missed-moves -- <session-folder-or-discord-delivery-audit.jsonl>`; it writes `missed-meaningful-move-audit.json` / `.md` and checks cached 5-minute candles against saved Discord posts so quieter posting rules do not hide real breakouts, support losses, or large candle moves.
+- Session behavior/readiness can be audited with `npm run audit:session-behavior -- <session-folder-or-discord-delivery-audit.jsonl>`; it writes `session-behavior-audit.json` / `.md` with candle freshness, readiness, first-post trade-map scoring, thread balance, candle/post timeline samples, current-session behavior profile, and runtime marker coverage.
+- First snapshot trade-map quality can be audited with `npm run audit:first-snapshots -- <session-folder-or-discord-delivery-audit.jsonl>`; it writes `first-snapshot-trade-map-audit.json` / `.md` and reviews whether each symbol's first support/resistance post gave a useful trader map without advice.
+- `npm run replay:monday` runs the closed-market checklist in one pass: build, all-symbol stress, small-cap scenarios, saved-data regression, latest-session audit generation, post quality, trader usefulness replay, daily trader review, missed meaningful moves, session behavior/readiness, post reasons, known-bad patterns, volume replay, and optional structure replay. Use `-- --skip-slow` for the faster core pass.
+- Post-reason evidence can be generated with `npm run audit:post-reasons -- <session-folder>` and known bad wording can be scanned with `npm run audit:known-bad-posts -- <session-folder>`.
+- The all-symbol stress report now includes quiet-profile simulated totals plus `Quiet-Mode Replay Attention`, so post-noise work can separate profile tuning from deeper story-quality problems.
+- The all-symbol stress report also assigns each symbol a style budget (`low_priced_chop`, `range_bound_small_cap`, `active_runner`, `extreme_runner`, or `mixed_or_unknown`) so tight low-priced churn is reviewed more strictly than real fast-runner expansion.
+- Discord delivery audit rows now carry operator-only `whyPosted`, `postBudgetSymbolType`, and `noLevelReason` fields. These explain why a post fired and why a next level was unavailable without leaking testing language into trader-facing Discord posts.
+- Candle market-structure replay can be run with `npm run structure:replay`; it scans cached IBKR 5-minute candles under `.validation-cache/candles/ibkr`, runs the shared `marketStructure` engine across rolling windows, compares raw structure transitions to the stable/materiality-smoothed structure read, and writes JSON/Markdown reports under `artifacts/market-structure-replay`.
+- Stable structure / Discord alignment can be run with `npm run structure:discord-align -- --limit all`; it compares saved Discord posts to stable 5-minute structure near each post and writes JSON/Markdown reports under `artifacts/stable-structure-discord-alignment` so repeated level-flicker posts can be reviewed with candle-backed structure evidence.
+- Stable 5-minute market structure is now supported as live alert metadata and post-policy evidence. It is not a standalone Discord category; the monitor buckets live ticks into 5-minute candles, computes stable structure after enough buckets exist, and lets unchanged stable structure help suppress repeated range chatter while material transitions such as pivot loss, reclaim confirmation, or breakout holding can justify a fresh trader-critical story.
+- The shared engine now also returns `traderContext`, a quiet structured context bundle for liquidity/tradability, catalyst/profile risk, session/gap anchors, candle reaction quality, move extension/exhaustion, small-cap volatility normalization, opening-range context, halt/pause awareness, level-ladder quality, data-quality gating, trade-idea summary, no-post explanations, first-post trade-plan lines, and post story memory. These are not standalone Discord categories; they are structured facts for audit, scoring, shared consumers, and carefully gated enrichment lines.
+- Monitoring events now also carry `tradeStoryState`, range-box, acceptance, support-importance, and behavior-budget metadata. These fields help the live post policy suppress weak probes inside already-posted consolidation boxes while still allowing accepted breaks and material structure changes.
+- Monitoring events and audit rows now also carry level-importance, primary-trade-area, and failed-level-memory metadata. These fields help separate main decision levels from minor small-cap flickers, keep range-bound tickers anchored to one battlefield, and avoid treating weak probes as cleanly cleared support/resistance.
+- End-of-thread recaps can be generated with `npm run audit:end-recap -- <session-folder>`, thread health can be scored with `npm run audit:thread-health -- <session-folder>`, trader usefulness can be scored with `npm run audit:usefulness -- <session-folder>`, trade lifecycle summaries can be generated with `npm run audit:lifecycle -- <session-folder>`, and a browser-friendly post timeline can be generated with `npm run audit:visual-replay -- <session-folder>`.
+- The visual replay now includes a symbol index plus review flags for weak probes, locked-area posts, missing next-level context, and minor-level posts so a saved Discord thread can be reviewed visually without reading every raw audit row.
+- The all-symbol stress report includes post-budget labels (`within_budget`, `watch`, `excessive_chop`, `runner_review`) and a noisy-symbol regression pack so audit review can separate low-range clutter from valid fast-runner activity before changing live posting rules.
+- The candle/support/resistance engine now has a stable shared import boundary at `levels-system-phase1/support-resistance-engine`. Other local apps can depend on this repo with `file:../levels-system`, run `npm run build` here, and import the shared candle/level/structure API without copying project files. The normal consumer path is `buildSupportResistanceContextForSymbol`, where this project owns daily / `4h` / `5m` candle fetching and preparation. For trade-review apps, `buildTradeAnalysisCandleContext` now returns that same support/resistance context plus normalized pre-trade, trade-window, and post-trade candles from the shared provider layer. The boundary also accepts numeric, ISO string, or `Date` candle timestamps, supports `asOfTimestamp` filtering to avoid future-candle leakage, fetches `1m` candles through the shared provider layer, can aggregate `1m` into `5m`, exposes pure VWAP plus EMA utilities, and now returns `marketStructure` with confirmed 5m swings, range context, pivot reclaim/loss, trend intact/damaged state, confidence reasons, and `traderContext` with liquidity, profile, session, candle-reaction, extension, and story-memory facts. Full support/resistance still requires daily and `4h` candles.
+- The shared boundary now also exports the first durable candle warehouse layer: `DurableCandleWarehouse` and `DurableCandleWarehouseFetchService`. This stores normalized candles as provider/symbol/timeframe/date JSONL rows for website tools and bulk trade imports without changing Discord posting behavior.
+- The shared boundary now also exposes structured `referenceLevels`, `gapStructure`, dynamic VWAP/EMA price context, default warehouse-backed context builders, warehouse-backed volume context, `planBulkCandleBackfill`, warehouse storage policy guidance, and `buildExecutionLevelRelations`. These are shared market facts for website tools and audits; they do not create standalone Discord posts.
+- `buildTradeAnalysisCandleContext` now also returns `executionRelations[]`, giving each execution nearest-level, room, stacked-barrier, reference-level, VWAP/EMA, and market-structure facts while respecting `asOfTimestamp` no-lookahead rules.
+- Shared-engine inventory, warehouse health, saved-session candle calibration, bulk import readiness, and dry-run warehouse backfill can be checked with `npm run engine:capabilities`, `npm run candles:audit -- data/candles`, `npm run candles:calibrate -- <session-folder>`, `npm run candles:import-readiness -- <session-folder>`, and `npm run candles:backfill -- <session-folder> --max-tasks 8`.
+- Warehouse-backed volume evidence can be replayed with `npm run volume:warehouse -- <session-folder-or-discord-delivery-audit.jsonl>`; it separates volume context that may help existing alerts from stale/thin/unreliable context that should stay operator-only.
+- Bulk candle import pressure can be simulated with `npm run candles:bulk-sim`; it models months-style imported trades, shows naive provider requests versus deduped warehouse/provider tasks, and proves same-symbol/session/timeframe requests are coalesced before any provider fetch.
+- Execution relation replay can be generated with `npm run audit:execution-relations -- <session-folder-or-discord-delivery-audit.jsonl>`; it replays saved Discord posts against cached candles and reports whether nearest support/resistance, room, reference, dynamic, and market-structure facts were available or blocked by missing candle evidence.
+- Provider comparison readiness can be generated with `npm run candles:provider-compare -- --primary ibkr --comparison twelve_data`; it compares cached provider candles for coverage, close drift, VWAP/EMA drift, and support/resistance count drift before any future provider switch is trusted.
+- Candle-intelligence regression packs can be generated with `npm run candles:regression-pack -- <session-folder-or-discord-delivery-audit.jsonl>`; it turns weak first snapshots, useful/hidden volume cases, missing relation evidence, and missing-forward-level candidates into reusable audit/test cases.
+- Diagnostic logging is intentionally filtered:
+  - emitted decisions always log
+  - suppressed decisions only log when they are near the threshold, carry meaningful state, change reason, or recur after cooldown
+- For multi-hour manual testing on Windows, use `scripts/start-manual-watchlist-long-run.ps1` so each session gets a timestamped full log plus a smaller filtered review log under `artifacts/long-run/`.
+- Long-run sessions now also emit structured `manual_watchlist_lifecycle` JSON lines and a local `discord-delivery-audit.jsonl` file so activation/deactivation, snapshot posting, alert posting, and downstream Discord delivery can be reviewed after the fact.
+- Trader-critical Discord alert posts now get one downstream retry, and successful retries are recorded in `discord-delivery-audit.jsonl` with retry proof.
+- Testing-only Discord threads can be previewed or cleaned with `npm run discord:cleanup:threads -- --dry-run`; mutating archive/delete cleanup requires `--confirm-testing-cleanup`. To clear the configured watchlist channel itself, use `--all-channel-threads --all-parent-messages`.
+- Testing-thread cleanup can be scoped with `--older-than-days <days>` so archived/deleted candidates can avoid fresh threads that may still matter.
+- Level snapshot audit details are operator-only: `discord-delivery-audit.jsonl` records which support/resistance candidates were displayed, compacted, already on the wrong side of price, or outside the forward planning range without adding that diagnostic detail to Discord posts.
+- The long-run launcher now also refreshes summary artifacts from `discord-delivery-audit.jsonl`, so `session-summary.json`, `thread-summaries.json`, `thread-clutter-report.json`, `session-review.md`, and `trader-thread-recaps.md` keep updating even when runtime stdout goes quiet.
+- Set `FINNHUB_API_KEY` in `.env` to include Finnhub company/profile fields in the stock-context opener on newly created Discord threads before level generation finishes.
+- Yahoo stock context is enabled by default for that opener and adds source-labeled quote, volume, 52-week range, float, short-interest, cash/debt, revenue, profitability, and company-description fields when Yahoo returns them. Set `YAHOO_STOCK_CONTEXT_ENABLED=false` to disable Yahoo enrichment.
+- `npm run finnhub:test -- AAPL` still prints that same stock-context card in the terminal so the opener can be iterated separately from the live runtime.
+- The stock-context opener is intentionally limited to ticker/profile data only and does not use Finnhub quote fields for live price context:
+  - company name
+  - exchange
+  - industry
+  - country
+  - website
+  - market cap
+- Long-run sessions now split review surfaces:
+  - `manual-watchlist-operational.log` for lifecycle, failures, compare output, and Discord delivery
+  - `manual-watchlist-diagnostics.log` for `monitoring_event_diagnostic` reasoning
+  - `session-summary.json` for a quick session-level and per-symbol rollup
+  - `thread-summaries.json` for a compact trader-facing story per active symbol
+  - `thread-clutter-report.json` for deterministic thread-clutter analysis, post-category counts, and context-density risk
+  - `thread-post-policy-report.json` for repeated story clusters, critical/optional ratios, and per-thread trust scoring
+  - `thread-post-policy-report.md` for the readable version of that same policy review
+  - `snapshot-audit-report.json` for displayed, compacted, wrong-side, and outside-range level audit summaries
+  - `snapshot-audit-report.md` for the readable version of that same level audit
+  - `trading-day-evidence-report.json` / `.md` for proof-oriented audit sections covering trader-critical delivery failures, role-flip candidates, cluster-cross candidates, and representative trader-language excerpts
+  - the trading-day evidence report also includes Practical Structure Evidence when current audit rows contain practical structure metadata
+  - `long-run-tuning-suggestions.json` / `.md` for action/watch/info items generated from the policy and snapshot audit reports
+  - `live-post-replay-simulation.json` / `.md` for replaying the saved Discord audit through the current calmer post-policy rules and estimating old-versus-new output
+  - `live-post-profile-comparison.json` / `.md` for comparing `quiet`, `balanced`, and `active` posting profiles against the same saved session before changing live behavior
+  - `runner-story-report.json` / `.md` for an operator-level price/story summary of high-activity symbols, including post quality labels, noisy-repeat samples, rough price path, key posted events, and candidate missed level clears/losses
+  - `missed-meaningful-move-audit.json` / `.md` for checking cached 5-minute candle moves against saved Discord posts before tightening post-noise policy further
+  - `session-behavior-audit.json` / `.md` for candle readiness, first-post score, thread balance, session behavior profile, candle/post timeline evidence, and runtime marker coverage
+  - `session-review.md` for the fastest human-readable verdict on whether the run looked useful, noisy, or in need of attention
+  - `trader-thread-recaps.md` for short end-of-session symbol recaps that are easier to skim than JSON
+- Long-run sessions now also post in-thread continuity updates and symbol recaps, so active symbols can explain what changed during the session instead of only relying on isolated setup alerts.
+- Long-run review now explicitly classifies output into:
+  - trader-critical live posts
+  - trader-helpful but optional live posts
+  - operator-only artifacts and diagnostics
+- Long-run sessions can also collect human review feedback in `human-review-feedback.jsonl` via `scripts/add-long-run-review-feedback.ps1`, and the live session summaries will fold that feedback into the review artifacts.
+- Optional AI commentary can be enabled with `LEVEL_AI_COMMENTARY=1` plus `OPENAI_API_KEY`; the runtime can then add separate AI read posts after deterministic live alerts, enhance eligible in-session recaps, and `npm run longrun:ai:summary -- <session-folder>` can generate post-run `session-ai-review.md` and `thread-ai-recaps.md` artifacts.
+- Live AI reads now use the same optional-post discipline as other recap-like context, so reactive AI reads can be blocked before the OpenAI call when the thread is already too busy or the setup family is too easy to over-narrate.
+- Live AI reads are profile-aware and reserved for higher-value deterministic alerts; they should support the thread story, not create a second stream of recap noise.
+- The in-app runtime status panel shows the active provider, diagnostics mode, active symbol count, session folder, which logs to review, a Monday live-review checklist with recent post-budget counts, a provider-health dashboard for price feed / Discord / historical seeding status, seed attempts/timeouts, per-symbol restart readiness, active-row price/level freshness, latest known trade-story state, and a review-artifacts panel with previews for generated Markdown/JSON reports.
+- Operator-only reliability checks are available with `npm run discord:preflight` and `npm run startup:preflight`; use `npm run discord:preflight -- --post-test` only when you want the bot to send and delete a temporary channel test message.
+- Trader-facing Discord alerts now include:
+  - trader-friendly level wording such as `light support`, `heavy resistance`, and `major support`
+  - a `why now` line so the user sees why the setup matters at this moment instead of only getting the label
+  - a `movement` line so the user sees how far price has already pushed through or back into the zone when the alert fires
+  - a `pressure` line so the user sees whether buyers or sellers still have strong, workable, or tentative control behind the move
+  - a `target` line so the user sees the first directional objective explicitly when the next barrier is known
+  - a `trigger quality` line so the user can tell whether the setup looks `clean`, `workable`, `crowded`, or `late`
+  - a `support reaction quality` line on support-test alerts so the user can tell whether buyers are reacting cleanly, still need confirmation, or are pressing into messy overhead
+  - a `path quality` line so the user can tell whether the move has a cleaner route or is likely to chop through layered nearby barriers
+  - a `support/resistance exhaustion` line so the user can tell when a level still matters structurally but is getting worn out tactically
+  - a `setup state` line so the user can tell whether the idea is still building, confirming, continuing, weakening, or already failed
+  - a `failure risk` line so the user can see whether the setup still looks contained or is already carrying elevated failure risk from tight room, weak control, tired structure, or degraded context
+  - a `trade map` line so the user sees rough room-to-next-barrier versus risk-to-invalidation before acting
+  - a tactical read of `firm` versus `tired` structure when the zone evidence clearly supports that distinction
+  - directional tactical scoring so tired support is penalized for support-hold ideas while tired resistance can help a real breakout case
+  - a softer `Importance` / `Confidence` line plus trigger price
+  - a `watch` / invalidation line
+  - nearby barrier context when the next support or resistance is known, including whether room is `tight`, `limited`, or `open`
+  - nearby pathing context when overhead or downside gets `stacked` or `dense` beyond the first barrier
+- Completed opportunity evaluations now post live thread follow-through updates, so the trader can see whether a setup stayed `strong`, kept `working`, `stalled`, or `failed` after the original alert.
+- Discord posts are trader-view only: operator/testing language belongs in logs, audit files, diagnostics, replay reports, and review artifacts instead of live threads.
+- Completed follow-through updates are now stricter in runner threads: repeated same-level outcomes need a larger directional change, weak label drift is suppressed, and material repeat context stays in metadata instead of trader-facing copy.
+- Follow-through posts now include a `Level to watch closely` section that explains the level that needs to hold or be reclaimed without giving direct buy/sell instructions.
+- AI commentary is observational and non-instructional; borderline phrases such as `longs should...`, `wait for...`, `best entry`, `can buy`, `should trim`, and `should exit` are rejected from live trader-facing AI reads.
+- A critical live-post burst governor now helps calm busy runner threads by letting major changes through while suppressing lower-value repeats during short posting bursts.
+- In-flight evaluations can now also post smarter live follow-through state changes such as `improving`, `stalling`, or `degrading` before the final evaluation window closes, with higher thresholds and cooldowns to avoid low-value chatter.
+- Continuity and recap posting are now tighter too: setup-forming chatter is suppressed more aggressively, confirmation/weakening recaps are preferred over generic narration, and optional live context is pushed harder toward operator artifacts when the thread is not genuinely evolving.
+- Optional live context is now also category-aware and thread-density-aware: recap, continuity, and follow-through-state posts look at recent critical-vs-optional post mix, treat recap more strictly than continuity, and are less willing to add non-directional narration when the symbol thread is already context-heavy.
+- Optional live context now also backs off faster once it starts materially outnumbering trader-critical thread beats, so context-heavy symbols like `BURU` are less likely to keep stacking continuity and recap posts after the main story has already been told.
+- Optional live context is now also event-family-aware: `level_touch` and `compression` threads only get a much narrower continuity / recap / live-state path than breakout-style threads, so support-test symbols like `AUUD` do not narrate themselves as freely as cleaner directional setups.
+- Optional live context is now even more selective by family: `rejection`, `fake_breakout`, and `fake_breakdown` threads also keep a tighter continuity / live-state budget than cleaner breakout / breakdown / reclaim threads.
+- Optional narration now also has a short burst guard across continuity, live-state, recap, and follow-through updates, so one symbol is less likely to stack a same-minute cascade of trader-facing thread posts.
+- Reactive same-event narration is now tighter too: once a `level_touch` or `compression` setup has already used one optional narration beat in the current burst window, the runtime is much less willing to post a second optional restatement for that same event immediately afterward.
+- Reactive same-event narration now also checks in-flight optional posts before the first route resolves, so `level_touch` / `compression` threads are less likely to slip out both a continuity update and a live-state update during the same short race window.
+- Continuity is now tighter around fresh critical beats too: setup-forming narration yields to newly posted alerts and same-label continuity transitions are collapsed before the first post even finishes routing, so symbols like `AIXI` and `AUUD` are less likely to over-explain the same move.
+- Continuity now also yields more aggressively to same-window live follow-through-state posts, so a `stalling` / `improving` state update is less likely to be followed by a weaker setup-forming or weakening restatement that tells the trader almost the same thing.
+- Optional continuity and live-state posts now also use a short runtime-only settle window before routing, so a fresh trader-critical alert can claim the thread story first instead of letting weaker optional narration slip out a moment earlier.
+- Monitoring-event continuity now only posts when the interpretation matches the triggering event side and level closely enough, so a resistance alert is less likely to be followed by accidental support wording when multiple same-symbol opportunities coexist.
+- When a price-update snapshot already carries a completed evaluation for the same symbol and event type, the completed follow-through post now owns that story and the runtime skips weaker progress-driven continuity / live-state narration for that same event.
+- Optional live narration now also backs off briefly after recent Discord delivery failures for that symbol, so a thread is less likely to feed more optional context into a short 429/rate-limit spiral.
+- Discord level snapshots now include a nearest support/resistance map line plus signed distance-from-price context beside each ladder level, and that map line now classifies the room as `bullish`, `bearish`, or `balanced` when possible.
+- Support and resistance ranking is now durability-aware, so levels that are structurally important but getting tired can be described more conservatively than freshly defended levels.
+- Monitoring events and opportunity ranking now carry barrier-clearance context, so cramped upside or downside room can reduce setup quality before the message layer ever formats it.
+- Monitoring events and opportunity ranking now also carry multi-barrier `path quality` plus explicit zone `exhaustion` context, so layered pathing and over-tested zones can reduce setup quality before they reach Discord.
+- Long-run session summaries now track alert-posting families and suppression reasons, so noisy symbols and repetitive low-value alert patterns are easier to spot after a live run.
+- Long-run review now tracks evaluated follow-through and downweights pure diagnostic chatter when a symbol is otherwise acting normally, so a session like `AKAN` is less likely to look noisier than it really was.
+- Long-run review now also tracks evaluated follow-through by alert event type, so `session-summary.json`, `thread-summaries.json`, and `session-review.md` can show which alert families are holding up cleanly versus leaning negative.
+- Long-run review now also classifies the latest evaluated follow-through as `strong`, `working`, `stalled`, or `failed`, so session artifacts can say whether a posted setup actually kept moving the right way instead of only showing raw return percentages.
+- Long-run review now also tracks live continuity posts, live follow-through state updates, and recap posts per symbol, so a thread can be judged as an evolving story instead of just a stack of alerts.
+- In-session recap posts now include a deterministic `What matters next` line, so long-lived symbols can summarize the current state and the next requirement for continuation instead of forcing the trader to infer it from scattered alerts.
+- Long-run review now also flags the most dynamic symbols and calls out when repeated activate/deactivate churn or negative follow-through makes a symbol thread look less trustworthy than its raw alert count.
+- Thread-clutter review now treats truly low-context live threads as low clutter even when the underlying symbol was suppression-heavy internally, so quiet symbols like `AIXI` do not get mislabeled as context-heavy just because the detector kept rejecting setups.
+- Long-run thread review now also distinguishes `activating` and clearly `observational` symbols from genuinely noisy ones, so symbols like `AKAN` and `AIXI` read more honestly in review artifacts when they simply have not produced meaningful live trader output yet.
+- Long-run review now also treats startup-pending no-output threads more neutrally, so symbols that are still seeding or waiting for the first visible snapshot are less likely to be mislabeled as `noisy` just because runtime startup has not finished telling its story yet.
+- Long-run review now also treats `refresh_pending` no-output threads as pending work instead of noise, so symbols that are still waiting on a delayed refresh/seed read more honestly in the review artifacts.
+- Startup-pending threads now also get a neutral quality floor in review scoring, so an `activating` symbol with no visible output and no failures is less likely to contradict itself by showing `activating` in the headline but `noisy` in the verdict.
+- Long-run review now also recognizes controlled reactive watch-mode threads, so snapshot-led `level_touch` / `compression` monitoring is less likely to be mislabeled as clutter when it stayed gated and never turned into live alert spam.
+- Support-test tradeability is now stricter too: repeated testing plus layered or limited overhead push support touches toward `watch_only` or `tactically poor` more aggressively, and that tighter judgment also feeds opportunity ranking instead of living only in the wording layer.
+- Duplicate extension posting is now guarded more tightly too, so overlapping refresh paths are less likely to repost the same next-level payload in a burst.
+- Identical next-level payloads are now also suppressed until the extension payload actually changes, so a symbol like `AMST` should not keep reposting the same resistance ladder every few minutes with no new information.
+- Live Discord wording is treated as trader-view only: severity/confidence stays in metadata and review artifacts, while visible posts use calmer labels like `level map`, `What price is doing now`, `Closest levels to watch`, and `next levels to watch`.
+- Trader-facing alert repost windows are now intentionally longer and stricter too, so same-zone stories need a more meaningful change before Discord gets another alert on the same structural situation.
+- Long-run review now distinguishes delivery-choked threads from structurally poor threads more clearly when Discord failures are the main thing making a symbol look messy.
+- Alert payload metadata and Discord delivery audit rows now also carry explicit first-target context, so long-run review can compare whether alerts with clear nearby objectives are behaving better than vague ones.
+- Alert payload metadata and Discord delivery audit rows now also carry pressure labels and raw pressure score, so long-run review can compare whether strong-control alerts are behaving better than tentative ones.
+- Alert payload metadata and Discord delivery audit rows now also carry trigger-quality labels, so long-run review can compare whether `clean` entries actually outperform `crowded` or `late` ones.
+- Alert payload metadata and Discord delivery audit rows now also carry setup-state labels, so long-run review can compare whether building, confirmation, continuation, weakening, or failed setups are being posted at the right times.
+- Alert payload metadata and Discord delivery audit rows now also carry failure-risk labels, so long-run review can compare whether contained setups behave better than elevated-risk ones.
+- Alert payload metadata and Discord delivery audit rows now also carry barrier-clutter, path-quality, path-constraint, path-window, exhaustion, dip-buy-quality, continuity, recap, AI-origin, and follow-through metadata, so long-run review can compare clean paths versus crowded ones, fresh zones versus worn ones, tighter first-path windows versus cleaner continuation space, human-written recaps versus AI-enhanced recaps, and initial alerts versus what happened afterward.
+- `volume_activity` is wired as a quiet internal/operator category. It tracks reliable IBKR-style cumulative volume against recent 5-minute baselines, keeps live Discord off by default, and records shown/suppressed activity context in trading-day evidence reports.
+- Signal categories now have explicit contracts and routing. Live alerts are filtered by category surface, so operator/internal categories such as `range_compression` stay out of Discord unless explicitly enabled, while audit metadata records the primary category and supporting categories for each post.
+- Saved Discord audit files can be regression-tested locally with `npm run saved-data:test -- --limit 8`; the runner builds the policy, evidence, replay, profile-comparison, and runner-story reports against recent saved sessions, fails on current-format rule violations, and reports old saved wording as historical evidence.
+- Trader-facing wording is now slightly more disciplined too: default `contained` failure-risk lines, default `workable` trigger-quality lines, and fully clean one-barrier path-quality lines are suppressed when they are only restating the same benign idea.
+- Directional alert scoring is now more conservative when a setup is `crowded` or `late`, when pressure is only tentative, or when an inner breakout also carries degraded data quality.
+- Validation candle cache lives under `.validation-cache/` locally and is ignored by git.
+- Runtime compare and surfaced-adapter evaluation docs start in [docs/00_DOC_INDEX.md](docs/00_DOC_INDEX.md).
+- Signal-quality ideas, priorities, and progress are tracked in [docs/30_SIGNAL_QUALITY_ROADMAP.md](docs/30_SIGNAL_QUALITY_ROADMAP.md).
+- The human alert-feedback workflow is documented in [docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md](docs/31_ALERT_REVIEW_LOOP_WORKFLOW.md).
+- The optional AI commentary workflow is documented in [docs/32_AI_COMMENTARY_WORKFLOW.md](docs/32_AI_COMMENTARY_WORKFLOW.md).
+- The tightening-pass review notes are in [docs/33_CODEX_RUNTIME_AND_SIGNAL_REVIEW_2026-04-23.md](docs/33_CODEX_RUNTIME_AND_SIGNAL_REVIEW_2026-04-23.md) and [docs/34_CODEX_EXECUTION_BRIEF_2026-04-23.md](docs/34_CODEX_EXECUTION_BRIEF_2026-04-23.md).
+
 ## Current capabilities
 
 - Historical candle fetching through an injectable provider abstraction
@@ -13,12 +210,47 @@ Candle-based support/resistance, watchlist monitoring, and alert-intelligence to
 
 ## Scripts
 
+- `npm run check`
 - `npm run build`
 - `npm test`
 - `npm run manual:test -- AAPL`
 - `npm run watchlist:test -- AAPL`
 - `npm run alert:test`
 - `npm run watchlist:alerts:test -- AAPL`
+- `npm run watchlist:manual`
+- `npm run longrun:ai:summary -- <session-folder>`
+- `npm run longrun:audit:reports -- <session-folder>`
+- `npm run longrun:simulate:posts -- <session-folder>`
+- `npm run scenario:smallcap`
+- `npm run stress:all-symbols`
+- `npm run saved-data:test -- --limit 8`
+- `npm run structure:replay -- --max-files-per-symbol 2`
+- `npm run structure:discord-align -- --limit all`
+- `npm run volume:replay -- <session-folder-or-discord-audit.jsonl>`
+- `npm run volume:warehouse -- <session-folder-or-discord-audit.jsonl>`
+- `npm run engine:capabilities`
+- `npm run candles:audit -- data/candles`
+- `npm run candles:calibrate -- <session-folder-or-discord-audit.jsonl>`
+- `npm run candles:calibrate -- --all-sessions`
+- `npm run candles:bulk-sim`
+- `npm run candles:import-readiness -- <session-folder-or-discord-audit.jsonl>`
+- `npm run candles:backfill -- <session-folder-or-discord-audit.jsonl> --max-tasks 8`
+- `npm run candles:provider-compare -- --primary ibkr --comparison twelve_data`
+- `npm run candles:regression-pack -- <session-folder-or-discord-audit.jsonl>`
+- `npm run replay:monday -- --skip-slow`
+- `npm run audit:post-reasons -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:known-bad-posts -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:end-recap -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:thread-health -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:usefulness -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:daily-review -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:first-snapshots -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:execution-relations -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:missed-moves -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:session-behavior -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:lifecycle -- <session-folder-or-discord-audit.jsonl>`
+- `npm run audit:visual-replay -- <session-folder-or-discord-audit.jsonl>`
+- `npm run validation:levels:quality -- <SYMBOL> [output-json-path]`
 
 ## Docs
 

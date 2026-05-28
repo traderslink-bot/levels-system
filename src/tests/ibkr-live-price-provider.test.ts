@@ -91,6 +91,47 @@ test("IBKRLivePriceProvider subscribes active symbols and emits normalized price
   assert.equal(ib.disconnectCalls, 0);
 });
 
+test("IBKRLivePriceProvider subscribes multiple active symbols and routes updates for each", async () => {
+  const ib = new FakeLiveIbApi();
+  const provider = createProviderWithFakeIb(ib);
+  const updates: LivePriceUpdate[] = [];
+
+  const entries: WatchlistEntry[] = [
+    {
+      symbol: "aapl",
+      active: true,
+      priority: 1,
+      tags: [],
+    },
+    {
+      symbol: "msft",
+      active: true,
+      priority: 2,
+      tags: [],
+    },
+  ];
+
+  await provider.start(entries, (update) => {
+    updates.push(update);
+  });
+
+  assert.equal(ib.requestedMarketData.length, 2);
+  assert.equal(ib.requestedMarketData[0]?.contract.symbol, "AAPL");
+  assert.equal(ib.requestedMarketData[1]?.contract.symbol, "MSFT");
+
+  ib.emit("tickPrice", 1, 4, 200.5);
+  ib.emit("tickPrice", 2, 4, 300.25);
+
+  assert.equal(updates.length, 2);
+  assert.equal(updates[0]?.symbol, "AAPL");
+  assert.equal(updates[0]?.lastPrice, 200.5);
+  assert.equal(updates[1]?.symbol, "MSFT");
+  assert.equal(updates[1]?.lastPrice, 300.25);
+
+  await provider.stop();
+  assert.deepEqual(ib.cancelledTickerIds, [1, 2]);
+});
+
 test("IBKRLivePriceProvider ignores unknown or unusable tick events", async () => {
   const ib = new FakeLiveIbApi();
   const provider = createProviderWithFakeIb(ib);

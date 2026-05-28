@@ -1,4 +1,4 @@
-import type { BaseCandleProviderResponse, Candle, CandleTimeframe } from "../candle-types.js";
+import type { BaseCandleProviderResponse, Candle, CandleFetchTimeframe } from "../candle-types.js";
 import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "../provider-types.js";
 
 type TwelveDataValuesRow = {
@@ -82,7 +82,7 @@ export class TwelveDataHistoricalCandleProvider implements HistoricalCandleProvi
       fetchEndTimestamp: Date.now(),
       requestedStartTimestamp: plan.requestStartTimestamp,
       requestedEndTimestamp: plan.requestEndTimestamp,
-      sessionMetadataAvailable: request.timeframe === "5m",
+      sessionMetadataAvailable: request.timeframe === "1m" || request.timeframe === "5m",
       providerMetadata: {
         endpoint: "twelve_data_time_series",
         interval: plan.providerRequest.interval ?? this.mapInterval(request.timeframe),
@@ -90,8 +90,10 @@ export class TwelveDataHistoricalCandleProvider implements HistoricalCandleProvi
     };
   }
 
-  private mapInterval(timeframe: CandleTimeframe): string {
+  private mapInterval(timeframe: CandleFetchTimeframe): string {
     switch (timeframe) {
+      case "1m":
+        return "1min";
       case "daily":
         return "1day";
       case "4h":

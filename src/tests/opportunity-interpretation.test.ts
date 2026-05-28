@@ -14,6 +14,7 @@ function makeOpportunity(overrides: Partial<AdaptedOpportunity> = {}): AdaptedOp
     symbol: "ALBT",
     type: "level_touch",
     eventType: "level_touch",
+    zoneKind: "support",
     level: 2.4,
     strength: 0.7,
     confidence: 0.65,
@@ -158,6 +159,37 @@ describe("opportunity interpretation", () => {
     ]);
   });
 
+  it("prefers the carried zone kind over inferred bias when building the message", () => {
+    const interpretation = interpretOpportunity({
+      opportunity: makeOpportunity({
+        eventType: "level_touch",
+        zoneKind: "resistance",
+        bias: "bullish",
+      }),
+      levels: {
+        referenceLevel: 2.4,
+        zoneLabel: "resistance",
+      },
+      structure: {
+        type: null,
+        strength: 0.6,
+      },
+      adaptiveState: {
+        adaptiveMultiplier: 1.02,
+        weakStreak: 0,
+      },
+    });
+
+    assert.equal(interpretation.type, "in_zone");
+    assert.equal(interpretation.message, "price testing resistance near 2.40 - watching reaction");
+    assert.deepEqual(interpretation.tags, [
+      "in_zone",
+      "level_touch",
+      "resistance",
+      "no_structure",
+    ]);
+  });
+
   it("uses the exact confirmation and breakout-context phrases", () => {
     const rejectionConfirmation = interpretOpportunity({
       opportunity: makeOpportunity({
@@ -261,6 +293,7 @@ describe("opportunity interpretation", () => {
       [
         "SYMBOL: BIRD",
         "TYPE: in_zone",
+        "EVENT: level_touch",
         "MESSAGE: price testing support near 2.40 - watching reaction",
         "CONFIDENCE: 0.71",
       ].join("\n"),

@@ -1,4 +1,4 @@
-import type { Candle, CandleSessionLabel, CandleSessionSummary, CandleTimeframe } from "./candle-types.js";
+import type { Candle, CandleFetchTimeframe, CandleSessionLabel, CandleSessionSummary } from "./candle-types.js";
 
 type SessionAnnotatedCandle = {
   candle: Candle;
@@ -68,9 +68,9 @@ function classifyIntradaySession(timestamp: number): {
 
 export function classifyCandleSessions(
   candles: Candle[],
-  timeframe: CandleTimeframe,
+  timeframe: CandleFetchTimeframe,
 ): SessionAnnotatedCandle[] {
-  if (timeframe !== "5m") {
+  if (timeframe !== "1m" && timeframe !== "5m") {
     return candles.map((candle) => ({
       candle,
       session: "unknown",
@@ -90,7 +90,7 @@ export function classifyCandleSessions(
 
 export function buildCandleSessionSummary(
   candles: Candle[],
-  timeframe: CandleTimeframe,
+  timeframe: CandleFetchTimeframe,
 ): CandleSessionSummary | null {
   const annotated = classifyCandleSessions(candles, timeframe);
 
@@ -116,7 +116,7 @@ export function buildCandleSessionSummary(
 
 export function filterCandlesBySession(
   candles: Candle[],
-  timeframe: CandleTimeframe,
+  timeframe: CandleFetchTimeframe,
   session: CandleSessionLabel,
 ): Candle[] {
   return classifyCandleSessions(candles, timeframe)

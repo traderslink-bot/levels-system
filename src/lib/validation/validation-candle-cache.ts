@@ -7,9 +7,9 @@ import {
   StubHistoricalCandleProvider,
 } from "../market-data/candle-fetch-service.js";
 import type {
+  CandleFetchTimeframe,
   CandleProviderName,
   CandleProviderResponse,
-  CandleTimeframe,
 } from "../market-data/candle-types.js";
 
 export type ValidationCandleCacheMode = "off" | "read_write" | "refresh" | "replay";
@@ -24,7 +24,7 @@ type ValidationCandleCacheEntry = {
   cachedAt: number;
   request: {
     symbol: string;
-    timeframe: CandleTimeframe;
+    timeframe: CandleFetchTimeframe;
     lookbackBars: number;
     endTimeMs: number;
     provider: CandleProviderName;
@@ -37,9 +37,22 @@ export type ValidationCachedCandleFetchServiceOptions = {
   mode?: ValidationCandleCacheMode;
 };
 
+export type ValidationCandleCacheRuntimeInfo = {
+  mode: ValidationCandleCacheMode;
+  cacheDirectoryPath: string;
+  exactHits: number;
+  reusableHits: number;
+  misses: number;
+  writes: number;
+};
+
 const CACHE_SCHEMA_VERSION = 1;
 
-function timeframeMs(timeframe: CandleTimeframe): number {
+function timeframeMs(timeframe: CandleFetchTimeframe): number {
+  if (timeframe === "1m") {
+    return 60 * 1000;
+  }
+
   if (timeframe === "daily") {
     return 24 * 60 * 60 * 1000;
   }
@@ -214,6 +227,10 @@ export function resolveValidationCandleCacheMode(
 
 export class ValidationCachedCandleFetchService extends CandleFetchService {
   private readonly mode: ValidationCandleCacheMode;
+  private exactHits = 0;
+  private reusableHits = 0;
+  private misses = 0;
+  private writes = 0;
 
   constructor(
     private readonly delegate: CandleFetchClient,
@@ -230,6 +247,17 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
     return this.delegate.getProviderName();
   }
 
+  getCacheRuntimeInfo(): ValidationCandleCacheRuntimeInfo {
+    return {
+      mode: this.mode,
+      cacheDirectoryPath: this.cacheDirectoryPath,
+      exactHits: this.exactHits,
+      reusableHits: this.reusableHits,
+      misses: this.misses,
+      writes: this.writes,
+    };
+  }
+
   override async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
     if (this.mode === "off") {
       return this.delegate.fetchCandles(request);
@@ -241,6 +269,7 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
     if (this.mode !== "refresh") {
       const cached = await readCacheEntry(cachePath);
       if (cached) {
+        this.exactHits += 1;
         return withRequestMetadata(cached.response, request);
       }
 
@@ -253,17 +282,20 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
       if (nearbyCachePath) {
         const nearbyCached = await readCacheEntry(nearbyCachePath);
         if (nearbyCached) {
+          this.reusableHits += 1;
           return withRequestMetadata(nearbyCached.response, request);
         }
       }
 
       if (this.mode === "replay") {
+        this.misses += 1;
         throw new Error(
           `Validation candle cache miss for ${request.symbol.toUpperCase()} ${request.timeframe} (${request.lookbackBars}) at ${normalizeEndTimeMs(request)}.`,
         );
       }
     }
 
+    this.misses += 1;
     const response = withRequestMetadata(await this.delegate.fetchCandles(request), request);
     const cacheEntry: ValidationCandleCacheEntry = {
       schemaVersion: CACHE_SCHEMA_VERSION,
@@ -278,6 +310,7 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
       response,
     };
     await writeCacheEntry(cachePath, cacheEntry);
+    this.writes += 1;
     return response;
   }
 }

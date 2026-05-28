@@ -27,6 +27,23 @@ test("CandleFetchService returns the requested number of stub candles", async ()
   assert.ok(response.sessionSummary);
 });
 
+test("CandleFetchService supports 1m stub candles with session metadata", async () => {
+  const service = new CandleFetchService(new StubHistoricalCandleProvider());
+
+  const response = await service.fetchCandles({
+    symbol: "AAPL",
+    timeframe: "1m",
+    lookbackBars: 30,
+    endTimeMs: Date.parse("2026-04-15T14:00:00-04:00"),
+  });
+
+  assert.equal(response.symbol, "AAPL");
+  assert.equal(response.timeframe, "1m");
+  assert.equal(response.candles.length, 30);
+  assert.equal(response.provider, "stub");
+  assert.ok(response.sessionSummary);
+});
+
 test("CandleFetchService rejects non-positive lookbackBars", async () => {
   const service = new CandleFetchService(new StubHistoricalCandleProvider());
 
@@ -41,7 +58,7 @@ test("CandleFetchService rejects non-positive lookbackBars", async () => {
   );
 });
 
-test("buildCandleSessionSummary classifies 5m candles into market sessions", () => {
+test("buildCandleSessionSummary classifies intraday candles into market sessions", () => {
   const summary = buildCandleSessionSummary(
     [
       {
@@ -77,7 +94,7 @@ test("buildCandleSessionSummary classifies 5m candles into market sessions", () 
         volume: 200,
       },
     ],
-    "5m",
+    "1m",
   );
 
   assert.deepEqual(summary, {

@@ -11,14 +11,28 @@ import { recordMonitoringEvent } from "./symbol-state.js";
 import type {
   LivePriceUpdate,
   MonitoringEvent,
+  MonitoringEventDiagnosticListener,
   MonitoringZoneContext,
   SymbolMonitoringState,
   WatchlistEntry,
   ZoneInteractionState,
 } from "./monitoring-types.js";
 import { LevelStore } from "./level-store.js";
+import { IntradayPriceStructureTracker } from "./intraday-price-structure.js";
+import { LiveStableMarketStructureTracker } from "./live-stable-market-structure.js";
+import { VolumeActivityTracker } from "./volume-activity.js";
 
 export type MonitoringEventListener = (event: MonitoringEvent) => void;
+
+export type WatchlistMonitorOptions = {
+  diagnosticListener?: MonitoringEventDiagnosticListener;
+  priceAnomalyGuard?: {
+    enabled?: boolean;
+    maxSingleUpdateMovePct?: number;
+    confirmWindowMs?: number;
+    confirmTolerancePct?: number;
+  };
+};
 
 type PendingEvent = {
   event: MonitoringEvent;
@@ -26,14 +40,29 @@ type PendingEvent = {
   updatedState: ZoneInteractionState;
 };
 
+type PendingPriceAnomaly = {
+  lastPrice: number;
+  timestamp: number;
+  previousPrice: number;
+};
+
+const DEFAULT_PRICE_ANOMALY_MAX_MOVE_PCT = 0.35;
+const DEFAULT_PRICE_ANOMALY_CONFIRM_WINDOW_MS = 30_000;
+const DEFAULT_PRICE_ANOMALY_CONFIRM_TOLERANCE_PCT = 0.08;
+
 export class WatchlistMonitor {
   private readonly symbolStates = new Map<string, SymbolMonitoringState>();
   private readonly emittedEventTimestamps = new Map<string, number>();
+  private readonly pendingPriceAnomalies = new Map<string, PendingPriceAnomaly>();
+  private readonly intradayStructureTracker = new IntradayPriceStructureTracker();
+  private readonly stableMarketStructureTracker = new LiveStableMarketStructureTracker();
+  private readonly volumeTracker = new VolumeActivityTracker();
 
   constructor(
     private readonly levelStore: LevelStore,
     private readonly livePriceProvider: LivePriceProvider,
     private readonly config: MonitoringConfig = DEFAULT_MONITORING_CONFIG,
+    private readonly options: WatchlistMonitorOptions = {},
   ) {}
 
   private ensureSymbolState(symbol: string): SymbolMonitoringState {
@@ -44,6 +73,7 @@ export class WatchlistMonitor {
     }
 
     const output = this.levelStore.getLevels(symbol);
+    this.applyVolumeBaseline(symbol, output);
 
     const state: SymbolMonitoringState = {
       symbol,
@@ -77,6 +107,7 @@ export class WatchlistMonitor {
     }
 
     const output = this.levelStore.getLevels(symbol);
+    this.applyVolumeBaseline(symbol, output);
     const supportZones = this.levelStore.getSupportZones(symbol);
     const resistanceZones = this.levelStore.getResistanceZones(symbol);
     const zoneIds = new Set([...supportZones, ...resistanceZones].map((zone) => zone.id));
@@ -167,6 +198,16 @@ export class WatchlistMonitor {
     symbolState.levelStoreVersion = currentVersion;
   }
 
+  private applyVolumeBaseline(
+    symbol: string,
+    output: ReturnType<LevelStore["getLevels"]>,
+  ): void {
+    this.volumeTracker.setBaseline(
+      symbol,
+      output?.metadata.volumeBaselineByTimeframe?.["5m"],
+    );
+  }
+
   private syncTrackedSymbols(entries: WatchlistEntry[]): void {
     const activeSymbols = new Set(
       entries
@@ -177,6 +218,10 @@ export class WatchlistMonitor {
     for (const symbol of this.symbolStates.keys()) {
       if (!activeSymbols.has(symbol)) {
         this.symbolStates.delete(symbol);
+        this.intradayStructureTracker.reset(symbol);
+        this.stableMarketStructureTracker.reset(symbol);
+        this.volumeTracker.reset(symbol);
+        this.pendingPriceAnomalies.delete(symbol);
       }
     }
 
@@ -287,6 +332,7 @@ export class WatchlistMonitor {
         previousPrice: symbolState.previousPrice,
         symbolState,
         config: this.config,
+        diagnosticListener: this.options.diagnosticListener,
       });
 
       for (const event of events) {
@@ -338,6 +384,56 @@ export class WatchlistMonitor {
     }
   }
 
+  private shouldSuppressUnconfirmedPriceAnomaly(
+    symbolState: SymbolMonitoringState,
+    update: LivePriceUpdate,
+  ): boolean {
+    const guard = this.options.priceAnomalyGuard;
+    if (guard?.enabled === false) {
+      return false;
+    }
+
+    const previousPrice = symbolState.lastPrice;
+    if (
+      previousPrice === undefined ||
+      previousPrice <= 0 ||
+      !Number.isFinite(previousPrice) ||
+      !Number.isFinite(update.lastPrice) ||
+      update.lastPrice <= 0
+    ) {
+      return false;
+    }
+
+    const symbol = symbolState.symbol.toUpperCase();
+    const maxMovePct = guard?.maxSingleUpdateMovePct ?? DEFAULT_PRICE_ANOMALY_MAX_MOVE_PCT;
+    const movePct = Math.abs(update.lastPrice - previousPrice) / Math.max(Math.abs(previousPrice), 0.0001);
+
+    if (movePct <= maxMovePct) {
+      this.pendingPriceAnomalies.delete(symbol);
+      return false;
+    }
+
+    const pending = this.pendingPriceAnomalies.get(symbol);
+    const confirmWindowMs = guard?.confirmWindowMs ?? DEFAULT_PRICE_ANOMALY_CONFIRM_WINDOW_MS;
+    const confirmTolerancePct = guard?.confirmTolerancePct ?? DEFAULT_PRICE_ANOMALY_CONFIRM_TOLERANCE_PCT;
+    const confirmsPending =
+      pending !== undefined &&
+      update.timestamp - pending.timestamp <= confirmWindowMs &&
+      Math.abs(update.lastPrice - pending.lastPrice) / Math.max(Math.abs(pending.lastPrice), 0.0001) <= confirmTolerancePct;
+
+    if (confirmsPending) {
+      this.pendingPriceAnomalies.delete(symbol);
+      return false;
+    }
+
+    this.pendingPriceAnomalies.set(symbol, {
+      lastPrice: update.lastPrice,
+      timestamp: update.timestamp,
+      previousPrice,
+    });
+    return true;
+  }
+
   private handleUpdate(
     update: LivePriceUpdate,
     listener: MonitoringEventListener,
@@ -347,9 +443,16 @@ export class WatchlistMonitor {
     const symbolState = this.ensureSymbolState(symbol);
     this.reconcileSymbolState(symbolState);
 
+    if (this.shouldSuppressUnconfirmedPriceAnomaly(symbolState, update)) {
+      return;
+    }
+
     symbolState.previousPrice = symbolState.lastPrice;
     symbolState.lastPrice = update.lastPrice;
     symbolState.lastUpdateAt = update.timestamp;
+    symbolState.intradayStructure = this.intradayStructureTracker.update(update);
+    symbolState.stableMarketStructure = this.stableMarketStructureTracker.update(update);
+    symbolState.volumeActivity = this.volumeTracker.update(update);
 
     const pending = [
       ...this.collectZoneEvents(symbolState, symbolState.supportZones, update),
