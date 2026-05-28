@@ -1,0 +1,828 @@
+{
+  "report": {
+    "symbol": "CHOP",
+    "generatedAt": 1779906600000,
+    "referencePrice": 5.15,
+    "summary": {
+      "totalLevels": 6,
+      "supportCount": 3,
+      "resistanceCount": 3,
+      "extensionCount": 0,
+      "freshCount": 2,
+      "staleCount": 2,
+      "enrichedCount": 0,
+      "unenrichedCount": 6
+    },
+    "strongestLevels": [
+      {
+        "levelId": "CHOP-major-resistance-545",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "majorResistance",
+        "representativePrice": 5.45,
+        "zoneLow": 5.37,
+        "zoneHigh": 5.53,
+        "strengthScore": 70,
+        "strengthLabel": "strong",
+        "auditScore": 0.7,
+        "freshness": "aging",
+        "touchCount": 8,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-major-support-485",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 4.85,
+        "zoneLow": 4.77,
+        "zoneHigh": 4.93,
+        "strengthScore": 69,
+        "strengthLabel": "strong",
+        "auditScore": 0.69,
+        "freshness": "aging",
+        "touchCount": 7,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-resistance-512",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 5.12,
+        "zoneLow": 5.065,
+        "zoneHigh": 5.175,
+        "strengthScore": 51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.51,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-support-505",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.05,
+        "zoneLow": 4.995,
+        "zoneHigh": 5.105,
+        "strengthScore": 49,
+        "strengthLabel": "weak",
+        "auditScore": 0.49,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intraday-resistance-518",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 5.18,
+        "zoneLow": 5.14,
+        "zoneHigh": 5.22,
+        "strengthScore": 46,
+        "strengthLabel": "weak",
+        "auditScore": 0.46,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "weakestLevels": [
+      {
+        "levelId": "CHOP-intraday-support-509",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 5.09,
+        "zoneLow": 5.05,
+        "zoneHigh": 5.13,
+        "strengthScore": 44,
+        "strengthLabel": "weak",
+        "auditScore": 0.44,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intraday-resistance-518",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 5.18,
+        "zoneLow": 5.14,
+        "zoneHigh": 5.22,
+        "strengthScore": 46,
+        "strengthLabel": "weak",
+        "auditScore": 0.46,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-support-505",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.05,
+        "zoneLow": 4.995,
+        "zoneHigh": 5.105,
+        "strengthScore": 49,
+        "strengthLabel": "weak",
+        "auditScore": 0.49,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-resistance-512",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 5.12,
+        "zoneLow": 5.065,
+        "zoneHigh": 5.175,
+        "strengthScore": 51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.51,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-major-support-485",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 4.85,
+        "zoneLow": 4.77,
+        "zoneHigh": 4.93,
+        "strengthScore": 69,
+        "strengthLabel": "strong",
+        "auditScore": 0.69,
+        "freshness": "aging",
+        "touchCount": 7,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "staleLevels": [
+      {
+        "levelId": "CHOP-intermediate-support-505",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.05,
+        "zoneLow": 4.995,
+        "zoneHigh": 5.105,
+        "strengthScore": 49,
+        "strengthLabel": "weak",
+        "auditScore": 0.49,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-resistance-512",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 5.12,
+        "zoneLow": 5.065,
+        "zoneHigh": 5.175,
+        "strengthScore": 51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.51,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "freshLevels": [
+      {
+        "levelId": "CHOP-intraday-resistance-518",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 5.18,
+        "zoneLow": 5.14,
+        "zoneHigh": 5.22,
+        "strengthScore": 46,
+        "strengthLabel": "weak",
+        "auditScore": 0.46,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intraday-support-509",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 5.09,
+        "zoneLow": 5.05,
+        "zoneHigh": 5.13,
+        "strengthScore": 44,
+        "strengthLabel": "weak",
+        "auditScore": 0.44,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "strongConfluenceLevels": [],
+    "weakContextLevels": [
+      {
+        "levelId": "CHOP-intraday-support-509",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 5.09,
+        "zoneLow": 5.05,
+        "zoneHigh": 5.13,
+        "strengthScore": 44,
+        "strengthLabel": "weak",
+        "auditScore": 0.44,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intraday-resistance-518",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 5.18,
+        "zoneLow": 5.14,
+        "zoneHigh": 5.22,
+        "strengthScore": 46,
+        "strengthLabel": "weak",
+        "auditScore": 0.46,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-support-505",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.05,
+        "zoneLow": 4.995,
+        "zoneHigh": 5.105,
+        "strengthScore": 49,
+        "strengthLabel": "weak",
+        "auditScore": 0.49,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-resistance-512",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 5.12,
+        "zoneLow": 5.065,
+        "zoneHigh": 5.175,
+        "strengthScore": 51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.51,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-major-support-485",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 4.85,
+        "zoneLow": 4.77,
+        "zoneHigh": 4.93,
+        "strengthScore": 69,
+        "strengthLabel": "strong",
+        "auditScore": 0.69,
+        "freshness": "aging",
+        "touchCount": 7,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "enrichedLevels": [],
+    "unenrichedLevels": [
+      {
+        "levelId": "CHOP-intraday-support-509",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 5.09,
+        "zoneLow": 5.05,
+        "zoneHigh": 5.13,
+        "strengthScore": 44,
+        "strengthLabel": "weak",
+        "auditScore": 0.44,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intraday-resistance-518",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 5.18,
+        "zoneLow": 5.14,
+        "zoneHigh": 5.22,
+        "strengthScore": 46,
+        "strengthLabel": "weak",
+        "auditScore": 0.46,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-support-505",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.05,
+        "zoneLow": 4.995,
+        "zoneHigh": 5.105,
+        "strengthScore": 49,
+        "strengthLabel": "weak",
+        "auditScore": 0.49,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-resistance-512",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 5.12,
+        "zoneLow": 5.065,
+        "zoneHigh": 5.175,
+        "strengthScore": 51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.51,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-major-support-485",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 4.85,
+        "zoneLow": 4.77,
+        "zoneHigh": 4.93,
+        "strengthScore": 69,
+        "strengthLabel": "strong",
+        "auditScore": 0.69,
+        "freshness": "aging",
+        "touchCount": 7,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "possibleClutterLevels": [
+      {
+        "levelId": "CHOP-intraday-support-509",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 5.09,
+        "zoneLow": 5.05,
+        "zoneHigh": 5.13,
+        "strengthScore": 44,
+        "strengthLabel": "weak",
+        "auditScore": 0.44,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intraday-resistance-518",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 5.18,
+        "zoneLow": 5.14,
+        "zoneHigh": 5.22,
+        "strengthScore": 46,
+        "strengthLabel": "weak",
+        "auditScore": 0.46,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-support-505",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.05,
+        "zoneLow": 4.995,
+        "zoneHigh": 5.105,
+        "strengthScore": 49,
+        "strengthLabel": "weak",
+        "auditScore": 0.49,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "CHOP-intermediate-resistance-512",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 5.12,
+        "zoneLow": 5.065,
+        "zoneHigh": 5.175,
+        "strengthScore": 51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.51,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "clusteredAreas": [
+      {
+        "kind": "support",
+        "zoneLow": 4.995,
+        "zoneHigh": 5.13,
+        "representativePrices": [
+          5.05,
+          5.09
+        ],
+        "levelIds": [
+          "CHOP-intermediate-support-505",
+          "CHOP-intraday-support-509"
+        ],
+        "buckets": [
+          "intermediateSupport",
+          "intradaySupport"
+        ],
+        "maxDistancePct": 0.7859,
+        "reason": "Multiple supplied levels are clustered within the audit threshold."
+      },
+      {
+        "kind": "resistance",
+        "zoneLow": 5.065,
+        "zoneHigh": 5.22,
+        "representativePrices": [
+          5.12,
+          5.18
+        ],
+        "levelIds": [
+          "CHOP-intermediate-resistance-512",
+          "CHOP-intraday-resistance-518"
+        ],
+        "buckets": [
+          "intermediateResistance",
+          "intradayResistance"
+        ],
+        "maxDistancePct": 1.1583,
+        "reason": "Multiple supplied levels are clustered within the audit threshold."
+      }
+    ],
+    "extensionCoverage": {
+      "supportExtensions": 0,
+      "resistanceExtensions": 0,
+      "warnings": [
+        "no_support_extension_coverage",
+        "no_resistance_extension_coverage"
+      ]
+    },
+    "nearbyCoverage": {
+      "referencePrice": 5.15,
+      "nearbySupportCount": 3,
+      "nearbyResistanceCount": 2,
+      "nearestSupport": {
+        "levelId": "CHOP-intraday-support-509",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 5.09,
+        "zoneLow": 5.05,
+        "zoneHigh": 5.13,
+        "strengthScore": 44,
+        "strengthLabel": "weak",
+        "auditScore": 0.44,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      "nearestResistance": {
+        "levelId": "CHOP-intraday-resistance-518",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 5.18,
+        "zoneLow": 5.14,
+        "zoneHigh": 5.22,
+        "strengthScore": 46,
+        "strengthLabel": "weak",
+        "auditScore": 0.46,
+        "freshness": "fresh",
+        "touchCount": 4,
+        "confluenceCount": 0,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      "overheadResistanceGapPct": 0.5825,
+      "downsideSupportGapPct": 1.165,
+      "warnings": []
+    },
+    "confluenceSummary": {
+      "sessionConfluenceCount": 0,
+      "volumeConfluenceCount": 0,
+      "shelfConfluenceCount": 0,
+      "marketContextConfluenceCount": 0
+    },
+    "diagnostics": [
+      "clustered_level_areas_present",
+      "level_intelligence_report_missing",
+      "levels_without_context_present",
+      "no_resistance_extension_coverage",
+      "no_support_extension_coverage",
+      "unenriched_levels_present"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "noRuntimeBehaviorChange": true,
+      "noScoringChange": true
+    }
+  }
+}
