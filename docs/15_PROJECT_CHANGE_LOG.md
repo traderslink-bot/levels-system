@@ -18,6 +18,52 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-05-27 11:36 PM America/Toronto
+
+### Facts-only support/resistance explanation outputs are now documented
+
+- Synced the documentation index and project log after the recently merged support/resistance explanation enrichment work.
+- PR #16 added:
+  - `src/lib/levels/level-context-explainer.ts`
+  - `src/tests/level-context-explainer.test.ts`
+- PR #16 provides a pure facts-only helper for explaining existing `FinalLevelZone` levels with already-supplied:
+  - session facts
+  - volume facts
+  - volume shelves
+  - market context
+  - market context facts bundles
+  - `enrichedAnalysis` shadow metadata
+- PR #17 added:
+  - `src/lib/levels/level-context-report.ts`
+  - `src/tests/level-context-report.test.ts`
+- PR #17 provides a pure optional `LevelEngineOutput` report builder for all existing support/resistance buckets:
+  - major support
+  - major resistance
+  - intermediate support
+  - intermediate resistance
+  - intraday support
+  - intraday resistance
+  - extension support
+  - extension resistance
+- The report delegates to `explainLevelContext(...)` and adds counts plus explicit safety flags.
+- Boundary confirmed:
+  - levels-system owns facts-only support/resistance explanation outputs and shared market/level facts
+  - the trading journal remains separate and owns journal-specific grading, coaching, behavior scoring, P/L, giveback analysis, product workflows, and trader interpretation
+  - VWAP remains facts-only
+  - volume shelves remain facts-only and are not support/resistance levels
+- Runtime safety:
+  - the report is optional and is not wired into runtime paths yet
+  - no LevelEngine behavior changed
+  - `runtimeMode old` remains the default
+  - alerts, monitoring, Discord messages, trader-context behavior, level selection, bucket membership, nearest levels, extension levels, special levels, `strengthScore`, `strengthLabel`, and `enrichedAnalysis` scoring were not changed
+
+### Verification completed
+
+- `npx tsc --noEmit`
+- `npm test`
+
+---
+
 ## 2026-04-18 12:10 AM America/Toronto
 
 ### Trader-facing runtime paths now consume generated interpretations directly

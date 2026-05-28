@@ -32,3 +32,29 @@ This folder contains the full plan for the candle-based levels system, including
 18. `15_PROJECT_CHANGE_LOG.md`
 19. `16_GITHUB_REPO_SETUP.md`
 20. `20_LEVEL_STRENGTH_SCORING_IMPLEMENTATION_PLAN.md`
+
+## Recent architecture and optional analysis layers
+
+21. `30_LEVEL_SYSTEM_RESCUE_PR_READINESS_REPORT.md`
+22. `31_PR1_FULL_DIFF_REVIEW_AND_MERGE_RISK_REPORT.md`
+23. `32_MARKET_CONTEXT_CLASSIFIER_PLAN.md`
+24. `33_MARKET_CONTEXT_CLASSIFIER_INTEGRATION_PLAN.md`
+25. `34_SESSION_AND_VOLUME_INTELLIGENCE_PLAN.md`
+26. `35_TRADING_JOURNAL_EXECUTION_CONTEXT_PLAN.md`
+27. `36_LEVELS_SYSTEM_VS_JOURNAL_ARCHITECTURE_BOUNDARY_AUDIT.md`
+28. `37_EXECUTION_CONTEXT_SHARED_CONTRACT_ADR.md`
+
+## Completed facts-only support/resistance explanation work
+
+- PR #16 added `src/lib/levels/level-context-explainer.ts` and `src/tests/level-context-explainer.test.ts`.
+  - This is a pure helper for explaining existing `FinalLevelZone` levels using already-supplied session facts, volume facts, volume shelves, market context, facts bundles, and `enrichedAnalysis` metadata.
+  - It is optional and does not change LevelEngine runtime behavior, level selection, scoring, alerts, monitoring, Discord output, trader-context behavior, or default output.
+- PR #17 added `src/lib/levels/level-context-report.ts` and `src/tests/level-context-report.test.ts`.
+  - This is a pure optional report builder for every existing `LevelEngineOutput` support/resistance bucket: major, intermediate, intraday, and extension support/resistance.
+  - It delegates each existing level to `explainLevelContext(...)`, then adds report counts and explicit safety flags.
+  - It is not wired into runtime paths yet.
+- Boundary note:
+  - levels-system owns facts-only support/resistance explanation outputs and shared market/level facts.
+  - the trading journal remains separate and owns journal-specific grading, coaching, behavior scoring, P/L, giveback analysis, product workflows, and trader interpretation.
+  - VWAP remains facts-only.
+  - volume shelves remain facts-only and are not support/resistance levels.
