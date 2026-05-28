@@ -1,0 +1,883 @@
+{
+  "report": {
+    "symbol": "HIPO",
+    "generatedAt": 1779906600000,
+    "referencePrice": 186.5,
+    "summary": {
+      "totalLevels": 8,
+      "supportCount": 4,
+      "resistanceCount": 4,
+      "extensionCount": 2,
+      "freshCount": 4,
+      "staleCount": 0,
+      "enrichedCount": 0,
+      "unenrichedCount": 8
+    },
+    "strongestLevels": [
+      {
+        "levelId": "HIPO-major-support-172",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 172,
+        "zoneLow": 170.2,
+        "zoneHigh": 173.8,
+        "strengthScore": 87,
+        "strengthLabel": "major",
+        "auditScore": 0.87,
+        "freshness": "aging",
+        "touchCount": 4,
+        "confluenceCount": 3,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-major-resistance-205",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "majorResistance",
+        "representativePrice": 205,
+        "zoneLow": 202.8,
+        "zoneHigh": 207.2,
+        "strengthScore": 85,
+        "strengthLabel": "major",
+        "auditScore": 0.85,
+        "freshness": "aging",
+        "touchCount": 4,
+        "confluenceCount": 3,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intermediate-support-184",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 184,
+        "zoneLow": 182.9,
+        "zoneHigh": 185.1,
+        "strengthScore": 73,
+        "strengthLabel": "strong",
+        "auditScore": 0.73,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intermediate-resistance-192",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 192,
+        "zoneLow": 190.8,
+        "zoneHigh": 193.2,
+        "strengthScore": 72,
+        "strengthLabel": "strong",
+        "auditScore": 0.72,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-extension-resistance-226",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 226,
+        "zoneLow": 223.6,
+        "zoneHigh": 228.4,
+        "strengthScore": 70,
+        "strengthLabel": "strong",
+        "auditScore": 0.7,
+        "freshness": "aging",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "weakestLevels": [
+      {
+        "levelId": "HIPO-intraday-support-186",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 186,
+        "zoneLow": 185.3,
+        "zoneHigh": 186.7,
+        "strengthScore": 59,
+        "strengthLabel": "moderate",
+        "auditScore": 0.59,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intraday-resistance-188",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 188,
+        "zoneLow": 187.3,
+        "zoneHigh": 188.7,
+        "strengthScore": 60,
+        "strengthLabel": "moderate",
+        "auditScore": 0.6,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-extension-support-158",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 158,
+        "zoneLow": 156,
+        "zoneHigh": 160,
+        "strengthScore": 68,
+        "strengthLabel": "strong",
+        "auditScore": 0.68,
+        "freshness": "aging",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-extension-resistance-226",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 226,
+        "zoneLow": 223.6,
+        "zoneHigh": 228.4,
+        "strengthScore": 70,
+        "strengthLabel": "strong",
+        "auditScore": 0.7,
+        "freshness": "aging",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intermediate-resistance-192",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 192,
+        "zoneLow": 190.8,
+        "zoneHigh": 193.2,
+        "strengthScore": 72,
+        "strengthLabel": "strong",
+        "auditScore": 0.72,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "staleLevels": [],
+    "freshLevels": [
+      {
+        "levelId": "HIPO-intermediate-support-184",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 184,
+        "zoneLow": 182.9,
+        "zoneHigh": 185.1,
+        "strengthScore": 73,
+        "strengthLabel": "strong",
+        "auditScore": 0.73,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intermediate-resistance-192",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 192,
+        "zoneLow": 190.8,
+        "zoneHigh": 193.2,
+        "strengthScore": 72,
+        "strengthLabel": "strong",
+        "auditScore": 0.72,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intraday-resistance-188",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 188,
+        "zoneLow": 187.3,
+        "zoneHigh": 188.7,
+        "strengthScore": 60,
+        "strengthLabel": "moderate",
+        "auditScore": 0.6,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intraday-support-186",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 186,
+        "zoneLow": 185.3,
+        "zoneHigh": 186.7,
+        "strengthScore": 59,
+        "strengthLabel": "moderate",
+        "auditScore": 0.59,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "strongConfluenceLevels": [
+      {
+        "levelId": "HIPO-major-support-172",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 172,
+        "zoneLow": 170.2,
+        "zoneHigh": 173.8,
+        "strengthScore": 87,
+        "strengthLabel": "major",
+        "auditScore": 0.87,
+        "freshness": "aging",
+        "touchCount": 4,
+        "confluenceCount": 3,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-major-resistance-205",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "majorResistance",
+        "representativePrice": 205,
+        "zoneLow": 202.8,
+        "zoneHigh": 207.2,
+        "strengthScore": 85,
+        "strengthLabel": "major",
+        "auditScore": 0.85,
+        "freshness": "aging",
+        "touchCount": 4,
+        "confluenceCount": 3,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intermediate-support-184",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 184,
+        "zoneLow": 182.9,
+        "zoneHigh": 185.1,
+        "strengthScore": 73,
+        "strengthLabel": "strong",
+        "auditScore": 0.73,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intermediate-resistance-192",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 192,
+        "zoneLow": 190.8,
+        "zoneHigh": 193.2,
+        "strengthScore": 72,
+        "strengthLabel": "strong",
+        "auditScore": 0.72,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-extension-resistance-226",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 226,
+        "zoneLow": 223.6,
+        "zoneHigh": 228.4,
+        "strengthScore": 70,
+        "strengthLabel": "strong",
+        "auditScore": 0.7,
+        "freshness": "aging",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "weakContextLevels": [
+      {
+        "levelId": "HIPO-intraday-support-186",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 186,
+        "zoneLow": 185.3,
+        "zoneHigh": 186.7,
+        "strengthScore": 59,
+        "strengthLabel": "moderate",
+        "auditScore": 0.59,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intraday-resistance-188",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 188,
+        "zoneLow": 187.3,
+        "zoneHigh": 188.7,
+        "strengthScore": 60,
+        "strengthLabel": "moderate",
+        "auditScore": 0.6,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-extension-support-158",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 158,
+        "zoneLow": 156,
+        "zoneHigh": 160,
+        "strengthScore": 68,
+        "strengthLabel": "strong",
+        "auditScore": 0.68,
+        "freshness": "aging",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-extension-resistance-226",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 226,
+        "zoneLow": 223.6,
+        "zoneHigh": 228.4,
+        "strengthScore": 70,
+        "strengthLabel": "strong",
+        "auditScore": 0.7,
+        "freshness": "aging",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intermediate-resistance-192",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 192,
+        "zoneLow": 190.8,
+        "zoneHigh": 193.2,
+        "strengthScore": 72,
+        "strengthLabel": "strong",
+        "auditScore": 0.72,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "enrichedLevels": [],
+    "unenrichedLevels": [
+      {
+        "levelId": "HIPO-intraday-support-186",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 186,
+        "zoneLow": 185.3,
+        "zoneHigh": 186.7,
+        "strengthScore": 59,
+        "strengthLabel": "moderate",
+        "auditScore": 0.59,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intraday-resistance-188",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 188,
+        "zoneLow": 187.3,
+        "zoneHigh": 188.7,
+        "strengthScore": 60,
+        "strengthLabel": "moderate",
+        "auditScore": 0.6,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-extension-support-158",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 158,
+        "zoneLow": 156,
+        "zoneHigh": 160,
+        "strengthScore": 68,
+        "strengthLabel": "strong",
+        "auditScore": 0.68,
+        "freshness": "aging",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-extension-resistance-226",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 226,
+        "zoneLow": 223.6,
+        "zoneHigh": 228.4,
+        "strengthScore": 70,
+        "strengthLabel": "strong",
+        "auditScore": 0.7,
+        "freshness": "aging",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intermediate-resistance-192",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 192,
+        "zoneLow": 190.8,
+        "zoneHigh": 193.2,
+        "strengthScore": 72,
+        "strengthLabel": "strong",
+        "auditScore": 0.72,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "possibleClutterLevels": [
+      {
+        "levelId": "HIPO-intraday-support-186",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 186,
+        "zoneLow": 185.3,
+        "zoneHigh": 186.7,
+        "strengthScore": 59,
+        "strengthLabel": "moderate",
+        "auditScore": 0.59,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      {
+        "levelId": "HIPO-intermediate-support-184",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 184,
+        "zoneLow": 182.9,
+        "zoneHigh": 185.1,
+        "strengthScore": 73,
+        "strengthLabel": "strong",
+        "auditScore": 0.73,
+        "freshness": "fresh",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "clusteredAreas": [
+      {
+        "kind": "support",
+        "zoneLow": 182.9,
+        "zoneHigh": 186.7,
+        "representativePrices": [
+          184,
+          186
+        ],
+        "levelIds": [
+          "HIPO-intermediate-support-184",
+          "HIPO-intraday-support-186"
+        ],
+        "buckets": [
+          "intermediateSupport",
+          "intradaySupport"
+        ],
+        "maxDistancePct": 1.0753,
+        "reason": "Multiple supplied levels are clustered within the audit threshold."
+      }
+    ],
+    "extensionCoverage": {
+      "supportExtensions": 1,
+      "resistanceExtensions": 1,
+      "highestResistanceExtension": 226,
+      "lowestSupportExtension": 158,
+      "upsideCoveragePct": 21.1796,
+      "downsideCoveragePct": 15.2815,
+      "warnings": [
+        "limited_downside_extension_coverage"
+      ]
+    },
+    "nearbyCoverage": {
+      "referencePrice": 186.5,
+      "nearbySupportCount": 3,
+      "nearbyResistanceCount": 2,
+      "nearestSupport": {
+        "levelId": "HIPO-intraday-support-186",
+        "symbol": "HIPO",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 186,
+        "zoneLow": 185.3,
+        "zoneHigh": 186.7,
+        "strengthScore": 59,
+        "strengthLabel": "moderate",
+        "auditScore": 0.59,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      "nearestResistance": {
+        "levelId": "HIPO-intraday-resistance-188",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 188,
+        "zoneLow": 187.3,
+        "zoneHigh": 188.7,
+        "strengthScore": 60,
+        "strengthLabel": "moderate",
+        "auditScore": 0.6,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 0,
+          "shelf": 0,
+          "marketContext": 0
+        },
+        "diagnostics": []
+      },
+      "overheadResistanceGapPct": 0.8043,
+      "downsideSupportGapPct": 0.2681,
+      "warnings": []
+    },
+    "confluenceSummary": {
+      "sessionConfluenceCount": 0,
+      "volumeConfluenceCount": 0,
+      "shelfConfluenceCount": 0,
+      "marketContextConfluenceCount": 0
+    },
+    "diagnostics": [
+      "clustered_level_areas_present",
+      "level_intelligence_report_missing",
+      "levels_without_context_present",
+      "limited_downside_extension_coverage",
+      "unenriched_levels_present"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "noRuntimeBehaviorChange": true,
+      "noScoringChange": true
+    }
+  }
+}

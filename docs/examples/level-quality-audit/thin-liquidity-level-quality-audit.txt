@@ -1,0 +1,68 @@
+THIN level quality audit
+Generated at: 1779906600000
+Reference price: 1.74
+
+## Summary
+- Total levels: 6
+- Support / resistance: 3 / 3
+- Extensions: 1
+- Fresh / stale: 3 / 1
+- Enriched / unenriched: 0 / 6
+
+## Strongest Levels
+- majorResistance resistance 2.1; zone 2.02-2.18; audit 0.61; strength 61/moderate; freshness aging; touches 2; confluence 1; context session 0 volume 0 shelf 0 market 0; enriched no
+- majorSupport support 1.5; zone 1.44-1.56; audit 0.58; strength 58/moderate; freshness stale; touches 2; confluence 1; context session 0 volume 0 shelf 0 market 0; enriched no
+- extensionSupport support 1.3; zone 1.25-1.35; audit 0.52; strength 52/moderate; freshness aging; touches 2; confluence 1; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateResistance resistance 1.82; zone 1.78-1.86; audit 0.5; strength 50/moderate; freshness fresh; touches 1; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateSupport support 1.7; zone 1.66-1.74; audit 0.48; strength 48/weak; freshness fresh; touches 1; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+
+## Weakest Levels
+- intradayResistance resistance 1.76; zone 1.735-1.785; audit 0.43; strength 43/weak; freshness fresh; touches 1; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateSupport support 1.7; zone 1.66-1.74; audit 0.48; strength 48/weak; freshness fresh; touches 1; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateResistance resistance 1.82; zone 1.78-1.86; audit 0.5; strength 50/moderate; freshness fresh; touches 1; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- extensionSupport support 1.3; zone 1.25-1.35; audit 0.52; strength 52/moderate; freshness aging; touches 2; confluence 1; context session 0 volume 0 shelf 0 market 0; enriched no
+- majorSupport support 1.5; zone 1.44-1.56; audit 0.58; strength 58/moderate; freshness stale; touches 2; confluence 1; context session 0 volume 0 shelf 0 market 0; enriched no
+
+## Stale Levels
+- majorSupport support 1.5; zone 1.44-1.56; audit 0.58; strength 58/moderate; freshness stale; touches 2; confluence 1; context session 0 volume 0 shelf 0 market 0; enriched no
+
+## Clustered Areas
+- none
+
+## Possible Clutter Levels
+- none
+
+## Extension Coverage
+- Support extensions: 1
+- Resistance extensions: 0
+- Lowest support extension: 1.3
+- Highest resistance extension: n/a
+- Downside coverage: 25.2874%
+- Upside coverage: n/a
+- Warnings: no_resistance_extension_coverage
+
+## Nearby Coverage
+- Nearby support count: 1
+- Nearby resistance count: 2
+- Nearest support: intermediateSupport support 1.7; zone 1.66-1.74; audit 0.48; strength 48/weak; freshness fresh; touches 1; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- Nearest resistance: intradayResistance resistance 1.76; zone 1.735-1.785; audit 0.43; strength 43/weak; freshness fresh; touches 1; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- Downside support gap: 2.2989%
+- Overhead resistance gap: 1.1494%
+- Warnings: none
+
+## Confluence Summary
+- Session: 0
+- Volume: 0
+- Shelf: 0
+- Market context: 0
+
+## Diagnostics
+- level_intelligence_report_missing
+- levels_without_context_present
+- no_resistance_extension_coverage
+- unenriched_levels_present
+
+## Safety
+- Level output unchanged: true
+- Runtime behavior unchanged: true
+- Scoring unchanged: true

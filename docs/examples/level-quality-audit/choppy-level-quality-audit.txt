@@ -1,0 +1,75 @@
+CHOP level quality audit
+Generated at: 1779906600000
+Reference price: 5.15
+
+## Summary
+- Total levels: 6
+- Support / resistance: 3 / 3
+- Extensions: 0
+- Fresh / stale: 2 / 2
+- Enriched / unenriched: 0 / 6
+
+## Strongest Levels
+- majorResistance resistance 5.45; zone 5.37-5.53; audit 0.7; strength 70/strong; freshness aging; touches 8; confluence 1; context session 0 volume 0 shelf 0 market 0; enriched no
+- majorSupport support 4.85; zone 4.77-4.93; audit 0.69; strength 69/strong; freshness aging; touches 7; confluence 1; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateResistance resistance 5.12; zone 5.065-5.175; audit 0.51; strength 51/moderate; freshness stale; touches 5; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateSupport support 5.05; zone 4.995-5.105; audit 0.49; strength 49/weak; freshness stale; touches 5; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intradayResistance resistance 5.18; zone 5.14-5.22; audit 0.46; strength 46/weak; freshness fresh; touches 4; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+
+## Weakest Levels
+- intradaySupport support 5.09; zone 5.05-5.13; audit 0.44; strength 44/weak; freshness fresh; touches 4; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intradayResistance resistance 5.18; zone 5.14-5.22; audit 0.46; strength 46/weak; freshness fresh; touches 4; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateSupport support 5.05; zone 4.995-5.105; audit 0.49; strength 49/weak; freshness stale; touches 5; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateResistance resistance 5.12; zone 5.065-5.175; audit 0.51; strength 51/moderate; freshness stale; touches 5; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- majorSupport support 4.85; zone 4.77-4.93; audit 0.69; strength 69/strong; freshness aging; touches 7; confluence 1; context session 0 volume 0 shelf 0 market 0; enriched no
+
+## Stale Levels
+- intermediateSupport support 5.05; zone 4.995-5.105; audit 0.49; strength 49/weak; freshness stale; touches 5; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateResistance resistance 5.12; zone 5.065-5.175; audit 0.51; strength 51/moderate; freshness stale; touches 5; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+
+## Clustered Areas
+- support area 4.995-5.13; prices 5.05, 5.09; buckets intermediateSupport, intradaySupport; max distance 0.7859%
+- resistance area 5.065-5.22; prices 5.12, 5.18; buckets intermediateResistance, intradayResistance; max distance 1.1583%
+
+## Possible Clutter Levels
+- intradaySupport support 5.09; zone 5.05-5.13; audit 0.44; strength 44/weak; freshness fresh; touches 4; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intradayResistance resistance 5.18; zone 5.14-5.22; audit 0.46; strength 46/weak; freshness fresh; touches 4; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateSupport support 5.05; zone 4.995-5.105; audit 0.49; strength 49/weak; freshness stale; touches 5; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- intermediateResistance resistance 5.12; zone 5.065-5.175; audit 0.51; strength 51/moderate; freshness stale; touches 5; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+
+## Extension Coverage
+- Support extensions: 0
+- Resistance extensions: 0
+- Lowest support extension: n/a
+- Highest resistance extension: n/a
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Warnings: no_support_extension_coverage, no_resistance_extension_coverage
+
+## Nearby Coverage
+- Nearby support count: 3
+- Nearby resistance count: 2
+- Nearest support: intradaySupport support 5.09; zone 5.05-5.13; audit 0.44; strength 44/weak; freshness fresh; touches 4; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- Nearest resistance: intradayResistance resistance 5.18; zone 5.14-5.22; audit 0.46; strength 46/weak; freshness fresh; touches 4; confluence 0; context session 0 volume 0 shelf 0 market 0; enriched no
+- Downside support gap: 1.165%
+- Overhead resistance gap: 0.5825%
+- Warnings: none
+
+## Confluence Summary
+- Session: 0
+- Volume: 0
+- Shelf: 0
+- Market context: 0
+
+## Diagnostics
+- clustered_level_areas_present
+- level_intelligence_report_missing
+- levels_without_context_present
+- no_resistance_extension_coverage
+- no_support_extension_coverage
+- unenriched_levels_present
+
+## Safety
+- Level output unchanged: true
+- Runtime behavior unchanged: true
+- Scoring unchanged: true
