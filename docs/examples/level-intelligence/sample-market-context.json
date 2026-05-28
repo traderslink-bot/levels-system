@@ -1,0 +1,44 @@
+{
+  "primaryContext": "day_trade_runner",
+  "confidence": 0.78,
+  "runnerPhase": "high_of_day_breakout",
+  "evidence": [
+    {
+      "code": "elevated_relative_volume",
+      "context": "day_trade_runner",
+      "message": "Relative volume is elevated in the supplied facts.",
+      "weight": 0.32
+    },
+    {
+      "code": "near_high_of_day",
+      "context": "day_trade_runner",
+      "message": "Reference price is close to the supplied high-of-day area.",
+      "weight": 0.26
+    }
+  ],
+  "warnings": [],
+  "facts": {
+    "percentFromPreviousClose": 12.1311,
+    "percentFromOpen": 4.2683,
+    "percentFromVWAP": 0.5882,
+    "relativeVolume": 3.2051,
+    "dollarVolume": 4275000,
+    "aboveVWAP": true,
+    "abovePremarketHigh": false,
+    "aboveOpeningRangeHigh": false,
+    "nearHighOfDay": false,
+    "premarketHigh": 3.75,
+    "openingRangeHigh": 3.6,
+    "highOfDay": 3.75,
+    "filteredCandleCount": 12,
+    "filteredPremarketCandleCount": 4,
+    "filteredRegularSessionCandleCount": 8
+  },
+  "scoringAdjustments": {
+    "intradayWeightMultiplier": 1,
+    "dailyWeightMultiplier": 1,
+    "sessionLevelWeightMultiplier": 1,
+    "volumeWeightMultiplier": 1,
+    "extensionRiskPenaltyMultiplier": 1
+  }
+}

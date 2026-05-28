@@ -1,0 +1,47 @@
+[
+  {
+    "id": "SAMP-shelf-335-343",
+    "zoneLow": 3.35,
+    "zoneHigh": 3.43,
+    "representativePrice": 3.39,
+    "totalVolume": 1850000,
+    "dollarVolume": 6271500,
+    "percentOfWindowVolume": 28.4,
+    "touchCount": 7,
+    "firstTimestamp": 1777379100000,
+    "lastTimestamp": 1777384800000,
+    "shelfRole": "chop_zone",
+    "confidence": 0.76,
+    "reason": "High activity clustered around the current intraday support area."
+  },
+  {
+    "id": "SAMP-shelf-356-365",
+    "zoneLow": 3.56,
+    "zoneHigh": 3.65,
+    "representativePrice": 3.6,
+    "totalVolume": 1420000,
+    "dollarVolume": 5112000,
+    "percentOfWindowVolume": 21.8,
+    "touchCount": 4,
+    "firstTimestamp": 1777380900000,
+    "lastTimestamp": 1777383900000,
+    "shelfRole": "resistance",
+    "confidence": 0.71,
+    "reason": "High activity clustered around the opening range high area."
+  },
+  {
+    "id": "SAMP-shelf-368-382",
+    "zoneLow": 3.68,
+    "zoneHigh": 3.82,
+    "representativePrice": 3.75,
+    "totalVolume": 2100000,
+    "dollarVolume": 7875000,
+    "percentOfWindowVolume": 32.2,
+    "touchCount": 5,
+    "firstTimestamp": 1777371300000,
+    "lastTimestamp": 1777383000000,
+    "shelfRole": "resistance",
+    "confidence": 0.82,
+    "reason": "High activity clustered around the premarket high and high-of-day area."
+  }
+]

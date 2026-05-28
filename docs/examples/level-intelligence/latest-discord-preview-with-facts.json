@@ -1,0 +1,284 @@
+{
+  "levelOutputPath": "docs/examples/level-intelligence/sample-level-engine-output.json",
+  "outPath": "docs/examples/level-intelligence/latest-discord-preview-with-facts.json",
+  "format": "json",
+  "mode": "dry-run",
+  "reportSymbol": "SAMP",
+  "preview": {
+    "symbol": "SAMP",
+    "summary": "SAMP facts-only level intelligence: 8 profiled level(s).",
+    "sections": [
+      {
+        "title": "Summary",
+        "lines": [
+          "Symbol: SAMP",
+          "Generated at: 1777386600000",
+          "Profiled levels: 8",
+          "Counts: major support 1, major resistance 1, intermediate support 1, intermediate resistance 1, intraday support 1, intraday resistance 1, extension support 1, extension resistance 1"
+        ],
+        "text": "**Summary**\n- Symbol: SAMP\n- Generated at: 1777386600000\n- Profiled levels: 8\n- Counts: major support 1, major resistance 1, intermediate support 1, intermediate resistance 1, intraday support 1, intraday resistance 1, extension support 1, extension resistance 1",
+        "truncated": false
+      },
+      {
+        "title": "Major Support",
+        "lines": [
+          "support zone 3.2 (SAMP-major-support-320)",
+          "Zone: 3.15-3.24 (2.8125% wide)",
+          "Origin: daily; sources daily, 4h; types swing_low; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 5; quality 0.82; rejection 0.32; displacement 0.74; follow-through 0.76",
+          "Distance: 6.4327% from reference 3.42 (approaching)",
+          "Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building",
+          "Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none",
+          "Round number fact: 3.2 (ten_cent, 0% away)",
+          "Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78",
+          "Session facts: Level is near low of day 3.2 (0% away). | Level is near premarket low 3.2 (0% away).",
+          "Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]",
+          "Context tags: near_low_of_day | near_premarket_low | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_vo ... [truncated]",
+          "Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: support zone 3.2 is sourced from daily, 4h evidence; freshness is fresh; 6.4327% from reference price; volume state is high.",
+          "Section shortened for Discord preview."
+        ],
+        "text": "**Major Support**\n- support zone 3.2 (SAMP-major-support-320)\n- Zone: 3.15-3.24 (2.8125% wide)\n- Origin: daily; sources daily, 4h; types swing_low; extension false\n- Freshness: fresh\n- Reaction: touches 5; quality 0.82; rejection 0.32; displacement 0.74; follow-through 0.76\n- Distance: 6.4327% from reference 3.42 (approaching)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none\n- Round number fact: 3.2 (ten_cent, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near low of day 3.2 (0% away). | Level is near premarket low 3.2 (0% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Context tags: near_low_of_day | near_premarket_low | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_vo ... [truncated]\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 3.2 is sourced from daily, 4h evidence; freshness is fresh; 6.4327% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "title": "Major Resistance",
+        "lines": [
+          "resistance zone 3.75 (SAMP-major-resistance-375)",
+          "Zone: 3.68-3.82 (3.7333% wide)",
+          "Origin: daily; sources daily, 4h, 5m; types swing_high, premarket_high; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 4; quality 0.84; rejection 0.78; displacement 0.69; follow-through 0.68",
+          "Distance: 9.6491% from reference 3.42 (extended)",
+          "Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building",
+          "Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-368-382",
+          "Round number fact: 3.75 (quarter, 0% away)",
+          "Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78",
+          "Session facts: Level is near high of day 3.75 (0% away). | Level is near premarket high 3.75 (0% away).",
+          "Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]",
+          "Shelf facts: Level overlaps volume shelf SAMP-shelf-368-382 (3.68-3.82, 32.2% of window volume, role resistance).",
+          "Context tags: near_high_of_day | near_premarket_high | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_ ... [truncated]",
+          "Diagnostics: enriched_analysis_missing",
+          "Reason: resistance zone 3.75 is sourced from daily, 4h, 5m evidence; freshness is fresh; 9.6491% from reference price; volume state is high.",
+          "Section shortened for Discord preview."
+        ],
+        "text": "**Major Resistance**\n- resistance zone 3.75 (SAMP-major-resistance-375)\n- Zone: 3.68-3.82 (3.7333% wide)\n- Origin: daily; sources daily, 4h, 5m; types swing_high, premarket_high; extension false\n- Freshness: fresh\n- Reaction: touches 4; quality 0.84; rejection 0.78; displacement 0.69; follow-through 0.68\n- Distance: 9.6491% from reference 3.42 (extended)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-368-382\n- Round number fact: 3.75 (quarter, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near high of day 3.75 (0% away). | Level is near premarket high 3.75 (0% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-368-382 (3.68-3.82, 32.2% of window volume, role resistance).\n- Context tags: near_high_of_day | near_premarket_high | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_ ... [truncated]\n- Diagnostics: enriched_analysis_missing\n- Reason: resistance zone 3.75 is sourced from daily, 4h, 5m evidence; freshness is fresh; 9.6491% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "title": "Intermediate Support",
+        "lines": [
+          "support zone 3.35 (SAMP-intermediate-support-335)",
+          "Zone: 3.31-3.38 (2.0896% wide)",
+          "Origin: 4h; sources 4h, 5m; types swing_low, opening_range_low; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 3; quality 0.68; rejection 0.28; displacement 0.52; follow-through 0.58",
+          "Distance: 2.0468% from reference 3.42 (approaching)",
+          "Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building",
+          "Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-335-343",
+          "Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78",
+          "Session facts: Level is near opening range low 3.35 (0% away).",
+          "Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]",
+          "Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).",
+          "Context tags: near_opening_range_low | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed ... [truncated]",
+          "Diagnostics: enriched_analysis_missing",
+          "Reason: support zone 3.35 is sourced from 4h, 5m evidence; freshness is fresh; 2.0468% from reference price; volume state is high.",
+          "Section shortened for Discord preview."
+        ],
+        "text": "**Intermediate Support**\n- support zone 3.35 (SAMP-intermediate-support-335)\n- Zone: 3.31-3.38 (2.0896% wide)\n- Origin: 4h; sources 4h, 5m; types swing_low, opening_range_low; extension false\n- Freshness: fresh\n- Reaction: touches 3; quality 0.68; rejection 0.28; displacement 0.52; follow-through 0.58\n- Distance: 2.0468% from reference 3.42 (approaching)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-335-343\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near opening range low 3.35 (0% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).\n- Context tags: near_opening_range_low | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed ... [truncated]\n- Diagnostics: enriched_analysis_missing\n- Reason: support zone 3.35 is sourced from 4h, 5m evidence; freshness is fresh; 2.0468% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "title": "Intermediate Resistance",
+        "lines": [
+          "resistance zone 3.6 (SAMP-intermediate-resistance-360)",
+          "Zone: 3.56-3.65 (2.5% wide)",
+          "Origin: 4h; sources 4h, 5m; types swing_high, opening_range_high; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 3; quality 0.72; rejection 0.66; displacement 0.54; follow-through 0.55",
+          "Distance: 5.2632% from reference 3.42 (approaching)",
+          "Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building",
+          "Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-356-365",
+          "Round number fact: 3.6 (ten_cent, 0% away)",
+          "Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78",
+          "Session facts: Level is near opening range high 3.6 (0% away).",
+          "Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]",
+          "Shelf facts: Level overlaps volume shelf SAMP-shelf-356-365 (3.56-3.65, 21.8% of window volume, role resistance).",
+          "Context tags: near_opening_range_high | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirme ... [truncated]",
+          "Diagnostics: enriched_analysis_missing",
+          "Reason: resistance zone 3.6 is sourced from 4h, 5m evidence; freshness is fresh; 5.2632% from reference price; volume state is high.",
+          "Section shortened for Discord preview."
+        ],
+        "text": "**Intermediate Resistance**\n- resistance zone 3.6 (SAMP-intermediate-resistance-360)\n- Zone: 3.56-3.65 (2.5% wide)\n- Origin: 4h; sources 4h, 5m; types swing_high, opening_range_high; extension false\n- Freshness: fresh\n- Reaction: touches 3; quality 0.72; rejection 0.66; displacement 0.54; follow-through 0.55\n- Distance: 5.2632% from reference 3.42 (approaching)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-356-365\n- Round number fact: 3.6 (ten_cent, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near opening range high 3.6 (0% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-356-365 (3.56-3.65, 21.8% of window volume, role resistance).\n- Context tags: near_opening_range_high | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirme ... [truncated]\n- Diagnostics: enriched_analysis_missing\n- Reason: resistance zone 3.6 is sourced from 4h, 5m evidence; freshness is fresh; 5.2632% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "title": "Intraday Support",
+        "lines": [
+          "support zone 3.4 (SAMP-intraday-support-340)",
+          "Zone: 3.38-3.43 (1.4706% wide)",
+          "Origin: 5m; sources 5m; types swing_low; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 2; quality 0.58; rejection 0.18; displacement 0.44; follow-through 0.48",
+          "Distance: 0.5848% from reference 3.42 (near)",
+          "Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building",
+          "Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-335-343",
+          "Round number fact: 3.4 (ten_cent, 0% away)",
+          "Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78",
+          "Session facts: Level is near VWAP fact 3.4 (0% away). | Level is near current/reference price 3.42 (0.5848% away).",
+          "Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]",
+          "Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).",
+          "Context tags: near_vwap_fact | near_current_price | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_vol ... [truncated]",
+          "Diagnostics: enriched_analysis_missing",
+          "Reason: support zone 3.4 is sourced from 5m evidence; freshness is fresh; 0.5848% from reference price; volume state is high.",
+          "Section shortened for Discord preview."
+        ],
+        "text": "**Intraday Support**\n- support zone 3.4 (SAMP-intraday-support-340)\n- Zone: 3.38-3.43 (1.4706% wide)\n- Origin: 5m; sources 5m; types swing_low; extension false\n- Freshness: fresh\n- Reaction: touches 2; quality 0.58; rejection 0.18; displacement 0.44; follow-through 0.48\n- Distance: 0.5848% from reference 3.42 (near)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-335-343\n- Round number fact: 3.4 (ten_cent, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near VWAP fact 3.4 (0% away). | Level is near current/reference price 3.42 (0.5848% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).\n- Context tags: near_vwap_fact | near_current_price | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_vol ... [truncated]\n- Diagnostics: enriched_analysis_missing\n- Reason: support zone 3.4 is sourced from 5m evidence; freshness is fresh; 0.5848% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "title": "Intraday Resistance",
+        "lines": [
+          "resistance zone 3.5 (SAMP-intraday-resistance-350)",
+          "Zone: 3.48-3.53 (1.4286% wide)",
+          "Origin: 5m; sources 5m; types swing_high; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5",
+          "Distance: 2.3392% from reference 3.42 (approaching)",
+          "Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building",
+          "Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none",
+          "Round number fact: 3.5 (half, 0% away)",
+          "Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78",
+          "Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]",
+          "Context tags: volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed | market_context_day_tra ... [truncated]",
+          "Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: resistance zone 3.5 is sourced from 5m evidence; freshness is fresh; 2.3392% from reference price; volume state is high.",
+          "Section shortened for Discord preview."
+        ],
+        "text": "**Intraday Resistance**\n- resistance zone 3.5 (SAMP-intraday-resistance-350)\n- Zone: 3.48-3.53 (1.4286% wide)\n- Origin: 5m; sources 5m; types swing_high; extension false\n- Freshness: fresh\n- Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5\n- Distance: 2.3392% from reference 3.42 (approaching)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none\n- Round number fact: 3.5 (half, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Context tags: volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed | market_context_day_tra ... [truncated]\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 3.5 is sourced from 5m evidence; freshness is fresh; 2.3392% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "title": "Extension Support",
+        "lines": [
+          "support zone 2.95 (SAMP-extension-support-295)",
+          "Zone: 2.9-3 (3.3898% wide)",
+          "Origin: daily; sources daily, 4h; types swing_low; extension true",
+          "Freshness: aging",
+          "Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55",
+          "Distance: 13.7427% from reference 3.42 (extended)",
+          "Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building",
+          "Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none",
+          "Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78",
+          "Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]",
+          "Context tags: volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed | market_context_day_tra ... [truncated]",
+          "Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: support zone 2.95 is sourced from daily, 4h evidence; freshness is aging; 13.7427% from reference price; volume state is high.",
+          "Section shortened for Discord preview."
+        ],
+        "text": "**Extension Support**\n- support zone 2.95 (SAMP-extension-support-295)\n- Zone: 2.9-3 (3.3898% wide)\n- Origin: daily; sources daily, 4h; types swing_low; extension true\n- Freshness: aging\n- Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55\n- Distance: 13.7427% from reference 3.42 (extended)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Context tags: volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed | market_context_day_tra ... [truncated]\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 2.95 is sourced from daily, 4h evidence; freshness is aging; 13.7427% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "title": "Extension Resistance",
+        "lines": [
+          "resistance zone 4.1 (SAMP-extension-resistance-410)",
+          "Zone: 4.02-4.18 (3.9024% wide)",
+          "Origin: daily; sources daily, 4h; types swing_high; extension true",
+          "Freshness: aging",
+          "Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58",
+          "Distance: 19.883% from reference 3.42 (extended)",
+          "Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building",
+          "Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none",
+          "Round number fact: 4.1 (ten_cent, 0% away)",
+          "Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78",
+          "Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]",
+          "Context tags: volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed | market_context_day_tra ... [truncated]",
+          "Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: resistance zone 4.1 is sourced from daily, 4h evidence; freshness is aging; 19.883% from reference price; volume state is high.",
+          "Section shortened for Discord preview."
+        ],
+        "text": "**Extension Resistance**\n- resistance zone 4.1 (SAMP-extension-resistance-410)\n- Zone: 4.02-4.18 (3.9024% wide)\n- Origin: daily; sources daily, 4h; types swing_high; extension true\n- Freshness: aging\n- Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58\n- Distance: 19.883% from reference 3.42 (extended)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none\n- Round number fact: 4.1 (ten_cent, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Context tags: volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed | market_context_day_tra ... [truncated]\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 4.1 is sourced from daily, 4h evidence; freshness is aging; 19.883% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "title": "Diagnostics",
+        "lines": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "text": "**Diagnostics**\n- enriched_analysis_missing\n- no_nearby_volume_shelf",
+        "truncated": false
+      },
+      {
+        "title": "Safety",
+        "lines": [
+          "Level output unchanged: true",
+          "Facts-only report: true",
+          "VWAP facts-only: true",
+          "Volume shelves facts-only: true",
+          "No runtime behavior change: true"
+        ],
+        "text": "**Safety**\n- Level output unchanged: true\n- Facts-only report: true\n- VWAP facts-only: true\n- Volume shelves facts-only: true\n- No runtime behavior change: true",
+        "truncated": false
+      }
+    ],
+    "messages": [
+      {
+        "index": 1,
+        "text": "**SAMP Level Intelligence Preview**\nSAMP facts-only level intelligence: 8 profiled level(s).\n\n**Summary**\n- Symbol: SAMP\n- Generated at: 1777386600000\n- Profiled levels: 8\n- Counts: major support 1, major resistance 1, intermediate support 1, intermediate resistance 1, intraday support 1, intraday resistance 1, extension support 1, extension resistance 1\n\n**Major Support**\n- support zone 3.2 (SAMP-major-support-320)\n- Zone: 3.15-3.24 (2.8125% wide)\n- Origin: daily; sources daily, 4h; types swing_low; extension false\n- Freshness: fresh\n- Reaction: touches 5; quality 0.82; rejection 0.32; displacement 0.74; follow-through 0.76\n- Distance: 6.4327% from reference 3.42 (approaching)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none\n- Round number fact: 3.2 (ten_cent, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near low of day 3.2 (0% away). | Level is near premarket low 3.2 (0% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Context tags: near_low_of_day | near_premarket_low | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_vo ... [truncated]\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 3.2 is sourced from daily, 4h evidence; freshness is fresh; 6.4327% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "index": 2,
+        "text": "**Major Resistance**\n- resistance zone 3.75 (SAMP-major-resistance-375)\n- Zone: 3.68-3.82 (3.7333% wide)\n- Origin: daily; sources daily, 4h, 5m; types swing_high, premarket_high; extension false\n- Freshness: fresh\n- Reaction: touches 4; quality 0.84; rejection 0.78; displacement 0.69; follow-through 0.68\n- Distance: 9.6491% from reference 3.42 (extended)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-368-382\n- Round number fact: 3.75 (quarter, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near high of day 3.75 (0% away). | Level is near premarket high 3.75 (0% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-368-382 (3.68-3.82, 32.2% of window volume, role resistance).\n- Context tags: near_high_of_day | near_premarket_high | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_ ... [truncated]\n- Diagnostics: enriched_analysis_missing\n- Reason: resistance zone 3.75 is sourced from daily, 4h, 5m evidence; freshness is fresh; 9.6491% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "index": 3,
+        "text": "**Intermediate Support**\n- support zone 3.35 (SAMP-intermediate-support-335)\n- Zone: 3.31-3.38 (2.0896% wide)\n- Origin: 4h; sources 4h, 5m; types swing_low, opening_range_low; extension false\n- Freshness: fresh\n- Reaction: touches 3; quality 0.68; rejection 0.28; displacement 0.52; follow-through 0.58\n- Distance: 2.0468% from reference 3.42 (approaching)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-335-343\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near opening range low 3.35 (0% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).\n- Context tags: near_opening_range_low | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed ... [truncated]\n- Diagnostics: enriched_analysis_missing\n- Reason: support zone 3.35 is sourced from 4h, 5m evidence; freshness is fresh; 2.0468% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "index": 4,
+        "text": "**Intermediate Resistance**\n- resistance zone 3.6 (SAMP-intermediate-resistance-360)\n- Zone: 3.56-3.65 (2.5% wide)\n- Origin: 4h; sources 4h, 5m; types swing_high, opening_range_high; extension false\n- Freshness: fresh\n- Reaction: touches 3; quality 0.72; rejection 0.66; displacement 0.54; follow-through 0.55\n- Distance: 5.2632% from reference 3.42 (approaching)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-356-365\n- Round number fact: 3.6 (ten_cent, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near opening range high 3.6 (0% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-356-365 (3.56-3.65, 21.8% of window volume, role resistance).\n- Context tags: near_opening_range_high | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirme ... [truncated]\n- Diagnostics: enriched_analysis_missing\n- Reason: resistance zone 3.6 is sourced from 4h, 5m evidence; freshness is fresh; 5.2632% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "index": 5,
+        "text": "**Intraday Support**\n- support zone 3.4 (SAMP-intraday-support-340)\n- Zone: 3.38-3.43 (1.4706% wide)\n- Origin: 5m; sources 5m; types swing_low; extension false\n- Freshness: fresh\n- Reaction: touches 2; quality 0.58; rejection 0.18; displacement 0.44; follow-through 0.48\n- Distance: 0.5848% from reference 3.42 (near)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids SAMP-shelf-335-343\n- Round number fact: 3.4 (ten_cent, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Session facts: Level is near VWAP fact 3.4 (0% away). | Level is near current/reference price 3.42 (0.5848% away).\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).\n- Context tags: near_vwap_fact | near_current_price | volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_vol ... [truncated]\n- Diagnostics: enriched_analysis_missing\n- Reason: support zone 3.4 is sourced from 5m evidence; freshness is fresh; 0.5848% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "index": 6,
+        "text": "**Intraday Resistance**\n- resistance zone 3.5 (SAMP-intraday-resistance-350)\n- Zone: 3.48-3.53 (1.4286% wide)\n- Origin: 5m; sources 5m; types swing_high; extension false\n- Freshness: fresh\n- Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5\n- Distance: 2.3392% from reference 3.42 (approaching)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none\n- Round number fact: 3.5 (half, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Context tags: volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed | market_context_day_tra ... [truncated]\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 3.5 is sourced from 5m evidence; freshness is fresh; 2.3392% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "index": 7,
+        "text": "**Extension Support**\n- support zone 2.95 (SAMP-extension-support-295)\n- Zone: 2.9-3 (3.3898% wide)\n- Origin: daily; sources daily, 4h; types swing_low; extension true\n- Freshness: aging\n- Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55\n- Distance: 13.7427% from reference 3.42 (extended)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Context tags: volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed | market_context_day_tra ... [truncated]\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 2.95 is sourced from daily, 4h evidence; freshness is aging; 13.7427% from reference price; volume state is high.\n- Section shortened for Discord preview.",
+        "truncated": true
+      },
+      {
+        "index": 8,
+        "text": "**Extension Resistance**\n- resistance zone 4.1 (SAMP-extension-resistance-410)\n- Zone: 4.02-4.18 (3.9024% wide)\n- Origin: daily; sources daily, 4h; types swing_high; extension true\n- Freshness: aging\n- Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58\n- Distance: 19.883% from reference 3.42 (extended)\n- Volume facts: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Volume behavior facts: pullback drying_up; breakout confirmed; nearby shelf ids none\n- Round number fact: 4.1 (ten_cent, 0% away)\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Volume facts nearby: Volume state is high. | Relative volume fact is 3.2051. | Dollar volume fact is 4275000. | Liquidity quality fact is good. | Volume acceleration fact is building. | Pullback volume fa ... [truncated]\n- Context tags: volume_state_high | relative_volume_fact | dollar_volume_fact | liquidity_good | volume_acceleration_building | pullback_volume_drying_up | breakout_volume_confirmed | market_context_day_tra ... [truncated]\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 4.1 is sourced from daily, 4h evidence; freshness is aging; 19.883% from reference price; volume state is high.\n- Section shortened for Discord preview.\n\n**Diagnostics**\n- enriched_analysis_missing\n- no_nearby_volume_shelf\n\n**Safety**\n- Level output unchanged: true\n- Facts-only report: true\n- VWAP facts-only: true\n- Volume shelves facts-only: true\n- No runtime behavior change: true",
+        "truncated": true
+      }
+    ],
+    "diagnostics": [
+      "enriched_analysis_missing",
+      "no_nearby_volume_shelf"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "factsOnly": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "noRuntimeBehaviorChange": true
+    },
+    "maxMessageLength": 1800,
+    "truncated": true
+  },
+  "sendResults": []
+}

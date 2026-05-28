@@ -1,0 +1,14 @@
+{
+  "symbol": "SAMP",
+  "asOfTimestamp": 1777386600000,
+  "currentVolume": 1250000,
+  "rollingAverageVolume": 390000,
+  "relativeVolume": 3.2051,
+  "dollarVolume": 4275000,
+  "volumeState": "high",
+  "liquidityQuality": "good",
+  "accelerationState": "building",
+  "pullbackVolumeState": "drying_up",
+  "breakoutVolumeState": "confirmed",
+  "diagnostics": []
+}
