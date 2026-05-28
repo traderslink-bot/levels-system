@@ -43,6 +43,7 @@ This folder contains the full plan for the candle-based levels system, including
 26. `35_TRADING_JOURNAL_EXECUTION_CONTEXT_PLAN.md`
 27. `36_LEVELS_SYSTEM_VS_JOURNAL_ARCHITECTURE_BOUNDARY_AUDIT.md`
 28. `37_EXECUTION_CONTEXT_SHARED_CONTRACT_ADR.md`
+29. `38_LEVEL_INTELLIGENCE_AND_VOLUME_ENRICHMENT_PLAN.md`
 
 ## Completed facts-only support/resistance explanation work
 
