@@ -11,7 +11,12 @@ import {
   buildLevelIntelligenceReviewResult,
   loadLevelEngineOutputJson,
 } from "../levels/level-intelligence-report-runner.js";
+import { formatLevelIntelligenceReport } from "../levels/level-intelligence-report-formatter.js";
+import { buildLevelIntelligenceReport } from "../levels/level-intelligence-report.js";
 import type { LevelEngineOutput } from "../levels/level-types.js";
+import type { MarketContextFactsBundle, MarketContextProfile } from "../market-context/index.js";
+import type { SessionMarketFacts } from "../session/index.js";
+import type { VolumeMarketFacts, VolumeShelf } from "../volume/index.js";
 
 export type LevelIntelligenceDiscordPreviewRunnerFormat = "text" | "json";
 
@@ -19,11 +24,24 @@ export type LevelIntelligenceDiscordPreviewRunnerMode = "dry-run" | "send-test";
 
 export type LevelIntelligenceDiscordPreviewRunnerOptions = {
   levelOutputPath: string;
+  sessionFactsPath?: string;
+  volumeFactsPath?: string;
+  volumeShelvesPath?: string;
+  marketContextPath?: string;
+  factsBundlePath?: string;
   outPath?: string;
   format: LevelIntelligenceDiscordPreviewRunnerFormat;
   mode: LevelIntelligenceDiscordPreviewRunnerMode;
   testWebhookUrl?: string;
   maxMessageLength?: number;
+};
+
+export type LevelIntelligenceDiscordPreviewFactsInput = {
+  sessionFacts?: SessionMarketFacts;
+  volumeFacts?: VolumeMarketFacts;
+  volumeShelves?: VolumeShelf[];
+  marketContext?: MarketContextProfile;
+  factsBundle?: MarketContextFactsBundle;
 };
 
 export type LevelIntelligenceDiscordPreviewSendRequest = {
@@ -107,6 +125,11 @@ export function parseLevelIntelligenceDiscordPreviewRunnerArgs(
   env: LevelIntelligenceDiscordPreviewRunnerEnv = {},
 ): LevelIntelligenceDiscordPreviewRunnerOptions {
   let levelOutputPath: string | undefined;
+  let sessionFactsPath: string | undefined;
+  let volumeFactsPath: string | undefined;
+  let volumeShelvesPath: string | undefined;
+  let marketContextPath: string | undefined;
+  let factsBundlePath: string | undefined;
   let outPath: string | undefined;
   let format: LevelIntelligenceDiscordPreviewRunnerFormat = "text";
   let sendTest = false;
@@ -119,6 +142,31 @@ export function parseLevelIntelligenceDiscordPreviewRunnerArgs(
 
     if (arg === "--level-output") {
       levelOutputPath = requireValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--session-facts") {
+      sessionFactsPath = requireValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--volume-facts") {
+      volumeFactsPath = requireValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--volume-shelves") {
+      volumeShelvesPath = requireValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--market-context") {
+      marketContextPath = requireValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--facts-bundle") {
+      factsBundlePath = requireValue(args, index, arg);
       index += 1;
       continue;
     }
@@ -162,6 +210,11 @@ export function parseLevelIntelligenceDiscordPreviewRunnerArgs(
 
   return {
     levelOutputPath,
+    sessionFactsPath,
+    volumeFactsPath,
+    volumeShelvesPath,
+    marketContextPath,
+    factsBundlePath,
     outPath,
     format,
     mode,
@@ -177,6 +230,73 @@ function assertTestWebhookUrl(value: string | undefined): asserts value is strin
   if (!/^https?:\/\//i.test(value)) {
     throw new Error("Shadow Discord preview test webhook URL must start with http:// or https://.");
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function loadJsonFile(
+  filePath: string,
+  label: string,
+  fileSystem: Pick<LevelIntelligenceDiscordPreviewRunnerFileSystem, "readFileSync">,
+): unknown {
+  try {
+    return JSON.parse(fileSystem.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read ${label} JSON from ${filePath}: ${message}`);
+  }
+}
+
+function loadOptionalJsonFile(
+  filePath: string | undefined,
+  label: string,
+  fileSystem: Pick<LevelIntelligenceDiscordPreviewRunnerFileSystem, "readFileSync">,
+): unknown | undefined {
+  return filePath === undefined ? undefined : loadJsonFile(filePath, label, fileSystem);
+}
+
+function normalizeVolumeShelvesJson(value: unknown): VolumeShelf[] {
+  if (Array.isArray(value)) {
+    return value as VolumeShelf[];
+  }
+
+  if (isRecord(value) && Array.isArray(value.shelves)) {
+    return value.shelves as VolumeShelf[];
+  }
+
+  throw new Error("Volume shelves JSON must contain a VolumeShelf array or an object with a shelves array.");
+}
+
+export function loadLevelIntelligenceDiscordPreviewFactsInput(
+  options: Pick<
+    LevelIntelligenceDiscordPreviewRunnerOptions,
+    "sessionFactsPath" | "volumeFactsPath" | "volumeShelvesPath" | "marketContextPath" | "factsBundlePath"
+  >,
+  fileSystem: Pick<LevelIntelligenceDiscordPreviewRunnerFileSystem, "readFileSync"> = defaultFileSystem,
+): LevelIntelligenceDiscordPreviewFactsInput {
+  const sessionFacts = loadOptionalJsonFile(options.sessionFactsPath, "session facts", fileSystem) as
+    | SessionMarketFacts
+    | undefined;
+  const volumeFacts = loadOptionalJsonFile(options.volumeFactsPath, "volume facts", fileSystem) as
+    | VolumeMarketFacts
+    | undefined;
+  const marketContext = loadOptionalJsonFile(options.marketContextPath, "market context", fileSystem) as
+    | MarketContextProfile
+    | undefined;
+  const factsBundle = loadOptionalJsonFile(options.factsBundlePath, "facts bundle", fileSystem) as
+    | MarketContextFactsBundle
+    | undefined;
+  const volumeShelvesJson = loadOptionalJsonFile(options.volumeShelvesPath, "volume shelves", fileSystem);
+
+  return {
+    sessionFacts,
+    volumeFacts,
+    volumeShelves: volumeShelvesJson === undefined ? undefined : normalizeVolumeShelvesJson(volumeShelvesJson),
+    marketContext,
+    factsBundle,
+  };
 }
 
 function runnerContent(result: Omit<LevelIntelligenceDiscordPreviewRunnerResult, "content">): string {
@@ -216,16 +336,32 @@ function runnerContent(result: Omit<LevelIntelligenceDiscordPreviewRunnerResult,
 
 export function buildLevelIntelligenceDiscordPreviewReviewResult(
   output: LevelEngineOutput,
-  options: Pick<LevelIntelligenceDiscordPreviewRunnerOptions, "levelOutputPath" | "outPath" | "format" | "mode" | "maxMessageLength">,
+  options: Pick<LevelIntelligenceDiscordPreviewRunnerOptions, "levelOutputPath" | "outPath" | "format" | "mode" | "maxMessageLength"> & {
+    factsInput?: LevelIntelligenceDiscordPreviewFactsInput;
+  },
 ): Omit<LevelIntelligenceDiscordPreviewRunnerResult, "sendResults" | "content"> {
-  const review = buildLevelIntelligenceReviewResult(output, "text");
+  const review =
+    options.factsInput === undefined
+      ? buildLevelIntelligenceReviewResult(output, "text")
+      : {
+          report: buildLevelIntelligenceReport({
+            output,
+            sessionFacts: options.factsInput.sessionFacts,
+            volumeFacts: options.factsInput.volumeFacts,
+            volumeShelves: options.factsInput.volumeShelves,
+            marketContext: options.factsInput.marketContext,
+            factsBundle: options.factsInput.factsBundle,
+          }),
+        };
+  const formatted =
+    "formatted" in review ? review.formatted : formatLevelIntelligenceReport(review.report);
   const previewOptions: FormatLevelIntelligenceDiscordPreviewOptions = {};
 
   if (options.maxMessageLength !== undefined) {
     previewOptions.maxMessageLength = options.maxMessageLength;
   }
 
-  const preview = formatLevelIntelligenceDiscordPreview(review.formatted, previewOptions);
+  const preview = formatLevelIntelligenceDiscordPreview(formatted, previewOptions);
 
   return {
     levelOutputPath: options.levelOutputPath,
@@ -264,7 +400,11 @@ export async function runLevelIntelligenceDiscordPreviewRunner(
   sender: LevelIntelligenceDiscordPreviewSender = sendLevelIntelligenceDiscordPreviewWebhookMessage,
 ): Promise<LevelIntelligenceDiscordPreviewRunnerResult> {
   const output = loadLevelEngineOutputJson(options.levelOutputPath, fileSystem);
-  const baseResult = buildLevelIntelligenceDiscordPreviewReviewResult(output, options);
+  const factsInput = loadLevelIntelligenceDiscordPreviewFactsInput(options, fileSystem);
+  const baseResult = buildLevelIntelligenceDiscordPreviewReviewResult(output, {
+    ...options,
+    factsInput,
+  });
   const sendResults: LevelIntelligenceDiscordPreviewSendResult[] = [];
 
   if (options.mode === "send-test") {
