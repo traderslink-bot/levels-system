@@ -53,6 +53,9 @@ This folder contains the full plan for the candle-based levels system, including
   - This is a pure optional report builder for every existing `LevelEngineOutput` support/resistance bucket: major, intermediate, intraday, and extension support/resistance.
   - It delegates each existing level to `explainLevelContext(...)`, then adds report counts and explicit safety flags.
   - It is not wired into runtime paths yet.
+- PR #19 added `src/lib/levels/level-context-report-formatter.ts` and `src/tests/level-context-report-formatter.test.ts`.
+  - This is a pure optional presentation adapter that consumes an already-built `LevelContextReport` and formats a summary, bucket sections, and safety section for future CLI/manual inspection, website panels, chart-reading review, or Discord output later.
+  - It does not call LevelEngine, generate levels, create or change support/resistance levels, alter selection/scoring/buckets/nearest levels/extensions/special levels, or wire into live runtime, alerts, monitoring, trader-context, or Discord behavior.
 - Boundary note:
   - levels-system owns facts-only support/resistance explanation outputs and shared market/level facts.
   - the trading journal remains separate and owns journal-specific grading, coaching, behavior scoring, P/L, giveback analysis, product workflows, and trader interpretation.

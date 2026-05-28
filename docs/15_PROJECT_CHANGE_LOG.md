@@ -18,6 +18,43 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-05-27 11:50 PM America/Toronto
+
+### LevelContextReport formatter is now documented
+
+- Synced the documentation index and project log after PR #19.
+- PR #19 added:
+  - `src/lib/levels/level-context-report-formatter.ts`
+  - `src/tests/level-context-report-formatter.test.ts`
+- The formatter is a pure optional presentation adapter that consumes an already-built `LevelContextReport`.
+- It converts report data into human-readable output with:
+  - a compact summary
+  - support/resistance bucket sections
+  - a safety section
+- Intended future uses include:
+  - CLI/manual inspection
+  - website panels
+  - chart-reading review
+  - Discord output later
+- Runtime safety:
+  - the formatter is not wired into runtime paths, alerts, monitoring, trader-context, or Discord behavior yet
+  - it does not call LevelEngine
+  - it does not generate levels
+  - it does not create or change support/resistance levels
+  - it does not change level selection, scoring, buckets, nearest levels, extension levels, or special levels
+  - VWAP remains facts-only
+  - volume shelves remain facts-only and are not support/resistance levels
+- Boundary confirmed:
+  - levels-system remains facts-only for this layer
+  - the trading journal remains separate for grading, coaching, behavior scoring, P/L, giveback analysis, product workflows, and trader interpretation
+
+### Verification completed
+
+- `npx tsc --noEmit`
+- `npm test`
+
+---
+
 ## 2026-05-27 11:36 PM America/Toronto
 
 ### Facts-only support/resistance explanation outputs are now documented
