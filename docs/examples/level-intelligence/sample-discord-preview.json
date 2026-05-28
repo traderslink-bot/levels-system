@@ -1,0 +1,228 @@
+{
+  "levelOutputPath": "docs/examples/level-intelligence/sample-level-engine-output.json",
+  "outPath": "docs/examples/level-intelligence/sample-discord-preview.json",
+  "format": "json",
+  "mode": "dry-run",
+  "reportSymbol": "SAMP",
+  "preview": {
+    "symbol": "SAMP",
+    "summary": "SAMP facts-only level intelligence: 8 profiled level(s).",
+    "sections": [
+      {
+        "title": "Summary",
+        "lines": [
+          "Symbol: SAMP",
+          "Generated at: 1777386600000",
+          "Profiled levels: 8",
+          "Counts: major support 1, major resistance 1, intermediate support 1, intermediate resistance 1, intraday support 1, intraday resistance 1, extension support 1, extension resistance 1"
+        ],
+        "text": "**Summary**\n- Symbol: SAMP\n- Generated at: 1777386600000\n- Profiled levels: 8\n- Counts: major support 1, major resistance 1, intermediate support 1, intermediate resistance 1, intraday support 1, intraday resistance 1, extension support 1, extension resistance 1",
+        "truncated": false
+      },
+      {
+        "title": "Major Support",
+        "lines": [
+          "support zone 3.2 (SAMP-major-support-320)",
+          "Zone: 3.15-3.24 (2.8125% wide)",
+          "Origin: daily; sources daily, 4h; types swing_low; extension false",
+          "Freshness: fresh; state respected",
+          "Reaction: touches 5; quality 0.82; rejection 0.32; displacement 0.74; follow-through 0.76",
+          "Meaningful touches: 4",
+          "Reaction movement facts: average 6.4%; strongest 11.8%",
+          "Distance: 6.4327% from reference 3.42 (approaching)",
+          "Round number fact: 3.2 (ten_cent, 0% away)",
+          "Profile confidence fact: 0.84",
+          "Context tags: enriched_state_respected | enriched_analysis_available",
+          "Diagnostics: session_facts_missing | volume_facts_missing | no_nearby_volume_shelf",
+          "Reason: support zone 3.2 is sourced from daily, 4h evidence; freshness is fresh; state is respected; 6.4327% from reference price."
+        ],
+        "text": "**Major Support**\n- support zone 3.2 (SAMP-major-support-320)\n- Zone: 3.15-3.24 (2.8125% wide)\n- Origin: daily; sources daily, 4h; types swing_low; extension false\n- Freshness: fresh; state respected\n- Reaction: touches 5; quality 0.82; rejection 0.32; displacement 0.74; follow-through 0.76\n- Meaningful touches: 4\n- Reaction movement facts: average 6.4%; strongest 11.8%\n- Distance: 6.4327% from reference 3.42 (approaching)\n- Round number fact: 3.2 (ten_cent, 0% away)\n- Profile confidence fact: 0.84\n- Context tags: enriched_state_respected | enriched_analysis_available\n- Diagnostics: session_facts_missing | volume_facts_missing | no_nearby_volume_shelf\n- Reason: support zone 3.2 is sourced from daily, 4h evidence; freshness is fresh; state is respected; 6.4327% from reference price.",
+        "truncated": false
+      },
+      {
+        "title": "Major Resistance",
+        "lines": [
+          "resistance zone 3.75 (SAMP-major-resistance-375)",
+          "Zone: 3.68-3.82 (3.7333% wide)",
+          "Origin: daily; sources daily, 4h, 5m; types swing_high, premarket_high; extension false",
+          "Freshness: fresh; state respected",
+          "Reaction: touches 4; quality 0.84; rejection 0.78; displacement 0.69; follow-through 0.68",
+          "Meaningful touches: 4",
+          "Reaction movement facts: average 5.9%; strongest 9.6%",
+          "Distance: 9.6491% from reference 3.42 (extended)",
+          "Round number fact: 3.75 (quarter, 0% away)",
+          "Profile confidence fact: 0.86",
+          "Context tags: enriched_state_respected | enriched_analysis_available",
+          "Diagnostics: session_facts_missing | volume_facts_missing | no_nearby_volume_shelf",
+          "Reason: resistance zone 3.75 is sourced from daily, 4h, 5m evidence; freshness is fresh; state is respected; 9.6491% from reference price."
+        ],
+        "text": "**Major Resistance**\n- resistance zone 3.75 (SAMP-major-resistance-375)\n- Zone: 3.68-3.82 (3.7333% wide)\n- Origin: daily; sources daily, 4h, 5m; types swing_high, premarket_high; extension false\n- Freshness: fresh; state respected\n- Reaction: touches 4; quality 0.84; rejection 0.78; displacement 0.69; follow-through 0.68\n- Meaningful touches: 4\n- Reaction movement facts: average 5.9%; strongest 9.6%\n- Distance: 9.6491% from reference 3.42 (extended)\n- Round number fact: 3.75 (quarter, 0% away)\n- Profile confidence fact: 0.86\n- Context tags: enriched_state_respected | enriched_analysis_available\n- Diagnostics: session_facts_missing | volume_facts_missing | no_nearby_volume_shelf\n- Reason: resistance zone 3.75 is sourced from daily, 4h, 5m evidence; freshness is fresh; state is respected; 9.6491% from reference price.",
+        "truncated": false
+      },
+      {
+        "title": "Intermediate Support",
+        "lines": [
+          "support zone 3.35 (SAMP-intermediate-support-335)",
+          "Zone: 3.31-3.38 (2.0896% wide)",
+          "Origin: 4h; sources 4h, 5m; types swing_low, opening_range_low; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 3; quality 0.68; rejection 0.28; displacement 0.52; follow-through 0.58",
+          "Distance: 2.0468% from reference 3.42 (approaching)",
+          "Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: support zone 3.35 is sourced from 4h, 5m evidence; freshness is fresh; 2.0468% from reference price."
+        ],
+        "text": "**Intermediate Support**\n- support zone 3.35 (SAMP-intermediate-support-335)\n- Zone: 3.31-3.38 (2.0896% wide)\n- Origin: 4h; sources 4h, 5m; types swing_low, opening_range_low; extension false\n- Freshness: fresh\n- Reaction: touches 3; quality 0.68; rejection 0.28; displacement 0.52; follow-through 0.58\n- Distance: 2.0468% from reference 3.42 (approaching)\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 3.35 is sourced from 4h, 5m evidence; freshness is fresh; 2.0468% from reference price.",
+        "truncated": false
+      },
+      {
+        "title": "Intermediate Resistance",
+        "lines": [
+          "resistance zone 3.6 (SAMP-intermediate-resistance-360)",
+          "Zone: 3.56-3.65 (2.5% wide)",
+          "Origin: 4h; sources 4h, 5m; types swing_high, opening_range_high; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 3; quality 0.72; rejection 0.66; displacement 0.54; follow-through 0.55",
+          "Distance: 5.2632% from reference 3.42 (approaching)",
+          "Round number fact: 3.6 (ten_cent, 0% away)",
+          "Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: resistance zone 3.6 is sourced from 4h, 5m evidence; freshness is fresh; 5.2632% from reference price."
+        ],
+        "text": "**Intermediate Resistance**\n- resistance zone 3.6 (SAMP-intermediate-resistance-360)\n- Zone: 3.56-3.65 (2.5% wide)\n- Origin: 4h; sources 4h, 5m; types swing_high, opening_range_high; extension false\n- Freshness: fresh\n- Reaction: touches 3; quality 0.72; rejection 0.66; displacement 0.54; follow-through 0.55\n- Distance: 5.2632% from reference 3.42 (approaching)\n- Round number fact: 3.6 (ten_cent, 0% away)\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 3.6 is sourced from 4h, 5m evidence; freshness is fresh; 5.2632% from reference price.",
+        "truncated": false
+      },
+      {
+        "title": "Intraday Support",
+        "lines": [
+          "support zone 3.4 (SAMP-intraday-support-340)",
+          "Zone: 3.38-3.43 (1.4706% wide)",
+          "Origin: 5m; sources 5m; types swing_low; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 2; quality 0.58; rejection 0.18; displacement 0.44; follow-through 0.48",
+          "Distance: 0.5848% from reference 3.42 (near)",
+          "Round number fact: 3.4 (ten_cent, 0% away)",
+          "Session facts: Level is near current/reference price 3.42 (0.5848% away).",
+          "Context tags: near_current_price",
+          "Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: support zone 3.4 is sourced from 5m evidence; freshness is fresh; 0.5848% from reference price."
+        ],
+        "text": "**Intraday Support**\n- support zone 3.4 (SAMP-intraday-support-340)\n- Zone: 3.38-3.43 (1.4706% wide)\n- Origin: 5m; sources 5m; types swing_low; extension false\n- Freshness: fresh\n- Reaction: touches 2; quality 0.58; rejection 0.18; displacement 0.44; follow-through 0.48\n- Distance: 0.5848% from reference 3.42 (near)\n- Round number fact: 3.4 (ten_cent, 0% away)\n- Session facts: Level is near current/reference price 3.42 (0.5848% away).\n- Context tags: near_current_price\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 3.4 is sourced from 5m evidence; freshness is fresh; 0.5848% from reference price.",
+        "truncated": false
+      },
+      {
+        "title": "Intraday Resistance",
+        "lines": [
+          "resistance zone 3.5 (SAMP-intraday-resistance-350)",
+          "Zone: 3.48-3.53 (1.4286% wide)",
+          "Origin: 5m; sources 5m; types swing_high; extension false",
+          "Freshness: fresh",
+          "Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5",
+          "Distance: 2.3392% from reference 3.42 (approaching)",
+          "Round number fact: 3.5 (half, 0% away)",
+          "Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: resistance zone 3.5 is sourced from 5m evidence; freshness is fresh; 2.3392% from reference price."
+        ],
+        "text": "**Intraday Resistance**\n- resistance zone 3.5 (SAMP-intraday-resistance-350)\n- Zone: 3.48-3.53 (1.4286% wide)\n- Origin: 5m; sources 5m; types swing_high; extension false\n- Freshness: fresh\n- Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5\n- Distance: 2.3392% from reference 3.42 (approaching)\n- Round number fact: 3.5 (half, 0% away)\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 3.5 is sourced from 5m evidence; freshness is fresh; 2.3392% from reference price.",
+        "truncated": false
+      },
+      {
+        "title": "Extension Support",
+        "lines": [
+          "support zone 2.95 (SAMP-extension-support-295)",
+          "Zone: 2.9-3 (3.3898% wide)",
+          "Origin: daily; sources daily, 4h; types swing_low; extension true",
+          "Freshness: aging",
+          "Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55",
+          "Distance: 13.7427% from reference 3.42 (extended)",
+          "Context tags: extension_level",
+          "Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: support zone 2.95 is sourced from daily, 4h evidence; freshness is aging; 13.7427% from reference price."
+        ],
+        "text": "**Extension Support**\n- support zone 2.95 (SAMP-extension-support-295)\n- Zone: 2.9-3 (3.3898% wide)\n- Origin: daily; sources daily, 4h; types swing_low; extension true\n- Freshness: aging\n- Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55\n- Distance: 13.7427% from reference 3.42 (extended)\n- Context tags: extension_level\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 2.95 is sourced from daily, 4h evidence; freshness is aging; 13.7427% from reference price.",
+        "truncated": false
+      },
+      {
+        "title": "Extension Resistance",
+        "lines": [
+          "resistance zone 4.1 (SAMP-extension-resistance-410)",
+          "Zone: 4.02-4.18 (3.9024% wide)",
+          "Origin: daily; sources daily, 4h; types swing_high; extension true",
+          "Freshness: aging",
+          "Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58",
+          "Distance: 19.883% from reference 3.42 (extended)",
+          "Round number fact: 4.1 (ten_cent, 0% away)",
+          "Context tags: extension_level",
+          "Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf",
+          "Reason: resistance zone 4.1 is sourced from daily, 4h evidence; freshness is aging; 19.883% from reference price."
+        ],
+        "text": "**Extension Resistance**\n- resistance zone 4.1 (SAMP-extension-resistance-410)\n- Zone: 4.02-4.18 (3.9024% wide)\n- Origin: daily; sources daily, 4h; types swing_high; extension true\n- Freshness: aging\n- Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58\n- Distance: 19.883% from reference 3.42 (extended)\n- Round number fact: 4.1 (ten_cent, 0% away)\n- Context tags: extension_level\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 4.1 is sourced from daily, 4h evidence; freshness is aging; 19.883% from reference price.",
+        "truncated": false
+      },
+      {
+        "title": "Diagnostics",
+        "lines": [
+          "session_facts_missing",
+          "volume_facts_missing",
+          "no_nearby_volume_shelf",
+          "enriched_analysis_missing"
+        ],
+        "text": "**Diagnostics**\n- session_facts_missing\n- volume_facts_missing\n- no_nearby_volume_shelf\n- enriched_analysis_missing",
+        "truncated": false
+      },
+      {
+        "title": "Safety",
+        "lines": [
+          "Level output unchanged: true",
+          "Facts-only report: true",
+          "VWAP facts-only: true",
+          "Volume shelves facts-only: true",
+          "No runtime behavior change: true"
+        ],
+        "text": "**Safety**\n- Level output unchanged: true\n- Facts-only report: true\n- VWAP facts-only: true\n- Volume shelves facts-only: true\n- No runtime behavior change: true",
+        "truncated": false
+      }
+    ],
+    "messages": [
+      {
+        "index": 1,
+        "text": "**SAMP Level Intelligence Preview**\nSAMP facts-only level intelligence: 8 profiled level(s).\n\n**Summary**\n- Symbol: SAMP\n- Generated at: 1777386600000\n- Profiled levels: 8\n- Counts: major support 1, major resistance 1, intermediate support 1, intermediate resistance 1, intraday support 1, intraday resistance 1, extension support 1, extension resistance 1\n\n**Major Support**\n- support zone 3.2 (SAMP-major-support-320)\n- Zone: 3.15-3.24 (2.8125% wide)\n- Origin: daily; sources daily, 4h; types swing_low; extension false\n- Freshness: fresh; state respected\n- Reaction: touches 5; quality 0.82; rejection 0.32; displacement 0.74; follow-through 0.76\n- Meaningful touches: 4\n- Reaction movement facts: average 6.4%; strongest 11.8%\n- Distance: 6.4327% from reference 3.42 (approaching)\n- Round number fact: 3.2 (ten_cent, 0% away)\n- Profile confidence fact: 0.84\n- Context tags: enriched_state_respected | enriched_analysis_available\n- Diagnostics: session_facts_missing | volume_facts_missing | no_nearby_volume_shelf\n- Reason: support zone 3.2 is sourced from daily, 4h evidence; freshness is fresh; state is respected; 6.4327% from reference price.",
+        "truncated": false
+      },
+      {
+        "index": 2,
+        "text": "**Major Resistance**\n- resistance zone 3.75 (SAMP-major-resistance-375)\n- Zone: 3.68-3.82 (3.7333% wide)\n- Origin: daily; sources daily, 4h, 5m; types swing_high, premarket_high; extension false\n- Freshness: fresh; state respected\n- Reaction: touches 4; quality 0.84; rejection 0.78; displacement 0.69; follow-through 0.68\n- Meaningful touches: 4\n- Reaction movement facts: average 5.9%; strongest 9.6%\n- Distance: 9.6491% from reference 3.42 (extended)\n- Round number fact: 3.75 (quarter, 0% away)\n- Profile confidence fact: 0.86\n- Context tags: enriched_state_respected | enriched_analysis_available\n- Diagnostics: session_facts_missing | volume_facts_missing | no_nearby_volume_shelf\n- Reason: resistance zone 3.75 is sourced from daily, 4h, 5m evidence; freshness is fresh; state is respected; 9.6491% from reference price.\n\n**Intermediate Support**\n- support zone 3.35 (SAMP-intermediate-support-335)\n- Zone: 3.31-3.38 (2.0896% wide)\n- Origin: 4h; sources 4h, 5m; types swing_low, opening_range_low; extension false\n- Freshness: fresh\n- Reaction: touches 3; quality 0.68; rejection 0.28; displacement 0.52; follow-through 0.58\n- Distance: 2.0468% from reference 3.42 (approaching)\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 3.35 is sourced from 4h, 5m evidence; freshness is fresh; 2.0468% from reference price.",
+        "truncated": false
+      },
+      {
+        "index": 3,
+        "text": "**Intermediate Resistance**\n- resistance zone 3.6 (SAMP-intermediate-resistance-360)\n- Zone: 3.56-3.65 (2.5% wide)\n- Origin: 4h; sources 4h, 5m; types swing_high, opening_range_high; extension false\n- Freshness: fresh\n- Reaction: touches 3; quality 0.72; rejection 0.66; displacement 0.54; follow-through 0.55\n- Distance: 5.2632% from reference 3.42 (approaching)\n- Round number fact: 3.6 (ten_cent, 0% away)\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 3.6 is sourced from 4h, 5m evidence; freshness is fresh; 5.2632% from reference price.\n\n**Intraday Support**\n- support zone 3.4 (SAMP-intraday-support-340)\n- Zone: 3.38-3.43 (1.4706% wide)\n- Origin: 5m; sources 5m; types swing_low; extension false\n- Freshness: fresh\n- Reaction: touches 2; quality 0.58; rejection 0.18; displacement 0.44; follow-through 0.48\n- Distance: 0.5848% from reference 3.42 (near)\n- Round number fact: 3.4 (ten_cent, 0% away)\n- Session facts: Level is near current/reference price 3.42 (0.5848% away).\n- Context tags: near_current_price\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 3.4 is sourced from 5m evidence; freshness is fresh; 0.5848% from reference price.",
+        "truncated": false
+      },
+      {
+        "index": 4,
+        "text": "**Intraday Resistance**\n- resistance zone 3.5 (SAMP-intraday-resistance-350)\n- Zone: 3.48-3.53 (1.4286% wide)\n- Origin: 5m; sources 5m; types swing_high; extension false\n- Freshness: fresh\n- Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5\n- Distance: 2.3392% from reference 3.42 (approaching)\n- Round number fact: 3.5 (half, 0% away)\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 3.5 is sourced from 5m evidence; freshness is fresh; 2.3392% from reference price.\n\n**Extension Support**\n- support zone 2.95 (SAMP-extension-support-295)\n- Zone: 2.9-3 (3.3898% wide)\n- Origin: daily; sources daily, 4h; types swing_low; extension true\n- Freshness: aging\n- Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55\n- Distance: 13.7427% from reference 3.42 (extended)\n- Context tags: extension_level\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: support zone 2.95 is sourced from daily, 4h evidence; freshness is aging; 13.7427% from reference price.",
+        "truncated": false
+      },
+      {
+        "index": 5,
+        "text": "**Extension Resistance**\n- resistance zone 4.1 (SAMP-extension-resistance-410)\n- Zone: 4.02-4.18 (3.9024% wide)\n- Origin: daily; sources daily, 4h; types swing_high; extension true\n- Freshness: aging\n- Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58\n- Distance: 19.883% from reference 3.42 (extended)\n- Round number fact: 4.1 (ten_cent, 0% away)\n- Context tags: extension_level\n- Diagnostics: session_facts_missing | volume_facts_missing | enriched_analysis_missing | no_nearby_volume_shelf\n- Reason: resistance zone 4.1 is sourced from daily, 4h evidence; freshness is aging; 19.883% from reference price.\n\n**Diagnostics**\n- session_facts_missing\n- volume_facts_missing\n- no_nearby_volume_shelf\n- enriched_analysis_missing\n\n**Safety**\n- Level output unchanged: true\n- Facts-only report: true\n- VWAP facts-only: true\n- Volume shelves facts-only: true\n- No runtime behavior change: true",
+        "truncated": false
+      }
+    ],
+    "diagnostics": [
+      "session_facts_missing",
+      "volume_facts_missing",
+      "no_nearby_volume_shelf",
+      "enriched_analysis_missing"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "factsOnly": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "noRuntimeBehaviorChange": true
+    },
+    "maxMessageLength": 1800,
+    "truncated": false
+  },
+  "sendResults": []
+}
