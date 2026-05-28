@@ -31,6 +31,7 @@ export type LegacyRuntimeBuckets = Pick<
 >;
 
 export type EnrichmentDiagnostics = {
+  totalRuntimeZones: number;
   enrichedZones: number;
   unenrichedZones: number;
   unmatchedRuntimeZoneIds: string[];
@@ -44,16 +45,6 @@ export type NewRuntimeCompatibleLevelOutput = {
   enrichmentDiagnostics: EnrichmentDiagnostics;
   mappingNotes: string[];
 };
-
-export type LegacyRuntimeBuckets = Pick<
-  LevelEngineOutput,
-  | "majorSupport"
-  | "majorResistance"
-  | "intermediateSupport"
-  | "intermediateResistance"
-  | "intradaySupport"
-  | "intradayResistance"
->;
 
 export type LevelRuntimeOutputAdapterInput = {
   symbol: string;
@@ -407,23 +398,6 @@ function cloneExtensionLevels(
   };
 }
 
-function cloneRuntimeZones(zones: FinalLevelZone[]): FinalLevelZone[] {
-  return zones.map(cloneRuntimeZone);
-}
-
-function cloneLegacyRuntimeBuckets(
-  runtimeBuckets: LegacyRuntimeBuckets,
-): LegacyRuntimeBuckets {
-  return {
-    majorSupport: cloneRuntimeZones(runtimeBuckets.majorSupport),
-    majorResistance: cloneRuntimeZones(runtimeBuckets.majorResistance),
-    intermediateSupport: cloneRuntimeZones(runtimeBuckets.intermediateSupport),
-    intermediateResistance: cloneRuntimeZones(runtimeBuckets.intermediateResistance),
-    intradaySupport: cloneRuntimeZones(runtimeBuckets.intradaySupport),
-    intradayResistance: cloneRuntimeZones(runtimeBuckets.intradayResistance),
-  };
-}
-
 function pushBucketedZone(
   buckets: Record<RuntimeBucket, FinalLevelZone[]>,
   level: RankedLevel,
@@ -459,6 +433,7 @@ export function buildNewRuntimeCompatibleLevelOutput(
   const surfacedSelection = selectSurfacedLevels(rankedOutput);
   const rankedLevels = [...rankedOutput.supports, ...rankedOutput.resistances];
   const diagnostics: EnrichmentDiagnostics = {
+    totalRuntimeZones: 0,
     enrichedZones: 0,
     unenrichedZones: 0,
     unmatchedRuntimeZoneIds: [],
@@ -484,6 +459,7 @@ export function buildNewRuntimeCompatibleLevelOutput(
     extensionLevels,
     specialLevels: input.specialLevels,
   };
+  diagnostics.totalRuntimeZones = diagnostics.enrichedZones + diagnostics.unenrichedZones;
 
   return {
     output,

@@ -218,6 +218,7 @@ function recycledIntradayPenaltyMultiplier(zone: FinalLevelZone): number {
 export function scoreLevelZones(
   zones: FinalLevelZone[],
   config: LevelEngineConfig,
+  _referenceTimestamp?: number,
 ): FinalLevelZone[] {
   return zones.map((zone) => {
     const clearanceScore = pathClearanceScore(zone, zones);

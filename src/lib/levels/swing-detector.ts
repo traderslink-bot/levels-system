@@ -8,6 +8,7 @@ export type SwingDetectionOptions = {
   swingWindow: number;
   minimumDisplacementPct: number;
   minimumSeparationBars: number;
+  includeBarrierCandles?: boolean;
 };
 
 function round(value: number): number {

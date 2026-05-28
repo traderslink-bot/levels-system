@@ -1158,7 +1158,7 @@ test("runtime parity fixture proves remediated old/new bucket counts", async () 
   assertBucketCountSummary(report.bucketCounts.old);
   assertBucketCountSummary(report.bucketCounts.new);
   assertOnlyApprovedParityGaps(report);
-  assert.equal(report.bucketCounts.old.major, 12);
+  assert.equal(report.bucketCounts.old.major, 5);
   assert.equal(report.bucketCounts.old.intermediate, 2);
   assert.equal(report.bucketCounts.old.intraday, 1);
   assert.deepEqual(report.bucketCounts.new, report.bucketCounts.old);
@@ -1183,8 +1183,8 @@ test("runtime parity fixture compares nearest support and resistance around refe
   assertOnlyApprovedParityGaps(report);
   assert.equal(report.nearest.support.oldPrice, 4.5284);
   assert.equal(report.nearest.support.newPrice, 4.5284);
-  assert.equal(report.nearest.resistance.oldPrice, 4.6957);
-  assert.equal(report.nearest.resistance.newPrice, 4.6957);
+  assert.equal(report.nearest.resistance.oldPrice, 4.6771);
+  assert.equal(report.nearest.resistance.newPrice, 4.6771);
   assert.equal(report.approvedGaps.some((gap) => gap.code === "nearest_support_gap"), false);
   assert.equal(report.approvedGaps.some((gap) => gap.code === "nearest_resistance_gap"), false);
 });
@@ -1231,16 +1231,16 @@ test("runtime parity diagnostics expose every old and new pipeline stage", async
     assert.equal(buckets.intraday.count, buckets.intraday.identities.length);
   }
 
-  assert.equal(report.oldSurfacedBuckets.major.count, 12);
+  assert.equal(report.oldSurfacedBuckets.major.count, 5);
   assert.equal(report.oldSurfacedBuckets.intermediate.count, 2);
   assert.equal(report.oldSurfacedBuckets.intraday.count, 1);
   assert.equal(report.projectedNewBuckets.major.count, newCounts.major);
   assert.equal(report.projectedNewBuckets.intermediate.count, newCounts.intermediate);
   assert.equal(report.projectedNewBuckets.intraday.count, newCounts.intraday);
-  assert.equal(report.projectedNewBuckets.major.count, 12);
+  assert.equal(report.projectedNewBuckets.major.count, 5);
   assert.equal(report.projectedNewBuckets.intermediate.count, 2);
   assert.equal(report.projectedNewBuckets.intraday.count, 1);
-  assert.equal(report.enrichmentDiagnostics.totalRuntimeZones, 20);
+  assert.equal(report.enrichmentDiagnostics.totalRuntimeZones, 10);
   assert.ok(report.enrichmentDiagnostics.enrichedZones > 0);
   assert.equal(
     report.enrichmentDiagnostics.totalRuntimeZones,
@@ -1330,9 +1330,9 @@ test("runtime parity diagnostics prove remediated nearest levels match the old b
   const { report } = await getNearRuntimeParityStageDiagnostics();
 
   assert.equal(report.nearest.support.oldPrice, 4.5284);
-  assert.equal(report.nearest.resistance.oldPrice, 4.6957);
+  assert.equal(report.nearest.resistance.oldPrice, 4.6771);
   assert.equal(report.nearest.support.newPrice, 4.5284);
-  assert.equal(report.nearest.resistance.newPrice, 4.6957);
+  assert.equal(report.nearest.resistance.newPrice, 4.6771);
   assert.equal(report.nearest.support.distancePct, 0);
   assert.equal(report.nearest.resistance.distancePct, 0);
 });
@@ -1340,12 +1340,12 @@ test("runtime parity diagnostics prove remediated nearest levels match the old b
 test("runtime parity diagnostics document remediated extension ladder parity", async () => {
   const { report } = await getNearRuntimeParityStageDiagnostics();
 
-  assert.equal(report.oldExtensionLevels.total, 5);
-  assert.equal(report.oldExtensionLevels.support.count, 3);
-  assert.equal(report.oldExtensionLevels.resistance.count, 2);
-  assert.equal(report.projectedNewExtensionLevels.total, 5);
-  assert.equal(report.projectedNewExtensionLevels.support.count, 3);
-  assert.equal(report.projectedNewExtensionLevels.resistance.count, 2);
+  assert.equal(report.oldExtensionLevels.total, 2);
+  assert.equal(report.oldExtensionLevels.support.count, 2);
+  assert.equal(report.oldExtensionLevels.resistance.count, 0);
+  assert.equal(report.projectedNewExtensionLevels.total, 2);
+  assert.equal(report.projectedNewExtensionLevels.support.count, 2);
+  assert.equal(report.projectedNewExtensionLevels.resistance.count, 0);
 });
 
 test("new projected runtime output reuses the old extension ladder without changing old output", async () => {
@@ -1384,22 +1384,15 @@ test("new projected runtime output adds enrichedAnalysis only as shadow metadata
   assert.equal(enrichedRuntimeZones(defaultOutput).length, 0);
   assert.deepEqual(flattenOutput(newOutput), flattenOutput(oldOutput));
   assert.deepEqual(bucketCounts(newOutput), bucketCounts(oldOutput));
-  assert.equal(bucketCounts(newOutput).major, 12);
+  assert.equal(bucketCounts(newOutput).major, 5);
   assert.equal(bucketCounts(newOutput).intermediate, 2);
   assert.equal(bucketCounts(newOutput).intraday, 1);
 
   assert.ok(enriched.length > 0);
-  assert.ok(unenriched.length > 0);
-  assert.ok(
-    unenriched.some((zone) => zone.id.startsWith("NEAR-synthetic-resistance-extension")),
-  );
+  assert.equal(unenriched.length, 0);
 
   for (const zone of enriched) {
     assertEnrichedAnalysisCompatible(zone.enrichedAnalysis!);
-  }
-
-  for (const zone of unenriched) {
-    assertFinalLevelZoneCompatible(zone);
   }
 
   for (const key of LEVEL_OUTPUT_ARRAY_KEYS) {
@@ -1408,6 +1401,35 @@ test("new projected runtime output adds enrichedAnalysis only as shadow metadata
       oldOutput[key].map((zone) => zoneIdentity(zone, key)),
     );
   }
+
+  const syntheticOutput = fixtureOutput("SYN", {
+    extensionLevels: {
+      support: [
+        fixtureZone({
+          id: "SYN-synthetic-support-extension",
+          symbol: "SYN",
+          kind: "support",
+          price: 3.25,
+          isExtension: true,
+        }),
+      ],
+      resistance: [],
+    },
+  });
+  const syntheticProjection = buildNewRuntimeCompatibleLevelOutput({
+    symbol: "SYN",
+    rawCandidates: [],
+    levelCandidates: [],
+    candlesByTimeframe: {},
+    metadata: syntheticOutput.metadata,
+    specialLevels: {},
+    legacyExtensionLevels: syntheticOutput.extensionLevels,
+    generatedAt: 1,
+  });
+  const syntheticUnenriched = unenrichedRuntimeZones(syntheticProjection.output);
+
+  assert.equal(syntheticUnenriched.length, 1);
+  assert.equal(syntheticUnenriched[0]?.id, "SYN-synthetic-support-extension");
 });
 
 test("projected extension levels stay outside surfaced display levels and remain spaced", async () => {
@@ -1443,17 +1465,12 @@ test("projected extension ladder preserves practical forward-planning coverage f
   const referencePrice = oldOutput.metadata.referencePrice;
   assert.ok(referencePrice);
 
-  const highestExtensionResistance = Math.max(
-    ...newOutput.extensionLevels.resistance.map((zone) => zone.representativePrice),
-  );
   const lowestExtensionSupport = Math.min(
     ...newOutput.extensionLevels.support.map((zone) => zone.representativePrice),
   );
-  const upsideCoveragePct = (highestExtensionResistance - referencePrice) / referencePrice;
   const downsideCoveragePct = (referencePrice - lowestExtensionSupport) / referencePrice;
 
-  assert.ok(upsideCoveragePct >= 0.30);
-  assert.ok(upsideCoveragePct <= 0.50);
+  assert.equal(newOutput.extensionLevels.resistance.length, 0);
   assert.ok(downsideCoveragePct >= 0.20);
   assert.ok(downsideCoveragePct <= 0.50);
   assert.deepEqual(

@@ -1,306 +1,56 @@
+// 2026-05-27 09:20 PM America/Toronto
+// Rescue-only multi-timeframe support/resistance context composed from closed candles only.
+
+import type { Candle, CandleTimeframe } from "../market-data/candle-types.js";
+import type { CandleAsOfFilterDiagnostic } from "../market-data/candle-as-of-filter.js";
 import {
-  CandleFetchService,
-  type CandleFetchServiceOptions,
-  type HistoricalFetchRequest,
-} from "../market-data/candle-fetch-service.js";
-import type { CandleProviderName, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
-import {
-  filterCandlesByCloseAsOf,
-  type CandleAsOfFilterDiagnostic,
-} from "../market-data/candle-as-of-filter.js";
-import type { StockContextPreview } from "../stock-context/stock-context-types.js";
-import type { LevelEngineRuntimeOptions } from "../levels/level-engine.js";
-import type { LevelEngineConfig } from "../levels/level-config.js";
-import {
-  buildSupportResistanceContextFromNormalizedCandles,
-  parseSharedCandleTimestamp,
-  sortSharedCandles,
-  type SharedCandleTimestamp,
-  type SupportResistanceContext,
-} from "./build-support-resistance-context.js";
+  buildSingleTimeframeSupportResistanceContext,
+  type SharedSupportResistanceLevel,
+  type SingleTimeframeSupportResistanceContext,
+} from "./single-timeframe-context.js";
 
-export type SupportResistanceSymbolContextDiagnosticCode =
-  | "fetched_candle_group"
-  | "missing_optional_5m_candles"
-  | "missing_required_higher_timeframe"
-  | "future_candles_filtered"
-  | "partial_candles_filtered"
-  | "provider_warning";
-
-export type SupportResistanceSymbolContextDiagnostic = {
-  code: SupportResistanceSymbolContextDiagnosticCode;
-  severity: "info" | "warning" | "error";
-  timeframe?: CandleTimeframe;
-  message: string;
-};
-
-export type SupportResistanceSymbolFetchSummary = {
-  timeframe: CandleTimeframe;
-  provider: CandleProviderName;
-  freshnessStatus: "fresh" | "usable" | "stale" | "partial" | "missing";
-  requestedLookbackBars: number;
-  actualBarsReturned: number;
-  requestedStartTimestamp: number;
-  requestedEndTimestamp: number;
-  newestCandleTimestamp: number | null;
-  completenessStatus: CandleProviderResponse["completenessStatus"];
-  stale: boolean;
-  validationIssues: CandleProviderResponse["validationIssues"];
-};
-
-export type BuildSupportResistanceContextForSymbolRequest = {
+export type SymbolSupportResistanceContext = {
   symbol: string;
-  sessionDate?: string;
-  asOfTimestamp?: SharedCandleTimestamp;
-  asOfTimestampByTimeframe?: Partial<Record<CandleTimeframe, SharedCandleTimestamp>>;
-  lookbackBars?: Partial<Record<CandleTimeframe, number>>;
-  fetchService?: CandleFetchService;
-  fetchServiceOptions?: CandleFetchServiceOptions;
-  preferredProvider?: HistoricalFetchRequest["preferredProvider"];
-  currentPrice?: number;
-  bid?: number;
-  ask?: number;
-  stockContext?: StockContextPreview | null;
-  knownCatalyst?: boolean;
-  config?: LevelEngineConfig;
-  runtimeOptions?: LevelEngineRuntimeOptions;
+  asOfTimestamp?: number;
+  timeframes: Partial<Record<CandleTimeframe, SingleTimeframeSupportResistanceContext>>;
+  levels: SharedSupportResistanceLevel[];
+  diagnostics: CandleAsOfFilterDiagnostic[];
 };
 
-export type SupportResistanceSymbolContext = SupportResistanceContext & {
-  mode: "symbol";
-  candleFetchingOwnedBy: "levels-system";
-  requestedTimeframes: CandleTimeframe[];
-  fetches: SupportResistanceSymbolFetchSummary[];
-  diagnostics: SupportResistanceSymbolContextDiagnostic[];
+export type BuildSymbolSupportResistanceContextRequest = {
+  symbol: string;
+  candlesByTimeframe: Partial<Record<CandleTimeframe, Candle[]>>;
+  asOfTimestamp?: number | null;
 };
 
-const DEFAULT_LOOKBACK_BARS: Record<CandleTimeframe, number> = {
-  daily: 520,
-  "4h": 180,
-  "5m": 120,
-};
+const TIMEFRAMES: readonly CandleTimeframe[] = ["daily", "4h", "5m"];
 
-function normalizeSymbol(symbol: string): string {
-  const normalized = symbol.trim().toUpperCase();
-  if (!normalized) {
-    throw new Error("symbol is required.");
-  }
-  return normalized;
-}
+export function buildSymbolSupportResistanceContext(
+  request: BuildSymbolSupportResistanceContextRequest,
+): SymbolSupportResistanceContext {
+  const timeframes: Partial<Record<CandleTimeframe, SingleTimeframeSupportResistanceContext>> = {};
 
-function buildFetchService(request: BuildSupportResistanceContextForSymbolRequest): CandleFetchService {
-  return (
-    request.fetchService ??
-    new CandleFetchService({
-      ...request.fetchServiceOptions,
-      providerName: request.preferredProvider ?? request.fetchServiceOptions?.providerName,
-    })
-  );
-}
-
-function fetchSummary(response: CandleProviderResponse): SupportResistanceSymbolFetchSummary {
-  const freshnessStatus: SupportResistanceSymbolFetchSummary["freshnessStatus"] =
-    response.completenessStatus === "empty"
-      ? "missing"
-      : response.stale
-        ? "stale"
-        : response.completenessStatus === "partial"
-          ? "partial"
-          : response.validationIssues.some((issue) => issue.severity === "warning")
-            ? "usable"
-            : "fresh";
-  return {
-    timeframe: response.timeframe as CandleTimeframe,
-    provider: response.provider,
-    freshnessStatus,
-    requestedLookbackBars: response.requestedLookbackBars,
-    actualBarsReturned: response.actualBarsReturned,
-    requestedStartTimestamp: response.requestedStartTimestamp,
-    requestedEndTimestamp: response.requestedEndTimestamp,
-    newestCandleTimestamp: response.candles.at(-1)?.timestamp ?? null,
-    completenessStatus: response.completenessStatus,
-    stale: response.stale,
-    validationIssues: response.validationIssues,
-  };
-}
-
-function diagnosticsFromResponses(
-  responses: Partial<Record<CandleTimeframe, CandleProviderResponse>>,
-): SupportResistanceSymbolContextDiagnostic[] {
-  const diagnostics: SupportResistanceSymbolContextDiagnostic[] = [];
-  for (const timeframe of ["daily", "4h"] as const) {
-    const response = responses[timeframe];
-    if (!response || response.completenessStatus === "empty") {
-      diagnostics.push({
-        code: "missing_required_higher_timeframe",
-        severity: "error",
-        timeframe,
-        message: `${timeframe} candles are required for full support/resistance context.`,
-      });
-    }
-  }
-
-  if (!responses["5m"] || responses["5m"]?.completenessStatus === "empty") {
-    diagnostics.push({
-      code: "missing_optional_5m_candles",
-      severity: "warning",
-      timeframe: "5m",
-      message: "5m candles are optional, but missing 5m data limits dynamic and intraday context.",
-    });
-  }
-
-  for (const response of Object.values(responses)) {
-    if (!response) {
+  for (const timeframe of TIMEFRAMES) {
+    const candles = request.candlesByTimeframe[timeframe];
+    if (!candles) {
       continue;
     }
-    diagnostics.push({
-      code: "fetched_candle_group",
-      severity: "info",
-      timeframe: response.timeframe as CandleTimeframe,
-      message: `Fetched ${response.actualBarsReturned} ${response.timeframe} candles from ${response.provider}.`,
-    });
-    for (const issue of response.validationIssues) {
-      diagnostics.push({
-        code: "provider_warning",
-        severity: issue.severity,
-        timeframe: response.timeframe as CandleTimeframe,
-        message: issue.message,
-      });
-    }
-  }
 
-  return diagnostics;
-}
-
-function diagnosticsFromCandleFilters(
-  diagnostics: CandleAsOfFilterDiagnostic[],
-): SupportResistanceSymbolContextDiagnostic[] {
-  return diagnostics.map((diagnostic) => ({
-    code: diagnostic.code,
-    severity: diagnostic.severity,
-    timeframe: diagnostic.timeframe === "1m" ? "5m" : diagnostic.timeframe,
-    message: diagnostic.message,
-  }));
-}
-
-export async function buildSupportResistanceContextForSymbol(
-  request: BuildSupportResistanceContextForSymbolRequest,
-): Promise<SupportResistanceSymbolContext> {
-  const symbol = normalizeSymbol(request.symbol);
-  const fetchService = buildFetchService(request);
-  const endTimeMs =
-    request.asOfTimestamp === undefined
-      ? undefined
-      : parseSharedCandleTimestamp(request.asOfTimestamp);
-  const endTimeMsByTimeframe: Partial<Record<CandleTimeframe, number>> = {};
-  for (const timeframe of ["daily", "4h", "5m"] as const) {
-    const timestamp = request.asOfTimestampByTimeframe?.[timeframe];
-    if (timestamp !== undefined) {
-      endTimeMsByTimeframe[timeframe] = parseSharedCandleTimestamp(timestamp);
-    }
-  }
-  const requestedTimeframes: CandleTimeframe[] = ["daily", "4h", "5m"];
-
-  const settled = await Promise.allSettled(
-    requestedTimeframes.map((timeframe) =>
-      fetchService.fetchCandles({
-        symbol,
-        timeframe,
-        lookbackBars: request.lookbackBars?.[timeframe] ?? DEFAULT_LOOKBACK_BARS[timeframe],
-        endTimeMs: endTimeMsByTimeframe[timeframe] ?? endTimeMs,
-        preferredProvider: request.preferredProvider,
-      }),
-    ),
-  );
-
-  const responses: Partial<Record<CandleTimeframe, CandleProviderResponse>> = {};
-  const failedDiagnostics: SupportResistanceSymbolContextDiagnostic[] = [];
-  for (const [index, result] of settled.entries()) {
-    const timeframe = requestedTimeframes[index]!;
-    if (result.status === "fulfilled") {
-      responses[timeframe] = result.value;
-      continue;
-    }
-    failedDiagnostics.push({
-      code: timeframe === "5m" ? "missing_optional_5m_candles" : "missing_required_higher_timeframe",
-      severity: timeframe === "5m" ? "warning" : "error",
+    timeframes[timeframe] = buildSingleTimeframeSupportResistanceContext({
+      symbol: request.symbol,
       timeframe,
-      message:
-        result.reason instanceof Error
-          ? result.reason.message
-          : `Failed to fetch ${timeframe} candles for ${symbol}.`,
+      candles,
+      asOfTimestamp: request.asOfTimestamp,
     });
   }
 
-  const responseDiagnostics = diagnosticsFromResponses(responses);
-  const preliminaryDiagnostics = [...failedDiagnostics, ...responseDiagnostics];
-  const daily = responses.daily;
-  const fourHour = responses["4h"];
-  if (!daily || !fourHour) {
-    const diagnosticSummary = preliminaryDiagnostics
-      .filter((diagnostic) => diagnostic.severity === "error" || diagnostic.timeframe === "daily" || diagnostic.timeframe === "4h")
-      .map((diagnostic) => `${diagnostic.timeframe ?? "context"}: ${diagnostic.message}`)
-      .join(" | ");
-    throw new Error(
-      `Cannot build full support/resistance context for ${symbol}: daily and 4h candles are required.${diagnosticSummary ? ` Higher-timeframe diagnostics: ${diagnosticSummary}` : ""}`,
-    );
-  }
-
-  const dailyFilter = filterCandlesByCloseAsOf({
-    candles: daily.candles,
-    timeframe: "daily",
-    asOfTimestamp: endTimeMsByTimeframe.daily ?? endTimeMs,
-  });
-  const fourHourFilter = filterCandlesByCloseAsOf({
-    candles: fourHour.candles,
-    timeframe: "4h",
-    asOfTimestamp: endTimeMsByTimeframe["4h"] ?? endTimeMs,
-  });
-  const fiveMinuteFilter = filterCandlesByCloseAsOf({
-    candles: responses["5m"]?.candles ?? [],
-    timeframe: "5m",
-    asOfTimestamp: endTimeMsByTimeframe["5m"] ?? endTimeMs,
-  });
-  const candleFilterDiagnostics = [
-    ...dailyFilter.diagnostics,
-    ...fourHourFilter.diagnostics,
-    ...fiveMinuteFilter.diagnostics,
-  ];
-  const diagnostics = [
-    ...preliminaryDiagnostics,
-    ...diagnosticsFromCandleFilters(candleFilterDiagnostics),
-  ];
-
-  const baseContext = await buildSupportResistanceContextFromNormalizedCandles({
-    symbol,
-    candlesByTimeframe: {
-      daily: sortSharedCandles(dailyFilter.candles),
-      "4h": sortSharedCandles(fourHourFilter.candles),
-      "5m": sortSharedCandles(fiveMinuteFilter.candles),
-    },
-    providerByTimeframe: {
-      daily: daily.provider,
-      "4h": fourHour.provider,
-      ...(responses["5m"] ? { "5m": responses["5m"]!.provider } : {}),
-    },
-    sessionDate: request.sessionDate,
-    asOfTimestamp: endTimeMs,
-    currentPrice: request.currentPrice,
-    bid: request.bid,
-    ask: request.ask,
-    stockContext: request.stockContext,
-    knownCatalyst: request.knownCatalyst,
-    config: request.config,
-    runtimeOptions: request.runtimeOptions,
-  });
+  const contexts = Object.values(timeframes);
 
   return {
-    ...baseContext,
-    mode: "symbol",
-    candleFetchingOwnedBy: "levels-system",
-    requestedTimeframes,
-    fetches: Object.values(responses).map(fetchSummary),
-    candleFilterDiagnostics,
-    diagnostics,
+    symbol: request.symbol.toUpperCase(),
+    asOfTimestamp: request.asOfTimestamp ?? undefined,
+    timeframes,
+    levels: contexts.flatMap((context) => context.levels),
+    diagnostics: contexts.flatMap((context) => context.diagnostics),
   };
 }
