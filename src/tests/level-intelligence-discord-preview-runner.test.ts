@@ -8,6 +8,7 @@ import test from "node:test";
 import { formatLevelIntelligenceDiscordPreview } from "../lib/alerts/level-intelligence-discord-preview.js";
 import {
   buildLevelIntelligenceDiscordPreviewReviewResult,
+  loadLevelIntelligenceDiscordPreviewFactsInput,
   parseLevelIntelligenceDiscordPreviewRunnerArgs,
   runLevelIntelligenceDiscordPreviewRunner,
   type LevelIntelligenceDiscordPreviewSendRequest,
@@ -116,6 +117,137 @@ function writeFixture(dir: string, output: LevelEngineOutput = levelOutput()): s
   return filePath;
 }
 
+function writeJsonFixture(dir: string, fileName: string, value: unknown): string {
+  const filePath = join(dir, fileName);
+  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  return filePath;
+}
+
+function sessionFacts() {
+  return {
+    symbol: "TEST",
+    asOfTimestamp: GENERATED_AT,
+    sessionDate: "2026-05-01",
+    previousClose: 9.1,
+    regularSessionOpen: 9.4,
+    currentPrice: 10.01,
+    premarketHigh: 10.5,
+    premarketLow: 9.5,
+    premarketHighTimestamp: Date.parse("2026-05-01T08:45:00-04:00"),
+    premarketLowTimestamp: Date.parse("2026-05-01T08:05:00-04:00"),
+    openingRangeHigh: 10.25,
+    openingRangeLow: 9.75,
+    openingRangeStartTimestamp: Date.parse("2026-05-01T09:30:00-04:00"),
+    openingRangeEndTimestamp: Date.parse("2026-05-01T10:00:00-04:00"),
+    highOfDay: 10.5,
+    lowOfDay: 9.5,
+    highOfDayTimestamp: Date.parse("2026-05-01T10:15:00-04:00"),
+    lowOfDayTimestamp: Date.parse("2026-05-01T09:40:00-04:00"),
+    vwap: 9.5,
+    aboveVWAP: true,
+    percentFromVWAP: 5.3684,
+    diagnostics: [],
+  };
+}
+
+function volumeFacts() {
+  return {
+    symbol: "TEST",
+    asOfTimestamp: GENERATED_AT,
+    currentVolume: 1_200_000,
+    rollingAverageVolume: 375_000,
+    relativeVolume: 3.2,
+    dollarVolume: 8_750_000,
+    volumeState: "high",
+    liquidityQuality: "strong",
+    accelerationState: "surging",
+    pullbackVolumeState: "drying_up",
+    breakoutVolumeState: "strong",
+    diagnostics: [],
+  };
+}
+
+function volumeShelves() {
+  return [
+    {
+      id: "TEST-shelf-1045-1055",
+      zoneLow: 10.45,
+      zoneHigh: 10.55,
+      representativePrice: 10.5,
+      totalVolume: 2_500_000,
+      dollarVolume: 26_250_000,
+      percentOfWindowVolume: 32.5,
+      touchCount: 5,
+      firstTimestamp: Date.parse("2026-05-01T09:35:00-04:00"),
+      lastTimestamp: Date.parse("2026-05-01T10:20:00-04:00"),
+      shelfRole: "resistance",
+      confidence: 0.82,
+      reason: "High activity shelf near the supplied level.",
+    },
+  ];
+}
+
+function marketContext() {
+  return {
+    primaryContext: "day_trade_runner",
+    confidence: 0.78,
+    runnerPhase: "high_of_day_breakout",
+    evidence: [
+      {
+        code: "near_high_of_day",
+        context: "day_trade_runner",
+        message: "Price is near high of day.",
+        weight: 0.9,
+      },
+    ],
+    warnings: [],
+    facts: {
+      percentFromPreviousClose: 14.2,
+      percentFromOpen: 6.4,
+      percentFromVWAP: 5.3684,
+      relativeVolume: 3.2,
+      dollarVolume: 8_750_000,
+      aboveVWAP: true,
+      abovePremarketHigh: false,
+      aboveOpeningRangeHigh: false,
+      nearHighOfDay: true,
+      premarketHigh: 10.5,
+      openingRangeHigh: 10.25,
+      highOfDay: 10.5,
+      filteredCandleCount: 12,
+      filteredPremarketCandleCount: 5,
+      filteredRegularSessionCandleCount: 7,
+    },
+    scoringAdjustments: {
+      intradayWeightMultiplier: 1.2,
+      dailyWeightMultiplier: 0.9,
+      sessionLevelWeightMultiplier: 1.15,
+      volumeWeightMultiplier: 1.3,
+      extensionRiskPenaltyMultiplier: 1.15,
+    },
+  };
+}
+
+function factsBundle() {
+  return {
+    symbol: "TEST",
+    asOfTimestamp: GENERATED_AT,
+    referencePrice: 10.01,
+    sessionFacts: sessionFacts(),
+    volumeFacts: volumeFacts(),
+    volumeShelves: volumeShelves(),
+    diagnostics: {
+      futureCandlesExcluded: 0,
+      partialCandlesExcluded: 0,
+      sessionDiagnostics: [],
+      volumeDiagnostics: [],
+    },
+    levelOutputUnchanged: true,
+    shelvesAreFactsOnly: true,
+    vwapFactsOnly: true,
+  };
+}
+
 function assertNoForbiddenLanguage(value: unknown): void {
   const text = JSON.stringify(value).toLowerCase();
 
@@ -157,6 +289,11 @@ test("parses dry-run and send-test CLI options", () => {
       mode: "dry-run",
       testWebhookUrl: undefined,
       maxMessageLength: 900,
+      sessionFactsPath: undefined,
+      volumeFactsPath: undefined,
+      volumeShelvesPath: undefined,
+      marketContextPath: undefined,
+      factsBundlePath: undefined,
     },
   );
 
@@ -170,6 +307,43 @@ test("parses dry-run and send-test CLI options", () => {
       format: "text",
       mode: "send-test",
       testWebhookUrl: "https://example.test/webhook",
+      maxMessageLength: undefined,
+      sessionFactsPath: undefined,
+      volumeFactsPath: undefined,
+      volumeShelvesPath: undefined,
+      marketContextPath: undefined,
+      factsBundlePath: undefined,
+    },
+  );
+});
+
+test("parses optional facts input paths", () => {
+  assert.deepEqual(
+    parseLevelIntelligenceDiscordPreviewRunnerArgs([
+      "--level-output",
+      "fixture.json",
+      "--session-facts",
+      "session.json",
+      "--volume-facts",
+      "volume.json",
+      "--volume-shelves",
+      "shelves.json",
+      "--market-context",
+      "context.json",
+      "--facts-bundle",
+      "bundle.json",
+    ]),
+    {
+      levelOutputPath: "fixture.json",
+      sessionFactsPath: "session.json",
+      volumeFactsPath: "volume.json",
+      volumeShelvesPath: "shelves.json",
+      marketContextPath: "context.json",
+      factsBundlePath: "bundle.json",
+      outPath: undefined,
+      format: "text",
+      mode: "dry-run",
+      testWebhookUrl: undefined,
       maxMessageLength: undefined,
     },
   );
@@ -192,6 +366,133 @@ test("dry-run returns preview messages without sending", async () => withTempDir
   assert.ok(result.content.includes("TEST level intelligence Discord preview (dry-run)"));
   assert.ok(result.content.includes("No test webhook deliveries."));
   assertNoForbiddenLanguage(result.content);
+}));
+
+test("dry-run accepts session facts JSON and includes session context in preview", async () => withTempDir(async (dir) => {
+  const levelOutputPath = writeFixture(dir);
+  const sessionFactsPath = writeJsonFixture(dir, "session-facts.json", sessionFacts());
+  const result = await runLevelIntelligenceDiscordPreviewRunner({
+    levelOutputPath,
+    sessionFactsPath,
+    format: "text",
+    mode: "dry-run",
+  });
+
+  assert.ok(result.content.includes("Session facts: Level is near high of day 10.5"));
+  assert.ok(result.content.includes("Session facts: Level is near low of day 9.5"));
+  assert.ok(result.content.includes("Level is near VWAP fact 9.5"));
+  assert.ok(result.content.includes("VWAP facts-only: true"));
+  assert.equal(result.sendResults.length, 0);
+  assertNoForbiddenLanguage(result.content);
+}));
+
+test("dry-run accepts volume facts JSON and includes volume context in preview", async () => withTempDir(async (dir) => {
+  const levelOutputPath = writeFixture(dir);
+  const volumeFactsPath = writeJsonFixture(dir, "volume-facts.json", volumeFacts());
+  const result = await runLevelIntelligenceDiscordPreviewRunner({
+    levelOutputPath,
+    volumeFactsPath,
+    format: "text",
+    mode: "dry-run",
+  });
+
+  assert.ok(result.content.includes("Volume facts: state high; relative 3.2; dollar 8750000; liquidity strong; acceleration surging"));
+  assert.ok(result.content.includes("Volume facts nearby: Volume state is high."));
+  assert.ok(result.content.includes("Relative volume fact is 3.2."));
+  assert.equal(result.sendResults.length, 0);
+  assertNoForbiddenLanguage(result.content);
+}));
+
+test("dry-run accepts volume shelves JSON and keeps shelf facts separate from levels", async () => withTempDir(async (dir) => {
+  const levelOutputPath = writeFixture(dir);
+  const volumeShelvesPath = writeJsonFixture(dir, "volume-shelves.json", volumeShelves());
+  const result = await runLevelIntelligenceDiscordPreviewRunner({
+    levelOutputPath,
+    volumeShelvesPath,
+    format: "text",
+    mode: "dry-run",
+  });
+
+  assert.ok(result.content.includes("Shelf facts: Level overlaps volume shelf TEST-shelf-1045-1055"));
+  assert.ok(result.content.includes("Volume shelves facts-only: true"));
+  assert.ok(result.content.includes("Volume shelves remain facts-only."));
+  assert.equal(result.reportSymbol, "TEST");
+  assert.equal(result.sendResults.length, 0);
+  assertNoForbiddenLanguage(result.content);
+}));
+
+test("dry-run accepts detector-result shaped volume shelves JSON", async () => withTempDir(async (dir) => {
+  const levelOutputPath = writeFixture(dir);
+  const volumeShelvesPath = writeJsonFixture(dir, "volume-shelves-result.json", {
+    symbol: "TEST",
+    shelves: volumeShelves(),
+    diagnostics: [],
+  });
+  const result = await runLevelIntelligenceDiscordPreviewRunner({
+    levelOutputPath,
+    volumeShelvesPath,
+    format: "text",
+    mode: "dry-run",
+  });
+
+  assert.ok(result.content.includes("Shelf facts: Level overlaps volume shelf TEST-shelf-1045-1055"));
+  assertNoForbiddenLanguage(result.content);
+}));
+
+test("dry-run accepts market context JSON and includes market context facts", async () => withTempDir(async (dir) => {
+  const levelOutputPath = writeFixture(dir);
+  const marketContextPath = writeJsonFixture(dir, "market-context.json", marketContext());
+  const result = await runLevelIntelligenceDiscordPreviewRunner({
+    levelOutputPath,
+    marketContextPath,
+    format: "text",
+    mode: "dry-run",
+  });
+
+  assert.ok(result.content.includes("Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78"));
+  assert.ok(result.content.includes("Context tags: market_context_day_trade_runner | runner_phase_high_of_day_breakout"));
+  assertNoForbiddenLanguage(result.content);
+}));
+
+test("dry-run accepts facts bundle JSON and includes bundled facts", async () => withTempDir(async (dir) => {
+  const levelOutputPath = writeFixture(dir);
+  const factsBundlePath = writeJsonFixture(dir, "facts-bundle.json", factsBundle());
+  const result = await runLevelIntelligenceDiscordPreviewRunner({
+    levelOutputPath,
+    factsBundlePath,
+    format: "text",
+    mode: "dry-run",
+  });
+
+  assert.ok(result.content.includes("Session facts: Level is near high of day 10.5"));
+  assert.ok(result.content.includes("Volume facts: state high; relative 3.2; dollar 8750000; liquidity strong; acceleration surging"));
+  assert.ok(result.content.includes("Shelf facts: Level overlaps volume shelf TEST-shelf-1045-1055"));
+  assertNoForbiddenLanguage(result.content);
+}));
+
+test("invalid optional facts JSON returns a clear error", async () => withTempDir(async (dir) => {
+  const levelOutputPath = writeFixture(dir);
+  const sessionFactsPath = join(dir, "invalid-session-facts.json");
+  writeFileSync(sessionFactsPath, "{ not json", "utf8");
+
+  await assert.rejects(
+    () => runLevelIntelligenceDiscordPreviewRunner({
+      levelOutputPath,
+      sessionFactsPath,
+      format: "text",
+      mode: "dry-run",
+    }),
+    /Failed to read session facts JSON/,
+  );
+}));
+
+test("invalid volume shelves shape returns a clear error", () => withTempDir(async (dir) => {
+  const volumeShelvesPath = writeJsonFixture(dir, "bad-shelves.json", { notShelves: [] });
+
+  assert.throws(
+    () => loadLevelIntelligenceDiscordPreviewFactsInput({ volumeShelvesPath }),
+    /Volume shelves JSON must contain a VolumeShelf array/,
+  );
 }));
 
 test("send-test mode requires explicit test webhook config", async () => withTempDir(async (dir) => {
