@@ -14,6 +14,7 @@ import {
   type SurfacedSelectionResult,
 } from "./level-surfaced-selection.js";
 import type {
+  EnrichedLevelAnalysis,
   FinalLevelZone,
   LevelCandidate,
   LevelDataFreshness,
@@ -22,10 +23,17 @@ import type {
   LevelScoringContext,
   RawLevelCandidate,
   RawLevelCandidateSourceType,
+  RankedLevel,
   RankedLevelsOutput,
   SourceTimeframe,
 } from "./level-types.js";
-import { buildZoneBounds, clamp } from "./level-zone-utils.js";
+import {
+  buildZoneBounds,
+  clamp,
+  isPriceInsideZone,
+  priceDistancePct,
+  zonesOverlap,
+} from "./level-zone-utils.js";
 
 export type NewRuntimeCompatibleLevelOutput = {
   output: LevelEngineOutput;
@@ -33,6 +41,15 @@ export type NewRuntimeCompatibleLevelOutput = {
   surfacedSelection: SurfacedSelectionResult;
   comparableOutput: ComparablePathOutput;
   mappingNotes: string[];
+  enrichmentDiagnostics: EnrichmentDiagnostics;
+};
+
+export type EnrichmentDiagnostics = {
+  totalRuntimeZones: number;
+  enrichedZones: number;
+  unenrichedZones: number;
+  unmatchedRuntimeZoneIds: string[];
+  unmatchedReason: "no_safe_ranked_level_match" | null;
 };
 
 export type LegacyRuntimeBuckets = Pick<
@@ -60,6 +77,9 @@ export type LevelRuntimeOutputAdapterInput = {
 };
 
 type RuntimeBucket = "major" | "intermediate" | "intraday";
+type EnrichmentAccumulator = {
+  unmatchedRuntimeZoneIds: string[];
+};
 
 const RAW_LEVEL_SOURCE_TYPES: readonly RawLevelCandidateSourceType[] = [
   "swing_high",
@@ -254,6 +274,35 @@ function deriveLastTimestamp(level: SurfacedLevelSelection, generatedAt: number)
   return timestamps.length > 0 ? Math.max(...timestamps) : generatedAt;
 }
 
+function toEnrichedAnalysis(level: RankedLevel): EnrichedLevelAnalysis {
+  return {
+    source: "rankLevels",
+    structuralStrengthScore: level.structuralStrengthScore,
+    activeRelevanceScore: level.activeRelevanceScore,
+    finalLevelScore: level.finalLevelScore,
+    confidence: level.confidence,
+    state: level.state,
+    rank: level.rank,
+    explanation: level.explanation,
+    scoreBreakdown: { ...level.scoreBreakdown },
+    touchStats: {
+      touchCount: level.touchCount,
+      meaningfulTouchCount: level.meaningfulTouchCount,
+      rejectionCount: level.rejectionCount,
+      failedBreakCount: level.failedBreakCount,
+      cleanBreakCount: level.cleanBreakCount,
+      reclaimCount: level.reclaimCount,
+      strongestReactionMovePct: level.strongestReactionMovePct,
+      averageReactionMovePct: level.averageReactionMovePct,
+      bestVolumeRatio: level.bestVolumeRatio,
+      averageVolumeRatio: level.averageVolumeRatio,
+      cleanlinessStdDevPct: level.cleanlinessStdDevPct,
+      barsSinceLastReaction: level.barsSinceLastReaction,
+      ageInBars: level.ageInBars,
+    },
+  };
+}
+
 function toRuntimeZone(
   level: SurfacedLevelSelection,
   generatedAt: number,
@@ -297,6 +346,21 @@ function toRuntimeZone(
       level.surfacedSelectionExplanation,
       ...level.surfacedSelectionNotes,
     ],
+    enrichedAnalysis: toEnrichedAnalysis(level),
+  };
+}
+
+function cloneEnrichedAnalysis(
+  enrichedAnalysis: EnrichedLevelAnalysis | undefined,
+): EnrichedLevelAnalysis | undefined {
+  if (!enrichedAnalysis) {
+    return undefined;
+  }
+
+  return {
+    ...enrichedAnalysis,
+    scoreBreakdown: { ...enrichedAnalysis.scoreBreakdown },
+    touchStats: { ...enrichedAnalysis.touchStats },
   };
 }
 
@@ -306,32 +370,161 @@ function cloneRuntimeZone(zone: FinalLevelZone): FinalLevelZone {
     sourceTypes: [...zone.sourceTypes],
     timeframeSources: [...zone.timeframeSources],
     notes: [...zone.notes],
+    enrichedAnalysis: cloneEnrichedAnalysis(zone.enrichedAnalysis),
   };
 }
 
 function cloneExtensionLevels(
   extensionLevels: LevelEngineOutput["extensionLevels"],
+  rankedLevels: RankedLevel[],
+  accumulator: EnrichmentAccumulator,
 ): LevelEngineOutput["extensionLevels"] {
   return {
-    support: extensionLevels.support.map(cloneRuntimeZone),
-    resistance: extensionLevels.resistance.map(cloneRuntimeZone),
+    support: extensionLevels.support.map((zone) =>
+      cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator),
+    ),
+    resistance: extensionLevels.resistance.map((zone) =>
+      cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator),
+    ),
   };
 }
 
-function cloneRuntimeZones(zones: FinalLevelZone[]): FinalLevelZone[] {
-  return zones.map(cloneRuntimeZone);
+function normalizedTimeframeSet(timeframes: readonly SourceTimeframe[]): Set<CandleTimeframe> {
+  return new Set(timeframes.map(normalizeRuntimeSourceTimeframe));
+}
+
+function levelSourceContextMatches(zone: FinalLevelZone, level: RankedLevel): boolean {
+  const levelTimeframes = normalizedTimeframeSet(level.sourceTimeframes);
+  const timeframeMatches = zone.timeframeSources.some((timeframe) =>
+    levelTimeframes.has(timeframe),
+  );
+  const originMatches = level.originKinds.some((origin) =>
+    (zone.sourceTypes as readonly string[]).includes(origin),
+  );
+
+  return timeframeMatches && originMatches;
+}
+
+function levelPriceMatches(zone: FinalLevelZone, level: RankedLevel): boolean {
+  const runtimeZone = {
+    zoneLow: Math.min(zone.zoneLow, zone.zoneHigh),
+    zoneHigh: Math.max(zone.zoneLow, zone.zoneHigh),
+  };
+  const rankedZone = {
+    zoneLow: Math.min(level.zoneLow, level.zoneHigh),
+    zoneHigh: Math.max(level.zoneLow, level.zoneHigh),
+  };
+
+  return (
+    isPriceInsideZone(level.price, runtimeZone.zoneLow, runtimeZone.zoneHigh) ||
+    isPriceInsideZone(zone.representativePrice, rankedZone.zoneLow, rankedZone.zoneHigh) ||
+    zonesOverlap(runtimeZone, rankedZone) ||
+    priceDistancePct(zone.representativePrice, level.price) <= 0.006
+  );
+}
+
+function findEnrichmentMatch(
+  zone: FinalLevelZone,
+  rankedLevels: RankedLevel[],
+): RankedLevel | null {
+  const matches = rankedLevels
+    .filter((level) => level.symbol === zone.symbol)
+    .filter((level) => level.type === zone.kind)
+    .filter((level) => levelSourceContextMatches(zone, level))
+    .filter((level) => levelPriceMatches(zone, level))
+    .sort((left, right) => {
+      const leftInside = isPriceInsideZone(
+        left.price,
+        Math.min(zone.zoneLow, zone.zoneHigh),
+        Math.max(zone.zoneLow, zone.zoneHigh),
+      );
+      const rightInside = isPriceInsideZone(
+        right.price,
+        Math.min(zone.zoneLow, zone.zoneHigh),
+        Math.max(zone.zoneLow, zone.zoneHigh),
+      );
+
+      return (
+        Number(rightInside) - Number(leftInside) ||
+        Number(right.isClusterRepresentative) - Number(left.isClusterRepresentative) ||
+        left.rank - right.rank ||
+        priceDistancePct(zone.representativePrice, left.price) -
+          priceDistancePct(zone.representativePrice, right.price)
+      );
+    });
+
+  return matches[0] ?? null;
+}
+
+function cloneRuntimeZoneWithEnrichment(
+  zone: FinalLevelZone,
+  rankedLevels: RankedLevel[],
+  accumulator: EnrichmentAccumulator,
+): FinalLevelZone {
+  const cloned = cloneRuntimeZone(zone);
+  const match = findEnrichmentMatch(cloned, rankedLevels);
+
+  if (!match) {
+    accumulator.unmatchedRuntimeZoneIds.push(cloned.id);
+    return cloned;
+  }
+
+  return {
+    ...cloned,
+    enrichedAnalysis: toEnrichedAnalysis(match),
+  };
+}
+
+function cloneRuntimeZones(
+  zones: FinalLevelZone[],
+  rankedLevels: RankedLevel[],
+  accumulator: EnrichmentAccumulator,
+): FinalLevelZone[] {
+  return zones.map((zone) => cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator));
 }
 
 function cloneLegacyRuntimeBuckets(
   runtimeBuckets: LegacyRuntimeBuckets,
+  rankedLevels: RankedLevel[],
+  accumulator: EnrichmentAccumulator,
 ): LegacyRuntimeBuckets {
   return {
-    majorSupport: cloneRuntimeZones(runtimeBuckets.majorSupport),
-    majorResistance: cloneRuntimeZones(runtimeBuckets.majorResistance),
-    intermediateSupport: cloneRuntimeZones(runtimeBuckets.intermediateSupport),
-    intermediateResistance: cloneRuntimeZones(runtimeBuckets.intermediateResistance),
-    intradaySupport: cloneRuntimeZones(runtimeBuckets.intradaySupport),
-    intradayResistance: cloneRuntimeZones(runtimeBuckets.intradayResistance),
+    majorSupport: cloneRuntimeZones(runtimeBuckets.majorSupport, rankedLevels, accumulator),
+    majorResistance: cloneRuntimeZones(runtimeBuckets.majorResistance, rankedLevels, accumulator),
+    intermediateSupport: cloneRuntimeZones(runtimeBuckets.intermediateSupport, rankedLevels, accumulator),
+    intermediateResistance: cloneRuntimeZones(runtimeBuckets.intermediateResistance, rankedLevels, accumulator),
+    intradaySupport: cloneRuntimeZones(runtimeBuckets.intradaySupport, rankedLevels, accumulator),
+    intradayResistance: cloneRuntimeZones(runtimeBuckets.intradayResistance, rankedLevels, accumulator),
+  };
+}
+
+function runtimeZones(output: LevelEngineOutput): FinalLevelZone[] {
+  return [
+    ...output.majorSupport,
+    ...output.majorResistance,
+    ...output.intermediateSupport,
+    ...output.intermediateResistance,
+    ...output.intradaySupport,
+    ...output.intradayResistance,
+    ...output.extensionLevels.support,
+    ...output.extensionLevels.resistance,
+  ];
+}
+
+function buildEnrichmentDiagnostics(
+  output: LevelEngineOutput,
+  accumulator: EnrichmentAccumulator,
+): EnrichmentDiagnostics {
+  const zones = runtimeZones(output);
+  const enrichedZones = zones.filter((zone) => zone.enrichedAnalysis).length;
+
+  return {
+    totalRuntimeZones: zones.length,
+    enrichedZones,
+    unenrichedZones: zones.length - enrichedZones,
+    unmatchedRuntimeZoneIds: [...accumulator.unmatchedRuntimeZoneIds],
+    unmatchedReason:
+      accumulator.unmatchedRuntimeZoneIds.length > 0 ? "no_safe_ranked_level_match" : null,
   };
 }
 
@@ -378,6 +571,13 @@ export function buildNewRuntimeCompatibleLevelOutput(
     buildScoringContext(symbol, input.candlesByTimeframe, input.metadata),
     scoreConfig,
   );
+  const rankedLevels = [
+    ...rankedOutput.supports,
+    ...rankedOutput.resistances,
+  ];
+  const enrichmentAccumulator: EnrichmentAccumulator = {
+    unmatchedRuntimeZoneIds: [],
+  };
   const surfacedSelection = selectSurfacedLevels(rankedOutput, surfacedSelectionConfig);
   const supportBuckets = buildActionableBuckets(surfacedSelection.surfacedSupports, generatedAt);
   const resistanceBuckets = buildActionableBuckets(
@@ -391,13 +591,13 @@ export function buildNewRuntimeCompatibleLevelOutput(
     ? [toRuntimeZone(surfacedSelection.deeperResistanceAnchor, generatedAt)]
     : [];
   const extensionLevels = input.legacyExtensionLevels
-    ? cloneExtensionLevels(input.legacyExtensionLevels)
+    ? cloneExtensionLevels(input.legacyExtensionLevels, rankedLevels, enrichmentAccumulator)
     : {
         support: extensionSupport,
         resistance: extensionResistance,
       };
   const runtimeBuckets = input.legacyRuntimeBuckets
-    ? cloneLegacyRuntimeBuckets(input.legacyRuntimeBuckets)
+    ? cloneLegacyRuntimeBuckets(input.legacyRuntimeBuckets, rankedLevels, enrichmentAccumulator)
     : {
         majorSupport: supportBuckets.major,
         majorResistance: resistanceBuckets.major,
@@ -420,12 +620,14 @@ export function buildNewRuntimeCompatibleLevelOutput(
     extensionLevels,
     specialLevels: input.specialLevels,
   };
+  const enrichmentDiagnostics = buildEnrichmentDiagnostics(output, enrichmentAccumulator);
 
   return {
     output,
     rankedOutput,
     surfacedSelection,
     comparableOutput: normalizeSurfacedSelectionOutput(surfacedSelection, 12),
+    enrichmentDiagnostics,
     mappingNotes: [
       "The new surfaced adapter is projected into the legacy bucketed LevelEngineOutput contract for runtime compatibility.",
       input.legacyRuntimeBuckets
@@ -434,6 +636,9 @@ export function buildNewRuntimeCompatibleLevelOutput(
       input.legacyExtensionLevels
         ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path so forward-planning coverage is not limited to one surfaced anchor per side."
         : "Extension levels fall back to surfaced deeper anchors when no legacy extension ladder is supplied.",
+      enrichmentDiagnostics.unenrichedZones > 0
+        ? `enrichedAnalysis attached to ${enrichmentDiagnostics.enrichedZones} runtime zones; ${enrichmentDiagnostics.unenrichedZones} remain undefined because no safe ranked-level match was available.`
+        : `enrichedAnalysis attached to all ${enrichmentDiagnostics.enrichedZones} runtime zones as additive shadow metadata.`,
     ],
   };
 }

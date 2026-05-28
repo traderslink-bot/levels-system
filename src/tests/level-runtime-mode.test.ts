@@ -6,7 +6,10 @@ import { DEFAULT_LEVEL_ENGINE_CONFIG } from "../lib/levels/level-config.js";
 import { clusterRawLevelCandidates } from "../lib/levels/level-clusterer.js";
 import { LevelEngine } from "../lib/levels/level-engine.js";
 import type { LevelRuntimeComparisonLogEntry } from "../lib/levels/level-runtime-comparison-logger.js";
-import { buildNewRuntimeCompatibleLevelOutput } from "../lib/levels/level-runtime-output-adapter.js";
+import {
+  buildNewRuntimeCompatibleLevelOutput,
+  type EnrichmentDiagnostics,
+} from "../lib/levels/level-runtime-output-adapter.js";
 import {
   LEVEL_RUNTIME_COMPARE_ACTIVE_PATH_ENV,
   LEVEL_RUNTIME_MODE_ENV,
@@ -239,6 +242,7 @@ type RuntimeParityStageReport = {
   richerSurfacedLevels: RuntimeStageCountAndIdentities<RuntimeSurfacedLevelIdentity>;
   projectedNewBuckets: RuntimeProjectedBucketDiagnostics;
   projectedNewExtensionLevels: RuntimeExtensionDiagnostics;
+  enrichmentDiagnostics: EnrichmentDiagnostics;
   nearest: RuntimeParityReport["nearest"];
   specialLevelsMatch: boolean;
   mappingNotes: string[];
@@ -276,6 +280,14 @@ function allRuntimeZones(output: LevelEngineOutput): FinalLevelZone[] {
   ];
 }
 
+function enrichedRuntimeZones(output: LevelEngineOutput): FinalLevelZone[] {
+  return allRuntimeZones(output).filter((zone) => zone.enrichedAnalysis);
+}
+
+function unenrichedRuntimeZones(output: LevelEngineOutput): FinalLevelZone[] {
+  return allRuntimeZones(output).filter((zone) => !zone.enrichedAnalysis);
+}
+
 function assertFinalLevelZoneCompatible(zone: FinalLevelZone): void {
   for (const key of FINAL_LEVEL_ZONE_REQUIRED_KEYS) {
     assert.ok(key in zone, `FinalLevelZone is missing required key ${key}`);
@@ -289,6 +301,32 @@ function assertFinalLevelZoneCompatible(zone: FinalLevelZone): void {
   assert.equal(typeof zone.representativePrice, "number");
   assert.equal(typeof zone.strengthScore, "number");
   assert.equal(typeof zone.isExtension, "boolean");
+}
+
+function assertEnrichedAnalysisCompatible(
+  enrichedAnalysis: NonNullable<FinalLevelZone["enrichedAnalysis"]>,
+): void {
+  assert.equal(enrichedAnalysis.source, "rankLevels");
+  assert.equal(typeof enrichedAnalysis.structuralStrengthScore, "number");
+  assert.equal(typeof enrichedAnalysis.activeRelevanceScore, "number");
+  assert.equal(typeof enrichedAnalysis.finalLevelScore, "number");
+  assert.equal(typeof enrichedAnalysis.confidence, "number");
+  assert.equal(typeof enrichedAnalysis.rank, "number");
+  assert.equal(typeof enrichedAnalysis.explanation, "string");
+  assert.ok(enrichedAnalysis.explanation.length > 0);
+  assert.ok([
+    "fresh",
+    "respected",
+    "heavily_tested",
+    "weakened",
+    "broken",
+    "reclaimed",
+    "flipped",
+  ].includes(enrichedAnalysis.state));
+  assert.ok(enrichedAnalysis.scoreBreakdown);
+  assert.equal(typeof enrichedAnalysis.scoreBreakdown.finalLevelScore, "number");
+  assert.ok(enrichedAnalysis.touchStats);
+  assert.equal(typeof enrichedAnalysis.touchStats.touchCount, "number");
 }
 
 function assertLevelEngineOutputCompatible(output: LevelEngineOutput): void {
@@ -809,6 +847,7 @@ async function buildRuntimeParityStageDiagnostics(
       richerSurfacedLevels: stageIdentities(surfacedLevels, surfacedLevelIdentity),
       projectedNewBuckets: bucketDiagnostics(projection.output),
       projectedNewExtensionLevels: extensionDiagnostics(projection.output),
+      enrichmentDiagnostics: projection.enrichmentDiagnostics,
       nearest: parityReport.nearest,
       specialLevelsMatch: parityReport.specialLevelsMatch,
       mappingNotes: projection.mappingNotes,
@@ -970,6 +1009,8 @@ test("old mode behavior is preserved when runtime mode remains old", async () =>
 
   assert.deepEqual(flattenOutput(defaultOutput), flattenOutput(explicitOldOutput));
   assert.deepEqual(defaultOutput.metadata, explicitOldOutput.metadata);
+  assert.equal(enrichedRuntimeZones(defaultOutput).length, 0);
+  assert.equal(enrichedRuntimeZones(explicitOldOutput).length, 0);
 });
 
 test("new mode maps the surfaced adapter back into the runtime-compatible output shape", async () => {
@@ -1199,6 +1240,12 @@ test("runtime parity diagnostics expose every old and new pipeline stage", async
   assert.equal(report.projectedNewBuckets.major.count, 12);
   assert.equal(report.projectedNewBuckets.intermediate.count, 2);
   assert.equal(report.projectedNewBuckets.intraday.count, 1);
+  assert.equal(report.enrichmentDiagnostics.totalRuntimeZones, 20);
+  assert.ok(report.enrichmentDiagnostics.enrichedZones > 0);
+  assert.equal(
+    report.enrichmentDiagnostics.totalRuntimeZones,
+    report.enrichmentDiagnostics.enrichedZones + report.enrichmentDiagnostics.unenrichedZones,
+  );
   assert.ok(
     report.mappingNotes.some((note) =>
       note.includes("reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path"),
@@ -1208,6 +1255,9 @@ test("runtime parity diagnostics expose every old and new pipeline stage", async
     report.mappingNotes.some((note) =>
       note.includes("reuse the legacy extension ladder supplied by the old runtime path"),
     ),
+  );
+  assert.ok(
+    report.mappingNotes.some((note) => note.includes("enrichedAnalysis attached to")),
   );
 });
 
@@ -1326,6 +1376,40 @@ test("new projected runtime output reuses legacy buckets and preserves strength 
   }
 });
 
+test("new projected runtime output adds enrichedAnalysis only as shadow metadata", async () => {
+  const { defaultOutput, oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
+  const enriched = enrichedRuntimeZones(newOutput);
+  const unenriched = unenrichedRuntimeZones(newOutput);
+
+  assert.equal(enrichedRuntimeZones(defaultOutput).length, 0);
+  assert.deepEqual(flattenOutput(newOutput), flattenOutput(oldOutput));
+  assert.deepEqual(bucketCounts(newOutput), bucketCounts(oldOutput));
+  assert.equal(bucketCounts(newOutput).major, 12);
+  assert.equal(bucketCounts(newOutput).intermediate, 2);
+  assert.equal(bucketCounts(newOutput).intraday, 1);
+
+  assert.ok(enriched.length > 0);
+  assert.ok(unenriched.length > 0);
+  assert.ok(
+    unenriched.some((zone) => zone.id.startsWith("NEAR-synthetic-resistance-extension")),
+  );
+
+  for (const zone of enriched) {
+    assertEnrichedAnalysisCompatible(zone.enrichedAnalysis!);
+  }
+
+  for (const zone of unenriched) {
+    assertFinalLevelZoneCompatible(zone);
+  }
+
+  for (const key of LEVEL_OUTPUT_ARRAY_KEYS) {
+    assert.deepEqual(
+      newOutput[key].map((zone) => zoneIdentity(zone, key)),
+      oldOutput[key].map((zone) => zoneIdentity(zone, key)),
+    );
+  }
+});
+
 test("projected extension levels stay outside surfaced display levels and remain spaced", async () => {
   const { newOutput } = await getNearRuntimeParityStageDiagnostics();
   const surfaced = surfacedDisplayZones(newOutput);
@@ -1387,6 +1471,7 @@ test("compareActivePath old returns old output while exposing comparison data", 
   const log = compareOldLogs[0];
 
   assert.deepEqual(flattenOutput(compareOldOutput), flattenOutput(oldOutput));
+  assert.equal(enrichedRuntimeZones(compareOldOutput).length, 0);
   assertLevelEngineOutputCompatible(compareOldOutput);
   assert.equal(compareOldLogs.length, 1);
   assert.ok(log);
@@ -1407,6 +1492,7 @@ test("compareActivePath new returns new projected output without changing public
   const log = compareNewLogs[0];
 
   assert.deepEqual(flattenOutput(compareNewOutput), flattenOutput(newOutput));
+  assert.deepEqual(enrichedRuntimeZones(compareNewOutput).length, enrichedRuntimeZones(newOutput).length);
   assert.deepEqual(Object.keys(compareNewOutput).sort(), Object.keys(oldOutput).sort());
   assertLevelEngineOutputCompatible(compareNewOutput);
   assert.equal(compareNewLogs.length, 1);
@@ -1507,6 +1593,8 @@ test("new projected strength-label mapping is deterministic and documented", asy
 
 test("LevelEngineOutput JSON serialization and LevelStore storage remain compatible for old and new outputs", async () => {
   const { oldOutput, newOutput } = await generateRuntimeFixtureOutputs("STOR");
+
+  assert.ok(enrichedRuntimeZones(newOutput).length > 0);
 
   for (const output of [oldOutput, newOutput]) {
     const serialized = JSON.stringify(output);

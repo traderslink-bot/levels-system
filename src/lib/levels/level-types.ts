@@ -76,6 +76,7 @@ export type FinalLevelZone = {
   isExtension: boolean;
   freshness: LevelDataFreshness;
   notes: string[];
+  enrichedAnalysis?: EnrichedLevelAnalysis;
 };
 
 export type LevelLadderExtension = {
@@ -227,6 +228,19 @@ export type LevelScoreBreakdown = {
   currentInteractionScore: number;
   activeRelevanceScore: number;
   finalLevelScore: number;
+};
+
+export type EnrichedLevelAnalysis = {
+  source: "rankLevels";
+  structuralStrengthScore: number;
+  activeRelevanceScore: number;
+  finalLevelScore: number;
+  confidence: number;
+  state: LevelState;
+  rank: number;
+  explanation: string;
+  scoreBreakdown: LevelScoreBreakdown;
+  touchStats: Omit<LevelTouchAnalysisResult, "touches">;
 };
 
 export type RankedLevel = {
