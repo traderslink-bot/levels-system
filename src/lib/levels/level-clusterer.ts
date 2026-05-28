@@ -422,6 +422,7 @@ export function clusterRawLevelCandidates(
   candidates: RawLevelCandidate[],
   tolerancePct: number,
   config: LevelEngineConfig,
+  _referenceTimestamp?: number,
 ): FinalLevelZone[] {
   const filtered = candidates.filter((candidate) => candidate.kind === kind);
   const firstPassGroups = firstPassCluster(filtered, tolerancePct);

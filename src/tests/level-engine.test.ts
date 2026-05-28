@@ -209,7 +209,11 @@ test("clusterRawLevelCandidates preserves the strongest nearby wick-led represen
   assert.equal(zones[0]?.zoneHigh, 1.75);
 });
 
-test("LevelEngine returns metadata, session-accurate special levels, and extension ladders", async () => {
+test("LevelEngine returns metadata, session-accurate special levels, and extension ladders", async (t) => {
+  t.mock.timers.enable({
+    apis: ["Date"],
+    now: new Date("2026-05-24T00:00:00Z"),
+  });
   const baseTimestamp = Date.parse("2026-04-15T00:00:00Z");
   const dailyCandles = Array.from({ length: 40 }, (_, index) => ({
     timestamp: baseTimestamp + index * 24 * 60 * 60 * 1000,
