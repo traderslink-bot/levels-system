@@ -1,0 +1,67 @@
+SAMP level quality audit
+Generated at: 1777386600000
+Reference price: 3.42
+
+## Summary
+- Total levels: 8
+- Support / resistance: 4 / 4
+- Extensions: 2
+- Fresh / stale: 6 / 0
+- Enriched / unenriched: 0 / 8
+
+## Strongest Levels
+- majorResistance resistance 3.75; zone 3.68-3.82; audit 0.88; strength 88/major; freshness fresh; touches 4; confluence 3; context session 2 volume 7 shelf 1 market 1; enriched no
+- majorSupport support 3.2; zone 3.15-3.24; audit 0.86; strength 86/major; freshness fresh; touches 5; confluence 3; context session 2 volume 7 shelf 0 market 1; enriched no
+- intermediateResistance resistance 3.6; zone 3.56-3.65; audit 0.74; strength 74/strong; freshness fresh; touches 3; confluence 2; context session 1 volume 7 shelf 1 market 1; enriched no
+- extensionResistance resistance 4.1; zone 4.02-4.18; audit 0.73; strength 73/strong; freshness aging; touches 2; confluence 2; context session 0 volume 7 shelf 0 market 1; enriched no
+- intermediateSupport support 3.35; zone 3.31-3.38; audit 0.71; strength 71/strong; freshness fresh; touches 3; confluence 2; context session 1 volume 7 shelf 1 market 1; enriched no
+
+## Weakest Levels
+- intradaySupport support 3.4; zone 3.38-3.43; audit 0.62; strength 62/moderate; freshness fresh; touches 2; confluence 1; context session 2 volume 7 shelf 1 market 1; enriched no
+- intradayResistance resistance 3.5; zone 3.48-3.53; audit 0.66; strength 66/moderate; freshness fresh; touches 2; confluence 1; context session 0 volume 7 shelf 0 market 1; enriched no
+- extensionSupport support 2.95; zone 2.9-3; audit 0.69; strength 69/strong; freshness aging; touches 2; confluence 2; context session 0 volume 7 shelf 0 market 1; enriched no
+- intermediateSupport support 3.35; zone 3.31-3.38; audit 0.71; strength 71/strong; freshness fresh; touches 3; confluence 2; context session 1 volume 7 shelf 1 market 1; enriched no
+- extensionResistance resistance 4.1; zone 4.02-4.18; audit 0.73; strength 73/strong; freshness aging; touches 2; confluence 2; context session 0 volume 7 shelf 0 market 1; enriched no
+
+## Stale Levels
+- none
+
+## Clustered Areas
+- none
+
+## Possible Clutter Levels
+- none
+
+## Extension Coverage
+- Support extensions: 1
+- Resistance extensions: 1
+- Lowest support extension: 2.95
+- Highest resistance extension: 4.1
+- Downside coverage: 13.7427%
+- Upside coverage: 19.883%
+- Warnings: limited_upside_extension_coverage, limited_downside_extension_coverage
+
+## Nearby Coverage
+- Nearby support count: 3
+- Nearby resistance count: 2
+- Nearest support: intradaySupport support 3.4; zone 3.38-3.43; audit 0.62; strength 62/moderate; freshness fresh; touches 2; confluence 1; context session 2 volume 7 shelf 1 market 1; enriched no
+- Nearest resistance: intradayResistance resistance 3.5; zone 3.48-3.53; audit 0.66; strength 66/moderate; freshness fresh; touches 2; confluence 1; context session 0 volume 7 shelf 0 market 1; enriched no
+- Downside support gap: 0.5848%
+- Overhead resistance gap: 2.3392%
+- Warnings: none
+
+## Confluence Summary
+- Session: 5
+- Volume: 8
+- Shelf: 4
+- Market context: 8
+
+## Diagnostics
+- limited_downside_extension_coverage
+- limited_upside_extension_coverage
+- unenriched_levels_present
+
+## Safety
+- Level output unchanged: true
+- Runtime behavior unchanged: true
+- Scoring unchanged: true
