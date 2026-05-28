@@ -1,0 +1,282 @@
+{
+  "symbol": "HIPO",
+  "generatedAt": 1779906600000,
+  "metadata": {
+    "providerByTimeframe": {
+      "daily": "fixture",
+      "4h": "fixture",
+      "5m": "fixture"
+    },
+    "dataQualityFlags": [],
+    "freshness": "fresh",
+    "referencePrice": 186.5
+  },
+  "majorSupport": [
+    {
+      "id": "HIPO-major-support-172",
+      "symbol": "HIPO",
+      "kind": "support",
+      "timeframeBias": "daily",
+      "zoneLow": 170.2,
+      "zoneHigh": 173.8,
+      "representativePrice": 172,
+      "strengthScore": 87,
+      "strengthLabel": "major",
+      "touchCount": 4,
+      "confluenceCount": 3,
+      "sourceTypes": [
+        "swing_low"
+      ],
+      "timeframeSources": [
+        "daily",
+        "4h"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.28,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "aging",
+      "notes": []
+    }
+  ],
+  "majorResistance": [
+    {
+      "id": "HIPO-major-resistance-205",
+      "symbol": "HIPO",
+      "kind": "resistance",
+      "timeframeBias": "daily",
+      "zoneLow": 202.8,
+      "zoneHigh": 207.2,
+      "representativePrice": 205,
+      "strengthScore": 85,
+      "strengthLabel": "major",
+      "touchCount": 4,
+      "confluenceCount": 3,
+      "sourceTypes": [
+        "swing_high"
+      ],
+      "timeframeSources": [
+        "daily",
+        "4h"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.55,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "aging",
+      "notes": []
+    }
+  ],
+  "intermediateSupport": [
+    {
+      "id": "HIPO-intermediate-support-184",
+      "symbol": "HIPO",
+      "kind": "support",
+      "timeframeBias": "4h",
+      "zoneLow": 182.9,
+      "zoneHigh": 185.1,
+      "representativePrice": 184,
+      "strengthScore": 73,
+      "strengthLabel": "strong",
+      "touchCount": 3,
+      "confluenceCount": 2,
+      "sourceTypes": [
+        "swing_low"
+      ],
+      "timeframeSources": [
+        "4h",
+        "5m"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.28,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "intermediateResistance": [
+    {
+      "id": "HIPO-intermediate-resistance-192",
+      "symbol": "HIPO",
+      "kind": "resistance",
+      "timeframeBias": "4h",
+      "zoneLow": 190.8,
+      "zoneHigh": 193.2,
+      "representativePrice": 192,
+      "strengthScore": 72,
+      "strengthLabel": "strong",
+      "touchCount": 3,
+      "confluenceCount": 2,
+      "sourceTypes": [
+        "swing_high"
+      ],
+      "timeframeSources": [
+        "4h",
+        "5m"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.55,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "intradaySupport": [
+    {
+      "id": "HIPO-intraday-support-186",
+      "symbol": "HIPO",
+      "kind": "support",
+      "timeframeBias": "5m",
+      "zoneLow": 185.3,
+      "zoneHigh": 186.7,
+      "representativePrice": 186,
+      "strengthScore": 59,
+      "strengthLabel": "moderate",
+      "touchCount": 2,
+      "confluenceCount": 1,
+      "sourceTypes": [
+        "swing_low"
+      ],
+      "timeframeSources": [
+        "5m"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.28,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "intradayResistance": [
+    {
+      "id": "HIPO-intraday-resistance-188",
+      "symbol": "HIPO",
+      "kind": "resistance",
+      "timeframeBias": "5m",
+      "zoneLow": 187.3,
+      "zoneHigh": 188.7,
+      "representativePrice": 188,
+      "strengthScore": 60,
+      "strengthLabel": "moderate",
+      "touchCount": 2,
+      "confluenceCount": 1,
+      "sourceTypes": [
+        "swing_high"
+      ],
+      "timeframeSources": [
+        "5m"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.55,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "extensionLevels": {
+    "support": [
+      {
+        "id": "HIPO-extension-support-158",
+        "symbol": "HIPO",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 156,
+        "zoneHigh": 160,
+        "representativePrice": 158,
+        "strengthScore": 68,
+        "strengthLabel": "strong",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.55,
+        "rejectionScore": 0.28,
+        "displacementScore": 0.48,
+        "sessionSignificanceScore": 0.42,
+        "followThroughScore": 0.48,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1779283800000,
+        "lastTimestamp": 1779904500000,
+        "isExtension": true,
+        "freshness": "aging",
+        "notes": []
+      }
+    ],
+    "resistance": [
+      {
+        "id": "HIPO-extension-resistance-226",
+        "symbol": "HIPO",
+        "kind": "resistance",
+        "timeframeBias": "5m",
+        "zoneLow": 223.6,
+        "zoneHigh": 228.4,
+        "representativePrice": 226,
+        "strengthScore": 70,
+        "strengthLabel": "strong",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.55,
+        "rejectionScore": 0.55,
+        "displacementScore": 0.48,
+        "sessionSignificanceScore": 0.42,
+        "followThroughScore": 0.48,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1779283800000,
+        "lastTimestamp": 1779904500000,
+        "isExtension": true,
+        "freshness": "aging",
+        "notes": []
+      }
+    ]
+  },
+  "specialLevels": {
+    "premarketHigh": 192,
+    "premarketLow": 184,
+    "openingRangeHigh": 188,
+    "openingRangeLow": 186
+  }
+}

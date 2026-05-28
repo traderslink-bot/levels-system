@@ -1,0 +1,282 @@
+{
+  "symbol": "CLNT",
+  "generatedAt": 1779906600000,
+  "metadata": {
+    "providerByTimeframe": {
+      "daily": "fixture",
+      "4h": "fixture",
+      "5m": "fixture"
+    },
+    "dataQualityFlags": [],
+    "freshness": "fresh",
+    "referencePrice": 24.4
+  },
+  "majorSupport": [
+    {
+      "id": "CLNT-major-support-2200",
+      "symbol": "CLNT",
+      "kind": "support",
+      "timeframeBias": "daily",
+      "zoneLow": 21.72,
+      "zoneHigh": 22.28,
+      "representativePrice": 22,
+      "strengthScore": 91,
+      "strengthLabel": "major",
+      "touchCount": 6,
+      "confluenceCount": 4,
+      "sourceTypes": [
+        "swing_low"
+      ],
+      "timeframeSources": [
+        "daily",
+        "4h"
+      ],
+      "reactionQualityScore": 0.86,
+      "rejectionScore": 0.28,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "majorResistance": [
+    {
+      "id": "CLNT-major-resistance-2700",
+      "symbol": "CLNT",
+      "kind": "resistance",
+      "timeframeBias": "daily",
+      "zoneLow": 26.68,
+      "zoneHigh": 27.32,
+      "representativePrice": 27,
+      "strengthScore": 89,
+      "strengthLabel": "major",
+      "touchCount": 5,
+      "confluenceCount": 4,
+      "sourceTypes": [
+        "swing_high"
+      ],
+      "timeframeSources": [
+        "daily",
+        "4h"
+      ],
+      "reactionQualityScore": 0.84,
+      "rejectionScore": 0.55,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "intermediateSupport": [
+    {
+      "id": "CLNT-intermediate-support-2380",
+      "symbol": "CLNT",
+      "kind": "support",
+      "timeframeBias": "4h",
+      "zoneLow": 23.62,
+      "zoneHigh": 23.98,
+      "representativePrice": 23.8,
+      "strengthScore": 78,
+      "strengthLabel": "strong",
+      "touchCount": 4,
+      "confluenceCount": 3,
+      "sourceTypes": [
+        "swing_low"
+      ],
+      "timeframeSources": [
+        "4h",
+        "5m"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.28,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "intermediateResistance": [
+    {
+      "id": "CLNT-intermediate-resistance-2520",
+      "symbol": "CLNT",
+      "kind": "resistance",
+      "timeframeBias": "4h",
+      "zoneLow": 25,
+      "zoneHigh": 25.4,
+      "representativePrice": 25.2,
+      "strengthScore": 76,
+      "strengthLabel": "strong",
+      "touchCount": 4,
+      "confluenceCount": 3,
+      "sourceTypes": [
+        "swing_high"
+      ],
+      "timeframeSources": [
+        "4h",
+        "5m"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.55,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "intradaySupport": [
+    {
+      "id": "CLNT-intraday-support-2420",
+      "symbol": "CLNT",
+      "kind": "support",
+      "timeframeBias": "5m",
+      "zoneLow": 24.1,
+      "zoneHigh": 24.3,
+      "representativePrice": 24.2,
+      "strengthScore": 68,
+      "strengthLabel": "strong",
+      "touchCount": 3,
+      "confluenceCount": 2,
+      "sourceTypes": [
+        "swing_low"
+      ],
+      "timeframeSources": [
+        "5m"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.28,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "intradayResistance": [
+    {
+      "id": "CLNT-intraday-resistance-2480",
+      "symbol": "CLNT",
+      "kind": "resistance",
+      "timeframeBias": "5m",
+      "zoneLow": 24.7,
+      "zoneHigh": 24.9,
+      "representativePrice": 24.8,
+      "strengthScore": 69,
+      "strengthLabel": "strong",
+      "touchCount": 3,
+      "confluenceCount": 2,
+      "sourceTypes": [
+        "swing_high"
+      ],
+      "timeframeSources": [
+        "5m"
+      ],
+      "reactionQualityScore": 0.55,
+      "rejectionScore": 0.55,
+      "displacementScore": 0.48,
+      "sessionSignificanceScore": 0.42,
+      "followThroughScore": 0.48,
+      "sourceEvidenceCount": 1,
+      "firstTimestamp": 1779283800000,
+      "lastTimestamp": 1779904500000,
+      "isExtension": false,
+      "freshness": "fresh",
+      "notes": []
+    }
+  ],
+  "extensionLevels": {
+    "support": [
+      {
+        "id": "CLNT-extension-support-2000",
+        "symbol": "CLNT",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 19.72,
+        "zoneHigh": 20.28,
+        "representativePrice": 20,
+        "strengthScore": 71,
+        "strengthLabel": "strong",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.55,
+        "rejectionScore": 0.28,
+        "displacementScore": 0.48,
+        "sessionSignificanceScore": 0.42,
+        "followThroughScore": 0.48,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1779283800000,
+        "lastTimestamp": 1779904500000,
+        "isExtension": true,
+        "freshness": "aging",
+        "notes": []
+      }
+    ],
+    "resistance": [
+      {
+        "id": "CLNT-extension-resistance-2950",
+        "symbol": "CLNT",
+        "kind": "resistance",
+        "timeframeBias": "5m",
+        "zoneLow": 29.16,
+        "zoneHigh": 29.84,
+        "representativePrice": 29.5,
+        "strengthScore": 74,
+        "strengthLabel": "strong",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.55,
+        "rejectionScore": 0.55,
+        "displacementScore": 0.48,
+        "sessionSignificanceScore": 0.42,
+        "followThroughScore": 0.48,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1779283800000,
+        "lastTimestamp": 1779904500000,
+        "isExtension": true,
+        "freshness": "aging",
+        "notes": []
+      }
+    ]
+  },
+  "specialLevels": {
+    "premarketHigh": 25.2,
+    "premarketLow": 23.8,
+    "openingRangeHigh": 24.8,
+    "openingRangeLow": 24.2
+  }
+}
