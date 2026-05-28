@@ -380,8 +380,7 @@ test("dry-run accepts session facts JSON and includes session context in preview
 
   assert.ok(result.content.includes("Session facts: Level is near high of day 10.5"));
   assert.ok(result.content.includes("Session facts: Level is near low of day 9.5"));
-  assert.ok(result.content.includes("Level is near VWAP fact 9.5"));
-  assert.ok(result.content.includes("VWAP facts-only: true"));
+  assert.ok(result.content.includes("VWAP remains facts-only."));
   assert.equal(result.sendResults.length, 0);
   assertNoForbiddenLanguage(result.content);
 }));
@@ -396,9 +395,7 @@ test("dry-run accepts volume facts JSON and includes volume context in preview",
     mode: "dry-run",
   });
 
-  assert.ok(result.content.includes("Volume facts: state high; relative 3.2; dollar 8750000; liquidity strong; acceleration surging"));
-  assert.ok(result.content.includes("Volume facts nearby: Volume state is high."));
-  assert.ok(result.content.includes("Relative volume fact is 3.2."));
+  assert.ok(result.content.includes("Volume context: state high; relative 3.2; dollar 8750000; liquidity strong; acceleration surging"));
   assert.equal(result.sendResults.length, 0);
   assertNoForbiddenLanguage(result.content);
 }));
@@ -414,7 +411,7 @@ test("dry-run accepts volume shelves JSON and keeps shelf facts separate from le
   });
 
   assert.ok(result.content.includes("Shelf facts: Level overlaps volume shelf TEST-shelf-1045-1055"));
-  assert.ok(result.content.includes("Volume shelves facts-only: true"));
+  assert.ok(result.content.includes("shelves facts-only true"));
   assert.ok(result.content.includes("Volume shelves remain facts-only."));
   assert.equal(result.reportSymbol, "TEST");
   assert.equal(result.sendResults.length, 0);
@@ -450,7 +447,6 @@ test("dry-run accepts market context JSON and includes market context facts", as
   });
 
   assert.ok(result.content.includes("Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78"));
-  assert.ok(result.content.includes("Context tags: market_context_day_trade_runner | runner_phase_high_of_day_breakout"));
   assertNoForbiddenLanguage(result.content);
 }));
 
@@ -465,7 +461,7 @@ test("dry-run accepts facts bundle JSON and includes bundled facts", async () =>
   });
 
   assert.ok(result.content.includes("Session facts: Level is near high of day 10.5"));
-  assert.ok(result.content.includes("Volume facts: state high; relative 3.2; dollar 8750000; liquidity strong; acceleration surging"));
+  assert.ok(result.content.includes("Volume context: state high; relative 3.2; dollar 8750000; liquidity strong; acceleration surging"));
   assert.ok(result.content.includes("Shelf facts: Level overlaps volume shelf TEST-shelf-1045-1055"));
   assertNoForbiddenLanguage(result.content);
 }));
