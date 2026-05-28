@@ -1,17 +1,14 @@
-import { buildLevelExtensions } from "./level-extension-engine.js";
+import {
+  buildLevelExtensionSelectionDiagnostics,
+  buildLevelExtensionsWithDiagnostics,
+  type LevelExtensionSelectionSideDiagnostics,
+  type LevelExtensionSelectionSkipReason,
+} from "./level-extension-engine.js";
 import type { FinalLevelZone, LevelEngineOutput, LevelLadderExtension } from "./level-types.js";
 
 export type LevelExtensionDiagnosticSide = "support" | "resistance";
 
-export type LevelExtensionSkipReason =
-  | "already_surfaced"
-  | "wrong_side_of_reference_price"
-  | "outside_practical_range"
-  | "inside_surfaced_map"
-  | "too_close_to_surfaced_level"
-  | "too_close_to_another_extension"
-  | "selected_extension"
-  | "undetermined";
+export type LevelExtensionSkipReason = LevelExtensionSelectionSkipReason;
 
 export type LevelExtensionCoverageWarning =
   | "missing_resistance_extension"
@@ -26,7 +23,10 @@ export type LevelExtensionCandidateDiagnostic = {
   zoneLow: number;
   zoneHigh: number;
   isSurfaced: boolean;
+  isPreSelectionCandidate: boolean;
+  isEligibleExtensionCandidate: boolean;
   isSelectedExtension: boolean;
+  usefulnessScore: number;
   skipReasons: LevelExtensionSkipReason[];
 };
 
@@ -35,11 +35,16 @@ export type LevelExtensionSideDiagnostics = {
   referencePrice?: number;
   side: LevelExtensionDiagnosticSide;
   surfacedLevelPrices: number[];
+  inputInventoryPrices: number[];
+  preSelectionCandidatePrices: number[];
   candidatePoolPrices: number[];
   eligibleCandidatePrices: number[];
   selectedExtensionPrices: number[];
   skippedCandidatePrices: number[];
+  candidateCoveragePct?: number;
+  selectedCoveragePct?: number;
   candidates: LevelExtensionCandidateDiagnostic[];
+  rejectionReasonCounts: Partial<Record<LevelExtensionSkipReason, number>>;
   insufficientCandidateInventory: boolean;
   syntheticGenerationAvailable: false;
   undeterminedRejectionCount: number;
@@ -329,7 +334,43 @@ function buildSideDiagnostics(params: {
   spacingPct: number;
   forwardPlanningRangePct: number;
   candidateInventoryLimited: boolean;
+  selectionDiagnostics?: LevelExtensionSelectionSideDiagnostics;
 }): LevelExtensionSideDiagnostics {
+  if (params.selectionDiagnostics) {
+    const notes: string[] = [];
+
+    if (params.candidateInventoryLimited) {
+      notes.push("Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.");
+    }
+    if (params.selectionDiagnostics.insufficientCandidateInventory) {
+      notes.push("No eligible candidate inventory is visible for this side.");
+    }
+    notes.push("Synthetic extension generation is not available in the current extension engine.");
+
+    return {
+      symbol: params.symbol,
+      referencePrice: params.referencePrice,
+      side: params.side,
+      surfacedLevelPrices: params.selectionDiagnostics.surfacedLevelPrices,
+      inputInventoryPrices: params.selectionDiagnostics.inputInventoryPrices,
+      preSelectionCandidatePrices: params.selectionDiagnostics.preSelectionCandidatePrices,
+      candidatePoolPrices: params.selectionDiagnostics.inputInventoryPrices,
+      eligibleCandidatePrices: params.selectionDiagnostics.eligibleCandidatePrices,
+      selectedExtensionPrices: params.selectionDiagnostics.selectedExtensionPrices,
+      skippedCandidatePrices: params.selectionDiagnostics.skippedCandidatePrices,
+      candidateCoveragePct: params.selectionDiagnostics.candidateCoveragePct,
+      selectedCoveragePct: params.selectionDiagnostics.selectedCoveragePct,
+      candidates: params.selectionDiagnostics.candidates,
+      rejectionReasonCounts: params.selectionDiagnostics.rejectionReasonCounts,
+      insufficientCandidateInventory: params.selectionDiagnostics.insufficientCandidateInventory,
+      syntheticGenerationAvailable: false,
+      undeterminedRejectionCount: params.selectionDiagnostics.candidates.filter((candidate) =>
+        candidate.skipReasons.includes("undetermined"),
+      ).length,
+      notes,
+    };
+  }
+
   const surfacedIds = surfacedIdSet(params.surfaced);
   const selectedIds = selectedIdSet(params.selected);
   const eligible = params.zones.filter((zone) =>
@@ -363,7 +404,10 @@ function buildSideDiagnostics(params: {
       zoneLow: round(zone.zoneLow),
       zoneHigh: round(zone.zoneHigh),
       isSurfaced: surfacedIds.has(zone.id),
+      isPreSelectionCandidate: eligible.some((candidate) => candidate.id === zone.id),
+      isEligibleExtensionCandidate: eligible.some((candidate) => candidate.id === zone.id),
       isSelectedExtension,
+      usefulnessScore: 0,
       skipReasons,
     };
   });
@@ -384,11 +428,16 @@ function buildSideDiagnostics(params: {
     referencePrice: params.referencePrice,
     side: params.side,
     surfacedLevelPrices: sortedPrices(params.surfaced, params.side),
+    inputInventoryPrices: sortedPrices(params.zones, params.side),
+    preSelectionCandidatePrices: sortedPrices(eligible, params.side),
     candidatePoolPrices: sortedPrices(params.zones, params.side),
     eligibleCandidatePrices: sortedPrices(eligible, params.side),
     selectedExtensionPrices: sortedPrices(params.selected, params.side),
     skippedCandidatePrices: skippedCandidates.map((candidate) => candidate.price),
+    candidateCoveragePct: undefined,
+    selectedCoveragePct: undefined,
     candidates,
+    rejectionReasonCounts: {},
     insufficientCandidateInventory,
     syntheticGenerationAvailable: false,
     undeterminedRejectionCount: candidates.filter((candidate) => candidate.skipReasons.includes("undetermined")).length,
@@ -460,17 +509,34 @@ export function buildLevelExtensionDiagnostics(
   const searchWindowPct = request.searchWindowPct ?? DEFAULT_EXTENSION_SEARCH_WINDOW_PCT;
   const forwardPlanningRangePct = request.forwardPlanningRangePct ?? DEFAULT_FORWARD_PLANNING_RANGE_PCT;
   const coverageWarningPct = request.coverageWarningPct ?? DEFAULT_COVERAGE_WARNING_PCT;
-  const selectedExtensions = request.selectedExtensions ?? buildLevelExtensions({
-    supportZones: request.supportZones,
-    resistanceZones: request.resistanceZones,
-    surfacedSupport: request.surfacedSupport,
-    surfacedResistance: request.surfacedResistance,
-    maxExtensionPerSide,
-    spacingPct,
-    searchWindowPct,
-    referencePrice: request.referencePrice,
-    forwardPlanningRangePct,
-  });
+  const extensionBuild = request.selectedExtensions
+    ? {
+        extensionLevels: request.selectedExtensions,
+        diagnostics: buildLevelExtensionSelectionDiagnostics({
+          supportZones: request.supportZones,
+          resistanceZones: request.resistanceZones,
+          surfacedSupport: request.surfacedSupport,
+          surfacedResistance: request.surfacedResistance,
+          selectedExtensions: request.selectedExtensions,
+          maxExtensionPerSide,
+          spacingPct,
+          searchWindowPct,
+          referencePrice: request.referencePrice,
+          forwardPlanningRangePct,
+        }),
+      }
+    : buildLevelExtensionsWithDiagnostics({
+        supportZones: request.supportZones,
+        resistanceZones: request.resistanceZones,
+        surfacedSupport: request.surfacedSupport,
+        surfacedResistance: request.surfacedResistance,
+        maxExtensionPerSide,
+        spacingPct,
+        searchWindowPct,
+        referencePrice: request.referencePrice,
+        forwardPlanningRangePct,
+      });
+  const selectedExtensions = extensionBuild.extensionLevels;
 
   const support = buildSideDiagnostics({
     symbol: request.symbol,
@@ -482,6 +548,7 @@ export function buildLevelExtensionDiagnostics(
     spacingPct,
     forwardPlanningRangePct,
     candidateInventoryLimited: false,
+    selectionDiagnostics: extensionBuild.diagnostics.support,
   });
   const resistance = buildSideDiagnostics({
     symbol: request.symbol,
@@ -493,6 +560,7 @@ export function buildLevelExtensionDiagnostics(
     spacingPct,
     forwardPlanningRangePct,
     candidateInventoryLimited: false,
+    selectionDiagnostics: extensionBuild.diagnostics.resistance,
   });
   const extensionCoverage = buildCoverageDiagnostics({
     selectedExtensions,
