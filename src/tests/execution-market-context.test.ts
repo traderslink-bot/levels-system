@@ -11,7 +11,7 @@ import {
   buildExecutionMarketContextSnapshot,
   findNearestResistanceLevel,
   findNearestSupportLevel,
-} from "../lib/journal-context/index.js";
+} from "../lib/execution-context/index.js";
 import {
   buildMarketContextFactsBundle,
   type MarketContextProfile,
@@ -475,7 +475,7 @@ test("old/default runtime mode remains unchanged", () => {
 });
 
 test("builder source does not call LevelEngine or generate levels", () => {
-  const sourcePath = fileURLToPath(new URL("../lib/journal-context/execution-market-context.ts", import.meta.url));
+  const sourcePath = fileURLToPath(new URL("../lib/execution-context/execution-market-context.ts", import.meta.url));
   const source = readFileSync(sourcePath, "utf8");
 
   assert.equal(source.includes("new LevelEngine"), false);
