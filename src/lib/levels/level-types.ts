@@ -165,19 +165,6 @@ export type LevelTouchAnalysisResult = {
   ageInBars: number;
 };
 
-export type EnrichedLevelAnalysis = {
-  source: "rankLevels";
-  structuralStrengthScore: number;
-  activeRelevanceScore: number;
-  finalLevelScore: number;
-  confidence: number;
-  state: LevelState;
-  rank: number;
-  explanation: string;
-  scoreBreakdown: LevelScoreBreakdown;
-  touchStats: Omit<LevelTouchAnalysisResult, "touches">;
-};
-
 export type LevelCandidate = {
   id: string;
   symbol: string;
@@ -228,6 +215,19 @@ export type LevelScoreBreakdown = {
   currentInteractionScore: number;
   activeRelevanceScore: number;
   finalLevelScore: number;
+};
+
+export type EnrichedLevelAnalysis = {
+  source: "rankLevels";
+  structuralStrengthScore: number;
+  activeRelevanceScore: number;
+  finalLevelScore: number;
+  confidence: number;
+  state: LevelState;
+  rank: number;
+  explanation: string;
+  scoreBreakdown: LevelScoreBreakdown;
+  touchStats: Omit<LevelTouchAnalysisResult, "touches">;
 };
 
 export type RankedLevel = {
