@@ -19,3 +19,12 @@ export {
   type MarketContextClassifierInputAdapterResult,
   type MarketContextIntegrationResult,
 } from "./market-context-integration.js";
+export {
+  buildMarketContextAnalysisFromFacts,
+  buildMarketContextClassifierInputFromFacts,
+  type MarketContextFactsAdapterRequest,
+  type MarketContextFactsAdapterResult,
+  type MarketContextFactsAnalysisMetadata,
+  type MarketContextFactsIntegrationResult,
+  type MarketContextFactsSummary,
+} from "./market-context-facts-adapter.js";
