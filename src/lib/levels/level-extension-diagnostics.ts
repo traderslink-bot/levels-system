@@ -1,6 +1,7 @@
 import {
   buildLevelExtensionSelectionDiagnostics,
   buildLevelExtensionsWithDiagnostics,
+  type LevelExtensionCandidatePoolMode,
   type LevelExtensionSelectionSideDiagnostics,
   type LevelExtensionSelectionSkipReason,
 } from "./level-extension-engine.js";
@@ -36,6 +37,7 @@ export type LevelExtensionSideDiagnostics = {
   side: LevelExtensionDiagnosticSide;
   surfacedLevelPrices: number[];
   inputInventoryPrices: number[];
+  candidatePoolMode?: LevelExtensionCandidatePoolMode;
   preSelectionCandidatePrices: number[];
   candidatePoolPrices: number[];
   eligibleCandidatePrices: number[];
@@ -353,6 +355,7 @@ function buildSideDiagnostics(params: {
       side: params.side,
       surfacedLevelPrices: params.selectionDiagnostics.surfacedLevelPrices,
       inputInventoryPrices: params.selectionDiagnostics.inputInventoryPrices,
+      candidatePoolMode: params.selectionDiagnostics.candidatePoolMode,
       preSelectionCandidatePrices: params.selectionDiagnostics.preSelectionCandidatePrices,
       candidatePoolPrices: params.selectionDiagnostics.inputInventoryPrices,
       eligibleCandidatePrices: params.selectionDiagnostics.eligibleCandidatePrices,
@@ -429,6 +432,7 @@ function buildSideDiagnostics(params: {
     side: params.side,
     surfacedLevelPrices: sortedPrices(params.surfaced, params.side),
     inputInventoryPrices: sortedPrices(params.zones, params.side),
+    candidatePoolMode: undefined,
     preSelectionCandidatePrices: sortedPrices(eligible, params.side),
     candidatePoolPrices: sortedPrices(params.zones, params.side),
     eligibleCandidatePrices: sortedPrices(eligible, params.side),
