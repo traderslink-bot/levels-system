@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { clusterRawLevelCandidates } from "../lib/levels/level-clusterer.js";
+import { clusterRawLevelCandidatesWithDiagnostics } from "../lib/levels/level-clusterer.js";
 import { buildLevelClusteringDiagnostics } from "../lib/levels/level-clustering-diagnostics.js";
 import { DEFAULT_LEVEL_ENGINE_CONFIG } from "../lib/levels/level-config.js";
 import { buildRawLevelCandidates } from "../lib/levels/raw-level-candidate-builder.js";
@@ -304,27 +304,37 @@ function buildRawCandidates(symbol: string, series: Record<CandleTimeframe, Cand
 function buildClusteredZones(
   symbol: string,
   rawCandidates: RawLevelCandidate[],
-): { support: FinalLevelZone[]; resistance: FinalLevelZone[] } {
+): {
+  support: FinalLevelZone[];
+  resistance: FinalLevelZone[];
+  trackedClusters: Parameters<typeof buildLevelClusteringDiagnostics>[0]["trackedClusters"];
+} {
   const tolerance = Math.max(
     DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig.daily.clusterTolerancePct,
     DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig["4h"].clusterTolerancePct,
   );
+  const support = clusterRawLevelCandidatesWithDiagnostics(
+    symbol,
+    "support",
+    rawCandidates,
+    tolerance,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+  );
+  const resistance = clusterRawLevelCandidatesWithDiagnostics(
+    symbol,
+    "resistance",
+    rawCandidates,
+    tolerance,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+  );
 
   return {
-    support: clusterRawLevelCandidates(
-      symbol,
-      "support",
-      rawCandidates,
-      tolerance,
-      DEFAULT_LEVEL_ENGINE_CONFIG,
-    ),
-    resistance: clusterRawLevelCandidates(
-      symbol,
-      "resistance",
-      rawCandidates,
-      tolerance,
-      DEFAULT_LEVEL_ENGINE_CONFIG,
-    ),
+    support: support.zones,
+    resistance: resistance.zones,
+    trackedClusters: [
+      ...support.diagnostics.clusters,
+      ...resistance.diagnostics.clusters,
+    ],
   };
 }
 
@@ -344,6 +354,7 @@ function buildGeneratedSample(spec: GeneratedSampleSpec): GeneratedClusteringDia
     symbol,
     rawCandidates,
     clusteredZones: [...clustered.support, ...clustered.resistance],
+    trackedClusters: clustered.trackedClusters,
   });
   const rawSpanValues = report.clusters
     .map((cluster) => cluster.rawPriceSpanPct)
@@ -438,7 +449,7 @@ function renderText(bundle: LevelClusteringDiagnosticsBundle): string {
     "## Input Source",
     "- Deterministic generated candle fixtures.",
     "- Each sample runs the existing pipeline through swing detection, raw candidate building, special candidates, clustering, and clustering diagnostics.",
-    "- Raw member mapping is inferred from side, zone span, source type, and timeframe because clustered zones do not retain raw member ids.",
+    "- Raw member mapping uses diagnostics-only clusterer member tracking when available.",
     "",
     "## Summary",
     `- Sample count: ${bundle.summary.sampleCount}`,

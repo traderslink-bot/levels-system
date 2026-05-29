@@ -13,7 +13,37 @@ export type LevelClusteringDiagnosticsWarning =
   | "hidden_depth_possible"
   | "no_raw_members_available";
 
-export type LevelClusteringRawMemberMapping = "inferred_from_zone_span" | "unavailable";
+export type LevelClusteringRawMemberMapping =
+  | "tracked_from_clusterer_diagnostics"
+  | "inferred_from_zone_span"
+  | "unavailable";
+
+export type LevelClusteringTrackedRawMember = {
+  id: string;
+  price: number;
+  sourceType: RawLevelCandidateSourceType;
+  timeframe: CandleTimeframe;
+};
+
+export type LevelClusteringTrackedHiddenDepthCandidate =
+  LevelClusteringTrackedRawMember & {
+    distanceFromRepresentativePct: number;
+    depthSide: "below_representative" | "above_representative";
+  };
+
+export type LevelClusteringTrackedClusterMembers = {
+  clusterId: string;
+  clusterIndex: number;
+  kind: LevelKind;
+  rawMemberMapping: "tracked_from_clusterer_diagnostics";
+  rawMemberIds: string[];
+  rawMemberPrices: number[];
+  rawMembers: LevelClusteringTrackedRawMember[];
+  rawPriceSpanPct?: number;
+  membersSpanMateriallyDifferentPrices?: boolean;
+  hiddenDepthCandidates?: LevelClusteringTrackedHiddenDepthCandidate[];
+  potentialExtensionDepthMemberIds?: string[];
+};
 
 export type LevelClusteringDiagnosticCluster = {
   clusterId: string;
@@ -35,6 +65,11 @@ export type LevelClusteringDiagnosticCluster = {
   timeframeCounts: Partial<Record<CandleTimeframe, number>>;
   isBroadCluster: boolean;
   mayHideMultipleCandidateDepths: boolean;
+  exactRawMemberTrackingAvailable: boolean;
+  membersSpanMateriallyDifferentPrices: boolean;
+  hiddenDepthCandidateIds: string[];
+  hiddenDepthCandidatePrices: number[];
+  potentialExtensionDepthMemberIds: string[];
   warnings: LevelClusteringDiagnosticsWarning[];
 };
 
@@ -42,6 +77,7 @@ export type BuildLevelClusteringDiagnosticsInput = {
   symbol: string;
   rawCandidates: RawLevelCandidate[];
   clusteredZones: FinalLevelZone[];
+  trackedClusters?: LevelClusteringTrackedClusterMembers[];
   highCompressionRatioThreshold?: number;
   broadClusterSpanPct?: number;
   manyMembersThreshold?: number;
@@ -137,24 +173,50 @@ function candidateMatchesZone(
   return zone.timeframeSources.includes(candidate.timeframe);
 }
 
+function trackedClusterMatchesZone(
+  trackedCluster: LevelClusteringTrackedClusterMembers,
+  zone: FinalLevelZone,
+  clusterIndex: number,
+): boolean {
+  if (trackedCluster.clusterId === zone.id) {
+    return true;
+  }
+
+  return trackedCluster.clusterIndex === clusterIndex && trackedCluster.kind === zone.kind;
+}
+
 function buildClusterDiagnostics(params: {
   symbol: string;
   zone: FinalLevelZone;
   clusterIndex: number;
   rawCandidates: RawLevelCandidate[];
+  trackedCluster?: LevelClusteringTrackedClusterMembers;
   broadClusterSpanPct: number;
   manyMembersThreshold: number;
 }): LevelClusteringDiagnosticCluster {
-  const rawMembers = params.rawCandidates
-    .filter((candidate) => candidateMatchesZone(candidate, params.zone, params.symbol))
-    .sort((left, right) => left.price - right.price || left.id.localeCompare(right.id));
+  const trackedRawMembers = params.trackedCluster?.rawMembers;
+  const rawMembers = trackedRawMembers
+    ? trackedRawMembers
+        .map((member) => ({
+          ...member,
+          symbol: params.symbol,
+          kind: params.zone.kind,
+        }))
+        .sort((left, right) => left.price - right.price || left.id.localeCompare(right.id))
+    : params.rawCandidates
+        .filter((candidate) => candidateMatchesZone(candidate, params.zone, params.symbol))
+        .sort((left, right) => left.price - right.price || left.id.localeCompare(right.id));
   const rawMemberPrices = rawMembers.map((member) => round(member.price));
-  const rawPriceSpan = priceSpanPct(rawMemberPrices);
+  const rawPriceSpan = params.trackedCluster?.rawPriceSpanPct ?? priceSpanPct(rawMemberPrices);
   const rawMemberMapping: LevelClusteringRawMemberMapping =
-    rawMembers.length > 0 ? "inferred_from_zone_span" : "unavailable";
+    params.trackedCluster?.rawMemberMapping ??
+    (rawMembers.length > 0 ? "inferred_from_zone_span" : "unavailable");
   const isBroadCluster = (rawPriceSpan ?? 0) >= params.broadClusterSpanPct;
   const manyMembers = rawMembers.length >= params.manyMembersThreshold;
-  const mayHideMultipleCandidateDepths = rawMembers.length > 1 && (isBroadCluster || manyMembers);
+  const trackedHiddenDepthCandidates = params.trackedCluster?.hiddenDepthCandidates ?? [];
+  const mayHideMultipleCandidateDepths =
+    rawMembers.length > 1 &&
+    (isBroadCluster || manyMembers || trackedHiddenDepthCandidates.length > 0);
   const warnings: LevelClusteringDiagnosticsWarning[] = [];
 
   if (rawMembers.length === 0) {
@@ -202,6 +264,17 @@ function buildClusterDiagnostics(params: {
         : countBy(params.zone.timeframeSources),
     isBroadCluster,
     mayHideMultipleCandidateDepths,
+    exactRawMemberTrackingAvailable:
+      rawMemberMapping === "tracked_from_clusterer_diagnostics",
+    membersSpanMateriallyDifferentPrices:
+      params.trackedCluster?.membersSpanMateriallyDifferentPrices ?? isBroadCluster,
+    hiddenDepthCandidateIds: trackedHiddenDepthCandidates.map((candidate) => candidate.id),
+    hiddenDepthCandidatePrices: trackedHiddenDepthCandidates.map((candidate) =>
+      round(candidate.price),
+    ),
+    potentialExtensionDepthMemberIds:
+      params.trackedCluster?.potentialExtensionDepthMemberIds ??
+      trackedHiddenDepthCandidates.map((candidate) => candidate.id),
     warnings,
   };
 }
@@ -241,6 +314,9 @@ export function buildLevelClusteringDiagnostics(
       zone,
       clusterIndex: index,
       rawCandidates,
+      trackedCluster: input.trackedClusters?.find((trackedCluster) =>
+        trackedClusterMatchesZone(trackedCluster, zone, index),
+      ),
       broadClusterSpanPct,
       manyMembersThreshold,
     }),
@@ -266,7 +342,9 @@ export function buildLevelClusteringDiagnostics(
     warnings,
     diagnostics: [
       "clustering_diagnostics_only",
-      "raw_member_mapping_inferred_from_zone_span_source_type_and_timeframe",
+      input.trackedClusters && input.trackedClusters.length > 0
+        ? "raw_member_mapping_tracked_from_clusterer_diagnostics_when_available"
+        : "raw_member_mapping_inferred_from_zone_span_source_type_and_timeframe",
     ],
     safety: {
       diagnosticOnly: true,
