@@ -1,0 +1,103 @@
+Level clustering diagnostics review
+
+## Input Source
+- Deterministic generated candle fixtures.
+- Each sample runs the existing pipeline through swing detection, raw candidate building, special candidates, clustering, and clustering diagnostics.
+- Raw member mapping uses diagnostics-only clusterer member tracking when available.
+
+## Summary
+- Sample count: 5
+- Raw candidates: 86
+- Clustered zones: 53
+- Average compression ratio: 2.1031
+- Samples with high compression: CHOP
+- Samples with broad clusters: none
+- Samples with many-member clusters: CHOP
+- Samples with hidden-depth possible: CHOP
+- Samples with unavailable raw member mapping: none
+
+## Samples
+### LPRN - low-price runner
+- Raw candidates: 20
+- Special candidates: 2
+- Clustered support/resistance: 10/7
+- Compression ratio: 1.1765
+- Broad clusters: 0
+- Many-member clusters: 0
+- Hidden-depth possible clusters: 0
+- Unavailable raw mapping clusters: 0
+- Largest raw span: 0.0969%
+- Largest raw member count: 3
+- Warnings: none
+- Flagged clusters:
+  - none
+
+### CHOP - choppy/messy ticker
+- Raw candidates: 20
+- Special candidates: 2
+- Clustered support/resistance: 2/2
+- Compression ratio: 5
+- Broad clusters: 0
+- Many-member clusters: 2
+- Hidden-depth possible clusters: 2
+- Unavailable raw mapping clusters: 0
+- Largest raw span: 1.8094%
+- Largest raw member count: 9
+- Warnings: hidden_depth_possible, high_compression_ratio, many_members_single_cluster
+- Flagged clusters:
+  - CHOP-support-zone-1: support 4.8906-4.9799, rep 4.9104, members 9, span 1.8094%, warnings many_members_single_cluster, hidden_depth_possible
+  - CHOP-resistance-zone-2: resistance 5.2318-5.3029, rep 5.3029, members 6, span 1.3498%, warnings many_members_single_cluster, hidden_depth_possible
+
+### THIN - thin-liquidity ticker
+- Raw candidates: 12
+- Special candidates: 2
+- Clustered support/resistance: 4/4
+- Compression ratio: 1.5
+- Broad clusters: 0
+- Many-member clusters: 0
+- Hidden-depth possible clusters: 0
+- Unavailable raw mapping clusters: 0
+- Largest raw span: 0.3968%
+- Largest raw member count: 2
+- Warnings: none
+- Flagged clusters:
+  - none
+
+### CLNT - clean technical mover
+- Raw candidates: 18
+- Special candidates: 2
+- Clustered support/resistance: 7/6
+- Compression ratio: 1.3846
+- Broad clusters: 0
+- Many-member clusters: 0
+- Hidden-depth possible clusters: 0
+- Unavailable raw mapping clusters: 0
+- Largest raw span: 0.796%
+- Largest raw member count: 3
+- Warnings: none
+- Flagged clusters:
+  - none
+
+### HIPO - higher-priced stock
+- Raw candidates: 16
+- Special candidates: 2
+- Clustered support/resistance: 5/6
+- Compression ratio: 1.4545
+- Broad clusters: 0
+- Many-member clusters: 0
+- Hidden-depth possible clusters: 0
+- Unavailable raw mapping clusters: 0
+- Largest raw span: 1.3718%
+- Largest raw member count: 4
+- Warnings: none
+- Flagged clusters:
+  - none
+
+## Safety
+- Clustering behavior unchanged: true
+- Support/resistance detection unchanged: true
+- LevelEngine default output unchanged: true
+- Extension generation unchanged: true
+- Scoring/selection unchanged: true
+- Runtime behavior unchanged: true
+- Review only: true
