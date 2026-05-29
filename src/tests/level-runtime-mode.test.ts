@@ -700,6 +700,12 @@ function extensionZones(output: LevelEngineOutput): FinalLevelZone[] {
   ];
 }
 
+function syntheticExtensionZones(output: LevelEngineOutput): FinalLevelZone[] {
+  return extensionZones(output).filter(
+    (zone) => zone.extensionMetadata?.extensionSource === "synthetic_continuation_map",
+  );
+}
+
 function displayPriceKey(zone: FinalLevelZone): string {
   return zone.representativePrice.toFixed(zone.representativePrice >= 1 ? 2 : 4);
 }
@@ -1240,7 +1246,7 @@ test("runtime parity diagnostics expose every old and new pipeline stage", async
   assert.equal(report.projectedNewBuckets.major.count, 5);
   assert.equal(report.projectedNewBuckets.intermediate.count, 2);
   assert.equal(report.projectedNewBuckets.intraday.count, 1);
-  assert.equal(report.enrichmentDiagnostics.totalRuntimeZones, 10);
+  assert.equal(report.enrichmentDiagnostics.totalRuntimeZones, 12);
   assert.ok(report.enrichmentDiagnostics.enrichedZones > 0);
   assert.equal(
     report.enrichmentDiagnostics.totalRuntimeZones,
@@ -1340,12 +1346,12 @@ test("runtime parity diagnostics prove remediated nearest levels match the old b
 test("runtime parity diagnostics document remediated extension ladder parity", async () => {
   const { report } = await getNearRuntimeParityStageDiagnostics();
 
-  assert.equal(report.oldExtensionLevels.total, 2);
-  assert.equal(report.oldExtensionLevels.support.count, 2);
-  assert.equal(report.oldExtensionLevels.resistance.count, 0);
-  assert.equal(report.projectedNewExtensionLevels.total, 2);
-  assert.equal(report.projectedNewExtensionLevels.support.count, 2);
-  assert.equal(report.projectedNewExtensionLevels.resistance.count, 0);
+  assert.equal(report.oldExtensionLevels.total, 4);
+  assert.equal(report.oldExtensionLevels.support.count, 3);
+  assert.equal(report.oldExtensionLevels.resistance.count, 1);
+  assert.equal(report.projectedNewExtensionLevels.total, 4);
+  assert.equal(report.projectedNewExtensionLevels.support.count, 3);
+  assert.equal(report.projectedNewExtensionLevels.resistance.count, 1);
 });
 
 test("new projected runtime output reuses the old extension ladder without changing old output", async () => {
@@ -1380,6 +1386,9 @@ test("new projected runtime output adds enrichedAnalysis only as shadow metadata
   const { defaultOutput, oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
   const enriched = enrichedRuntimeZones(newOutput);
   const unenriched = unenrichedRuntimeZones(newOutput);
+  const syntheticRuntimeUnenriched = unenriched.filter(
+    (zone) => zone.extensionMetadata?.extensionSource === "synthetic_continuation_map",
+  );
 
   assert.equal(enrichedRuntimeZones(defaultOutput).length, 0);
   assert.deepEqual(flattenOutput(newOutput), flattenOutput(oldOutput));
@@ -1389,7 +1398,8 @@ test("new projected runtime output adds enrichedAnalysis only as shadow metadata
   assert.equal(bucketCounts(newOutput).intraday, 1);
 
   assert.ok(enriched.length > 0);
-  assert.equal(unenriched.length, 0);
+  assert.equal(unenriched.length, syntheticRuntimeUnenriched.length);
+  assert.ok(syntheticRuntimeUnenriched.length > 0);
 
   for (const zone of enriched) {
     assertEnrichedAnalysisCompatible(zone.enrichedAnalysis!);
@@ -1470,7 +1480,15 @@ test("projected extension ladder preserves practical forward-planning coverage f
   );
   const downsideCoveragePct = (referencePrice - lowestExtensionSupport) / referencePrice;
 
-  assert.equal(newOutput.extensionLevels.resistance.length, 0);
+  assert.ok(newOutput.extensionLevels.resistance.length > 0);
+  assert.ok(
+    syntheticExtensionZones(newOutput).every(
+      (zone) =>
+        zone.touchCount === 0 &&
+        zone.rejectionScore === 0 &&
+        zone.confluenceCount === 0,
+    ),
+  );
   assert.ok(downsideCoveragePct >= 0.20);
   assert.ok(downsideCoveragePct <= 0.50);
   assert.deepEqual(

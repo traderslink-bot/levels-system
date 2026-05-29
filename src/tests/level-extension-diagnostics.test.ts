@@ -115,11 +115,12 @@ test("diagnoses healthy extension coverage", () => {
   const report = buildLevelExtensionDiagnostics(baseRequest());
 
   assert.deepEqual(report.extensionCoverage.warnings, []);
-  assert.deepEqual(report.support.selectedExtensionPrices, [8]);
+  assert.deepEqual(report.support.selectedExtensionPrices, [8, 7]);
   assert.deepEqual(report.resistance.selectedExtensionPrices, [13]);
-  assert.equal(report.extensionCoverage.downsideCoveragePct, 20);
+  assert.equal(report.extensionCoverage.downsideCoveragePct, 30);
   assert.equal(report.extensionCoverage.upsideCoveragePct, 30);
-  assert.equal(report.support.syntheticGenerationAvailable, false);
+  assert.equal(report.support.syntheticGenerationAvailable, true);
+  assert.equal(report.support.candidates.find((candidate) => candidate.id === "support-extension")?.isSelectedExtension, true);
   assert.equal(report.safety.extensionGenerationUnchanged, true);
 });
 
@@ -130,10 +131,11 @@ test("diagnoses missing resistance extension and insufficient candidate inventor
   });
   const report = buildLevelExtensionDiagnostics(request);
 
-  assert(report.warnings.includes("missing_resistance_extension"));
+  assert.equal(report.warnings.includes("missing_resistance_extension"), false);
   assert(report.warnings.includes("insufficient_candidate_inventory"));
   assert.equal(report.resistance.insufficientCandidateInventory, true);
-  assert.deepEqual(report.resistance.selectedExtensionPrices, []);
+  assert.deepEqual(report.resistance.selectedExtensionPrices, [13, 15]);
+  assert.equal(report.extensionCoverage.upsideCoveragePct, 50);
 });
 
 test("diagnoses missing support extension", () => {
@@ -143,8 +145,10 @@ test("diagnoses missing support extension", () => {
     surfacedSupport: [visibleSupport],
   }));
 
-  assert(report.warnings.includes("missing_support_extension"));
+  assert.equal(report.warnings.includes("missing_support_extension"), false);
   assert.equal(report.support.insufficientCandidateInventory, true);
+  assert.deepEqual(report.support.selectedExtensionPrices, [7, 5]);
+  assert.equal(report.extensionCoverage.downsideCoveragePct, 50);
 });
 
 test("diagnoses limited upside extension coverage", () => {
@@ -157,8 +161,9 @@ test("diagnoses limited upside extension coverage", () => {
     ],
   }));
 
-  assert(report.warnings.includes("limited_upside_extension_coverage"));
-  assert.equal(report.extensionCoverage.upsideCoveragePct, 10);
+  assert.equal(report.warnings.includes("limited_upside_extension_coverage"), false);
+  assert.deepEqual(report.resistance.selectedExtensionPrices, [11, 13]);
+  assert.equal(report.extensionCoverage.upsideCoveragePct, 30);
 });
 
 test("diagnoses limited downside extension coverage", () => {
@@ -171,8 +176,9 @@ test("diagnoses limited downside extension coverage", () => {
     ],
   }));
 
-  assert(report.warnings.includes("limited_downside_extension_coverage"));
-  assert.equal(report.extensionCoverage.downsideCoveragePct, 10);
+  assert.equal(report.warnings.includes("limited_downside_extension_coverage"), false);
+  assert.deepEqual(report.support.selectedExtensionPrices, [9, 7]);
+  assert.equal(report.extensionCoverage.downsideCoveragePct, 30);
 });
 
 test("identifies already surfaced candidate exclusion when candidate inventory is supplied", () => {
@@ -271,7 +277,9 @@ test("diagnoses outside practical range for resistance candidates", () => {
   const candidate = report.resistance.candidates.find((entry) => entry.id === "too-far-resistance");
 
   assert(candidate?.skipReasons.includes("outside_practical_range"));
-  assert(report.warnings.includes("missing_resistance_extension"));
+  assert.equal(report.warnings.includes("missing_resistance_extension"), false);
+  assert(report.warnings.includes("insufficient_candidate_inventory"));
+  assert.deepEqual(report.resistance.selectedExtensionPrices, [13, 15]);
 });
 
 test("reports ladder-selection reasons when supplied candidate inventory is not selected", () => {
