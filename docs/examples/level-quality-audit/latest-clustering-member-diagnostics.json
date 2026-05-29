@@ -1,0 +1,2424 @@
+{
+  "generatedAt": 1780063200000,
+  "inputSource": "deterministic_generated_pipeline_data",
+  "samples": [
+    {
+      "symbol": "LPRN",
+      "profile": "low-price runner",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 27,
+        "4h": 18,
+        "5m": 16
+      },
+      "rawCandidateCount": 20,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 10,
+        "resistance": 7
+      },
+      "broadClusterCount": 0,
+      "manyMemberClusterCount": 0,
+      "hiddenDepthPossibleCount": 0,
+      "noRawMemberMappingCount": 0,
+      "largestRawSpanPct": 0.0969,
+      "largestRawMemberCount": 3,
+      "report": {
+        "symbol": "LPRN",
+        "rawCandidateCount": 20,
+        "clusteredZoneCount": 17,
+        "compressionRatio": 1.1765,
+        "unmappedRawCandidateCount": 0,
+        "clusters": [
+          {
+            "clusterId": "LPRN-support-zone-1",
+            "clusterIndex": 0,
+            "kind": "support",
+            "representativePrice": 1.1066,
+            "zoneLow": 1.1066,
+            "zoneHigh": 1.1066,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-daily-support-0-1777176000000"
+            ],
+            "rawMemberPrices": [
+              1.1066
+            ],
+            "minRawMemberPrice": 1.1066,
+            "maxRawMemberPrice": 1.1066,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-support-zone-2",
+            "clusterIndex": 1,
+            "kind": "support",
+            "representativePrice": 1.3634,
+            "zoneLow": 1.3634,
+            "zoneHigh": 1.3634,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-daily-support-1-1777521600000"
+            ],
+            "rawMemberPrices": [
+              1.3634
+            ],
+            "minRawMemberPrice": 1.3634,
+            "maxRawMemberPrice": 1.3634,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-support-zone-3",
+            "clusterIndex": 2,
+            "kind": "support",
+            "representativePrice": 1.9958,
+            "zoneLow": 1.9958,
+            "zoneHigh": 1.9958,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-daily-support-2-1777953600000"
+            ],
+            "rawMemberPrices": [
+              1.9958
+            ],
+            "minRawMemberPrice": 1.9958,
+            "maxRawMemberPrice": 1.9958,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-support-zone-4",
+            "clusterIndex": 3,
+            "kind": "support",
+            "representativePrice": 2.9838,
+            "zoneLow": 2.9838,
+            "zoneHigh": 2.9838,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-daily-support-3-1778385600000"
+            ],
+            "rawMemberPrices": [
+              2.9838
+            ],
+            "minRawMemberPrice": 2.9838,
+            "maxRawMemberPrice": 2.9838,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-support-zone-5",
+            "clusterIndex": 4,
+            "kind": "support",
+            "representativePrice": 3.267,
+            "zoneLow": 3.267,
+            "zoneHigh": 3.267,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-4h-support-1-1779321600000"
+            ],
+            "rawMemberPrices": [
+              3.267
+            ],
+            "minRawMemberPrice": 3.267,
+            "maxRawMemberPrice": 3.267,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-support-zone-6",
+            "clusterIndex": 5,
+            "kind": "support",
+            "representativePrice": 3.9105,
+            "zoneLow": 3.9105,
+            "zoneHigh": 3.9105,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-4h-support-3-1779379200000"
+            ],
+            "rawMemberPrices": [
+              3.9105
+            ],
+            "minRawMemberPrice": 3.9105,
+            "maxRawMemberPrice": 3.9105,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-support-zone-7",
+            "clusterIndex": 6,
+            "kind": "support",
+            "representativePrice": 4.5045,
+            "zoneLow": 4.5045,
+            "zoneHigh": 4.5045,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-4h-support-5-1779436800000"
+            ],
+            "rawMemberPrices": [
+              4.5045
+            ],
+            "minRawMemberPrice": 4.5045,
+            "maxRawMemberPrice": 4.5045,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-support-zone-8",
+            "clusterIndex": 7,
+            "kind": "support",
+            "representativePrice": 4.6917,
+            "zoneLow": 4.6917,
+            "zoneHigh": 4.6917,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 2,
+            "rawMemberIds": [
+              "LPRN-5m-premarket-low-1780060500000",
+              "LPRN-5m-support-1-1780057200000"
+            ],
+            "rawMemberPrices": [
+              4.6917,
+              4.6917
+            ],
+            "minRawMemberPrice": 4.6917,
+            "maxRawMemberPrice": 4.6917,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "premarket_low",
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "premarket_low": 1,
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 2
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-support-zone-9",
+            "clusterIndex": 8,
+            "kind": "support",
+            "representativePrice": 4.9501,
+            "zoneLow": 4.9501,
+            "zoneHigh": 4.9501,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-5m-support-3-1780058400000"
+            ],
+            "rawMemberPrices": [
+              4.9501
+            ],
+            "minRawMemberPrice": 4.9501,
+            "maxRawMemberPrice": 4.9501,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-support-zone-10",
+            "clusterIndex": 9,
+            "kind": "support",
+            "representativePrice": 5.0893,
+            "zoneLow": 5.0893,
+            "zoneHigh": 5.0893,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-5m-support-5-1780059600000"
+            ],
+            "rawMemberPrices": [
+              5.0893
+            ],
+            "minRawMemberPrice": 5.0893,
+            "maxRawMemberPrice": 5.0893,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-resistance-zone-1",
+            "clusterIndex": 10,
+            "kind": "resistance",
+            "representativePrice": 4.242,
+            "zoneLow": 4.242,
+            "zoneHigh": 4.242,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-4h-resistance-0-1779292800000"
+            ],
+            "rawMemberPrices": [
+              4.242
+            ],
+            "minRawMemberPrice": 4.242,
+            "maxRawMemberPrice": 4.242,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-resistance-zone-2",
+            "clusterIndex": 11,
+            "kind": "resistance",
+            "representativePrice": 4.9995,
+            "zoneLow": 4.9995,
+            "zoneHigh": 4.9995,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-4h-resistance-2-1779350400000"
+            ],
+            "rawMemberPrices": [
+              4.9995
+            ],
+            "minRawMemberPrice": 4.9995,
+            "maxRawMemberPrice": 4.9995,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-resistance-zone-3",
+            "clusterIndex": 12,
+            "kind": "resistance",
+            "representativePrice": 5.2513,
+            "zoneLow": 5.2513,
+            "zoneHigh": 5.2513,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-5m-resistance-0-1780056600000"
+            ],
+            "rawMemberPrices": [
+              5.2513
+            ],
+            "minRawMemberPrice": 5.2513,
+            "maxRawMemberPrice": 5.2513,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-resistance-zone-4",
+            "clusterIndex": 13,
+            "kind": "resistance",
+            "representativePrice": 5.6537,
+            "zoneLow": 5.6537,
+            "zoneHigh": 5.6537,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-5m-resistance-2-1780057800000"
+            ],
+            "rawMemberPrices": [
+              5.6537
+            ],
+            "minRawMemberPrice": 5.6537,
+            "maxRawMemberPrice": 5.6537,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-resistance-zone-5",
+            "clusterIndex": 14,
+            "kind": "resistance",
+            "representativePrice": 5.858,
+            "zoneLow": 5.858,
+            "zoneHigh": 5.858,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-4h-resistance-4-1779408000000"
+            ],
+            "rawMemberPrices": [
+              5.858
+            ],
+            "minRawMemberPrice": 5.858,
+            "maxRawMemberPrice": 5.858,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-resistance-zone-6",
+            "clusterIndex": 15,
+            "kind": "resistance",
+            "representativePrice": 6.0922,
+            "zoneLow": 6.0863,
+            "zoneHigh": 6.0922,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 3,
+            "rawMemberIds": [
+              "LPRN-5m-premarket-high-1780060500000",
+              "LPRN-5m-resistance-4-1780059000000",
+              "LPRN-daily-resistance-4-1778644800000"
+            ],
+            "rawMemberPrices": [
+              6.0863,
+              6.0863,
+              6.0922
+            ],
+            "minRawMemberPrice": 6.0863,
+            "maxRawMemberPrice": 6.0922,
+            "rawPriceSpanPct": 0.0969,
+            "sourceTypes": [
+              "premarket_high",
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "premarket_high": 1,
+              "swing_high": 2
+            },
+            "timeframeSources": [
+              "5m",
+              "daily"
+            ],
+            "timeframeCounts": {
+              "5m": 2,
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "LPRN-resistance-zone-7",
+            "clusterIndex": 16,
+            "kind": "resistance",
+            "representativePrice": 6.5145,
+            "zoneLow": 6.5145,
+            "zoneHigh": 6.5145,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "LPRN-4h-resistance-6-1779465600000"
+            ],
+            "rawMemberPrices": [
+              6.5145
+            ],
+            "minRawMemberPrice": 6.5145,
+            "maxRawMemberPrice": 6.5145,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          }
+        ],
+        "warnings": [],
+        "diagnostics": [
+          "clustering_diagnostics_only",
+          "raw_member_mapping_tracked_from_clusterer_diagnostics_when_available"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "clusteringBehaviorUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    },
+    {
+      "symbol": "CHOP",
+      "profile": "choppy/messy ticker",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 21,
+        "4h": 16,
+        "5m": 16
+      },
+      "rawCandidateCount": 20,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 2,
+        "resistance": 2
+      },
+      "broadClusterCount": 0,
+      "manyMemberClusterCount": 2,
+      "hiddenDepthPossibleCount": 2,
+      "noRawMemberMappingCount": 0,
+      "largestRawSpanPct": 1.8094,
+      "largestRawMemberCount": 9,
+      "report": {
+        "symbol": "CHOP",
+        "rawCandidateCount": 20,
+        "clusteredZoneCount": 4,
+        "compressionRatio": 5,
+        "unmappedRawCandidateCount": 0,
+        "clusters": [
+          {
+            "clusterId": "CHOP-support-zone-1",
+            "clusterIndex": 0,
+            "kind": "support",
+            "representativePrice": 4.9104,
+            "zoneLow": 4.8906,
+            "zoneHigh": 4.9799,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 9,
+            "rawMemberIds": [
+              "CHOP-daily-support-1-1777089600000",
+              "CHOP-daily-support-3-1777521600000",
+              "CHOP-daily-support-5-1777953600000",
+              "CHOP-4h-support-3-1779379200000",
+              "CHOP-4h-support-1-1779321600000",
+              "CHOP-4h-support-5-1779436800000",
+              "CHOP-5m-premarket-low-1780060500000",
+              "CHOP-5m-support-1-1780057200000",
+              "CHOP-5m-support-3-1780058400000"
+            ],
+            "rawMemberPrices": [
+              4.8906,
+              4.9005,
+              4.9104,
+              4.9401,
+              4.95,
+              4.9599,
+              4.97,
+              4.97,
+              4.9799
+            ],
+            "minRawMemberPrice": 4.8906,
+            "maxRawMemberPrice": 4.9799,
+            "rawPriceSpanPct": 1.8094,
+            "sourceTypes": [
+              "premarket_low",
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "premarket_low": 1,
+              "swing_low": 8
+            },
+            "timeframeSources": [
+              "4h",
+              "5m",
+              "daily"
+            ],
+            "timeframeCounts": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 3
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": true,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": true,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": [
+              "many_members_single_cluster",
+              "hidden_depth_possible"
+            ]
+          },
+          {
+            "clusterId": "CHOP-support-zone-2",
+            "clusterIndex": 1,
+            "kind": "support",
+            "representativePrice": 4.9998,
+            "zoneLow": 4.9998,
+            "zoneHigh": 4.9998,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CHOP-5m-support-5-1780059600000"
+            ],
+            "rawMemberPrices": [
+              4.9998
+            ],
+            "minRawMemberPrice": 4.9998,
+            "maxRawMemberPrice": 4.9998,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CHOP-resistance-zone-1",
+            "clusterIndex": 2,
+            "kind": "resistance",
+            "representativePrice": 5.1608,
+            "zoneLow": 5.1407,
+            "zoneHigh": 5.1608,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 4,
+            "rawMemberIds": [
+              "CHOP-5m-resistance-0-1780056600000",
+              "CHOP-5m-resistance-2-1780057800000",
+              "CHOP-5m-premarket-high-1780060500000",
+              "CHOP-5m-resistance-4-1780059000000"
+            ],
+            "rawMemberPrices": [
+              5.1407,
+              5.1507,
+              5.1608,
+              5.1608
+            ],
+            "minRawMemberPrice": 5.1407,
+            "maxRawMemberPrice": 5.1608,
+            "rawPriceSpanPct": 0.3902,
+            "sourceTypes": [
+              "premarket_high",
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "premarket_high": 1,
+              "swing_high": 3
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 4
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CHOP-resistance-zone-2",
+            "clusterIndex": 3,
+            "kind": "resistance",
+            "representativePrice": 5.3029,
+            "zoneLow": 5.2318,
+            "zoneHigh": 5.3029,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 6,
+            "rawMemberIds": [
+              "CHOP-4h-resistance-0-1779292800000",
+              "CHOP-4h-resistance-4-1779408000000",
+              "CHOP-4h-resistance-2-1779350400000",
+              "CHOP-daily-resistance-4-1777780800000",
+              "CHOP-daily-resistance-2-1777348800000",
+              "CHOP-daily-resistance-0-1776916800000"
+            ],
+            "rawMemberPrices": [
+              5.2318,
+              5.2318,
+              5.2419,
+              5.2826,
+              5.2928,
+              5.3029
+            ],
+            "minRawMemberPrice": 5.2318,
+            "maxRawMemberPrice": 5.3029,
+            "rawPriceSpanPct": 1.3498,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 6
+            },
+            "timeframeSources": [
+              "4h",
+              "daily"
+            ],
+            "timeframeCounts": {
+              "4h": 3,
+              "daily": 3
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": true,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": true,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": [
+              "many_members_single_cluster",
+              "hidden_depth_possible"
+            ]
+          }
+        ],
+        "warnings": [
+          "hidden_depth_possible",
+          "high_compression_ratio",
+          "many_members_single_cluster"
+        ],
+        "diagnostics": [
+          "clustering_diagnostics_only",
+          "raw_member_mapping_tracked_from_clusterer_diagnostics_when_available"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "clusteringBehaviorUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    },
+    {
+      "symbol": "THIN",
+      "profile": "thin-liquidity ticker",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 14,
+        "4h": 12,
+        "5m": 10
+      },
+      "rawCandidateCount": 12,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 4,
+        "resistance": 4
+      },
+      "broadClusterCount": 0,
+      "manyMemberClusterCount": 0,
+      "hiddenDepthPossibleCount": 0,
+      "noRawMemberMappingCount": 0,
+      "largestRawSpanPct": 0.3968,
+      "largestRawMemberCount": 2,
+      "report": {
+        "symbol": "THIN",
+        "rawCandidateCount": 12,
+        "clusteredZoneCount": 8,
+        "compressionRatio": 1.5,
+        "unmappedRawCandidateCount": 0,
+        "clusters": [
+          {
+            "clusterId": "THIN-support-zone-1",
+            "clusterIndex": 0,
+            "kind": "support",
+            "representativePrice": 1.3042,
+            "zoneLow": 1.3042,
+            "zoneHigh": 1.3042,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "THIN-daily-support-1-1777089600000"
+            ],
+            "rawMemberPrices": [
+              1.3042
+            ],
+            "minRawMemberPrice": 1.3042,
+            "maxRawMemberPrice": 1.3042,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "THIN-support-zone-2",
+            "clusterIndex": 1,
+            "kind": "support",
+            "representativePrice": 1.3464,
+            "zoneLow": 1.3464,
+            "zoneHigh": 1.3464,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "THIN-4h-support-1-1779321600000"
+            ],
+            "rawMemberPrices": [
+              1.3464
+            ],
+            "minRawMemberPrice": 1.3464,
+            "maxRawMemberPrice": 1.3464,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "THIN-support-zone-3",
+            "clusterIndex": 2,
+            "kind": "support",
+            "representativePrice": 1.403,
+            "zoneLow": 1.403,
+            "zoneHigh": 1.4058,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 2,
+            "rawMemberIds": [
+              "THIN-daily-support-2-1777521600000",
+              "THIN-4h-support-3-1779379200000"
+            ],
+            "rawMemberPrices": [
+              1.403,
+              1.4058
+            ],
+            "minRawMemberPrice": 1.403,
+            "maxRawMemberPrice": 1.4058,
+            "rawPriceSpanPct": 0.1994,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 2
+            },
+            "timeframeSources": [
+              "4h",
+              "daily"
+            ],
+            "timeframeCounts": {
+              "4h": 1,
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "THIN-support-zone-4",
+            "clusterIndex": 3,
+            "kind": "support",
+            "representativePrice": 1.4314,
+            "zoneLow": 1.4314,
+            "zoneHigh": 1.4314,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 2,
+            "rawMemberIds": [
+              "THIN-5m-premarket-low-1780058700000",
+              "THIN-5m-support-1-1780057200000"
+            ],
+            "rawMemberPrices": [
+              1.4314,
+              1.4314
+            ],
+            "minRawMemberPrice": 1.4314,
+            "maxRawMemberPrice": 1.4314,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "premarket_low",
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "premarket_low": 1,
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 2
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "THIN-resistance-zone-1",
+            "clusterIndex": 4,
+            "kind": "resistance",
+            "representativePrice": 1.616,
+            "zoneLow": 1.6096,
+            "zoneHigh": 1.616,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 2,
+            "rawMemberIds": [
+              "THIN-5m-resistance-0-1780056600000",
+              "THIN-4h-resistance-0-1779292800000"
+            ],
+            "rawMemberPrices": [
+              1.6096,
+              1.616
+            ],
+            "minRawMemberPrice": 1.6096,
+            "maxRawMemberPrice": 1.616,
+            "rawPriceSpanPct": 0.3968,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 2
+            },
+            "timeframeSources": [
+              "4h",
+              "5m"
+            ],
+            "timeframeCounts": {
+              "4h": 1,
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "THIN-resistance-zone-2",
+            "clusterIndex": 5,
+            "kind": "resistance",
+            "representativePrice": 1.6297,
+            "zoneLow": 1.6297,
+            "zoneHigh": 1.6297,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 2,
+            "rawMemberIds": [
+              "THIN-5m-premarket-high-1780058700000",
+              "THIN-5m-resistance-2-1780057800000"
+            ],
+            "rawMemberPrices": [
+              1.6297,
+              1.6297
+            ],
+            "minRawMemberPrice": 1.6297,
+            "maxRawMemberPrice": 1.6297,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "premarket_high",
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "premarket_high": 1,
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 2
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "THIN-resistance-zone-3",
+            "clusterIndex": 6,
+            "kind": "resistance",
+            "representativePrice": 1.6968,
+            "zoneLow": 1.6968,
+            "zoneHigh": 1.6968,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "THIN-4h-resistance-2-1779350400000"
+            ],
+            "rawMemberPrices": [
+              1.6968
+            ],
+            "minRawMemberPrice": 1.6968,
+            "maxRawMemberPrice": 1.6968,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "THIN-resistance-zone-4",
+            "clusterIndex": 7,
+            "kind": "resistance",
+            "representativePrice": 1.7811,
+            "zoneLow": 1.7811,
+            "zoneHigh": 1.7811,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "THIN-daily-resistance-0-1776916800000"
+            ],
+            "rawMemberPrices": [
+              1.7811
+            ],
+            "minRawMemberPrice": 1.7811,
+            "maxRawMemberPrice": 1.7811,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          }
+        ],
+        "warnings": [],
+        "diagnostics": [
+          "clustering_diagnostics_only",
+          "raw_member_mapping_tracked_from_clusterer_diagnostics_when_available"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "clusteringBehaviorUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    },
+    {
+      "symbol": "CLNT",
+      "profile": "clean technical mover",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 20,
+        "4h": 16,
+        "5m": 12
+      },
+      "rawCandidateCount": 18,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 7,
+        "resistance": 6
+      },
+      "broadClusterCount": 0,
+      "manyMemberClusterCount": 0,
+      "hiddenDepthPossibleCount": 0,
+      "noRawMemberMappingCount": 0,
+      "largestRawSpanPct": 0.796,
+      "largestRawMemberCount": 3,
+      "report": {
+        "symbol": "CLNT",
+        "rawCandidateCount": 18,
+        "clusteredZoneCount": 13,
+        "compressionRatio": 1.3846,
+        "unmappedRawCandidateCount": 0,
+        "clusters": [
+          {
+            "clusterId": "CLNT-support-zone-1",
+            "clusterIndex": 0,
+            "kind": "support",
+            "representativePrice": 19.76,
+            "zoneLow": 19.76,
+            "zoneHigh": 19.76,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-daily-support-1-1777089600000"
+            ],
+            "rawMemberPrices": [
+              19.76
+            ],
+            "minRawMemberPrice": 19.76,
+            "maxRawMemberPrice": 19.76,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-support-zone-2",
+            "clusterIndex": 1,
+            "kind": "support",
+            "representativePrice": 20.295,
+            "zoneLow": 20.295,
+            "zoneHigh": 20.295,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-4h-support-1-1779321600000"
+            ],
+            "rawMemberPrices": [
+              20.295
+            ],
+            "minRawMemberPrice": 20.295,
+            "maxRawMemberPrice": 20.295,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-support-zone-3",
+            "clusterIndex": 2,
+            "kind": "support",
+            "representativePrice": 21.78,
+            "zoneLow": 21.78,
+            "zoneHigh": 21.78,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-4h-support-3-1779379200000"
+            ],
+            "rawMemberPrices": [
+              21.78
+            ],
+            "minRawMemberPrice": 21.78,
+            "maxRawMemberPrice": 21.78,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-support-zone-4",
+            "clusterIndex": 3,
+            "kind": "support",
+            "representativePrice": 22.724,
+            "zoneLow": 22.6632,
+            "zoneHigh": 22.724,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 3,
+            "rawMemberIds": [
+              "CLNT-5m-premarket-low-1780059300000",
+              "CLNT-5m-support-1-1780057200000",
+              "CLNT-daily-support-3-1777521600000"
+            ],
+            "rawMemberPrices": [
+              22.6632,
+              22.6632,
+              22.724
+            ],
+            "minRawMemberPrice": 22.6632,
+            "maxRawMemberPrice": 22.724,
+            "rawPriceSpanPct": 0.2679,
+            "sourceTypes": [
+              "premarket_low",
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "premarket_low": 1,
+              "swing_low": 2
+            },
+            "timeframeSources": [
+              "5m",
+              "daily"
+            ],
+            "timeframeCounts": {
+              "5m": 2,
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-support-zone-5",
+            "clusterIndex": 4,
+            "kind": "support",
+            "representativePrice": 23.4584,
+            "zoneLow": 23.4584,
+            "zoneHigh": 23.4584,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-5m-support-3-1780058400000"
+            ],
+            "rawMemberPrices": [
+              23.4584
+            ],
+            "minRawMemberPrice": 23.4584,
+            "maxRawMemberPrice": 23.4584,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-support-zone-6",
+            "clusterIndex": 5,
+            "kind": "support",
+            "representativePrice": 23.76,
+            "zoneLow": 23.76,
+            "zoneHigh": 23.76,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-4h-support-5-1779436800000"
+            ],
+            "rawMemberPrices": [
+              23.76
+            ],
+            "minRawMemberPrice": 23.76,
+            "maxRawMemberPrice": 23.76,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-support-zone-7",
+            "clusterIndex": 6,
+            "kind": "support",
+            "representativePrice": 24.7,
+            "zoneLow": 24.7,
+            "zoneHigh": 24.7,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-daily-support-5-1777953600000"
+            ],
+            "rawMemberPrices": [
+              24.7
+            ],
+            "minRawMemberPrice": 24.7,
+            "maxRawMemberPrice": 24.7,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-resistance-zone-1",
+            "clusterIndex": 7,
+            "kind": "resistance",
+            "representativePrice": 25.25,
+            "zoneLow": 25.25,
+            "zoneHigh": 25.4518,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 2,
+            "rawMemberIds": [
+              "CLNT-4h-resistance-0-1779292800000",
+              "CLNT-5m-resistance-0-1780056600000"
+            ],
+            "rawMemberPrices": [
+              25.25,
+              25.4518
+            ],
+            "minRawMemberPrice": 25.25,
+            "maxRawMemberPrice": 25.4518,
+            "rawPriceSpanPct": 0.796,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 2
+            },
+            "timeframeSources": [
+              "4h",
+              "5m"
+            ],
+            "timeframeCounts": {
+              "4h": 1,
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-resistance-zone-2",
+            "clusterIndex": 8,
+            "kind": "resistance",
+            "representativePrice": 26.312,
+            "zoneLow": 26.312,
+            "zoneHigh": 26.3572,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 3,
+            "rawMemberIds": [
+              "CLNT-daily-resistance-0-1776916800000",
+              "CLNT-5m-premarket-high-1780059300000",
+              "CLNT-5m-resistance-2-1780057800000"
+            ],
+            "rawMemberPrices": [
+              26.312,
+              26.3572,
+              26.3572
+            ],
+            "minRawMemberPrice": 26.312,
+            "maxRawMemberPrice": 26.3572,
+            "rawPriceSpanPct": 0.1716,
+            "sourceTypes": [
+              "premarket_high",
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "premarket_high": 1,
+              "swing_high": 2
+            },
+            "timeframeSources": [
+              "5m",
+              "daily"
+            ],
+            "timeframeCounts": {
+              "5m": 2,
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-resistance-zone-3",
+            "clusterIndex": 9,
+            "kind": "resistance",
+            "representativePrice": 29.29,
+            "zoneLow": 29.29,
+            "zoneHigh": 29.29,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-4h-resistance-2-1779350400000"
+            ],
+            "rawMemberPrices": [
+              29.29
+            ],
+            "minRawMemberPrice": 29.29,
+            "maxRawMemberPrice": 29.29,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-resistance-zone-4",
+            "clusterIndex": 10,
+            "kind": "resistance",
+            "representativePrice": 31.372,
+            "zoneLow": 31.372,
+            "zoneHigh": 31.372,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-daily-resistance-2-1777348800000"
+            ],
+            "rawMemberPrices": [
+              31.372
+            ],
+            "minRawMemberPrice": 31.372,
+            "maxRawMemberPrice": 31.372,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-resistance-zone-5",
+            "clusterIndex": 11,
+            "kind": "resistance",
+            "representativePrice": 32.32,
+            "zoneLow": 32.32,
+            "zoneHigh": 32.32,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-4h-resistance-4-1779408000000"
+            ],
+            "rawMemberPrices": [
+              32.32
+            ],
+            "minRawMemberPrice": 32.32,
+            "maxRawMemberPrice": 32.32,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "CLNT-resistance-zone-6",
+            "clusterIndex": 12,
+            "kind": "resistance",
+            "representativePrice": 36.432,
+            "zoneLow": 36.432,
+            "zoneHigh": 36.432,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "CLNT-daily-resistance-4-1777780800000"
+            ],
+            "rawMemberPrices": [
+              36.432
+            ],
+            "minRawMemberPrice": 36.432,
+            "maxRawMemberPrice": 36.432,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          }
+        ],
+        "warnings": [],
+        "diagnostics": [
+          "clustering_diagnostics_only",
+          "raw_member_mapping_tracked_from_clusterer_diagnostics_when_available"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "clusteringBehaviorUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    },
+    {
+      "symbol": "HIPO",
+      "profile": "higher-priced stock",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 16,
+        "4h": 15,
+        "5m": 12
+      },
+      "rawCandidateCount": 16,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 5,
+        "resistance": 6
+      },
+      "broadClusterCount": 0,
+      "manyMemberClusterCount": 0,
+      "hiddenDepthPossibleCount": 0,
+      "noRawMemberMappingCount": 0,
+      "largestRawSpanPct": 1.3718,
+      "largestRawMemberCount": 4,
+      "report": {
+        "symbol": "HIPO",
+        "rawCandidateCount": 16,
+        "clusteredZoneCount": 11,
+        "compressionRatio": 1.4545,
+        "unmappedRawCandidateCount": 0,
+        "clusters": [
+          {
+            "clusterId": "HIPO-support-zone-1",
+            "clusterIndex": 0,
+            "kind": "support",
+            "representativePrice": 156.104,
+            "zoneLow": 156.104,
+            "zoneHigh": 156.104,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "HIPO-daily-support-1-1777089600000"
+            ],
+            "rawMemberPrices": [
+              156.104
+            ],
+            "minRawMemberPrice": 156.104,
+            "maxRawMemberPrice": 156.104,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-support-zone-2",
+            "clusterIndex": 1,
+            "kind": "support",
+            "representativePrice": 158.4,
+            "zoneLow": 158.4,
+            "zoneHigh": 158.4,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "HIPO-4h-support-1-1779321600000"
+            ],
+            "rawMemberPrices": [
+              158.4
+            ],
+            "minRawMemberPrice": 158.4,
+            "maxRawMemberPrice": 158.4,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-support-zone-3",
+            "clusterIndex": 2,
+            "kind": "support",
+            "representativePrice": 167.96,
+            "zoneLow": 167.96,
+            "zoneHigh": 170.28,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 4,
+            "rawMemberIds": [
+              "HIPO-daily-support-3-1777521600000",
+              "HIPO-5m-premarket-low-1780059300000",
+              "HIPO-5m-support-1-1780057200000",
+              "HIPO-4h-support-3-1779379200000"
+            ],
+            "rawMemberPrices": [
+              167.96,
+              168.98,
+              168.98,
+              170.28
+            ],
+            "minRawMemberPrice": 167.96,
+            "maxRawMemberPrice": 170.28,
+            "rawPriceSpanPct": 1.3718,
+            "sourceTypes": [
+              "premarket_low",
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "premarket_low": 1,
+              "swing_low": 3
+            },
+            "timeframeSources": [
+              "4h",
+              "5m",
+              "daily"
+            ],
+            "timeframeCounts": {
+              "4h": 1,
+              "5m": 2,
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": true,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-support-zone-4",
+            "clusterIndex": 3,
+            "kind": "support",
+            "representativePrice": 176.932,
+            "zoneLow": 176.932,
+            "zoneHigh": 176.932,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "HIPO-5m-support-3-1780058400000"
+            ],
+            "rawMemberPrices": [
+              176.932
+            ],
+            "minRawMemberPrice": 176.932,
+            "maxRawMemberPrice": 176.932,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-support-zone-5",
+            "clusterIndex": 4,
+            "kind": "support",
+            "representativePrice": 182.16,
+            "zoneLow": 182.16,
+            "zoneHigh": 182.16,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "HIPO-4h-support-5-1779436800000"
+            ],
+            "rawMemberPrices": [
+              182.16
+            ],
+            "minRawMemberPrice": 182.16,
+            "maxRawMemberPrice": 182.16,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "sourceTypeCounts": {
+              "swing_low": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-resistance-zone-1",
+            "clusterIndex": 5,
+            "kind": "resistance",
+            "representativePrice": 204.02,
+            "zoneLow": 203.212,
+            "zoneHigh": 204.02,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 2,
+            "rawMemberIds": [
+              "HIPO-5m-resistance-0-1780056600000",
+              "HIPO-4h-resistance-0-1779292800000"
+            ],
+            "rawMemberPrices": [
+              203.212,
+              204.02
+            ],
+            "minRawMemberPrice": 203.212,
+            "maxRawMemberPrice": 204.02,
+            "rawPriceSpanPct": 0.3968,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 2
+            },
+            "timeframeSources": [
+              "4h",
+              "5m"
+            ],
+            "timeframeCounts": {
+              "4h": 1,
+              "5m": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-resistance-zone-2",
+            "clusterIndex": 6,
+            "kind": "resistance",
+            "representativePrice": 209.248,
+            "zoneLow": 209.248,
+            "zoneHigh": 209.248,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 2,
+            "rawMemberIds": [
+              "HIPO-5m-premarket-high-1780059300000",
+              "HIPO-5m-resistance-2-1780057800000"
+            ],
+            "rawMemberPrices": [
+              209.248,
+              209.248
+            ],
+            "minRawMemberPrice": 209.248,
+            "maxRawMemberPrice": 209.248,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "premarket_high",
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "premarket_high": 1,
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "5m"
+            ],
+            "timeframeCounts": {
+              "5m": 2
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-resistance-zone-3",
+            "clusterIndex": 7,
+            "kind": "resistance",
+            "representativePrice": 222.64,
+            "zoneLow": 222.64,
+            "zoneHigh": 222.64,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "HIPO-daily-resistance-0-1776916800000"
+            ],
+            "rawMemberPrices": [
+              222.64
+            ],
+            "minRawMemberPrice": 222.64,
+            "maxRawMemberPrice": 222.64,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-resistance-zone-4",
+            "clusterIndex": 8,
+            "kind": "resistance",
+            "representativePrice": 234.32,
+            "zoneLow": 234.32,
+            "zoneHigh": 234.32,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "HIPO-4h-resistance-2-1779350400000"
+            ],
+            "rawMemberPrices": [
+              234.32
+            ],
+            "minRawMemberPrice": 234.32,
+            "maxRawMemberPrice": 234.32,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-resistance-zone-5",
+            "clusterIndex": 9,
+            "kind": "resistance",
+            "representativePrice": 242.4,
+            "zoneLow": 242.4,
+            "zoneHigh": 242.4,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "HIPO-4h-resistance-4-1779408000000"
+            ],
+            "rawMemberPrices": [
+              242.4
+            ],
+            "minRawMemberPrice": 242.4,
+            "maxRawMemberPrice": 242.4,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "4h"
+            ],
+            "timeframeCounts": {
+              "4h": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          },
+          {
+            "clusterId": "HIPO-resistance-zone-6",
+            "clusterIndex": 10,
+            "kind": "resistance",
+            "representativePrice": 247.94,
+            "zoneLow": 247.94,
+            "zoneHigh": 247.94,
+            "rawMemberMapping": "tracked_from_clusterer_diagnostics",
+            "rawMemberCount": 1,
+            "rawMemberIds": [
+              "HIPO-daily-resistance-2-1777348800000"
+            ],
+            "rawMemberPrices": [
+              247.94
+            ],
+            "minRawMemberPrice": 247.94,
+            "maxRawMemberPrice": 247.94,
+            "rawPriceSpanPct": 0,
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "sourceTypeCounts": {
+              "swing_high": 1
+            },
+            "timeframeSources": [
+              "daily"
+            ],
+            "timeframeCounts": {
+              "daily": 1
+            },
+            "isBroadCluster": false,
+            "mayHideMultipleCandidateDepths": false,
+            "exactRawMemberTrackingAvailable": true,
+            "membersSpanMateriallyDifferentPrices": false,
+            "hiddenDepthCandidateIds": [],
+            "hiddenDepthCandidatePrices": [],
+            "potentialExtensionDepthMemberIds": [],
+            "warnings": []
+          }
+        ],
+        "warnings": [],
+        "diagnostics": [
+          "clustering_diagnostics_only",
+          "raw_member_mapping_tracked_from_clusterer_diagnostics_when_available"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "clusteringBehaviorUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    }
+  ],
+  "summary": {
+    "sampleCount": 5,
+    "rawCandidateCount": 86,
+    "clusteredZoneCount": 53,
+    "averageCompressionRatio": 2.1031,
+    "samplesWithHighCompression": [
+      "CHOP"
+    ],
+    "samplesWithBroadClusters": [],
+    "samplesWithManyMemberClusters": [
+      "CHOP"
+    ],
+    "samplesWithHiddenDepthPossible": [
+      "CHOP"
+    ],
+    "samplesWithUnavailableRawMemberMapping": []
+  },
+  "safety": {
+    "clusteringBehaviorUnchanged": true,
+    "supportResistanceDetectionUnchanged": true,
+    "levelEngineDefaultOutputUnchanged": true,
+    "extensionGenerationUnchanged": true,
+    "scoringSelectionUnchanged": true,
+    "runtimeBehaviorUnchanged": true,
+    "reviewOnly": true
+  }
+}
