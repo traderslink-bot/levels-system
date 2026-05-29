@@ -48,7 +48,7 @@ export type LevelExtensionSideDiagnostics = {
   candidates: LevelExtensionCandidateDiagnostic[];
   rejectionReasonCounts: Partial<Record<LevelExtensionSkipReason, number>>;
   insufficientCandidateInventory: boolean;
-  syntheticGenerationAvailable: false;
+  syntheticGenerationAvailable: boolean;
   undeterminedRejectionCount: number;
   notes: string[];
 };
@@ -347,7 +347,7 @@ function buildSideDiagnostics(params: {
     if (params.selectionDiagnostics.insufficientCandidateInventory) {
       notes.push("No eligible candidate inventory is visible for this side.");
     }
-    notes.push("Synthetic extension generation is not available in the current extension engine.");
+    notes.push("Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered.");
 
     return {
       symbol: params.symbol,
@@ -366,7 +366,7 @@ function buildSideDiagnostics(params: {
       candidates: params.selectionDiagnostics.candidates,
       rejectionReasonCounts: params.selectionDiagnostics.rejectionReasonCounts,
       insufficientCandidateInventory: params.selectionDiagnostics.insufficientCandidateInventory,
-      syntheticGenerationAvailable: false,
+      syntheticGenerationAvailable: true,
       undeterminedRejectionCount: params.selectionDiagnostics.candidates.filter((candidate) =>
         candidate.skipReasons.includes("undetermined"),
       ).length,
@@ -415,7 +415,7 @@ function buildSideDiagnostics(params: {
     };
   });
   const skippedCandidates = candidates.filter((candidate) => !candidate.isSelectedExtension);
-  const insufficientCandidateInventory = eligible.length === 0 && params.selected.length === 0;
+  const insufficientCandidateInventory = eligible.length === 0;
   const notes: string[] = [];
 
   if (params.candidateInventoryLimited) {
@@ -424,7 +424,7 @@ function buildSideDiagnostics(params: {
   if (insufficientCandidateInventory) {
     notes.push("No eligible candidate inventory is visible for this side.");
   }
-  notes.push("Synthetic extension generation is not available in the current extension engine.");
+  notes.push("Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered.");
 
   return {
     symbol: params.symbol,
@@ -443,7 +443,7 @@ function buildSideDiagnostics(params: {
     candidates,
     rejectionReasonCounts: {},
     insufficientCandidateInventory,
-    syntheticGenerationAvailable: false,
+    syntheticGenerationAvailable: true,
     undeterminedRejectionCount: candidates.filter((candidate) => candidate.skipReasons.includes("undetermined")).length,
     notes,
   };

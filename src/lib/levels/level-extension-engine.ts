@@ -2,6 +2,14 @@ import type { FinalLevelZone, LevelLadderExtension } from "./level-types.js";
 
 export type LevelExtensionSelectionSide = "support" | "resistance";
 
+export type SyntheticExtensionOptions = {
+  enabled?: boolean;
+  minTargetCoveragePct?: number;
+  maxTargetCoveragePct?: number;
+  minSyntheticSpacingPct?: number;
+  maxSyntheticExtensionsPerSide?: number;
+};
+
 export type LevelExtensionCandidatePoolMode =
   | "strict_frontier"
   | "expanded_unselected_scored";
@@ -73,6 +81,7 @@ export type BuildLevelExtensionsParams = {
   searchWindowPct?: number;
   referencePrice?: number;
   forwardPlanningRangePct?: number;
+  syntheticExtensionOptions?: SyntheticExtensionOptions;
 };
 
 export type BuildLevelExtensionsWithDiagnosticsResult = {
@@ -105,6 +114,16 @@ function sortResistance(zones: FinalLevelZone[]): FinalLevelZone[] {
 }
 
 const DEFAULT_FORWARD_PLANNING_RANGE_PCT = 0.5;
+const DEFAULT_SYNTHETIC_EXTENSION_OPTIONS: Required<SyntheticExtensionOptions> = {
+  enabled: true,
+  minTargetCoveragePct: 0.3,
+  maxTargetCoveragePct: 0.5,
+  minSyntheticSpacingPct: 0.03,
+  maxSyntheticExtensionsPerSide: 2,
+};
+const LOW_PRICE_SUPPORT_MAX_SYNTHETIC_COVERAGE_PCT = 0.35;
+const SYNTHETIC_EXTENSION_NOTE =
+  "Synthetic continuation-map extension for forward planning only; not historical support/resistance.";
 
 function round(value: number, decimals = 4): number {
   const factor = 10 ** decimals;
@@ -475,6 +494,327 @@ function coveragePct(
   return round((Math.abs(extensionPrice - referencePrice) / referencePrice) * 100);
 }
 
+function coverageFraction(
+  side: LevelExtensionSelectionSide,
+  referencePrice: number | undefined,
+  zones: FinalLevelZone[],
+): number | undefined {
+  const percent = coveragePct(side, referencePrice, zones);
+  return percent === undefined ? undefined : percent / 100;
+}
+
+function resolveSyntheticExtensionOptions(
+  options: SyntheticExtensionOptions | undefined,
+): Required<SyntheticExtensionOptions> {
+  const resolved = {
+    ...DEFAULT_SYNTHETIC_EXTENSION_OPTIONS,
+    ...options,
+  };
+
+  return {
+    enabled: resolved.enabled,
+    minTargetCoveragePct: Math.max(0, resolved.minTargetCoveragePct),
+    maxTargetCoveragePct: Math.max(
+      resolved.minTargetCoveragePct,
+      resolved.maxTargetCoveragePct,
+    ),
+    minSyntheticSpacingPct: Math.max(0, resolved.minSyntheticSpacingPct),
+    maxSyntheticExtensionsPerSide: Math.max(
+      0,
+      Math.floor(resolved.maxSyntheticExtensionsPerSide),
+    ),
+  };
+}
+
+function roundToIncrement(value: number, increment: number, side: LevelExtensionSelectionSide): number {
+  if (!Number.isFinite(value) || !Number.isFinite(increment) || increment <= 0) {
+    return value;
+  }
+
+  const scaled = value / increment;
+  const rounded =
+    side === "resistance"
+      ? Math.ceil(scaled - 1e-9)
+      : Math.floor(scaled + 1e-9);
+
+  return round(rounded * increment, 4);
+}
+
+function syntheticRoundIncrement(price: number): number {
+  if (price < 1) {
+    return 0.01;
+  }
+  if (price < 5) {
+    return 0.05;
+  }
+  if (price < 20) {
+    return 0.1;
+  }
+
+  return 0.5;
+}
+
+function syntheticPriceForCoverage(params: {
+  side: LevelExtensionSelectionSide;
+  referencePrice: number;
+  coveragePct: number;
+}): number {
+  const rawPrice =
+    params.side === "resistance"
+      ? params.referencePrice * (1 + params.coveragePct)
+      : params.referencePrice * (1 - params.coveragePct);
+
+  return roundToIncrement(rawPrice, syntheticRoundIncrement(rawPrice), params.side);
+}
+
+function syntheticZoneBounds(price: number, spacingPct: number): { zoneLow: number; zoneHigh: number } {
+  const halfWidthPct = Math.min(Math.max(spacingPct / 8, 0.001), 0.005);
+
+  return {
+    zoneLow: round(price * (1 - halfWidthPct)),
+    zoneHigh: round(price * (1 + halfWidthPct)),
+  };
+}
+
+function selectedExtensionCoverageIsHealthy(params: {
+  side: LevelExtensionSelectionSide;
+  referencePrice?: number;
+  selected: FinalLevelZone[];
+  minTargetCoveragePct: number;
+}): boolean {
+  const selectedCoverage = coverageFraction(params.side, params.referencePrice, params.selected);
+
+  return selectedCoverage !== undefined && selectedCoverage >= params.minTargetCoveragePct;
+}
+
+function syntheticCoverageTargets(params: {
+  selectedCoverage: number | undefined;
+  availableSlots: number;
+  minTargetCoveragePct: number;
+  maxTargetCoveragePct: number;
+}): number[] {
+  if (params.availableSlots <= 0) {
+    return [];
+  }
+
+  if (params.selectedCoverage !== undefined && params.selectedCoverage >= params.minTargetCoveragePct) {
+    return [];
+  }
+
+  const targets = [params.minTargetCoveragePct];
+  if (
+    params.selectedCoverage === undefined &&
+    params.availableSlots > 1 &&
+    params.maxTargetCoveragePct > params.minTargetCoveragePct
+  ) {
+    targets.push(params.maxTargetCoveragePct);
+  }
+
+  return targets.slice(0, params.availableSlots);
+}
+
+function isSyntheticPriceOutsideSurfacedMap(params: {
+  price: number;
+  side: LevelExtensionSelectionSide;
+  surfaced: FinalLevelZone[];
+  referencePrice: number;
+  forwardPlanningRangePct: number;
+}): boolean {
+  if (params.side === "support") {
+    if (params.price <= 0 || params.price >= params.referencePrice) {
+      return false;
+    }
+    if (params.surfaced.length === 0) {
+      return false;
+    }
+
+    return params.price < Math.min(...params.surfaced.map((zone) => zone.representativePrice));
+  }
+
+  if (params.price <= params.referencePrice) {
+    return false;
+  }
+  if (params.surfaced.length === 0) {
+    return false;
+  }
+
+  return (
+    params.price > surfacedResistanceBoundary({
+      surfaced: params.surfaced,
+      referencePrice: params.referencePrice,
+      forwardPlanningRangePct: params.forwardPlanningRangePct,
+    }) &&
+    params.price <= maxPracticalResistancePrice(params.referencePrice, params.forwardPlanningRangePct)
+  );
+}
+
+function syntheticExtensionId(params: {
+  symbol: string;
+  side: LevelExtensionSelectionSide;
+  index: number;
+  price: number;
+}): string {
+  const priceKey = params.price.toFixed(4).replace(".", "p");
+
+  return `${params.symbol}-synthetic-${params.side}-extension-${params.index}-${priceKey}`;
+}
+
+function syntheticExtensionLevel(params: {
+  symbol: string;
+  side: LevelExtensionSelectionSide;
+  price: number;
+  index: number;
+  referencePrice: number;
+  targetCoveragePct: number;
+  maxCoveragePct: number;
+  spacingPct: number;
+  limitation: "no_real_extension_candidate_available" | "real_extension_coverage_below_threshold";
+}): FinalLevelZone {
+  const bounds = syntheticZoneBounds(params.price, params.spacingPct);
+
+  return {
+    id: syntheticExtensionId({
+      symbol: params.symbol,
+      side: params.side,
+      index: params.index,
+      price: params.price,
+    }),
+    symbol: params.symbol,
+    kind: params.side,
+    timeframeBias: "mixed",
+    zoneLow: bounds.zoneLow,
+    zoneHigh: bounds.zoneHigh,
+    representativePrice: params.price,
+    strengthScore: 0,
+    strengthLabel: "weak",
+    touchCount: 0,
+    confluenceCount: 0,
+    sourceTypes: [],
+    timeframeSources: [],
+    reactionQualityScore: 0,
+    rejectionScore: 0,
+    displacementScore: 0,
+    sessionSignificanceScore: 0,
+    followThroughScore: 0,
+    sourceEvidenceCount: 0,
+    firstTimestamp: 0,
+    lastTimestamp: 0,
+    isExtension: true,
+    freshness: "fresh",
+    notes: [SYNTHETIC_EXTENSION_NOTE],
+    extensionMetadata: {
+      extensionSource: "synthetic_continuation_map",
+      generationMethod: "round_number_ladder",
+      referencePrice: params.referencePrice,
+      targetCoveragePct: params.targetCoveragePct,
+      maxCoveragePct: params.maxCoveragePct,
+      syntheticIndex: params.index,
+      evidenceLimitations: [
+        params.limitation,
+        "not_historical_support_resistance",
+        "no_touch_or_rejection_history",
+        "no_historical_confluence",
+      ],
+    },
+  };
+}
+
+function applySyntheticExtensionFallback(params: {
+  selected: FinalLevelZone[];
+  surfaced: FinalLevelZone[];
+  side: LevelExtensionSelectionSide;
+  maxExtensionPerSide: number;
+  referencePrice?: number;
+  spacingPct: number;
+  forwardPlanningRangePct: number;
+  syntheticOptions: Required<SyntheticExtensionOptions>;
+}): FinalLevelZone[] {
+  if (
+    !params.syntheticOptions.enabled ||
+    !params.referencePrice ||
+    params.referencePrice <= 0 ||
+    params.surfaced.length === 0 ||
+    selectedExtensionCoverageIsHealthy({
+      side: params.side,
+      referencePrice: params.referencePrice,
+      selected: params.selected,
+      minTargetCoveragePct: params.syntheticOptions.minTargetCoveragePct,
+    })
+  ) {
+    return params.selected;
+  }
+
+  const selectedCoverage = coverageFraction(params.side, params.referencePrice, params.selected);
+  const availableSlots = Math.min(
+    params.syntheticOptions.maxSyntheticExtensionsPerSide,
+    Math.max(0, params.maxExtensionPerSide - params.selected.length),
+  );
+  const sideMaxCoveragePct =
+    params.side === "support" && params.referencePrice < 1
+      ? Math.min(
+          params.syntheticOptions.maxTargetCoveragePct,
+          LOW_PRICE_SUPPORT_MAX_SYNTHETIC_COVERAGE_PCT,
+        )
+      : params.syntheticOptions.maxTargetCoveragePct;
+  const coverageTargets = syntheticCoverageTargets({
+    selectedCoverage,
+    availableSlots,
+    minTargetCoveragePct: params.syntheticOptions.minTargetCoveragePct,
+    maxTargetCoveragePct: sideMaxCoveragePct,
+  });
+  if (coverageTargets.length === 0) {
+    return params.selected;
+  }
+
+  const spacingPct = Math.max(params.spacingPct, params.syntheticOptions.minSyntheticSpacingPct);
+  const syntheticLevels: FinalLevelZone[] = [];
+  const symbol =
+    params.surfaced[0]?.symbol ??
+    params.selected[0]?.symbol ??
+    "UNKNOWN";
+  const limitation =
+    params.selected.length === 0
+      ? "no_real_extension_candidate_available"
+      : "real_extension_coverage_below_threshold";
+
+  for (const targetCoveragePct of coverageTargets) {
+    const syntheticPrice = syntheticPriceForCoverage({
+      side: params.side,
+      referencePrice: params.referencePrice,
+      coveragePct: targetCoveragePct,
+    });
+    const existingLevels = [...params.surfaced, ...params.selected, ...syntheticLevels];
+    const candidate = syntheticExtensionLevel({
+      symbol,
+      side: params.side,
+      price: syntheticPrice,
+      index: syntheticLevels.length + 1,
+      referencePrice: params.referencePrice,
+      targetCoveragePct,
+      maxCoveragePct: sideMaxCoveragePct,
+      spacingPct,
+      limitation,
+    });
+
+    if (
+      !isSyntheticPriceOutsideSurfacedMap({
+        price: syntheticPrice,
+        side: params.side,
+        surfaced: params.surfaced,
+        referencePrice: params.referencePrice,
+        forwardPlanningRangePct: params.forwardPlanningRangePct,
+      }) ||
+      isTooCloseToAny(candidate, existingLevels, spacingPct)
+    ) {
+      continue;
+    }
+
+    syntheticLevels.push(candidate);
+  }
+
+  return sortBySide([...params.selected, ...syntheticLevels], params.side);
+}
+
 function buildRejectionReasonCounts(
   candidates: LevelExtensionCandidateSelectionDiagnostic[],
 ): Partial<Record<LevelExtensionSelectionSkipReason, number>> {
@@ -623,8 +963,7 @@ function buildSelectionSideDiagnostics(params: {
       .map((candidate) => candidate.price),
     candidateCoveragePct: coveragePct(params.side, params.referencePrice, eligibleCandidates),
     selectedCoveragePct: coveragePct(params.side, params.referencePrice, params.selected),
-    insufficientCandidateInventory:
-      eligibleCandidates.length === 0 && params.selected.length === 0,
+    insufficientCandidateInventory: eligibleCandidates.length === 0,
     candidates,
     rejectionReasonCounts: buildRejectionReasonCounts(candidates),
   };
@@ -1032,6 +1371,7 @@ export function buildLevelExtensionsWithDiagnostics(
   const searchWindowPct = params.searchWindowPct ?? 0.05;
   const forwardPlanningRangePct =
     params.forwardPlanningRangePct ?? DEFAULT_FORWARD_PLANNING_RANGE_PCT;
+  const syntheticOptions = resolveSyntheticExtensionOptions(params.syntheticExtensionOptions);
   const supportCandidatePool = resolveSupportExtensionCandidates({
     supportZones: params.supportZones,
     surfacedSupport: params.surfacedSupport,
@@ -1043,8 +1383,7 @@ export function buildLevelExtensionsWithDiagnostics(
     referencePrice: params.referencePrice,
     forwardPlanningRangePct,
   });
-  const extensionLevels = {
-    support: selectSpacedExtensions({
+  const realSupportExtensions = selectSpacedExtensions({
       candidates: supportCandidatePool.candidates,
       surfaced: params.surfacedSupport,
       side: "support",
@@ -1053,8 +1392,8 @@ export function buildLevelExtensionsWithDiagnostics(
       searchWindowPct,
       referencePrice: params.referencePrice,
       forwardPlanningRangePct,
-    }),
-    resistance: selectSpacedExtensions({
+  });
+  const realResistanceExtensions = selectSpacedExtensions({
       candidates: resistanceCandidatePool.candidates,
       surfaced: params.surfacedResistance,
       side: "resistance",
@@ -1063,6 +1402,27 @@ export function buildLevelExtensionsWithDiagnostics(
       searchWindowPct,
       referencePrice: params.referencePrice,
       forwardPlanningRangePct,
+  });
+  const extensionLevels = {
+    support: applySyntheticExtensionFallback({
+      selected: realSupportExtensions,
+      surfaced: params.surfacedSupport,
+      side: "support",
+      maxExtensionPerSide,
+      spacingPct,
+      referencePrice: params.referencePrice,
+      forwardPlanningRangePct,
+      syntheticOptions,
+    }),
+    resistance: applySyntheticExtensionFallback({
+      selected: realResistanceExtensions,
+      surfaced: params.surfacedResistance,
+      side: "resistance",
+      maxExtensionPerSide,
+      spacingPct,
+      referencePrice: params.referencePrice,
+      forwardPlanningRangePct,
+      syntheticOptions,
     }),
   };
 
@@ -1081,6 +1441,7 @@ export function buildLevelExtensions(params: BuildLevelExtensionsParams): LevelL
   const searchWindowPct = params.searchWindowPct ?? 0.05;
   const forwardPlanningRangePct =
     params.forwardPlanningRangePct ?? DEFAULT_FORWARD_PLANNING_RANGE_PCT;
+  const syntheticOptions = resolveSyntheticExtensionOptions(params.syntheticExtensionOptions);
   const supportCandidatePool = resolveSupportExtensionCandidates({
     supportZones: params.supportZones,
     surfacedSupport: params.surfacedSupport,
@@ -1092,27 +1453,47 @@ export function buildLevelExtensions(params: BuildLevelExtensionsParams): LevelL
     referencePrice: params.referencePrice,
     forwardPlanningRangePct,
   });
+  const realSupportExtensions = selectSpacedExtensions({
+    candidates: supportCandidatePool.candidates,
+    surfaced: params.surfacedSupport,
+    side: "support",
+    maxCount: maxExtensionPerSide,
+    spacingPct,
+    searchWindowPct,
+    referencePrice: params.referencePrice,
+    forwardPlanningRangePct,
+  });
+  const realResistanceExtensions = selectSpacedExtensions({
+    candidates: resistanceCandidatePool.candidates,
+    surfaced: params.surfacedResistance,
+    side: "resistance",
+    maxCount: maxExtensionPerSide,
+    spacingPct,
+    searchWindowPct,
+    referencePrice: params.referencePrice,
+    forwardPlanningRangePct,
+  });
 
   return {
-    support: selectSpacedExtensions({
-      candidates: supportCandidatePool.candidates,
+    support: applySyntheticExtensionFallback({
+      selected: realSupportExtensions,
       surfaced: params.surfacedSupport,
       side: "support",
-      maxCount: maxExtensionPerSide,
+      maxExtensionPerSide,
       spacingPct,
-      searchWindowPct,
       referencePrice: params.referencePrice,
       forwardPlanningRangePct,
+      syntheticOptions,
     }),
-    resistance: selectSpacedExtensions({
-      candidates: resistanceCandidatePool.candidates,
+    resistance: applySyntheticExtensionFallback({
+      selected: realResistanceExtensions,
       surfaced: params.surfacedResistance,
       side: "resistance",
-      maxCount: maxExtensionPerSide,
+      maxExtensionPerSide,
       spacingPct,
-      searchWindowPct,
       referencePrice: params.referencePrice,
       forwardPlanningRangePct,
+      syntheticOptions,
     }),
   };
 }
