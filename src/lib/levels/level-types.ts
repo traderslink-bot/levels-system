@@ -49,6 +49,33 @@ export type RawLevelCandidate = {
 
 export type LevelDataFreshness = "fresh" | "aging" | "stale";
 
+export type LevelExtensionSource =
+  | "historical_candidate"
+  | "synthetic_continuation_map";
+
+export type SyntheticExtensionGenerationMethod =
+  | "percentage_ladder"
+  | "round_number_ladder"
+  | "price_band_ladder"
+  | "prior_spacing_ladder";
+
+export type SyntheticExtensionEvidenceLimitation =
+  | "no_real_extension_candidate_available"
+  | "real_extension_coverage_below_threshold"
+  | "not_historical_support_resistance"
+  | "no_touch_or_rejection_history"
+  | "no_historical_confluence";
+
+export type LevelExtensionMetadata = {
+  extensionSource: LevelExtensionSource;
+  generationMethod?: SyntheticExtensionGenerationMethod;
+  referencePrice?: number;
+  targetCoveragePct?: number;
+  maxCoveragePct?: number;
+  syntheticIndex?: number;
+  evidenceLimitations?: SyntheticExtensionEvidenceLimitation[];
+};
+
 export type FinalLevelZone = {
   id: string;
   symbol: string;
@@ -76,6 +103,7 @@ export type FinalLevelZone = {
   isExtension: boolean;
   freshness: LevelDataFreshness;
   notes: string[];
+  extensionMetadata?: LevelExtensionMetadata;
   enrichedAnalysis?: EnrichedLevelAnalysis;
 };
 
