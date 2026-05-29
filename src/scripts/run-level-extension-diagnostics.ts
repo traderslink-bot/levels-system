@@ -151,6 +151,22 @@ function formatNumber(value: number | undefined, suffix = ""): string {
   return `${Math.round(value * 10000) / 10000}${suffix}`;
 }
 
+function formatList(values: Array<number | string>): string {
+  return values.length > 0 ? values.join(", ") : "none";
+}
+
+function formatReasonCounts(counts: Record<string, number | undefined>): string {
+  const entries = Object.entries(counts)
+    .filter(([, count]) => count !== undefined && count > 0)
+    .sort(([left], [right]) => left.localeCompare(right));
+
+  if (entries.length === 0) {
+    return "none";
+  }
+
+  return entries.map(([reason, count]) => `${reason}: ${count}`).join(", ");
+}
+
 type ExtensionDiagnosticsBundle = ReturnType<typeof buildDiagnosticsBundle>;
 
 function buildDiagnosticsBundle(levelOutputPaths: string[]) {
@@ -218,10 +234,20 @@ function renderText(bundle: ExtensionDiagnosticsBundle): string {
     lines.push(`- Downside coverage: ${formatNumber(coverage.downsideCoveragePct, "%")}`);
     lines.push(`- Upside coverage: ${formatNumber(coverage.upsideCoveragePct, "%")}`);
     lines.push(`- Warnings: ${report.warnings.join(", ") || "none"}`);
-    lines.push(`- Support candidate pool: ${report.support.candidatePoolPrices.join(", ") || "none"}`);
-    lines.push(`- Resistance candidate pool: ${report.resistance.candidatePoolPrices.join(", ") || "none"}`);
-    lines.push(`- Support selected: ${report.support.selectedExtensionPrices.join(", ") || "none"}`);
-    lines.push(`- Resistance selected: ${report.resistance.selectedExtensionPrices.join(", ") || "none"}`);
+    lines.push(`- Support input inventory: ${formatList(report.support.inputInventoryPrices)}`);
+    lines.push(`- Support pre-selection candidates: ${formatList(report.support.preSelectionCandidatePrices)}`);
+    lines.push(`- Support eligible candidates: ${formatList(report.support.eligibleCandidatePrices)}`);
+    lines.push(`- Support selected: ${formatList(report.support.selectedExtensionPrices)}`);
+    lines.push(`- Support candidate coverage: ${formatNumber(report.support.candidateCoveragePct, "%")}`);
+    lines.push(`- Support selected coverage: ${formatNumber(report.support.selectedCoveragePct, "%")}`);
+    lines.push(`- Support reason counts: ${formatReasonCounts(report.support.rejectionReasonCounts)}`);
+    lines.push(`- Resistance input inventory: ${formatList(report.resistance.inputInventoryPrices)}`);
+    lines.push(`- Resistance pre-selection candidates: ${formatList(report.resistance.preSelectionCandidatePrices)}`);
+    lines.push(`- Resistance eligible candidates: ${formatList(report.resistance.eligibleCandidatePrices)}`);
+    lines.push(`- Resistance selected: ${formatList(report.resistance.selectedExtensionPrices)}`);
+    lines.push(`- Resistance candidate coverage: ${formatNumber(report.resistance.candidateCoveragePct, "%")}`);
+    lines.push(`- Resistance selected coverage: ${formatNumber(report.resistance.selectedCoveragePct, "%")}`);
+    lines.push(`- Resistance reason counts: ${formatReasonCounts(report.resistance.rejectionReasonCounts)}`);
     lines.push(`- Support insufficient inventory: ${report.support.insufficientCandidateInventory}`);
     lines.push(`- Resistance insufficient inventory: ${report.resistance.insufficientCandidateInventory}`);
     lines.push(`- Undetermined reasons: ${report.support.undeterminedRejectionCount + report.resistance.undeterminedRejectionCount}`);
