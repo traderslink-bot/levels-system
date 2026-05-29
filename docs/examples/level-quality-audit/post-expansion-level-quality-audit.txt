@@ -1,0 +1,87 @@
+Post-expansion level quality audit
+
+## Input Source
+- Deterministic generated pipeline samples rebuilt with the current LevelEngine code.
+- Static LevelEngineOutput-only fixtures were not reused for this post-change measurement because they preserve pre-expansion extensionLevels.
+
+## Summary
+- Sample count: 5
+- Total levels: 49
+- Support levels: 27
+- Resistance levels: 22
+- Extension levels: 1
+- Fresh levels: 19
+- Stale levels: 29
+- Enriched levels: 0
+- Unenriched levels: 49
+
+## Samples
+### LPRN - low-price runner
+- Reference price: 5.6
+- Total/support/resistance/extension: 14/10/4/0
+- Fresh/stale: 5/8
+- Enriched/unenriched: 0/14
+- Support extensions: 0
+- Resistance extensions: 0
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Extension warnings: no_support_extension_coverage, no_resistance_extension_coverage
+- Clustered areas: 0
+- Diagnostics: level_intelligence_report_missing, levels_without_context_present, no_resistance_extension_coverage, no_support_extension_coverage, unenriched_levels_present, wide_downside_support_gap
+
+### CHOP - choppy/messy ticker
+- Reference price: 5.07
+- Total/support/resistance/extension: 4/2/2/0
+- Fresh/stale: 3/1
+- Enriched/unenriched: 0/4
+- Support extensions: 0
+- Resistance extensions: 0
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Extension warnings: no_support_extension_coverage, no_resistance_extension_coverage
+- Clustered areas: 0
+- Diagnostics: level_intelligence_report_missing, levels_without_context_present, no_resistance_extension_coverage, no_support_extension_coverage, unenriched_levels_present
+
+### THIN - thin-liquidity ticker
+- Reference price: 1.56
+- Total/support/resistance/extension: 8/4/4/1
+- Fresh/stale: 3/5
+- Enriched/unenriched: 0/8
+- Support extensions: 0
+- Resistance extensions: 1
+- Downside coverage: n/a
+- Upside coverage: 8.7692%
+- Extension warnings: no_support_extension_coverage, limited_upside_extension_coverage
+- Clustered areas: 1
+- Diagnostics: clustered_level_areas_present, level_intelligence_report_missing, levels_without_context_present, limited_upside_extension_coverage, no_support_extension_coverage, unenriched_levels_present, wide_downside_support_gap
+
+### CLNT - clean technical mover
+- Reference price: 24.5
+- Total/support/resistance/extension: 12/6/6/0
+- Fresh/stale: 4/8
+- Enriched/unenriched: 0/12
+- Support extensions: 0
+- Resistance extensions: 0
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Extension warnings: no_support_extension_coverage, no_resistance_extension_coverage
+- Clustered areas: 0
+- Diagnostics: level_intelligence_report_missing, levels_without_context_present, no_resistance_extension_coverage, no_support_extension_coverage, unenriched_levels_present
+
+### HIPO - higher-priced stock
+- Reference price: 186
+- Total/support/resistance/extension: 11/5/6/0
+- Fresh/stale: 4/7
+- Enriched/unenriched: 0/11
+- Support extensions: 0
+- Resistance extensions: 0
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Extension warnings: no_support_extension_coverage, no_resistance_extension_coverage
+- Clustered areas: 0
+- Diagnostics: level_intelligence_report_missing, levels_without_context_present, no_resistance_extension_coverage, no_support_extension_coverage, unenriched_levels_present, wide_overhead_resistance_gap
+
+## Safety
+- Support/resistance detection unchanged: true
+- Runtime behavior unchanged: true
+- Scoring/selection unchanged outside extensionLevels: true
