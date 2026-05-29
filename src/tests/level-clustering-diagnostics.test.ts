@@ -3,7 +3,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import {
+  clusterRawLevelCandidates,
+  clusterRawLevelCandidatesWithDiagnostics,
+} from "../lib/levels/level-clusterer.js";
 import { buildLevelClusteringDiagnostics } from "../lib/levels/level-clustering-diagnostics.js";
+import { DEFAULT_LEVEL_ENGINE_CONFIG } from "../lib/levels/level-config.js";
 import { resolveLevelRuntimeMode } from "../lib/levels/level-runtime-mode.js";
 import type {
   FinalLevelZone,
@@ -168,6 +173,114 @@ test("reports source and timeframe mix for raw members", () => {
   assert.deepEqual(supportCluster?.timeframeCounts, { "4h": 2, "5m": 2, daily: 1 });
 });
 
+test("cluster member tracking diagnostics preserve exact existing cluster output", (t) => {
+  t.mock.timers.enable({
+    apis: ["Date"],
+    now: new Date("2026-05-29T10:00:00-04:00"),
+  });
+  const candidates = rawCandidatesFixture();
+  const normalOutput = clusterRawLevelCandidates(
+    "CLST",
+    "support",
+    candidates,
+    0.1,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+  );
+  const diagnosticOutput = clusterRawLevelCandidatesWithDiagnostics(
+    "CLST",
+    "support",
+    candidates,
+    0.1,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+  );
+
+  assert.deepEqual(diagnosticOutput.zones, normalOutput);
+  assert.equal(diagnosticOutput.diagnostics.safety.diagnosticOnly, true);
+  assert.equal(diagnosticOutput.diagnostics.safety.normalClusterOutputUnchanged, true);
+  assert.equal(diagnosticOutput.diagnostics.finalClusterCount, normalOutput.length);
+});
+
+test("raw members are tracked exactly when clusterer diagnostics are supplied", (t) => {
+  t.mock.timers.enable({
+    apis: ["Date"],
+    now: new Date("2026-05-29T10:00:00-04:00"),
+  });
+  const candidates = rawCandidatesFixture();
+  const diagnosticOutput = clusterRawLevelCandidatesWithDiagnostics(
+    "CLST",
+    "support",
+    candidates,
+    0.1,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+  );
+  const report = buildLevelClusteringDiagnostics({
+    symbol: "CLST",
+    rawCandidates: candidates,
+    clusteredZones: diagnosticOutput.zones,
+    trackedClusters: diagnosticOutput.diagnostics.clusters,
+  });
+  const cluster = report.clusters[0];
+
+  assert.equal(cluster?.rawMemberMapping, "tracked_from_clusterer_diagnostics");
+  assert.equal(cluster?.exactRawMemberTrackingAvailable, true);
+  assert.deepEqual(cluster?.rawMemberIds, [
+    "support-1",
+    "support-2",
+    "support-3",
+    "support-4",
+    "support-5",
+  ]);
+  assert(report.diagnostics.includes("raw_member_mapping_tracked_from_clusterer_diagnostics_when_available"));
+});
+
+test("hidden depth candidates are exposed from tracked cluster members", (t) => {
+  t.mock.timers.enable({
+    apis: ["Date"],
+    now: new Date("2026-05-29T10:00:00-04:00"),
+  });
+  const candidates = [
+    rawCandidate({
+      id: "support-depth-low",
+      kind: "support",
+      price: 9,
+      timeframe: "5m",
+    }),
+    rawCandidate({
+      id: "support-representative",
+      kind: "support",
+      price: 9.3,
+      timeframe: "daily",
+    }),
+    rawCandidate({
+      id: "support-upper-member",
+      kind: "support",
+      price: 9.6,
+      timeframe: "5m",
+    }),
+  ];
+  const diagnosticOutput = clusterRawLevelCandidatesWithDiagnostics(
+    "CLST",
+    "support",
+    candidates,
+    0.1,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+  );
+  const trackedCluster = diagnosticOutput.diagnostics.clusters[0];
+  const report = buildLevelClusteringDiagnostics({
+    symbol: "CLST",
+    rawCandidates: candidates,
+    clusteredZones: diagnosticOutput.zones,
+    trackedClusters: diagnosticOutput.diagnostics.clusters,
+  });
+  const cluster = report.clusters[0];
+
+  assert.deepEqual(trackedCluster?.potentialExtensionDepthMemberIds, ["support-depth-low"]);
+  assert.deepEqual(cluster?.hiddenDepthCandidateIds, ["support-depth-low"]);
+  assert.deepEqual(cluster?.potentialExtensionDepthMemberIds, ["support-depth-low"]);
+  assert.equal(cluster?.membersSpanMateriallyDifferentPrices, true);
+  assert(cluster?.warnings.includes("hidden_depth_possible"));
+});
+
 test("flags broad clusters many-member clusters and possible hidden depth", () => {
   const report = buildLevelClusteringDiagnostics({
     symbol: "CLST",
@@ -224,15 +337,47 @@ test("output is deterministic and does not mutate inputs", () => {
   assert.deepEqual(first, second);
 });
 
+test("cluster member tracking diagnostics do not mutate inputs", (t) => {
+  t.mock.timers.enable({
+    apis: ["Date"],
+    now: new Date("2026-05-29T10:00:00-04:00"),
+  });
+  const candidates = rawCandidatesFixture();
+  const before = structuredClone(candidates);
+  const first = clusterRawLevelCandidatesWithDiagnostics(
+    "CLST",
+    "support",
+    candidates,
+    0.1,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+  );
+  const second = clusterRawLevelCandidatesWithDiagnostics(
+    "CLST",
+    "support",
+    candidates,
+    0.1,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+  );
+
+  assert.deepEqual(candidates, before);
+  assert.deepEqual(first, second);
+});
+
 test("diagnostics do not use LevelEngine or clustering behavior paths", () => {
   const sourcePath = fileURLToPath(
     new URL("../lib/levels/level-clustering-diagnostics.ts", import.meta.url),
   );
   const source = readFileSync(sourcePath, "utf8");
+  const clustererSourcePath = fileURLToPath(
+    new URL("../lib/levels/level-clusterer.ts", import.meta.url),
+  );
+  const clustererSource = readFileSync(clustererSourcePath, "utf8");
 
   assert.equal(source.includes("./level-engine"), false);
   assert.equal(source.includes("new LevelEngine"), false);
   assert.equal(source.includes("clusterRawLevelCandidates"), false);
   assert.equal(source.includes("./level-clusterer"), false);
+  assert.equal(clustererSource.includes("./level-engine"), false);
+  assert.equal(clustererSource.includes("new LevelEngine"), false);
   assert.equal(resolveLevelRuntimeMode(), "old");
 });
