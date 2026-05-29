@@ -1,0 +1,97 @@
+Post-synthetic extension diagnostics
+
+## Input Source
+- Deterministic generated pipeline samples rebuilt with the current LevelEngine code.
+
+## Summary
+- Sample count: 5
+- Missing support extension samples: 1 LPRN
+- Missing resistance extension samples: 1 CLNT
+- Limited upside coverage samples: 0 none
+- Limited downside coverage samples: 0 none
+
+## Samples
+### LPRN - low-price runner
+- Reference price: 5.6
+- Support extensions: 0
+- Resistance extensions: 1
+- Lowest support extension: n/a
+- Highest resistance extension: 7.3
+- Downside coverage: n/a
+- Upside coverage: 30.3571%
+- Warnings: missing_support_extension, insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: none
+- Resistance selected: 7.3
+- Support insufficient real inventory: true
+- Resistance insufficient real inventory: true
+
+### CHOP - choppy/messy ticker
+- Reference price: 5.07
+- Support extensions: 2
+- Resistance extensions: 1
+- Lowest support extension: 2.5
+- Highest resistance extension: 6.6
+- Downside coverage: 50.6903%
+- Upside coverage: 30.1775%
+- Warnings: insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: 3.5, 2.5
+- Resistance selected: 6.6
+- Support insufficient real inventory: true
+- Resistance insufficient real inventory: true
+
+### THIN - thin-liquidity ticker
+- Reference price: 1.56
+- Support extensions: 2
+- Resistance extensions: 2
+- Lowest support extension: 0.78
+- Highest resistance extension: 2.05
+- Downside coverage: 50%
+- Upside coverage: 31.4103%
+- Warnings: insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: 1.05, 0.78
+- Resistance selected: 1.6968, 2.05
+- Support insufficient real inventory: true
+- Resistance insufficient real inventory: false
+
+### CLNT - clean technical mover
+- Reference price: 24.5
+- Support extensions: 2
+- Resistance extensions: 0
+- Lowest support extension: 12.2
+- Highest resistance extension: n/a
+- Downside coverage: 50.2041%
+- Upside coverage: n/a
+- Warnings: missing_resistance_extension, insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: 17.1, 12.2
+- Resistance selected: none
+- Support insufficient real inventory: true
+- Resistance insufficient real inventory: true
+
+### HIPO - higher-priced stock
+- Reference price: 186
+- Support extensions: 2
+- Resistance extensions: 1
+- Lowest support extension: 93
+- Highest resistance extension: 279
+- Downside coverage: 50%
+- Upside coverage: 50%
+- Warnings: insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: 130, 93
+- Resistance selected: 279
+- Support insufficient real inventory: true
+- Resistance insufficient real inventory: true
+
+## Safety
+- Support/resistance detection unchanged: true
+- Extension generation reflects the merged synthetic continuation-map fallback only: true
+- Runtime behavior unchanged: true

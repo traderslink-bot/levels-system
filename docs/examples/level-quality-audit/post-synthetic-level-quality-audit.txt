@@ -1,0 +1,98 @@
+Post-synthetic level quality audit
+
+## Input Source
+- Deterministic generated pipeline samples rebuilt with the current LevelEngine code after synthetic continuation-map extensions were merged.
+- Static LevelEngineOutput-only fixtures were not reused because they preserve older extensionLevels snapshots.
+
+## Summary
+- Sample count: 5
+- Total levels: 61
+- Surfaced levels: 48
+- Support levels: 35
+- Resistance levels: 26
+- Extension levels: 13
+- Real extension levels: 1
+- Synthetic extension levels: 12
+- Pre-synthetic extension levels: 1
+- Surfaced counts unchanged from synthetic-disabled baseline: true
+
+## Samples
+### LPRN - low-price runner
+- Reference price: 5.6
+- Total/support/resistance/extension: 15/10/5/1
+- Pre-synthetic extensions: 0 support / 0 resistance
+- Post-synthetic extensions: 0 support / 1 resistance
+- Real extensions: support 0 none; resistance 0 none
+- Synthetic extensions: support 0 none; resistance 1 7.3
+- Downside coverage: n/a
+- Upside coverage: 30.3571%
+- Extension warnings: no_support_extension_coverage
+- Diagnostics warnings: missing_support_extension, insufficient_candidate_inventory
+- Clustered areas: 0
+- Synthetic metadata marked: true
+
+### CHOP - choppy/messy ticker
+- Reference price: 5.07
+- Total/support/resistance/extension: 7/4/3/3
+- Pre-synthetic extensions: 0 support / 0 resistance
+- Post-synthetic extensions: 2 support / 1 resistance
+- Real extensions: support 0 none; resistance 0 none
+- Synthetic extensions: support 2 3.5, 2.5; resistance 1 6.6
+- Downside coverage: 50.6903%
+- Upside coverage: 30.1775%
+- Extension warnings: none
+- Diagnostics warnings: insufficient_candidate_inventory
+- Clustered areas: 0
+- Synthetic metadata marked: true
+
+### THIN - thin-liquidity ticker
+- Reference price: 1.56
+- Total/support/resistance/extension: 11/6/5/4
+- Pre-synthetic extensions: 0 support / 1 resistance
+- Post-synthetic extensions: 2 support / 2 resistance
+- Real extensions: support 0 none; resistance 1 1.6968
+- Synthetic extensions: support 2 1.05, 0.78; resistance 1 2.05
+- Downside coverage: 50%
+- Upside coverage: 31.4103%
+- Extension warnings: none
+- Diagnostics warnings: insufficient_candidate_inventory
+- Clustered areas: 1
+- Synthetic metadata marked: true
+
+### CLNT - clean technical mover
+- Reference price: 24.5
+- Total/support/resistance/extension: 14/8/6/2
+- Pre-synthetic extensions: 0 support / 0 resistance
+- Post-synthetic extensions: 2 support / 0 resistance
+- Real extensions: support 0 none; resistance 0 none
+- Synthetic extensions: support 2 17.1, 12.2; resistance 0 none
+- Downside coverage: 50.2041%
+- Upside coverage: n/a
+- Extension warnings: no_resistance_extension_coverage
+- Diagnostics warnings: missing_resistance_extension, insufficient_candidate_inventory
+- Clustered areas: 0
+- Synthetic metadata marked: true
+
+### HIPO - higher-priced stock
+- Reference price: 186
+- Total/support/resistance/extension: 14/7/7/3
+- Pre-synthetic extensions: 0 support / 0 resistance
+- Post-synthetic extensions: 2 support / 1 resistance
+- Real extensions: support 0 none; resistance 0 none
+- Synthetic extensions: support 2 130, 93; resistance 1 279
+- Downside coverage: 50%
+- Upside coverage: 50%
+- Extension warnings: none
+- Diagnostics warnings: insufficient_candidate_inventory
+- Clustered areas: 0
+- Synthetic metadata marked: true
+
+## Safety
+- Surfaced counts unchanged: true
+- Nearest support unchanged: true
+- Nearest resistance unchanged: true
+- Special levels unchanged: true
+- Synthetic metadata marked: true
+- Support/resistance detection unchanged: true
+- Runtime behavior unchanged: true
+- Scoring/selection unchanged outside merged extensionLevels behavior: true
