@@ -1,5 +1,80 @@
 import type { FinalLevelZone, LevelLadderExtension } from "./level-types.js";
 
+export type LevelExtensionSelectionSide = "support" | "resistance";
+
+export type LevelExtensionSelectionSkipReason =
+  | "already_surfaced"
+  | "wrong_side_of_reference_price"
+  | "outside_practical_range"
+  | "inside_surfaced_map"
+  | "too_close_to_surfaced_level"
+  | "too_close_to_another_extension"
+  | "dominated_by_forward_candidate"
+  | "not_selected_by_ladder_selection"
+  | "selected_extension"
+  | "undetermined";
+
+export type LevelExtensionCandidateSelectionDiagnostic = {
+  id: string;
+  price: number;
+  zoneLow: number;
+  zoneHigh: number;
+  isSurfaced: boolean;
+  isPreSelectionCandidate: boolean;
+  isEligibleExtensionCandidate: boolean;
+  isSelectedExtension: boolean;
+  usefulnessScore: number;
+  skipReasons: LevelExtensionSelectionSkipReason[];
+};
+
+export type LevelExtensionSelectionSideDiagnostics = {
+  side: LevelExtensionSelectionSide;
+  referencePrice?: number;
+  surfacedLevelPrices: number[];
+  inputInventoryPrices: number[];
+  preSelectionCandidatePrices: number[];
+  eligibleCandidatePrices: number[];
+  selectedExtensionPrices: number[];
+  skippedCandidatePrices: number[];
+  candidateCoveragePct?: number;
+  selectedCoveragePct?: number;
+  insufficientCandidateInventory: boolean;
+  candidates: LevelExtensionCandidateSelectionDiagnostic[];
+  rejectionReasonCounts: Partial<Record<LevelExtensionSelectionSkipReason, number>>;
+};
+
+export type LevelExtensionSelectionDiagnostics = {
+  support: LevelExtensionSelectionSideDiagnostics;
+  resistance: LevelExtensionSelectionSideDiagnostics;
+  config: {
+    maxExtensionPerSide: number;
+    spacingPct: number;
+    searchWindowPct: number;
+    forwardPlanningRangePct: number;
+  };
+  safety: {
+    extensionGenerationUnchanged: true;
+    diagnosticOnly: true;
+  };
+};
+
+export type BuildLevelExtensionsParams = {
+  supportZones: FinalLevelZone[];
+  resistanceZones: FinalLevelZone[];
+  surfacedSupport: FinalLevelZone[];
+  surfacedResistance: FinalLevelZone[];
+  maxExtensionPerSide?: number;
+  spacingPct?: number;
+  searchWindowPct?: number;
+  referencePrice?: number;
+  forwardPlanningRangePct?: number;
+};
+
+export type BuildLevelExtensionsWithDiagnosticsResult = {
+  extensionLevels: LevelLadderExtension;
+  diagnostics: LevelExtensionSelectionDiagnostics;
+};
+
 function timeframeBiasRank(zone: FinalLevelZone): number {
   if (zone.timeframeBias === "mixed") {
     return 4;
@@ -25,6 +100,25 @@ function sortResistance(zones: FinalLevelZone[]): FinalLevelZone[] {
 }
 
 const DEFAULT_FORWARD_PLANNING_RANGE_PCT = 0.5;
+
+function round(value: number, decimals = 4): number {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function sortBySide(
+  zones: FinalLevelZone[],
+  side: LevelExtensionSelectionSide,
+): FinalLevelZone[] {
+  return side === "support" ? sortSupport(zones) : sortResistance(zones);
+}
+
+function sortedPrices(
+  zones: FinalLevelZone[],
+  side: LevelExtensionSelectionSide,
+): number[] {
+  return sortBySide(zones, side).map((zone) => round(zone.representativePrice));
+}
 
 function maxPracticalResistancePrice(
   referencePrice: number | undefined,
@@ -185,6 +279,290 @@ function isTooCloseToAny(
   spacingPct: number,
 ): boolean {
   return others.some((other) => proximityPct(other, zone) <= spacingPct);
+}
+
+function zoneIdSet(zones: FinalLevelZone[]): Set<string> {
+  return new Set(zones.map((zone) => zone.id));
+}
+
+function isWrongSideOfReference(
+  zone: FinalLevelZone,
+  side: LevelExtensionSelectionSide,
+  referencePrice?: number,
+): boolean {
+  if (!referencePrice || referencePrice <= 0) {
+    return false;
+  }
+
+  return side === "support"
+    ? zone.representativePrice >= referencePrice
+    : zone.representativePrice <= referencePrice;
+}
+
+function isOutsidePracticalRange(params: {
+  zone: FinalLevelZone;
+  side: LevelExtensionSelectionSide;
+  referencePrice?: number;
+  forwardPlanningRangePct: number;
+}): boolean {
+  if (params.side === "support") {
+    return false;
+  }
+
+  return params.zone.representativePrice > maxPracticalResistancePrice(
+    params.referencePrice,
+    params.forwardPlanningRangePct,
+  );
+}
+
+function isBeyondExtensionBoundary(params: {
+  zone: FinalLevelZone;
+  side: LevelExtensionSelectionSide;
+  surfaced: FinalLevelZone[];
+  referencePrice?: number;
+  forwardPlanningRangePct: number;
+}): boolean {
+  if (params.side === "support") {
+    if (params.surfaced.length === 0) {
+      return true;
+    }
+
+    const lowestVisibleSupport = Math.min(
+      ...params.surfaced.map((zone) => zone.representativePrice),
+    );
+    return params.zone.representativePrice < lowestVisibleSupport;
+  }
+
+  const highestVisibleResistance =
+    params.surfaced.length === 0
+      ? -Infinity
+      : surfacedResistanceBoundary({
+          surfaced: params.surfaced,
+          referencePrice: params.referencePrice,
+          forwardPlanningRangePct: params.forwardPlanningRangePct,
+        });
+
+  return params.zone.representativePrice > highestVisibleResistance;
+}
+
+function coveragePct(
+  side: LevelExtensionSelectionSide,
+  referencePrice: number | undefined,
+  zones: FinalLevelZone[],
+): number | undefined {
+  if (!referencePrice || referencePrice <= 0 || zones.length === 0) {
+    return undefined;
+  }
+
+  const extensionPrice =
+    side === "support"
+      ? Math.min(...zones.map((zone) => zone.representativePrice))
+      : Math.max(...zones.map((zone) => zone.representativePrice));
+
+  return round((Math.abs(extensionPrice - referencePrice) / referencePrice) * 100);
+}
+
+function buildRejectionReasonCounts(
+  candidates: LevelExtensionCandidateSelectionDiagnostic[],
+): Partial<Record<LevelExtensionSelectionSkipReason, number>> {
+  const counts: Partial<Record<LevelExtensionSelectionSkipReason, number>> = {};
+
+  for (const candidate of candidates) {
+    for (const reason of candidate.skipReasons) {
+      counts[reason] = (counts[reason] ?? 0) + 1;
+    }
+  }
+
+  return counts;
+}
+
+function candidateSkipReasons(params: {
+  zone: FinalLevelZone;
+  side: LevelExtensionSelectionSide;
+  surfaced: FinalLevelZone[];
+  surfacedIds: Set<string>;
+  preSelectionCandidateIds: Set<string>;
+  prunedCandidateIds: Set<string>;
+  selected: FinalLevelZone[];
+  selectedIds: Set<string>;
+  referencePrice?: number;
+  spacingPct: number;
+  forwardPlanningRangePct: number;
+}): LevelExtensionSelectionSkipReason[] {
+  if (params.selectedIds.has(params.zone.id)) {
+    return ["selected_extension"];
+  }
+
+  const reasons: LevelExtensionSelectionSkipReason[] = [];
+
+  if (params.surfacedIds.has(params.zone.id)) {
+    reasons.push("already_surfaced");
+  }
+  if (isWrongSideOfReference(params.zone, params.side, params.referencePrice)) {
+    reasons.push("wrong_side_of_reference_price");
+  }
+  if (isOutsidePracticalRange({
+    zone: params.zone,
+    side: params.side,
+    referencePrice: params.referencePrice,
+    forwardPlanningRangePct: params.forwardPlanningRangePct,
+  })) {
+    reasons.push("outside_practical_range");
+  }
+  if (!isBeyondExtensionBoundary({
+    zone: params.zone,
+    side: params.side,
+    surfaced: params.surfaced,
+    referencePrice: params.referencePrice,
+    forwardPlanningRangePct: params.forwardPlanningRangePct,
+  })) {
+    reasons.push("inside_surfaced_map");
+  }
+  if (isTooCloseToAny(params.zone, params.surfaced, params.spacingPct)) {
+    reasons.push("too_close_to_surfaced_level");
+  }
+  if (
+    params.preSelectionCandidateIds.has(params.zone.id) &&
+    !params.prunedCandidateIds.has(params.zone.id)
+  ) {
+    reasons.push("dominated_by_forward_candidate");
+  }
+  if (isTooCloseToAny(params.zone, params.selected, params.spacingPct)) {
+    reasons.push("too_close_to_another_extension");
+  }
+  if (
+    reasons.length === 0 &&
+    params.preSelectionCandidateIds.has(params.zone.id) &&
+    params.prunedCandidateIds.has(params.zone.id)
+  ) {
+    reasons.push("not_selected_by_ladder_selection");
+  }
+
+  return reasons.length > 0 ? reasons : ["undetermined"];
+}
+
+function buildSelectionSideDiagnostics(params: {
+  side: LevelExtensionSelectionSide;
+  allZones: FinalLevelZone[];
+  surfaced: FinalLevelZone[];
+  preSelectionCandidates: FinalLevelZone[];
+  selected: FinalLevelZone[];
+  referencePrice?: number;
+  spacingPct: number;
+  searchWindowPct: number;
+  forwardPlanningRangePct: number;
+}): LevelExtensionSelectionSideDiagnostics {
+  const surfacedIds = zoneIdSet(params.surfaced);
+  const selectedIds = zoneIdSet(params.selected);
+  const preSelectionCandidateIds = zoneIdSet(params.preSelectionCandidates);
+  const prunedCandidates = pruneDominatedForwardCandidates(
+    params.preSelectionCandidates,
+    params.side,
+    params.searchWindowPct,
+  );
+  const prunedCandidateIds = zoneIdSet(prunedCandidates);
+  const eligibleCandidates = prunedCandidates.filter(
+    (candidate) => !isTooCloseToAny(candidate, params.surfaced, params.spacingPct),
+  );
+  const eligibleCandidateIds = zoneIdSet(eligibleCandidates);
+
+  const candidates = sortBySide(params.allZones, params.side).map((zone) => {
+    const skipReasons = candidateSkipReasons({
+      zone,
+      side: params.side,
+      surfaced: params.surfaced,
+      surfacedIds,
+      preSelectionCandidateIds,
+      prunedCandidateIds,
+      selected: params.selected,
+      selectedIds,
+      referencePrice: params.referencePrice,
+      spacingPct: params.spacingPct,
+      forwardPlanningRangePct: params.forwardPlanningRangePct,
+    });
+
+    return {
+      id: zone.id,
+      price: round(zone.representativePrice),
+      zoneLow: round(zone.zoneLow),
+      zoneHigh: round(zone.zoneHigh),
+      isSurfaced: surfacedIds.has(zone.id),
+      isPreSelectionCandidate: preSelectionCandidateIds.has(zone.id),
+      isEligibleExtensionCandidate: eligibleCandidateIds.has(zone.id),
+      isSelectedExtension: selectedIds.has(zone.id),
+      usefulnessScore: round(extensionUsefulnessScore(zone)),
+      skipReasons,
+    };
+  });
+
+  return {
+    side: params.side,
+    referencePrice: params.referencePrice,
+    surfacedLevelPrices: sortedPrices(params.surfaced, params.side),
+    inputInventoryPrices: sortedPrices(params.allZones, params.side),
+    preSelectionCandidatePrices: sortedPrices(params.preSelectionCandidates, params.side),
+    eligibleCandidatePrices: sortedPrices(eligibleCandidates, params.side),
+    selectedExtensionPrices: sortedPrices(params.selected, params.side),
+    skippedCandidatePrices: candidates
+      .filter((candidate) => !candidate.isSelectedExtension)
+      .map((candidate) => candidate.price),
+    candidateCoveragePct: coveragePct(params.side, params.referencePrice, eligibleCandidates),
+    selectedCoveragePct: coveragePct(params.side, params.referencePrice, params.selected),
+    insufficientCandidateInventory:
+      eligibleCandidates.length === 0 && params.selected.length === 0,
+    candidates,
+    rejectionReasonCounts: buildRejectionReasonCounts(candidates),
+  };
+}
+
+function buildSelectionDiagnostics(params: {
+  supportZones: FinalLevelZone[];
+  resistanceZones: FinalLevelZone[];
+  surfacedSupport: FinalLevelZone[];
+  surfacedResistance: FinalLevelZone[];
+  supportCandidates: FinalLevelZone[];
+  resistanceCandidates: FinalLevelZone[];
+  selectedExtensions: LevelLadderExtension;
+  maxExtensionPerSide: number;
+  spacingPct: number;
+  searchWindowPct: number;
+  referencePrice?: number;
+  forwardPlanningRangePct: number;
+}): LevelExtensionSelectionDiagnostics {
+  return {
+    support: buildSelectionSideDiagnostics({
+      side: "support",
+      allZones: params.supportZones,
+      surfaced: params.surfacedSupport,
+      preSelectionCandidates: params.supportCandidates,
+      selected: params.selectedExtensions.support,
+      referencePrice: params.referencePrice,
+      spacingPct: params.spacingPct,
+      searchWindowPct: params.searchWindowPct,
+      forwardPlanningRangePct: params.forwardPlanningRangePct,
+    }),
+    resistance: buildSelectionSideDiagnostics({
+      side: "resistance",
+      allZones: params.resistanceZones,
+      surfaced: params.surfacedResistance,
+      preSelectionCandidates: params.resistanceCandidates,
+      selected: params.selectedExtensions.resistance,
+      referencePrice: params.referencePrice,
+      spacingPct: params.spacingPct,
+      searchWindowPct: params.searchWindowPct,
+      forwardPlanningRangePct: params.forwardPlanningRangePct,
+    }),
+    config: {
+      maxExtensionPerSide: params.maxExtensionPerSide,
+      spacingPct: params.spacingPct,
+      searchWindowPct: params.searchWindowPct,
+      forwardPlanningRangePct: params.forwardPlanningRangePct,
+    },
+    safety: {
+      extensionGenerationUnchanged: true,
+      diagnosticOnly: true,
+    },
+  };
 }
 
 function selectBestCandidate(
@@ -489,17 +867,120 @@ function selectSpacedExtensions(params: {
   return selected;
 }
 
-export function buildLevelExtensions(params: {
-  supportZones: FinalLevelZone[];
-  resistanceZones: FinalLevelZone[];
-  surfacedSupport: FinalLevelZone[];
-  surfacedResistance: FinalLevelZone[];
-  maxExtensionPerSide?: number;
-  spacingPct?: number;
-  searchWindowPct?: number;
-  referencePrice?: number;
-  forwardPlanningRangePct?: number;
-}): LevelLadderExtension {
+export function buildLevelExtensionSelectionDiagnostics(
+  params: BuildLevelExtensionsParams & { selectedExtensions: LevelLadderExtension },
+): LevelExtensionSelectionDiagnostics {
+  const maxExtensionPerSide = params.maxExtensionPerSide ?? 3;
+  const spacingPct = params.spacingPct ?? 0.01;
+  const searchWindowPct = params.searchWindowPct ?? 0.05;
+  const forwardPlanningRangePct =
+    params.forwardPlanningRangePct ?? DEFAULT_FORWARD_PLANNING_RANGE_PCT;
+  const lowestVisibleSupport =
+    params.surfacedSupport.length > 0
+      ? Math.min(...params.surfacedSupport.map((zone) => zone.representativePrice))
+      : Infinity;
+  const highestVisibleResistance =
+    params.surfacedResistance.length > 0
+      ? surfacedResistanceBoundary({
+          surfaced: params.surfacedResistance,
+          referencePrice: params.referencePrice,
+          forwardPlanningRangePct,
+        })
+      : -Infinity;
+  const maxPracticalResistance =
+    maxPracticalResistancePrice(params.referencePrice, forwardPlanningRangePct);
+  const supportCandidates = sortSupport(
+    params.supportZones.filter((zone) => zone.representativePrice < lowestVisibleSupport),
+  );
+  const resistanceCandidates = sortResistance(
+    params.resistanceZones.filter(
+      (zone) =>
+        zone.representativePrice > highestVisibleResistance &&
+        zone.representativePrice <= maxPracticalResistance,
+    ),
+  );
+
+  return buildSelectionDiagnostics({
+    supportZones: params.supportZones,
+    resistanceZones: params.resistanceZones,
+    surfacedSupport: params.surfacedSupport,
+    surfacedResistance: params.surfacedResistance,
+    supportCandidates,
+    resistanceCandidates,
+    selectedExtensions: params.selectedExtensions,
+    maxExtensionPerSide,
+    spacingPct,
+    searchWindowPct,
+    referencePrice: params.referencePrice,
+    forwardPlanningRangePct,
+  });
+}
+
+export function buildLevelExtensionsWithDiagnostics(
+  params: BuildLevelExtensionsParams,
+): BuildLevelExtensionsWithDiagnosticsResult {
+  const maxExtensionPerSide = params.maxExtensionPerSide ?? 3;
+  const spacingPct = params.spacingPct ?? 0.01;
+  const searchWindowPct = params.searchWindowPct ?? 0.05;
+  const forwardPlanningRangePct =
+    params.forwardPlanningRangePct ?? DEFAULT_FORWARD_PLANNING_RANGE_PCT;
+  const lowestVisibleSupport =
+    params.surfacedSupport.length > 0
+      ? Math.min(...params.surfacedSupport.map((zone) => zone.representativePrice))
+      : Infinity;
+  const highestVisibleResistance =
+    params.surfacedResistance.length > 0
+      ? surfacedResistanceBoundary({
+          surfaced: params.surfacedResistance,
+          referencePrice: params.referencePrice,
+          forwardPlanningRangePct,
+        })
+      : -Infinity;
+  const maxPracticalResistance =
+    maxPracticalResistancePrice(params.referencePrice, forwardPlanningRangePct);
+  const supportCandidates = sortSupport(
+    params.supportZones.filter((zone) => zone.representativePrice < lowestVisibleSupport),
+  );
+  const resistanceCandidates = sortResistance(
+    params.resistanceZones.filter(
+      (zone) =>
+        zone.representativePrice > highestVisibleResistance &&
+        zone.representativePrice <= maxPracticalResistance,
+    ),
+  );
+  const extensionLevels = {
+    support: selectSpacedExtensions({
+      candidates: supportCandidates,
+      surfaced: params.surfacedSupport,
+      side: "support",
+      maxCount: maxExtensionPerSide,
+      spacingPct,
+      searchWindowPct,
+      referencePrice: params.referencePrice,
+      forwardPlanningRangePct,
+    }),
+    resistance: selectSpacedExtensions({
+      candidates: resistanceCandidates,
+      surfaced: params.surfacedResistance,
+      side: "resistance",
+      maxCount: maxExtensionPerSide,
+      spacingPct,
+      searchWindowPct,
+      referencePrice: params.referencePrice,
+      forwardPlanningRangePct,
+    }),
+  };
+
+  return {
+    extensionLevels,
+    diagnostics: buildLevelExtensionSelectionDiagnostics({
+      ...params,
+      selectedExtensions: extensionLevels,
+    }),
+  };
+}
+
+export function buildLevelExtensions(params: BuildLevelExtensionsParams): LevelLadderExtension {
   const maxExtensionPerSide = params.maxExtensionPerSide ?? 3;
   const spacingPct = params.spacingPct ?? 0.01;
   const searchWindowPct = params.searchWindowPct ?? 0.05;

@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { buildLevelExtensions } from "../lib/levels/level-extension-engine.js";
+import {
+  buildLevelExtensions,
+  buildLevelExtensionsWithDiagnostics,
+} from "../lib/levels/level-extension-engine.js";
 import {
   buildLevelExtensionDiagnostics,
   buildLevelExtensionDiagnosticsFromOutput,
@@ -189,6 +192,73 @@ test("identifies already surfaced candidate exclusion when candidate inventory i
   assert(closeCandidate?.skipReasons.includes("too_close_to_surfaced_level"));
 });
 
+test("extension instrumentation preserves selected output while exposing pre-selection inventory", () => {
+  const visibleResistance = zone({ id: "visible-resistance", kind: "resistance", representativePrice: 11 });
+  const wrongSideResistance = zone({ id: "wrong-side-resistance", kind: "resistance", representativePrice: 9.5 });
+  const eligibleResistance = zone({ id: "eligible-resistance", kind: "resistance", representativePrice: 13 });
+  const tooFarResistance = zone({ id: "too-far-resistance", kind: "resistance", representativePrice: 16 });
+  const request = baseRequest({
+    surfacedResistance: [visibleResistance],
+    resistanceZones: [
+      wrongSideResistance,
+      visibleResistance,
+      eligibleResistance,
+      tooFarResistance,
+    ],
+  });
+  const baseline = buildLevelExtensions(request);
+  const instrumented = buildLevelExtensionsWithDiagnostics(request);
+  const wrongSide = instrumented.diagnostics.resistance.candidates.find(
+    (candidate) => candidate.id === "wrong-side-resistance",
+  );
+  const visible = instrumented.diagnostics.resistance.candidates.find(
+    (candidate) => candidate.id === "visible-resistance",
+  );
+  const tooFar = instrumented.diagnostics.resistance.candidates.find(
+    (candidate) => candidate.id === "too-far-resistance",
+  );
+
+  assert.deepEqual(instrumented.extensionLevels, baseline);
+  assert.deepEqual(
+    instrumented.diagnostics.resistance.inputInventoryPrices,
+    [9.5, 11, 13, 16],
+  );
+  assert.deepEqual(instrumented.diagnostics.resistance.preSelectionCandidatePrices, [13]);
+  assert.deepEqual(instrumented.diagnostics.resistance.eligibleCandidatePrices, [13]);
+  assert.deepEqual(instrumented.diagnostics.resistance.selectedExtensionPrices, [13]);
+  assert.equal(instrumented.diagnostics.resistance.candidateCoveragePct, 30);
+  assert.equal(instrumented.diagnostics.resistance.selectedCoveragePct, 30);
+  assert(wrongSide?.skipReasons.includes("wrong_side_of_reference_price"));
+  assert(visible?.skipReasons.includes("already_surfaced"));
+  assert(tooFar?.skipReasons.includes("outside_practical_range"));
+});
+
+test("diagnoses limited coverage with spacing-related skipped candidates without changing selection", () => {
+  const visibleSupport = zone({ id: "support-visible", kind: "support", representativePrice: 9.5 });
+  const selectedSupport = zone({
+    id: "selected-near-support",
+    kind: "support",
+    representativePrice: 9,
+    isExtension: true,
+  });
+  const skippedSupport = zone({ id: "skipped-close-support", kind: "support", representativePrice: 8.95 });
+  const selectedExtensions: LevelLadderExtension = {
+    support: [selectedSupport],
+    resistance: [zone({ id: "resistance-extension", kind: "resistance", representativePrice: 13, isExtension: true })],
+  };
+  const report = buildLevelExtensionDiagnostics(baseRequest({
+    surfacedSupport: [visibleSupport],
+    supportZones: [visibleSupport, selectedSupport, skippedSupport],
+    selectedExtensions,
+  }));
+  const skipped = report.support.candidates.find((candidate) => candidate.id === "skipped-close-support");
+
+  assert(report.warnings.includes("limited_downside_extension_coverage"));
+  assert.equal(report.support.selectedCoveragePct, 10);
+  assert.equal(report.support.candidateCoveragePct, 10.5);
+  assert(skipped?.skipReasons.includes("too_close_to_another_extension"));
+});
+
 test("diagnoses outside practical range for resistance candidates", () => {
   const surfacedResistance = [zone({ id: "resistance-visible", kind: "resistance", representativePrice: 11 })];
   const report = buildLevelExtensionDiagnostics(baseRequest({
@@ -204,7 +274,7 @@ test("diagnoses outside practical range for resistance candidates", () => {
   assert(report.warnings.includes("missing_resistance_extension"));
 });
 
-test("reports unknown reasons when supplied candidate inventory is not enough to explain non-selection", () => {
+test("reports ladder-selection reasons when supplied candidate inventory is not selected", () => {
   const visibleResistance = zone({ id: "visible", kind: "resistance", representativePrice: 11 });
   const skippedResistance = zone({ id: "skipped", kind: "resistance", representativePrice: 12 });
   const selectedResistance = zone({ id: "selected", kind: "resistance", representativePrice: 13, isExtension: true });
@@ -219,8 +289,8 @@ test("reports unknown reasons when supplied candidate inventory is not enough to
   }));
   const skipped = report.resistance.candidates.find((candidate) => candidate.id === "skipped");
 
-  assert(skipped?.skipReasons.includes("undetermined"));
-  assert.equal(report.resistance.undeterminedRejectionCount, 1);
+  assert(skipped?.skipReasons.includes("not_selected_by_ladder_selection"));
+  assert.equal(report.resistance.undeterminedRejectionCount, 0);
 });
 
 test("diagnoses LevelEngineOutput without mutating it", () => {
