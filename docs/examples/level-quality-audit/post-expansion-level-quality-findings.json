@@ -1,0 +1,295 @@
+{
+  "auditPaths": [
+    "LPRN (low-price runner) generated current-engine audit",
+    "CHOP (choppy/messy ticker) generated current-engine audit",
+    "THIN (thin-liquidity ticker) generated current-engine audit",
+    "CLNT (clean technical mover) generated current-engine audit",
+    "HIPO (higher-priced stock) generated current-engine audit"
+  ],
+  "report": {
+    "sampleCount": 5,
+    "findings": [
+      {
+        "type": "missing_support_extension",
+        "severity": "review",
+        "sampleCount": 5,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: support extension count is 0",
+          "CLNT: support extension count is 0",
+          "HIPO: support extension count is 0",
+          "LPRN: support extension count is 0",
+          "THIN: support extension count is 0"
+        ],
+        "message": "Support extension coverage is missing in the audit output."
+      },
+      {
+        "type": "missing_resistance_extension",
+        "severity": "review",
+        "sampleCount": 4,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN"
+        ],
+        "evidence": [
+          "CHOP: resistance extension count is 0",
+          "CLNT: resistance extension count is 0",
+          "HIPO: resistance extension count is 0",
+          "LPRN: resistance extension count is 0"
+        ],
+        "message": "Resistance extension coverage is missing in the audit output."
+      },
+      {
+        "type": "limited_upside_extension_coverage",
+        "severity": "watch",
+        "sampleCount": 1,
+        "sampleSymbols": [
+          "THIN"
+        ],
+        "evidence": [
+          "THIN: upside extension coverage is 8.7692%"
+        ],
+        "message": "Upside extension coverage is limited in the audit output."
+      },
+      {
+        "type": "clustered_levels_detected",
+        "severity": "review",
+        "sampleCount": 1,
+        "sampleSymbols": [
+          "THIN"
+        ],
+        "evidence": [
+          "THIN: clustered area count is 1"
+        ],
+        "message": "Clustered level areas are present in the audit output."
+      },
+      {
+        "type": "possible_level_clutter",
+        "severity": "watch",
+        "sampleCount": 1,
+        "sampleSymbols": [
+          "THIN"
+        ],
+        "evidence": [
+          "THIN: possible clutter level count is 2"
+        ],
+        "message": "Possible level clutter is present in the audit output."
+      },
+      {
+        "type": "sparse_level_coverage",
+        "severity": "watch",
+        "sampleCount": 4,
+        "sampleSymbols": [
+          "CHOP",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: total 4, nearby 2/2",
+          "HIPO: total 11, nearby 2/0",
+          "LPRN: total 14, nearby 0/2",
+          "THIN: total 8, nearby 0/2"
+        ],
+        "message": "Level coverage is sparse in the audit output."
+      },
+      {
+        "type": "stale_levels_present",
+        "severity": "watch",
+        "sampleCount": 5,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: stale level count is 1",
+          "CLNT: stale level count is 8",
+          "HIPO: stale level count is 7",
+          "LPRN: stale level count is 8",
+          "THIN: stale level count is 5"
+        ],
+        "message": "Stale levels are present in the audit output."
+      },
+      {
+        "type": "weak_context_levels_present",
+        "severity": "watch",
+        "sampleCount": 5,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: weak context level count is 4",
+          "CLNT: weak context level count is 5",
+          "HIPO: weak context level count is 5",
+          "LPRN: weak context level count is 5",
+          "THIN: weak context level count is 5"
+        ],
+        "message": "Some levels have weak or missing context in the audit output."
+      },
+      {
+        "type": "unenriched_levels_present",
+        "severity": "watch",
+        "sampleCount": 5,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: unenriched level count is 4",
+          "CLNT: unenriched level count is 12",
+          "HIPO: unenriched level count is 11",
+          "LPRN: unenriched level count is 14",
+          "THIN: unenriched level count is 8"
+        ],
+        "message": "Some levels are missing enrichedAnalysis metadata in the audit output."
+      }
+    ],
+    "recurringFindings": [
+      {
+        "type": "missing_support_extension",
+        "severity": "review",
+        "sampleCount": 5,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: support extension count is 0",
+          "CLNT: support extension count is 0",
+          "HIPO: support extension count is 0",
+          "LPRN: support extension count is 0",
+          "THIN: support extension count is 0"
+        ],
+        "message": "Support extension coverage is missing in the audit output."
+      },
+      {
+        "type": "missing_resistance_extension",
+        "severity": "review",
+        "sampleCount": 4,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN"
+        ],
+        "evidence": [
+          "CHOP: resistance extension count is 0",
+          "CLNT: resistance extension count is 0",
+          "HIPO: resistance extension count is 0",
+          "LPRN: resistance extension count is 0"
+        ],
+        "message": "Resistance extension coverage is missing in the audit output."
+      },
+      {
+        "type": "sparse_level_coverage",
+        "severity": "watch",
+        "sampleCount": 4,
+        "sampleSymbols": [
+          "CHOP",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: total 4, nearby 2/2",
+          "HIPO: total 11, nearby 2/0",
+          "LPRN: total 14, nearby 0/2",
+          "THIN: total 8, nearby 0/2"
+        ],
+        "message": "Level coverage is sparse in the audit output."
+      },
+      {
+        "type": "stale_levels_present",
+        "severity": "watch",
+        "sampleCount": 5,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: stale level count is 1",
+          "CLNT: stale level count is 8",
+          "HIPO: stale level count is 7",
+          "LPRN: stale level count is 8",
+          "THIN: stale level count is 5"
+        ],
+        "message": "Stale levels are present in the audit output."
+      },
+      {
+        "type": "weak_context_levels_present",
+        "severity": "watch",
+        "sampleCount": 5,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: weak context level count is 4",
+          "CLNT: weak context level count is 5",
+          "HIPO: weak context level count is 5",
+          "LPRN: weak context level count is 5",
+          "THIN: weak context level count is 5"
+        ],
+        "message": "Some levels have weak or missing context in the audit output."
+      },
+      {
+        "type": "unenriched_levels_present",
+        "severity": "watch",
+        "sampleCount": 5,
+        "sampleSymbols": [
+          "CHOP",
+          "CLNT",
+          "HIPO",
+          "LPRN",
+          "THIN"
+        ],
+        "evidence": [
+          "CHOP: unenriched level count is 4",
+          "CLNT: unenriched level count is 12",
+          "HIPO: unenriched level count is 11",
+          "LPRN: unenriched level count is 14",
+          "THIN: unenriched level count is 8"
+        ],
+        "message": "Some levels are missing enrichedAnalysis metadata in the audit output."
+      }
+    ],
+    "recommendedNextGates": [
+      "extension_coverage_review",
+      "thin_liquidity_handling_review",
+      "stale_freshness_review",
+      "confluence_enrichment_review"
+    ],
+    "safety": {
+      "noRuntimeBehaviorChange": true,
+      "noScoringChange": true,
+      "reviewOnly": true
+    }
+  }
+}

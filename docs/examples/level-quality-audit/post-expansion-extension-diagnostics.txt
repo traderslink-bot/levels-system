@@ -1,0 +1,78 @@
+Post-expansion extension diagnostics
+
+## Input Source
+- Deterministic generated pipeline samples rebuilt with the current LevelEngine code.
+
+## Summary
+- Sample count: 5
+- Missing support extension samples: 5
+- Missing resistance extension samples: 4
+- Limited upside coverage samples: 1
+- Limited downside coverage samples: 0
+- Insufficient candidate inventory samples: 5
+
+## Samples
+### LPRN - low-price runner
+- Reference price: 5.6
+- Support extensions: 0
+- Resistance extensions: 0
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Warnings: missing_support_extension, missing_resistance_extension, insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: none
+- Resistance selected: none
+
+### CHOP - choppy/messy ticker
+- Reference price: 5.07
+- Support extensions: 0
+- Resistance extensions: 0
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Warnings: missing_support_extension, missing_resistance_extension, insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: none
+- Resistance selected: none
+
+### THIN - thin-liquidity ticker
+- Reference price: 1.56
+- Support extensions: 0
+- Resistance extensions: 1
+- Downside coverage: n/a
+- Upside coverage: 8.7692%
+- Warnings: missing_support_extension, limited_upside_extension_coverage, insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: none
+- Resistance selected: 1.6968
+
+### CLNT - clean technical mover
+- Reference price: 24.5
+- Support extensions: 0
+- Resistance extensions: 0
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Warnings: missing_support_extension, missing_resistance_extension, insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: none
+- Resistance selected: none
+
+### HIPO - higher-priced stock
+- Reference price: 186
+- Support extensions: 0
+- Resistance extensions: 0
+- Downside coverage: n/a
+- Upside coverage: n/a
+- Warnings: missing_support_extension, missing_resistance_extension, insufficient_candidate_inventory
+- Support candidate pool mode: expanded_unselected_scored
+- Resistance candidate pool mode: expanded_unselected_scored
+- Support selected: none
+- Resistance selected: none
+
+## Safety
+- Support/resistance detection unchanged: true
+- Extension generation changed only through the merged extensionLevels fallback behavior: true
+- Runtime behavior unchanged: true

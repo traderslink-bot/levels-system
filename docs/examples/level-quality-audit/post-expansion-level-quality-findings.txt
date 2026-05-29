@@ -1,0 +1,38 @@
+Post-expansion level quality findings
+
+## Inputs
+- LPRN (low-price runner) generated current-engine audit
+- CHOP (choppy/messy ticker) generated current-engine audit
+- THIN (thin-liquidity ticker) generated current-engine audit
+- CLNT (clean technical mover) generated current-engine audit
+- HIPO (higher-priced stock) generated current-engine audit
+
+## Summary
+- Sample count: 5
+- Finding count: 9
+- Recurring finding count: 6
+- Recommended next gates: extension_coverage_review, thin_liquidity_handling_review, stale_freshness_review, confluence_enrichment_review
+
+## Recurring Findings
+- missing_support_extension (review); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: support extension count is 0 | CLNT: support extension count is 0 | HIPO: support extension count is 0 | LPRN: support extension count is 0 | THIN: support extension count is 0
+- missing_resistance_extension (review); samples 4; symbols CHOP, CLNT, HIPO, LPRN; evidence CHOP: resistance extension count is 0 | CLNT: resistance extension count is 0 | HIPO: resistance extension count is 0 | LPRN: resistance extension count is 0
+- sparse_level_coverage (watch); samples 4; symbols CHOP, HIPO, LPRN, THIN; evidence CHOP: total 4, nearby 2/2 | HIPO: total 11, nearby 2/0 | LPRN: total 14, nearby 0/2 | THIN: total 8, nearby 0/2
+- stale_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: stale level count is 1 | CLNT: stale level count is 8 | HIPO: stale level count is 7 | LPRN: stale level count is 8 | THIN: stale level count is 5
+- weak_context_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: weak context level count is 4 | CLNT: weak context level count is 5 | HIPO: weak context level count is 5 | LPRN: weak context level count is 5 | THIN: weak context level count is 5
+- unenriched_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: unenriched level count is 4 | CLNT: unenriched level count is 12 | HIPO: unenriched level count is 11 | LPRN: unenriched level count is 14 | THIN: unenriched level count is 8
+
+## All Findings
+- missing_support_extension (review); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: support extension count is 0 | CLNT: support extension count is 0 | HIPO: support extension count is 0 | LPRN: support extension count is 0 | THIN: support extension count is 0
+- missing_resistance_extension (review); samples 4; symbols CHOP, CLNT, HIPO, LPRN; evidence CHOP: resistance extension count is 0 | CLNT: resistance extension count is 0 | HIPO: resistance extension count is 0 | LPRN: resistance extension count is 0
+- limited_upside_extension_coverage (watch); samples 1; symbols THIN; evidence THIN: upside extension coverage is 8.7692%
+- clustered_levels_detected (review); samples 1; symbols THIN; evidence THIN: clustered area count is 1
+- possible_level_clutter (watch); samples 1; symbols THIN; evidence THIN: possible clutter level count is 2
+- sparse_level_coverage (watch); samples 4; symbols CHOP, HIPO, LPRN, THIN; evidence CHOP: total 4, nearby 2/2 | HIPO: total 11, nearby 2/0 | LPRN: total 14, nearby 0/2 | THIN: total 8, nearby 0/2
+- stale_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: stale level count is 1 | CLNT: stale level count is 8 | HIPO: stale level count is 7 | LPRN: stale level count is 8 | THIN: stale level count is 5
+- weak_context_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: weak context level count is 4 | CLNT: weak context level count is 5 | HIPO: weak context level count is 5 | LPRN: weak context level count is 5 | THIN: weak context level count is 5
+- unenriched_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: unenriched level count is 4 | CLNT: unenriched level count is 12 | HIPO: unenriched level count is 11 | LPRN: unenriched level count is 14 | THIN: unenriched level count is 8
+
+## Safety
+- Runtime behavior unchanged: true
+- Scoring unchanged: true
+- Review only: true

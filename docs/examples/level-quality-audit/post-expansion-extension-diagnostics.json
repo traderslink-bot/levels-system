@@ -1,0 +1,1485 @@
+{
+  "generatedAt": 1780063200000,
+  "inputSource": "deterministic_generated_pipeline_outputs_current_engine",
+  "reports": [
+    {
+      "symbol": "LPRN",
+      "profile": "low-price runner",
+      "report": {
+        "symbol": "LPRN",
+        "referencePrice": 5.6,
+        "support": {
+          "symbol": "LPRN",
+          "referencePrice": 5.6,
+          "side": "support",
+          "surfacedLevelPrices": [
+            5.0893,
+            4.9501,
+            4.6917,
+            4.5045,
+            3.9105,
+            3.267,
+            2.9838,
+            1.9958,
+            1.3634,
+            1.1066
+          ],
+          "inputInventoryPrices": [
+            5.0893,
+            4.9501,
+            4.6917,
+            4.5045,
+            3.9105,
+            3.267,
+            2.9838,
+            1.9958,
+            1.3634,
+            1.1066
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            5.0893,
+            4.9501,
+            4.6917,
+            4.5045,
+            3.9105,
+            3.267,
+            2.9838,
+            1.9958,
+            1.3634,
+            1.1066
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            5.0893,
+            4.9501,
+            4.6917,
+            4.5045,
+            3.9105,
+            3.267,
+            2.9838,
+            1.9958,
+            1.3634,
+            1.1066
+          ],
+          "candidates": [
+            {
+              "id": "LPRN-support-zone-10",
+              "price": 5.0893,
+              "zoneLow": 5.0893,
+              "zoneHigh": 5.0893,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 16.9592,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-support-zone-9",
+              "price": 4.9501,
+              "zoneLow": 4.9501,
+              "zoneHigh": 4.9501,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 18.3066,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-support-zone-8",
+              "price": 4.6917,
+              "zoneLow": 4.6917,
+              "zoneHigh": 4.6917,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.3127,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-support-zone-7",
+              "price": 4.5045,
+              "zoneLow": 4.5045,
+              "zoneHigh": 4.5045,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 25.6461,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-support-zone-6",
+              "price": 3.9105,
+              "zoneLow": 3.9105,
+              "zoneHigh": 3.9105,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 25.2785,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-support-zone-5",
+              "price": 3.267,
+              "zoneLow": 3.267,
+              "zoneHigh": 3.267,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 29.1045,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-support-zone-4",
+              "price": 2.9838,
+              "zoneLow": 2.9838,
+              "zoneHigh": 2.9838,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 31.5275,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-support-zone-3",
+              "price": 1.9958,
+              "zoneLow": 1.9958,
+              "zoneHigh": 1.9958,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.3167,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-support-zone-2",
+              "price": 1.3634,
+              "zoneLow": 1.3634,
+              "zoneHigh": 1.3634,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 29.6947,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-support-zone-1",
+              "price": 1.1066,
+              "zoneLow": 1.1066,
+              "zoneHigh": 1.1066,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 31.5371,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 10,
+            "inside_surfaced_map": 10,
+            "too_close_to_surfaced_level": 10
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "resistance": {
+          "symbol": "LPRN",
+          "referencePrice": 5.6,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            5.6537,
+            5.858,
+            6.0922,
+            6.5145
+          ],
+          "inputInventoryPrices": [
+            5.6537,
+            5.858,
+            6.0922,
+            6.5145
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            5.6537,
+            5.858,
+            6.0922,
+            6.5145
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            5.6537,
+            5.858,
+            6.0922,
+            6.5145
+          ],
+          "candidates": [
+            {
+              "id": "LPRN-resistance-zone-4",
+              "price": 5.6537,
+              "zoneLow": 5.6537,
+              "zoneHigh": 5.6537,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 16.0712,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-resistance-zone-5",
+              "price": 5.858,
+              "zoneLow": 5.858,
+              "zoneHigh": 5.858,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 25.4074,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-resistance-zone-6",
+              "price": 6.0922,
+              "zoneLow": 6.0863,
+              "zoneHigh": 6.0922,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 76.0776,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "LPRN-resistance-zone-7",
+              "price": 6.5145,
+              "zoneLow": 6.5145,
+              "zoneHigh": 6.5145,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.9603,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 4,
+            "inside_surfaced_map": 4,
+            "too_close_to_surfaced_level": 4
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 0,
+          "resistanceExtensions": 0,
+          "warnings": [
+            "missing_support_extension",
+            "missing_resistance_extension",
+            "insufficient_candidate_inventory"
+          ]
+        },
+        "warnings": [
+          "missing_support_extension",
+          "missing_resistance_extension",
+          "insufficient_candidate_inventory"
+        ],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    },
+    {
+      "symbol": "CHOP",
+      "profile": "choppy/messy ticker",
+      "report": {
+        "symbol": "CHOP",
+        "referencePrice": 5.07,
+        "support": {
+          "symbol": "CHOP",
+          "referencePrice": 5.07,
+          "side": "support",
+          "surfacedLevelPrices": [
+            4.9998,
+            4.9104
+          ],
+          "inputInventoryPrices": [
+            4.9998,
+            4.9104
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            4.9998,
+            4.9104
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            4.9998,
+            4.9104
+          ],
+          "candidates": [
+            {
+              "id": "CHOP-support-zone-2",
+              "price": 4.9998,
+              "zoneLow": 4.9998,
+              "zoneHigh": 4.9998,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 27.9612,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CHOP-support-zone-1",
+              "price": 4.9104,
+              "zoneLow": 4.8906,
+              "zoneHigh": 4.9799,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 172.881,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 2,
+            "inside_surfaced_map": 2,
+            "too_close_to_surfaced_level": 2
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "resistance": {
+          "symbol": "CHOP",
+          "referencePrice": 5.07,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            5.1608,
+            5.3029
+          ],
+          "inputInventoryPrices": [
+            5.1608,
+            5.3029
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            5.1608,
+            5.3029
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            5.1608,
+            5.3029
+          ],
+          "candidates": [
+            {
+              "id": "CHOP-resistance-zone-1",
+              "price": 5.1608,
+              "zoneLow": 5.1407,
+              "zoneHigh": 5.1608,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 48.5396,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CHOP-resistance-zone-2",
+              "price": 5.3029,
+              "zoneLow": 5.2318,
+              "zoneHigh": 5.3029,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 98.7372,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 2,
+            "inside_surfaced_map": 2,
+            "too_close_to_surfaced_level": 2
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 0,
+          "resistanceExtensions": 0,
+          "warnings": [
+            "missing_support_extension",
+            "missing_resistance_extension",
+            "insufficient_candidate_inventory"
+          ]
+        },
+        "warnings": [
+          "missing_support_extension",
+          "missing_resistance_extension",
+          "insufficient_candidate_inventory"
+        ],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    },
+    {
+      "symbol": "THIN",
+      "profile": "thin-liquidity ticker",
+      "report": {
+        "symbol": "THIN",
+        "referencePrice": 1.56,
+        "support": {
+          "symbol": "THIN",
+          "referencePrice": 1.56,
+          "side": "support",
+          "surfacedLevelPrices": [
+            1.4314,
+            1.403,
+            1.3464,
+            1.3042
+          ],
+          "inputInventoryPrices": [
+            1.4314,
+            1.403,
+            1.3464,
+            1.3042
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            1.4314,
+            1.403,
+            1.3464,
+            1.3042
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            1.4314,
+            1.403,
+            1.3464,
+            1.3042
+          ],
+          "candidates": [
+            {
+              "id": "THIN-support-zone-4",
+              "price": 1.4314,
+              "zoneLow": 1.4314,
+              "zoneHigh": 1.4314,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.4376,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "THIN-support-zone-3",
+              "price": 1.403,
+              "zoneLow": 1.403,
+              "zoneHigh": 1.4058,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 49.9178,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "THIN-support-zone-2",
+              "price": 1.3464,
+              "zoneLow": 1.3464,
+              "zoneHigh": 1.3464,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 24.003,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "THIN-support-zone-1",
+              "price": 1.3042,
+              "zoneLow": 1.3042,
+              "zoneHigh": 1.3042,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 28.7887,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 4,
+            "inside_surfaced_map": 4,
+            "too_close_to_surfaced_level": 4
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "resistance": {
+          "symbol": "THIN",
+          "referencePrice": 1.56,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            1.616,
+            1.6297,
+            1.7811
+          ],
+          "inputInventoryPrices": [
+            1.616,
+            1.6297,
+            1.6968,
+            1.7811
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [
+            1.6968
+          ],
+          "candidatePoolPrices": [
+            1.616,
+            1.6297,
+            1.6968,
+            1.7811
+          ],
+          "eligibleCandidatePrices": [
+            1.6968
+          ],
+          "selectedExtensionPrices": [
+            1.6968
+          ],
+          "skippedCandidatePrices": [
+            1.616,
+            1.6297,
+            1.7811
+          ],
+          "candidateCoveragePct": 8.7692,
+          "selectedCoveragePct": 8.7692,
+          "candidates": [
+            {
+              "id": "THIN-resistance-zone-1",
+              "price": 1.616,
+              "zoneLow": 1.6096,
+              "zoneHigh": 1.616,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 58.2741,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "THIN-resistance-zone-2",
+              "price": 1.6297,
+              "zoneLow": 1.6297,
+              "zoneHigh": 1.6297,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.9878,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "THIN-resistance-zone-3",
+              "price": 1.6968,
+              "zoneLow": 1.6968,
+              "zoneHigh": 1.6968,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 25.2949,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "THIN-resistance-zone-4",
+              "price": 1.7811,
+              "zoneLow": 1.7811,
+              "zoneHigh": 1.7811,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 28.6341,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 3,
+            "inside_surfaced_map": 3,
+            "too_close_to_surfaced_level": 3,
+            "selected_extension": 1
+          },
+          "insufficientCandidateInventory": false,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 0,
+          "resistanceExtensions": 1,
+          "highestResistanceExtension": 1.6968,
+          "upsideCoveragePct": 8.7692,
+          "warnings": [
+            "missing_support_extension",
+            "limited_upside_extension_coverage",
+            "insufficient_candidate_inventory"
+          ]
+        },
+        "warnings": [
+          "missing_support_extension",
+          "limited_upside_extension_coverage",
+          "insufficient_candidate_inventory"
+        ],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    },
+    {
+      "symbol": "CLNT",
+      "profile": "clean technical mover",
+      "report": {
+        "symbol": "CLNT",
+        "referencePrice": 24.5,
+        "support": {
+          "symbol": "CLNT",
+          "referencePrice": 24.5,
+          "side": "support",
+          "surfacedLevelPrices": [
+            23.76,
+            23.4584,
+            22.724,
+            21.78,
+            20.295,
+            19.76
+          ],
+          "inputInventoryPrices": [
+            23.76,
+            23.4584,
+            22.724,
+            21.78,
+            20.295,
+            19.76
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            23.76,
+            23.4584,
+            22.724,
+            21.78,
+            20.295,
+            19.76
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            23.76,
+            23.4584,
+            22.724,
+            21.78,
+            20.295,
+            19.76
+          ],
+          "candidates": [
+            {
+              "id": "CLNT-support-zone-6",
+              "price": 23.76,
+              "zoneLow": 23.76,
+              "zoneHigh": 23.76,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 27.7093,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-support-zone-5",
+              "price": 23.4584,
+              "zoneLow": 23.4584,
+              "zoneHigh": 23.4584,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 16.9115,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-support-zone-4",
+              "price": 22.724,
+              "zoneLow": 22.6632,
+              "zoneHigh": 22.724,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 79.0176,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-support-zone-3",
+              "price": 21.78,
+              "zoneLow": 21.78,
+              "zoneHigh": 21.78,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 25.2822,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-support-zone-2",
+              "price": 20.295,
+              "zoneLow": 20.295,
+              "zoneHigh": 20.295,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 24.037,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-support-zone-1",
+              "price": 19.76,
+              "zoneLow": 19.76,
+              "zoneHigh": 19.76,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.9343,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 6,
+            "inside_surfaced_map": 6,
+            "too_close_to_surfaced_level": 6
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "resistance": {
+          "symbol": "CLNT",
+          "referencePrice": 24.5,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            25.25,
+            26.312,
+            29.29,
+            31.372,
+            32.32,
+            36.432
+          ],
+          "inputInventoryPrices": [
+            25.25,
+            26.312,
+            29.29,
+            31.372,
+            32.32,
+            36.432
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            25.25,
+            26.312,
+            29.29,
+            31.372,
+            32.32,
+            36.432
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            25.25,
+            26.312,
+            29.29,
+            31.372,
+            32.32,
+            36.432
+          ],
+          "candidates": [
+            {
+              "id": "CLNT-resistance-zone-1",
+              "price": 25.25,
+              "zoneLow": 25.25,
+              "zoneHigh": 25.4518,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 62.1926,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-resistance-zone-2",
+              "price": 26.312,
+              "zoneLow": 26.312,
+              "zoneHigh": 26.3572,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 74.4635,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-resistance-zone-3",
+              "price": 29.29,
+              "zoneLow": 29.29,
+              "zoneHigh": 29.29,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 24.7991,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-resistance-zone-4",
+              "price": 31.372,
+              "zoneLow": 31.372,
+              "zoneHigh": 31.372,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 28.6967,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-resistance-zone-5",
+              "price": 32.32,
+              "zoneLow": 32.32,
+              "zoneHigh": 32.32,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 25.9731,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "CLNT-resistance-zone-6",
+              "price": 36.432,
+              "zoneLow": 36.432,
+              "zoneHigh": 36.432,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.5918,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 6,
+            "inside_surfaced_map": 6,
+            "too_close_to_surfaced_level": 6
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 0,
+          "resistanceExtensions": 0,
+          "warnings": [
+            "missing_support_extension",
+            "missing_resistance_extension",
+            "insufficient_candidate_inventory"
+          ]
+        },
+        "warnings": [
+          "missing_support_extension",
+          "missing_resistance_extension",
+          "insufficient_candidate_inventory"
+        ],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    },
+    {
+      "symbol": "HIPO",
+      "profile": "higher-priced stock",
+      "report": {
+        "symbol": "HIPO",
+        "referencePrice": 186,
+        "support": {
+          "symbol": "HIPO",
+          "referencePrice": 186,
+          "side": "support",
+          "surfacedLevelPrices": [
+            182.16,
+            176.932,
+            167.96,
+            158.4,
+            156.104
+          ],
+          "inputInventoryPrices": [
+            182.16,
+            176.932,
+            167.96,
+            158.4,
+            156.104
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            182.16,
+            176.932,
+            167.96,
+            158.4,
+            156.104
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            182.16,
+            176.932,
+            167.96,
+            158.4,
+            156.104
+          ],
+          "candidates": [
+            {
+              "id": "HIPO-support-zone-5",
+              "price": 182.16,
+              "zoneLow": 182.16,
+              "zoneHigh": 182.16,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 25.5881,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "HIPO-support-zone-4",
+              "price": 176.932,
+              "zoneLow": 176.932,
+              "zoneHigh": 176.932,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 16.9637,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "HIPO-support-zone-3",
+              "price": 167.96,
+              "zoneLow": 167.96,
+              "zoneHigh": 170.28,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 90.9407,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "HIPO-support-zone-2",
+              "price": 158.4,
+              "zoneLow": 158.4,
+              "zoneHigh": 158.4,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 24.0388,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "HIPO-support-zone-1",
+              "price": 156.104,
+              "zoneLow": 156.104,
+              "zoneHigh": 156.104,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 29.2276,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 5,
+            "inside_surfaced_map": 5,
+            "too_close_to_surfaced_level": 5
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "resistance": {
+          "symbol": "HIPO",
+          "referencePrice": 186,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            204.02,
+            209.248,
+            222.64,
+            234.32,
+            242.4,
+            247.94
+          ],
+          "inputInventoryPrices": [
+            204.02,
+            209.248,
+            222.64,
+            234.32,
+            242.4,
+            247.94
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            204.02,
+            209.248,
+            222.64,
+            234.32,
+            242.4,
+            247.94
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            204.02,
+            209.248,
+            222.64,
+            234.32,
+            242.4,
+            247.94
+          ],
+          "candidates": [
+            {
+              "id": "HIPO-resistance-zone-1",
+              "price": 204.02,
+              "zoneLow": 203.212,
+              "zoneHigh": 204.02,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 58.9225,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "HIPO-resistance-zone-2",
+              "price": 209.248,
+              "zoneLow": 209.248,
+              "zoneHigh": 209.248,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.7504,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "HIPO-resistance-zone-3",
+              "price": 222.64,
+              "zoneLow": 222.64,
+              "zoneHigh": 222.64,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 29.9903,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "HIPO-resistance-zone-4",
+              "price": 234.32,
+              "zoneLow": 234.32,
+              "zoneHigh": 234.32,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 24.9877,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "HIPO-resistance-zone-5",
+              "price": 242.4,
+              "zoneLow": 242.4,
+              "zoneHigh": 242.4,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 25.4458,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "HIPO-resistance-zone-6",
+              "price": 247.94,
+              "zoneLow": 247.94,
+              "zoneHigh": 247.94,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.1747,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 6,
+            "inside_surfaced_map": 6,
+            "too_close_to_surfaced_level": 6
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": false,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic extension generation is not available in the current extension engine."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 0,
+          "resistanceExtensions": 0,
+          "warnings": [
+            "missing_support_extension",
+            "missing_resistance_extension",
+            "insufficient_candidate_inventory"
+          ]
+        },
+        "warnings": [
+          "missing_support_extension",
+          "missing_resistance_extension",
+          "insufficient_candidate_inventory"
+        ],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    }
+  ],
+  "summary": {
+    "sampleCount": 5,
+    "missingSupportExtensionCount": 5,
+    "missingResistanceExtensionCount": 4,
+    "limitedUpsideCoverageCount": 1,
+    "limitedDownsideCoverageCount": 0,
+    "insufficientCandidateInventoryCount": 5
+  },
+  "safety": {
+    "supportResistanceDetectionUnchanged": true,
+    "noRuntimeBehaviorChange": true,
+    "reviewOnly": true
+  }
+}
