@@ -1,0 +1,141 @@
+Level candidate pool diagnostics review
+
+## Input Source
+- Deterministic generated candle fixtures.
+- Each sample runs the existing pipeline: swing detection, raw candidate building, special levels, clustering, scoring, ranking, and candidate-pool diagnostics.
+- Output-only LevelEngine fixtures are not used as full-pipeline inputs because they do not contain raw, clustered, or scored inventories.
+
+## Summary
+- Sample count: 5
+- Raw candidates: 86
+- Clustered zones: 53
+- Scored zones: 53
+- Surfaced levels: 48
+- Extension candidates: 0
+- Selected extensions: 0
+- Samples with no support extension candidates: LPRN, CHOP, THIN, CLNT, HIPO
+- Samples with no resistance extension candidates: LPRN, CHOP, THIN, CLNT, HIPO
+- Samples with raw-to-clustered narrowing: LPRN, CHOP, THIN, CLNT, HIPO
+- Samples with scored-to-extension narrowing: LPRN, CHOP, THIN, CLNT, HIPO
+
+## Samples
+### LPRN - low-price runner
+- Reference price: 5.6
+- Candles: daily 27, 4h 18, 5m 16
+- Swings: daily 5, 4h 7, 5m 6
+- Raw candidates: 20
+- Clustered zones: 17
+- Scored zones: 17
+- Surfaced levels: 14
+- Extension candidates: 0
+- Selected extensions: 0
+- Support raw/clustered/scored/surfaced/ext-candidate/selected: 11/10/10/10/0/0
+- Resistance raw/clustered/scored/surfaced/ext-candidate/selected: 9/7/7/4/0/0
+- Support depth below reference: 10 levels, deepest 80.2393%
+- Resistance depth above reference: 4 levels, highest 16.3304%
+- Support warnings: no_support_extension_candidate_inventory
+- Resistance warnings: no_resistance_extension_candidate_inventory
+- Narrowing:
+  - support raw_candidates_to_clustered_zones: 11 -> 10 (1 fewer)
+  - support scored_zones_to_extension_boundary_candidates: 10 -> 0 (10 fewer)
+  - resistance raw_candidates_to_clustered_zones: 9 -> 7 (2 fewer)
+  - resistance scored_zones_to_public_surfaced_buckets: 7 -> 4 (3 fewer)
+  - resistance scored_zones_to_extension_boundary_candidates: 7 -> 0 (7 fewer)
+
+### CHOP - choppy/messy ticker
+- Reference price: 5.07
+- Candles: daily 21, 4h 16, 5m 16
+- Swings: daily 6, 4h 6, 5m 6
+- Raw candidates: 20
+- Clustered zones: 4
+- Scored zones: 4
+- Surfaced levels: 4
+- Extension candidates: 0
+- Selected extensions: 0
+- Support raw/clustered/scored/surfaced/ext-candidate/selected: 10/2/2/2/0/0
+- Resistance raw/clustered/scored/surfaced/ext-candidate/selected: 10/2/2/2/0/0
+- Support depth below reference: 2 levels, deepest 3.1479%
+- Resistance depth above reference: 2 levels, highest 4.5937%
+- Support warnings: no_support_extension_candidate_inventory
+- Resistance warnings: no_resistance_extension_candidate_inventory
+- Narrowing:
+  - support raw_candidates_to_clustered_zones: 10 -> 2 (8 fewer)
+  - support scored_zones_to_extension_boundary_candidates: 2 -> 0 (2 fewer)
+  - resistance raw_candidates_to_clustered_zones: 10 -> 2 (8 fewer)
+  - resistance scored_zones_to_extension_boundary_candidates: 2 -> 0 (2 fewer)
+
+### THIN - thin-liquidity ticker
+- Reference price: 1.56
+- Candles: daily 14, 4h 12, 5m 10
+- Swings: daily 3, 4h 4, 5m 3
+- Raw candidates: 12
+- Clustered zones: 8
+- Scored zones: 8
+- Surfaced levels: 7
+- Extension candidates: 0
+- Selected extensions: 0
+- Support raw/clustered/scored/surfaced/ext-candidate/selected: 6/4/4/4/0/0
+- Resistance raw/clustered/scored/surfaced/ext-candidate/selected: 6/4/4/3/0/0
+- Support depth below reference: 4 levels, deepest 16.3974%
+- Resistance depth above reference: 4 levels, highest 14.1731%
+- Support warnings: no_support_extension_candidate_inventory
+- Resistance warnings: no_resistance_extension_candidate_inventory
+- Narrowing:
+  - support raw_candidates_to_clustered_zones: 6 -> 4 (2 fewer)
+  - support scored_zones_to_extension_boundary_candidates: 4 -> 0 (4 fewer)
+  - resistance raw_candidates_to_clustered_zones: 6 -> 4 (2 fewer)
+  - resistance scored_zones_to_public_surfaced_buckets: 4 -> 3 (1 fewer)
+  - resistance scored_zones_to_extension_boundary_candidates: 4 -> 0 (4 fewer)
+
+### CLNT - clean technical mover
+- Reference price: 24.5
+- Candles: daily 20, 4h 16, 5m 12
+- Swings: daily 6, 4h 6, 5m 4
+- Raw candidates: 18
+- Clustered zones: 13
+- Scored zones: 13
+- Surfaced levels: 12
+- Extension candidates: 0
+- Selected extensions: 0
+- Support raw/clustered/scored/surfaced/ext-candidate/selected: 9/7/7/6/0/0
+- Resistance raw/clustered/scored/surfaced/ext-candidate/selected: 9/6/6/6/0/0
+- Support depth below reference: 6 levels, deepest 19.3469%
+- Resistance depth above reference: 6 levels, highest 48.702%
+- Support warnings: no_support_extension_candidate_inventory
+- Resistance warnings: no_resistance_extension_candidate_inventory
+- Narrowing:
+  - support raw_candidates_to_clustered_zones: 9 -> 7 (2 fewer)
+  - support scored_zones_to_public_surfaced_buckets: 7 -> 6 (1 fewer)
+  - support scored_zones_to_extension_boundary_candidates: 7 -> 0 (7 fewer)
+  - resistance raw_candidates_to_clustered_zones: 9 -> 6 (3 fewer)
+  - resistance scored_zones_to_extension_boundary_candidates: 6 -> 0 (6 fewer)
+
+### HIPO - higher-priced stock
+- Reference price: 186
+- Candles: daily 16, 4h 15, 5m 12
+- Swings: daily 4, 4h 6, 5m 4
+- Raw candidates: 16
+- Clustered zones: 11
+- Scored zones: 11
+- Surfaced levels: 11
+- Extension candidates: 0
+- Selected extensions: 0
+- Support raw/clustered/scored/surfaced/ext-candidate/selected: 8/5/5/5/0/0
+- Resistance raw/clustered/scored/surfaced/ext-candidate/selected: 8/6/6/6/0/0
+- Support depth below reference: 5 levels, deepest 16.0731%
+- Resistance depth above reference: 6 levels, highest 33.3011%
+- Support warnings: no_support_extension_candidate_inventory
+- Resistance warnings: no_resistance_extension_candidate_inventory
+- Narrowing:
+  - support raw_candidates_to_clustered_zones: 8 -> 5 (3 fewer)
+  - support scored_zones_to_extension_boundary_candidates: 5 -> 0 (5 fewer)
+  - resistance raw_candidates_to_clustered_zones: 8 -> 6 (2 fewer)
+  - resistance scored_zones_to_extension_boundary_candidates: 6 -> 0 (6 fewer)
+
+## Safety
+- Support/resistance detection unchanged: true
+- LevelEngine default output unchanged: true
+- Extension generation unchanged: true
+- Scoring/selection unchanged: true
+- Runtime behavior unchanged: true
+- Review only: true

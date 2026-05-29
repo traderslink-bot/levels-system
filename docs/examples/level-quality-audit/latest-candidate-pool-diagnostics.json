@@ -1,0 +1,3487 @@
+{
+  "generatedAt": 1780063200000,
+  "inputSource": "deterministic_generated_pipeline_data",
+  "samples": [
+    {
+      "symbol": "LPRN",
+      "profile": "low-price runner",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 27,
+        "4h": 18,
+        "5m": 16
+      },
+      "swingCounts": {
+        "daily": {
+          "support": 4,
+          "resistance": 1,
+          "total": 5
+        },
+        "4h": {
+          "support": 3,
+          "resistance": 4,
+          "total": 7
+        },
+        "5m": {
+          "support": 3,
+          "resistance": 3,
+          "total": 6
+        }
+      },
+      "rawCandidateCount": 20,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 10,
+        "resistance": 7
+      },
+      "scoredCounts": {
+        "support": 10,
+        "resistance": 7
+      },
+      "report": {
+        "symbol": "LPRN",
+        "referencePrice": 5.6,
+        "summary": {
+          "rawCandidateCount": 20,
+          "clusteredZoneCount": 17,
+          "scoredZoneCount": 17,
+          "surfacedLevelCount": 14,
+          "extensionCandidateCount": 0,
+          "selectedExtensionCount": 0
+        },
+        "surfacedBucketCounts": {
+          "majorSupport": 4,
+          "majorResistance": 1,
+          "intermediateSupport": 3,
+          "intermediateResistance": 2,
+          "intradaySupport": 3,
+          "intradayResistance": 1
+        },
+        "support": {
+          "side": "support",
+          "raw": {
+            "stage": "raw",
+            "total": 11,
+            "prices": [
+              1.1066,
+              1.3634,
+              1.9958,
+              2.9838,
+              3.267,
+              3.9105,
+              4.5045,
+              4.6917,
+              4.6917,
+              4.9501,
+              5.0893
+            ],
+            "priceRange": {
+              "min": 1.1066,
+              "max": 5.0893
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 4,
+              "daily": 4
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 10
+            },
+            "bySourceTypeSet": {
+              "premarket_low": 1,
+              "swing_low": 10
+            },
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 11,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 5.0893,
+              "farthestBelowReference": 1.1066,
+              "deepestBelowReferencePct": 80.2393
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 10,
+            "prices": [
+              1.1066,
+              1.3634,
+              1.9958,
+              2.9838,
+              3.267,
+              3.9105,
+              4.5045,
+              4.6917,
+              4.9501,
+              5.0893
+            ],
+            "priceRange": {
+              "min": 1.1066,
+              "max": 5.0893
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 4
+            },
+            "byTimeframeBias": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 4
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 10
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 9
+            },
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 10,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 5.0893,
+              "farthestBelowReference": 1.1066,
+              "deepestBelowReferencePct": 80.2393
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 10,
+            "prices": [
+              1.1066,
+              1.3634,
+              1.9958,
+              2.9838,
+              3.267,
+              3.9105,
+              4.5045,
+              4.6917,
+              4.9501,
+              5.0893
+            ],
+            "priceRange": {
+              "min": 1.1066,
+              "max": 5.0893
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 4
+            },
+            "byTimeframeBias": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 4
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 10
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 9
+            },
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 10,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 5.0893,
+              "farthestBelowReference": 1.1066,
+              "deepestBelowReferencePct": 80.2393
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 10,
+            "prices": [
+              1.1066,
+              1.3634,
+              1.9958,
+              2.9838,
+              3.267,
+              3.9105,
+              4.5045,
+              4.6917,
+              4.9501,
+              5.0893
+            ],
+            "priceRange": {
+              "min": 1.1066,
+              "max": 5.0893
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 4
+            },
+            "byTimeframeBias": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 4
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 10
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 9
+            },
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 10,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 5.0893,
+              "farthestBelowReference": 1.1066,
+              "deepestBelowReferencePct": 80.2393
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "support",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 11,
+              "toCount": 10,
+              "delta": 1,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "support",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 10,
+              "toCount": 10,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 10,
+              "toCount": 10,
+              "delta": 0,
+              "narrowed": false,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 10,
+              "toCount": 0,
+              "delta": 10,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "support",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_support_extension_candidate_inventory"
+          ]
+        },
+        "resistance": {
+          "side": "resistance",
+          "raw": {
+            "stage": "raw",
+            "total": 9,
+            "prices": [
+              4.242,
+              4.9995,
+              5.2513,
+              5.6537,
+              5.858,
+              6.0863,
+              6.0863,
+              6.0922,
+              6.5145
+            ],
+            "priceRange": {
+              "min": 4.242,
+              "max": 6.5145
+            },
+            "byTimeframe": {
+              "4h": 4,
+              "5m": 4,
+              "daily": 1
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 8
+            },
+            "bySourceTypeSet": {
+              "premarket_high": 1,
+              "swing_high": 8
+            },
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 3,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 6,
+              "nearestBelowReference": 5.2513,
+              "farthestBelowReference": 4.242,
+              "nearestAboveReference": 5.6537,
+              "farthestAboveReference": 6.5145,
+              "deepestBelowReferencePct": 24.25,
+              "highestAboveReferencePct": 16.3304
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 7,
+            "prices": [
+              4.242,
+              4.9995,
+              5.2513,
+              5.6537,
+              5.858,
+              6.0922,
+              6.5145
+            ],
+            "priceRange": {
+              "min": 4.242,
+              "max": 6.5145
+            },
+            "byTimeframe": {
+              "4h": 4,
+              "5m": 3,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "4h": 4,
+              "5m": 2,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 7
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 6
+            },
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 3,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 4,
+              "nearestBelowReference": 5.2513,
+              "farthestBelowReference": 4.242,
+              "nearestAboveReference": 5.6537,
+              "farthestAboveReference": 6.5145,
+              "deepestBelowReferencePct": 24.25,
+              "highestAboveReferencePct": 16.3304
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 7,
+            "prices": [
+              4.242,
+              4.9995,
+              5.2513,
+              5.6537,
+              5.858,
+              6.0922,
+              6.5145
+            ],
+            "priceRange": {
+              "min": 4.242,
+              "max": 6.5145
+            },
+            "byTimeframe": {
+              "4h": 4,
+              "5m": 3,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "4h": 4,
+              "5m": 2,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 7
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 6
+            },
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 3,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 4,
+              "nearestBelowReference": 5.2513,
+              "farthestBelowReference": 4.242,
+              "nearestAboveReference": 5.6537,
+              "farthestAboveReference": 6.5145,
+              "deepestBelowReferencePct": 24.25,
+              "highestAboveReferencePct": 16.3304
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 4,
+            "prices": [
+              5.6537,
+              5.858,
+              6.0922,
+              6.5145
+            ],
+            "priceRange": {
+              "min": 5.6537,
+              "max": 6.5145
+            },
+            "byTimeframe": {
+              "4h": 2,
+              "5m": 2,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "5m": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 4
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 3
+            },
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 4,
+              "nearestAboveReference": 5.6537,
+              "farthestAboveReference": 6.5145,
+              "highestAboveReferencePct": 16.3304
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 5.6,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "resistance",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 9,
+              "toCount": 7,
+              "delta": 2,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 7,
+              "toCount": 7,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 7,
+              "toCount": 4,
+              "delta": 3,
+              "narrowed": true,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 7,
+              "toCount": 0,
+              "delta": 7,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "resistance",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_resistance_extension_candidate_inventory"
+          ]
+        },
+        "narrowing": [
+          {
+            "side": "support",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 11,
+            "toCount": 10,
+            "delta": 1,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "support",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 10,
+            "toCount": 10,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 10,
+            "toCount": 10,
+            "delta": 0,
+            "narrowed": false,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 10,
+            "toCount": 0,
+            "delta": 10,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "support",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          },
+          {
+            "side": "resistance",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 9,
+            "toCount": 7,
+            "delta": 2,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 7,
+            "toCount": 7,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 7,
+            "toCount": 4,
+            "delta": 3,
+            "narrowed": true,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 7,
+            "toCount": 0,
+            "delta": 7,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "resistance",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          }
+        ],
+        "diagnostics": [
+          "candidate_pool_diagnostics_only",
+          "accepts_prebuilt_pipeline_inputs",
+          "normal_level_engine_output_not_modified"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "levelOutputUnchanged": true,
+          "extensionGenerationUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    },
+    {
+      "symbol": "CHOP",
+      "profile": "choppy/messy ticker",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 21,
+        "4h": 16,
+        "5m": 16
+      },
+      "swingCounts": {
+        "daily": {
+          "support": 3,
+          "resistance": 3,
+          "total": 6
+        },
+        "4h": {
+          "support": 3,
+          "resistance": 3,
+          "total": 6
+        },
+        "5m": {
+          "support": 3,
+          "resistance": 3,
+          "total": 6
+        }
+      },
+      "rawCandidateCount": 20,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 2,
+        "resistance": 2
+      },
+      "scoredCounts": {
+        "support": 2,
+        "resistance": 2
+      },
+      "report": {
+        "symbol": "CHOP",
+        "referencePrice": 5.07,
+        "summary": {
+          "rawCandidateCount": 20,
+          "clusteredZoneCount": 4,
+          "scoredZoneCount": 4,
+          "surfacedLevelCount": 4,
+          "extensionCandidateCount": 0,
+          "selectedExtensionCount": 0
+        },
+        "surfacedBucketCounts": {
+          "majorSupport": 1,
+          "majorResistance": 1,
+          "intermediateSupport": 0,
+          "intermediateResistance": 0,
+          "intradaySupport": 1,
+          "intradayResistance": 1
+        },
+        "support": {
+          "side": "support",
+          "raw": {
+            "stage": "raw",
+            "total": 10,
+            "prices": [
+              4.8906,
+              4.9005,
+              4.9104,
+              4.9401,
+              4.95,
+              4.9599,
+              4.97,
+              4.97,
+              4.9799,
+              4.9998
+            ],
+            "priceRange": {
+              "min": 4.8906,
+              "max": 4.9998
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 4,
+              "daily": 3
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 9
+            },
+            "bySourceTypeSet": {
+              "premarket_low": 1,
+              "swing_low": 9
+            },
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 10,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 4.9998,
+              "farthestBelowReference": 4.8906,
+              "deepestBelowReferencePct": 3.5385
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 2,
+            "prices": [
+              4.9104,
+              4.9998
+            ],
+            "priceRange": {
+              "min": 4.9104,
+              "max": 4.9998
+            },
+            "byTimeframe": {
+              "4h": 1,
+              "5m": 2,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "5m": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 2
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 1
+            },
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 2,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 4.9998,
+              "farthestBelowReference": 4.9104,
+              "deepestBelowReferencePct": 3.1479
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 2,
+            "prices": [
+              4.9104,
+              4.9998
+            ],
+            "priceRange": {
+              "min": 4.9104,
+              "max": 4.9998
+            },
+            "byTimeframe": {
+              "4h": 1,
+              "5m": 2,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "5m": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 2
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 1
+            },
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 2,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 4.9998,
+              "farthestBelowReference": 4.9104,
+              "deepestBelowReferencePct": 3.1479
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 2,
+            "prices": [
+              4.9104,
+              4.9998
+            ],
+            "priceRange": {
+              "min": 4.9104,
+              "max": 4.9998
+            },
+            "byTimeframe": {
+              "4h": 1,
+              "5m": 2,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "5m": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 2
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 1
+            },
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 2,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 4.9998,
+              "farthestBelowReference": 4.9104,
+              "deepestBelowReferencePct": 3.1479
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "support",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 10,
+              "toCount": 2,
+              "delta": 8,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "support",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 2,
+              "toCount": 2,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 2,
+              "toCount": 2,
+              "delta": 0,
+              "narrowed": false,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 2,
+              "toCount": 0,
+              "delta": 2,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "support",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_support_extension_candidate_inventory"
+          ]
+        },
+        "resistance": {
+          "side": "resistance",
+          "raw": {
+            "stage": "raw",
+            "total": 10,
+            "prices": [
+              5.1407,
+              5.1507,
+              5.1608,
+              5.1608,
+              5.2318,
+              5.2318,
+              5.2419,
+              5.2826,
+              5.2928,
+              5.3029
+            ],
+            "priceRange": {
+              "min": 5.1407,
+              "max": 5.3029
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 4,
+              "daily": 3
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 9
+            },
+            "bySourceTypeSet": {
+              "premarket_high": 1,
+              "swing_high": 9
+            },
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 10,
+              "nearestAboveReference": 5.1407,
+              "farthestAboveReference": 5.3029,
+              "highestAboveReferencePct": 4.5937
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 2,
+            "prices": [
+              5.1608,
+              5.3029
+            ],
+            "priceRange": {
+              "min": 5.1608,
+              "max": 5.3029
+            },
+            "byTimeframe": {
+              "4h": 1,
+              "5m": 1,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "5m": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 2
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 1
+            },
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 2,
+              "nearestAboveReference": 5.1608,
+              "farthestAboveReference": 5.3029,
+              "highestAboveReferencePct": 4.5937
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 2,
+            "prices": [
+              5.1608,
+              5.3029
+            ],
+            "priceRange": {
+              "min": 5.1608,
+              "max": 5.3029
+            },
+            "byTimeframe": {
+              "4h": 1,
+              "5m": 1,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "5m": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 2
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 1
+            },
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 2,
+              "nearestAboveReference": 5.1608,
+              "farthestAboveReference": 5.3029,
+              "highestAboveReferencePct": 4.5937
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 2,
+            "prices": [
+              5.1608,
+              5.3029
+            ],
+            "priceRange": {
+              "min": 5.1608,
+              "max": 5.3029
+            },
+            "byTimeframe": {
+              "4h": 1,
+              "5m": 1,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "5m": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 2
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 1
+            },
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 2,
+              "nearestAboveReference": 5.1608,
+              "farthestAboveReference": 5.3029,
+              "highestAboveReferencePct": 4.5937
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 5.07,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "resistance",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 10,
+              "toCount": 2,
+              "delta": 8,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 2,
+              "toCount": 2,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 2,
+              "toCount": 2,
+              "delta": 0,
+              "narrowed": false,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 2,
+              "toCount": 0,
+              "delta": 2,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "resistance",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_resistance_extension_candidate_inventory"
+          ]
+        },
+        "narrowing": [
+          {
+            "side": "support",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 10,
+            "toCount": 2,
+            "delta": 8,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "support",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 2,
+            "toCount": 2,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 2,
+            "toCount": 2,
+            "delta": 0,
+            "narrowed": false,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 2,
+            "toCount": 0,
+            "delta": 2,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "support",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          },
+          {
+            "side": "resistance",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 10,
+            "toCount": 2,
+            "delta": 8,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 2,
+            "toCount": 2,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 2,
+            "toCount": 2,
+            "delta": 0,
+            "narrowed": false,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 2,
+            "toCount": 0,
+            "delta": 2,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "resistance",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          }
+        ],
+        "diagnostics": [
+          "candidate_pool_diagnostics_only",
+          "accepts_prebuilt_pipeline_inputs",
+          "normal_level_engine_output_not_modified"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "levelOutputUnchanged": true,
+          "extensionGenerationUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    },
+    {
+      "symbol": "THIN",
+      "profile": "thin-liquidity ticker",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 14,
+        "4h": 12,
+        "5m": 10
+      },
+      "swingCounts": {
+        "daily": {
+          "support": 2,
+          "resistance": 1,
+          "total": 3
+        },
+        "4h": {
+          "support": 2,
+          "resistance": 2,
+          "total": 4
+        },
+        "5m": {
+          "support": 1,
+          "resistance": 2,
+          "total": 3
+        }
+      },
+      "rawCandidateCount": 12,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 4,
+        "resistance": 4
+      },
+      "scoredCounts": {
+        "support": 4,
+        "resistance": 4
+      },
+      "report": {
+        "symbol": "THIN",
+        "referencePrice": 1.56,
+        "summary": {
+          "rawCandidateCount": 12,
+          "clusteredZoneCount": 8,
+          "scoredZoneCount": 8,
+          "surfacedLevelCount": 7,
+          "extensionCandidateCount": 0,
+          "selectedExtensionCount": 0
+        },
+        "surfacedBucketCounts": {
+          "majorSupport": 2,
+          "majorResistance": 1,
+          "intermediateSupport": 1,
+          "intermediateResistance": 1,
+          "intradaySupport": 1,
+          "intradayResistance": 1
+        },
+        "support": {
+          "side": "support",
+          "raw": {
+            "stage": "raw",
+            "total": 6,
+            "prices": [
+              1.3042,
+              1.3464,
+              1.403,
+              1.4058,
+              1.4314,
+              1.4314
+            ],
+            "priceRange": {
+              "min": 1.3042,
+              "max": 1.4314
+            },
+            "byTimeframe": {
+              "4h": 2,
+              "5m": 2,
+              "daily": 2
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 5
+            },
+            "bySourceTypeSet": {
+              "premarket_low": 1,
+              "swing_low": 5
+            },
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 6,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 1.4314,
+              "farthestBelowReference": 1.3042,
+              "deepestBelowReferencePct": 16.3974
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 4,
+            "prices": [
+              1.3042,
+              1.3464,
+              1.403,
+              1.4314
+            ],
+            "priceRange": {
+              "min": 1.3042,
+              "max": 1.4314
+            },
+            "byTimeframe": {
+              "4h": 2,
+              "5m": 1,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 1,
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 4
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 3
+            },
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 4,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 1.4314,
+              "farthestBelowReference": 1.3042,
+              "deepestBelowReferencePct": 16.3974
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 4,
+            "prices": [
+              1.3042,
+              1.3464,
+              1.403,
+              1.4314
+            ],
+            "priceRange": {
+              "min": 1.3042,
+              "max": 1.4314
+            },
+            "byTimeframe": {
+              "4h": 2,
+              "5m": 1,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 1,
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 4
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 3
+            },
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 4,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 1.4314,
+              "farthestBelowReference": 1.3042,
+              "deepestBelowReferencePct": 16.3974
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 4,
+            "prices": [
+              1.3042,
+              1.3464,
+              1.403,
+              1.4314
+            ],
+            "priceRange": {
+              "min": 1.3042,
+              "max": 1.4314
+            },
+            "byTimeframe": {
+              "4h": 2,
+              "5m": 1,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 1,
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 4
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 3
+            },
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 4,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 1.4314,
+              "farthestBelowReference": 1.3042,
+              "deepestBelowReferencePct": 16.3974
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "support",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 6,
+              "toCount": 4,
+              "delta": 2,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "support",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 4,
+              "toCount": 4,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 4,
+              "toCount": 4,
+              "delta": 0,
+              "narrowed": false,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 4,
+              "toCount": 0,
+              "delta": 4,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "support",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_support_extension_candidate_inventory"
+          ]
+        },
+        "resistance": {
+          "side": "resistance",
+          "raw": {
+            "stage": "raw",
+            "total": 6,
+            "prices": [
+              1.6096,
+              1.616,
+              1.6297,
+              1.6297,
+              1.6968,
+              1.7811
+            ],
+            "priceRange": {
+              "min": 1.6096,
+              "max": 1.7811
+            },
+            "byTimeframe": {
+              "4h": 2,
+              "5m": 3,
+              "daily": 1
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 5
+            },
+            "bySourceTypeSet": {
+              "premarket_high": 1,
+              "swing_high": 5
+            },
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 6,
+              "nearestAboveReference": 1.6096,
+              "farthestAboveReference": 1.7811,
+              "highestAboveReferencePct": 14.1731
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 4,
+            "prices": [
+              1.616,
+              1.6297,
+              1.6968,
+              1.7811
+            ],
+            "priceRange": {
+              "min": 1.616,
+              "max": 1.7811
+            },
+            "byTimeframe": {
+              "4h": 2,
+              "5m": 2,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "4h": 1,
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 4
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 3
+            },
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 4,
+              "nearestAboveReference": 1.616,
+              "farthestAboveReference": 1.7811,
+              "highestAboveReferencePct": 14.1731
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 4,
+            "prices": [
+              1.616,
+              1.6297,
+              1.6968,
+              1.7811
+            ],
+            "priceRange": {
+              "min": 1.616,
+              "max": 1.7811
+            },
+            "byTimeframe": {
+              "4h": 2,
+              "5m": 2,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "4h": 1,
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 4
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 3
+            },
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 4,
+              "nearestAboveReference": 1.616,
+              "farthestAboveReference": 1.7811,
+              "highestAboveReferencePct": 14.1731
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 3,
+            "prices": [
+              1.616,
+              1.6297,
+              1.7811
+            ],
+            "priceRange": {
+              "min": 1.616,
+              "max": 1.7811
+            },
+            "byTimeframe": {
+              "4h": 1,
+              "5m": 2,
+              "daily": 1
+            },
+            "byTimeframeBias": {
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 3
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 2
+            },
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 3,
+              "nearestAboveReference": 1.616,
+              "farthestAboveReference": 1.7811,
+              "highestAboveReferencePct": 14.1731
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 1.56,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "resistance",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 6,
+              "toCount": 4,
+              "delta": 2,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 4,
+              "toCount": 4,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 4,
+              "toCount": 3,
+              "delta": 1,
+              "narrowed": true,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 4,
+              "toCount": 0,
+              "delta": 4,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "resistance",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_resistance_extension_candidate_inventory"
+          ]
+        },
+        "narrowing": [
+          {
+            "side": "support",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 6,
+            "toCount": 4,
+            "delta": 2,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "support",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 4,
+            "toCount": 4,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 4,
+            "toCount": 4,
+            "delta": 0,
+            "narrowed": false,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 4,
+            "toCount": 0,
+            "delta": 4,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "support",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          },
+          {
+            "side": "resistance",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 6,
+            "toCount": 4,
+            "delta": 2,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 4,
+            "toCount": 4,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 4,
+            "toCount": 3,
+            "delta": 1,
+            "narrowed": true,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 4,
+            "toCount": 0,
+            "delta": 4,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "resistance",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          }
+        ],
+        "diagnostics": [
+          "candidate_pool_diagnostics_only",
+          "accepts_prebuilt_pipeline_inputs",
+          "normal_level_engine_output_not_modified"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "levelOutputUnchanged": true,
+          "extensionGenerationUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    },
+    {
+      "symbol": "CLNT",
+      "profile": "clean technical mover",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 20,
+        "4h": 16,
+        "5m": 12
+      },
+      "swingCounts": {
+        "daily": {
+          "support": 3,
+          "resistance": 3,
+          "total": 6
+        },
+        "4h": {
+          "support": 3,
+          "resistance": 3,
+          "total": 6
+        },
+        "5m": {
+          "support": 2,
+          "resistance": 2,
+          "total": 4
+        }
+      },
+      "rawCandidateCount": 18,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 7,
+        "resistance": 6
+      },
+      "scoredCounts": {
+        "support": 7,
+        "resistance": 6
+      },
+      "report": {
+        "symbol": "CLNT",
+        "referencePrice": 24.5,
+        "summary": {
+          "rawCandidateCount": 18,
+          "clusteredZoneCount": 13,
+          "scoredZoneCount": 13,
+          "surfacedLevelCount": 12,
+          "extensionCandidateCount": 0,
+          "selectedExtensionCount": 0
+        },
+        "surfacedBucketCounts": {
+          "majorSupport": 2,
+          "majorResistance": 3,
+          "intermediateSupport": 3,
+          "intermediateResistance": 3,
+          "intradaySupport": 1,
+          "intradayResistance": 0
+        },
+        "support": {
+          "side": "support",
+          "raw": {
+            "stage": "raw",
+            "total": 9,
+            "prices": [
+              19.76,
+              20.295,
+              21.78,
+              22.6632,
+              22.6632,
+              22.724,
+              23.4584,
+              23.76,
+              24.7
+            ],
+            "priceRange": {
+              "min": 19.76,
+              "max": 24.7
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 3
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 8
+            },
+            "bySourceTypeSet": {
+              "premarket_low": 1,
+              "swing_low": 8
+            },
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 8,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 1,
+              "nearestBelowReference": 23.76,
+              "farthestBelowReference": 19.76,
+              "nearestAboveReference": 24.7,
+              "farthestAboveReference": 24.7,
+              "deepestBelowReferencePct": 19.3469,
+              "highestAboveReferencePct": 0.8163
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 7,
+            "prices": [
+              19.76,
+              20.295,
+              21.78,
+              22.724,
+              23.4584,
+              23.76,
+              24.7
+            ],
+            "priceRange": {
+              "min": 19.76,
+              "max": 24.7
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 3
+            },
+            "byTimeframeBias": {
+              "4h": 3,
+              "5m": 1,
+              "daily": 2,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 7
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 6
+            },
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 6,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 1,
+              "nearestBelowReference": 23.76,
+              "farthestBelowReference": 19.76,
+              "nearestAboveReference": 24.7,
+              "farthestAboveReference": 24.7,
+              "deepestBelowReferencePct": 19.3469,
+              "highestAboveReferencePct": 0.8163
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 7,
+            "prices": [
+              19.76,
+              20.295,
+              21.78,
+              22.724,
+              23.4584,
+              23.76,
+              24.7
+            ],
+            "priceRange": {
+              "min": 19.76,
+              "max": 24.7
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 3
+            },
+            "byTimeframeBias": {
+              "4h": 3,
+              "5m": 1,
+              "daily": 2,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 7
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 6
+            },
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 6,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 1,
+              "nearestBelowReference": 23.76,
+              "farthestBelowReference": 19.76,
+              "nearestAboveReference": 24.7,
+              "farthestAboveReference": 24.7,
+              "deepestBelowReferencePct": 19.3469,
+              "highestAboveReferencePct": 0.8163
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 6,
+            "prices": [
+              19.76,
+              20.295,
+              21.78,
+              22.724,
+              23.4584,
+              23.76
+            ],
+            "priceRange": {
+              "min": 19.76,
+              "max": 23.76
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 3,
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 6
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 5
+            },
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 6,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 23.76,
+              "farthestBelowReference": 19.76,
+              "deepestBelowReferencePct": 19.3469
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "support",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 9,
+              "toCount": 7,
+              "delta": 2,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "support",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 7,
+              "toCount": 7,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 7,
+              "toCount": 6,
+              "delta": 1,
+              "narrowed": true,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 7,
+              "toCount": 0,
+              "delta": 7,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "support",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_support_extension_candidate_inventory"
+          ]
+        },
+        "resistance": {
+          "side": "resistance",
+          "raw": {
+            "stage": "raw",
+            "total": 9,
+            "prices": [
+              25.25,
+              25.4518,
+              26.312,
+              26.3572,
+              26.3572,
+              29.29,
+              31.372,
+              32.32,
+              36.432
+            ],
+            "priceRange": {
+              "min": 25.25,
+              "max": 36.432
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 3
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 8
+            },
+            "bySourceTypeSet": {
+              "premarket_high": 1,
+              "swing_high": 8
+            },
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 9,
+              "nearestAboveReference": 25.25,
+              "farthestAboveReference": 36.432,
+              "highestAboveReferencePct": 48.702
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 6,
+            "prices": [
+              25.25,
+              26.312,
+              29.29,
+              31.372,
+              32.32,
+              36.432
+            ],
+            "priceRange": {
+              "min": 25.25,
+              "max": 36.432
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 3
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "daily": 2,
+              "mixed": 2
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 6
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 5
+            },
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 6,
+              "nearestAboveReference": 25.25,
+              "farthestAboveReference": 36.432,
+              "highestAboveReferencePct": 48.702
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 6,
+            "prices": [
+              25.25,
+              26.312,
+              29.29,
+              31.372,
+              32.32,
+              36.432
+            ],
+            "priceRange": {
+              "min": 25.25,
+              "max": 36.432
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 3
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "daily": 2,
+              "mixed": 2
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 6
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 5
+            },
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 6,
+              "nearestAboveReference": 25.25,
+              "farthestAboveReference": 36.432,
+              "highestAboveReferencePct": 48.702
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 6,
+            "prices": [
+              25.25,
+              26.312,
+              29.29,
+              31.372,
+              32.32,
+              36.432
+            ],
+            "priceRange": {
+              "min": 25.25,
+              "max": 36.432
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 3
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "daily": 2,
+              "mixed": 2
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 6
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 5
+            },
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 6,
+              "nearestAboveReference": 25.25,
+              "farthestAboveReference": 36.432,
+              "highestAboveReferencePct": 48.702
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 24.5,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "resistance",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 9,
+              "toCount": 6,
+              "delta": 3,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 6,
+              "toCount": 6,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 6,
+              "toCount": 6,
+              "delta": 0,
+              "narrowed": false,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 6,
+              "toCount": 0,
+              "delta": 6,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "resistance",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_resistance_extension_candidate_inventory"
+          ]
+        },
+        "narrowing": [
+          {
+            "side": "support",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 9,
+            "toCount": 7,
+            "delta": 2,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "support",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 7,
+            "toCount": 7,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 7,
+            "toCount": 6,
+            "delta": 1,
+            "narrowed": true,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 7,
+            "toCount": 0,
+            "delta": 7,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "support",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          },
+          {
+            "side": "resistance",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 9,
+            "toCount": 6,
+            "delta": 3,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 6,
+            "toCount": 6,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 6,
+            "toCount": 6,
+            "delta": 0,
+            "narrowed": false,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 6,
+            "toCount": 0,
+            "delta": 6,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "resistance",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          }
+        ],
+        "diagnostics": [
+          "candidate_pool_diagnostics_only",
+          "accepts_prebuilt_pipeline_inputs",
+          "normal_level_engine_output_not_modified"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "levelOutputUnchanged": true,
+          "extensionGenerationUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    },
+    {
+      "symbol": "HIPO",
+      "profile": "higher-priced stock",
+      "inputSource": "deterministic_generated_candles",
+      "candleCounts": {
+        "daily": 16,
+        "4h": 15,
+        "5m": 12
+      },
+      "swingCounts": {
+        "daily": {
+          "support": 2,
+          "resistance": 2,
+          "total": 4
+        },
+        "4h": {
+          "support": 3,
+          "resistance": 3,
+          "total": 6
+        },
+        "5m": {
+          "support": 2,
+          "resistance": 2,
+          "total": 4
+        }
+      },
+      "rawCandidateCount": 16,
+      "specialCandidateCount": 2,
+      "clusteredCounts": {
+        "support": 5,
+        "resistance": 6
+      },
+      "scoredCounts": {
+        "support": 5,
+        "resistance": 6
+      },
+      "report": {
+        "symbol": "HIPO",
+        "referencePrice": 186,
+        "summary": {
+          "rawCandidateCount": 16,
+          "clusteredZoneCount": 11,
+          "scoredZoneCount": 11,
+          "surfacedLevelCount": 11,
+          "extensionCandidateCount": 0,
+          "selectedExtensionCount": 0
+        },
+        "surfacedBucketCounts": {
+          "majorSupport": 2,
+          "majorResistance": 2,
+          "intermediateSupport": 2,
+          "intermediateResistance": 3,
+          "intradaySupport": 1,
+          "intradayResistance": 1
+        },
+        "support": {
+          "side": "support",
+          "raw": {
+            "stage": "raw",
+            "total": 8,
+            "prices": [
+              156.104,
+              158.4,
+              167.96,
+              168.98,
+              168.98,
+              170.28,
+              176.932,
+              182.16
+            ],
+            "priceRange": {
+              "min": 156.104,
+              "max": 182.16
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 2
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 7
+            },
+            "bySourceTypeSet": {
+              "premarket_low": 1,
+              "swing_low": 7
+            },
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 8,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 182.16,
+              "farthestBelowReference": 156.104,
+              "deepestBelowReferencePct": 16.0731
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 5,
+            "prices": [
+              156.104,
+              158.4,
+              167.96,
+              176.932,
+              182.16
+            ],
+            "priceRange": {
+              "min": 156.104,
+              "max": 182.16
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 5
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 4
+            },
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 5,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 182.16,
+              "farthestBelowReference": 156.104,
+              "deepestBelowReferencePct": 16.0731
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 5,
+            "prices": [
+              156.104,
+              158.4,
+              167.96,
+              176.932,
+              182.16
+            ],
+            "priceRange": {
+              "min": 156.104,
+              "max": 182.16
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 5
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 4
+            },
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 5,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 182.16,
+              "farthestBelowReference": 156.104,
+              "deepestBelowReferencePct": 16.0731
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 5,
+            "prices": [
+              156.104,
+              158.4,
+              167.96,
+              176.932,
+              182.16
+            ],
+            "priceRange": {
+              "min": 156.104,
+              "max": 182.16
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "5m": 1,
+              "daily": 1,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_low": 1,
+              "swing_low": 5
+            },
+            "bySourceTypeSet": {
+              "premarket_low+swing_low": 1,
+              "swing_low": 4
+            },
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 5,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0,
+              "nearestBelowReference": 182.16,
+              "farthestBelowReference": 156.104,
+              "deepestBelowReferencePct": 16.0731
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "support",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 8,
+              "toCount": 5,
+              "delta": 3,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "support",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 5,
+              "toCount": 5,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 5,
+              "toCount": 5,
+              "delta": 0,
+              "narrowed": false,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "support",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 5,
+              "toCount": 0,
+              "delta": 5,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "support",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_support_extension_candidate_inventory"
+          ]
+        },
+        "resistance": {
+          "side": "resistance",
+          "raw": {
+            "stage": "raw",
+            "total": 8,
+            "prices": [
+              203.212,
+              204.02,
+              209.248,
+              209.248,
+              222.64,
+              234.32,
+              242.4,
+              247.94
+            ],
+            "priceRange": {
+              "min": 203.212,
+              "max": 247.94
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 3,
+              "daily": 2
+            },
+            "byTimeframeBias": {},
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 7
+            },
+            "bySourceTypeSet": {
+              "premarket_high": 1,
+              "swing_high": 7
+            },
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 8,
+              "nearestAboveReference": 203.212,
+              "farthestAboveReference": 247.94,
+              "highestAboveReferencePct": 33.3011
+            }
+          },
+          "clustered": {
+            "stage": "clustered",
+            "total": 6,
+            "prices": [
+              204.02,
+              209.248,
+              222.64,
+              234.32,
+              242.4,
+              247.94
+            ],
+            "priceRange": {
+              "min": 204.02,
+              "max": 247.94
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "5m": 1,
+              "daily": 2,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 6
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 5
+            },
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 6,
+              "nearestAboveReference": 204.02,
+              "farthestAboveReference": 247.94,
+              "highestAboveReferencePct": 33.3011
+            }
+          },
+          "scored": {
+            "stage": "scored",
+            "total": 6,
+            "prices": [
+              204.02,
+              209.248,
+              222.64,
+              234.32,
+              242.4,
+              247.94
+            ],
+            "priceRange": {
+              "min": 204.02,
+              "max": 247.94
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "5m": 1,
+              "daily": 2,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 6
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 5
+            },
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 6,
+              "nearestAboveReference": 204.02,
+              "farthestAboveReference": 247.94,
+              "highestAboveReferencePct": 33.3011
+            }
+          },
+          "surfaced": {
+            "stage": "surfaced",
+            "total": 6,
+            "prices": [
+              204.02,
+              209.248,
+              222.64,
+              234.32,
+              242.4,
+              247.94
+            ],
+            "priceRange": {
+              "min": 204.02,
+              "max": 247.94
+            },
+            "byTimeframe": {
+              "4h": 3,
+              "5m": 2,
+              "daily": 2
+            },
+            "byTimeframeBias": {
+              "4h": 2,
+              "5m": 1,
+              "daily": 2,
+              "mixed": 1
+            },
+            "bySourceType": {
+              "premarket_high": 1,
+              "swing_high": 6
+            },
+            "bySourceTypeSet": {
+              "premarket_high+swing_high": 1,
+              "swing_high": 5
+            },
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 6,
+              "nearestAboveReference": 204.02,
+              "farthestAboveReference": 247.94,
+              "highestAboveReferencePct": 33.3011
+            }
+          },
+          "extensionCandidates": {
+            "stage": "extension_candidate",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "selectedExtensions": {
+            "stage": "extension_selected",
+            "total": 0,
+            "prices": [],
+            "byTimeframe": {},
+            "byTimeframeBias": {},
+            "bySourceType": {},
+            "bySourceTypeSet": {},
+            "depth": {
+              "referencePrice": 186,
+              "belowReferenceCount": 0,
+              "atReferenceCount": 0,
+              "aboveReferenceCount": 0
+            }
+          },
+          "narrowing": [
+            {
+              "side": "resistance",
+              "from": "raw",
+              "to": "clustered",
+              "fromCount": 8,
+              "toCount": 6,
+              "delta": 2,
+              "narrowed": true,
+              "note": "raw_candidates_to_clustered_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "clustered",
+              "to": "scored",
+              "fromCount": 6,
+              "toCount": 6,
+              "delta": 0,
+              "narrowed": false,
+              "note": "clustered_zones_to_scored_zones"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "surfaced",
+              "fromCount": 6,
+              "toCount": 6,
+              "delta": 0,
+              "narrowed": false,
+              "note": "scored_zones_to_public_surfaced_buckets"
+            },
+            {
+              "side": "resistance",
+              "from": "scored",
+              "to": "extension_candidate",
+              "fromCount": 6,
+              "toCount": 0,
+              "delta": 6,
+              "narrowed": true,
+              "note": "scored_zones_to_extension_boundary_candidates"
+            },
+            {
+              "side": "resistance",
+              "from": "extension_candidate",
+              "to": "extension_selected",
+              "fromCount": 0,
+              "toCount": 0,
+              "delta": 0,
+              "narrowed": false,
+              "note": "extension_boundary_candidates_to_selected_extensions"
+            }
+          ],
+          "warnings": [
+            "no_resistance_extension_candidate_inventory"
+          ]
+        },
+        "narrowing": [
+          {
+            "side": "support",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 8,
+            "toCount": 5,
+            "delta": 3,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "support",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 5,
+            "toCount": 5,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 5,
+            "toCount": 5,
+            "delta": 0,
+            "narrowed": false,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "support",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 5,
+            "toCount": 0,
+            "delta": 5,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "support",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          },
+          {
+            "side": "resistance",
+            "from": "raw",
+            "to": "clustered",
+            "fromCount": 8,
+            "toCount": 6,
+            "delta": 2,
+            "narrowed": true,
+            "note": "raw_candidates_to_clustered_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "clustered",
+            "to": "scored",
+            "fromCount": 6,
+            "toCount": 6,
+            "delta": 0,
+            "narrowed": false,
+            "note": "clustered_zones_to_scored_zones"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "surfaced",
+            "fromCount": 6,
+            "toCount": 6,
+            "delta": 0,
+            "narrowed": false,
+            "note": "scored_zones_to_public_surfaced_buckets"
+          },
+          {
+            "side": "resistance",
+            "from": "scored",
+            "to": "extension_candidate",
+            "fromCount": 6,
+            "toCount": 0,
+            "delta": 6,
+            "narrowed": true,
+            "note": "scored_zones_to_extension_boundary_candidates"
+          },
+          {
+            "side": "resistance",
+            "from": "extension_candidate",
+            "to": "extension_selected",
+            "fromCount": 0,
+            "toCount": 0,
+            "delta": 0,
+            "narrowed": false,
+            "note": "extension_boundary_candidates_to_selected_extensions"
+          }
+        ],
+        "diagnostics": [
+          "candidate_pool_diagnostics_only",
+          "accepts_prebuilt_pipeline_inputs",
+          "normal_level_engine_output_not_modified"
+        ],
+        "safety": {
+          "diagnosticOnly": true,
+          "levelOutputUnchanged": true,
+          "extensionGenerationUnchanged": true,
+          "noRuntimeBehaviorChange": true
+        }
+      }
+    }
+  ],
+  "summary": {
+    "sampleCount": 5,
+    "rawCandidateCount": 86,
+    "clusteredZoneCount": 53,
+    "scoredZoneCount": 53,
+    "surfacedLevelCount": 48,
+    "extensionCandidateCount": 0,
+    "selectedExtensionCount": 0,
+    "samplesWithNoSupportExtensionCandidates": [
+      "LPRN",
+      "CHOP",
+      "THIN",
+      "CLNT",
+      "HIPO"
+    ],
+    "samplesWithNoResistanceExtensionCandidates": [
+      "LPRN",
+      "CHOP",
+      "THIN",
+      "CLNT",
+      "HIPO"
+    ],
+    "samplesWithRawToClusteredNarrowing": [
+      "LPRN",
+      "CHOP",
+      "THIN",
+      "CLNT",
+      "HIPO"
+    ],
+    "samplesWithScoredToExtensionNarrowing": [
+      "LPRN",
+      "CHOP",
+      "THIN",
+      "CLNT",
+      "HIPO"
+    ]
+  },
+  "safety": {
+    "supportResistanceDetectionUnchanged": true,
+    "levelEngineDefaultOutputUnchanged": true,
+    "extensionGenerationUnchanged": true,
+    "scoringSelectionUnchanged": true,
+    "runtimeBehaviorUnchanged": true,
+    "reviewOnly": true
+  }
+}
