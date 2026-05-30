@@ -239,9 +239,17 @@ test("loads candle fixtures from arrays or objects with ISO timestamps", () => w
 test("runner loads candle fixtures and builds a JSON snapshot", () => withTempDir((dir) => {
   const result = runLevelAnalysisSnapshotRunner(runnerOptions(dir));
 
+  assert.equal(result.snapshot.schemaVersion, "level-analysis-snapshot/v1");
+  assert.equal(result.snapshot.producer, "levels-system");
   assert.equal(result.snapshot.symbol, "SNAP");
   assert.equal(result.snapshot.asOfTimestamp, AS_OF);
   assert.equal(result.snapshot.referencePrice, 10.68);
+  assert.equal(result.snapshot.inputSummary.candleCounts["5m"], 15);
+  assert.equal(result.snapshot.inputSummary.candleCounts["4h"], 7);
+  assert.equal(result.snapshot.inputSummary.candleCounts.daily, 6);
+  assert.equal(result.snapshot.inputSummary.previousCloseProvided, true);
+  assert.equal(result.snapshot.nearestSupport?.representativePrice, 9.98);
+  assert.equal(result.snapshot.nearestResistance, null);
   assert.equal(result.snapshot.levelEngineOutput.symbol, "SNAP");
   assert.equal(result.snapshot.sessionFacts?.symbol, "SNAP");
   assert.equal(result.snapshot.volumeFacts?.symbol, "SNAP");

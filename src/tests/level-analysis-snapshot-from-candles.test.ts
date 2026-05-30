@@ -108,6 +108,8 @@ function assertNoForbiddenLanguage(value: unknown): void {
 test("builds snapshot from deterministic closed 5m candles", () => {
   const snapshot = buildSnapshot();
 
+  assert.equal(snapshot.schemaVersion, "level-analysis-snapshot/v1");
+  assert.equal(snapshot.producer, "levels-system");
   assert.equal(snapshot.symbol, "SNAP");
   assert.equal(snapshot.asOfTimestamp, AS_OF);
   assert.equal(snapshot.referencePrice, 10.68);
@@ -117,6 +119,37 @@ test("builds snapshot from deterministic closed 5m candles", () => {
   assert.equal(snapshot.volumeFacts?.symbol, "SNAP");
   assert.ok(Array.isArray(snapshot.volumeShelves));
   assert.equal(snapshot.factsBundle?.symbol, "SNAP");
+});
+
+test("includes input summary with candle counts by timeframe", () => {
+  const snapshot = buildSnapshot();
+
+  assert.deepEqual(snapshot.inputSummary.timeframesPresent, ["5m", "4h", "daily"]);
+  assert.deepEqual(snapshot.inputSummary.candleCounts, {
+    "5m": 15,
+    "15m": 0,
+    "4h": 7,
+    daily: 6,
+  });
+  assert.deepEqual(snapshot.inputSummary.filteredCandleCounts, {
+    "5m": 15,
+    "15m": 0,
+    "4h": 7,
+    daily: 6,
+  });
+  assert.equal(snapshot.inputSummary.timeframes["5m"].provided, true);
+  assert.equal(snapshot.inputSummary.timeframes["4h"].provided, true);
+  assert.equal(snapshot.inputSummary.timeframes.daily.provided, true);
+  assert.equal(snapshot.inputSummary.previousCloseProvided, true);
+});
+
+test("derives nearest support and null resistance from generated LevelEngineOutput", () => {
+  const snapshot = buildSnapshot();
+
+  assert.equal(snapshot.nearestSupport?.levelId, "SNAP-support-zone-3");
+  assert.equal(snapshot.nearestSupport?.representativePrice, 9.98);
+  assert.equal(snapshot.nearestSupport?.bucket, "intradaySupport");
+  assert.equal(snapshot.nearestResistance, null);
 });
 
 test("applies as-of filtering and excludes future and partial candles", () => {
@@ -145,6 +178,10 @@ test("applies as-of filtering and excludes future and partial candles", () => {
   assert.equal(withFutureCandles.sessionFacts?.currentPrice, 10.38);
   assert.equal(withFutureCandles.levelEngineOutput.metadata.referencePrice, 10.38);
   assert.ok(withFutureCandles.diagnostics.includes("candle_close_as_of_filter_applied"));
+  assert.equal(withFutureCandles.inputSummary.candleCounts["5m"], 14);
+  assert.equal(withFutureCandles.inputSummary.filteredCandleCounts["5m"], 14);
+  assert.equal(withFutureCandles.inputSummary.excludedFutureCandleCounts["5m"], 0);
+  assert.equal(withFutureCandles.inputSummary.excludedPartialCandleCounts["5m"], 0);
 });
 
 test("includes LevelEngineOutput LevelIntelligenceReport and LevelQualityAuditReport", () => {
@@ -201,6 +238,13 @@ test("reports diagnostics instead of guessing when higher timeframe candles are 
 
   assert.ok(snapshot.diagnostics.includes("daily_candles_missing"));
   assert.ok(snapshot.diagnostics.includes("4h_candles_missing"));
+  assert.deepEqual(snapshot.inputSummary.timeframesPresent, ["5m"]);
+  assert.equal(snapshot.inputSummary.timeframes.daily.provided, false);
+  assert.equal(snapshot.inputSummary.timeframes.daily.candleCount, 0);
+  assert.equal(snapshot.inputSummary.timeframes.daily.filteredCandleCount, 0);
+  assert.equal(snapshot.inputSummary.timeframes["4h"].provided, false);
+  assert.equal(snapshot.inputSummary.timeframes["4h"].candleCount, 0);
+  assert.equal(snapshot.inputSummary.timeframes["4h"].filteredCandleCount, 0);
   assert.equal(snapshot.levelEngineOutput.generatedAt, AS_OF);
   assert.equal(snapshot.levelEngineOutput.metadata.referencePrice, 10.68);
 });
