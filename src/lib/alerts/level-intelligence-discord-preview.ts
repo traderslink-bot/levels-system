@@ -200,6 +200,75 @@ function compactSafetyLine(report: FormattedLevelIntelligenceReport): string {
   ].join("; ");
 }
 
+function isLevelStartLine(line: string): boolean {
+  return /^(support|resistance) zone /i.test(line);
+}
+
+function splitLevelGroups(lines: string[]): string[][] {
+  const groups: string[][] = [];
+  let current: string[] = [];
+
+  for (const line of lines) {
+    if (isLevelStartLine(line)) {
+      if (current.length > 0) {
+        groups.push(current);
+      }
+      current = [line];
+      continue;
+    }
+
+    if (current.length > 0) {
+      current.push(line);
+    }
+  }
+
+  if (current.length > 0) {
+    groups.push(current);
+  }
+
+  return groups;
+}
+
+function compactLevelGroup(group: string[]): string[] {
+  const lines: string[] = [];
+  const firstLine = group.find(isAllowedLine);
+  const extensionSource = firstLineStarting(group, "Extension source:");
+  const extensionGeneration = firstLineStarting(group, "Extension generation:");
+  const extensionEvidence = firstLineStarting(group, "Extension evidence limits:");
+  const distance = firstLineStarting(group, "Distance:");
+  const reaction = firstLineStarting(group, "Reaction:");
+  const sessionFacts = firstLineStarting(group, "Session facts:");
+  const shelfFacts = firstLineStarting(group, "Shelf facts:");
+  const isSyntheticContinuationMap = extensionSource?.includes("Synthetic continuation map") ?? false;
+
+  if (firstLine) {
+    lines.push(firstLine);
+  }
+  if (extensionSource) {
+    lines.push(extensionSource);
+  }
+  if (extensionGeneration && isSyntheticContinuationMap) {
+    lines.push(extensionGeneration);
+  }
+  if (extensionEvidence && isSyntheticContinuationMap) {
+    lines.push(compactDelimitedLine(extensionEvidence, 3));
+  }
+  if (distance) {
+    lines.push(distance);
+  }
+  if (reaction && !isSyntheticContinuationMap) {
+    lines.push(reaction);
+  }
+  if (sessionFacts) {
+    lines.push(compactDelimitedLine(sessionFacts, 2));
+  }
+  if (shelfFacts) {
+    lines.push(compactDelimitedLine(shelfFacts, 1));
+  }
+
+  return lines;
+}
+
 function compactSummarySection(
   report: FormattedLevelIntelligenceReport,
   sections: FormattedLevelIntelligenceReportSection[],
@@ -231,26 +300,24 @@ function compactSummarySection(
 
 function compactLevelSection(section: FormattedLevelIntelligenceReportSection): FormattedLevelIntelligenceReportSection {
   const lines: string[] = [];
-  const firstLine = section.lines.find(isAllowedLine);
-  const distance = firstLineStarting(section.lines, "Distance:");
-  const reaction = firstLineStarting(section.lines, "Reaction:");
-  const sessionFacts = firstLineStarting(section.lines, "Session facts:");
-  const shelfFacts = firstLineStarting(section.lines, "Shelf facts:");
+  const groups = splitLevelGroups(section.lines);
 
-  if (firstLine) {
-    lines.push(firstLine);
+  if (groups.length === 0) {
+    return {
+      title: section.title,
+      lines,
+    };
   }
-  if (distance) {
-    lines.push(distance);
+
+  const maxGroups = section.title.startsWith("Extension") ? 3 : 1;
+  const selectedGroups = groups.slice(0, maxGroups);
+
+  for (const group of selectedGroups) {
+    lines.push(...compactLevelGroup(group));
   }
-  if (reaction) {
-    lines.push(reaction);
-  }
-  if (sessionFacts) {
-    lines.push(compactDelimitedLine(sessionFacts, 2));
-  }
-  if (shelfFacts) {
-    lines.push(compactDelimitedLine(shelfFacts, 1));
+
+  if (selectedGroups.length < groups.length) {
+    lines.push(`Additional levels: +${groups.length - selectedGroups.length} more`);
   }
 
   return {

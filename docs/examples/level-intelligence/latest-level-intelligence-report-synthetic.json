@@ -612,6 +612,13 @@
         "primaryTimeframe": "daily",
         "isExtension": true
       },
+      "extension": {
+        "source": "historical_candidate",
+        "label": "Historical candidate extension",
+        "evidenceLimitations": [],
+        "notes": [],
+        "isSyntheticContinuationMap": false
+      },
       "freshness": {
         "firstTimestamp": 1776157200000,
         "lastTimestamp": 1776762000000,
@@ -695,6 +702,25 @@
         "primaryTimeframe": "mixed",
         "isExtension": true
       },
+      "extension": {
+        "source": "synthetic_continuation_map",
+        "label": "Synthetic continuation map",
+        "generationMethod": "round_number_ladder",
+        "evidenceLimitations": [
+          "real_extension_coverage_below_threshold",
+          "not_historical_support_resistance",
+          "no_touch_or_rejection_history",
+          "no_historical_confluence"
+        ],
+        "referencePrice": 3.42,
+        "coveragePct": 0.3,
+        "maxCoveragePct": 0.5,
+        "syntheticIndex": 1,
+        "notes": [
+          "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+        ],
+        "isSyntheticContinuationMap": true
+      },
       "freshness": {
         "firstTimestamp": 0,
         "lastTimestamp": 0,
@@ -744,7 +770,9 @@
           "breakout_volume_confirmed",
           "market_context_day_trade_runner",
           "runner_phase_high_of_day_breakout",
-          "extension_level"
+          "extension_level",
+          "synthetic_continuation_map",
+          "forward_planning_extension"
         ]
       },
       "marketContext": {
@@ -756,7 +784,7 @@
         "enriched_analysis_missing",
         "no_nearby_volume_shelf"
       ],
-      "reason": "support zone 2.35 is sourced from unknown timeframe evidence; freshness is fresh; 31.2865% from reference price; volume state is high.",
+      "reason": "support extension 2.35 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: real extension coverage below threshold, not historical support/resistance, no touch or rejection history, no historical confluence; 31.2865% from reference price.",
       "safety": {
         "factsOnly": true,
         "noRuntimeBehaviorChange": true,
@@ -782,6 +810,13 @@
         ],
         "primaryTimeframe": "daily",
         "isExtension": true
+      },
+      "extension": {
+        "source": "historical_candidate",
+        "label": "Historical candidate extension",
+        "evidenceLimitations": [],
+        "notes": [],
+        "isSyntheticContinuationMap": false
       },
       "freshness": {
         "firstTimestamp": 1776157200000,
@@ -871,6 +906,25 @@
         "primaryTimeframe": "mixed",
         "isExtension": true
       },
+      "extension": {
+        "source": "synthetic_continuation_map",
+        "label": "Synthetic continuation map",
+        "generationMethod": "round_number_ladder",
+        "evidenceLimitations": [
+          "real_extension_coverage_below_threshold",
+          "not_historical_support_resistance",
+          "no_touch_or_rejection_history",
+          "no_historical_confluence"
+        ],
+        "referencePrice": 3.42,
+        "coveragePct": 0.3,
+        "maxCoveragePct": 0.5,
+        "syntheticIndex": 1,
+        "notes": [
+          "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+        ],
+        "isSyntheticContinuationMap": true
+      },
       "freshness": {
         "firstTimestamp": 0,
         "lastTimestamp": 0,
@@ -920,7 +974,9 @@
           "breakout_volume_confirmed",
           "market_context_day_trade_runner",
           "runner_phase_high_of_day_breakout",
-          "extension_level"
+          "extension_level",
+          "synthetic_continuation_map",
+          "forward_planning_extension"
         ]
       },
       "marketContext": {
@@ -932,7 +988,7 @@
         "enriched_analysis_missing",
         "no_nearby_volume_shelf"
       ],
-      "reason": "resistance zone 4.45 is sourced from unknown timeframe evidence; freshness is fresh; 30.117% from reference price; volume state is high.",
+      "reason": "resistance extension 4.45 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: real extension coverage below threshold, not historical support/resistance, no touch or rejection history, no historical confluence; 30.117% from reference price.",
       "safety": {
         "factsOnly": true,
         "noRuntimeBehaviorChange": true,
@@ -1564,6 +1620,13 @@
           "primaryTimeframe": "daily",
           "isExtension": true
         },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [],
+          "isSyntheticContinuationMap": false
+        },
         "freshness": {
           "firstTimestamp": 1776157200000,
           "lastTimestamp": 1776762000000,
@@ -1647,6 +1710,25 @@
           "primaryTimeframe": "mixed",
           "isExtension": true
         },
+        "extension": {
+          "source": "synthetic_continuation_map",
+          "label": "Synthetic continuation map",
+          "generationMethod": "round_number_ladder",
+          "evidenceLimitations": [
+            "real_extension_coverage_below_threshold",
+            "not_historical_support_resistance",
+            "no_touch_or_rejection_history",
+            "no_historical_confluence"
+          ],
+          "referencePrice": 3.42,
+          "coveragePct": 0.3,
+          "maxCoveragePct": 0.5,
+          "syntheticIndex": 1,
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "isSyntheticContinuationMap": true
+        },
         "freshness": {
           "firstTimestamp": 0,
           "lastTimestamp": 0,
@@ -1696,7 +1778,9 @@
             "breakout_volume_confirmed",
             "market_context_day_trade_runner",
             "runner_phase_high_of_day_breakout",
-            "extension_level"
+            "extension_level",
+            "synthetic_continuation_map",
+            "forward_planning_extension"
           ]
         },
         "marketContext": {
@@ -1708,7 +1792,7 @@
           "enriched_analysis_missing",
           "no_nearby_volume_shelf"
         ],
-        "reason": "support zone 2.35 is sourced from unknown timeframe evidence; freshness is fresh; 31.2865% from reference price; volume state is high.",
+        "reason": "support extension 2.35 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: real extension coverage below threshold, not historical support/resistance, no touch or rejection history, no historical confluence; 31.2865% from reference price.",
         "safety": {
           "factsOnly": true,
           "noRuntimeBehaviorChange": true,
@@ -1736,6 +1820,13 @@
           ],
           "primaryTimeframe": "daily",
           "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [],
+          "isSyntheticContinuationMap": false
         },
         "freshness": {
           "firstTimestamp": 1776157200000,
@@ -1825,6 +1916,25 @@
           "primaryTimeframe": "mixed",
           "isExtension": true
         },
+        "extension": {
+          "source": "synthetic_continuation_map",
+          "label": "Synthetic continuation map",
+          "generationMethod": "round_number_ladder",
+          "evidenceLimitations": [
+            "real_extension_coverage_below_threshold",
+            "not_historical_support_resistance",
+            "no_touch_or_rejection_history",
+            "no_historical_confluence"
+          ],
+          "referencePrice": 3.42,
+          "coveragePct": 0.3,
+          "maxCoveragePct": 0.5,
+          "syntheticIndex": 1,
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "isSyntheticContinuationMap": true
+        },
         "freshness": {
           "firstTimestamp": 0,
           "lastTimestamp": 0,
@@ -1874,7 +1984,9 @@
             "breakout_volume_confirmed",
             "market_context_day_trade_runner",
             "runner_phase_high_of_day_breakout",
-            "extension_level"
+            "extension_level",
+            "synthetic_continuation_map",
+            "forward_planning_extension"
           ]
         },
         "marketContext": {
@@ -1886,7 +1998,7 @@
           "enriched_analysis_missing",
           "no_nearby_volume_shelf"
         ],
-        "reason": "resistance zone 4.45 is sourced from unknown timeframe evidence; freshness is fresh; 30.117% from reference price; volume state is high.",
+        "reason": "resistance extension 4.45 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: real extension coverage below threshold, not historical support/resistance, no touch or rejection history, no historical confluence; 30.117% from reference price.",
         "safety": {
           "factsOnly": true,
           "noRuntimeBehaviorChange": true,

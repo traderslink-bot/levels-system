@@ -1,5 +1,5 @@
 SAMP level intelligence Discord preview (dry-run)
-Messages: 2
+Messages: 3
 Truncated: no
 
 --- preview message 1 ---
@@ -55,15 +55,28 @@ SAMP facts-only level intelligence: 10 profiled level(s).
 - Distance: 2.3392% from reference 3.42 (approaching)
 - Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5
 
+--- preview message 3 ---
 **Extension Support**
 - support zone 2.95 (SAMP-extension-support-295)
+- Extension source: Historical candidate extension.
 - Distance: 13.7427% from reference 3.42 (extended)
 - Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55
+- support zone 2.35 (SAMP-synthetic-support-extension-1-2p3500)
+- Extension source: Synthetic continuation map; forward-planning extension; not historical support/resistance; limited evidence/no historical touches.
+- Extension generation: round number ladder
+- Extension evidence limits: real extension coverage below threshold; not historical support/resistance; no touch or rejection history; no historical confluence
+- Distance: 31.2865% from reference 3.42 (far)
 
 **Extension Resistance**
 - resistance zone 4.1 (SAMP-extension-resistance-410)
+- Extension source: Historical candidate extension.
 - Distance: 19.883% from reference 3.42 (extended)
 - Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58
+- resistance zone 4.45 (SAMP-synthetic-resistance-extension-1-4p4500)
+- Extension source: Synthetic continuation map; forward-planning extension; not historical support/resistance; limited evidence/no historical touches.
+- Extension generation: round number ladder
+- Extension evidence limits: real extension coverage below threshold; not historical support/resistance; no touch or rejection history; no historical confluence
+- Distance: 30.117% from reference 3.42 (far)
 
 **Diagnostics**
 - enriched_analysis_missing | no_nearby_volume_shelf

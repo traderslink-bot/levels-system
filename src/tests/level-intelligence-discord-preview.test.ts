@@ -180,6 +180,61 @@ function report(): LevelIntelligenceReport {
   };
 }
 
+function syntheticExtensionProfile(): LevelIntelligenceProfile {
+  return intelligenceProfile("synthetic-extension-resistance", "resistance", 13, {
+    origin: {
+      sourceTypes: [],
+      timeframeSources: [],
+      primaryTimeframe: "mixed",
+      isExtension: true,
+    },
+    extension: {
+      source: "synthetic_continuation_map",
+      label: "Synthetic continuation map",
+      generationMethod: "round_number_ladder",
+      evidenceLimitations: [
+        "no_real_extension_candidate_available",
+        "not_historical_support_resistance",
+        "no_touch_or_rejection_history",
+        "no_historical_confluence",
+      ],
+      referencePrice: 10,
+      coveragePct: 0.3,
+      maxCoveragePct: 0.5,
+      syntheticIndex: 1,
+      notes: ["Synthetic continuation-map extension for forward planning only; not historical support/resistance."],
+      isSyntheticContinuationMap: true,
+    },
+    confluence: {
+      nearSessionFacts: [],
+      nearVolumeFacts: [],
+      nearShelfFacts: [],
+      contextTags: ["extension_level", "synthetic_continuation_map", "forward_planning_extension"],
+    },
+    reaction: {
+      touchCount: 0,
+      reactionQualityScore: 0,
+      rejectionScore: 0,
+      displacementScore: 0,
+      followThroughScore: 0,
+    },
+    reason:
+      "resistance extension 13 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available.",
+  });
+}
+
+function reportWithSyntheticExtension(): LevelIntelligenceReport {
+  const input = report();
+  const synthetic = syntheticExtensionProfile();
+
+  input.profiles.push(synthetic);
+  input.buckets.extensionResistance.push(synthetic);
+  input.counts.extensionResistance += 1;
+  input.counts.total += 1;
+
+  return input;
+}
+
 function allText(preview: LevelIntelligenceDiscordPreview): string {
   return [
     preview.summary,
@@ -289,6 +344,20 @@ test("compact output keeps important buckets and facts without excessive repetit
   assert.ok(volumeContextMatches.length < report().counts.total);
 });
 
+test("compact Discord preview labels synthetic continuation-map extensions", () => {
+  const preview = formatLevelIntelligenceDiscordPreview(reportWithSyntheticExtension());
+  const resistanceText = section(preview, "Extension Resistance").text;
+  const supportText = section(preview, "Extension Support").text;
+
+  assert.ok(resistanceText.includes("synthetic-extension-resistance"));
+  assert.ok(resistanceText.includes("Synthetic continuation map"));
+  assert.ok(resistanceText.includes("forward-planning extension"));
+  assert.ok(resistanceText.includes("not historical support/resistance"));
+  assert.ok(resistanceText.includes("Extension evidence limits: no real extension candidate available"));
+  assert.equal(supportText.includes("Synthetic continuation map"), false);
+  assertNoForbiddenLanguage(preview);
+});
+
 test("full detail mode remains available", () => {
   const preview = formatLevelIntelligenceDiscordPreview(report(), { detailMode: "full" });
   const text = allText(preview);
@@ -296,6 +365,20 @@ test("full detail mode remains available", () => {
   assert.ok(text.includes("Volume facts nearby: Volume state is extreme."));
   assert.ok(text.includes("Context tags: tag_major-support"));
   assert.ok(text.includes("Reason: Facts-only profile for support zone 9.5."));
+});
+
+test("full detail Discord preview shows synthetic extension metadata", () => {
+  const preview = formatLevelIntelligenceDiscordPreview(reportWithSyntheticExtension(), {
+    detailMode: "full",
+    maxLinesPerSection: 60,
+  });
+  const text = allText(preview);
+
+  assert.ok(text.includes("Extension source: Synthetic continuation map"));
+  assert.ok(text.includes("Extension generation: round number ladder"));
+  assert.ok(text.includes("Extension evidence limits: no real extension candidate available"));
+  assert.ok(text.includes("Reason: resistance extension 13 is a synthetic continuation-map forward-planning level"));
+  assertNoForbiddenLanguage(preview);
 });
 
 test("truncates long lines and splits messages under the configured length", () => {

@@ -389,6 +389,18 @@ export function explainLevelContext(request: ExplainLevelContextRequest): LevelC
     addUnique(facts, "Level is an extension level from the supplied runtime ladder.");
     addUnique(contextTags, "extension_level");
   }
+  if (level.extensionMetadata?.extensionSource === "synthetic_continuation_map") {
+    addUnique(
+      facts,
+      "Synthetic continuation-map extension for forward planning; not historical support/resistance.",
+    );
+    addUnique(
+      warnings,
+      "Synthetic continuation-map level has limited evidence and no historical touch/rejection history.",
+    );
+    addUnique(contextTags, "synthetic_continuation_map");
+    addUnique(contextTags, "forward_planning_extension");
+  }
 
   return {
     levelId: level.id,
