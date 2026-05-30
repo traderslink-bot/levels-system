@@ -1,5 +1,5 @@
 {
-  "levelOutputPath": "C:\\Users\\jerac\\AppData\\Local\\Temp\\level-intelligence-synthetic-output.json",
+  "levelOutputPath": "docs/examples/level-intelligence/sample-level-engine-output-synthetic.json",
   "outPath": "docs/examples/level-intelligence/latest-discord-preview-synthetic.json",
   "format": "json",
   "mode": "dry-run",
