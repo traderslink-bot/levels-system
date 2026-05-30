@@ -1,0 +1,159 @@
+{
+  "levelOutputPath": "C:\\Users\\jerac\\AppData\\Local\\Temp\\level-intelligence-synthetic-output.json",
+  "outPath": "docs/examples/level-intelligence/latest-discord-preview-synthetic.json",
+  "format": "json",
+  "mode": "dry-run",
+  "reportSymbol": "SAMP",
+  "preview": {
+    "symbol": "SAMP",
+    "summary": "SAMP facts-only level intelligence: 10 profiled level(s).",
+    "sections": [
+      {
+        "title": "Summary",
+        "lines": [
+          "Symbol: SAMP",
+          "Profiled levels: 10",
+          "Counts: major S/R 1/1; intermediate S/R 1/1; intraday S/R 1/1; extension S/R 2/2",
+          "Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78",
+          "Volume context: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building",
+          "Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf",
+          "Safety: facts-only true; VWAP facts-only true; shelves facts-only true; runtime unchanged true"
+        ],
+        "text": "**Summary**\n- Symbol: SAMP\n- Profiled levels: 10\n- Counts: major S/R 1/1; intermediate S/R 1/1; intraday S/R 1/1; extension S/R 2/2\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Volume context: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Safety: facts-only true; VWAP facts-only true; shelves facts-only true; runtime unchanged true",
+        "truncated": false
+      },
+      {
+        "title": "Major Support",
+        "lines": [
+          "support zone 3.2 (SAMP-major-support-320)",
+          "Distance: 6.4327% from reference 3.42 (approaching)",
+          "Reaction: touches 5; quality 0.82; rejection 0.32; displacement 0.74; follow-through 0.76",
+          "Session facts: Level is near low of day 3.2 (0% away). | Level is near premarket low 3.2 (0% away)."
+        ],
+        "text": "**Major Support**\n- support zone 3.2 (SAMP-major-support-320)\n- Distance: 6.4327% from reference 3.42 (approaching)\n- Reaction: touches 5; quality 0.82; rejection 0.32; displacement 0.74; follow-through 0.76\n- Session facts: Level is near low of day 3.2 (0% away). | Level is near premarket low 3.2 (0% away).",
+        "truncated": false
+      },
+      {
+        "title": "Major Resistance",
+        "lines": [
+          "resistance zone 3.75 (SAMP-major-resistance-375)",
+          "Distance: 9.6491% from reference 3.42 (extended)",
+          "Reaction: touches 4; quality 0.84; rejection 0.78; displacement 0.69; follow-through 0.68",
+          "Session facts: Level is near high of day 3.75 (0% away). | Level is near premarket high 3.75 (0% away).",
+          "Shelf facts: Level overlaps volume shelf SAMP-shelf-368-382 (3.68-3.82, 32.2% of window volume, role resistance)."
+        ],
+        "text": "**Major Resistance**\n- resistance zone 3.75 (SAMP-major-resistance-375)\n- Distance: 9.6491% from reference 3.42 (extended)\n- Reaction: touches 4; quality 0.84; rejection 0.78; displacement 0.69; follow-through 0.68\n- Session facts: Level is near high of day 3.75 (0% away). | Level is near premarket high 3.75 (0% away).\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-368-382 (3.68-3.82, 32.2% of window volume, role resistance).",
+        "truncated": false
+      },
+      {
+        "title": "Intermediate Support",
+        "lines": [
+          "support zone 3.35 (SAMP-intermediate-support-335)",
+          "Distance: 2.0468% from reference 3.42 (approaching)",
+          "Reaction: touches 3; quality 0.68; rejection 0.28; displacement 0.52; follow-through 0.58",
+          "Session facts: Level is near opening range low 3.35 (0% away).",
+          "Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone)."
+        ],
+        "text": "**Intermediate Support**\n- support zone 3.35 (SAMP-intermediate-support-335)\n- Distance: 2.0468% from reference 3.42 (approaching)\n- Reaction: touches 3; quality 0.68; rejection 0.28; displacement 0.52; follow-through 0.58\n- Session facts: Level is near opening range low 3.35 (0% away).\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).",
+        "truncated": false
+      },
+      {
+        "title": "Intermediate Resistance",
+        "lines": [
+          "resistance zone 3.6 (SAMP-intermediate-resistance-360)",
+          "Distance: 5.2632% from reference 3.42 (approaching)",
+          "Reaction: touches 3; quality 0.72; rejection 0.66; displacement 0.54; follow-through 0.55",
+          "Session facts: Level is near opening range high 3.6 (0% away).",
+          "Shelf facts: Level overlaps volume shelf SAMP-shelf-356-365 (3.56-3.65, 21.8% of window volume, role resistance)."
+        ],
+        "text": "**Intermediate Resistance**\n- resistance zone 3.6 (SAMP-intermediate-resistance-360)\n- Distance: 5.2632% from reference 3.42 (approaching)\n- Reaction: touches 3; quality 0.72; rejection 0.66; displacement 0.54; follow-through 0.55\n- Session facts: Level is near opening range high 3.6 (0% away).\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-356-365 (3.56-3.65, 21.8% of window volume, role resistance).",
+        "truncated": false
+      },
+      {
+        "title": "Intraday Support",
+        "lines": [
+          "support zone 3.4 (SAMP-intraday-support-340)",
+          "Distance: 0.5848% from reference 3.42 (near)",
+          "Reaction: touches 2; quality 0.58; rejection 0.18; displacement 0.44; follow-through 0.48",
+          "Session facts: Level is near VWAP fact 3.4 (0% away). | Level is near current/reference price 3.42 (0.5848% away).",
+          "Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone)."
+        ],
+        "text": "**Intraday Support**\n- support zone 3.4 (SAMP-intraday-support-340)\n- Distance: 0.5848% from reference 3.42 (near)\n- Reaction: touches 2; quality 0.58; rejection 0.18; displacement 0.44; follow-through 0.48\n- Session facts: Level is near VWAP fact 3.4 (0% away). | Level is near current/reference price 3.42 (0.5848% away).\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).",
+        "truncated": false
+      },
+      {
+        "title": "Intraday Resistance",
+        "lines": [
+          "resistance zone 3.5 (SAMP-intraday-resistance-350)",
+          "Distance: 2.3392% from reference 3.42 (approaching)",
+          "Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5"
+        ],
+        "text": "**Intraday Resistance**\n- resistance zone 3.5 (SAMP-intraday-resistance-350)\n- Distance: 2.3392% from reference 3.42 (approaching)\n- Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5",
+        "truncated": false
+      },
+      {
+        "title": "Extension Support",
+        "lines": [
+          "support zone 2.95 (SAMP-extension-support-295)",
+          "Distance: 13.7427% from reference 3.42 (extended)",
+          "Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55"
+        ],
+        "text": "**Extension Support**\n- support zone 2.95 (SAMP-extension-support-295)\n- Distance: 13.7427% from reference 3.42 (extended)\n- Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55",
+        "truncated": false
+      },
+      {
+        "title": "Extension Resistance",
+        "lines": [
+          "resistance zone 4.1 (SAMP-extension-resistance-410)",
+          "Distance: 19.883% from reference 3.42 (extended)",
+          "Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58"
+        ],
+        "text": "**Extension Resistance**\n- resistance zone 4.1 (SAMP-extension-resistance-410)\n- Distance: 19.883% from reference 3.42 (extended)\n- Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58",
+        "truncated": false
+      },
+      {
+        "title": "Diagnostics",
+        "lines": [
+          "enriched_analysis_missing | no_nearby_volume_shelf"
+        ],
+        "text": "**Diagnostics**\n- enriched_analysis_missing | no_nearby_volume_shelf",
+        "truncated": false
+      },
+      {
+        "title": "Safety",
+        "lines": [
+          "facts-only true; VWAP facts-only true; shelves facts-only true; runtime unchanged true",
+          "Preview/test path only; no Discord posting or runtime behavior change."
+        ],
+        "text": "**Safety**\n- facts-only true; VWAP facts-only true; shelves facts-only true; runtime unchanged true\n- Preview/test path only; no Discord posting or runtime behavior change.",
+        "truncated": false
+      }
+    ],
+    "messages": [
+      {
+        "index": 1,
+        "text": "**SAMP Level Intelligence Preview**\nSAMP facts-only level intelligence: 10 profiled level(s).\n\n**Summary**\n- Symbol: SAMP\n- Profiled levels: 10\n- Counts: major S/R 1/1; intermediate S/R 1/1; intraday S/R 1/1; extension S/R 2/2\n- Market context facts: day_trade_runner; runner phase high_of_day_breakout; confidence 0.78\n- Volume context: state high; relative 3.2051; dollar 4275000; liquidity good; acceleration building\n- Diagnostics: enriched_analysis_missing | no_nearby_volume_shelf\n- Safety: facts-only true; VWAP facts-only true; shelves facts-only true; runtime unchanged true\n\n**Major Support**\n- support zone 3.2 (SAMP-major-support-320)\n- Distance: 6.4327% from reference 3.42 (approaching)\n- Reaction: touches 5; quality 0.82; rejection 0.32; displacement 0.74; follow-through 0.76\n- Session facts: Level is near low of day 3.2 (0% away). | Level is near premarket low 3.2 (0% away).\n\n**Major Resistance**\n- resistance zone 3.75 (SAMP-major-resistance-375)\n- Distance: 9.6491% from reference 3.42 (extended)\n- Reaction: touches 4; quality 0.84; rejection 0.78; displacement 0.69; follow-through 0.68\n- Session facts: Level is near high of day 3.75 (0% away). | Level is near premarket high 3.75 (0% away).\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-368-382 (3.68-3.82, 32.2% of window volume, role resistance).\n\n**Intermediate Support**\n- support zone 3.35 (SAMP-intermediate-support-335)\n- Distance: 2.0468% from reference 3.42 (approaching)\n- Reaction: touches 3; quality 0.68; rejection 0.28; displacement 0.52; follow-through 0.58\n- Session facts: Level is near opening range low 3.35 (0% away).\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).",
+        "truncated": false
+      },
+      {
+        "index": 2,
+        "text": "**Intermediate Resistance**\n- resistance zone 3.6 (SAMP-intermediate-resistance-360)\n- Distance: 5.2632% from reference 3.42 (approaching)\n- Reaction: touches 3; quality 0.72; rejection 0.66; displacement 0.54; follow-through 0.55\n- Session facts: Level is near opening range high 3.6 (0% away).\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-356-365 (3.56-3.65, 21.8% of window volume, role resistance).\n\n**Intraday Support**\n- support zone 3.4 (SAMP-intraday-support-340)\n- Distance: 0.5848% from reference 3.42 (near)\n- Reaction: touches 2; quality 0.58; rejection 0.18; displacement 0.44; follow-through 0.48\n- Session facts: Level is near VWAP fact 3.4 (0% away). | Level is near current/reference price 3.42 (0.5848% away).\n- Shelf facts: Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone).\n\n**Intraday Resistance**\n- resistance zone 3.5 (SAMP-intraday-resistance-350)\n- Distance: 2.3392% from reference 3.42 (approaching)\n- Reaction: touches 2; quality 0.62; rejection 0.56; displacement 0.46; follow-through 0.5\n\n**Extension Support**\n- support zone 2.95 (SAMP-extension-support-295)\n- Distance: 13.7427% from reference 3.42 (extended)\n- Reaction: touches 2; quality 0.64; rejection 0.2; displacement 0.62; follow-through 0.55\n\n**Extension Resistance**\n- resistance zone 4.1 (SAMP-extension-resistance-410)\n- Distance: 19.883% from reference 3.42 (extended)\n- Reaction: touches 2; quality 0.7; rejection 0.64; displacement 0.6; follow-through 0.58\n\n**Diagnostics**\n- enriched_analysis_missing | no_nearby_volume_shelf\n\n**Safety**\n- facts-only true; VWAP facts-only true; shelves facts-only true; runtime unchanged true\n- Preview/test path only; no Discord posting or runtime behavior change.",
+        "truncated": false
+      }
+    ],
+    "diagnostics": [
+      "enriched_analysis_missing",
+      "no_nearby_volume_shelf"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "factsOnly": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "noRuntimeBehaviorChange": true
+    },
+    "maxMessageLength": 1800,
+    "truncated": false
+  },
+  "sendResults": []
+}

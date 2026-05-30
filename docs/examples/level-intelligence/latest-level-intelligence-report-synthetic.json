@@ -1,0 +1,1921 @@
+{
+  "symbol": "SAMP",
+  "generatedAt": 1777386600000,
+  "referencePrice": 3.42,
+  "profiles": [
+    {
+      "levelId": "SAMP-major-support-320",
+      "symbol": "SAMP",
+      "kind": "support",
+      "representativePrice": 3.2,
+      "zoneLow": 3.15,
+      "zoneHigh": 3.24,
+      "zoneWidthPercent": 2.8125,
+      "origin": {
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "daily",
+          "4h"
+        ],
+        "primaryTimeframe": "daily",
+        "isExtension": false
+      },
+      "freshness": {
+        "firstTimestamp": 1776762000000,
+        "lastTimestamp": 1777294800000,
+        "label": "fresh"
+      },
+      "reaction": {
+        "touchCount": 5,
+        "reactionQualityScore": 0.82,
+        "rejectionScore": 0.32,
+        "displacementScore": 0.74,
+        "followThroughScore": 0.76
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 6.4327,
+        "category": "approaching"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": []
+      },
+      "confluence": {
+        "nearSessionFacts": [
+          "Level is near low of day 3.2 (0% away).",
+          "Level is near premarket low 3.2 (0% away)."
+        ],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [],
+        "contextTags": [
+          "near_low_of_day",
+          "near_premarket_low",
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout"
+        ],
+        "nearRoundNumber": {
+          "value": 3.2,
+          "type": "ten_cent",
+          "distancePct": 0
+        }
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing",
+        "no_nearby_volume_shelf"
+      ],
+      "reason": "support zone 3.2 is sourced from daily, 4h evidence; freshness is fresh; 6.4327% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    },
+    {
+      "levelId": "SAMP-major-resistance-375",
+      "symbol": "SAMP",
+      "kind": "resistance",
+      "representativePrice": 3.75,
+      "zoneLow": 3.68,
+      "zoneHigh": 3.82,
+      "zoneWidthPercent": 3.7333,
+      "origin": {
+        "sourceTypes": [
+          "swing_high",
+          "premarket_high"
+        ],
+        "timeframeSources": [
+          "daily",
+          "4h",
+          "5m"
+        ],
+        "primaryTimeframe": "daily",
+        "isExtension": false
+      },
+      "freshness": {
+        "firstTimestamp": 1776848400000,
+        "lastTimestamp": 1777370400000,
+        "label": "fresh"
+      },
+      "reaction": {
+        "touchCount": 4,
+        "reactionQualityScore": 0.84,
+        "rejectionScore": 0.78,
+        "displacementScore": 0.69,
+        "followThroughScore": 0.68
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 9.6491,
+        "category": "extended"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": [
+          "SAMP-shelf-368-382"
+        ]
+      },
+      "confluence": {
+        "nearSessionFacts": [
+          "Level is near high of day 3.75 (0% away).",
+          "Level is near premarket high 3.75 (0% away)."
+        ],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [
+          "Level overlaps volume shelf SAMP-shelf-368-382 (3.68-3.82, 32.2% of window volume, role resistance)."
+        ],
+        "contextTags": [
+          "near_high_of_day",
+          "near_premarket_high",
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "near_volume_shelf",
+          "volume_shelf_role_resistance",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout"
+        ],
+        "nearRoundNumber": {
+          "value": 3.75,
+          "type": "quarter",
+          "distancePct": 0
+        }
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing"
+      ],
+      "reason": "resistance zone 3.75 is sourced from daily, 4h, 5m evidence; freshness is fresh; 9.6491% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    },
+    {
+      "levelId": "SAMP-intermediate-support-335",
+      "symbol": "SAMP",
+      "kind": "support",
+      "representativePrice": 3.35,
+      "zoneLow": 3.31,
+      "zoneHigh": 3.38,
+      "zoneWidthPercent": 2.0896,
+      "origin": {
+        "sourceTypes": [
+          "swing_low",
+          "opening_range_low"
+        ],
+        "timeframeSources": [
+          "4h",
+          "5m"
+        ],
+        "primaryTimeframe": "4h",
+        "isExtension": false
+      },
+      "freshness": {
+        "firstTimestamp": 1777208400000,
+        "lastTimestamp": 1777372200000,
+        "label": "fresh"
+      },
+      "reaction": {
+        "touchCount": 3,
+        "reactionQualityScore": 0.68,
+        "rejectionScore": 0.28,
+        "displacementScore": 0.52,
+        "followThroughScore": 0.58
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 2.0468,
+        "category": "approaching"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": [
+          "SAMP-shelf-335-343"
+        ]
+      },
+      "confluence": {
+        "nearSessionFacts": [
+          "Level is near opening range low 3.35 (0% away)."
+        ],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [
+          "Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone)."
+        ],
+        "contextTags": [
+          "near_opening_range_low",
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "near_volume_shelf",
+          "volume_shelf_role_chop_zone",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout"
+        ]
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing"
+      ],
+      "reason": "support zone 3.35 is sourced from 4h, 5m evidence; freshness is fresh; 2.0468% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    },
+    {
+      "levelId": "SAMP-intermediate-resistance-360",
+      "symbol": "SAMP",
+      "kind": "resistance",
+      "representativePrice": 3.6,
+      "zoneLow": 3.56,
+      "zoneHigh": 3.65,
+      "zoneWidthPercent": 2.5,
+      "origin": {
+        "sourceTypes": [
+          "swing_high",
+          "opening_range_high"
+        ],
+        "timeframeSources": [
+          "4h",
+          "5m"
+        ],
+        "primaryTimeframe": "4h",
+        "isExtension": false
+      },
+      "freshness": {
+        "firstTimestamp": 1777208400000,
+        "lastTimestamp": 1777373100000,
+        "label": "fresh"
+      },
+      "reaction": {
+        "touchCount": 3,
+        "reactionQualityScore": 0.72,
+        "rejectionScore": 0.66,
+        "displacementScore": 0.54,
+        "followThroughScore": 0.55
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 5.2632,
+        "category": "approaching"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": [
+          "SAMP-shelf-356-365"
+        ]
+      },
+      "confluence": {
+        "nearSessionFacts": [
+          "Level is near opening range high 3.6 (0% away)."
+        ],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [
+          "Level overlaps volume shelf SAMP-shelf-356-365 (3.56-3.65, 21.8% of window volume, role resistance)."
+        ],
+        "contextTags": [
+          "near_opening_range_high",
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "near_volume_shelf",
+          "volume_shelf_role_resistance",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout"
+        ],
+        "nearRoundNumber": {
+          "value": 3.6,
+          "type": "ten_cent",
+          "distancePct": 0
+        }
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing"
+      ],
+      "reason": "resistance zone 3.6 is sourced from 4h, 5m evidence; freshness is fresh; 5.2632% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    },
+    {
+      "levelId": "SAMP-intraday-support-340",
+      "symbol": "SAMP",
+      "kind": "support",
+      "representativePrice": 3.4,
+      "zoneLow": 3.38,
+      "zoneHigh": 3.43,
+      "zoneWidthPercent": 1.4706,
+      "origin": {
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "primaryTimeframe": "5m",
+        "isExtension": false
+      },
+      "freshness": {
+        "firstTimestamp": 1777370400000,
+        "lastTimestamp": 1777383000000,
+        "label": "fresh"
+      },
+      "reaction": {
+        "touchCount": 2,
+        "reactionQualityScore": 0.58,
+        "rejectionScore": 0.18,
+        "displacementScore": 0.44,
+        "followThroughScore": 0.48
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 0.5848,
+        "category": "near"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": [
+          "SAMP-shelf-335-343"
+        ]
+      },
+      "confluence": {
+        "nearSessionFacts": [
+          "Level is near VWAP fact 3.4 (0% away).",
+          "Level is near current/reference price 3.42 (0.5848% away)."
+        ],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [
+          "Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone)."
+        ],
+        "contextTags": [
+          "near_vwap_fact",
+          "near_current_price",
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "near_volume_shelf",
+          "volume_shelf_role_chop_zone",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout"
+        ],
+        "nearRoundNumber": {
+          "value": 3.4,
+          "type": "ten_cent",
+          "distancePct": 0
+        }
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing"
+      ],
+      "reason": "support zone 3.4 is sourced from 5m evidence; freshness is fresh; 0.5848% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    },
+    {
+      "levelId": "SAMP-intraday-resistance-350",
+      "symbol": "SAMP",
+      "kind": "resistance",
+      "representativePrice": 3.5,
+      "zoneLow": 3.48,
+      "zoneHigh": 3.53,
+      "zoneWidthPercent": 1.4286,
+      "origin": {
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "primaryTimeframe": "5m",
+        "isExtension": false
+      },
+      "freshness": {
+        "firstTimestamp": 1777371300000,
+        "lastTimestamp": 1777383900000,
+        "label": "fresh"
+      },
+      "reaction": {
+        "touchCount": 2,
+        "reactionQualityScore": 0.62,
+        "rejectionScore": 0.56,
+        "displacementScore": 0.46,
+        "followThroughScore": 0.5
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 2.3392,
+        "category": "approaching"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": []
+      },
+      "confluence": {
+        "nearSessionFacts": [],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [],
+        "contextTags": [
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout"
+        ],
+        "nearRoundNumber": {
+          "value": 3.5,
+          "type": "half",
+          "distancePct": 0
+        }
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing",
+        "no_nearby_volume_shelf"
+      ],
+      "reason": "resistance zone 3.5 is sourced from 5m evidence; freshness is fresh; 2.3392% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    },
+    {
+      "levelId": "SAMP-extension-support-295",
+      "symbol": "SAMP",
+      "kind": "support",
+      "representativePrice": 2.95,
+      "zoneLow": 2.9,
+      "zoneHigh": 3,
+      "zoneWidthPercent": 3.3898,
+      "origin": {
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "daily",
+          "4h"
+        ],
+        "primaryTimeframe": "daily",
+        "isExtension": true
+      },
+      "freshness": {
+        "firstTimestamp": 1776157200000,
+        "lastTimestamp": 1776762000000,
+        "label": "aging"
+      },
+      "reaction": {
+        "touchCount": 2,
+        "reactionQualityScore": 0.64,
+        "rejectionScore": 0.2,
+        "displacementScore": 0.62,
+        "followThroughScore": 0.55
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 13.7427,
+        "category": "extended"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": []
+      },
+      "confluence": {
+        "nearSessionFacts": [],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [],
+        "contextTags": [
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout",
+          "extension_level"
+        ]
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing",
+        "no_nearby_volume_shelf"
+      ],
+      "reason": "support zone 2.95 is sourced from daily, 4h evidence; freshness is aging; 13.7427% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    },
+    {
+      "levelId": "SAMP-synthetic-support-extension-1-2p3500",
+      "symbol": "SAMP",
+      "kind": "support",
+      "representativePrice": 2.35,
+      "zoneLow": 2.3412,
+      "zoneHigh": 2.3588,
+      "zoneWidthPercent": 0.7489,
+      "origin": {
+        "sourceTypes": [],
+        "timeframeSources": [],
+        "primaryTimeframe": "mixed",
+        "isExtension": true
+      },
+      "freshness": {
+        "firstTimestamp": 0,
+        "lastTimestamp": 0,
+        "label": "fresh"
+      },
+      "reaction": {
+        "touchCount": 0,
+        "reactionQualityScore": 0,
+        "rejectionScore": 0,
+        "displacementScore": 0,
+        "followThroughScore": 0
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 31.2865,
+        "category": "far"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": []
+      },
+      "confluence": {
+        "nearSessionFacts": [],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [],
+        "contextTags": [
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout",
+          "extension_level"
+        ]
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing",
+        "no_nearby_volume_shelf"
+      ],
+      "reason": "support zone 2.35 is sourced from unknown timeframe evidence; freshness is fresh; 31.2865% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    },
+    {
+      "levelId": "SAMP-extension-resistance-410",
+      "symbol": "SAMP",
+      "kind": "resistance",
+      "representativePrice": 4.1,
+      "zoneLow": 4.02,
+      "zoneHigh": 4.18,
+      "zoneWidthPercent": 3.9024,
+      "origin": {
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "daily",
+          "4h"
+        ],
+        "primaryTimeframe": "daily",
+        "isExtension": true
+      },
+      "freshness": {
+        "firstTimestamp": 1776157200000,
+        "lastTimestamp": 1776848400000,
+        "label": "aging"
+      },
+      "reaction": {
+        "touchCount": 2,
+        "reactionQualityScore": 0.7,
+        "rejectionScore": 0.64,
+        "displacementScore": 0.6,
+        "followThroughScore": 0.58
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 19.883,
+        "category": "extended"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": []
+      },
+      "confluence": {
+        "nearSessionFacts": [],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [],
+        "contextTags": [
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout",
+          "extension_level"
+        ],
+        "nearRoundNumber": {
+          "value": 4.1,
+          "type": "ten_cent",
+          "distancePct": 0
+        }
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing",
+        "no_nearby_volume_shelf"
+      ],
+      "reason": "resistance zone 4.1 is sourced from daily, 4h evidence; freshness is aging; 19.883% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    },
+    {
+      "levelId": "SAMP-synthetic-resistance-extension-1-4p4500",
+      "symbol": "SAMP",
+      "kind": "resistance",
+      "representativePrice": 4.45,
+      "zoneLow": 4.4333,
+      "zoneHigh": 4.4667,
+      "zoneWidthPercent": 0.7506,
+      "origin": {
+        "sourceTypes": [],
+        "timeframeSources": [],
+        "primaryTimeframe": "mixed",
+        "isExtension": true
+      },
+      "freshness": {
+        "firstTimestamp": 0,
+        "lastTimestamp": 0,
+        "label": "fresh"
+      },
+      "reaction": {
+        "touchCount": 0,
+        "reactionQualityScore": 0,
+        "rejectionScore": 0,
+        "displacementScore": 0,
+        "followThroughScore": 0
+      },
+      "distance": {
+        "referencePrice": 3.42,
+        "distanceFromReferencePct": 30.117,
+        "category": "far"
+      },
+      "volume": {
+        "volumeState": "high",
+        "relativeVolume": 3.2051,
+        "dollarVolume": 4275000,
+        "liquidityQuality": "good",
+        "accelerationState": "building",
+        "pullbackVolumeState": "drying_up",
+        "breakoutVolumeState": "confirmed",
+        "nearbyShelfIds": []
+      },
+      "confluence": {
+        "nearSessionFacts": [],
+        "nearVolumeFacts": [
+          "Volume state is high.",
+          "Relative volume fact is 3.2051.",
+          "Dollar volume fact is 4275000.",
+          "Liquidity quality fact is good.",
+          "Volume acceleration fact is building.",
+          "Pullback volume fact is drying_up.",
+          "Breakout volume fact is confirmed."
+        ],
+        "nearShelfFacts": [],
+        "contextTags": [
+          "volume_state_high",
+          "relative_volume_fact",
+          "dollar_volume_fact",
+          "liquidity_good",
+          "volume_acceleration_building",
+          "pullback_volume_drying_up",
+          "breakout_volume_confirmed",
+          "market_context_day_trade_runner",
+          "runner_phase_high_of_day_breakout",
+          "extension_level"
+        ]
+      },
+      "marketContext": {
+        "primaryContext": "day_trade_runner",
+        "runnerPhase": "high_of_day_breakout",
+        "confidence": 0.78
+      },
+      "diagnostics": [
+        "enriched_analysis_missing",
+        "no_nearby_volume_shelf"
+      ],
+      "reason": "resistance zone 4.45 is sourced from unknown timeframe evidence; freshness is fresh; 30.117% from reference price; volume state is high.",
+      "safety": {
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true,
+        "vwapFactsOnly": true,
+        "shelvesAreFactsOnly": true
+      }
+    }
+  ],
+  "buckets": {
+    "majorSupport": [
+      {
+        "levelId": "SAMP-major-support-320",
+        "symbol": "SAMP",
+        "kind": "support",
+        "representativePrice": 3.2,
+        "zoneLow": 3.15,
+        "zoneHigh": 3.24,
+        "zoneWidthPercent": 2.8125,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1776762000000,
+          "lastTimestamp": 1777294800000,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 5,
+          "reactionQualityScore": 0.82,
+          "rejectionScore": 0.32,
+          "displacementScore": 0.74,
+          "followThroughScore": 0.76
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 6.4327,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near low of day 3.2 (0% away).",
+            "Level is near premarket low 3.2 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "near_low_of_day",
+            "near_premarket_low",
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 3.2,
+            "type": "ten_cent",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 3.2 is sourced from daily, 4h evidence; freshness is fresh; 6.4327% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "majorResistance": [
+      {
+        "levelId": "SAMP-major-resistance-375",
+        "symbol": "SAMP",
+        "kind": "resistance",
+        "representativePrice": 3.75,
+        "zoneLow": 3.68,
+        "zoneHigh": 3.82,
+        "zoneWidthPercent": 3.7333,
+        "origin": {
+          "sourceTypes": [
+            "swing_high",
+            "premarket_high"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h",
+            "5m"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1776848400000,
+          "lastTimestamp": 1777370400000,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 4,
+          "reactionQualityScore": 0.84,
+          "rejectionScore": 0.78,
+          "displacementScore": 0.69,
+          "followThroughScore": 0.68
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 9.6491,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": [
+            "SAMP-shelf-368-382"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near high of day 3.75 (0% away).",
+            "Level is near premarket high 3.75 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf SAMP-shelf-368-382 (3.68-3.82, 32.2% of window volume, role resistance)."
+          ],
+          "contextTags": [
+            "near_high_of_day",
+            "near_premarket_high",
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "near_volume_shelf",
+            "volume_shelf_role_resistance",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 3.75,
+            "type": "quarter",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "resistance zone 3.75 is sourced from daily, 4h, 5m evidence; freshness is fresh; 9.6491% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "intermediateSupport": [
+      {
+        "levelId": "SAMP-intermediate-support-335",
+        "symbol": "SAMP",
+        "kind": "support",
+        "representativePrice": 3.35,
+        "zoneLow": 3.31,
+        "zoneHigh": 3.38,
+        "zoneWidthPercent": 2.0896,
+        "origin": {
+          "sourceTypes": [
+            "swing_low",
+            "opening_range_low"
+          ],
+          "timeframeSources": [
+            "4h",
+            "5m"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777208400000,
+          "lastTimestamp": 1777372200000,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 3,
+          "reactionQualityScore": 0.68,
+          "rejectionScore": 0.28,
+          "displacementScore": 0.52,
+          "followThroughScore": 0.58
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 2.0468,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": [
+            "SAMP-shelf-335-343"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near opening range low 3.35 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone)."
+          ],
+          "contextTags": [
+            "near_opening_range_low",
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "near_volume_shelf",
+            "volume_shelf_role_chop_zone",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "support zone 3.35 is sourced from 4h, 5m evidence; freshness is fresh; 2.0468% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "intermediateResistance": [
+      {
+        "levelId": "SAMP-intermediate-resistance-360",
+        "symbol": "SAMP",
+        "kind": "resistance",
+        "representativePrice": 3.6,
+        "zoneLow": 3.56,
+        "zoneHigh": 3.65,
+        "zoneWidthPercent": 2.5,
+        "origin": {
+          "sourceTypes": [
+            "swing_high",
+            "opening_range_high"
+          ],
+          "timeframeSources": [
+            "4h",
+            "5m"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777208400000,
+          "lastTimestamp": 1777373100000,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 3,
+          "reactionQualityScore": 0.72,
+          "rejectionScore": 0.66,
+          "displacementScore": 0.54,
+          "followThroughScore": 0.55
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 5.2632,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": [
+            "SAMP-shelf-356-365"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near opening range high 3.6 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf SAMP-shelf-356-365 (3.56-3.65, 21.8% of window volume, role resistance)."
+          ],
+          "contextTags": [
+            "near_opening_range_high",
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "near_volume_shelf",
+            "volume_shelf_role_resistance",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 3.6,
+            "type": "ten_cent",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "resistance zone 3.6 is sourced from 4h, 5m evidence; freshness is fresh; 5.2632% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "intradaySupport": [
+      {
+        "levelId": "SAMP-intraday-support-340",
+        "symbol": "SAMP",
+        "kind": "support",
+        "representativePrice": 3.4,
+        "zoneLow": 3.38,
+        "zoneHigh": 3.43,
+        "zoneWidthPercent": 1.4706,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777370400000,
+          "lastTimestamp": 1777383000000,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.58,
+          "rejectionScore": 0.18,
+          "displacementScore": 0.44,
+          "followThroughScore": 0.48
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 0.5848,
+          "category": "near"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": [
+            "SAMP-shelf-335-343"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near VWAP fact 3.4 (0% away).",
+            "Level is near current/reference price 3.42 (0.5848% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf SAMP-shelf-335-343 (3.35-3.43, 28.4% of window volume, role chop_zone)."
+          ],
+          "contextTags": [
+            "near_vwap_fact",
+            "near_current_price",
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "near_volume_shelf",
+            "volume_shelf_role_chop_zone",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 3.4,
+            "type": "ten_cent",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "support zone 3.4 is sourced from 5m evidence; freshness is fresh; 0.5848% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "intradayResistance": [
+      {
+        "levelId": "SAMP-intraday-resistance-350",
+        "symbol": "SAMP",
+        "kind": "resistance",
+        "representativePrice": 3.5,
+        "zoneLow": 3.48,
+        "zoneHigh": 3.53,
+        "zoneWidthPercent": 1.4286,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777371300000,
+          "lastTimestamp": 1777383900000,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.62,
+          "rejectionScore": 0.56,
+          "displacementScore": 0.46,
+          "followThroughScore": 0.5
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 2.3392,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 3.5,
+            "type": "half",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 3.5 is sourced from 5m evidence; freshness is fresh; 2.3392% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "extensionSupport": [
+      {
+        "levelId": "SAMP-extension-support-295",
+        "symbol": "SAMP",
+        "kind": "support",
+        "representativePrice": 2.95,
+        "zoneLow": 2.9,
+        "zoneHigh": 3,
+        "zoneWidthPercent": 3.3898,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": true
+        },
+        "freshness": {
+          "firstTimestamp": 1776157200000,
+          "lastTimestamp": 1776762000000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.64,
+          "rejectionScore": 0.2,
+          "displacementScore": 0.62,
+          "followThroughScore": 0.55
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 13.7427,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 2.95 is sourced from daily, 4h evidence; freshness is aging; 13.7427% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "SAMP-synthetic-support-extension-1-2p3500",
+        "symbol": "SAMP",
+        "kind": "support",
+        "representativePrice": 2.35,
+        "zoneLow": 2.3412,
+        "zoneHigh": 2.3588,
+        "zoneWidthPercent": 0.7489,
+        "origin": {
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "primaryTimeframe": "mixed",
+          "isExtension": true
+        },
+        "freshness": {
+          "firstTimestamp": 0,
+          "lastTimestamp": 0,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 0,
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "followThroughScore": 0
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 31.2865,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 2.35 is sourced from unknown timeframe evidence; freshness is fresh; 31.2865% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "extensionResistance": [
+      {
+        "levelId": "SAMP-extension-resistance-410",
+        "symbol": "SAMP",
+        "kind": "resistance",
+        "representativePrice": 4.1,
+        "zoneLow": 4.02,
+        "zoneHigh": 4.18,
+        "zoneWidthPercent": 3.9024,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": true
+        },
+        "freshness": {
+          "firstTimestamp": 1776157200000,
+          "lastTimestamp": 1776848400000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.7,
+          "rejectionScore": 0.64,
+          "displacementScore": 0.6,
+          "followThroughScore": 0.58
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 19.883,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout",
+            "extension_level"
+          ],
+          "nearRoundNumber": {
+            "value": 4.1,
+            "type": "ten_cent",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 4.1 is sourced from daily, 4h evidence; freshness is aging; 19.883% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "SAMP-synthetic-resistance-extension-1-4p4500",
+        "symbol": "SAMP",
+        "kind": "resistance",
+        "representativePrice": 4.45,
+        "zoneLow": 4.4333,
+        "zoneHigh": 4.4667,
+        "zoneWidthPercent": 0.7506,
+        "origin": {
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "primaryTimeframe": "mixed",
+          "isExtension": true
+        },
+        "freshness": {
+          "firstTimestamp": 0,
+          "lastTimestamp": 0,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 0,
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "followThroughScore": 0
+        },
+        "distance": {
+          "referencePrice": 3.42,
+          "distanceFromReferencePct": 30.117,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "high",
+          "relativeVolume": 3.2051,
+          "dollarVolume": 4275000,
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is high.",
+            "Relative volume fact is 3.2051.",
+            "Dollar volume fact is 4275000.",
+            "Liquidity quality fact is good.",
+            "Volume acceleration fact is building.",
+            "Pullback volume fact is drying_up.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_high",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_good",
+            "volume_acceleration_building",
+            "pullback_volume_drying_up",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.78
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 4.45 is sourced from unknown timeframe evidence; freshness is fresh; 30.117% from reference price; volume state is high.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ]
+  },
+  "counts": {
+    "majorSupport": 1,
+    "majorResistance": 1,
+    "intermediateSupport": 1,
+    "intermediateResistance": 1,
+    "intradaySupport": 1,
+    "intradayResistance": 1,
+    "extensionSupport": 2,
+    "extensionResistance": 2,
+    "total": 10
+  },
+  "diagnostics": [
+    "enriched_analysis_missing",
+    "no_nearby_volume_shelf"
+  ],
+  "safety": {
+    "levelOutputUnchanged": true,
+    "factsOnly": true,
+    "vwapFactsOnly": true,
+    "shelvesAreFactsOnly": true,
+    "noRuntimeBehaviorChange": true
+  }
+}
