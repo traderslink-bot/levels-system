@@ -105,9 +105,9 @@ function providerByTimeframe(series: FilteredSeries[]): LevelEngineOutput["metad
 }
 
 function dataQualityFlags(series: FilteredSeries[]): string[] {
-  return series.flatMap((item) =>
-    item.diagnostics.map((diagnostic) => `${item.timeframe}:${diagnostic.code}`),
-  );
+  return series
+    .filter((item) => item.candles.length === 0)
+    .map((item) => `${item.timeframe}:unavailable`);
 }
 
 function buildCandidateInventory(params: {
@@ -220,16 +220,12 @@ function diagnosticSummary(params: {
   const diagnostics = new Set<string>();
 
   for (const item of params.series) {
-    if (item.excludedFutureCount > 0) {
-      diagnostics.add(`${item.timeframe}_future_candles_filtered:${item.excludedFutureCount}`);
-    }
-    if (item.excludedPartialCount > 0) {
-      diagnostics.add(`${item.timeframe}_partial_candles_filtered:${item.excludedPartialCount}`);
-    }
     if (item.candles.length === 0) {
       diagnostics.add(`${item.timeframe}_closed_candles_missing`);
     }
   }
+
+  diagnostics.add("candle_close_as_of_filter_applied");
 
   if (!params.hasDaily) {
     diagnostics.add("daily_candles_missing");
@@ -270,20 +266,20 @@ export function buildLevelAnalysisSnapshotFromCandles(
   const sessionFacts = buildSessionMarketFacts({
     symbol,
     asOfTimestamp: request.asOfTimestamp,
-    candles5m: request.candles5m,
+    candles5m: fiveMinute.candles,
     previousClose: request.previousClose,
     currentPrice: referencePrice,
   });
   const volumeFacts = buildVolumeMarketFacts({
     symbol,
     asOfTimestamp: request.asOfTimestamp,
-    candles5m: request.candles5m,
+    candles5m: fiveMinute.candles,
     referencePrice,
   });
   const shelfResult = detectVolumeShelves({
     symbol,
     asOfTimestamp: request.asOfTimestamp,
-    candles5m: request.candles5m,
+    candles5m: fiveMinute.candles,
     currentPrice: referencePrice,
   });
   const marketContextResult =
@@ -292,7 +288,7 @@ export function buildLevelAnalysisSnapshotFromCandles(
           symbol,
           asOfTimestamp: request.asOfTimestamp,
           referencePrice,
-          candles5m: request.candles5m,
+          candles5m: fiveMinute.candles,
           previousClose: request.previousClose,
           vwap: sessionFacts.vwap,
           relativeVolume: volumeFacts.relativeVolume,

@@ -120,12 +120,20 @@ test("builds snapshot from deterministic closed 5m candles", () => {
 });
 
 test("applies as-of filtering and excludes future and partial candles", () => {
+  const closedInput = candles5m().slice(0, 14);
   const input = [
-    ...candles5m().slice(0, 14),
+    ...closedInput,
     candle("2026-05-01T10:15:00-04:00", 10.38, 10.74, 10.34, 10.68, 1_250_000),
     candle("2026-05-01T10:20:00-04:00", 10.68, 11, 10.62, 10.95, 1_500_000),
   ];
-  const snapshot = buildLevelAnalysisSnapshotFromCandles({
+  const filteredOnly = buildLevelAnalysisSnapshotFromCandles({
+    symbol: "asof",
+    asOfTimestamp: Date.parse("2026-05-01T10:17:00-04:00"),
+    referencePrice: 10.38,
+    candles5m: closedInput,
+    previousClose: 9.1,
+  });
+  const withFutureCandles = buildLevelAnalysisSnapshotFromCandles({
     symbol: "asof",
     asOfTimestamp: Date.parse("2026-05-01T10:17:00-04:00"),
     referencePrice: 10.38,
@@ -133,10 +141,10 @@ test("applies as-of filtering and excludes future and partial candles", () => {
     previousClose: 9.1,
   });
 
-  assert.ok(snapshot.diagnostics.includes("5m_partial_candles_filtered:1"));
-  assert.ok(snapshot.diagnostics.includes("5m_future_candles_filtered:1"));
-  assert.equal(snapshot.sessionFacts?.currentPrice, 10.38);
-  assert.equal(snapshot.levelEngineOutput.metadata.referencePrice, 10.38);
+  assert.deepEqual(withFutureCandles, filteredOnly);
+  assert.equal(withFutureCandles.sessionFacts?.currentPrice, 10.38);
+  assert.equal(withFutureCandles.levelEngineOutput.metadata.referencePrice, 10.38);
+  assert.ok(withFutureCandles.diagnostics.includes("candle_close_as_of_filter_applied"));
 });
 
 test("includes LevelEngineOutput LevelIntelligenceReport and LevelQualityAuditReport", () => {
