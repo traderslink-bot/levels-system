@@ -1,0 +1,17 @@
+{
+  "scenarioId": "choppy-range",
+  "scenarioType": "choppy range ticker",
+  "symbol": "CHOP",
+  "asOf": "2026-05-01T10:30:00-04:00",
+  "asOfTimestamp": 1777645800000,
+  "referencePrice": 15.15,
+  "previousClose": 15,
+  "scenarioIntent": "Choppy range fixture with repeated overlapping swings, high compression potential, and noisy level inventory.",
+  "candleFiles": {
+    "fiveMinute": "5m-candles.json",
+    "fourHour": "4h-candles.json",
+    "daily": "daily-candles.json"
+  },
+  "deterministic": true,
+  "networkCalls": false
+}

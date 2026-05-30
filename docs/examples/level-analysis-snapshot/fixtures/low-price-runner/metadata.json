@@ -1,0 +1,17 @@
+{
+  "scenarioId": "low-price-runner",
+  "scenarioType": "low-price runner",
+  "symbol": "LPRN",
+  "asOf": "2026-05-01T10:30:00-04:00",
+  "asOfTimestamp": 1777645800000,
+  "referencePrice": 2.08,
+  "previousClose": 0.92,
+  "scenarioIntent": "Low-price runner fixture with high relative volume, fast upward range expansion, shallow pullbacks, and synthetic continuation-map coverage pressure.",
+  "candleFiles": {
+    "fiveMinute": "5m-candles.json",
+    "fourHour": "4h-candles.json",
+    "daily": "daily-candles.json"
+  },
+  "deterministic": true,
+  "networkCalls": false
+}
