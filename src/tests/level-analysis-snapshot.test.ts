@@ -278,15 +278,69 @@ function assertNoForbiddenLanguage(value: unknown): void {
 test("builds snapshot from supplied LevelEngineOutput and facts", () => {
   const snapshot = buildSnapshot();
 
+  assert.equal(snapshot.schemaVersion, "level-analysis-snapshot/v1");
+  assert.equal(snapshot.producer, "levels-system");
   assert.equal(snapshot.symbol, "TEST");
   assert.equal(snapshot.asOfTimestamp, AS_OF);
   assert.equal(snapshot.referencePrice, 10);
+  assert.equal(snapshot.inputSummary.previousCloseProvided, true);
   assert.equal(snapshot.sessionFacts?.vwap, 10.02);
   assert.equal(snapshot.volumeFacts?.relativeVolume, 4);
   assert.equal(snapshot.volumeShelves?.[0]?.id, "TEST-volume-shelf-1020-1030");
   assert.equal(snapshot.marketContext?.primaryContext, "day_trade_runner");
   assert.equal(snapshot.factsBundle?.symbol, "TEST");
   assert.equal(snapshot.factsBundle?.vwapFactsOnly, true);
+});
+
+test("derives nearest support and resistance from LevelEngineOutput and reference price", () => {
+  const snapshot = buildSnapshot();
+
+  assert.deepEqual(snapshot.nearestSupport, {
+    levelId: "intraday-support-975",
+    kind: "support",
+    bucket: "intradaySupport",
+    representativePrice: 9.75,
+    zoneLow: 9.7,
+    zoneHigh: 9.8,
+    strengthScore: 64,
+    strengthLabel: "strong",
+    distanceFromReferencePct: 0.025,
+    isExtension: false,
+  });
+  assert.deepEqual(snapshot.nearestResistance, {
+    levelId: "intraday-resistance-1025",
+    kind: "resistance",
+    bucket: "intradayResistance",
+    representativePrice: 10.25,
+    zoneLow: 10.2,
+    zoneHigh: 10.3,
+    strengthScore: 64,
+    strengthLabel: "strong",
+    distanceFromReferencePct: 0.025,
+    isExtension: false,
+  });
+});
+
+test("nearest support and resistance are null when absent", () => {
+  const output = {
+    ...levelOutput(),
+    majorSupport: [],
+    majorResistance: [],
+    intermediateSupport: [],
+    intermediateResistance: [],
+    intradaySupport: [],
+    intradayResistance: [],
+    extensionLevels: { support: [], resistance: [] },
+  };
+  const snapshot = buildLevelAnalysisSnapshot({
+    symbol: "TEST",
+    asOfTimestamp: AS_OF,
+    referencePrice: 10,
+    levelEngineOutput: output,
+  });
+
+  assert.equal(snapshot.nearestSupport, null);
+  assert.equal(snapshot.nearestResistance, null);
 });
 
 test("includes LevelIntelligenceReport and LevelQualityAuditReport", () => {
@@ -336,6 +390,25 @@ test("preserves LevelEngineOutput unchanged and does not mutate inputs", () => {
   assert.notEqual(snapshot.levelEngineOutput, output);
   assert.equal(JSON.stringify({ output, session, volume, shelves, context }), before);
   assert.equal(snapshot.safety.levelOutputUnchanged, true);
+});
+
+test("input summary is present with zero candle counts when only prebuilt facts are supplied", () => {
+  const snapshot = buildSnapshot();
+
+  assert.deepEqual(snapshot.inputSummary.timeframesPresent, []);
+  assert.deepEqual(snapshot.inputSummary.candleCounts, {
+    "5m": 0,
+    "15m": 0,
+    "4h": 0,
+    daily: 0,
+  });
+  assert.deepEqual(snapshot.inputSummary.filteredCandleCounts, {
+    "5m": 0,
+    "15m": 0,
+    "4h": 0,
+    daily: 0,
+  });
+  assert.equal(snapshot.inputSummary.timeframes["5m"].provided, false);
 });
 
 test("marks VWAP and shelves as facts-only", () => {

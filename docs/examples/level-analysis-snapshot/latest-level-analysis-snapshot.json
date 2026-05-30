@@ -1,6 +1,83 @@
 {
+  "schemaVersion": "level-analysis-snapshot/v1",
+  "producer": "levels-system",
   "symbol": "SNAP",
   "asOfTimestamp": 1777645200000,
+  "inputSummary": {
+    "timeframesPresent": [
+      "5m",
+      "4h",
+      "daily"
+    ],
+    "candleCounts": {
+      "5m": 15,
+      "15m": 0,
+      "4h": 7,
+      "daily": 6
+    },
+    "filteredCandleCounts": {
+      "5m": 15,
+      "15m": 0,
+      "4h": 7,
+      "daily": 6
+    },
+    "excludedFutureCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "excludedPartialCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "timeframes": {
+      "5m": {
+        "provided": true,
+        "candleCount": 15,
+        "filteredCandleCount": 15,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "15m": {
+        "provided": false,
+        "candleCount": 0,
+        "filteredCandleCount": 0,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "4h": {
+        "provided": true,
+        "candleCount": 7,
+        "filteredCandleCount": 7,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "daily": {
+        "provided": true,
+        "candleCount": 6,
+        "filteredCandleCount": 6,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      }
+    },
+    "previousCloseProvided": true
+  },
+  "nearestSupport": {
+    "levelId": "SNAP-support-zone-3",
+    "kind": "support",
+    "bucket": "intradaySupport",
+    "representativePrice": 9.98,
+    "zoneLow": 9.98,
+    "zoneHigh": 9.98,
+    "strengthScore": 5.38,
+    "strengthLabel": "weak",
+    "distanceFromReferencePct": 0.065543,
+    "isExtension": false
+  },
+  "nearestResistance": null,
   "levelEngineOutput": {
     "symbol": "SNAP",
     "generatedAt": 1777645200000,

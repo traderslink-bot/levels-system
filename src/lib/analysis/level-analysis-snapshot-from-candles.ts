@@ -21,6 +21,9 @@ import { buildVolumeMarketFacts, detectVolumeShelves } from "../volume/index.js"
 import {
   buildLevelAnalysisSnapshot,
   type LevelAnalysisSnapshot,
+  type LevelAnalysisSnapshotInputSummary,
+  type LevelAnalysisSnapshotInputTimeframe,
+  type LevelAnalysisSnapshotTimeframeInputSummary,
 } from "./level-analysis-snapshot.js";
 
 export type LevelAnalysisSnapshotFromCandlesInput = {
@@ -36,6 +39,8 @@ export type LevelAnalysisSnapshotFromCandlesInput = {
 
 type FilteredSeries = {
   timeframe: CandleTimeframe;
+  provided: boolean;
+  inputCandleCount: number;
   candles: Candle[];
   diagnostics: CandleAsOfFilterDiagnostic[];
   excludedFutureCount: number;
@@ -60,18 +65,76 @@ function filterSeries(
   candles: Candle[] | undefined,
   asOfTimestamp: number,
 ): FilteredSeries {
+  const sourceCandles = candles ?? [];
   const filtered = filterCandlesByCloseAsOf({
-    candles: clone(candles ?? []),
+    candles: clone(sourceCandles),
     timeframe,
     asOfTimestamp,
   });
 
   return {
     timeframe,
+    provided: candles !== undefined,
+    inputCandleCount: sourceCandles.length,
     candles: filtered.candles,
     diagnostics: filtered.diagnostics,
     excludedFutureCount: filtered.excludedFutureCount,
     excludedPartialCount: filtered.excludedPartialCount,
+  };
+}
+
+function emptyTimeframeSummary(): LevelAnalysisSnapshotTimeframeInputSummary {
+  return {
+    provided: false,
+    candleCount: 0,
+    filteredCandleCount: 0,
+    excludedFutureCandleCount: 0,
+    excludedPartialCandleCount: 0,
+  };
+}
+
+function buildInputSummary(params: {
+  series: FilteredSeries[];
+  previousCloseProvided: boolean;
+}): LevelAnalysisSnapshotInputSummary {
+  const keys: LevelAnalysisSnapshotInputTimeframe[] = ["5m", "15m", "4h", "daily"];
+  const byTimeframe = new Map(params.series.map((item) => [item.timeframe, item]));
+  const timeframes: Record<LevelAnalysisSnapshotInputTimeframe, LevelAnalysisSnapshotTimeframeInputSummary> = {
+    "5m": emptyTimeframeSummary(),
+    "15m": emptyTimeframeSummary(),
+    "4h": emptyTimeframeSummary(),
+    daily: emptyTimeframeSummary(),
+  };
+
+  for (const item of params.series) {
+    // Keep the public snapshot stable for replay: future/partial candles are
+    // filtered before the contract summary and are not allowed to change it.
+    timeframes[item.timeframe] = {
+      provided: item.provided,
+      candleCount: item.candles.length,
+      filteredCandleCount: item.candles.length,
+      excludedFutureCandleCount: 0,
+      excludedPartialCandleCount: 0,
+    };
+  }
+
+  return {
+    timeframesPresent: keys.filter((timeframe) => (byTimeframe.get(timeframe as CandleTimeframe)?.candles.length ?? 0) > 0),
+    candleCounts: Object.fromEntries(keys.map((timeframe) => [timeframe, timeframes[timeframe].candleCount])) as Record<
+      LevelAnalysisSnapshotInputTimeframe,
+      number
+    >,
+    filteredCandleCounts: Object.fromEntries(
+      keys.map((timeframe) => [timeframe, timeframes[timeframe].filteredCandleCount]),
+    ) as Record<LevelAnalysisSnapshotInputTimeframe, number>,
+    excludedFutureCandleCounts: Object.fromEntries(
+      keys.map((timeframe) => [timeframe, timeframes[timeframe].excludedFutureCandleCount ?? 0]),
+    ) as Record<LevelAnalysisSnapshotInputTimeframe, number>,
+    excludedPartialCandleCounts: Object.fromEntries(
+      keys.map((timeframe) => [timeframe, timeframes[timeframe].excludedPartialCandleCount ?? 0]),
+    ) as Record<LevelAnalysisSnapshotInputTimeframe, number>,
+    timeframes,
+    previousCloseProvided: params.previousCloseProvided,
   };
 }
 
@@ -255,6 +318,10 @@ export function buildLevelAnalysisSnapshotFromCandles(
   const daily = filterSeries("daily", request.dailyCandles, request.asOfTimestamp);
   const fourHour = filterSeries("4h", request.fourHourCandles, request.asOfTimestamp);
   const series = [daily, fourHour, fiveMinute];
+  const inputSummary = buildInputSummary({
+    series,
+    previousCloseProvided: request.previousClose !== undefined,
+  });
   const referencePrice = deriveReferencePrice(request, fiveMinute.candles);
   const levelEngineOutput = buildLevelOutputFromFilteredCandles({
     symbol,
@@ -305,6 +372,7 @@ export function buildLevelAnalysisSnapshotFromCandles(
       fourHour: fourHour.candles,
       daily: daily.candles,
     },
+    inputSummary,
     sessionFacts,
     volumeFacts,
     volumeShelves: shelfResult.shelves,
