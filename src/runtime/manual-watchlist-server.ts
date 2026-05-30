@@ -9,7 +9,12 @@ import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gate
 import { LocalDiscordThreadGateway } from "../lib/alerts/local-discord-thread-gateway.js";
 import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
-import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
+import {
+  LEVEL_INTELLIGENCE_ALERT_PREVIEW_DRY_RUN_ENV,
+  ManualWatchlistRuntimeManager,
+  type ManualWatchlistRuntimeManagerOptions,
+  resolveLevelIntelligenceAlertPreviewDryRun,
+} from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import {
   AdaptiveScoringEngine,
   DEFAULT_ADAPTIVE_SCORING_CONFIG,
@@ -84,6 +89,28 @@ function createDiscordAlertRouter(): DiscordAlertRouter {
     "[ManualWatchlistRuntime] Set DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID in .env for real Discord posting.",
   );
   return new DiscordAlertRouter(new LocalDiscordThreadGateway());
+}
+
+function createLevelIntelligenceAlertPreviewDryRunOptions():
+  | ManualWatchlistRuntimeManagerOptions["levelIntelligenceAlertPreviewDryRun"]
+  | undefined {
+  const enabled = resolveLevelIntelligenceAlertPreviewDryRun(
+    process.env[LEVEL_INTELLIGENCE_ALERT_PREVIEW_DRY_RUN_ENV],
+  );
+
+  if (!enabled) {
+    return undefined;
+  }
+
+  console.log(
+    "[ManualWatchlistRuntime] Level Intelligence alert preview dry-run sidecar enabled.",
+  );
+  return {
+    enabled: true,
+    onPreview: (result) => {
+      console.log(result.content);
+    },
+  };
 }
 
 const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
@@ -253,6 +280,7 @@ async function main(): Promise<void> {
     adaptiveScoringEngine,
     adaptiveStatePersistence,
   });
+  const levelIntelligenceAlertPreviewDryRun = createLevelIntelligenceAlertPreviewDryRunOptions();
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: candleService,
     levelStore,
@@ -260,6 +288,9 @@ async function main(): Promise<void> {
     discordAlertRouter: createDiscordAlertRouter(),
     opportunityRuntimeController,
     watchlistStatePersistence: new WatchlistStatePersistence(),
+    ...(levelIntelligenceAlertPreviewDryRun
+      ? { levelIntelligenceAlertPreviewDryRun }
+      : {}),
   });
 
   await waitForIbkrConnection(ib);
