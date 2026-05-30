@@ -1,0 +1,30 @@
+Post-synthetic level quality findings
+
+## Summary
+- Sample count: 5
+- Finding count: 9
+- Recurring finding count: 5
+- Recommended next gates: thin_liquidity_handling_review, stale_freshness_review, confluence_enrichment_review
+
+## Recurring Findings
+- sparse_level_coverage (watch); samples 3; symbols HIPO, LPRN, THIN; evidence HIPO: total 14, nearby 2/0 | LPRN: total 15, nearby 0/2 | THIN: total 11, nearby 0/2
+- stale_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: stale level count is 1 | CLNT: stale level count is 8 | HIPO: stale level count is 7 | LPRN: stale level count is 8 | THIN: stale level count is 5
+- weak_context_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: weak context level count is 5 | CLNT: weak context level count is 5 | HIPO: weak context level count is 5 | LPRN: weak context level count is 5 | THIN: weak context level count is 5
+- unenriched_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: unenriched level count is 7 | CLNT: unenriched level count is 14 | HIPO: unenriched level count is 14 | LPRN: unenriched level count is 15 | THIN: unenriched level count is 11
+- healthy_extension_coverage (info); samples 3; symbols CHOP, HIPO, THIN; evidence CHOP: support/resistance extension coverage has no audit warnings | HIPO: support/resistance extension coverage has no audit warnings | THIN: support/resistance extension coverage has no audit warnings
+
+## All Findings
+- missing_support_extension (review); samples 1; symbols LPRN; evidence LPRN: support extension count is 0
+- missing_resistance_extension (review); samples 1; symbols CLNT; evidence CLNT: resistance extension count is 0
+- clustered_levels_detected (review); samples 1; symbols THIN; evidence THIN: clustered area count is 1
+- possible_level_clutter (watch); samples 1; symbols THIN; evidence THIN: possible clutter level count is 2
+- sparse_level_coverage (watch); samples 3; symbols HIPO, LPRN, THIN; evidence HIPO: total 14, nearby 2/0 | LPRN: total 15, nearby 0/2 | THIN: total 11, nearby 0/2
+- stale_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: stale level count is 1 | CLNT: stale level count is 8 | HIPO: stale level count is 7 | LPRN: stale level count is 8 | THIN: stale level count is 5
+- weak_context_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: weak context level count is 5 | CLNT: weak context level count is 5 | HIPO: weak context level count is 5 | LPRN: weak context level count is 5 | THIN: weak context level count is 5
+- unenriched_levels_present (watch); samples 5; symbols CHOP, CLNT, HIPO, LPRN, THIN; evidence CHOP: unenriched level count is 7 | CLNT: unenriched level count is 14 | HIPO: unenriched level count is 14 | LPRN: unenriched level count is 15 | THIN: unenriched level count is 11
+- healthy_extension_coverage (info); samples 3; symbols CHOP, HIPO, THIN; evidence CHOP: support/resistance extension coverage has no audit warnings | HIPO: support/resistance extension coverage has no audit warnings | THIN: support/resistance extension coverage has no audit warnings
+
+## Safety
+- Runtime behavior unchanged: true
+- Scoring unchanged: true
+- Review only: true

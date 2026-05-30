@@ -1,0 +1,4879 @@
+{
+  "generatedAt": 1780063200000,
+  "inputSource": "deterministic_generated_pipeline_outputs_current_engine_post_synthetic",
+  "note": "Static saved LevelEngineOutput fixtures are older snapshots; this bundle rebuilds the deterministic sample profiles through the current engine after synthetic continuation-map extensions were merged.",
+  "summary": {
+    "sampleCount": 5,
+    "totalLevels": 61,
+    "supportLevels": 35,
+    "resistanceLevels": 26,
+    "extensionLevels": 13,
+    "realExtensionLevels": 1,
+    "syntheticExtensionLevels": 12,
+    "surfacedLevels": 48,
+    "preSyntheticExtensionLevels": 1,
+    "preSyntheticSurfacedLevels": 48,
+    "missingSupportExtensionSamples": [
+      "LPRN"
+    ],
+    "missingResistanceExtensionSamples": [
+      "CLNT"
+    ],
+    "limitedUpsideSamples": [],
+    "limitedDownsideSamples": [],
+    "allSurfacedCountsUnchanged": true,
+    "nearestSupportUnchanged": true,
+    "nearestResistanceUnchanged": true,
+    "specialLevelsUnchanged": true,
+    "syntheticMetadataMarked": true
+  },
+  "samples": [
+    {
+      "symbol": "LPRN",
+      "profile": "low-price runner",
+      "preSyntheticExtensionCoverage": {
+        "supportExtensions": 0,
+        "resistanceExtensions": 0,
+        "warnings": [
+          "no_support_extension_coverage",
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "postSyntheticExtensionCoverage": {
+        "supportExtensions": 0,
+        "resistanceExtensions": 1,
+        "highestResistanceExtension": 7.3,
+        "upsideCoveragePct": 30.3571,
+        "warnings": [
+          "no_support_extension_coverage"
+        ]
+      },
+      "realExtensions": {
+        "support": [],
+        "resistance": []
+      },
+      "syntheticExtensions": {
+        "support": [],
+        "resistance": [
+          {
+            "id": "LPRN-synthetic-resistance-extension-1-7p3000",
+            "price": 7.3,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 5.6,
+              "targetCoveragePct": 0.3,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 1,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          }
+        ]
+      },
+      "report": {
+        "symbol": "LPRN",
+        "generatedAt": 1780063200000,
+        "referencePrice": 5.6,
+        "summary": {
+          "totalLevels": 15,
+          "supportCount": 10,
+          "resistanceCount": 5,
+          "extensionCount": 1,
+          "freshCount": 6,
+          "staleCount": 8,
+          "enrichedCount": 0,
+          "unenrichedCount": 15
+        },
+        "strongestLevels": [
+          {
+            "levelId": "LPRN-resistance-zone-6",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 6.0922,
+            "zoneLow": 6.0863,
+            "zoneHigh": 6.0922,
+            "strengthScore": 55.03,
+            "strengthLabel": "major",
+            "auditScore": 0.5503,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-resistance-zone-7",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 6.5145,
+            "zoneLow": 6.5145,
+            "zoneHigh": 6.5145,
+            "strengthScore": 16.3,
+            "strengthLabel": "moderate",
+            "auditScore": 0.163,
+            "freshness": "aging",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-5",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 3.267,
+            "zoneLow": 3.267,
+            "zoneHigh": 3.267,
+            "strengthScore": 16.08,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1608,
+            "freshness": "stale",
+            "touchCount": 7,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-8",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 4.6917,
+            "zoneLow": 4.6917,
+            "zoneHigh": 4.6917,
+            "strengthScore": 15.16,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1516,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-4",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 2.9838,
+            "zoneLow": 2.9838,
+            "zoneHigh": 2.9838,
+            "strengthScore": 14.74,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1474,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakestLevels": [
+          {
+            "levelId": "LPRN-synthetic-resistance-extension-1-7p3000",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 7.3,
+            "zoneLow": 7.2726,
+            "zoneHigh": 7.3274,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-resistance-zone-4",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.6537,
+            "zoneLow": 5.6537,
+            "zoneHigh": 5.6537,
+            "strengthScore": 11.06,
+            "strengthLabel": "weak",
+            "auditScore": 0.1106,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-10",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 5.0893,
+            "zoneLow": 5.0893,
+            "zoneHigh": 5.0893,
+            "strengthScore": 11.29,
+            "strengthLabel": "weak",
+            "auditScore": 0.1129,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-6",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 3.9105,
+            "zoneLow": 3.9105,
+            "zoneHigh": 3.9105,
+            "strengthScore": 11.65,
+            "strengthLabel": "weak",
+            "auditScore": 0.1165,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-resistance-zone-5",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 5.858,
+            "zoneLow": 5.858,
+            "zoneHigh": 5.858,
+            "strengthScore": 11.7,
+            "strengthLabel": "weak",
+            "auditScore": 0.117,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "staleLevels": [
+          {
+            "levelId": "LPRN-support-zone-6",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 3.9105,
+            "zoneLow": 3.9105,
+            "zoneHigh": 3.9105,
+            "strengthScore": 11.65,
+            "strengthLabel": "weak",
+            "auditScore": 0.1165,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-resistance-zone-5",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 5.858,
+            "zoneLow": 5.858,
+            "zoneHigh": 5.858,
+            "strengthScore": 11.7,
+            "strengthLabel": "weak",
+            "auditScore": 0.117,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-7",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 4.5045,
+            "zoneLow": 4.5045,
+            "zoneHigh": 4.5045,
+            "strengthScore": 11.76,
+            "strengthLabel": "weak",
+            "auditScore": 0.1176,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-2",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 1.3634,
+            "zoneLow": 1.3634,
+            "zoneHigh": 1.3634,
+            "strengthScore": 14.28,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1428,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-1",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 1.1066,
+            "zoneLow": 1.1066,
+            "zoneHigh": 1.1066,
+            "strengthScore": 14.35,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1435,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "freshLevels": [
+          {
+            "levelId": "LPRN-resistance-zone-6",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 6.0922,
+            "zoneLow": 6.0863,
+            "zoneHigh": 6.0922,
+            "strengthScore": 55.03,
+            "strengthLabel": "major",
+            "auditScore": 0.5503,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-8",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 4.6917,
+            "zoneLow": 4.6917,
+            "zoneHigh": 4.6917,
+            "strengthScore": 15.16,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1516,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-9",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 4.9501,
+            "zoneLow": 4.9501,
+            "zoneHigh": 4.9501,
+            "strengthScore": 12.51,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1251,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-10",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 5.0893,
+            "zoneLow": 5.0893,
+            "zoneHigh": 5.0893,
+            "strengthScore": 11.29,
+            "strengthLabel": "weak",
+            "auditScore": 0.1129,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-resistance-zone-4",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.6537,
+            "zoneLow": 5.6537,
+            "zoneHigh": 5.6537,
+            "strengthScore": 11.06,
+            "strengthLabel": "weak",
+            "auditScore": 0.1106,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "strongConfluenceLevels": [
+          {
+            "levelId": "LPRN-resistance-zone-6",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 6.0922,
+            "zoneLow": 6.0863,
+            "zoneHigh": 6.0922,
+            "strengthScore": 55.03,
+            "strengthLabel": "major",
+            "auditScore": 0.5503,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakContextLevels": [
+          {
+            "levelId": "LPRN-synthetic-resistance-extension-1-7p3000",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 7.3,
+            "zoneLow": 7.2726,
+            "zoneHigh": 7.3274,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-resistance-zone-4",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.6537,
+            "zoneLow": 5.6537,
+            "zoneHigh": 5.6537,
+            "strengthScore": 11.06,
+            "strengthLabel": "weak",
+            "auditScore": 0.1106,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-10",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 5.0893,
+            "zoneLow": 5.0893,
+            "zoneHigh": 5.0893,
+            "strengthScore": 11.29,
+            "strengthLabel": "weak",
+            "auditScore": 0.1129,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-6",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 3.9105,
+            "zoneLow": 3.9105,
+            "zoneHigh": 3.9105,
+            "strengthScore": 11.65,
+            "strengthLabel": "weak",
+            "auditScore": 0.1165,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-resistance-zone-5",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 5.858,
+            "zoneLow": 5.858,
+            "zoneHigh": 5.858,
+            "strengthScore": 11.7,
+            "strengthLabel": "weak",
+            "auditScore": 0.117,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "enrichedLevels": [],
+        "unenrichedLevels": [
+          {
+            "levelId": "LPRN-synthetic-resistance-extension-1-7p3000",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 7.3,
+            "zoneLow": 7.2726,
+            "zoneHigh": 7.3274,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-resistance-zone-4",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.6537,
+            "zoneLow": 5.6537,
+            "zoneHigh": 5.6537,
+            "strengthScore": 11.06,
+            "strengthLabel": "weak",
+            "auditScore": 0.1106,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-10",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 5.0893,
+            "zoneLow": 5.0893,
+            "zoneHigh": 5.0893,
+            "strengthScore": 11.29,
+            "strengthLabel": "weak",
+            "auditScore": 0.1129,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-support-zone-6",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 3.9105,
+            "zoneLow": 3.9105,
+            "zoneHigh": 3.9105,
+            "strengthScore": 11.65,
+            "strengthLabel": "weak",
+            "auditScore": 0.1165,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "LPRN-resistance-zone-5",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 5.858,
+            "zoneLow": 5.858,
+            "zoneHigh": 5.858,
+            "strengthScore": 11.7,
+            "strengthLabel": "weak",
+            "auditScore": 0.117,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "possibleClutterLevels": [],
+        "clusteredAreas": [],
+        "extensionCoverage": {
+          "supportExtensions": 0,
+          "resistanceExtensions": 1,
+          "highestResistanceExtension": 7.3,
+          "upsideCoveragePct": 30.3571,
+          "warnings": [
+            "no_support_extension_coverage"
+          ]
+        },
+        "nearbyCoverage": {
+          "referencePrice": 5.6,
+          "nearbySupportCount": 0,
+          "nearbyResistanceCount": 2,
+          "nearestSupport": {
+            "levelId": "LPRN-support-zone-10",
+            "symbol": "LPRN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 5.0893,
+            "zoneLow": 5.0893,
+            "zoneHigh": 5.0893,
+            "strengthScore": 11.29,
+            "strengthLabel": "weak",
+            "auditScore": 0.1129,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "nearestResistance": {
+            "levelId": "LPRN-resistance-zone-4",
+            "symbol": "LPRN",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.6537,
+            "zoneLow": 5.6537,
+            "zoneHigh": 5.6537,
+            "strengthScore": 11.06,
+            "strengthLabel": "weak",
+            "auditScore": 0.1106,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "overheadResistanceGapPct": 0.9589,
+          "downsideSupportGapPct": 9.1196,
+          "warnings": [
+            "wide_downside_support_gap"
+          ]
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 0,
+          "volumeConfluenceCount": 0,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 0
+        },
+        "diagnostics": [
+          "level_intelligence_report_missing",
+          "levels_without_context_present",
+          "no_support_extension_coverage",
+          "unenriched_levels_present",
+          "wide_downside_support_gap"
+        ],
+        "safety": {
+          "levelOutputUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true
+        }
+      }
+    },
+    {
+      "symbol": "CHOP",
+      "profile": "choppy/messy ticker",
+      "preSyntheticExtensionCoverage": {
+        "supportExtensions": 0,
+        "resistanceExtensions": 0,
+        "warnings": [
+          "no_support_extension_coverage",
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "postSyntheticExtensionCoverage": {
+        "supportExtensions": 2,
+        "resistanceExtensions": 1,
+        "highestResistanceExtension": 6.6,
+        "lowestSupportExtension": 2.5,
+        "upsideCoveragePct": 30.1775,
+        "downsideCoveragePct": 50.6903,
+        "warnings": []
+      },
+      "realExtensions": {
+        "support": [],
+        "resistance": []
+      },
+      "syntheticExtensions": {
+        "support": [
+          {
+            "id": "CHOP-synthetic-support-extension-1-3p5000",
+            "price": 3.5,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 5.07,
+              "targetCoveragePct": 0.3,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 1,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          },
+          {
+            "id": "CHOP-synthetic-support-extension-2-2p5000",
+            "price": 2.5,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 5.07,
+              "targetCoveragePct": 0.5,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 2,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          }
+        ],
+        "resistance": [
+          {
+            "id": "CHOP-synthetic-resistance-extension-1-6p6000",
+            "price": 6.6,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 5.07,
+              "targetCoveragePct": 0.3,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 1,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          }
+        ]
+      },
+      "report": {
+        "symbol": "CHOP",
+        "generatedAt": 1780063200000,
+        "referencePrice": 5.07,
+        "summary": {
+          "totalLevels": 7,
+          "supportCount": 4,
+          "resistanceCount": 3,
+          "extensionCount": 3,
+          "freshCount": 6,
+          "staleCount": 1,
+          "enrichedCount": 0,
+          "unenrichedCount": 7
+        },
+        "strongestLevels": [
+          {
+            "levelId": "CHOP-support-zone-1",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 4.9104,
+            "zoneLow": 4.8906,
+            "zoneHigh": 4.9799,
+            "strengthScore": 154.96,
+            "strengthLabel": "major",
+            "auditScore": 1.5496,
+            "freshness": "fresh",
+            "touchCount": 61,
+            "confluenceCount": 3,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-resistance-zone-2",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 5.3029,
+            "zoneLow": 5.2318,
+            "zoneHigh": 5.3029,
+            "strengthScore": 82.45,
+            "strengthLabel": "major",
+            "auditScore": 0.8245,
+            "freshness": "stale",
+            "touchCount": 54,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-resistance-zone-1",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.1608,
+            "zoneLow": 5.1407,
+            "zoneHigh": 5.1608,
+            "strengthScore": 34.95,
+            "strengthLabel": "strong",
+            "auditScore": 0.3495,
+            "freshness": "fresh",
+            "touchCount": 26,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-support-zone-2",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 4.9998,
+            "zoneLow": 4.9998,
+            "zoneHigh": 4.9998,
+            "strengthScore": 15.17,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1517,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-synthetic-support-extension-2-2p5000",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 2.5,
+            "zoneLow": 2.4906,
+            "zoneHigh": 2.5094,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakestLevels": [
+          {
+            "levelId": "CHOP-synthetic-support-extension-2-2p5000",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 2.5,
+            "zoneLow": 2.4906,
+            "zoneHigh": 2.5094,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-synthetic-support-extension-1-3p5000",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 3.5,
+            "zoneLow": 3.4869,
+            "zoneHigh": 3.5131,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-synthetic-resistance-extension-1-6p6000",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 6.6,
+            "zoneLow": 6.5753,
+            "zoneHigh": 6.6247,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-support-zone-2",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 4.9998,
+            "zoneLow": 4.9998,
+            "zoneHigh": 4.9998,
+            "strengthScore": 15.17,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1517,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-resistance-zone-1",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.1608,
+            "zoneLow": 5.1407,
+            "zoneHigh": 5.1608,
+            "strengthScore": 34.95,
+            "strengthLabel": "strong",
+            "auditScore": 0.3495,
+            "freshness": "fresh",
+            "touchCount": 26,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "staleLevels": [
+          {
+            "levelId": "CHOP-resistance-zone-2",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 5.3029,
+            "zoneLow": 5.2318,
+            "zoneHigh": 5.3029,
+            "strengthScore": 82.45,
+            "strengthLabel": "major",
+            "auditScore": 0.8245,
+            "freshness": "stale",
+            "touchCount": 54,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "freshLevels": [
+          {
+            "levelId": "CHOP-support-zone-1",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 4.9104,
+            "zoneLow": 4.8906,
+            "zoneHigh": 4.9799,
+            "strengthScore": 154.96,
+            "strengthLabel": "major",
+            "auditScore": 1.5496,
+            "freshness": "fresh",
+            "touchCount": 61,
+            "confluenceCount": 3,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-resistance-zone-1",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.1608,
+            "zoneLow": 5.1407,
+            "zoneHigh": 5.1608,
+            "strengthScore": 34.95,
+            "strengthLabel": "strong",
+            "auditScore": 0.3495,
+            "freshness": "fresh",
+            "touchCount": 26,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-support-zone-2",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 4.9998,
+            "zoneLow": 4.9998,
+            "zoneHigh": 4.9998,
+            "strengthScore": 15.17,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1517,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-synthetic-support-extension-2-2p5000",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 2.5,
+            "zoneLow": 2.4906,
+            "zoneHigh": 2.5094,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-synthetic-support-extension-1-3p5000",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 3.5,
+            "zoneLow": 3.4869,
+            "zoneHigh": 3.5131,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "strongConfluenceLevels": [
+          {
+            "levelId": "CHOP-support-zone-1",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 4.9104,
+            "zoneLow": 4.8906,
+            "zoneHigh": 4.9799,
+            "strengthScore": 154.96,
+            "strengthLabel": "major",
+            "auditScore": 1.5496,
+            "freshness": "fresh",
+            "touchCount": 61,
+            "confluenceCount": 3,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-resistance-zone-2",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 5.3029,
+            "zoneLow": 5.2318,
+            "zoneHigh": 5.3029,
+            "strengthScore": 82.45,
+            "strengthLabel": "major",
+            "auditScore": 0.8245,
+            "freshness": "stale",
+            "touchCount": 54,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakContextLevels": [
+          {
+            "levelId": "CHOP-synthetic-support-extension-2-2p5000",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 2.5,
+            "zoneLow": 2.4906,
+            "zoneHigh": 2.5094,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-synthetic-support-extension-1-3p5000",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 3.5,
+            "zoneLow": 3.4869,
+            "zoneHigh": 3.5131,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-synthetic-resistance-extension-1-6p6000",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 6.6,
+            "zoneLow": 6.5753,
+            "zoneHigh": 6.6247,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-support-zone-2",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 4.9998,
+            "zoneLow": 4.9998,
+            "zoneHigh": 4.9998,
+            "strengthScore": 15.17,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1517,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-resistance-zone-1",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.1608,
+            "zoneLow": 5.1407,
+            "zoneHigh": 5.1608,
+            "strengthScore": 34.95,
+            "strengthLabel": "strong",
+            "auditScore": 0.3495,
+            "freshness": "fresh",
+            "touchCount": 26,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "enrichedLevels": [],
+        "unenrichedLevels": [
+          {
+            "levelId": "CHOP-synthetic-support-extension-2-2p5000",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 2.5,
+            "zoneLow": 2.4906,
+            "zoneHigh": 2.5094,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-synthetic-support-extension-1-3p5000",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 3.5,
+            "zoneLow": 3.4869,
+            "zoneHigh": 3.5131,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-synthetic-resistance-extension-1-6p6000",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 6.6,
+            "zoneLow": 6.5753,
+            "zoneHigh": 6.6247,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-support-zone-2",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 4.9998,
+            "zoneLow": 4.9998,
+            "zoneHigh": 4.9998,
+            "strengthScore": 15.17,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1517,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CHOP-resistance-zone-1",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.1608,
+            "zoneLow": 5.1407,
+            "zoneHigh": 5.1608,
+            "strengthScore": 34.95,
+            "strengthLabel": "strong",
+            "auditScore": 0.3495,
+            "freshness": "fresh",
+            "touchCount": 26,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "possibleClutterLevels": [],
+        "clusteredAreas": [],
+        "extensionCoverage": {
+          "supportExtensions": 2,
+          "resistanceExtensions": 1,
+          "highestResistanceExtension": 6.6,
+          "lowestSupportExtension": 2.5,
+          "upsideCoveragePct": 30.1775,
+          "downsideCoveragePct": 50.6903,
+          "warnings": []
+        },
+        "nearbyCoverage": {
+          "referencePrice": 5.07,
+          "nearbySupportCount": 2,
+          "nearbyResistanceCount": 2,
+          "nearestSupport": {
+            "levelId": "CHOP-support-zone-2",
+            "symbol": "CHOP",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 4.9998,
+            "zoneLow": 4.9998,
+            "zoneHigh": 4.9998,
+            "strengthScore": 15.17,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1517,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "nearestResistance": {
+            "levelId": "CHOP-resistance-zone-1",
+            "symbol": "CHOP",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 5.1608,
+            "zoneLow": 5.1407,
+            "zoneHigh": 5.1608,
+            "strengthScore": 34.95,
+            "strengthLabel": "strong",
+            "auditScore": 0.3495,
+            "freshness": "fresh",
+            "touchCount": 26,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "overheadResistanceGapPct": 1.7909,
+          "downsideSupportGapPct": 1.3846,
+          "warnings": []
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 0,
+          "volumeConfluenceCount": 0,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 0
+        },
+        "diagnostics": [
+          "level_intelligence_report_missing",
+          "levels_without_context_present",
+          "unenriched_levels_present"
+        ],
+        "safety": {
+          "levelOutputUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true
+        }
+      }
+    },
+    {
+      "symbol": "THIN",
+      "profile": "thin-liquidity ticker",
+      "preSyntheticExtensionCoverage": {
+        "supportExtensions": 0,
+        "resistanceExtensions": 1,
+        "highestResistanceExtension": 1.6968,
+        "upsideCoveragePct": 8.7692,
+        "warnings": [
+          "no_support_extension_coverage",
+          "limited_upside_extension_coverage"
+        ]
+      },
+      "postSyntheticExtensionCoverage": {
+        "supportExtensions": 2,
+        "resistanceExtensions": 2,
+        "highestResistanceExtension": 2.05,
+        "lowestSupportExtension": 0.78,
+        "upsideCoveragePct": 31.4103,
+        "downsideCoveragePct": 50,
+        "warnings": []
+      },
+      "realExtensions": {
+        "support": [],
+        "resistance": [
+          1.6968
+        ]
+      },
+      "syntheticExtensions": {
+        "support": [
+          {
+            "id": "THIN-synthetic-support-extension-1-1p0500",
+            "price": 1.05,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 1.56,
+              "targetCoveragePct": 0.3,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 1,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          },
+          {
+            "id": "THIN-synthetic-support-extension-2-0p7800",
+            "price": 0.78,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 1.56,
+              "targetCoveragePct": 0.5,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 2,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          }
+        ],
+        "resistance": [
+          {
+            "id": "THIN-synthetic-resistance-extension-1-2p0500",
+            "price": 2.05,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 1.56,
+              "targetCoveragePct": 0.3,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 1,
+              "evidenceLimitations": [
+                "real_extension_coverage_below_threshold",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          }
+        ]
+      },
+      "report": {
+        "symbol": "THIN",
+        "generatedAt": 1780063200000,
+        "referencePrice": 1.56,
+        "summary": {
+          "totalLevels": 11,
+          "supportCount": 6,
+          "resistanceCount": 5,
+          "extensionCount": 4,
+          "freshCount": 6,
+          "staleCount": 5,
+          "enrichedCount": 0,
+          "unenrichedCount": 11
+        },
+        "strongestLevels": [
+          {
+            "levelId": "THIN-resistance-zone-1",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 1.616,
+            "zoneLow": 1.6096,
+            "zoneHigh": 1.616,
+            "strengthScore": 41.75,
+            "strengthLabel": "major",
+            "auditScore": 0.4175,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-3",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 1.403,
+            "zoneLow": 1.403,
+            "zoneHigh": 1.4058,
+            "strengthScore": 31.02,
+            "strengthLabel": "strong",
+            "auditScore": 0.3102,
+            "freshness": "stale",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-resistance-zone-2",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 1.6297,
+            "zoneLow": 1.6297,
+            "zoneHigh": 1.6297,
+            "strengthScore": 15.29,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1529,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-4",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 1.4314,
+            "zoneLow": 1.4314,
+            "zoneHigh": 1.4314,
+            "strengthScore": 15.2,
+            "strengthLabel": "moderate",
+            "auditScore": 0.152,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-1",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 1.3042,
+            "zoneLow": 1.3042,
+            "zoneHigh": 1.3042,
+            "strengthScore": 14.17,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1417,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakestLevels": [
+          {
+            "levelId": "THIN-synthetic-support-extension-2-0p7800",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 0.78,
+            "zoneLow": 0.7771,
+            "zoneHigh": 0.7829,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-synthetic-support-extension-1-1p0500",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 1.05,
+            "zoneLow": 1.0461,
+            "zoneHigh": 1.0539,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-synthetic-resistance-extension-1-2p0500",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 2.05,
+            "zoneLow": 2.0423,
+            "zoneHigh": 2.0577,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-2",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 1.3464,
+            "zoneLow": 1.3464,
+            "zoneHigh": 1.3464,
+            "strengthScore": 11.39,
+            "strengthLabel": "weak",
+            "auditScore": 0.1139,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-resistance-zone-3",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 1.6968,
+            "zoneLow": 1.6968,
+            "zoneHigh": 1.6968,
+            "strengthScore": 11.66,
+            "strengthLabel": "weak",
+            "auditScore": 0.1166,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "staleLevels": [
+          {
+            "levelId": "THIN-support-zone-2",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 1.3464,
+            "zoneLow": 1.3464,
+            "zoneHigh": 1.3464,
+            "strengthScore": 11.39,
+            "strengthLabel": "weak",
+            "auditScore": 0.1139,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-resistance-zone-3",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 1.6968,
+            "zoneLow": 1.6968,
+            "zoneHigh": 1.6968,
+            "strengthScore": 11.66,
+            "strengthLabel": "weak",
+            "auditScore": 0.1166,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-resistance-zone-4",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 1.7811,
+            "zoneLow": 1.7811,
+            "zoneHigh": 1.7811,
+            "strengthScore": 14.1,
+            "strengthLabel": "moderate",
+            "auditScore": 0.141,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-1",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 1.3042,
+            "zoneLow": 1.3042,
+            "zoneHigh": 1.3042,
+            "strengthScore": 14.17,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1417,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-3",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 1.403,
+            "zoneLow": 1.403,
+            "zoneHigh": 1.4058,
+            "strengthScore": 31.02,
+            "strengthLabel": "strong",
+            "auditScore": 0.3102,
+            "freshness": "stale",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "freshLevels": [
+          {
+            "levelId": "THIN-resistance-zone-1",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 1.616,
+            "zoneLow": 1.6096,
+            "zoneHigh": 1.616,
+            "strengthScore": 41.75,
+            "strengthLabel": "major",
+            "auditScore": 0.4175,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-resistance-zone-2",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 1.6297,
+            "zoneLow": 1.6297,
+            "zoneHigh": 1.6297,
+            "strengthScore": 15.29,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1529,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-4",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 1.4314,
+            "zoneLow": 1.4314,
+            "zoneHigh": 1.4314,
+            "strengthScore": 15.2,
+            "strengthLabel": "moderate",
+            "auditScore": 0.152,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-synthetic-support-extension-2-0p7800",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 0.78,
+            "zoneLow": 0.7771,
+            "zoneHigh": 0.7829,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-synthetic-support-extension-1-1p0500",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 1.05,
+            "zoneLow": 1.0461,
+            "zoneHigh": 1.0539,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "strongConfluenceLevels": [
+          {
+            "levelId": "THIN-resistance-zone-1",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 1.616,
+            "zoneLow": 1.6096,
+            "zoneHigh": 1.616,
+            "strengthScore": 41.75,
+            "strengthLabel": "major",
+            "auditScore": 0.4175,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-3",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 1.403,
+            "zoneLow": 1.403,
+            "zoneHigh": 1.4058,
+            "strengthScore": 31.02,
+            "strengthLabel": "strong",
+            "auditScore": 0.3102,
+            "freshness": "stale",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakContextLevels": [
+          {
+            "levelId": "THIN-synthetic-support-extension-2-0p7800",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 0.78,
+            "zoneLow": 0.7771,
+            "zoneHigh": 0.7829,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-synthetic-support-extension-1-1p0500",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 1.05,
+            "zoneLow": 1.0461,
+            "zoneHigh": 1.0539,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-synthetic-resistance-extension-1-2p0500",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 2.05,
+            "zoneLow": 2.0423,
+            "zoneHigh": 2.0577,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-2",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 1.3464,
+            "zoneLow": 1.3464,
+            "zoneHigh": 1.3464,
+            "strengthScore": 11.39,
+            "strengthLabel": "weak",
+            "auditScore": 0.1139,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-resistance-zone-3",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 1.6968,
+            "zoneLow": 1.6968,
+            "zoneHigh": 1.6968,
+            "strengthScore": 11.66,
+            "strengthLabel": "weak",
+            "auditScore": 0.1166,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "enrichedLevels": [],
+        "unenrichedLevels": [
+          {
+            "levelId": "THIN-synthetic-support-extension-2-0p7800",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 0.78,
+            "zoneLow": 0.7771,
+            "zoneHigh": 0.7829,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-synthetic-support-extension-1-1p0500",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 1.05,
+            "zoneLow": 1.0461,
+            "zoneHigh": 1.0539,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-synthetic-resistance-extension-1-2p0500",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 2.05,
+            "zoneLow": 2.0423,
+            "zoneHigh": 2.0577,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-support-zone-2",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 1.3464,
+            "zoneLow": 1.3464,
+            "zoneHigh": 1.3464,
+            "strengthScore": 11.39,
+            "strengthLabel": "weak",
+            "auditScore": 0.1139,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-resistance-zone-3",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 1.6968,
+            "zoneLow": 1.6968,
+            "zoneHigh": 1.6968,
+            "strengthScore": 11.66,
+            "strengthLabel": "weak",
+            "auditScore": 0.1166,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "possibleClutterLevels": [
+          {
+            "levelId": "THIN-resistance-zone-2",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 1.6297,
+            "zoneLow": 1.6297,
+            "zoneHigh": 1.6297,
+            "strengthScore": 15.29,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1529,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "THIN-resistance-zone-1",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 1.616,
+            "zoneLow": 1.6096,
+            "zoneHigh": 1.616,
+            "strengthScore": 41.75,
+            "strengthLabel": "major",
+            "auditScore": 0.4175,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "clusteredAreas": [
+          {
+            "kind": "resistance",
+            "zoneLow": 1.6096,
+            "zoneHigh": 1.6297,
+            "representativePrices": [
+              1.616,
+              1.6297
+            ],
+            "levelIds": [
+              "THIN-resistance-zone-1",
+              "THIN-resistance-zone-2"
+            ],
+            "buckets": [
+              "intermediateResistance",
+              "intradayResistance"
+            ],
+            "maxDistancePct": 0.8406,
+            "reason": "Multiple supplied levels are clustered within the audit threshold."
+          }
+        ],
+        "extensionCoverage": {
+          "supportExtensions": 2,
+          "resistanceExtensions": 2,
+          "highestResistanceExtension": 2.05,
+          "lowestSupportExtension": 0.78,
+          "upsideCoveragePct": 31.4103,
+          "downsideCoveragePct": 50,
+          "warnings": []
+        },
+        "nearbyCoverage": {
+          "referencePrice": 1.56,
+          "nearbySupportCount": 0,
+          "nearbyResistanceCount": 2,
+          "nearestSupport": {
+            "levelId": "THIN-support-zone-4",
+            "symbol": "THIN",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 1.4314,
+            "zoneLow": 1.4314,
+            "zoneHigh": 1.4314,
+            "strengthScore": 15.2,
+            "strengthLabel": "moderate",
+            "auditScore": 0.152,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "nearestResistance": {
+            "levelId": "THIN-resistance-zone-1",
+            "symbol": "THIN",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 1.616,
+            "zoneLow": 1.6096,
+            "zoneHigh": 1.616,
+            "strengthScore": 41.75,
+            "strengthLabel": "major",
+            "auditScore": 0.4175,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "overheadResistanceGapPct": 3.5897,
+          "downsideSupportGapPct": 8.2436,
+          "warnings": [
+            "wide_downside_support_gap"
+          ]
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 0,
+          "volumeConfluenceCount": 0,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 0
+        },
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "level_intelligence_report_missing",
+          "levels_without_context_present",
+          "unenriched_levels_present",
+          "wide_downside_support_gap"
+        ],
+        "safety": {
+          "levelOutputUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true
+        }
+      }
+    },
+    {
+      "symbol": "CLNT",
+      "profile": "clean technical mover",
+      "preSyntheticExtensionCoverage": {
+        "supportExtensions": 0,
+        "resistanceExtensions": 0,
+        "warnings": [
+          "no_support_extension_coverage",
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "postSyntheticExtensionCoverage": {
+        "supportExtensions": 2,
+        "resistanceExtensions": 0,
+        "lowestSupportExtension": 12.2,
+        "downsideCoveragePct": 50.2041,
+        "warnings": [
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "realExtensions": {
+        "support": [],
+        "resistance": []
+      },
+      "syntheticExtensions": {
+        "support": [
+          {
+            "id": "CLNT-synthetic-support-extension-1-17p1000",
+            "price": 17.1,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 24.5,
+              "targetCoveragePct": 0.3,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 1,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          },
+          {
+            "id": "CLNT-synthetic-support-extension-2-12p2000",
+            "price": 12.2,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 24.5,
+              "targetCoveragePct": 0.5,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 2,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          }
+        ],
+        "resistance": []
+      },
+      "report": {
+        "symbol": "CLNT",
+        "generatedAt": 1780063200000,
+        "referencePrice": 24.5,
+        "summary": {
+          "totalLevels": 14,
+          "supportCount": 8,
+          "resistanceCount": 6,
+          "extensionCount": 2,
+          "freshCount": 6,
+          "staleCount": 8,
+          "enrichedCount": 0,
+          "unenrichedCount": 14
+        },
+        "strongestLevels": [
+          {
+            "levelId": "CLNT-support-zone-4",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 22.724,
+            "zoneLow": 22.6632,
+            "zoneHigh": 22.724,
+            "strengthScore": 58.92,
+            "strengthLabel": "major",
+            "auditScore": 0.5892,
+            "freshness": "fresh",
+            "touchCount": 9,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-2",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 26.312,
+            "zoneLow": 26.312,
+            "zoneHigh": 26.3572,
+            "strengthScore": 54.52,
+            "strengthLabel": "major",
+            "auditScore": 0.5452,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-1",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 25.25,
+            "zoneLow": 25.25,
+            "zoneHigh": 25.4518,
+            "strengthScore": 45.59,
+            "strengthLabel": "major",
+            "auditScore": 0.4559,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-1",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 19.76,
+            "zoneLow": 19.76,
+            "zoneHigh": 19.76,
+            "strengthScore": 16.46,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1646,
+            "freshness": "stale",
+            "touchCount": 5,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-6",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 36.432,
+            "zoneLow": 36.432,
+            "zoneHigh": 36.432,
+            "strengthScore": 14.6,
+            "strengthLabel": "moderate",
+            "auditScore": 0.146,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakestLevels": [
+          {
+            "levelId": "CLNT-synthetic-support-extension-2-12p2000",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 12.2,
+            "zoneLow": 12.1543,
+            "zoneHigh": 12.2457,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-synthetic-support-extension-1-17p1000",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 17.1,
+            "zoneLow": 17.0359,
+            "zoneHigh": 17.1641,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-5",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 23.4584,
+            "zoneLow": 23.4584,
+            "zoneHigh": 23.4584,
+            "strengthScore": 11.26,
+            "strengthLabel": "weak",
+            "auditScore": 0.1126,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-2",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 20.295,
+            "zoneLow": 20.295,
+            "zoneHigh": 20.295,
+            "strengthScore": 11.27,
+            "strengthLabel": "weak",
+            "auditScore": 0.1127,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-3",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 29.29,
+            "zoneLow": 29.29,
+            "zoneHigh": 29.29,
+            "strengthScore": 11.57,
+            "strengthLabel": "weak",
+            "auditScore": 0.1157,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "staleLevels": [
+          {
+            "levelId": "CLNT-support-zone-2",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 20.295,
+            "zoneLow": 20.295,
+            "zoneHigh": 20.295,
+            "strengthScore": 11.27,
+            "strengthLabel": "weak",
+            "auditScore": 0.1127,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-3",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 29.29,
+            "zoneLow": 29.29,
+            "zoneHigh": 29.29,
+            "strengthScore": 11.57,
+            "strengthLabel": "weak",
+            "auditScore": 0.1157,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-3",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 21.78,
+            "zoneLow": 21.78,
+            "zoneHigh": 21.78,
+            "strengthScore": 11.67,
+            "strengthLabel": "weak",
+            "auditScore": 0.1167,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-5",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 32.32,
+            "zoneLow": 32.32,
+            "zoneHigh": 32.32,
+            "strengthScore": 11.79,
+            "strengthLabel": "weak",
+            "auditScore": 0.1179,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-6",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 23.76,
+            "zoneLow": 23.76,
+            "zoneHigh": 23.76,
+            "strengthScore": 13.62,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1362,
+            "freshness": "stale",
+            "touchCount": 5,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "freshLevels": [
+          {
+            "levelId": "CLNT-support-zone-4",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 22.724,
+            "zoneLow": 22.6632,
+            "zoneHigh": 22.724,
+            "strengthScore": 58.92,
+            "strengthLabel": "major",
+            "auditScore": 0.5892,
+            "freshness": "fresh",
+            "touchCount": 9,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-2",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 26.312,
+            "zoneLow": 26.312,
+            "zoneHigh": 26.3572,
+            "strengthScore": 54.52,
+            "strengthLabel": "major",
+            "auditScore": 0.5452,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-1",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 25.25,
+            "zoneLow": 25.25,
+            "zoneHigh": 25.4518,
+            "strengthScore": 45.59,
+            "strengthLabel": "major",
+            "auditScore": 0.4559,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-5",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 23.4584,
+            "zoneLow": 23.4584,
+            "zoneHigh": 23.4584,
+            "strengthScore": 11.26,
+            "strengthLabel": "weak",
+            "auditScore": 0.1126,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-synthetic-support-extension-2-12p2000",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 12.2,
+            "zoneLow": 12.1543,
+            "zoneHigh": 12.2457,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "strongConfluenceLevels": [
+          {
+            "levelId": "CLNT-support-zone-4",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 22.724,
+            "zoneLow": 22.6632,
+            "zoneHigh": 22.724,
+            "strengthScore": 58.92,
+            "strengthLabel": "major",
+            "auditScore": 0.5892,
+            "freshness": "fresh",
+            "touchCount": 9,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-2",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 26.312,
+            "zoneLow": 26.312,
+            "zoneHigh": 26.3572,
+            "strengthScore": 54.52,
+            "strengthLabel": "major",
+            "auditScore": 0.5452,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-1",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 25.25,
+            "zoneLow": 25.25,
+            "zoneHigh": 25.4518,
+            "strengthScore": 45.59,
+            "strengthLabel": "major",
+            "auditScore": 0.4559,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakContextLevels": [
+          {
+            "levelId": "CLNT-synthetic-support-extension-2-12p2000",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 12.2,
+            "zoneLow": 12.1543,
+            "zoneHigh": 12.2457,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-synthetic-support-extension-1-17p1000",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 17.1,
+            "zoneLow": 17.0359,
+            "zoneHigh": 17.1641,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-5",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 23.4584,
+            "zoneLow": 23.4584,
+            "zoneHigh": 23.4584,
+            "strengthScore": 11.26,
+            "strengthLabel": "weak",
+            "auditScore": 0.1126,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-2",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 20.295,
+            "zoneLow": 20.295,
+            "zoneHigh": 20.295,
+            "strengthScore": 11.27,
+            "strengthLabel": "weak",
+            "auditScore": 0.1127,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-3",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 29.29,
+            "zoneLow": 29.29,
+            "zoneHigh": 29.29,
+            "strengthScore": 11.57,
+            "strengthLabel": "weak",
+            "auditScore": 0.1157,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "enrichedLevels": [],
+        "unenrichedLevels": [
+          {
+            "levelId": "CLNT-synthetic-support-extension-2-12p2000",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 12.2,
+            "zoneLow": 12.1543,
+            "zoneHigh": 12.2457,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-synthetic-support-extension-1-17p1000",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 17.1,
+            "zoneLow": 17.0359,
+            "zoneHigh": 17.1641,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-5",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 23.4584,
+            "zoneLow": 23.4584,
+            "zoneHigh": 23.4584,
+            "strengthScore": 11.26,
+            "strengthLabel": "weak",
+            "auditScore": 0.1126,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-support-zone-2",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 20.295,
+            "zoneLow": 20.295,
+            "zoneHigh": 20.295,
+            "strengthScore": 11.27,
+            "strengthLabel": "weak",
+            "auditScore": 0.1127,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "CLNT-resistance-zone-3",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 29.29,
+            "zoneLow": 29.29,
+            "zoneHigh": 29.29,
+            "strengthScore": 11.57,
+            "strengthLabel": "weak",
+            "auditScore": 0.1157,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "possibleClutterLevels": [],
+        "clusteredAreas": [],
+        "extensionCoverage": {
+          "supportExtensions": 2,
+          "resistanceExtensions": 0,
+          "lowestSupportExtension": 12.2,
+          "downsideCoveragePct": 50.2041,
+          "warnings": [
+            "no_resistance_extension_coverage"
+          ]
+        },
+        "nearbyCoverage": {
+          "referencePrice": 24.5,
+          "nearbySupportCount": 3,
+          "nearbyResistanceCount": 2,
+          "nearestSupport": {
+            "levelId": "CLNT-support-zone-6",
+            "symbol": "CLNT",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 23.76,
+            "zoneLow": 23.76,
+            "zoneHigh": 23.76,
+            "strengthScore": 13.62,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1362,
+            "freshness": "stale",
+            "touchCount": 5,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "nearestResistance": {
+            "levelId": "CLNT-resistance-zone-1",
+            "symbol": "CLNT",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 25.25,
+            "zoneLow": 25.25,
+            "zoneHigh": 25.4518,
+            "strengthScore": 45.59,
+            "strengthLabel": "major",
+            "auditScore": 0.4559,
+            "freshness": "fresh",
+            "touchCount": 7,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "overheadResistanceGapPct": 3.0612,
+          "downsideSupportGapPct": 3.0204,
+          "warnings": []
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 0,
+          "volumeConfluenceCount": 0,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 0
+        },
+        "diagnostics": [
+          "level_intelligence_report_missing",
+          "levels_without_context_present",
+          "no_resistance_extension_coverage",
+          "unenriched_levels_present"
+        ],
+        "safety": {
+          "levelOutputUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true
+        }
+      }
+    },
+    {
+      "symbol": "HIPO",
+      "profile": "higher-priced stock",
+      "preSyntheticExtensionCoverage": {
+        "supportExtensions": 0,
+        "resistanceExtensions": 0,
+        "warnings": [
+          "no_support_extension_coverage",
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "postSyntheticExtensionCoverage": {
+        "supportExtensions": 2,
+        "resistanceExtensions": 1,
+        "highestResistanceExtension": 279,
+        "lowestSupportExtension": 93,
+        "upsideCoveragePct": 50,
+        "downsideCoveragePct": 50,
+        "warnings": []
+      },
+      "realExtensions": {
+        "support": [],
+        "resistance": []
+      },
+      "syntheticExtensions": {
+        "support": [
+          {
+            "id": "HIPO-synthetic-support-extension-1-130p0000",
+            "price": 130,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 186,
+              "targetCoveragePct": 0.3,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 1,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          },
+          {
+            "id": "HIPO-synthetic-support-extension-2-93p0000",
+            "price": 93,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 186,
+              "targetCoveragePct": 0.5,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 2,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          }
+        ],
+        "resistance": [
+          {
+            "id": "HIPO-synthetic-resistance-extension-1-279p0000",
+            "price": 279,
+            "extensionMetadata": {
+              "extensionSource": "synthetic_continuation_map",
+              "generationMethod": "round_number_ladder",
+              "referencePrice": 186,
+              "targetCoveragePct": 0.5,
+              "maxCoveragePct": 0.5,
+              "syntheticIndex": 1,
+              "evidenceLimitations": [
+                "no_real_extension_candidate_available",
+                "not_historical_support_resistance",
+                "no_touch_or_rejection_history",
+                "no_historical_confluence"
+              ]
+            },
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "sourceTypes": [],
+            "timeframeSources": []
+          }
+        ]
+      },
+      "report": {
+        "symbol": "HIPO",
+        "generatedAt": 1780063200000,
+        "referencePrice": 186,
+        "summary": {
+          "totalLevels": 14,
+          "supportCount": 7,
+          "resistanceCount": 7,
+          "extensionCount": 3,
+          "freshCount": 7,
+          "staleCount": 7,
+          "enrichedCount": 0,
+          "unenrichedCount": 14
+        },
+        "strongestLevels": [
+          {
+            "levelId": "HIPO-support-zone-3",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 167.96,
+            "zoneLow": 167.96,
+            "zoneHigh": 170.28,
+            "strengthScore": 71.27,
+            "strengthLabel": "major",
+            "auditScore": 0.7127,
+            "freshness": "fresh",
+            "touchCount": 10,
+            "confluenceCount": 3,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-resistance-zone-1",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 204.02,
+            "zoneLow": 203.212,
+            "zoneHigh": 204.02,
+            "strengthScore": 42.54,
+            "strengthLabel": "major",
+            "auditScore": 0.4254,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-resistance-zone-2",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 209.248,
+            "zoneLow": 209.248,
+            "zoneHigh": 209.248,
+            "strengthScore": 15.25,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1525,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-resistance-zone-3",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 222.64,
+            "zoneLow": 222.64,
+            "zoneHigh": 222.64,
+            "strengthScore": 15.19,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1519,
+            "freshness": "stale",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-resistance-zone-6",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "majorResistance",
+            "representativePrice": 247.94,
+            "zoneLow": 247.94,
+            "zoneHigh": 247.94,
+            "strengthScore": 14.38,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1438,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakestLevels": [
+          {
+            "levelId": "HIPO-synthetic-support-extension-2-93p0000",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 93,
+            "zoneLow": 92.6512,
+            "zoneHigh": 93.3488,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-synthetic-support-extension-1-130p0000",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 130,
+            "zoneLow": 129.5125,
+            "zoneHigh": 130.4875,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-synthetic-resistance-extension-1-279p0000",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 279,
+            "zoneLow": 277.9538,
+            "zoneHigh": 280.0463,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-support-zone-2",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 158.4,
+            "zoneLow": 158.4,
+            "zoneHigh": 158.4,
+            "strengthScore": 11.04,
+            "strengthLabel": "weak",
+            "auditScore": 0.1104,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-support-zone-4",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 176.932,
+            "zoneLow": 176.932,
+            "zoneHigh": 176.932,
+            "strengthScore": 11.27,
+            "strengthLabel": "weak",
+            "auditScore": 0.1127,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "staleLevels": [
+          {
+            "levelId": "HIPO-support-zone-2",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 158.4,
+            "zoneLow": 158.4,
+            "zoneHigh": 158.4,
+            "strengthScore": 11.04,
+            "strengthLabel": "weak",
+            "auditScore": 0.1104,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-resistance-zone-5",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 242.4,
+            "zoneLow": 242.4,
+            "zoneHigh": 242.4,
+            "strengthScore": 11.49,
+            "strengthLabel": "weak",
+            "auditScore": 0.1149,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-resistance-zone-4",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 234.32,
+            "zoneLow": 234.32,
+            "zoneHigh": 234.32,
+            "strengthScore": 11.57,
+            "strengthLabel": "weak",
+            "auditScore": 0.1157,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-support-zone-5",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 182.16,
+            "zoneLow": 182.16,
+            "zoneHigh": 182.16,
+            "strengthScore": 11.67,
+            "strengthLabel": "weak",
+            "auditScore": 0.1167,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-support-zone-1",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 156.104,
+            "zoneLow": 156.104,
+            "zoneHigh": 156.104,
+            "strengthScore": 14.18,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1418,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "freshLevels": [
+          {
+            "levelId": "HIPO-support-zone-3",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 167.96,
+            "zoneLow": 167.96,
+            "zoneHigh": 170.28,
+            "strengthScore": 71.27,
+            "strengthLabel": "major",
+            "auditScore": 0.7127,
+            "freshness": "fresh",
+            "touchCount": 10,
+            "confluenceCount": 3,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-resistance-zone-1",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 204.02,
+            "zoneLow": 203.212,
+            "zoneHigh": 204.02,
+            "strengthScore": 42.54,
+            "strengthLabel": "major",
+            "auditScore": 0.4254,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-resistance-zone-2",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "intradayResistance",
+            "representativePrice": 209.248,
+            "zoneLow": 209.248,
+            "zoneHigh": 209.248,
+            "strengthScore": 15.25,
+            "strengthLabel": "moderate",
+            "auditScore": 0.1525,
+            "freshness": "fresh",
+            "touchCount": 4,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-support-zone-4",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 176.932,
+            "zoneLow": 176.932,
+            "zoneHigh": 176.932,
+            "strengthScore": 11.27,
+            "strengthLabel": "weak",
+            "auditScore": 0.1127,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-synthetic-support-extension-2-93p0000",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 93,
+            "zoneLow": 92.6512,
+            "zoneHigh": 93.3488,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "strongConfluenceLevels": [
+          {
+            "levelId": "HIPO-support-zone-3",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "majorSupport",
+            "representativePrice": 167.96,
+            "zoneLow": 167.96,
+            "zoneHigh": 170.28,
+            "strengthScore": 71.27,
+            "strengthLabel": "major",
+            "auditScore": 0.7127,
+            "freshness": "fresh",
+            "touchCount": 10,
+            "confluenceCount": 3,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-resistance-zone-1",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 204.02,
+            "zoneLow": 203.212,
+            "zoneHigh": 204.02,
+            "strengthScore": 42.54,
+            "strengthLabel": "major",
+            "auditScore": 0.4254,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "weakContextLevels": [
+          {
+            "levelId": "HIPO-synthetic-support-extension-2-93p0000",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 93,
+            "zoneLow": 92.6512,
+            "zoneHigh": 93.3488,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-synthetic-support-extension-1-130p0000",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 130,
+            "zoneLow": 129.5125,
+            "zoneHigh": 130.4875,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-synthetic-resistance-extension-1-279p0000",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 279,
+            "zoneLow": 277.9538,
+            "zoneHigh": 280.0463,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-support-zone-2",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 158.4,
+            "zoneLow": 158.4,
+            "zoneHigh": 158.4,
+            "strengthScore": 11.04,
+            "strengthLabel": "weak",
+            "auditScore": 0.1104,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-support-zone-4",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 176.932,
+            "zoneLow": 176.932,
+            "zoneHigh": 176.932,
+            "strengthScore": 11.27,
+            "strengthLabel": "weak",
+            "auditScore": 0.1127,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "enrichedLevels": [],
+        "unenrichedLevels": [
+          {
+            "levelId": "HIPO-synthetic-support-extension-2-93p0000",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 93,
+            "zoneLow": 92.6512,
+            "zoneHigh": 93.3488,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-synthetic-support-extension-1-130p0000",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "extensionSupport",
+            "representativePrice": 130,
+            "zoneLow": 129.5125,
+            "zoneHigh": 130.4875,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-synthetic-resistance-extension-1-279p0000",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "extensionResistance",
+            "representativePrice": 279,
+            "zoneLow": 277.9538,
+            "zoneHigh": 280.0463,
+            "strengthScore": 0,
+            "strengthLabel": "weak",
+            "auditScore": 0,
+            "freshness": "fresh",
+            "touchCount": 0,
+            "confluenceCount": 0,
+            "isExtension": true,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-support-zone-2",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 158.4,
+            "zoneLow": 158.4,
+            "zoneHigh": 158.4,
+            "strengthScore": 11.04,
+            "strengthLabel": "weak",
+            "auditScore": 0.1104,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          {
+            "levelId": "HIPO-support-zone-4",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intradaySupport",
+            "representativePrice": 176.932,
+            "zoneLow": 176.932,
+            "zoneHigh": 176.932,
+            "strengthScore": 11.27,
+            "strengthLabel": "weak",
+            "auditScore": 0.1127,
+            "freshness": "fresh",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          }
+        ],
+        "possibleClutterLevels": [],
+        "clusteredAreas": [],
+        "extensionCoverage": {
+          "supportExtensions": 2,
+          "resistanceExtensions": 1,
+          "highestResistanceExtension": 279,
+          "lowestSupportExtension": 93,
+          "upsideCoveragePct": 50,
+          "downsideCoveragePct": 50,
+          "warnings": []
+        },
+        "nearbyCoverage": {
+          "referencePrice": 186,
+          "nearbySupportCount": 2,
+          "nearbyResistanceCount": 0,
+          "nearestSupport": {
+            "levelId": "HIPO-support-zone-5",
+            "symbol": "HIPO",
+            "kind": "support",
+            "bucket": "intermediateSupport",
+            "representativePrice": 182.16,
+            "zoneLow": 182.16,
+            "zoneHigh": 182.16,
+            "strengthScore": 11.67,
+            "strengthLabel": "weak",
+            "auditScore": 0.1167,
+            "freshness": "stale",
+            "touchCount": 3,
+            "confluenceCount": 1,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "nearestResistance": {
+            "levelId": "HIPO-resistance-zone-1",
+            "symbol": "HIPO",
+            "kind": "resistance",
+            "bucket": "intermediateResistance",
+            "representativePrice": 204.02,
+            "zoneLow": 203.212,
+            "zoneHigh": 204.02,
+            "strengthScore": 42.54,
+            "strengthLabel": "major",
+            "auditScore": 0.4254,
+            "freshness": "fresh",
+            "touchCount": 6,
+            "confluenceCount": 2,
+            "isExtension": false,
+            "hasEnrichedAnalysis": false,
+            "contextCounts": {
+              "session": 0,
+              "volume": 0,
+              "shelf": 0,
+              "marketContext": 0
+            },
+            "diagnostics": []
+          },
+          "overheadResistanceGapPct": 9.6882,
+          "downsideSupportGapPct": 2.0645,
+          "warnings": [
+            "wide_overhead_resistance_gap"
+          ]
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 0,
+          "volumeConfluenceCount": 0,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 0
+        },
+        "diagnostics": [
+          "level_intelligence_report_missing",
+          "levels_without_context_present",
+          "unenriched_levels_present",
+          "wide_overhead_resistance_gap"
+        ],
+        "safety": {
+          "levelOutputUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true
+        }
+      }
+    }
+  ]
+}
