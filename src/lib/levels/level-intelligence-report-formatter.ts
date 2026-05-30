@@ -41,6 +41,14 @@ function formatNumber(value: number): string {
   return Number.isInteger(value) ? value.toString() : Number(value.toFixed(4)).toString();
 }
 
+function formatLabel(value: string): string {
+  if (value === "not_historical_support_resistance") {
+    return "not historical support/resistance";
+  }
+
+  return value.replaceAll("_", " ");
+}
+
 function isAllowedLine(line: string): boolean {
   return !FORBIDDEN_PATTERNS.some((pattern) => pattern.test(line));
 }
@@ -92,6 +100,14 @@ function bucketSpecs(report: LevelIntelligenceReport): BucketSpec[] {
 
 function formatProfile(profile: LevelIntelligenceProfile): string[] {
   const lines: string[] = [];
+  const extension = profile.extension ??
+    (profile.origin.isExtension
+      ? {
+          isSyntheticContinuationMap: false,
+          generationMethod: undefined,
+          evidenceLimitations: [],
+        }
+      : undefined);
 
   pushAllowed(
     lines,
@@ -102,6 +118,25 @@ function formatProfile(profile: LevelIntelligenceProfile): string[] {
     lines,
     `Origin: ${profile.origin.primaryTimeframe}; sources ${profile.origin.timeframeSources.join(", ") || "unknown"}; types ${profile.origin.sourceTypes.join(", ") || "unknown"}; extension ${profile.origin.isExtension}`,
   );
+  if (extension) {
+    if (extension.isSyntheticContinuationMap) {
+      pushAllowed(
+        lines,
+        "Extension source: Synthetic continuation map; forward-planning extension; not historical support/resistance; limited evidence/no historical touches.",
+      );
+    } else {
+      pushAllowed(lines, "Extension source: Historical candidate extension.");
+    }
+    if (extension.generationMethod) {
+      pushAllowed(lines, `Extension generation: ${formatLabel(extension.generationMethod)}`);
+    }
+    if (extension.evidenceLimitations.length > 0) {
+      pushAllowed(
+        lines,
+        `Extension evidence limits: ${extension.evidenceLimitations.map(formatLabel).join("; ")}`,
+      );
+    }
+  }
   pushAllowed(
     lines,
     `Freshness: ${profile.freshness.label}${profile.freshness.state ? `; state ${profile.freshness.state}` : ""}`,

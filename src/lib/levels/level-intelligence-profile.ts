@@ -2,7 +2,12 @@ import type { MarketContextFactsBundle, MarketContextProfile } from "../market-c
 import type { SessionMarketFacts } from "../session/index.js";
 import type { VolumeMarketFacts, VolumeShelf } from "../volume/index.js";
 import { explainLevelContext } from "./level-context-explainer.js";
-import type { FinalLevelZone, LevelDataFreshness, LevelState } from "./level-types.js";
+import type {
+  FinalLevelZone,
+  LevelDataFreshness,
+  LevelExtensionMetadata,
+  LevelState,
+} from "./level-types.js";
 
 export type LevelDistanceCategory = "near" | "approaching" | "extended" | "far";
 
@@ -21,6 +26,18 @@ export type LevelIntelligenceProfile = {
     timeframeSources: string[];
     primaryTimeframe: string;
     isExtension: boolean;
+  };
+  extension?: {
+    source: LevelExtensionMetadata["extensionSource"];
+    label: string;
+    generationMethod?: LevelExtensionMetadata["generationMethod"];
+    evidenceLimitations: NonNullable<LevelExtensionMetadata["evidenceLimitations"]>;
+    referencePrice?: number;
+    coveragePct?: number;
+    maxCoveragePct?: number;
+    syntheticIndex?: number;
+    notes: string[];
+    isSyntheticContinuationMap: boolean;
   };
   freshness: {
     firstTimestamp: number;
@@ -245,6 +262,40 @@ function buildReaction(level: FinalLevelZone): LevelIntelligenceProfile["reactio
   };
 }
 
+function formatEvidenceLimitation(value: string): string {
+  if (value === "not_historical_support_resistance") {
+    return "not historical support/resistance";
+  }
+
+  return value.replaceAll("_", " ");
+}
+
+function buildExtensionProfile(level: FinalLevelZone): LevelIntelligenceProfile["extension"] {
+  if (!level.isExtension) {
+    return undefined;
+  }
+
+  const metadata = level.extensionMetadata;
+  const source = metadata?.extensionSource ?? "historical_candidate";
+  const isSyntheticContinuationMap = source === "synthetic_continuation_map";
+  const evidenceLimitations = metadata?.evidenceLimitations ? [...metadata.evidenceLimitations] : [];
+
+  return {
+    source,
+    label: isSyntheticContinuationMap
+      ? "Synthetic continuation map"
+      : "Historical candidate extension",
+    generationMethod: metadata?.generationMethod,
+    evidenceLimitations,
+    referencePrice: metadata?.referencePrice,
+    coveragePct: metadata?.targetCoveragePct,
+    maxCoveragePct: metadata?.maxCoveragePct,
+    syntheticIndex: metadata?.syntheticIndex,
+    notes: [...level.notes],
+    isSyntheticContinuationMap,
+  };
+}
+
 function buildDiagnostics(params: {
   sessionFacts: SessionMarketFacts | undefined;
   volumeFacts: VolumeMarketFacts | undefined;
@@ -273,7 +324,25 @@ function buildDiagnostics(params: {
   return diagnostics;
 }
 
-function buildReason(level: FinalLevelZone, profile: Pick<LevelIntelligenceProfile, "distance" | "origin" | "freshness" | "volume">): string {
+function buildReason(
+  level: FinalLevelZone,
+  profile: Pick<LevelIntelligenceProfile, "distance" | "origin" | "freshness" | "volume" | "extension">,
+): string {
+  if (profile.extension?.isSyntheticContinuationMap) {
+    const limitations = profile.extension.evidenceLimitations.map(formatEvidenceLimitation);
+    const pieces = [
+      `${level.kind} extension ${round(level.representativePrice)} is a synthetic continuation-map forward-planning level`,
+      "not historical support/resistance",
+      limitations.length > 0 ? `evidence limits: ${limitations.join(", ")}` : "limited evidence",
+    ];
+
+    if (profile.distance) {
+      pieces.push(`${profile.distance.distanceFromReferencePct}% from reference price`);
+    }
+
+    return `${pieces.join("; ")}.`;
+  }
+
   const pieces = [
     `${level.kind} zone ${round(level.representativePrice)} is sourced from ${profile.origin.timeframeSources.join(", ") || "unknown timeframe"} evidence`,
     `freshness is ${profile.freshness.label}`,
@@ -315,6 +384,7 @@ export function buildLevelIntelligenceProfile(
     .filter((shelf) => shelfNearLevel(level, shelf, thresholdPct))
     .map((shelf) => shelf.id);
   const distance = buildDistance(level, referencePrice);
+  const extension = buildExtensionProfile(level);
   const volume = volumeFacts
     ? {
         volumeState: volumeFacts.volumeState,
@@ -335,6 +405,7 @@ export function buildLevelIntelligenceProfile(
       primaryTimeframe: level.timeframeBias,
       isExtension: level.isExtension,
     },
+    extension,
     freshness: {
       firstTimestamp: level.firstTimestamp,
       lastTimestamp: level.lastTimestamp,
@@ -353,6 +424,7 @@ export function buildLevelIntelligenceProfile(
     zoneHigh: level.zoneHigh,
     zoneWidthPercent: zoneWidthPercent(level),
     origin: profileSeed.origin,
+    extension,
     freshness: profileSeed.freshness,
     reaction: buildReaction(level),
     distance,

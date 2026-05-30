@@ -276,6 +276,64 @@ test("includes level explanations and profile facts", () => {
   assert.ok(lines.some((line) => line.includes("Reason: Facts-only profile")));
 });
 
+test("labels synthetic continuation-map extensions without mislabeling real extensions", () => {
+  const input = report();
+  input.buckets.extensionResistance.push(
+    intelligenceProfile("synthetic-extension-resistance", "resistance", 13, {
+      origin: {
+        sourceTypes: [],
+        timeframeSources: [],
+        primaryTimeframe: "mixed",
+        isExtension: true,
+      },
+      extension: {
+        source: "synthetic_continuation_map",
+        label: "Synthetic continuation map",
+        generationMethod: "round_number_ladder",
+        evidenceLimitations: [
+          "no_real_extension_candidate_available",
+          "not_historical_support_resistance",
+          "no_touch_or_rejection_history",
+          "no_historical_confluence",
+        ],
+        referencePrice: 10,
+        coveragePct: 0.3,
+        maxCoveragePct: 0.5,
+        syntheticIndex: 1,
+        notes: ["Synthetic continuation-map extension for forward planning only; not historical support/resistance."],
+        isSyntheticContinuationMap: true,
+      },
+      confluence: {
+        nearSessionFacts: [],
+        nearVolumeFacts: [],
+        nearShelfFacts: [],
+        contextTags: ["extension_level", "synthetic_continuation_map", "forward_planning_extension"],
+      },
+      reaction: {
+        touchCount: 0,
+        reactionQualityScore: 0,
+        rejectionScore: 0,
+        displacementScore: 0,
+        followThroughScore: 0,
+      },
+      reason:
+        "resistance extension 13 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available.",
+    }),
+  );
+
+  const formatted = formatLevelIntelligenceReport(input);
+  const extensionLines = section(formatted, "Extension Resistance").lines;
+  const realGroup = extensionLines.slice(0, extensionLines.findIndex((line) => line.includes("synthetic-extension-resistance")));
+  const text = extensionLines.join(" ");
+
+  assert.ok(text.includes("Extension source: Historical candidate extension."));
+  assert.ok(text.includes("Extension source: Synthetic continuation map; forward-planning extension; not historical support/resistance"));
+  assert.ok(text.includes("Extension generation: round number ladder"));
+  assert.ok(text.includes("Extension evidence limits: no real extension candidate available; not historical support/resistance; no touch or rejection history; no historical confluence"));
+  assert.equal(realGroup.some((line) => line.includes("Synthetic continuation map")), false);
+  assertNoForbiddenLanguage(formatted);
+});
+
 test("keeps VWAP and volume shelves facts-only", () => {
   const formatted = formatLevelIntelligenceReport(report());
   const text = allText(formatted);

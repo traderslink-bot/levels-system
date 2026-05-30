@@ -242,6 +242,72 @@ test("computes zone width origin freshness and enriched state", () => {
   assert.equal(profile.confidence, 0.86);
 });
 
+test("synthetic extension profile includes clear continuation-map metadata", () => {
+  const profile = buildLevelIntelligenceProfile({
+    level: zone({
+      id: "TEST-synthetic-resistance-extension-1-13p0000",
+      isExtension: true,
+      sourceTypes: [],
+      timeframeSources: [],
+      timeframeBias: "mixed",
+      representativePrice: 13,
+      zoneLow: 12.95,
+      zoneHigh: 13.05,
+      touchCount: 0,
+      confluenceCount: 0,
+      reactionQualityScore: 0,
+      rejectionScore: 0,
+      displacementScore: 0,
+      followThroughScore: 0,
+      sourceEvidenceCount: 0,
+      notes: ["Synthetic continuation-map extension for forward planning only; not historical support/resistance."],
+      extensionMetadata: {
+        extensionSource: "synthetic_continuation_map",
+        generationMethod: "round_number_ladder",
+        referencePrice: 10,
+        targetCoveragePct: 0.3,
+        maxCoveragePct: 0.5,
+        syntheticIndex: 1,
+        evidenceLimitations: [
+          "no_real_extension_candidate_available",
+          "not_historical_support_resistance",
+          "no_touch_or_rejection_history",
+          "no_historical_confluence",
+        ],
+      },
+    }),
+    referencePrice: 10,
+  });
+  const text = textFrom(profile);
+
+  assert.equal(profile.extension?.source, "synthetic_continuation_map");
+  assert.equal(profile.extension?.label, "Synthetic continuation map");
+  assert.equal(profile.extension?.isSyntheticContinuationMap, true);
+  assert.ok(profile.extension?.evidenceLimitations.includes("not_historical_support_resistance"));
+  assert.ok(profile.confluence.contextTags.includes("synthetic_continuation_map"));
+  assert.ok(profile.confluence.contextTags.includes("forward_planning_extension"));
+  assert.ok(text.includes("synthetic continuation-map"));
+  assert.ok(text.includes("not historical support/resistance"));
+  assert.ok(text.includes("no_touch_or_rejection_history"));
+  assertNoRecommendationLanguage(profile);
+});
+
+test("real extension profile does not receive synthetic continuation-map wording", () => {
+  const profile = buildLevelIntelligenceProfile({
+    level: zone({
+      id: "TEST-real-extension-1",
+      isExtension: true,
+    }),
+    referencePrice: 10,
+  });
+  const text = textFrom(profile);
+
+  assert.equal(profile.extension?.source, "historical_candidate");
+  assert.equal(profile.extension?.label, "Historical candidate extension");
+  assert.equal(profile.extension?.isSyntheticContinuationMap, false);
+  assert.equal(text.includes("synthetic continuation-map"), false);
+});
+
 test("copies touch reaction and volume-ratio evidence from enrichedAnalysis", () => {
   const profile = buildLevelIntelligenceProfile({ level: zone() });
 
