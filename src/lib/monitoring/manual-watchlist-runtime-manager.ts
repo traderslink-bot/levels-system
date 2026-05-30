@@ -1,8 +1,12 @@
 import { CandleFetchService } from "../market-data/candle-fetch-service.js";
 import { LevelEngine } from "../levels/level-engine.js";
-import type { FinalLevelZone } from "../levels/level-types.js";
+import type { FinalLevelZone, LevelEngineOutput } from "../levels/level-types.js";
 import { decideLevelRefresh } from "../levels/level-refresh-policy.js";
 import { AlertIntelligenceEngine } from "../alerts/alert-intelligence-engine.js";
+import {
+  formatLevelIntelligenceDiscordPreview,
+  type LevelIntelligenceDiscordPreview,
+} from "../alerts/level-intelligence-discord-preview.js";
 import {
   formatIntelligentAlertAsPayload,
   type DiscordAlertRouter,
@@ -13,6 +17,8 @@ import type {
   LevelSnapshotDisplayZone,
   LevelSnapshotPayload,
 } from "../alerts/alert-types.js";
+import { buildLevelIntelligenceReport } from "../levels/level-intelligence-report.js";
+import { formatLevelIntelligenceReport } from "../levels/level-intelligence-report-formatter.js";
 import { LevelStore } from "./level-store.js";
 import type { LivePriceUpdate, MonitoringEvent, WatchlistEntry } from "./monitoring-types.js";
 import { buildOpportunityDiagnosticsLogEntry } from "./opportunity-diagnostics.js";
@@ -31,6 +37,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   watchlistStore?: WatchlistStore;
   watchlistStatePersistence?: WatchlistStatePersistence;
   seedSymbolLevels?: (symbol: string) => Promise<void>;
+  levelIntelligenceAlertPreviewDryRun?: LevelIntelligenceAlertPreviewDryRunOptions;
 };
 
 export type ManualWatchlistActivationInput = {
@@ -38,8 +45,59 @@ export type ManualWatchlistActivationInput = {
   note?: string;
 };
 
+export const LEVEL_INTELLIGENCE_ALERT_PREVIEW_DRY_RUN_ENV =
+  "LEVEL_INTELLIGENCE_ALERT_PREVIEW_DRY_RUN";
+
+export type LevelIntelligenceAlertPreviewDryRunBuildOptions = {
+  maxMessageLength?: number;
+};
+
+export type LevelIntelligenceAlertPreviewDryRunBuilder = (
+  output: LevelEngineOutput,
+  options: LevelIntelligenceAlertPreviewDryRunBuildOptions,
+) => LevelIntelligenceDiscordPreview;
+
+export type LevelIntelligenceAlertPreviewDryRunResult = {
+  mode: "dry-run";
+  symbol: string;
+  timestamp: number;
+  alertId: string;
+  eventId: string;
+  threadId: string;
+  levelGeneratedAt: number;
+  preview: LevelIntelligenceDiscordPreview;
+  content: string;
+};
+
+export type LevelIntelligenceAlertPreviewDryRunErrorContext = {
+  symbol: string;
+  timestamp: number;
+  alertId: string;
+  eventId: string;
+};
+
+export type LevelIntelligenceAlertPreviewDryRunOptions = {
+  enabled?: boolean;
+  maxMessageLength?: number;
+  buildPreview?: LevelIntelligenceAlertPreviewDryRunBuilder;
+  onPreview?: (result: LevelIntelligenceAlertPreviewDryRunResult) => void;
+  onError?: (error: Error, context: LevelIntelligenceAlertPreviewDryRunErrorContext) => void;
+};
+
 function normalizeSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
+}
+
+function normalizeBooleanEnvValue(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase();
+  return normalized ? normalized : null;
+}
+
+export function resolveLevelIntelligenceAlertPreviewDryRun(
+  value?: string | null,
+): boolean {
+  const normalized = normalizeBooleanEnvValue(value);
+  return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
 }
 
 type ActiveLevelSnapshotState = {
@@ -53,6 +111,50 @@ type ActiveLevelSnapshotState = {
   lastExtensionPostKey: string | null;
   lastExtensionPostTimestamp: number | null;
 };
+
+function defaultBuildLevelIntelligenceAlertPreviewDryRun(
+  output: LevelEngineOutput,
+  options: LevelIntelligenceAlertPreviewDryRunBuildOptions,
+): LevelIntelligenceDiscordPreview {
+  const report = buildLevelIntelligenceReport({ output });
+  const formatted = formatLevelIntelligenceReport(report);
+  const previewOptions: LevelIntelligenceAlertPreviewDryRunBuildOptions = {};
+
+  if (options.maxMessageLength !== undefined) {
+    previewOptions.maxMessageLength = options.maxMessageLength;
+  }
+
+  return formatLevelIntelligenceDiscordPreview(formatted, previewOptions);
+}
+
+function renderLevelIntelligenceAlertPreviewDryRun(
+  result: Omit<LevelIntelligenceAlertPreviewDryRunResult, "content">,
+): string {
+  const lines: string[] = [
+    `${result.symbol} level intelligence alert preview (dry-run)`,
+    `Alert id: ${result.alertId}`,
+    `Event id: ${result.eventId}`,
+    `Thread id: ${result.threadId}`,
+    `Level generated at: ${result.levelGeneratedAt}`,
+    `Messages: ${result.preview.messages.length}`,
+    `Truncated: ${result.preview.truncated ? "yes" : "no"}`,
+    "",
+  ];
+
+  for (const message of result.preview.messages) {
+    lines.push(`--- preview message ${message.index} ---`);
+    lines.push(message.text);
+    lines.push("");
+  }
+
+  lines.push("Safety");
+  lines.push("- Preview/test path only.");
+  lines.push("- Existing alert payload unchanged.");
+  lines.push("- Discord posting not invoked by preview sidecar.");
+  lines.push("- Existing live alert routing remains the only alert route.");
+
+  return `${lines.join("\n").trimEnd()}\n`;
+}
 
 const LEVEL_REFRESH_THRESHOLD_PCT = 0.01;
 const LEVEL_REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
@@ -576,6 +678,66 @@ export class ManualWatchlistRuntimeManager {
     }
   }
 
+  private emitLevelIntelligenceAlertPreviewDryRun(params: {
+    event: MonitoringEvent;
+    threadId: string;
+    levels: LevelEngineOutput | undefined;
+    alertId: string;
+  }): void {
+    const options = this.options.levelIntelligenceAlertPreviewDryRun;
+    if (!options?.enabled || !params.levels) {
+      return;
+    }
+
+    const context: LevelIntelligenceAlertPreviewDryRunErrorContext = {
+      symbol: params.event.symbol,
+      timestamp: params.event.timestamp,
+      alertId: params.alertId,
+      eventId: params.event.id,
+    };
+
+    try {
+      const buildPreview = options.buildPreview ?? defaultBuildLevelIntelligenceAlertPreviewDryRun;
+      const buildOptions: LevelIntelligenceAlertPreviewDryRunBuildOptions = {};
+      if (options.maxMessageLength !== undefined) {
+        buildOptions.maxMessageLength = options.maxMessageLength;
+      }
+      const preview = buildPreview(params.levels, {
+        ...buildOptions,
+      });
+      const resultWithoutContent: Omit<LevelIntelligenceAlertPreviewDryRunResult, "content"> = {
+        mode: "dry-run",
+        symbol: params.event.symbol,
+        timestamp: params.event.timestamp,
+        alertId: params.alertId,
+        eventId: params.event.id,
+        threadId: params.threadId,
+        levelGeneratedAt: params.levels.generatedAt,
+        preview,
+      };
+      const result: LevelIntelligenceAlertPreviewDryRunResult = {
+        ...resultWithoutContent,
+        content: renderLevelIntelligenceAlertPreviewDryRun(resultWithoutContent),
+      };
+
+      if (options.onPreview) {
+        options.onPreview(result);
+      } else {
+        console.log(result.content);
+      }
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      if (options.onError) {
+        options.onError(normalizedError, context);
+        return;
+      }
+
+      console.error(
+        `[ManualWatchlistRuntimeManager] Level Intelligence alert preview dry-run failed for ${context.symbol}: ${normalizedError.message}`,
+      );
+    }
+  }
+
   private handleMonitoringEvent = (event: MonitoringEvent): void => {
     const entry = this.watchlistStore.getEntry(event.symbol);
     if (!entry?.active || !entry.discordThreadId) {
@@ -589,6 +751,12 @@ export class ManualWatchlistRuntimeManager {
       void this.options.discordAlertRouter.routeAlert(entry.discordThreadId, alert).catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[ManualWatchlistRuntimeManager] Failed to route Discord alert: ${message}`);
+      });
+      this.emitLevelIntelligenceAlertPreviewDryRun({
+        event,
+        threadId: entry.discordThreadId,
+        levels,
+        alertId: alertResult.rawAlert.id,
       });
     }
 
