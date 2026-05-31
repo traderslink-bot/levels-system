@@ -1,0 +1,1662 @@
+{
+  "generatedAt": "2026-05-31T00:00:00.000Z",
+  "purpose": "Expanded real cached ticker replay validation for LevelAnalysisSnapshot v1 candidate.",
+  "cacheSummary": {
+    "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles",
+    "providers": [
+      "ibkr",
+      "stub"
+    ],
+    "fileCount": 2265,
+    "providerSymbolGroups": 356,
+    "completeProviderSymbolGroups": 354
+  },
+  "aggregate": {
+    "symbolCount": 12,
+    "passed": 12,
+    "failed": 0,
+    "withNearestSupport": 12,
+    "withNearestResistance": 12,
+    "withSyntheticExtensions": 6,
+    "totalSyntheticExtensions": 7,
+    "missingResistanceExtension": [],
+    "missingSupportExtension": [],
+    "limitedUpsideCoverage": [
+      "EZGO"
+    ],
+    "limitedDownsideCoverage": [
+      "YMAT"
+    ],
+    "uniqueDiagnostics": [
+      "candle_close_as_of_filter_applied",
+      "candle_inputs_reserved_for_future_fact_generation"
+    ],
+    "uniqueAuditDiagnostics": [
+      "clustered_level_areas_present",
+      "limited_downside_extension_coverage",
+      "limited_upside_extension_coverage",
+      "no_resistance_extension_coverage",
+      "unenriched_levels_present",
+      "wide_downside_support_gap",
+      "wide_overhead_resistance_gap"
+    ]
+  },
+  "symbols": [
+    {
+      "symbol": "YMAT",
+      "scenario": "low-price runner",
+      "selectionReason": "large low-price move with high dollar volume",
+      "asOfTimestamp": 1779825600000,
+      "asOfIso": "2026-05-26T20:00:00.000Z",
+      "referencePrice": 1.325,
+      "previousClose": 0.4361,
+      "intradayChangePct": 178.7713,
+      "dailyChangePct": 203.8294,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\YMAT\\5m\\100-1779825300000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\YMAT\\4h\\180-1779811200000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\YMAT\\daily\\520-1779753600000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 144,
+        "4h": 110,
+        "daily": 207
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 144,
+          "15m": 0,
+          "4h": 110,
+          "daily": 207
+        },
+        "filteredCandleCounts": {
+          "5m": 144,
+          "15m": 0,
+          "4h": 110,
+          "daily": 207
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "YMAT-support-zone-30",
+          "bucket": "extensionSupport",
+          "price": 1.31,
+          "distancePct": 0.011321,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "YMAT-resistance-zone-22",
+          "bucket": "majorResistance",
+          "price": 1.34,
+          "distancePct": 0.011321,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 2,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 3,
+        "intradayResistance": 6,
+        "extensionSupport": 3,
+        "extensionResistance": 3
+      },
+      "extensionSummary": {
+        "total": 6,
+        "real": 6,
+        "synthetic": 0,
+        "support": 3,
+        "resistance": 3,
+        "syntheticPrices": [],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 3,
+          "highestResistanceExtension": 1.66,
+          "lowestSupportExtension": 1.1286,
+          "upsideCoveragePct": 25.283,
+          "downsideCoveragePct": 14.8226,
+          "warnings": [
+            "limited_downside_extension_coverage"
+          ]
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 0,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "limited_downside_extension_coverage",
+        "unenriched_levels_present"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "HCWB",
+      "scenario": "low-price runner",
+      "selectionReason": "large low-price move with sustained 5m coverage",
+      "asOfTimestamp": 1779289200000,
+      "asOfIso": "2026-05-20T15:00:00.000Z",
+      "referencePrice": 2.945,
+      "previousClose": 1.12,
+      "intradayChangePct": 188.7255,
+      "dailyChangePct": 162.9464,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\HCWB\\5m\\100-1779288900000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\HCWB\\4h\\180-1779278400000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\HCWB\\daily\\520-1779235200000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 84,
+        "4h": 118,
+        "daily": 277
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 84,
+          "15m": 0,
+          "4h": 117,
+          "daily": 276
+        },
+        "filteredCandleCounts": {
+          "5m": 84,
+          "15m": 0,
+          "4h": 117,
+          "daily": 276
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "HCWB-support-zone-23",
+          "bucket": "majorSupport",
+          "price": 1.91,
+          "distancePct": 0.351443,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "HCWB-resistance-zone-26",
+          "bucket": "majorResistance",
+          "price": 3.78,
+          "distancePct": 0.283531,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 2,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 4,
+        "intradayResistance": 1,
+        "extensionSupport": 1,
+        "extensionResistance": 0
+      },
+      "extensionSummary": {
+        "total": 1,
+        "real": 1,
+        "synthetic": 0,
+        "support": 1,
+        "resistance": 0,
+        "syntheticPrices": [],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 1,
+          "resistanceExtensions": 0,
+          "lowestSupportExtension": 0.2342,
+          "downsideCoveragePct": 92.0475,
+          "warnings": [
+            "no_resistance_extension_coverage"
+          ]
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 3,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "no_resistance_extension_coverage",
+        "unenriched_levels_present",
+        "wide_downside_support_gap",
+        "wide_overhead_resistance_gap"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "MEHA",
+      "scenario": "sub-dollar runner",
+      "selectionReason": "very low reference price with strong intraday move",
+      "asOfTimestamp": 1778512800000,
+      "asOfIso": "2026-05-11T15:20:00.000Z",
+      "referencePrice": 0.2033,
+      "previousClose": 0.0938,
+      "intradayChangePct": 117.2009,
+      "dailyChangePct": 116.7377,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\MEHA\\5m\\100-1778512500000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\MEHA\\4h\\180-1778500800000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\MEHA\\daily\\520-1778457600000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 88,
+        "4h": 112,
+        "daily": 128
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 88,
+          "15m": 0,
+          "4h": 111,
+          "daily": 127
+        },
+        "filteredCandleCounts": {
+          "5m": 88,
+          "15m": 0,
+          "4h": 111,
+          "daily": 127
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "MEHA-support-zone-24",
+          "bucket": "extensionSupport",
+          "price": 0.1911,
+          "distancePct": 0.06001,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "MEHA-resistance-zone-20",
+          "bucket": "intradayResistance",
+          "price": 0.22,
+          "distancePct": 0.082145,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 3,
+        "intradayResistance": 1,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "extensionSummary": {
+        "total": 4,
+        "real": 4,
+        "synthetic": 0,
+        "support": 3,
+        "resistance": 1,
+        "syntheticPrices": [],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 1,
+          "highestResistanceExtension": 0.2488,
+          "lowestSupportExtension": 0.1515,
+          "upsideCoveragePct": 22.3807,
+          "downsideCoveragePct": 25.4796,
+          "warnings": []
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 3,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present",
+        "wide_overhead_resistance_gap"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "INM",
+      "scenario": "sparse intraday runner",
+      "selectionReason": "short 5m history with complete higher-timeframe cache",
+      "asOfTimestamp": 1779195900000,
+      "asOfIso": "2026-05-19T13:05:00.000Z",
+      "referencePrice": 1.7199,
+      "previousClose": 0.6401,
+      "intradayChangePct": -10.8722,
+      "dailyChangePct": 168.6924,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\INM\\5m\\100-1779195600000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\INM\\4h\\180-1779192000000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\INM\\daily\\520-1779148800000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 8,
+        "4h": 100,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 8,
+          "15m": 0,
+          "4h": 99,
+          "daily": 500
+        },
+        "filteredCandleCounts": {
+          "5m": 8,
+          "15m": 0,
+          "4h": 99,
+          "daily": 500
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "INM-support-zone-18",
+          "bucket": "intradaySupport",
+          "price": 1.25,
+          "distancePct": 0.273214,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "INM-resistance-zone-28",
+          "bucket": "majorResistance",
+          "price": 1.95,
+          "distancePct": 0.133787,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 3,
+        "intermediateSupport": 4,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 1,
+        "extensionSupport": 1,
+        "extensionResistance": 2
+      },
+      "extensionSummary": {
+        "total": 3,
+        "real": 3,
+        "synthetic": 0,
+        "support": 1,
+        "resistance": 2,
+        "syntheticPrices": [],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 1,
+          "resistanceExtensions": 2,
+          "highestResistanceExtension": 2.4999,
+          "lowestSupportExtension": 0.4917,
+          "upsideCoveragePct": 45.3515,
+          "downsideCoveragePct": 71.4111,
+          "warnings": []
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 3,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present",
+        "wide_downside_support_gap",
+        "wide_overhead_resistance_gap"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "EZGO",
+      "scenario": "sharp selloff / broken low-price ticker",
+      "selectionReason": "extreme negative move and low reference price",
+      "asOfTimestamp": 1778105400000,
+      "asOfIso": "2026-05-06T22:10:00.000Z",
+      "referencePrice": 0.1234,
+      "previousClose": 3.05,
+      "intradayChangePct": -96.2492,
+      "dailyChangePct": -95.9541,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\EZGO\\5m\\100-1778105100000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\EZGO\\4h\\180-1778097600000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\EZGO\\daily\\520-1778025600000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 160,
+        "4h": 98,
+        "daily": 502
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 160,
+          "15m": 0,
+          "4h": 97,
+          "daily": 502
+        },
+        "filteredCandleCounts": {
+          "5m": 160,
+          "15m": 0,
+          "4h": 97,
+          "daily": 502
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "EZGO-support-zone-2",
+          "bucket": "intradaySupport",
+          "price": 0.1226,
+          "distancePct": 0.006483,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "EZGO-resistance-zone-1",
+          "bucket": "intradayResistance",
+          "price": 0.1298,
+          "distancePct": 0.051864,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 0,
+        "majorResistance": 0,
+        "intermediateSupport": 0,
+        "intermediateResistance": 0,
+        "intradaySupport": 2,
+        "intradayResistance": 3,
+        "extensionSupport": 1,
+        "extensionResistance": 2
+      },
+      "extensionSummary": {
+        "total": 3,
+        "real": 2,
+        "synthetic": 1,
+        "support": 1,
+        "resistance": 2,
+        "syntheticPrices": [
+          0.08
+        ],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 1,
+          "resistanceExtensions": 2,
+          "highestResistanceExtension": 0.1347,
+          "lowestSupportExtension": 0.08,
+          "upsideCoveragePct": 9.1572,
+          "downsideCoveragePct": 35.1702,
+          "warnings": [
+            "limited_upside_extension_coverage"
+          ]
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 0,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "limited_upside_extension_coverage",
+        "unenriched_levels_present"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "SOWG",
+      "scenario": "thin-liquidity ticker",
+      "selectionReason": "very low dollar volume real-cache group",
+      "asOfTimestamp": 1777979700000,
+      "asOfIso": "2026-05-05T11:15:00.000Z",
+      "referencePrice": 1.79,
+      "previousClose": 1.6228,
+      "intradayChangePct": 0,
+      "dailyChangePct": 10.3032,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\SOWG\\5m\\100-1777980300000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\SOWG\\4h\\180-1777968000000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\SOWG\\daily\\520-1777939200000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 27,
+        "4h": 109,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 27,
+          "15m": 0,
+          "4h": 108,
+          "daily": 500
+        },
+        "filteredCandleCounts": {
+          "5m": 27,
+          "15m": 0,
+          "4h": 108,
+          "daily": 500
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "SOWG-support-zone-5",
+          "bucket": "intermediateSupport",
+          "price": 1.57,
+          "distancePct": 0.122905,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "SOWG-resistance-zone-3",
+          "bucket": "intermediateResistance",
+          "price": 1.8,
+          "distancePct": 0.005587,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 1,
+        "majorResistance": 0,
+        "intermediateSupport": 1,
+        "intermediateResistance": 1,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 2
+      },
+      "extensionSummary": {
+        "total": 5,
+        "real": 3,
+        "synthetic": 2,
+        "support": 3,
+        "resistance": 2,
+        "syntheticPrices": [
+          1.25,
+          2.35
+        ],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 2,
+          "highestResistanceExtension": 2.35,
+          "lowestSupportExtension": 1.25,
+          "upsideCoveragePct": 31.2849,
+          "downsideCoveragePct": 30.1676,
+          "warnings": []
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 1,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present",
+        "wide_downside_support_gap"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "CLPS",
+      "scenario": "thin-liquidity ticker",
+      "selectionReason": "low dollar volume and sparse intraday activity",
+      "asOfTimestamp": 1777921200000,
+      "asOfIso": "2026-05-04T19:00:00.000Z",
+      "referencePrice": 0.93,
+      "previousClose": 0.929,
+      "intradayChangePct": 0,
+      "dailyChangePct": 0.1076,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\CLPS\\5m\\100-1777920900000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\CLPS\\4h\\180-1777910400000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\CLPS\\daily\\520-1777852800000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 30,
+        "4h": 88,
+        "daily": 495
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 30,
+          "15m": 0,
+          "4h": 87,
+          "daily": 494
+        },
+        "filteredCandleCounts": {
+          "5m": 30,
+          "15m": 0,
+          "4h": 87,
+          "daily": 494
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "CLPS-support-zone-11",
+          "bucket": "majorSupport",
+          "price": 0.8902,
+          "distancePct": 0.042796,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "CLPS-resistance-zone-5",
+          "bucket": "majorResistance",
+          "price": 0.96,
+          "distancePct": 0.032258,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 1,
+        "intermediateResistance": 0,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 2,
+        "extensionResistance": 3
+      },
+      "extensionSummary": {
+        "total": 5,
+        "real": 4,
+        "synthetic": 1,
+        "support": 2,
+        "resistance": 3,
+        "syntheticPrices": [
+          0.65
+        ],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 2,
+          "resistanceExtensions": 3,
+          "highestResistanceExtension": 1.38,
+          "lowestSupportExtension": 0.65,
+          "upsideCoveragePct": 48.3871,
+          "downsideCoveragePct": 30.1075,
+          "warnings": []
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 1,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "unenriched_levels_present"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "AAOI",
+      "scenario": "higher-priced high-volume ticker",
+      "selectionReason": "high reference price and high dollar volume",
+      "asOfTimestamp": 1777915800000,
+      "asOfIso": "2026-05-04T17:30:00.000Z",
+      "referencePrice": 178.64,
+      "previousClose": 161.02,
+      "intradayChangePct": -5.9047,
+      "dailyChangePct": 10.9427,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\AAOI\\5m\\100-1777915500000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\AAOI\\4h\\180-1777910400000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\AAOI\\daily\\520-1777852800000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 114,
+        "4h": 115,
+        "daily": 500
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 114,
+          "15m": 0,
+          "4h": 114,
+          "daily": 499
+        },
+        "filteredCandleCounts": {
+          "5m": 114,
+          "15m": 0,
+          "4h": 114,
+          "daily": 499
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "AAOI-support-zone-51",
+          "bucket": "intradaySupport",
+          "price": 174.78,
+          "distancePct": 0.021608,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "AAOI-resistance-zone-52",
+          "bucket": "intradayResistance",
+          "price": 189.5,
+          "distancePct": 0.060793,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 1,
+        "extensionSupport": 3,
+        "extensionResistance": 2
+      },
+      "extensionSummary": {
+        "total": 5,
+        "real": 4,
+        "synthetic": 1,
+        "support": 3,
+        "resistance": 2,
+        "syntheticPrices": [
+          232.5
+        ],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 2,
+          "highestResistanceExtension": 232.5,
+          "lowestSupportExtension": 23.85,
+          "upsideCoveragePct": 30.15,
+          "downsideCoveragePct": 86.6491,
+          "warnings": []
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 4,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "FLEX",
+      "scenario": "higher-priced clean mover",
+      "selectionReason": "higher-priced positive mover with high dollar volume",
+      "asOfTimestamp": 1778085600000,
+      "asOfIso": "2026-05-06T16:40:00.000Z",
+      "referencePrice": 126.7,
+      "previousClose": 91.5,
+      "intradayChangePct": 11.1404,
+      "dailyChangePct": 38.4699,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\FLEX\\5m\\100-1778085300000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\FLEX\\4h\\180-1778083200000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\FLEX\\daily\\520-1778025600000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 104,
+        "4h": 112,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 104,
+          "15m": 0,
+          "4h": 111,
+          "daily": 500
+        },
+        "filteredCandleCounts": {
+          "5m": 104,
+          "15m": 0,
+          "4h": 111,
+          "daily": 500
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "FLEX-support-zone-46",
+          "bucket": "intradaySupport",
+          "price": 125.27,
+          "distancePct": 0.011287,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "FLEX-resistance-zone-41",
+          "bucket": "intradayResistance",
+          "price": 126.99,
+          "distancePct": 0.002289,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 2,
+        "intradayResistance": 2,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "extensionSummary": {
+        "total": 4,
+        "real": 3,
+        "synthetic": 1,
+        "support": 3,
+        "resistance": 1,
+        "syntheticPrices": [
+          165
+        ],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 1,
+          "highestResistanceExtension": 165,
+          "lowestSupportExtension": 25.32,
+          "upsideCoveragePct": 30.2289,
+          "downsideCoveragePct": 80.0158,
+          "warnings": []
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 4,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "QUBT",
+      "scenario": "active technical mover",
+      "selectionReason": "mid-priced high-dollar-volume active ticker",
+      "asOfTimestamp": 1778595600000,
+      "asOfIso": "2026-05-12T14:20:00.000Z",
+      "referencePrice": 12.799,
+      "previousClose": 9.61,
+      "intradayChangePct": 10.2412,
+      "dailyChangePct": 33.1842,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\QUBT\\5m\\100-1778595300000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\QUBT\\4h\\180-1778587200000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\QUBT\\daily\\520-1778544000000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 76,
+        "4h": 114,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 76,
+          "15m": 0,
+          "4h": 113,
+          "daily": 500
+        },
+        "filteredCandleCounts": {
+          "5m": 76,
+          "15m": 0,
+          "4h": 113,
+          "daily": 500
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "QUBT-support-zone-38",
+          "bucket": "intradaySupport",
+          "price": 12.42,
+          "distancePct": 0.029612,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "QUBT-resistance-zone-33",
+          "bucket": "intradayResistance",
+          "price": 12.9727,
+          "distancePct": 0.013571,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 4,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 2,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "extensionSummary": {
+        "total": 4,
+        "real": 4,
+        "synthetic": 0,
+        "support": 3,
+        "resistance": 1,
+        "syntheticPrices": [],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 1,
+          "highestResistanceExtension": 16.9305,
+          "lowestSupportExtension": 6.23,
+          "upsideCoveragePct": 32.2799,
+          "downsideCoveragePct": 51.3243,
+          "warnings": []
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 4,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "GME",
+      "scenario": "higher-priced negative mover",
+      "selectionReason": "higher-priced negative session with high dollar volume",
+      "asOfTimestamp": 1777907400000,
+      "asOfIso": "2026-05-04T15:10:00.000Z",
+      "referencePrice": 24.8,
+      "previousClose": 24.89,
+      "intradayChangePct": -9.8182,
+      "dailyChangePct": -0.3616,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\GME\\5m\\100-1777907100000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\GME\\4h\\180-1777896000000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\GME\\daily\\520-1777852800000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 86,
+        "4h": 114,
+        "daily": 500
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 86,
+          "15m": 0,
+          "4h": 113,
+          "daily": 499
+        },
+        "filteredCandleCounts": {
+          "5m": 86,
+          "15m": 0,
+          "4h": 113,
+          "daily": 499
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "GME-support-zone-17",
+          "bucket": "intermediateSupport",
+          "price": 24.73,
+          "distancePct": 0.002823,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "GME-resistance-zone-7",
+          "bucket": "majorResistance",
+          "price": 25,
+          "distancePct": 0.008065,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 1,
+        "intermediateResistance": 0,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 3
+      },
+      "extensionSummary": {
+        "total": 6,
+        "real": 6,
+        "synthetic": 0,
+        "support": 3,
+        "resistance": 3,
+        "syntheticPrices": [],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 3,
+          "highestResistanceExtension": 34.37,
+          "lowestSupportExtension": 18.9,
+          "upsideCoveragePct": 38.5887,
+          "downsideCoveragePct": 23.7903,
+          "warnings": []
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 4,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "unenriched_levels_present"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    },
+    {
+      "symbol": "PHOE",
+      "scenario": "unusual higher-timeframe depth",
+      "selectionReason": "higher-priced ticker with shorter 4h/daily cache depth",
+      "asOfTimestamp": 1778186700000,
+      "asOfIso": "2026-05-07T20:45:00.000Z",
+      "referencePrice": 34.75,
+      "previousClose": 28.6,
+      "intradayChangePct": 18.8034,
+      "dailyChangePct": 21.5035,
+      "cacheFiles": {
+        "candles5m": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\PHOE\\5m\\100-1778186400000.json",
+        "candles4h": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\PHOE\\4h\\180-1778184000000.json",
+        "candlesDaily": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\PHOE\\daily\\520-1778112000000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 134,
+        "4h": 77,
+        "daily": 236
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 134,
+          "15m": 0,
+          "4h": 76,
+          "daily": 236
+        },
+        "filteredCandleCounts": {
+          "5m": 134,
+          "15m": 0,
+          "4h": 76,
+          "daily": 236
+        },
+        "previousCloseProvided": true
+      },
+      "nearest": {
+        "support": {
+          "levelId": "PHOE-support-zone-35",
+          "bucket": "intradaySupport",
+          "price": 29.85,
+          "distancePct": 0.141007,
+          "extensionSource": null
+        },
+        "resistance": {
+          "levelId": "PHOE-resistance-zone-36",
+          "bucket": "intermediateResistance",
+          "price": 40.98,
+          "distancePct": 0.179281,
+          "extensionSource": null
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 1,
+        "intradaySupport": 6,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "extensionSummary": {
+        "total": 4,
+        "real": 3,
+        "synthetic": 1,
+        "support": 3,
+        "resistance": 1,
+        "syntheticPrices": [
+          45.5
+        ],
+        "syntheticClearlyMarked": true,
+        "syntheticInSurfacedBucketCount": 0,
+        "coverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 1,
+          "highestResistanceExtension": 45.5,
+          "lowestSupportExtension": 5.85,
+          "upsideCoveragePct": 30.9353,
+          "downsideCoveragePct": 83.1655,
+          "warnings": []
+        }
+      },
+      "factsPresence": {
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "volumeShelfCount": 2,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present",
+        "wide_downside_support_gap",
+        "wide_overhead_resistance_gap"
+      ],
+      "fieldChecks": {
+        "schemaVersion": true,
+        "producer": true,
+        "identity": true,
+        "inputSummary": true,
+        "levelEngineOutput": true,
+        "sessionFacts": true,
+        "volumeFacts": true,
+        "volumeShelves": true,
+        "marketContext": true,
+        "factsBundle": true,
+        "levelIntelligenceReport": true,
+        "levelQualityAudit": true,
+        "diagnostics": true,
+        "safety": true,
+        "noLookahead": true,
+        "syntheticMarked": true,
+        "noSyntheticInSurfacedBuckets": true
+      },
+      "failedChecks": [],
+      "validationPassed": true
+    }
+  ]
+}
