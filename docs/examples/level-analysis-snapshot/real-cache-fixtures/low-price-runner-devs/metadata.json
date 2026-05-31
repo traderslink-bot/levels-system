@@ -1,0 +1,41 @@
+{
+  "scenarioId": "low-price-runner-devs",
+  "scenarioType": "low-price runner",
+  "symbol": "DEVS",
+  "asOfTimestamp": 1780062000000,
+  "asOfIso": "2026-05-29T13:40:00.000Z",
+  "referencePrice": 0.2592,
+  "previousClose": 0.127,
+  "scenarioIntent": "Real cached low-price runner with large intraday move and high relative volume.",
+  "source": {
+    "type": "real_validation_candle_cache",
+    "provider": "ibkr",
+    "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles/ibkr",
+    "files": {
+      "fiveMinute": "DEVS/5m/100-1780061700000.json",
+      "fourHour": "DEVS/4h/180-1780056000000.json",
+      "daily": "DEVS/daily/520-1780012800000.json"
+    }
+  },
+  "candleCounts": {
+    "fiveMinute": 68,
+    "fourHour": 114,
+    "daily": 455
+  },
+  "candleDateRanges": {
+    "fiveMinute": [
+      "2026-05-29T08:00:00.000Z",
+      "2026-05-29T13:35:00.000Z"
+    ],
+    "fourHour": [
+      "2026-04-20T08:00:00.000Z",
+      "2026-05-29T12:00:00.000Z"
+    ],
+    "daily": [
+      "2024-05-29T04:00:00.000Z",
+      "2026-05-29T04:00:00.000Z"
+    ]
+  },
+  "deterministic": true,
+  "networkCalls": false
+}

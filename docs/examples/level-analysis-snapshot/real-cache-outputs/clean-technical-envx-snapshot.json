@@ -1,0 +1,5682 @@
+{
+  "schemaVersion": "level-analysis-snapshot/v1",
+  "producer": "levels-system",
+  "symbol": "ENVX",
+  "asOfTimestamp": 1779463500000,
+  "inputSummary": {
+    "timeframesPresent": [
+      "5m",
+      "4h",
+      "daily"
+    ],
+    "candleCounts": {
+      "5m": 89,
+      "15m": 0,
+      "4h": 117,
+      "daily": 500
+    },
+    "filteredCandleCounts": {
+      "5m": 89,
+      "15m": 0,
+      "4h": 117,
+      "daily": 500
+    },
+    "excludedFutureCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "excludedPartialCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "timeframes": {
+      "5m": {
+        "provided": true,
+        "candleCount": 89,
+        "filteredCandleCount": 89,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "15m": {
+        "provided": false,
+        "candleCount": 0,
+        "filteredCandleCount": 0,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "4h": {
+        "provided": true,
+        "candleCount": 117,
+        "filteredCandleCount": 117,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "daily": {
+        "provided": true,
+        "candleCount": 500,
+        "filteredCandleCount": 500,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      }
+    },
+    "previousCloseProvided": true
+  },
+  "nearestSupport": {
+    "levelId": "ENVX-support-zone-14",
+    "kind": "support",
+    "bucket": "majorSupport",
+    "representativePrice": 6.68,
+    "zoneLow": 6.66,
+    "zoneHigh": 6.68,
+    "strengthScore": 38.44,
+    "strengthLabel": "strong",
+    "distanceFromReferencePct": 0.007429,
+    "isExtension": false
+  },
+  "nearestResistance": {
+    "levelId": "ENVX-resistance-zone-7",
+    "kind": "resistance",
+    "bucket": "intermediateResistance",
+    "representativePrice": 6.8,
+    "zoneLow": 6.74,
+    "zoneHigh": 6.8,
+    "strengthScore": 32.94,
+    "strengthLabel": "strong",
+    "distanceFromReferencePct": 0.010401,
+    "isExtension": false
+  },
+  "levelEngineOutput": {
+    "symbol": "ENVX",
+    "generatedAt": 1779463500000,
+    "metadata": {
+      "providerByTimeframe": {
+        "daily": "stub",
+        "4h": "stub",
+        "5m": "stub"
+      },
+      "dataQualityFlags": [],
+      "freshness": "fresh",
+      "referencePrice": 6.73
+    },
+    "majorSupport": [
+      {
+        "id": "ENVX-support-zone-10",
+        "symbol": "ENVX",
+        "kind": "support",
+        "timeframeBias": "mixed",
+        "zoneLow": 6.09,
+        "zoneHigh": 6.16,
+        "representativePrice": 6.11,
+        "strengthScore": 42.92,
+        "strengthLabel": "major",
+        "touchCount": 16,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h",
+          "daily"
+        ],
+        "reactionQualityScore": 0.3205,
+        "rejectionScore": 0.5563,
+        "displacementScore": 0.0977,
+        "sessionSignificanceScore": 0.7071,
+        "followThroughScore": 0.583,
+        "gapContinuationScore": 0.1417,
+        "sourceEvidenceCount": 8,
+        "firstTimestamp": 1776268800000,
+        "lastTimestamp": 1779364800000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.0605",
+          "reactions=1",
+          "rejection=0.7146",
+          "followThrough=0.4911",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "Derived from daily support swing.",
+          "displacement=0.1358",
+          "reactions=2",
+          "rejection=0.7838",
+          "followThrough=0.7057",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "displacement=0.0588",
+          "rejection=0.4444",
+          "followThrough=0.4599",
+          "displacement=0.0740",
+          "rejection=0.3900",
+          "followThrough=0.5410",
+          "displacement=0.1896",
+          "rejection=0.6027",
+          "followThrough=0.7692",
+          "gapContinuation=0.7833",
+          "displacement=0.0644",
+          "rejection=0.6316",
+          "followThrough=0.5064",
+          "displacement=0.1234",
+          "rejection=0.5476",
+          "followThrough=0.5874",
+          "displacement=0.0491",
+          "rejection=0.3355",
+          "followThrough=0.6035",
+          "freshness=stale",
+          "evidence=8",
+          "rejection=0.5563",
+          "followThrough=0.5830",
+          "gapContinuation=0.1417",
+          "pathClearance=0.4364",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "ENVX-support-zone-14",
+        "symbol": "ENVX",
+        "kind": "support",
+        "timeframeBias": "mixed",
+        "zoneLow": 6.66,
+        "zoneHigh": 6.68,
+        "representativePrice": 6.68,
+        "strengthScore": 38.44,
+        "strengthLabel": "strong",
+        "touchCount": 12,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h",
+          "daily"
+        ],
+        "reactionQualityScore": 0.6286,
+        "rejectionScore": 0.4857,
+        "displacementScore": 0.1313,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.3579,
+        "gapContinuationScore": 0.2899,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1763701200000,
+        "lastTimestamp": 1777881600000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.0498",
+          "reactions=5",
+          "rejection=0.1854",
+          "followThrough=0.0099",
+          "gapContinuation=0.2299",
+          "gap=yes",
+          "Derived from daily support swing.",
+          "displacement=0.1934",
+          "reactions=1",
+          "rejection=0.7859",
+          "followThrough=0.7059",
+          "gapContinuation=0.3500",
+          "freshness=stale",
+          "evidence=2",
+          "rejection=0.4857",
+          "followThrough=0.3579",
+          "gapContinuation=0.2899",
+          "pathClearance=0.3244",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "ENVX-support-zone-6",
+        "symbol": "ENVX",
+        "kind": "support",
+        "timeframeBias": "daily",
+        "zoneLow": 5.69,
+        "zoneHigh": 5.69,
+        "representativePrice": 5.69,
+        "strengthScore": 15.17,
+        "strengthLabel": "moderate",
+        "touchCount": 4,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "daily"
+        ],
+        "reactionQualityScore": 0.4762,
+        "rejectionScore": 0.4643,
+        "displacementScore": 0.1485,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.6801,
+        "gapContinuationScore": 0.35,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1744776000000,
+        "lastTimestamp": 1744776000000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily support swing.",
+          "displacement=0.1375",
+          "reactions=3",
+          "rejection=0.4643",
+          "followThrough=0.6801",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.4643",
+          "followThrough=0.6801",
+          "gapContinuation=0.3500",
+          "pathClearance=0.2929",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "ENVX-support-zone-1",
+        "symbol": "ENVX",
+        "kind": "support",
+        "timeframeBias": "daily",
+        "zoneLow": 4.6,
+        "zoneHigh": 4.61,
+        "representativePrice": 4.6,
+        "strengthScore": 13.2,
+        "strengthLabel": "moderate",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "daily"
+        ],
+        "reactionQualityScore": 0.2062,
+        "rejectionScore": 0.5311,
+        "displacementScore": 0.1813,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.6753,
+        "gapContinuationScore": 0.2936,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1773028800000,
+        "lastTimestamp": 1774238400000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily support swing.",
+          "displacement=0.1890",
+          "reactions=1",
+          "rejection=0.5680",
+          "followThrough=0.6884",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "displacement=0.1467",
+          "rejection=0.4941",
+          "followThrough=0.6622",
+          "gapContinuation=0.2373",
+          "freshness=stale",
+          "evidence=2",
+          "rejection=0.5311",
+          "followThrough=0.6753",
+          "gapContinuation=0.2936",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "majorResistance": [
+      {
+        "id": "ENVX-resistance-zone-9",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "timeframeBias": "mixed",
+        "zoneLow": 7,
+        "zoneHigh": 7.11,
+        "representativePrice": 7.11,
+        "strengthScore": 50.2,
+        "strengthLabel": "major",
+        "touchCount": 23,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "4h",
+          "daily"
+        ],
+        "reactionQualityScore": 0.3606,
+        "rejectionScore": 0.4283,
+        "displacementScore": 0.1027,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.5214,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 8,
+        "firstTimestamp": 1745812800000,
+        "lastTimestamp": 1777982400000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h resistance swing.",
+          "displacement=0.0498",
+          "reactions=1",
+          "rejection=0.7857",
+          "followThrough=0.4366",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.0812",
+          "reactions=2",
+          "rejection=0.3889",
+          "followThrough=0.5747",
+          "Derived from daily resistance swing.",
+          "displacement=0.1362",
+          "reactions=3",
+          "rejection=0.2571",
+          "followThrough=0.6006",
+          "displacement=0.0508",
+          "rejection=0.5000",
+          "followThrough=0.4193",
+          "displacement=0.1455",
+          "rejection=0.3200",
+          "followThrough=0.6056",
+          "displacement=0.0611",
+          "rejection=0.2667",
+          "followThrough=0.3986",
+          "displacement=0.1040",
+          "rejection=0.4214",
+          "followThrough=0.5173",
+          "displacement=0.1928",
+          "rejection=0.4865",
+          "followThrough=0.6189",
+          "freshness=stale",
+          "evidence=8",
+          "rejection=0.4283",
+          "followThrough=0.5214",
+          "gapContinuation=0.0000",
+          "pathClearance=0.8667",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "ENVX-resistance-zone-16",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "timeframeBias": "daily",
+        "zoneLow": 9.5,
+        "zoneHigh": 9.5,
+        "representativePrice": 9.5,
+        "strengthScore": 16.4,
+        "strengthLabel": "moderate",
+        "touchCount": 5,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "daily"
+        ],
+        "reactionQualityScore": 0.5179,
+        "rejectionScore": 0.2564,
+        "displacementScore": 0.2656,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.582,
+        "gapContinuationScore": 0.2303,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1757304000000,
+        "lastTimestamp": 1757304000000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily resistance swing.",
+          "displacement=0.2459",
+          "reactions=3",
+          "rejection=0.2564",
+          "followThrough=0.5820",
+          "gapContinuation=0.2303",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.2564",
+          "followThrough=0.5820",
+          "gapContinuation=0.2303",
+          "pathClearance=0.6085",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "ENVX-resistance-zone-15",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "timeframeBias": "daily",
+        "zoneLow": 9.16,
+        "zoneHigh": 9.19,
+        "representativePrice": 9.16,
+        "strengthScore": 16.39,
+        "strengthLabel": "moderate",
+        "touchCount": 5,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "daily"
+        ],
+        "reactionQualityScore": 0.2767,
+        "rejectionScore": 0.5777,
+        "displacementScore": 0.1922,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.6472,
+        "gapContinuationScore": 0.1167,
+        "sourceEvidenceCount": 3,
+        "firstTimestamp": 1742875200000,
+        "lastTimestamp": 1765342800000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily resistance swing.",
+          "displacement=0.2355",
+          "reactions=1",
+          "rejection=0.7618",
+          "followThrough=0.6409",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.1585",
+          "rejection=0.6205",
+          "followThrough=0.6926",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "displacement=0.1700",
+          "reactions=2",
+          "rejection=0.3509",
+          "followThrough=0.6081",
+          "freshness=stale",
+          "evidence=3",
+          "rejection=0.5777",
+          "followThrough=0.6472",
+          "gapContinuation=0.1167",
+          "pathClearance=0.5965",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "ENVX-resistance-zone-12",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "timeframeBias": "daily",
+        "zoneLow": 8.5,
+        "zoneHigh": 8.58,
+        "representativePrice": 8.58,
+        "strengthScore": 15.64,
+        "strengthLabel": "moderate",
+        "touchCount": 5,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "daily"
+        ],
+        "reactionQualityScore": 0.3133,
+        "rejectionScore": 0.3579,
+        "displacementScore": 0.1641,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.6086,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1766466000000,
+        "lastTimestamp": 1768539600000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily resistance swing.",
+          "displacement=0.1533",
+          "reactions=1",
+          "rejection=0.3158",
+          "followThrough=0.6053",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.1749",
+          "reactions=3",
+          "rejection=0.4000",
+          "followThrough=0.6120",
+          "freshness=stale",
+          "evidence=2",
+          "rejection=0.3579",
+          "followThrough=0.6086",
+          "gapContinuation=0.0000",
+          "pathClearance=0.1730",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intermediateSupport": [
+      {
+        "id": "ENVX-support-zone-11",
+        "symbol": "ENVX",
+        "kind": "support",
+        "timeframeBias": "mixed",
+        "zoneLow": 6.25,
+        "zoneHigh": 6.38,
+        "representativePrice": 6.38,
+        "strengthScore": 136.4,
+        "strengthLabel": "major",
+        "touchCount": 109,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_low",
+          "premarket_low",
+          "opening_range_low"
+        ],
+        "timeframeSources": [
+          "5m",
+          "4h"
+        ],
+        "reactionQualityScore": 0.7291,
+        "rejectionScore": 0.1907,
+        "displacementScore": 0.1099,
+        "sessionSignificanceScore": 1,
+        "followThroughScore": 0.2847,
+        "gapContinuationScore": 0.062,
+        "sourceEvidenceCount": 15,
+        "firstTimestamp": 1776960000000,
+        "lastTimestamp": 1779463200000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 5m support swing.",
+          "displacement=0.0159",
+          "reactions=3",
+          "rejection=0.0000",
+          "followThrough=0.2672",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.0111",
+          "followThrough=0.2104",
+          "displacement=0.0127",
+          "reactions=6",
+          "followThrough=0.0328",
+          "gapContinuation=0.9300",
+          "gap=yes",
+          "reactions=5",
+          "followThrough=0.0000",
+          "displacement=0.0330",
+          "reactions=2",
+          "rejection=0.2000",
+          "followThrough=0.6644",
+          "Session-accurate premarket low candidate.",
+          "Session-accurate opening range low candidate.",
+          "displacement=0.0095",
+          "followThrough=0.0265",
+          "Derived from 4h support swing.",
+          "displacement=0.0558",
+          "reactions=1",
+          "rejection=0.2692",
+          "followThrough=0.4316",
+          "displacement=0.0079",
+          "reactions=7",
+          "displacement=0.0674",
+          "rejection=0.3225",
+          "followThrough=0.4985",
+          "displacement=0.0047",
+          "reactions=8",
+          "displacement=0.1040",
+          "rejection=0.7000",
+          "followThrough=0.5996",
+          "Merged in second clustering pass.",
+          "freshness=stale",
+          "evidence=15",
+          "rejection=0.1907",
+          "followThrough=0.2847",
+          "gapContinuation=0.0620",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "ENVX-support-zone-9",
+        "symbol": "ENVX",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 5.95,
+        "zoneHigh": 5.99,
+        "representativePrice": 5.95,
+        "strengthScore": 13.38,
+        "strengthLabel": "moderate",
+        "touchCount": 5,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.393,
+        "rejectionScore": 0.5646,
+        "displacementScore": 0.0695,
+        "sessionSignificanceScore": 0.6146,
+        "followThroughScore": 0.586,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1776182400000,
+        "lastTimestamp": 1778846400000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.0650",
+          "reactions=2",
+          "rejection=0.6667",
+          "followThrough=0.6252",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.0740",
+          "rejection=0.4625",
+          "followThrough=0.5468",
+          "freshness=stale",
+          "evidence=2",
+          "rejection=0.5646",
+          "followThrough=0.5860",
+          "gapContinuation=0.0000",
+          "pathClearance=0.4322",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "ENVX-support-zone-4",
+        "symbol": "ENVX",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 5.39,
+        "zoneHigh": 5.43,
+        "representativePrice": 5.43,
+        "strengthScore": 12.94,
+        "strengthLabel": "moderate",
+        "touchCount": 4,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.3822,
+        "rejectionScore": 0.3276,
+        "displacementScore": 0.1357,
+        "sessionSignificanceScore": 0.6917,
+        "followThroughScore": 0.7531,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1779192000000,
+        "lastTimestamp": 1779278400000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.1121",
+          "reactions=1",
+          "rejection=0.1136",
+          "followThrough=0.7282",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.1593",
+          "reactions=2",
+          "rejection=0.5417",
+          "followThrough=0.7781",
+          "freshness=stale",
+          "evidence=2",
+          "rejection=0.3276",
+          "followThrough=0.7531",
+          "gapContinuation=0.0000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "ENVX-support-zone-7",
+        "symbol": "ENVX",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 5.75,
+        "zoneHigh": 5.75,
+        "representativePrice": 5.75,
+        "strengthScore": 9.28,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.3617,
+        "rejectionScore": 0.755,
+        "displacementScore": 0.0753,
+        "sessionSignificanceScore": 0.6634,
+        "followThroughScore": 0.7399,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1779120000000,
+        "lastTimestamp": 1779120000000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.0753",
+          "reactions=1",
+          "rejection=0.7550",
+          "followThrough=0.7399",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.7550",
+          "followThrough=0.7399",
+          "gapContinuation=0.0000",
+          "pathClearance=0.2981",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intermediateResistance": [
+      {
+        "id": "ENVX-resistance-zone-7",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "timeframeBias": "mixed",
+        "zoneLow": 6.74,
+        "zoneHigh": 6.8,
+        "representativePrice": 6.8,
+        "strengthScore": 32.94,
+        "strengthLabel": "strong",
+        "touchCount": 11,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "5m",
+          "4h"
+        ],
+        "reactionQualityScore": 0.396,
+        "rejectionScore": 0.4967,
+        "displacementScore": 0.0534,
+        "sessionSignificanceScore": 0.504,
+        "followThroughScore": 0.5252,
+        "gapContinuationScore": 0.0729,
+        "sourceEvidenceCount": 4,
+        "firstTimestamp": 1776427200000,
+        "lastTimestamp": 1779460800000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 5m resistance swing.",
+          "displacement=0.0332",
+          "reactions=2",
+          "rejection=0.4857",
+          "followThrough=0.7244",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "Derived from 4h resistance swing.",
+          "displacement=0.0674",
+          "reactions=1",
+          "rejection=0.5167",
+          "followThrough=0.5666",
+          "gapContinuation=0.2917",
+          "gap=yes",
+          "displacement=0.0577",
+          "rejection=0.4286",
+          "followThrough=0.4524",
+          "displacement=0.0497",
+          "reactions=3",
+          "rejection=0.5556",
+          "followThrough=0.3576",
+          "freshness=stale",
+          "evidence=4",
+          "rejection=0.4967",
+          "followThrough=0.5252",
+          "gapContinuation=0.0729",
+          "pathClearance=0.2499",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intradaySupport": [],
+    "intradayResistance": [],
+    "extensionLevels": {
+      "support": [
+        {
+          "id": "ENVX-support-zone-13",
+          "symbol": "ENVX",
+          "kind": "support",
+          "timeframeBias": "mixed",
+          "zoneLow": 6.5,
+          "zoneHigh": 6.58,
+          "representativePrice": 6.55,
+          "strengthScore": 43.74,
+          "strengthLabel": "major",
+          "touchCount": 21,
+          "confluenceCount": 2,
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h",
+            "5m"
+          ],
+          "reactionQualityScore": 0.5062,
+          "rejectionScore": 0.4428,
+          "displacementScore": 0.0554,
+          "sessionSignificanceScore": 0.5683,
+          "followThroughScore": 0.4883,
+          "gapContinuationScore": 0,
+          "sourceEvidenceCount": 5,
+          "firstTimestamp": 1776787200000,
+          "lastTimestamp": 1779462000000,
+          "isExtension": true,
+          "freshness": "stale",
+          "notes": [
+            "Derived from 4h support swing.",
+            "displacement=0.0812",
+            "reactions=2",
+            "rejection=0.1071",
+            "followThrough=0.5522",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "Derived from 5m support swing.",
+            "displacement=0.0348",
+            "reactions=4",
+            "rejection=0.6667",
+            "followThrough=0.3921",
+            "displacement=0.0389",
+            "reactions=1",
+            "rejection=0.7737",
+            "followThrough=0.3743",
+            "displacement=0.1024",
+            "rejection=0.0500",
+            "followThrough=0.6131",
+            "displacement=0.0196",
+            "reactions=3",
+            "rejection=0.6167",
+            "followThrough=0.5099",
+            "freshness=stale",
+            "evidence=5",
+            "rejection=0.4428",
+            "followThrough=0.4883",
+            "gapContinuation=0.0000",
+            "pathClearance=0.5671",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        },
+        {
+          "id": "ENVX-support-zone-8",
+          "symbol": "ENVX",
+          "kind": "support",
+          "timeframeBias": "mixed",
+          "zoneLow": 5.83,
+          "zoneHigh": 5.86,
+          "representativePrice": 5.86,
+          "strengthScore": 29.38,
+          "strengthLabel": "strong",
+          "touchCount": 5,
+          "confluenceCount": 2,
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h",
+            "daily"
+          ],
+          "reactionQualityScore": 0.3699,
+          "rejectionScore": 0.4758,
+          "displacementScore": 0.2248,
+          "sessionSignificanceScore": 0.7,
+          "followThroughScore": 0.7384,
+          "gapContinuationScore": 0.5,
+          "sourceEvidenceCount": 2,
+          "firstTimestamp": 1746072000000,
+          "lastTimestamp": 1778760000000,
+          "isExtension": true,
+          "freshness": "stale",
+          "notes": [
+            "Derived from 4h support swing.",
+            "displacement=0.2413",
+            "reactions=1",
+            "rejection=0.7246",
+            "followThrough=0.6985",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "Derived from daily support swing.",
+            "displacement=0.1928",
+            "reactions=3",
+            "rejection=0.2269",
+            "followThrough=0.7782",
+            "gapContinuation=1.0000",
+            "gap=yes",
+            "freshness=stale",
+            "evidence=2",
+            "rejection=0.4758",
+            "followThrough=0.7384",
+            "gapContinuation=0.5000",
+            "pathClearance=0.3129",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        },
+        {
+          "id": "ENVX-support-zone-5",
+          "symbol": "ENVX",
+          "kind": "support",
+          "timeframeBias": "daily",
+          "zoneLow": 5.59,
+          "zoneHigh": 5.6,
+          "representativePrice": 5.59,
+          "strengthScore": 14.99,
+          "strengthLabel": "moderate",
+          "touchCount": 4,
+          "confluenceCount": 1,
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "reactionQualityScore": 0.2735,
+          "rejectionScore": 0.3677,
+          "displacementScore": 0.1921,
+          "sessionSignificanceScore": 0.7,
+          "followThroughScore": 0.6604,
+          "gapContinuationScore": 0.2833,
+          "sourceEvidenceCount": 2,
+          "firstTimestamp": 1770267600000,
+          "lastTimestamp": 1771304400000,
+          "isExtension": true,
+          "freshness": "stale",
+          "notes": [
+            "Derived from daily support swing.",
+            "displacement=0.1398",
+            "reactions=2",
+            "rejection=0.7045",
+            "followThrough=0.6364",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "displacement=0.2264",
+            "rejection=0.0309",
+            "followThrough=0.6845",
+            "gapContinuation=0.5667",
+            "gap=yes",
+            "freshness=stale",
+            "evidence=2",
+            "rejection=0.3677",
+            "followThrough=0.6604",
+            "gapContinuation=0.2833",
+            "pathClearance=0.4770",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        }
+      ],
+      "resistance": [
+        {
+          "id": "ENVX-resistance-zone-17",
+          "symbol": "ENVX",
+          "kind": "resistance",
+          "timeframeBias": "daily",
+          "zoneLow": 9.86,
+          "zoneHigh": 9.86,
+          "representativePrice": 9.86,
+          "strengthScore": 12.77,
+          "strengthLabel": "moderate",
+          "touchCount": 2,
+          "confluenceCount": 1,
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "reactionQualityScore": 0.3531,
+          "rejectionScore": 0.7655,
+          "displacementScore": 0.1239,
+          "sessionSignificanceScore": 0.7,
+          "followThroughScore": 0.6412,
+          "gapContinuationScore": 0,
+          "sourceEvidenceCount": 1,
+          "firstTimestamp": 1732510800000,
+          "lastTimestamp": 1732510800000,
+          "isExtension": true,
+          "freshness": "stale",
+          "notes": [
+            "Derived from daily resistance swing.",
+            "displacement=0.1239",
+            "reactions=2",
+            "rejection=0.7655",
+            "followThrough=0.6412",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "freshness=stale",
+            "evidence=1",
+            "rejection=0.7655",
+            "followThrough=0.6412",
+            "gapContinuation=0.0000",
+            "pathClearance=0.5080",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        }
+      ]
+    },
+    "specialLevels": {
+      "premarketHigh": 6.38,
+      "premarketLow": 6.25,
+      "openingRangeHigh": 6.54,
+      "openingRangeLow": 6.25
+    }
+  },
+  "levelIntelligenceReport": {
+    "symbol": "ENVX",
+    "generatedAt": 1779463500000,
+    "referencePrice": 6.73,
+    "profiles": [
+      {
+        "levelId": "ENVX-support-zone-10",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 6.11,
+        "zoneLow": 6.09,
+        "zoneHigh": 6.16,
+        "zoneWidthPercent": 1.1457,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h",
+            "daily"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1776268800000,
+          "lastTimestamp": 1779364800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 16,
+          "reactionQualityScore": 0.3205,
+          "rejectionScore": 0.5563,
+          "displacementScore": 0.0977,
+          "followThroughScore": 0.583
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 9.2125,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 6.1,
+            "type": "ten_cent",
+            "distancePct": 0.1639
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 6.11 is sourced from 4h, daily evidence; freshness is stale; 9.2125% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-14",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 6.68,
+        "zoneLow": 6.66,
+        "zoneHigh": 6.68,
+        "zoneWidthPercent": 0.2994,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h",
+            "daily"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1763701200000,
+          "lastTimestamp": 1777881600000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 12,
+          "reactionQualityScore": 0.6286,
+          "rejectionScore": 0.4857,
+          "displacementScore": 0.1313,
+          "followThroughScore": 0.3579
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 0.7429,
+          "category": "near"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": [
+            "ENVX-volume-shelf-6.6627-6.73",
+            "ENVX-volume-shelf-6.5954-6.6627"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near current/reference price 6.73 (0.7429% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf ENVX-volume-shelf-6.6627-6.73 (6.6627-6.73, 18.4631% of window volume, role unknown).",
+            "Level overlaps volume shelf ENVX-volume-shelf-6.5954-6.6627 (6.5954-6.6627, 17.1397% of window volume, role unknown)."
+          ],
+          "contextTags": [
+            "near_current_price",
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "near_volume_shelf",
+            "volume_shelf_role_unknown",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 6.7,
+            "type": "ten_cent",
+            "distancePct": 0.2985
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "support zone 6.68 is sourced from 4h, daily evidence; freshness is stale; 0.7429% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-6",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 5.69,
+        "zoneLow": 5.69,
+        "zoneHigh": 5.69,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1744776000000,
+          "lastTimestamp": 1744776000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 4,
+          "reactionQualityScore": 0.4762,
+          "rejectionScore": 0.4643,
+          "displacementScore": 0.1485,
+          "followThroughScore": 0.6801
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 15.4532,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 5.7,
+            "type": "ten_cent",
+            "distancePct": 0.1754
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 5.69 is sourced from daily evidence; freshness is stale; 15.4532% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-1",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 4.6,
+        "zoneLow": 4.6,
+        "zoneHigh": 4.61,
+        "zoneWidthPercent": 0.2174,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1773028800000,
+          "lastTimestamp": 1774238400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.2062,
+          "rejectionScore": 0.5311,
+          "displacementScore": 0.1813,
+          "followThroughScore": 0.6753
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 31.6493,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 4.6,
+            "type": "ten_cent",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 4.6 is sourced from daily evidence; freshness is stale; 31.6493% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-resistance-zone-9",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "representativePrice": 7.11,
+        "zoneLow": 7,
+        "zoneHigh": 7.11,
+        "zoneWidthPercent": 1.5471,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "4h",
+            "daily"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1745812800000,
+          "lastTimestamp": 1777982400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 23,
+          "reactionQualityScore": 0.3606,
+          "rejectionScore": 0.4283,
+          "displacementScore": 0.1027,
+          "followThroughScore": 0.5214
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 5.6464,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 7.1,
+            "type": "ten_cent",
+            "distancePct": 0.1408
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 7.11 is sourced from 4h, daily evidence; freshness is stale; 5.6464% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-resistance-zone-16",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "representativePrice": 9.5,
+        "zoneLow": 9.5,
+        "zoneHigh": 9.5,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1757304000000,
+          "lastTimestamp": 1757304000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 5,
+          "reactionQualityScore": 0.5179,
+          "rejectionScore": 0.2564,
+          "displacementScore": 0.2656,
+          "followThroughScore": 0.582
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 41.159,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 9.5,
+            "type": "half",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 9.5 is sourced from daily evidence; freshness is stale; 41.159% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-resistance-zone-15",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "representativePrice": 9.16,
+        "zoneLow": 9.16,
+        "zoneHigh": 9.19,
+        "zoneWidthPercent": 0.3275,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1742875200000,
+          "lastTimestamp": 1765342800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 5,
+          "reactionQualityScore": 0.2767,
+          "rejectionScore": 0.5777,
+          "displacementScore": 0.1922,
+          "followThroughScore": 0.6472
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 36.107,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 9.16 is sourced from daily evidence; freshness is stale; 36.107% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-resistance-zone-12",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "representativePrice": 8.58,
+        "zoneLow": 8.5,
+        "zoneHigh": 8.58,
+        "zoneWidthPercent": 0.9324,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1766466000000,
+          "lastTimestamp": 1768539600000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 5,
+          "reactionQualityScore": 0.3133,
+          "rejectionScore": 0.3579,
+          "displacementScore": 0.1641,
+          "followThroughScore": 0.6086
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 27.4889,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 8.6,
+            "type": "ten_cent",
+            "distancePct": 0.2326
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 8.58 is sourced from daily evidence; freshness is stale; 27.4889% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-11",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 6.38,
+        "zoneLow": 6.25,
+        "zoneHigh": 6.38,
+        "zoneWidthPercent": 2.0376,
+        "origin": {
+          "sourceTypes": [
+            "swing_low",
+            "premarket_low",
+            "opening_range_low"
+          ],
+          "timeframeSources": [
+            "5m",
+            "4h"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1776960000000,
+          "lastTimestamp": 1779463200000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 109,
+          "reactionQualityScore": 0.7291,
+          "rejectionScore": 0.1907,
+          "displacementScore": 0.1099,
+          "followThroughScore": 0.2847
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 5.2006,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": [
+            "ENVX-volume-shelf-6.3935-6.4608",
+            "ENVX-volume-shelf-6.3262-6.3935"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near premarket high 6.38 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [
+            "Level is near volume shelf ENVX-volume-shelf-6.3935-6.4608 (6.3935-6.4608, 20.1923% of window volume, role unknown).",
+            "Level overlaps volume shelf ENVX-volume-shelf-6.3262-6.3935 (6.3262-6.3935, 15.8855% of window volume, role unknown)."
+          ],
+          "contextTags": [
+            "near_premarket_high",
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "near_volume_shelf",
+            "volume_shelf_role_unknown",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 6.4,
+            "type": "ten_cent",
+            "distancePct": 0.3125
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "support zone 6.38 is sourced from 5m, 4h evidence; freshness is stale; 5.2006% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-9",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 5.95,
+        "zoneLow": 5.95,
+        "zoneHigh": 5.99,
+        "zoneWidthPercent": 0.6723,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1776182400000,
+          "lastTimestamp": 1778846400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 5,
+          "reactionQualityScore": 0.393,
+          "rejectionScore": 0.5646,
+          "displacementScore": 0.0695,
+          "followThroughScore": 0.586
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 11.5899,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 5.95 is sourced from 4h evidence; freshness is stale; 11.5899% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-4",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 5.43,
+        "zoneLow": 5.39,
+        "zoneHigh": 5.43,
+        "zoneWidthPercent": 0.7366,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1779192000000,
+          "lastTimestamp": 1779278400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 4,
+          "reactionQualityScore": 0.3822,
+          "rejectionScore": 0.3276,
+          "displacementScore": 0.1357,
+          "followThroughScore": 0.7531
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 19.3165,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 5.43 is sourced from 4h evidence; freshness is stale; 19.3165% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-7",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 5.75,
+        "zoneLow": 5.75,
+        "zoneHigh": 5.75,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1779120000000,
+          "lastTimestamp": 1779120000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.3617,
+          "rejectionScore": 0.755,
+          "displacementScore": 0.0753,
+          "followThroughScore": 0.7399
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 14.5617,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 5.75,
+            "type": "quarter",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 5.75 is sourced from 4h evidence; freshness is stale; 14.5617% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-resistance-zone-7",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "representativePrice": 6.8,
+        "zoneLow": 6.74,
+        "zoneHigh": 6.8,
+        "zoneWidthPercent": 0.8824,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "5m",
+            "4h"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1776427200000,
+          "lastTimestamp": 1779460800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 11,
+          "reactionQualityScore": 0.396,
+          "rejectionScore": 0.4967,
+          "displacementScore": 0.0534,
+          "followThroughScore": 0.5252
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 1.0401,
+          "category": "near"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near high of day 6.77 (0.4431% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "near_high_of_day",
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout"
+          ],
+          "nearRoundNumber": {
+            "value": 6.8,
+            "type": "ten_cent",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 6.8 is sourced from 5m, 4h evidence; freshness is stale; 1.0401% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-13",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 6.55,
+        "zoneLow": 6.5,
+        "zoneHigh": 6.58,
+        "zoneWidthPercent": 1.2214,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h",
+            "5m"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from 4h support swing.",
+            "displacement=0.0812",
+            "reactions=2",
+            "rejection=0.1071",
+            "followThrough=0.5522",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "Derived from 5m support swing.",
+            "displacement=0.0348",
+            "reactions=4",
+            "rejection=0.6667",
+            "followThrough=0.3921",
+            "displacement=0.0389",
+            "reactions=1",
+            "rejection=0.7737",
+            "followThrough=0.3743",
+            "displacement=0.1024",
+            "rejection=0.0500",
+            "followThrough=0.6131",
+            "displacement=0.0196",
+            "reactions=3",
+            "rejection=0.6167",
+            "followThrough=0.5099",
+            "freshness=stale",
+            "evidence=5",
+            "rejection=0.4428",
+            "followThrough=0.4883",
+            "gapContinuation=0.0000",
+            "pathClearance=0.5671",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1776787200000,
+          "lastTimestamp": 1779462000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 21,
+          "reactionQualityScore": 0.5062,
+          "rejectionScore": 0.4428,
+          "displacementScore": 0.0554,
+          "followThroughScore": 0.4883
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 2.6746,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": [
+            "ENVX-volume-shelf-6.5281-6.5954"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near opening range high 6.54 (0.1529% away).",
+            "Level is near VWAP fact 6.5338 (0.2479% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf ENVX-volume-shelf-6.5281-6.5954 (6.5281-6.5954, 16.2925% of window volume, role unknown)."
+          ],
+          "contextTags": [
+            "near_opening_range_high",
+            "near_vwap_fact",
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "near_volume_shelf",
+            "volume_shelf_role_unknown",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "support zone 6.55 is sourced from 4h, 5m evidence; freshness is stale; 2.6746% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-8",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 5.86,
+        "zoneLow": 5.83,
+        "zoneHigh": 5.86,
+        "zoneWidthPercent": 0.5119,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h",
+            "daily"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from 4h support swing.",
+            "displacement=0.2413",
+            "reactions=1",
+            "rejection=0.7246",
+            "followThrough=0.6985",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "Derived from daily support swing.",
+            "displacement=0.1928",
+            "reactions=3",
+            "rejection=0.2269",
+            "followThrough=0.7782",
+            "gapContinuation=1.0000",
+            "gap=yes",
+            "freshness=stale",
+            "evidence=2",
+            "rejection=0.4758",
+            "followThrough=0.7384",
+            "gapContinuation=0.5000",
+            "pathClearance=0.3129",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1746072000000,
+          "lastTimestamp": 1778760000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 5,
+          "reactionQualityScore": 0.3699,
+          "rejectionScore": 0.4758,
+          "displacementScore": 0.2248,
+          "followThroughScore": 0.7384
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 12.9272,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 5.86 is sourced from 4h, daily evidence; freshness is stale; 12.9272% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-support-zone-5",
+        "symbol": "ENVX",
+        "kind": "support",
+        "representativePrice": 5.59,
+        "zoneLow": 5.59,
+        "zoneHigh": 5.6,
+        "zoneWidthPercent": 0.1789,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from daily support swing.",
+            "displacement=0.1398",
+            "reactions=2",
+            "rejection=0.7045",
+            "followThrough=0.6364",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "displacement=0.2264",
+            "rejection=0.0309",
+            "followThrough=0.6845",
+            "gapContinuation=0.5667",
+            "gap=yes",
+            "freshness=stale",
+            "evidence=2",
+            "rejection=0.3677",
+            "followThrough=0.6604",
+            "gapContinuation=0.2833",
+            "pathClearance=0.4770",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1770267600000,
+          "lastTimestamp": 1771304400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 4,
+          "reactionQualityScore": 0.2735,
+          "rejectionScore": 0.3677,
+          "displacementScore": 0.1921,
+          "followThroughScore": 0.6604
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 16.9391,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout",
+            "extension_level"
+          ],
+          "nearRoundNumber": {
+            "value": 5.6,
+            "type": "ten_cent",
+            "distancePct": 0.1786
+          }
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 5.59 is sourced from daily evidence; freshness is stale; 16.9391% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "ENVX-resistance-zone-17",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "representativePrice": 9.86,
+        "zoneLow": 9.86,
+        "zoneHigh": 9.86,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from daily resistance swing.",
+            "displacement=0.1239",
+            "reactions=2",
+            "rejection=0.7655",
+            "followThrough=0.6412",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "freshness=stale",
+            "evidence=1",
+            "rejection=0.7655",
+            "followThrough=0.6412",
+            "gapContinuation=0.0000",
+            "pathClearance=0.5080",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1732510800000,
+          "lastTimestamp": 1732510800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.3531,
+          "rejectionScore": 0.7655,
+          "displacementScore": 0.1239,
+          "followThroughScore": 0.6412
+        },
+        "distance": {
+          "referencePrice": 6.73,
+          "distanceFromReferencePct": 46.5082,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "elevated",
+          "relativeVolume": 1.8779,
+          "dollarVolume": 19047178.7,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "confirmed",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is elevated.",
+            "Relative volume fact is 1.8779.",
+            "Dollar volume fact is 19047178.7.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Breakout volume fact is confirmed."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_elevated",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "breakout_volume_confirmed",
+            "market_context_day_trade_runner",
+            "runner_phase_high_of_day_breakout",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.82
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 9.86 is sourced from daily evidence; freshness is stale; 46.5082% from reference price; volume state is elevated.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "buckets": {
+      "majorSupport": [
+        {
+          "levelId": "ENVX-support-zone-10",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 6.11,
+          "zoneLow": 6.09,
+          "zoneHigh": 6.16,
+          "zoneWidthPercent": 1.1457,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h",
+              "daily"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1776268800000,
+            "lastTimestamp": 1779364800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 16,
+            "reactionQualityScore": 0.3205,
+            "rejectionScore": 0.5563,
+            "displacementScore": 0.0977,
+            "followThroughScore": 0.583
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 9.2125,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 6.1,
+              "type": "ten_cent",
+              "distancePct": 0.1639
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 6.11 is sourced from 4h, daily evidence; freshness is stale; 9.2125% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-support-zone-14",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 6.68,
+          "zoneLow": 6.66,
+          "zoneHigh": 6.68,
+          "zoneWidthPercent": 0.2994,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h",
+              "daily"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1763701200000,
+            "lastTimestamp": 1777881600000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 12,
+            "reactionQualityScore": 0.6286,
+            "rejectionScore": 0.4857,
+            "displacementScore": 0.1313,
+            "followThroughScore": 0.3579
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 0.7429,
+            "category": "near"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": [
+              "ENVX-volume-shelf-6.6627-6.73",
+              "ENVX-volume-shelf-6.5954-6.6627"
+            ]
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near current/reference price 6.73 (0.7429% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [
+              "Level overlaps volume shelf ENVX-volume-shelf-6.6627-6.73 (6.6627-6.73, 18.4631% of window volume, role unknown).",
+              "Level overlaps volume shelf ENVX-volume-shelf-6.5954-6.6627 (6.5954-6.6627, 17.1397% of window volume, role unknown)."
+            ],
+            "contextTags": [
+              "near_current_price",
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "near_volume_shelf",
+              "volume_shelf_role_unknown",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 6.7,
+              "type": "ten_cent",
+              "distancePct": 0.2985
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing"
+          ],
+          "reason": "support zone 6.68 is sourced from 4h, daily evidence; freshness is stale; 0.7429% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-support-zone-6",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 5.69,
+          "zoneLow": 5.69,
+          "zoneHigh": 5.69,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1744776000000,
+            "lastTimestamp": 1744776000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 4,
+            "reactionQualityScore": 0.4762,
+            "rejectionScore": 0.4643,
+            "displacementScore": 0.1485,
+            "followThroughScore": 0.6801
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 15.4532,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 5.7,
+              "type": "ten_cent",
+              "distancePct": 0.1754
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 5.69 is sourced from daily evidence; freshness is stale; 15.4532% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-support-zone-1",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 4.6,
+          "zoneLow": 4.6,
+          "zoneHigh": 4.61,
+          "zoneWidthPercent": 0.2174,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1773028800000,
+            "lastTimestamp": 1774238400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 2,
+            "reactionQualityScore": 0.2062,
+            "rejectionScore": 0.5311,
+            "displacementScore": 0.1813,
+            "followThroughScore": 0.6753
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 31.6493,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 4.6,
+              "type": "ten_cent",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 4.6 is sourced from daily evidence; freshness is stale; 31.6493% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "majorResistance": [
+        {
+          "levelId": "ENVX-resistance-zone-9",
+          "symbol": "ENVX",
+          "kind": "resistance",
+          "representativePrice": 7.11,
+          "zoneLow": 7,
+          "zoneHigh": 7.11,
+          "zoneWidthPercent": 1.5471,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "4h",
+              "daily"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1745812800000,
+            "lastTimestamp": 1777982400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 23,
+            "reactionQualityScore": 0.3606,
+            "rejectionScore": 0.4283,
+            "displacementScore": 0.1027,
+            "followThroughScore": 0.5214
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 5.6464,
+            "category": "approaching"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 7.1,
+              "type": "ten_cent",
+              "distancePct": 0.1408
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 7.11 is sourced from 4h, daily evidence; freshness is stale; 5.6464% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-resistance-zone-16",
+          "symbol": "ENVX",
+          "kind": "resistance",
+          "representativePrice": 9.5,
+          "zoneLow": 9.5,
+          "zoneHigh": 9.5,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1757304000000,
+            "lastTimestamp": 1757304000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 5,
+            "reactionQualityScore": 0.5179,
+            "rejectionScore": 0.2564,
+            "displacementScore": 0.2656,
+            "followThroughScore": 0.582
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 41.159,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 9.5,
+              "type": "half",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 9.5 is sourced from daily evidence; freshness is stale; 41.159% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-resistance-zone-15",
+          "symbol": "ENVX",
+          "kind": "resistance",
+          "representativePrice": 9.16,
+          "zoneLow": 9.16,
+          "zoneHigh": 9.19,
+          "zoneWidthPercent": 0.3275,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1742875200000,
+            "lastTimestamp": 1765342800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 5,
+            "reactionQualityScore": 0.2767,
+            "rejectionScore": 0.5777,
+            "displacementScore": 0.1922,
+            "followThroughScore": 0.6472
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 36.107,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 9.16 is sourced from daily evidence; freshness is stale; 36.107% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-resistance-zone-12",
+          "symbol": "ENVX",
+          "kind": "resistance",
+          "representativePrice": 8.58,
+          "zoneLow": 8.5,
+          "zoneHigh": 8.58,
+          "zoneWidthPercent": 0.9324,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1766466000000,
+            "lastTimestamp": 1768539600000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 5,
+            "reactionQualityScore": 0.3133,
+            "rejectionScore": 0.3579,
+            "displacementScore": 0.1641,
+            "followThroughScore": 0.6086
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 27.4889,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 8.6,
+              "type": "ten_cent",
+              "distancePct": 0.2326
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 8.58 is sourced from daily evidence; freshness is stale; 27.4889% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intermediateSupport": [
+        {
+          "levelId": "ENVX-support-zone-11",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 6.38,
+          "zoneLow": 6.25,
+          "zoneHigh": 6.38,
+          "zoneWidthPercent": 2.0376,
+          "origin": {
+            "sourceTypes": [
+              "swing_low",
+              "premarket_low",
+              "opening_range_low"
+            ],
+            "timeframeSources": [
+              "5m",
+              "4h"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1776960000000,
+            "lastTimestamp": 1779463200000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 109,
+            "reactionQualityScore": 0.7291,
+            "rejectionScore": 0.1907,
+            "displacementScore": 0.1099,
+            "followThroughScore": 0.2847
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 5.2006,
+            "category": "approaching"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": [
+              "ENVX-volume-shelf-6.3935-6.4608",
+              "ENVX-volume-shelf-6.3262-6.3935"
+            ]
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near premarket high 6.38 (0% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [
+              "Level is near volume shelf ENVX-volume-shelf-6.3935-6.4608 (6.3935-6.4608, 20.1923% of window volume, role unknown).",
+              "Level overlaps volume shelf ENVX-volume-shelf-6.3262-6.3935 (6.3262-6.3935, 15.8855% of window volume, role unknown)."
+            ],
+            "contextTags": [
+              "near_premarket_high",
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "near_volume_shelf",
+              "volume_shelf_role_unknown",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 6.4,
+              "type": "ten_cent",
+              "distancePct": 0.3125
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing"
+          ],
+          "reason": "support zone 6.38 is sourced from 5m, 4h evidence; freshness is stale; 5.2006% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-support-zone-9",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 5.95,
+          "zoneLow": 5.95,
+          "zoneHigh": 5.99,
+          "zoneWidthPercent": 0.6723,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1776182400000,
+            "lastTimestamp": 1778846400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 5,
+            "reactionQualityScore": 0.393,
+            "rejectionScore": 0.5646,
+            "displacementScore": 0.0695,
+            "followThroughScore": 0.586
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 11.5899,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 5.95 is sourced from 4h evidence; freshness is stale; 11.5899% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-support-zone-4",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 5.43,
+          "zoneLow": 5.39,
+          "zoneHigh": 5.43,
+          "zoneWidthPercent": 0.7366,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1779192000000,
+            "lastTimestamp": 1779278400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 4,
+            "reactionQualityScore": 0.3822,
+            "rejectionScore": 0.3276,
+            "displacementScore": 0.1357,
+            "followThroughScore": 0.7531
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 19.3165,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 5.43 is sourced from 4h evidence; freshness is stale; 19.3165% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-support-zone-7",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 5.75,
+          "zoneLow": 5.75,
+          "zoneHigh": 5.75,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1779120000000,
+            "lastTimestamp": 1779120000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.3617,
+            "rejectionScore": 0.755,
+            "displacementScore": 0.0753,
+            "followThroughScore": 0.7399
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 14.5617,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 5.75,
+              "type": "quarter",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 5.75 is sourced from 4h evidence; freshness is stale; 14.5617% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intermediateResistance": [
+        {
+          "levelId": "ENVX-resistance-zone-7",
+          "symbol": "ENVX",
+          "kind": "resistance",
+          "representativePrice": 6.8,
+          "zoneLow": 6.74,
+          "zoneHigh": 6.8,
+          "zoneWidthPercent": 0.8824,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "5m",
+              "4h"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1776427200000,
+            "lastTimestamp": 1779460800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 11,
+            "reactionQualityScore": 0.396,
+            "rejectionScore": 0.4967,
+            "displacementScore": 0.0534,
+            "followThroughScore": 0.5252
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 1.0401,
+            "category": "near"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near high of day 6.77 (0.4431% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "near_high_of_day",
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout"
+            ],
+            "nearRoundNumber": {
+              "value": 6.8,
+              "type": "ten_cent",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 6.8 is sourced from 5m, 4h evidence; freshness is stale; 1.0401% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intradaySupport": [],
+      "intradayResistance": [],
+      "extensionSupport": [
+        {
+          "levelId": "ENVX-support-zone-13",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 6.55,
+          "zoneLow": 6.5,
+          "zoneHigh": 6.58,
+          "zoneWidthPercent": 1.2214,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h",
+              "5m"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from 4h support swing.",
+              "displacement=0.0812",
+              "reactions=2",
+              "rejection=0.1071",
+              "followThrough=0.5522",
+              "gapContinuation=0.0000",
+              "gap=no",
+              "Derived from 5m support swing.",
+              "displacement=0.0348",
+              "reactions=4",
+              "rejection=0.6667",
+              "followThrough=0.3921",
+              "displacement=0.0389",
+              "reactions=1",
+              "rejection=0.7737",
+              "followThrough=0.3743",
+              "displacement=0.1024",
+              "rejection=0.0500",
+              "followThrough=0.6131",
+              "displacement=0.0196",
+              "reactions=3",
+              "rejection=0.6167",
+              "followThrough=0.5099",
+              "freshness=stale",
+              "evidence=5",
+              "rejection=0.4428",
+              "followThrough=0.4883",
+              "gapContinuation=0.0000",
+              "pathClearance=0.5671",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1776787200000,
+            "lastTimestamp": 1779462000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 21,
+            "reactionQualityScore": 0.5062,
+            "rejectionScore": 0.4428,
+            "displacementScore": 0.0554,
+            "followThroughScore": 0.4883
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 2.6746,
+            "category": "approaching"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": [
+              "ENVX-volume-shelf-6.5281-6.5954"
+            ]
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near opening range high 6.54 (0.1529% away).",
+              "Level is near VWAP fact 6.5338 (0.2479% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [
+              "Level overlaps volume shelf ENVX-volume-shelf-6.5281-6.5954 (6.5281-6.5954, 16.2925% of window volume, role unknown)."
+            ],
+            "contextTags": [
+              "near_opening_range_high",
+              "near_vwap_fact",
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "near_volume_shelf",
+              "volume_shelf_role_unknown",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout",
+              "extension_level"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing"
+          ],
+          "reason": "support zone 6.55 is sourced from 4h, 5m evidence; freshness is stale; 2.6746% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-support-zone-8",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 5.86,
+          "zoneLow": 5.83,
+          "zoneHigh": 5.86,
+          "zoneWidthPercent": 0.5119,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h",
+              "daily"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from 4h support swing.",
+              "displacement=0.2413",
+              "reactions=1",
+              "rejection=0.7246",
+              "followThrough=0.6985",
+              "gapContinuation=0.0000",
+              "gap=no",
+              "Derived from daily support swing.",
+              "displacement=0.1928",
+              "reactions=3",
+              "rejection=0.2269",
+              "followThrough=0.7782",
+              "gapContinuation=1.0000",
+              "gap=yes",
+              "freshness=stale",
+              "evidence=2",
+              "rejection=0.4758",
+              "followThrough=0.7384",
+              "gapContinuation=0.5000",
+              "pathClearance=0.3129",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1746072000000,
+            "lastTimestamp": 1778760000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 5,
+            "reactionQualityScore": 0.3699,
+            "rejectionScore": 0.4758,
+            "displacementScore": 0.2248,
+            "followThroughScore": 0.7384
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 12.9272,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout",
+              "extension_level"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 5.86 is sourced from 4h, daily evidence; freshness is stale; 12.9272% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "ENVX-support-zone-5",
+          "symbol": "ENVX",
+          "kind": "support",
+          "representativePrice": 5.59,
+          "zoneLow": 5.59,
+          "zoneHigh": 5.6,
+          "zoneWidthPercent": 0.1789,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from daily support swing.",
+              "displacement=0.1398",
+              "reactions=2",
+              "rejection=0.7045",
+              "followThrough=0.6364",
+              "gapContinuation=0.0000",
+              "gap=no",
+              "displacement=0.2264",
+              "rejection=0.0309",
+              "followThrough=0.6845",
+              "gapContinuation=0.5667",
+              "gap=yes",
+              "freshness=stale",
+              "evidence=2",
+              "rejection=0.3677",
+              "followThrough=0.6604",
+              "gapContinuation=0.2833",
+              "pathClearance=0.4770",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1770267600000,
+            "lastTimestamp": 1771304400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 4,
+            "reactionQualityScore": 0.2735,
+            "rejectionScore": 0.3677,
+            "displacementScore": 0.1921,
+            "followThroughScore": 0.6604
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 16.9391,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout",
+              "extension_level"
+            ],
+            "nearRoundNumber": {
+              "value": 5.6,
+              "type": "ten_cent",
+              "distancePct": 0.1786
+            }
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 5.59 is sourced from daily evidence; freshness is stale; 16.9391% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "extensionResistance": [
+        {
+          "levelId": "ENVX-resistance-zone-17",
+          "symbol": "ENVX",
+          "kind": "resistance",
+          "representativePrice": 9.86,
+          "zoneLow": 9.86,
+          "zoneHigh": 9.86,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from daily resistance swing.",
+              "displacement=0.1239",
+              "reactions=2",
+              "rejection=0.7655",
+              "followThrough=0.6412",
+              "gapContinuation=0.0000",
+              "gap=no",
+              "freshness=stale",
+              "evidence=1",
+              "rejection=0.7655",
+              "followThrough=0.6412",
+              "gapContinuation=0.0000",
+              "pathClearance=0.5080",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1732510800000,
+            "lastTimestamp": 1732510800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 2,
+            "reactionQualityScore": 0.3531,
+            "rejectionScore": 0.7655,
+            "displacementScore": 0.1239,
+            "followThroughScore": 0.6412
+          },
+          "distance": {
+            "referencePrice": 6.73,
+            "distanceFromReferencePct": 46.5082,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "elevated",
+            "relativeVolume": 1.8779,
+            "dollarVolume": 19047178.7,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "confirmed",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is elevated.",
+              "Relative volume fact is 1.8779.",
+              "Dollar volume fact is 19047178.7.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Breakout volume fact is confirmed."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_elevated",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "breakout_volume_confirmed",
+              "market_context_day_trade_runner",
+              "runner_phase_high_of_day_breakout",
+              "extension_level"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "day_trade_runner",
+            "runnerPhase": "high_of_day_breakout",
+            "confidence": 0.82
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 9.86 is sourced from daily evidence; freshness is stale; 46.5082% from reference price; volume state is elevated.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ]
+    },
+    "counts": {
+      "majorSupport": 4,
+      "majorResistance": 4,
+      "intermediateSupport": 4,
+      "intermediateResistance": 1,
+      "intradaySupport": 0,
+      "intradayResistance": 0,
+      "extensionSupport": 3,
+      "extensionResistance": 1,
+      "total": 17
+    },
+    "diagnostics": [
+      "enriched_analysis_missing",
+      "no_nearby_volume_shelf"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "factsOnly": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "noRuntimeBehaviorChange": true
+    }
+  },
+  "levelQualityAudit": {
+    "symbol": "ENVX",
+    "generatedAt": 1779463500000,
+    "referencePrice": 6.73,
+    "summary": {
+      "totalLevels": 17,
+      "supportCount": 11,
+      "resistanceCount": 6,
+      "extensionCount": 4,
+      "freshCount": 0,
+      "staleCount": 17,
+      "enrichedCount": 0,
+      "unenrichedCount": 17
+    },
+    "strongestLevels": [
+      {
+        "levelId": "ENVX-support-zone-11",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 6.38,
+        "zoneLow": 6.25,
+        "zoneHigh": 6.38,
+        "strengthScore": 136.4,
+        "strengthLabel": "major",
+        "auditScore": 1.364,
+        "freshness": "stale",
+        "touchCount": 109,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 6,
+          "shelf": 2,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 5.2006,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "ENVX-resistance-zone-9",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "bucket": "majorResistance",
+        "representativePrice": 7.11,
+        "zoneLow": 7,
+        "zoneHigh": 7.11,
+        "strengthScore": 50.2,
+        "strengthLabel": "major",
+        "auditScore": 0.502,
+        "freshness": "stale",
+        "touchCount": 23,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 5.6464,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-13",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 6.55,
+        "zoneLow": 6.5,
+        "zoneHigh": 6.58,
+        "strengthScore": 43.74,
+        "strengthLabel": "major",
+        "auditScore": 0.4374,
+        "freshness": "stale",
+        "touchCount": 21,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 2,
+          "volume": 6,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 2.6746,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-10",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 6.11,
+        "zoneLow": 6.09,
+        "zoneHigh": 6.16,
+        "strengthScore": 42.92,
+        "strengthLabel": "major",
+        "auditScore": 0.4292,
+        "freshness": "stale",
+        "touchCount": 16,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 9.2125,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-14",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 6.68,
+        "zoneLow": 6.66,
+        "zoneHigh": 6.68,
+        "strengthScore": 38.44,
+        "strengthLabel": "strong",
+        "auditScore": 0.3844,
+        "freshness": "stale",
+        "touchCount": 12,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 6,
+          "shelf": 2,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 0.7429,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      }
+    ],
+    "weakestLevels": [
+      {
+        "levelId": "ENVX-support-zone-7",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.75,
+        "zoneLow": 5.75,
+        "zoneHigh": 5.75,
+        "strengthScore": 9.28,
+        "strengthLabel": "weak",
+        "auditScore": 0.0928,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 14.5617,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-resistance-zone-17",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 9.86,
+        "zoneLow": 9.86,
+        "zoneHigh": 9.86,
+        "strengthScore": 12.77,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1277,
+        "freshness": "stale",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 46.5082,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-4",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.43,
+        "zoneLow": 5.39,
+        "zoneHigh": 5.43,
+        "strengthScore": 12.94,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1294,
+        "freshness": "stale",
+        "touchCount": 4,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 19.3165,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-1",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 4.6,
+        "zoneLow": 4.6,
+        "zoneHigh": 4.61,
+        "strengthScore": 13.2,
+        "strengthLabel": "moderate",
+        "auditScore": 0.132,
+        "freshness": "stale",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 31.6493,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-9",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.95,
+        "zoneLow": 5.95,
+        "zoneHigh": 5.99,
+        "strengthScore": 13.38,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1338,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 11.5899,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "staleLevels": [
+      {
+        "levelId": "ENVX-support-zone-7",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.75,
+        "zoneLow": 5.75,
+        "zoneHigh": 5.75,
+        "strengthScore": 9.28,
+        "strengthLabel": "weak",
+        "auditScore": 0.0928,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 14.5617,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-resistance-zone-17",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 9.86,
+        "zoneLow": 9.86,
+        "zoneHigh": 9.86,
+        "strengthScore": 12.77,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1277,
+        "freshness": "stale",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 46.5082,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-4",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.43,
+        "zoneLow": 5.39,
+        "zoneHigh": 5.43,
+        "strengthScore": 12.94,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1294,
+        "freshness": "stale",
+        "touchCount": 4,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 19.3165,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-1",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 4.6,
+        "zoneLow": 4.6,
+        "zoneHigh": 4.61,
+        "strengthScore": 13.2,
+        "strengthLabel": "moderate",
+        "auditScore": 0.132,
+        "freshness": "stale",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 31.6493,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-9",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.95,
+        "zoneLow": 5.95,
+        "zoneHigh": 5.99,
+        "strengthScore": 13.38,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1338,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 11.5899,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "freshLevels": [],
+    "strongConfluenceLevels": [
+      {
+        "levelId": "ENVX-support-zone-11",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 6.38,
+        "zoneLow": 6.25,
+        "zoneHigh": 6.38,
+        "strengthScore": 136.4,
+        "strengthLabel": "major",
+        "auditScore": 1.364,
+        "freshness": "stale",
+        "touchCount": 109,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 6,
+          "shelf": 2,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 5.2006,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-13",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 6.55,
+        "zoneLow": 6.5,
+        "zoneHigh": 6.58,
+        "strengthScore": 43.74,
+        "strengthLabel": "major",
+        "auditScore": 0.4374,
+        "freshness": "stale",
+        "touchCount": 21,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 2,
+          "volume": 6,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 2.6746,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-14",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 6.68,
+        "zoneLow": 6.66,
+        "zoneHigh": 6.68,
+        "strengthScore": 38.44,
+        "strengthLabel": "strong",
+        "auditScore": 0.3844,
+        "freshness": "stale",
+        "touchCount": 12,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 6,
+          "shelf": 2,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 0.7429,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "ENVX-resistance-zone-7",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 6.8,
+        "zoneLow": 6.74,
+        "zoneHigh": 6.8,
+        "strengthScore": 32.94,
+        "strengthLabel": "strong",
+        "auditScore": 0.3294,
+        "freshness": "stale",
+        "touchCount": 11,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 1.0401,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-resistance-zone-9",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "bucket": "majorResistance",
+        "representativePrice": 7.11,
+        "zoneLow": 7,
+        "zoneHigh": 7.11,
+        "strengthScore": 50.2,
+        "strengthLabel": "major",
+        "auditScore": 0.502,
+        "freshness": "stale",
+        "touchCount": 23,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 5.6464,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "weakContextLevels": [],
+    "enrichedLevels": [],
+    "unenrichedLevels": [
+      {
+        "levelId": "ENVX-support-zone-7",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.75,
+        "zoneLow": 5.75,
+        "zoneHigh": 5.75,
+        "strengthScore": 9.28,
+        "strengthLabel": "weak",
+        "auditScore": 0.0928,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 14.5617,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-resistance-zone-17",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 9.86,
+        "zoneLow": 9.86,
+        "zoneHigh": 9.86,
+        "strengthScore": 12.77,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1277,
+        "freshness": "stale",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 46.5082,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-4",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.43,
+        "zoneLow": 5.39,
+        "zoneHigh": 5.43,
+        "strengthScore": 12.94,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1294,
+        "freshness": "stale",
+        "touchCount": 4,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 19.3165,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-1",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 4.6,
+        "zoneLow": 4.6,
+        "zoneHigh": 4.61,
+        "strengthScore": 13.2,
+        "strengthLabel": "moderate",
+        "auditScore": 0.132,
+        "freshness": "stale",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 31.6493,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-9",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.95,
+        "zoneLow": 5.95,
+        "zoneHigh": 5.99,
+        "strengthScore": 13.38,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1338,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 11.5899,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "possibleClutterLevels": [
+      {
+        "levelId": "ENVX-support-zone-7",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.75,
+        "zoneLow": 5.75,
+        "zoneHigh": 5.75,
+        "strengthScore": 9.28,
+        "strengthLabel": "weak",
+        "auditScore": 0.0928,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 14.5617,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "ENVX-support-zone-6",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 5.69,
+        "zoneLow": 5.69,
+        "zoneHigh": 5.69,
+        "strengthScore": 15.17,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1517,
+        "freshness": "stale",
+        "touchCount": 4,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 15.4532,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "clusteredAreas": [
+      {
+        "kind": "support",
+        "zoneLow": 5.69,
+        "zoneHigh": 5.75,
+        "representativePrices": [
+          5.69,
+          5.75
+        ],
+        "levelIds": [
+          "ENVX-support-zone-6",
+          "ENVX-support-zone-7"
+        ],
+        "buckets": [
+          "majorSupport",
+          "intermediateSupport"
+        ],
+        "maxDistancePct": 1.0435,
+        "reason": "Multiple supplied levels are clustered within the audit threshold."
+      }
+    ],
+    "extensionCoverage": {
+      "supportExtensions": 3,
+      "resistanceExtensions": 1,
+      "highestResistanceExtension": 9.86,
+      "lowestSupportExtension": 5.59,
+      "upsideCoveragePct": 46.5082,
+      "downsideCoveragePct": 16.9391,
+      "warnings": [
+        "limited_downside_extension_coverage"
+      ]
+    },
+    "nearbyCoverage": {
+      "referencePrice": 6.73,
+      "nearbySupportCount": 3,
+      "nearbyResistanceCount": 2,
+      "nearestSupport": {
+        "levelId": "ENVX-support-zone-14",
+        "symbol": "ENVX",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 6.68,
+        "zoneLow": 6.66,
+        "zoneHigh": 6.68,
+        "strengthScore": 38.44,
+        "strengthLabel": "strong",
+        "auditScore": 0.3844,
+        "freshness": "stale",
+        "touchCount": 12,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 6,
+          "shelf": 2,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 0.7429,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      "nearestResistance": {
+        "levelId": "ENVX-resistance-zone-7",
+        "symbol": "ENVX",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 6.8,
+        "zoneLow": 6.74,
+        "zoneHigh": 6.8,
+        "strengthScore": 32.94,
+        "strengthLabel": "strong",
+        "auditScore": 0.3294,
+        "freshness": "stale",
+        "touchCount": 11,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 1.0401,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      "overheadResistanceGapPct": 1.0401,
+      "downsideSupportGapPct": 0.7429,
+      "warnings": []
+    },
+    "confluenceSummary": {
+      "sessionConfluenceCount": 4,
+      "volumeConfluenceCount": 17,
+      "shelfConfluenceCount": 3,
+      "marketContextConfluenceCount": 17
+    },
+    "diagnostics": [
+      "clustered_level_areas_present",
+      "limited_downside_extension_coverage",
+      "unenriched_levels_present"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "noRuntimeBehaviorChange": true,
+      "noScoringChange": true
+    }
+  },
+  "diagnostics": [
+    "candle_close_as_of_filter_applied",
+    "candle_inputs_reserved_for_future_fact_generation"
+  ],
+  "safety": {
+    "noLookaheadApplied": true,
+    "levelOutputUnchanged": true,
+    "factsOnlyVWAP": true,
+    "shelvesAreFactsOnly": true,
+    "syntheticExtensionsClearlyMarked": true,
+    "noRuntimeBehaviorChange": true
+  },
+  "referencePrice": 6.73,
+  "sessionFacts": {
+    "symbol": "ENVX",
+    "asOfTimestamp": 1779463500000,
+    "sessionDate": "2026-05-22",
+    "previousClose": 6.26,
+    "regularSessionOpen": 6.33,
+    "currentPrice": 6.73,
+    "premarketHigh": 6.38,
+    "premarketLow": 6.25,
+    "premarketHighTimestamp": 1779442200000,
+    "premarketLowTimestamp": 1779444300000,
+    "openingRangeHigh": 6.54,
+    "openingRangeLow": 6.25,
+    "openingRangeStartTimestamp": 1779456600000,
+    "openingRangeEndTimestamp": 1779458400000,
+    "highOfDay": 6.77,
+    "lowOfDay": 6.25,
+    "highOfDayTimestamp": 1779463200000,
+    "lowOfDayTimestamp": 1779444300000,
+    "vwap": 6.5338,
+    "aboveVWAP": true,
+    "percentFromVWAP": 3.0028,
+    "firstPullbackLow": 6.5,
+    "firstPullbackLowTimestamp": 1779459300000,
+    "firstBreakoutHigh": 6.61,
+    "firstBreakoutHighTimestamp": 1779458400000,
+    "firstConsolidationRange": {
+      "low": 6.51,
+      "high": 6.61,
+      "startTimestamp": 1779458400000,
+      "endTimestamp": 1779459300000
+    },
+    "diagnostics": []
+  },
+  "volumeFacts": {
+    "symbol": "ENVX",
+    "asOfTimestamp": 1779463500000,
+    "currentVolume": 124175,
+    "rollingAverageVolume": 66125.6,
+    "relativeVolume": 1.8779,
+    "dollarVolume": 19047178.7,
+    "volumeState": "elevated",
+    "liquidityQuality": "strong",
+    "accelerationState": "steady",
+    "pullbackVolumeState": "unknown",
+    "breakoutVolumeState": "confirmed",
+    "diagnostics": []
+  },
+  "volumeShelves": [
+    {
+      "id": "ENVX-volume-shelf-6.3935-6.4608",
+      "zoneLow": 6.3935,
+      "zoneHigh": 6.4608,
+      "representativePrice": 6.4412,
+      "totalVolume": 571480,
+      "dollarVolume": 3680993.37,
+      "percentOfWindowVolume": 20.1923,
+      "touchCount": 3,
+      "firstTimestamp": 1779457200000,
+      "lastTimestamp": 1779457800000,
+      "shelfRole": "unknown",
+      "confidence": 0.541,
+      "reason": "High activity shelf with 20.1923% of closed-window volume across 3 candle(s)."
+    },
+    {
+      "id": "ENVX-volume-shelf-6.6627-6.73",
+      "zoneLow": 6.6627,
+      "zoneHigh": 6.73,
+      "representativePrice": 6.6955,
+      "totalVolume": 522541,
+      "dollarVolume": 3498686.06,
+      "percentOfWindowVolume": 18.4631,
+      "touchCount": 5,
+      "firstTimestamp": 1779460500000,
+      "lastTimestamp": 1779463200000,
+      "shelfRole": "unknown",
+      "confidence": 0.5923,
+      "reason": "High activity shelf with 18.4631% of closed-window volume across 5 candle(s)."
+    },
+    {
+      "id": "ENVX-volume-shelf-6.5954-6.6627",
+      "zoneLow": 6.5954,
+      "zoneHigh": 6.6627,
+      "representativePrice": 6.6392,
+      "totalVolume": 485085,
+      "dollarVolume": 3220576.54,
+      "percentOfWindowVolume": 17.1397,
+      "touchCount": 5,
+      "firstTimestamp": 1779461100000,
+      "lastTimestamp": 1779462300000,
+      "shelfRole": "unknown",
+      "confidence": 0.5857,
+      "reason": "High activity shelf with 17.1397% of closed-window volume across 5 candle(s)."
+    },
+    {
+      "id": "ENVX-volume-shelf-6.5281-6.5954",
+      "zoneLow": 6.5281,
+      "zoneHigh": 6.5954,
+      "representativePrice": 6.5546,
+      "totalVolume": 461110,
+      "dollarVolume": 3022413.63,
+      "percentOfWindowVolume": 16.2925,
+      "touchCount": 5,
+      "firstTimestamp": 1779458400000,
+      "lastTimestamp": 1779460200000,
+      "shelfRole": "unknown",
+      "confidence": 0.5815,
+      "reason": "High activity shelf with 16.2925% of closed-window volume across 5 candle(s)."
+    },
+    {
+      "id": "ENVX-volume-shelf-6.3262-6.3935",
+      "zoneLow": 6.3262,
+      "zoneHigh": 6.3935,
+      "representativePrice": 6.3514,
+      "totalVolume": 449591,
+      "dollarVolume": 2855533.75,
+      "percentOfWindowVolume": 15.8855,
+      "touchCount": 31,
+      "firstTimestamp": 1779436800000,
+      "lastTimestamp": 1779456900000,
+      "shelfRole": "unknown",
+      "confidence": 0.5794,
+      "reason": "High activity shelf with 15.8855% of closed-window volume across 31 candle(s)."
+    }
+  ],
+  "marketContext": {
+    "primaryContext": "day_trade_runner",
+    "confidence": 0.82,
+    "runnerPhase": "high_of_day_breakout",
+    "evidence": [
+      {
+        "code": "sufficient_orderly_candles",
+        "context": "normal_intraday",
+        "message": "Closed 5m candles are available for context review.",
+        "weight": 0.4
+      },
+      {
+        "code": "strong_move_from_open",
+        "context": "day_trade_runner",
+        "message": "Regular-session move from open is strong.",
+        "weight": 1.6
+      },
+      {
+        "code": "regular_higher_lows",
+        "context": "day_trade_runner",
+        "message": "Regular-session candles show higher lows.",
+        "weight": 0.9
+      },
+      {
+        "code": "near_high_of_day",
+        "context": "day_trade_runner",
+        "message": "Price is near high of day.",
+        "weight": 0.9
+      },
+      {
+        "code": "above_opening_range_high",
+        "context": "day_trade_runner",
+        "message": "Price is above the opening range high.",
+        "weight": 0.8
+      },
+      {
+        "code": "frequent_direction_changes",
+        "context": "choppy_low_quality",
+        "message": "Recent candles alternate direction frequently.",
+        "weight": 1.4
+      },
+      {
+        "code": "overlapping_candle_ranges",
+        "context": "choppy_low_quality",
+        "message": "Recent candle ranges overlap heavily.",
+        "weight": 1.2
+      }
+    ],
+    "warnings": [
+      {
+        "code": "vwap_facts_only",
+        "severity": "info",
+        "message": "VWAP was recorded as a market fact only and did not affect context scoring."
+      }
+    ],
+    "facts": {
+      "percentFromPreviousClose": 7.508,
+      "percentFromOpen": 6.3191,
+      "percentFromVWAP": 3.0028,
+      "relativeVolume": 1.8779,
+      "dollarVolume": 19047178.7,
+      "aboveVWAP": true,
+      "abovePremarketHigh": true,
+      "aboveOpeningRangeHigh": true,
+      "nearHighOfDay": true,
+      "premarketHigh": 6.38,
+      "openingRangeHigh": 6.54,
+      "highOfDay": 6.77,
+      "filteredCandleCount": 89,
+      "filteredPremarketCandleCount": 66,
+      "filteredRegularSessionCandleCount": 23
+    },
+    "scoringAdjustments": {
+      "intradayWeightMultiplier": 1.2,
+      "dailyWeightMultiplier": 0.9,
+      "sessionLevelWeightMultiplier": 1.15,
+      "volumeWeightMultiplier": 1.3,
+      "extensionRiskPenaltyMultiplier": 1.15
+    }
+  },
+  "factsBundle": {
+    "symbol": "ENVX",
+    "asOfTimestamp": 1779463500000,
+    "sessionFacts": {
+      "symbol": "ENVX",
+      "asOfTimestamp": 1779463500000,
+      "sessionDate": "2026-05-22",
+      "previousClose": 6.26,
+      "regularSessionOpen": 6.33,
+      "currentPrice": 6.73,
+      "premarketHigh": 6.38,
+      "premarketLow": 6.25,
+      "premarketHighTimestamp": 1779442200000,
+      "premarketLowTimestamp": 1779444300000,
+      "openingRangeHigh": 6.54,
+      "openingRangeLow": 6.25,
+      "openingRangeStartTimestamp": 1779456600000,
+      "openingRangeEndTimestamp": 1779458400000,
+      "highOfDay": 6.77,
+      "lowOfDay": 6.25,
+      "highOfDayTimestamp": 1779463200000,
+      "lowOfDayTimestamp": 1779444300000,
+      "vwap": 6.5338,
+      "aboveVWAP": true,
+      "percentFromVWAP": 3.0028,
+      "firstPullbackLow": 6.5,
+      "firstPullbackLowTimestamp": 1779459300000,
+      "firstBreakoutHigh": 6.61,
+      "firstBreakoutHighTimestamp": 1779458400000,
+      "firstConsolidationRange": {
+        "low": 6.51,
+        "high": 6.61,
+        "startTimestamp": 1779458400000,
+        "endTimestamp": 1779459300000
+      },
+      "diagnostics": []
+    },
+    "volumeFacts": {
+      "symbol": "ENVX",
+      "asOfTimestamp": 1779463500000,
+      "currentVolume": 124175,
+      "rollingAverageVolume": 66125.6,
+      "relativeVolume": 1.8779,
+      "dollarVolume": 19047178.7,
+      "volumeState": "elevated",
+      "liquidityQuality": "strong",
+      "accelerationState": "steady",
+      "pullbackVolumeState": "unknown",
+      "breakoutVolumeState": "confirmed",
+      "diagnostics": []
+    },
+    "volumeShelves": [
+      {
+        "id": "ENVX-volume-shelf-6.3935-6.4608",
+        "zoneLow": 6.3935,
+        "zoneHigh": 6.4608,
+        "representativePrice": 6.4412,
+        "totalVolume": 571480,
+        "dollarVolume": 3680993.37,
+        "percentOfWindowVolume": 20.1923,
+        "touchCount": 3,
+        "firstTimestamp": 1779457200000,
+        "lastTimestamp": 1779457800000,
+        "shelfRole": "unknown",
+        "confidence": 0.541,
+        "reason": "High activity shelf with 20.1923% of closed-window volume across 3 candle(s)."
+      },
+      {
+        "id": "ENVX-volume-shelf-6.6627-6.73",
+        "zoneLow": 6.6627,
+        "zoneHigh": 6.73,
+        "representativePrice": 6.6955,
+        "totalVolume": 522541,
+        "dollarVolume": 3498686.06,
+        "percentOfWindowVolume": 18.4631,
+        "touchCount": 5,
+        "firstTimestamp": 1779460500000,
+        "lastTimestamp": 1779463200000,
+        "shelfRole": "unknown",
+        "confidence": 0.5923,
+        "reason": "High activity shelf with 18.4631% of closed-window volume across 5 candle(s)."
+      },
+      {
+        "id": "ENVX-volume-shelf-6.5954-6.6627",
+        "zoneLow": 6.5954,
+        "zoneHigh": 6.6627,
+        "representativePrice": 6.6392,
+        "totalVolume": 485085,
+        "dollarVolume": 3220576.54,
+        "percentOfWindowVolume": 17.1397,
+        "touchCount": 5,
+        "firstTimestamp": 1779461100000,
+        "lastTimestamp": 1779462300000,
+        "shelfRole": "unknown",
+        "confidence": 0.5857,
+        "reason": "High activity shelf with 17.1397% of closed-window volume across 5 candle(s)."
+      },
+      {
+        "id": "ENVX-volume-shelf-6.5281-6.5954",
+        "zoneLow": 6.5281,
+        "zoneHigh": 6.5954,
+        "representativePrice": 6.5546,
+        "totalVolume": 461110,
+        "dollarVolume": 3022413.63,
+        "percentOfWindowVolume": 16.2925,
+        "touchCount": 5,
+        "firstTimestamp": 1779458400000,
+        "lastTimestamp": 1779460200000,
+        "shelfRole": "unknown",
+        "confidence": 0.5815,
+        "reason": "High activity shelf with 16.2925% of closed-window volume across 5 candle(s)."
+      },
+      {
+        "id": "ENVX-volume-shelf-6.3262-6.3935",
+        "zoneLow": 6.3262,
+        "zoneHigh": 6.3935,
+        "representativePrice": 6.3514,
+        "totalVolume": 449591,
+        "dollarVolume": 2855533.75,
+        "percentOfWindowVolume": 15.8855,
+        "touchCount": 31,
+        "firstTimestamp": 1779436800000,
+        "lastTimestamp": 1779456900000,
+        "shelfRole": "unknown",
+        "confidence": 0.5794,
+        "reason": "High activity shelf with 15.8855% of closed-window volume across 31 candle(s)."
+      }
+    ],
+    "diagnostics": {
+      "futureCandlesExcluded": 0,
+      "partialCandlesExcluded": 0,
+      "sessionDiagnostics": [],
+      "volumeDiagnostics": []
+    },
+    "levelOutputUnchanged": true,
+    "shelvesAreFactsOnly": true,
+    "vwapFactsOnly": true,
+    "referencePrice": 6.73
+  }
+}

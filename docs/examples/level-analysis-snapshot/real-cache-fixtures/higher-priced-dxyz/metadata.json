@@ -1,0 +1,41 @@
+{
+  "scenarioId": "higher-priced-dxyz",
+  "scenarioType": "higher-priced stock",
+  "symbol": "DXYZ",
+  "asOfTimestamp": 1778846100000,
+  "asOfIso": "2026-05-15T11:55:00.000Z",
+  "referencePrice": 46.47,
+  "previousClose": 48.94,
+  "scenarioIntent": "Real cached higher-priced stock fixture for snapshot contract validation.",
+  "source": {
+    "type": "real_validation_candle_cache",
+    "provider": "ibkr",
+    "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles/ibkr",
+    "files": {
+      "fiveMinute": "DXYZ/5m/100-1778845800000.json",
+      "fourHour": "DXYZ/4h/180-1778832000000.json",
+      "daily": "DXYZ/daily/520-1778803200000.json"
+    }
+  },
+  "candleCounts": {
+    "fiveMinute": 47,
+    "fourHour": 117,
+    "daily": 501
+  },
+  "candleDateRanges": {
+    "fiveMinute": [
+      "2026-05-15T08:00:00.000Z",
+      "2026-05-15T11:50:00.000Z"
+    ],
+    "fourHour": [
+      "2026-04-06T08:00:00.000Z",
+      "2026-05-15T08:00:00.000Z"
+    ],
+    "daily": [
+      "2024-05-16T04:00:00.000Z",
+      "2026-05-15T04:00:00.000Z"
+    ]
+  },
+  "deterministic": true,
+  "networkCalls": false
+}

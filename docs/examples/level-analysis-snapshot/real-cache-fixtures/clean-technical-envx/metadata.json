@@ -1,0 +1,41 @@
+{
+  "scenarioId": "clean-technical-envx",
+  "scenarioType": "clean technical mover",
+  "symbol": "ENVX",
+  "asOfTimestamp": 1779463500000,
+  "asOfIso": "2026-05-22T15:25:00.000Z",
+  "referencePrice": 6.73,
+  "previousClose": 6.26,
+  "scenarioIntent": "Real cached cleaner mover with tighter intraday range and full multi-timeframe cache coverage.",
+  "source": {
+    "type": "real_validation_candle_cache",
+    "provider": "ibkr",
+    "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles/ibkr",
+    "files": {
+      "fiveMinute": "ENVX/5m/100-1779463200000.json",
+      "fourHour": "ENVX/4h/180-1779451200000.json",
+      "daily": "ENVX/daily/520-1779408000000.json"
+    }
+  },
+  "candleCounts": {
+    "fiveMinute": 89,
+    "fourHour": 118,
+    "daily": 501
+  },
+  "candleDateRanges": {
+    "fiveMinute": [
+      "2026-05-22T08:00:00.000Z",
+      "2026-05-22T15:20:00.000Z"
+    ],
+    "fourHour": [
+      "2026-04-13T08:00:00.000Z",
+      "2026-05-22T12:00:00.000Z"
+    ],
+    "daily": [
+      "2024-05-23T04:00:00.000Z",
+      "2026-05-22T04:00:00.000Z"
+    ]
+  },
+  "deterministic": true,
+  "networkCalls": false
+}

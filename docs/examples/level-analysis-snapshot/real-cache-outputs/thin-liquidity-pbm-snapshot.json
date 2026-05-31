@@ -1,0 +1,4818 @@
+{
+  "schemaVersion": "level-analysis-snapshot/v1",
+  "producer": "levels-system",
+  "symbol": "PBM",
+  "asOfTimestamp": 1778156100000,
+  "inputSummary": {
+    "timeframesPresent": [
+      "5m",
+      "4h",
+      "daily"
+    ],
+    "candleCounts": {
+      "5m": 51,
+      "15m": 0,
+      "4h": 107,
+      "daily": 500
+    },
+    "filteredCandleCounts": {
+      "5m": 51,
+      "15m": 0,
+      "4h": 107,
+      "daily": 500
+    },
+    "excludedFutureCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "excludedPartialCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "timeframes": {
+      "5m": {
+        "provided": true,
+        "candleCount": 51,
+        "filteredCandleCount": 51,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "15m": {
+        "provided": false,
+        "candleCount": 0,
+        "filteredCandleCount": 0,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "4h": {
+        "provided": true,
+        "candleCount": 107,
+        "filteredCandleCount": 107,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "daily": {
+        "provided": true,
+        "candleCount": 500,
+        "filteredCandleCount": 500,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      }
+    },
+    "previousCloseProvided": true
+  },
+  "nearestSupport": {
+    "levelId": "PBM-support-zone-17",
+    "kind": "support",
+    "bucket": "intermediateSupport",
+    "representativePrice": 5.91,
+    "zoneLow": 5.91,
+    "zoneHigh": 5.97,
+    "strengthScore": 44.55,
+    "strengthLabel": "major",
+    "distanceFromReferencePct": 0.026359,
+    "isExtension": false
+  },
+  "nearestResistance": {
+    "levelId": "PBM-resistance-zone-15",
+    "kind": "resistance",
+    "bucket": "intradayResistance",
+    "representativePrice": 6.09,
+    "zoneLow": 6.05,
+    "zoneHigh": 6.09,
+    "strengthScore": 40.83,
+    "strengthLabel": "major",
+    "distanceFromReferencePct": 0.003295,
+    "isExtension": false
+  },
+  "levelEngineOutput": {
+    "symbol": "PBM",
+    "generatedAt": 1778156100000,
+    "metadata": {
+      "providerByTimeframe": {
+        "daily": "stub",
+        "4h": "stub",
+        "5m": "stub"
+      },
+      "dataQualityFlags": [],
+      "freshness": "fresh",
+      "referencePrice": 6.07
+    },
+    "majorSupport": [
+      {
+        "id": "PBM-support-zone-5",
+        "symbol": "PBM",
+        "kind": "support",
+        "timeframeBias": "mixed",
+        "zoneLow": 2.4,
+        "zoneHigh": 2.4,
+        "representativePrice": 2.4,
+        "strengthScore": 45.54,
+        "strengthLabel": "major",
+        "touchCount": 18,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "daily",
+          "4h"
+        ],
+        "reactionQualityScore": 0.4231,
+        "rejectionScore": 0.4153,
+        "displacementScore": 0.4102,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.6285,
+        "gapContinuationScore": 0.4465,
+        "sourceEvidenceCount": 5,
+        "firstTimestamp": 1774958400000,
+        "lastTimestamp": 1776168000000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily support swing.",
+          "displacement=1.3456",
+          "reactions=4",
+          "rejection=0.6982",
+          "followThrough=0.5789",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "Derived from 4h support swing.",
+          "displacement=0.0800",
+          "reactions=3",
+          "rejection=0.3100",
+          "followThrough=0.6104",
+          "gapContinuation=0.5667",
+          "displacement=0.1287",
+          "reactions=2",
+          "rejection=0.6700",
+          "followThrough=0.7382",
+          "gapContinuation=0.7833",
+          "displacement=0.1359",
+          "rejection=0.1000",
+          "followThrough=0.5844",
+          "gapContinuation=0.1823",
+          "displacement=0.2090",
+          "reactions=1",
+          "rejection=0.2985",
+          "followThrough=0.6305",
+          "freshness=stale",
+          "evidence=5",
+          "rejection=0.4153",
+          "followThrough=0.6285",
+          "gapContinuation=0.4465",
+          "pathClearance=0.6250",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "PBM-support-zone-12",
+        "symbol": "PBM",
+        "kind": "support",
+        "timeframeBias": "mixed",
+        "zoneLow": 4.51,
+        "zoneHigh": 4.51,
+        "representativePrice": 4.51,
+        "strengthScore": 25.48,
+        "strengthLabel": "strong",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "daily",
+          "4h"
+        ],
+        "reactionQualityScore": 0.2731,
+        "rejectionScore": 0.4589,
+        "displacementScore": 0.503,
+        "sessionSignificanceScore": 0.8714,
+        "followThroughScore": 0.7482,
+        "gapContinuationScore": 0.1698,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1777521600000,
+        "lastTimestamp": 1777550400000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily support swing.",
+          "displacement=0.5580",
+          "reactions=1",
+          "rejection=0.4087",
+          "followThrough=0.7384",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "Derived from 4h support swing.",
+          "displacement=0.4148",
+          "rejection=0.5091",
+          "followThrough=0.7581",
+          "gapContinuation=0.3395",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=2",
+          "rejection=0.4589",
+          "followThrough=0.7482",
+          "gapContinuation=0.1698",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "PBM-support-zone-14",
+        "symbol": "PBM",
+        "kind": "support",
+        "timeframeBias": "daily",
+        "zoneLow": 5,
+        "zoneHigh": 5,
+        "representativePrice": 5,
+        "strengthScore": 14.97,
+        "strengthLabel": "moderate",
+        "touchCount": 3,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "daily"
+        ],
+        "reactionQualityScore": 0.394,
+        "rejectionScore": 0.47,
+        "displacementScore": 0.9516,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.6806,
+        "gapContinuationScore": 0.35,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1766466000000,
+        "lastTimestamp": 1766466000000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily support swing.",
+          "displacement=0.8811",
+          "reactions=3",
+          "rejection=0.4700",
+          "followThrough=0.6806",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.4700",
+          "followThrough=0.6806",
+          "gapContinuation=0.3500",
+          "pathClearance=0.8000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "PBM-support-zone-10",
+        "symbol": "PBM",
+        "kind": "support",
+        "timeframeBias": "daily",
+        "zoneLow": 3.9838,
+        "zoneHigh": 3.9838,
+        "representativePrice": 3.9838,
+        "strengthScore": 12.88,
+        "strengthLabel": "moderate",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "daily"
+        ],
+        "reactionQualityScore": 0.293,
+        "rejectionScore": 0.9648,
+        "displacementScore": 1.1392,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.7202,
+        "gapContinuationScore": 0.35,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1765861200000,
+        "lastTimestamp": 1765861200000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily support swing.",
+          "displacement=1.0548",
+          "reactions=1",
+          "rejection=0.9648",
+          "followThrough=0.7202",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.9648",
+          "followThrough=0.7202",
+          "gapContinuation=0.3500",
+          "pathClearance=0.5937",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "majorResistance": [
+      {
+        "id": "PBM-resistance-zone-18",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "timeframeBias": "mixed",
+        "zoneLow": 8,
+        "zoneHigh": 8,
+        "representativePrice": 8,
+        "strengthScore": 25.78,
+        "strengthLabel": "strong",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "daily",
+          "4h"
+        ],
+        "reactionQualityScore": 0.3186,
+        "rejectionScore": 0.6334,
+        "displacementScore": 0.4607,
+        "sessionSignificanceScore": 0.8929,
+        "followThroughScore": 0.7789,
+        "gapContinuationScore": 0.175,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1777608000000,
+        "lastTimestamp": 1777636800000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily resistance swing.",
+          "displacement=0.5580",
+          "reactions=1",
+          "rejection=0.7182",
+          "followThrough=0.8419",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "Derived from 4h resistance swing.",
+          "displacement=0.3188",
+          "rejection=0.5486",
+          "followThrough=0.7158",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=stale",
+          "evidence=2",
+          "rejection=0.6334",
+          "followThrough=0.7789",
+          "gapContinuation=0.1750",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "PBM-resistance-zone-16",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "timeframeBias": "daily",
+        "zoneLow": 6.5625,
+        "zoneHigh": 6.5625,
+        "representativePrice": 6.5625,
+        "strengthScore": 11.74,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "daily"
+        ],
+        "reactionQualityScore": 0.1805,
+        "rejectionScore": 0.4024,
+        "displacementScore": 0.5648,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.7142,
+        "gapContinuationScore": 0.5667,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1768971600000,
+        "lastTimestamp": 1768971600000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily resistance swing.",
+          "displacement=0.5230",
+          "reactions=1",
+          "rejection=0.4024",
+          "followThrough=0.7142",
+          "gapContinuation=0.5667",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.4024",
+          "followThrough=0.7142",
+          "gapContinuation=0.5667",
+          "pathClearance=0.3176",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intermediateSupport": [
+      {
+        "id": "PBM-support-zone-17",
+        "symbol": "PBM",
+        "kind": "support",
+        "timeframeBias": "mixed",
+        "zoneLow": 5.91,
+        "zoneHigh": 5.97,
+        "representativePrice": 5.91,
+        "strengthScore": 44.55,
+        "strengthLabel": "major",
+        "touchCount": 19,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_low",
+          "premarket_low"
+        ],
+        "timeframeSources": [
+          "4h",
+          "5m"
+        ],
+        "reactionQualityScore": 0.704,
+        "rejectionScore": 0.3275,
+        "displacementScore": 0.1711,
+        "sessionSignificanceScore": 1,
+        "followThroughScore": 0.4665,
+        "gapContinuationScore": 0.25,
+        "sourceEvidenceCount": 4,
+        "firstTimestamp": 1778083200000,
+        "lastTimestamp": 1778155800000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.0479",
+          "reactions=4",
+          "rejection=0.1600",
+          "followThrough=0.3454",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "Derived from 5m support swing.",
+          "displacement=0.0167",
+          "reactions=1",
+          "rejection=0.5000",
+          "followThrough=0.3865",
+          "Session-accurate premarket low candidate.",
+          "displacement=0.0183",
+          "rejection=0.0000",
+          "followThrough=0.4142",
+          "gapContinuation=1.0000",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=4",
+          "rejection=0.3275",
+          "followThrough=0.4665",
+          "gapContinuation=0.2500",
+          "pathClearance=0.5318",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "PBM-support-zone-8",
+        "symbol": "PBM",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 2.73,
+        "zoneHigh": 2.74,
+        "representativePrice": 2.74,
+        "strengthScore": 14.12,
+        "strengthLabel": "moderate",
+        "touchCount": 5,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.3487,
+        "rejectionScore": 0.5766,
+        "displacementScore": 0.6643,
+        "sessionSignificanceScore": 0.504,
+        "followThroughScore": 0.6134,
+        "gapContinuationScore": 0.175,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1776254400000,
+        "lastTimestamp": 1776340800000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=1.1587",
+          "reactions=1",
+          "rejection=0.4783",
+          "followThrough=0.6449",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "displacement=0.0772",
+          "reactions=2",
+          "rejection=0.6750",
+          "followThrough=0.5818",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=stale",
+          "evidence=2",
+          "rejection=0.5766",
+          "followThrough=0.6134",
+          "gapContinuation=0.1750",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "PBM-support-zone-13",
+        "symbol": "PBM",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 4.76,
+        "zoneHigh": 4.76,
+        "representativePrice": 4.76,
+        "strengthScore": 11.64,
+        "strengthLabel": "weak",
+        "touchCount": 3,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.417,
+        "rejectionScore": 0.3293,
+        "displacementScore": 0.2985,
+        "sessionSignificanceScore": 0.6017,
+        "followThroughScore": 0.6695,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1777478400000,
+        "lastTimestamp": 1777478400000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.2985",
+          "reactions=2",
+          "rejection=0.3293",
+          "followThrough=0.6695",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.3293",
+          "followThrough=0.6695",
+          "gapContinuation=0.0000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "PBM-support-zone-15",
+        "symbol": "PBM",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 5.52,
+        "zoneHigh": 5.52,
+        "representativePrice": 5.52,
+        "strengthScore": 10,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.3276,
+        "rejectionScore": 0.54,
+        "displacementScore": 0.2069,
+        "sessionSignificanceScore": 0.6763,
+        "followThroughScore": 0.8122,
+        "gapContinuationScore": 0.2774,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1777896000000,
+        "lastTimestamp": 1777896000000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.1916",
+          "reactions=1",
+          "rejection=0.5400",
+          "followThrough=0.8122",
+          "gapContinuation=0.2774",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.5400",
+          "followThrough=0.8122",
+          "gapContinuation=0.2774",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "PBM-support-zone-6",
+        "symbol": "PBM",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 2.45,
+        "zoneHigh": 2.45,
+        "representativePrice": 2.45,
+        "strengthScore": 8.44,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.1,
+        "rejectionScore": 0,
+        "displacementScore": 0.1167,
+        "sessionSignificanceScore": 0.504,
+        "followThroughScore": 0.6147,
+        "gapContinuationScore": 0.3952,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1775577600000,
+        "lastTimestamp": 1775577600000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.1081",
+          "reactions=1",
+          "rejection=0.0000",
+          "followThrough=0.6147",
+          "gapContinuation=0.3952",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.0000",
+          "followThrough=0.6147",
+          "gapContinuation=0.3952",
+          "pathClearance=0.5831",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intermediateResistance": [
+      {
+        "id": "PBM-resistance-zone-17",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "timeframeBias": "4h",
+        "zoneLow": 6.69,
+        "zoneHigh": 6.69,
+        "representativePrice": 6.69,
+        "strengthScore": 9.56,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.2565,
+        "rejectionScore": 0.1663,
+        "displacementScore": 0.2069,
+        "sessionSignificanceScore": 0.6814,
+        "followThroughScore": 0.7729,
+        "gapContinuationScore": 0.1962,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1777924800000,
+        "lastTimestamp": 1777924800000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h resistance swing.",
+          "displacement=0.1916",
+          "reactions=1",
+          "rejection=0.1663",
+          "followThrough=0.7729",
+          "gapContinuation=0.1962",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.1663",
+          "followThrough=0.7729",
+          "gapContinuation=0.1962",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intradaySupport": [],
+    "intradayResistance": [
+      {
+        "id": "PBM-resistance-zone-15",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "timeframeBias": "5m",
+        "zoneLow": 6.05,
+        "zoneHigh": 6.09,
+        "representativePrice": 6.09,
+        "strengthScore": 40.83,
+        "strengthLabel": "major",
+        "touchCount": 77,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_high",
+          "premarket_high"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.9667,
+        "rejectionScore": 0.4417,
+        "displacementScore": 0.111,
+        "sessionSignificanceScore": 1,
+        "followThroughScore": 0.1377,
+        "gapContinuationScore": 0.1626,
+        "sourceEvidenceCount": 6,
+        "firstTimestamp": 1778140800000,
+        "lastTimestamp": 1778155800000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 5m resistance swing.",
+          "displacement=0.0167",
+          "reactions=6",
+          "rejection=0.0000",
+          "followThrough=0.1064",
+          "gapContinuation=0.9754",
+          "gap=yes",
+          "displacement=0.0166",
+          "reactions=9",
+          "followThrough=0.0000",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.0183",
+          "reactions=8",
+          "displacement=0.0066",
+          "reactions=7",
+          "rejection=1.0000",
+          "Session-accurate premarket high candidate.",
+          "freshness=stale",
+          "evidence=6",
+          "rejection=0.4417",
+          "followThrough=0.1377",
+          "gapContinuation=0.1626",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "extensionLevels": {
+      "support": [
+        {
+          "id": "PBM-support-zone-4",
+          "symbol": "PBM",
+          "kind": "support",
+          "timeframeBias": "mixed",
+          "zoneLow": 2.31,
+          "zoneHigh": 2.34,
+          "representativePrice": 2.31,
+          "strengthScore": 28.76,
+          "strengthLabel": "strong",
+          "touchCount": 5,
+          "confluenceCount": 2,
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "reactionQualityScore": 0.2291,
+          "rejectionScore": 0.3399,
+          "displacementScore": 0.142,
+          "sessionSignificanceScore": 0.7,
+          "followThroughScore": 0.6705,
+          "gapContinuationScore": 0.4994,
+          "sourceEvidenceCount": 3,
+          "firstTimestamp": 1773288000000,
+          "lastTimestamp": 1775059200000,
+          "isExtension": true,
+          "freshness": "stale",
+          "notes": [
+            "Derived from daily support swing.",
+            "displacement=0.1181",
+            "reactions=1",
+            "rejection=0.0000",
+            "followThrough=0.5729",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "Derived from 4h support swing.",
+            "displacement=0.1797",
+            "reactions=2",
+            "rejection=0.1250",
+            "followThrough=0.6433",
+            "gapContinuation=0.4983",
+            "gap=yes",
+            "displacement=0.1053",
+            "rejection=0.8947",
+            "followThrough=0.7952",
+            "gapContinuation=1.0000",
+            "freshness=stale",
+            "evidence=3",
+            "rejection=0.3399",
+            "followThrough=0.6705",
+            "gapContinuation=0.4994",
+            "pathClearance=0.3608",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        },
+        {
+          "id": "PBM-support-zone-3",
+          "symbol": "PBM",
+          "kind": "support",
+          "timeframeBias": "mixed",
+          "zoneLow": 2.26,
+          "zoneHigh": 2.28,
+          "representativePrice": 2.26,
+          "strengthScore": 34.22,
+          "strengthLabel": "strong",
+          "touchCount": 8,
+          "confluenceCount": 2,
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "reactionQualityScore": 0.2588,
+          "rejectionScore": 0.3358,
+          "displacementScore": 0.1883,
+          "sessionSignificanceScore": 0.7,
+          "followThroughScore": 0.69,
+          "gapContinuationScore": 0.5125,
+          "sourceEvidenceCount": 4,
+          "firstTimestamp": 1773892800000,
+          "lastTimestamp": 1775145600000,
+          "isExtension": true,
+          "freshness": "stale",
+          "notes": [
+            "Derived from daily support swing.",
+            "displacement=0.2099",
+            "reactions=1",
+            "rejection=0.3962",
+            "followThrough=0.6747",
+            "gapContinuation=0.3500",
+            "gap=yes",
+            "Derived from 4h support swing.",
+            "rejection=0.4100",
+            "followThrough=0.6394",
+            "displacement=0.1311",
+            "reactions=2",
+            "rejection=0.2258",
+            "followThrough=0.7781",
+            "gapContinuation=1.0000",
+            "displacement=0.1463",
+            "rejection=0.3111",
+            "followThrough=0.6679",
+            "freshness=stale",
+            "evidence=4",
+            "rejection=0.3358",
+            "followThrough=0.6900",
+            "gapContinuation=0.5125",
+            "pathClearance=1.0000",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        },
+        {
+          "id": "PBM-support-zone-2",
+          "symbol": "PBM",
+          "kind": "support",
+          "timeframeBias": "daily",
+          "zoneLow": 2.01,
+          "zoneHigh": 2.01,
+          "representativePrice": 2.01,
+          "strengthScore": 11.43,
+          "strengthLabel": "weak",
+          "touchCount": 1,
+          "confluenceCount": 1,
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "reactionQualityScore": 0.1,
+          "rejectionScore": 0,
+          "displacementScore": 0.3047,
+          "sessionSignificanceScore": 0.7,
+          "followThroughScore": 0.682,
+          "gapContinuationScore": 0.5667,
+          "sourceEvidenceCount": 1,
+          "firstTimestamp": 1772686800000,
+          "lastTimestamp": 1772686800000,
+          "isExtension": true,
+          "freshness": "stale",
+          "notes": [
+            "Derived from daily support swing.",
+            "displacement=0.2821",
+            "reactions=1",
+            "rejection=0.0000",
+            "followThrough=0.6820",
+            "gapContinuation=0.5667",
+            "gap=yes",
+            "freshness=stale",
+            "evidence=1",
+            "rejection=0.0000",
+            "followThrough=0.6820",
+            "gapContinuation=0.5667",
+            "pathClearance=0.7463",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        }
+      ],
+      "resistance": []
+    },
+    "specialLevels": {
+      "premarketHigh": 6.09,
+      "premarketLow": 5.95
+    }
+  },
+  "levelIntelligenceReport": {
+    "symbol": "PBM",
+    "generatedAt": 1778156100000,
+    "referencePrice": 6.07,
+    "profiles": [
+      {
+        "levelId": "PBM-support-zone-5",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 2.4,
+        "zoneLow": 2.4,
+        "zoneHigh": 2.4,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1774958400000,
+          "lastTimestamp": 1776168000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 18,
+          "reactionQualityScore": 0.4231,
+          "rejectionScore": 0.4153,
+          "displacementScore": 0.4102,
+          "followThroughScore": 0.6285
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 60.4613,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 2.4,
+            "type": "ten_cent",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 2.4 is sourced from daily, 4h evidence; freshness is stale; 60.4613% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-12",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 4.51,
+        "zoneLow": 4.51,
+        "zoneHigh": 4.51,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777521600000,
+          "lastTimestamp": 1777550400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.2731,
+          "rejectionScore": 0.4589,
+          "displacementScore": 0.503,
+          "followThroughScore": 0.7482
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 25.7002,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 4.5,
+            "type": "half",
+            "distancePct": 0.2222
+          }
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 4.51 is sourced from daily, 4h evidence; freshness is stale; 25.7002% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-14",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 5,
+        "zoneLow": 5,
+        "zoneHigh": 5,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1766466000000,
+          "lastTimestamp": 1766466000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 3,
+          "reactionQualityScore": 0.394,
+          "rejectionScore": 0.47,
+          "displacementScore": 0.9516,
+          "followThroughScore": 0.6806
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 17.6277,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 5,
+            "type": "whole",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 5 is sourced from daily evidence; freshness is stale; 17.6277% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-10",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 3.9838,
+        "zoneLow": 3.9838,
+        "zoneHigh": 3.9838,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1765861200000,
+          "lastTimestamp": 1765861200000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.293,
+          "rejectionScore": 0.9648,
+          "displacementScore": 1.1392,
+          "followThroughScore": 0.7202
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 34.369,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 3.9838 is sourced from daily evidence; freshness is stale; 34.369% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-resistance-zone-18",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "representativePrice": 8,
+        "zoneLow": 8,
+        "zoneHigh": 8,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777608000000,
+          "lastTimestamp": 1777636800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.3186,
+          "rejectionScore": 0.6334,
+          "displacementScore": 0.4607,
+          "followThroughScore": 0.7789
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 31.7957,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 8,
+            "type": "whole",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 8 is sourced from daily, 4h evidence; freshness is stale; 31.7957% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-resistance-zone-16",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "representativePrice": 6.5625,
+        "zoneLow": 6.5625,
+        "zoneHigh": 6.5625,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1768971600000,
+          "lastTimestamp": 1768971600000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.1805,
+          "rejectionScore": 0.4024,
+          "displacementScore": 0.5648,
+          "followThroughScore": 0.7142
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 8.1137,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 6.5625 is sourced from daily evidence; freshness is stale; 8.1137% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-17",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 5.91,
+        "zoneLow": 5.91,
+        "zoneHigh": 5.97,
+        "zoneWidthPercent": 1.0152,
+        "origin": {
+          "sourceTypes": [
+            "swing_low",
+            "premarket_low"
+          ],
+          "timeframeSources": [
+            "4h",
+            "5m"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1778083200000,
+          "lastTimestamp": 1778155800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 19,
+          "reactionQualityScore": 0.704,
+          "rejectionScore": 0.3275,
+          "displacementScore": 0.1711,
+          "followThroughScore": 0.4665
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 2.6359,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": [
+            "PBM-volume-shelf-5.9486-6.0093"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near low of day 5.95 (0.6723% away).",
+            "Level is near premarket low 5.95 (0.6723% away)."
+          ],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf PBM-volume-shelf-5.9486-6.0093 (5.9486-6.0093, 24.8083% of window volume, role unknown)."
+          ],
+          "contextTags": [
+            "near_low_of_day",
+            "near_premarket_low",
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "near_volume_shelf",
+            "volume_shelf_role_unknown",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 5.9,
+            "type": "ten_cent",
+            "distancePct": 0.1695
+          }
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "support zone 5.91 is sourced from 4h, 5m evidence; freshness is stale; 2.6359% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-8",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 2.74,
+        "zoneLow": 2.73,
+        "zoneHigh": 2.74,
+        "zoneWidthPercent": 0.365,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1776254400000,
+          "lastTimestamp": 1776340800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 5,
+          "reactionQualityScore": 0.3487,
+          "rejectionScore": 0.5766,
+          "displacementScore": 0.6643,
+          "followThroughScore": 0.6134
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 54.86,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 2.74 is sourced from 4h evidence; freshness is stale; 54.86% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-13",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 4.76,
+        "zoneLow": 4.76,
+        "zoneHigh": 4.76,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777478400000,
+          "lastTimestamp": 1777478400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 3,
+          "reactionQualityScore": 0.417,
+          "rejectionScore": 0.3293,
+          "displacementScore": 0.2985,
+          "followThroughScore": 0.6695
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 21.5815,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 4.75,
+            "type": "quarter",
+            "distancePct": 0.2105
+          }
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 4.76 is sourced from 4h evidence; freshness is stale; 21.5815% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-15",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 5.52,
+        "zoneLow": 5.52,
+        "zoneHigh": 5.52,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777896000000,
+          "lastTimestamp": 1777896000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.3276,
+          "rejectionScore": 0.54,
+          "displacementScore": 0.2069,
+          "followThroughScore": 0.8122
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 9.061,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 5.52 is sourced from 4h evidence; freshness is stale; 9.061% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-6",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 2.45,
+        "zoneLow": 2.45,
+        "zoneHigh": 2.45,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1775577600000,
+          "lastTimestamp": 1775577600000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.1,
+          "rejectionScore": 0,
+          "displacementScore": 0.1167,
+          "followThroughScore": 0.6147
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 59.6376,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 2.45 is sourced from 4h evidence; freshness is stale; 59.6376% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-resistance-zone-17",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "representativePrice": 6.69,
+        "zoneLow": 6.69,
+        "zoneHigh": 6.69,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777924800000,
+          "lastTimestamp": 1777924800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.2565,
+          "rejectionScore": 0.1663,
+          "displacementScore": 0.2069,
+          "followThroughScore": 0.7729
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 10.2142,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 6.7,
+            "type": "ten_cent",
+            "distancePct": 0.1493
+          }
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 6.69 is sourced from 4h evidence; freshness is stale; 10.2142% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-resistance-zone-15",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "representativePrice": 6.09,
+        "zoneLow": 6.05,
+        "zoneHigh": 6.09,
+        "zoneWidthPercent": 0.6568,
+        "origin": {
+          "sourceTypes": [
+            "swing_high",
+            "premarket_high"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1778140800000,
+          "lastTimestamp": 1778155800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 77,
+          "reactionQualityScore": 0.9667,
+          "rejectionScore": 0.4417,
+          "displacementScore": 0.111,
+          "followThroughScore": 0.1377
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 0.3295,
+          "category": "near"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": [
+            "PBM-volume-shelf-6.0093-6.07"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near high of day 6.09 (0% away).",
+            "Level is near premarket high 6.09 (0% away).",
+            "Level is near VWAP fact 6.0307 (0.9833% away).",
+            "Level is near current/reference price 6.07 (0.3295% away)."
+          ],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf PBM-volume-shelf-6.0093-6.07 (6.0093-6.07, 71.7265% of window volume, role magnet)."
+          ],
+          "contextTags": [
+            "near_high_of_day",
+            "near_premarket_high",
+            "near_vwap_fact",
+            "near_current_price",
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "near_volume_shelf",
+            "volume_shelf_role_magnet",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 6.1,
+            "type": "ten_cent",
+            "distancePct": 0.1639
+          }
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "resistance zone 6.09 is sourced from 5m evidence; freshness is stale; 0.3295% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-4",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 2.31,
+        "zoneLow": 2.31,
+        "zoneHigh": 2.34,
+        "zoneWidthPercent": 1.2987,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from daily support swing.",
+            "displacement=0.1181",
+            "reactions=1",
+            "rejection=0.0000",
+            "followThrough=0.5729",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "Derived from 4h support swing.",
+            "displacement=0.1797",
+            "reactions=2",
+            "rejection=0.1250",
+            "followThrough=0.6433",
+            "gapContinuation=0.4983",
+            "gap=yes",
+            "displacement=0.1053",
+            "rejection=0.8947",
+            "followThrough=0.7952",
+            "gapContinuation=1.0000",
+            "freshness=stale",
+            "evidence=3",
+            "rejection=0.3399",
+            "followThrough=0.6705",
+            "gapContinuation=0.4994",
+            "pathClearance=0.3608",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1773288000000,
+          "lastTimestamp": 1775059200000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 5,
+          "reactionQualityScore": 0.2291,
+          "rejectionScore": 0.3399,
+          "displacementScore": 0.142,
+          "followThroughScore": 0.6705
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 61.944,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 2.31 is sourced from daily, 4h evidence; freshness is stale; 61.944% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-3",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 2.26,
+        "zoneLow": 2.26,
+        "zoneHigh": 2.28,
+        "zoneWidthPercent": 0.885,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from daily support swing.",
+            "displacement=0.2099",
+            "reactions=1",
+            "rejection=0.3962",
+            "followThrough=0.6747",
+            "gapContinuation=0.3500",
+            "gap=yes",
+            "Derived from 4h support swing.",
+            "rejection=0.4100",
+            "followThrough=0.6394",
+            "displacement=0.1311",
+            "reactions=2",
+            "rejection=0.2258",
+            "followThrough=0.7781",
+            "gapContinuation=1.0000",
+            "displacement=0.1463",
+            "rejection=0.3111",
+            "followThrough=0.6679",
+            "freshness=stale",
+            "evidence=4",
+            "rejection=0.3358",
+            "followThrough=0.6900",
+            "gapContinuation=0.5125",
+            "pathClearance=1.0000",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1773892800000,
+          "lastTimestamp": 1775145600000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 8,
+          "reactionQualityScore": 0.2588,
+          "rejectionScore": 0.3358,
+          "displacementScore": 0.1883,
+          "followThroughScore": 0.69
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 62.7677,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 2.26 is sourced from daily, 4h evidence; freshness is stale; 62.7677% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "PBM-support-zone-2",
+        "symbol": "PBM",
+        "kind": "support",
+        "representativePrice": 2.01,
+        "zoneLow": 2.01,
+        "zoneHigh": 2.01,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily"
+          ],
+          "primaryTimeframe": "daily",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from daily support swing.",
+            "displacement=0.2821",
+            "reactions=1",
+            "rejection=0.0000",
+            "followThrough=0.6820",
+            "gapContinuation=0.5667",
+            "gap=yes",
+            "freshness=stale",
+            "evidence=1",
+            "rejection=0.0000",
+            "followThrough=0.6820",
+            "gapContinuation=0.5667",
+            "pathClearance=0.7463",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1772686800000,
+          "lastTimestamp": 1772686800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.1,
+          "rejectionScore": 0,
+          "displacementScore": 0.3047,
+          "followThroughScore": 0.682
+        },
+        "distance": {
+          "referencePrice": 6.07,
+          "distanceFromReferencePct": 66.8863,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "unknown",
+          "dollarVolume": 19794.27,
+          "liquidityQuality": "thin",
+          "accelerationState": "unknown",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Dollar volume fact is 19794.27.",
+            "Liquidity quality fact is thin."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "dollar_volume_fact",
+            "liquidity_thin",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.748
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 2.01 is sourced from daily evidence; freshness is stale; 66.8863% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "buckets": {
+      "majorSupport": [
+        {
+          "levelId": "PBM-support-zone-5",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 2.4,
+          "zoneLow": 2.4,
+          "zoneHigh": 2.4,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily",
+              "4h"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1774958400000,
+            "lastTimestamp": 1776168000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 18,
+            "reactionQualityScore": 0.4231,
+            "rejectionScore": 0.4153,
+            "displacementScore": 0.4102,
+            "followThroughScore": 0.6285
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 60.4613,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 2.4,
+              "type": "ten_cent",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 2.4 is sourced from daily, 4h evidence; freshness is stale; 60.4613% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-support-zone-12",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 4.51,
+          "zoneLow": 4.51,
+          "zoneHigh": 4.51,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily",
+              "4h"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777521600000,
+            "lastTimestamp": 1777550400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 2,
+            "reactionQualityScore": 0.2731,
+            "rejectionScore": 0.4589,
+            "displacementScore": 0.503,
+            "followThroughScore": 0.7482
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 25.7002,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 4.5,
+              "type": "half",
+              "distancePct": 0.2222
+            }
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 4.51 is sourced from daily, 4h evidence; freshness is stale; 25.7002% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-support-zone-14",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 5,
+          "zoneLow": 5,
+          "zoneHigh": 5,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1766466000000,
+            "lastTimestamp": 1766466000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 3,
+            "reactionQualityScore": 0.394,
+            "rejectionScore": 0.47,
+            "displacementScore": 0.9516,
+            "followThroughScore": 0.6806
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 17.6277,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 5,
+              "type": "whole",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 5 is sourced from daily evidence; freshness is stale; 17.6277% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-support-zone-10",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 3.9838,
+          "zoneLow": 3.9838,
+          "zoneHigh": 3.9838,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1765861200000,
+            "lastTimestamp": 1765861200000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.293,
+            "rejectionScore": 0.9648,
+            "displacementScore": 1.1392,
+            "followThroughScore": 0.7202
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 34.369,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 3.9838 is sourced from daily evidence; freshness is stale; 34.369% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "majorResistance": [
+        {
+          "levelId": "PBM-resistance-zone-18",
+          "symbol": "PBM",
+          "kind": "resistance",
+          "representativePrice": 8,
+          "zoneLow": 8,
+          "zoneHigh": 8,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "daily",
+              "4h"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777608000000,
+            "lastTimestamp": 1777636800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 2,
+            "reactionQualityScore": 0.3186,
+            "rejectionScore": 0.6334,
+            "displacementScore": 0.4607,
+            "followThroughScore": 0.7789
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 31.7957,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 8,
+              "type": "whole",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 8 is sourced from daily, 4h evidence; freshness is stale; 31.7957% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-resistance-zone-16",
+          "symbol": "PBM",
+          "kind": "resistance",
+          "representativePrice": 6.5625,
+          "zoneLow": 6.5625,
+          "zoneHigh": 6.5625,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1768971600000,
+            "lastTimestamp": 1768971600000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.1805,
+            "rejectionScore": 0.4024,
+            "displacementScore": 0.5648,
+            "followThroughScore": 0.7142
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 8.1137,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 6.5625 is sourced from daily evidence; freshness is stale; 8.1137% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intermediateSupport": [
+        {
+          "levelId": "PBM-support-zone-17",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 5.91,
+          "zoneLow": 5.91,
+          "zoneHigh": 5.97,
+          "zoneWidthPercent": 1.0152,
+          "origin": {
+            "sourceTypes": [
+              "swing_low",
+              "premarket_low"
+            ],
+            "timeframeSources": [
+              "4h",
+              "5m"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1778083200000,
+            "lastTimestamp": 1778155800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 19,
+            "reactionQualityScore": 0.704,
+            "rejectionScore": 0.3275,
+            "displacementScore": 0.1711,
+            "followThroughScore": 0.4665
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 2.6359,
+            "category": "approaching"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": [
+              "PBM-volume-shelf-5.9486-6.0093"
+            ]
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near low of day 5.95 (0.6723% away).",
+              "Level is near premarket low 5.95 (0.6723% away)."
+            ],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [
+              "Level overlaps volume shelf PBM-volume-shelf-5.9486-6.0093 (5.9486-6.0093, 24.8083% of window volume, role unknown)."
+            ],
+            "contextTags": [
+              "near_low_of_day",
+              "near_premarket_low",
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "near_volume_shelf",
+              "volume_shelf_role_unknown",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 5.9,
+              "type": "ten_cent",
+              "distancePct": 0.1695
+            }
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing"
+          ],
+          "reason": "support zone 5.91 is sourced from 4h, 5m evidence; freshness is stale; 2.6359% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-support-zone-8",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 2.74,
+          "zoneLow": 2.73,
+          "zoneHigh": 2.74,
+          "zoneWidthPercent": 0.365,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1776254400000,
+            "lastTimestamp": 1776340800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 5,
+            "reactionQualityScore": 0.3487,
+            "rejectionScore": 0.5766,
+            "displacementScore": 0.6643,
+            "followThroughScore": 0.6134
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 54.86,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 2.74 is sourced from 4h evidence; freshness is stale; 54.86% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-support-zone-13",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 4.76,
+          "zoneLow": 4.76,
+          "zoneHigh": 4.76,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777478400000,
+            "lastTimestamp": 1777478400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 3,
+            "reactionQualityScore": 0.417,
+            "rejectionScore": 0.3293,
+            "displacementScore": 0.2985,
+            "followThroughScore": 0.6695
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 21.5815,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 4.75,
+              "type": "quarter",
+              "distancePct": 0.2105
+            }
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 4.76 is sourced from 4h evidence; freshness is stale; 21.5815% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-support-zone-15",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 5.52,
+          "zoneLow": 5.52,
+          "zoneHigh": 5.52,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777896000000,
+            "lastTimestamp": 1777896000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.3276,
+            "rejectionScore": 0.54,
+            "displacementScore": 0.2069,
+            "followThroughScore": 0.8122
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 9.061,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 5.52 is sourced from 4h evidence; freshness is stale; 9.061% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-support-zone-6",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 2.45,
+          "zoneLow": 2.45,
+          "zoneHigh": 2.45,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1775577600000,
+            "lastTimestamp": 1775577600000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.1,
+            "rejectionScore": 0,
+            "displacementScore": 0.1167,
+            "followThroughScore": 0.6147
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 59.6376,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 2.45 is sourced from 4h evidence; freshness is stale; 59.6376% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intermediateResistance": [
+        {
+          "levelId": "PBM-resistance-zone-17",
+          "symbol": "PBM",
+          "kind": "resistance",
+          "representativePrice": 6.69,
+          "zoneLow": 6.69,
+          "zoneHigh": 6.69,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777924800000,
+            "lastTimestamp": 1777924800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.2565,
+            "rejectionScore": 0.1663,
+            "displacementScore": 0.2069,
+            "followThroughScore": 0.7729
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 10.2142,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 6.7,
+              "type": "ten_cent",
+              "distancePct": 0.1493
+            }
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 6.69 is sourced from 4h evidence; freshness is stale; 10.2142% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intradaySupport": [],
+      "intradayResistance": [
+        {
+          "levelId": "PBM-resistance-zone-15",
+          "symbol": "PBM",
+          "kind": "resistance",
+          "representativePrice": 6.09,
+          "zoneLow": 6.05,
+          "zoneHigh": 6.09,
+          "zoneWidthPercent": 0.6568,
+          "origin": {
+            "sourceTypes": [
+              "swing_high",
+              "premarket_high"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1778140800000,
+            "lastTimestamp": 1778155800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 77,
+            "reactionQualityScore": 0.9667,
+            "rejectionScore": 0.4417,
+            "displacementScore": 0.111,
+            "followThroughScore": 0.1377
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 0.3295,
+            "category": "near"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": [
+              "PBM-volume-shelf-6.0093-6.07"
+            ]
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near high of day 6.09 (0% away).",
+              "Level is near premarket high 6.09 (0% away).",
+              "Level is near VWAP fact 6.0307 (0.9833% away).",
+              "Level is near current/reference price 6.07 (0.3295% away)."
+            ],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [
+              "Level overlaps volume shelf PBM-volume-shelf-6.0093-6.07 (6.0093-6.07, 71.7265% of window volume, role magnet)."
+            ],
+            "contextTags": [
+              "near_high_of_day",
+              "near_premarket_high",
+              "near_vwap_fact",
+              "near_current_price",
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "near_volume_shelf",
+              "volume_shelf_role_magnet",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 6.1,
+              "type": "ten_cent",
+              "distancePct": 0.1639
+            }
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing"
+          ],
+          "reason": "resistance zone 6.09 is sourced from 5m evidence; freshness is stale; 0.3295% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "extensionSupport": [
+        {
+          "levelId": "PBM-support-zone-4",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 2.31,
+          "zoneLow": 2.31,
+          "zoneHigh": 2.34,
+          "zoneWidthPercent": 1.2987,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily",
+              "4h"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from daily support swing.",
+              "displacement=0.1181",
+              "reactions=1",
+              "rejection=0.0000",
+              "followThrough=0.5729",
+              "gapContinuation=0.0000",
+              "gap=no",
+              "Derived from 4h support swing.",
+              "displacement=0.1797",
+              "reactions=2",
+              "rejection=0.1250",
+              "followThrough=0.6433",
+              "gapContinuation=0.4983",
+              "gap=yes",
+              "displacement=0.1053",
+              "rejection=0.8947",
+              "followThrough=0.7952",
+              "gapContinuation=1.0000",
+              "freshness=stale",
+              "evidence=3",
+              "rejection=0.3399",
+              "followThrough=0.6705",
+              "gapContinuation=0.4994",
+              "pathClearance=0.3608",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1773288000000,
+            "lastTimestamp": 1775059200000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 5,
+            "reactionQualityScore": 0.2291,
+            "rejectionScore": 0.3399,
+            "displacementScore": 0.142,
+            "followThroughScore": 0.6705
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 61.944,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable",
+              "extension_level"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 2.31 is sourced from daily, 4h evidence; freshness is stale; 61.944% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-support-zone-3",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 2.26,
+          "zoneLow": 2.26,
+          "zoneHigh": 2.28,
+          "zoneWidthPercent": 0.885,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily",
+              "4h"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from daily support swing.",
+              "displacement=0.2099",
+              "reactions=1",
+              "rejection=0.3962",
+              "followThrough=0.6747",
+              "gapContinuation=0.3500",
+              "gap=yes",
+              "Derived from 4h support swing.",
+              "rejection=0.4100",
+              "followThrough=0.6394",
+              "displacement=0.1311",
+              "reactions=2",
+              "rejection=0.2258",
+              "followThrough=0.7781",
+              "gapContinuation=1.0000",
+              "displacement=0.1463",
+              "rejection=0.3111",
+              "followThrough=0.6679",
+              "freshness=stale",
+              "evidence=4",
+              "rejection=0.3358",
+              "followThrough=0.6900",
+              "gapContinuation=0.5125",
+              "pathClearance=1.0000",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1773892800000,
+            "lastTimestamp": 1775145600000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 8,
+            "reactionQualityScore": 0.2588,
+            "rejectionScore": 0.3358,
+            "displacementScore": 0.1883,
+            "followThroughScore": 0.69
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 62.7677,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable",
+              "extension_level"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 2.26 is sourced from daily, 4h evidence; freshness is stale; 62.7677% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "PBM-support-zone-2",
+          "symbol": "PBM",
+          "kind": "support",
+          "representativePrice": 2.01,
+          "zoneLow": 2.01,
+          "zoneHigh": 2.01,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily"
+            ],
+            "primaryTimeframe": "daily",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from daily support swing.",
+              "displacement=0.2821",
+              "reactions=1",
+              "rejection=0.0000",
+              "followThrough=0.6820",
+              "gapContinuation=0.5667",
+              "gap=yes",
+              "freshness=stale",
+              "evidence=1",
+              "rejection=0.0000",
+              "followThrough=0.6820",
+              "gapContinuation=0.5667",
+              "pathClearance=0.7463",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1772686800000,
+            "lastTimestamp": 1772686800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.1,
+            "rejectionScore": 0,
+            "displacementScore": 0.3047,
+            "followThroughScore": 0.682
+          },
+          "distance": {
+            "referencePrice": 6.07,
+            "distanceFromReferencePct": 66.8863,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "unknown",
+            "dollarVolume": 19794.27,
+            "liquidityQuality": "thin",
+            "accelerationState": "unknown",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Dollar volume fact is 19794.27.",
+              "Liquidity quality fact is thin."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "dollar_volume_fact",
+              "liquidity_thin",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable",
+              "extension_level"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.748
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 2.01 is sourced from daily evidence; freshness is stale; 66.8863% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "extensionResistance": []
+    },
+    "counts": {
+      "majorSupport": 4,
+      "majorResistance": 2,
+      "intermediateSupport": 5,
+      "intermediateResistance": 1,
+      "intradaySupport": 0,
+      "intradayResistance": 1,
+      "extensionSupport": 3,
+      "extensionResistance": 0,
+      "total": 16
+    },
+    "diagnostics": [
+      "enriched_analysis_missing",
+      "no_nearby_volume_shelf"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "factsOnly": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "noRuntimeBehaviorChange": true
+    }
+  },
+  "levelQualityAudit": {
+    "symbol": "PBM",
+    "generatedAt": 1778156100000,
+    "referencePrice": 6.07,
+    "summary": {
+      "totalLevels": 16,
+      "supportCount": 12,
+      "resistanceCount": 4,
+      "extensionCount": 3,
+      "freshCount": 0,
+      "staleCount": 16,
+      "enrichedCount": 0,
+      "unenrichedCount": 16
+    },
+    "strongestLevels": [
+      {
+        "levelId": "PBM-support-zone-5",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 2.4,
+        "zoneLow": 2.4,
+        "zoneHigh": 2.4,
+        "strengthScore": 45.54,
+        "strengthLabel": "major",
+        "auditScore": 0.4554,
+        "freshness": "stale",
+        "touchCount": 18,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 60.4613,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-17",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.91,
+        "zoneLow": 5.91,
+        "zoneHigh": 5.97,
+        "strengthScore": 44.55,
+        "strengthLabel": "major",
+        "auditScore": 0.4455,
+        "freshness": "stale",
+        "touchCount": 19,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 2,
+          "volume": 2,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 2.6359,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "PBM-resistance-zone-15",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 6.09,
+        "zoneLow": 6.05,
+        "zoneHigh": 6.09,
+        "strengthScore": 40.83,
+        "strengthLabel": "major",
+        "auditScore": 0.4083,
+        "freshness": "stale",
+        "touchCount": 77,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 4,
+          "volume": 2,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 0.3295,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-3",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 2.26,
+        "zoneLow": 2.26,
+        "zoneHigh": 2.28,
+        "strengthScore": 34.22,
+        "strengthLabel": "strong",
+        "auditScore": 0.3422,
+        "freshness": "stale",
+        "touchCount": 8,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 62.7677,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-4",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 2.31,
+        "zoneLow": 2.31,
+        "zoneHigh": 2.34,
+        "strengthScore": 28.76,
+        "strengthLabel": "strong",
+        "auditScore": 0.2876,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 61.944,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "weakestLevels": [
+      {
+        "levelId": "PBM-support-zone-6",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 2.45,
+        "zoneLow": 2.45,
+        "zoneHigh": 2.45,
+        "strengthScore": 8.44,
+        "strengthLabel": "weak",
+        "auditScore": 0.0844,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 59.6376,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-resistance-zone-17",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 6.69,
+        "zoneLow": 6.69,
+        "zoneHigh": 6.69,
+        "strengthScore": 9.56,
+        "strengthLabel": "weak",
+        "auditScore": 0.0956,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 10.2142,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-15",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.52,
+        "zoneLow": 5.52,
+        "zoneHigh": 5.52,
+        "strengthScore": 10,
+        "strengthLabel": "weak",
+        "auditScore": 0.1,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 9.061,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-2",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 2.01,
+        "zoneLow": 2.01,
+        "zoneHigh": 2.01,
+        "strengthScore": 11.43,
+        "strengthLabel": "weak",
+        "auditScore": 0.1143,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 66.8863,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-13",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 4.76,
+        "zoneLow": 4.76,
+        "zoneHigh": 4.76,
+        "strengthScore": 11.64,
+        "strengthLabel": "weak",
+        "auditScore": 0.1164,
+        "freshness": "stale",
+        "touchCount": 3,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 21.5815,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "staleLevels": [
+      {
+        "levelId": "PBM-support-zone-6",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 2.45,
+        "zoneLow": 2.45,
+        "zoneHigh": 2.45,
+        "strengthScore": 8.44,
+        "strengthLabel": "weak",
+        "auditScore": 0.0844,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 59.6376,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-resistance-zone-17",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 6.69,
+        "zoneLow": 6.69,
+        "zoneHigh": 6.69,
+        "strengthScore": 9.56,
+        "strengthLabel": "weak",
+        "auditScore": 0.0956,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 10.2142,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-15",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.52,
+        "zoneLow": 5.52,
+        "zoneHigh": 5.52,
+        "strengthScore": 10,
+        "strengthLabel": "weak",
+        "auditScore": 0.1,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 9.061,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-2",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 2.01,
+        "zoneLow": 2.01,
+        "zoneHigh": 2.01,
+        "strengthScore": 11.43,
+        "strengthLabel": "weak",
+        "auditScore": 0.1143,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 66.8863,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-13",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 4.76,
+        "zoneLow": 4.76,
+        "zoneHigh": 4.76,
+        "strengthScore": 11.64,
+        "strengthLabel": "weak",
+        "auditScore": 0.1164,
+        "freshness": "stale",
+        "touchCount": 3,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 21.5815,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "freshLevels": [],
+    "strongConfluenceLevels": [
+      {
+        "levelId": "PBM-resistance-zone-15",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 6.09,
+        "zoneLow": 6.05,
+        "zoneHigh": 6.09,
+        "strengthScore": 40.83,
+        "strengthLabel": "major",
+        "auditScore": 0.4083,
+        "freshness": "stale",
+        "touchCount": 77,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 4,
+          "volume": 2,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 0.3295,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-17",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.91,
+        "zoneLow": 5.91,
+        "zoneHigh": 5.97,
+        "strengthScore": 44.55,
+        "strengthLabel": "major",
+        "auditScore": 0.4455,
+        "freshness": "stale",
+        "touchCount": 19,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 2,
+          "volume": 2,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 2.6359,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-5",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 2.4,
+        "zoneLow": 2.4,
+        "zoneHigh": 2.4,
+        "strengthScore": 45.54,
+        "strengthLabel": "major",
+        "auditScore": 0.4554,
+        "freshness": "stale",
+        "touchCount": 18,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 60.4613,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-3",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 2.26,
+        "zoneLow": 2.26,
+        "zoneHigh": 2.28,
+        "strengthScore": 34.22,
+        "strengthLabel": "strong",
+        "auditScore": 0.3422,
+        "freshness": "stale",
+        "touchCount": 8,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 62.7677,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-4",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 2.31,
+        "zoneLow": 2.31,
+        "zoneHigh": 2.34,
+        "strengthScore": 28.76,
+        "strengthLabel": "strong",
+        "auditScore": 0.2876,
+        "freshness": "stale",
+        "touchCount": 5,
+        "confluenceCount": 2,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 61.944,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "weakContextLevels": [],
+    "enrichedLevels": [],
+    "unenrichedLevels": [
+      {
+        "levelId": "PBM-support-zone-6",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 2.45,
+        "zoneLow": 2.45,
+        "zoneHigh": 2.45,
+        "strengthScore": 8.44,
+        "strengthLabel": "weak",
+        "auditScore": 0.0844,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 59.6376,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-resistance-zone-17",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 6.69,
+        "zoneLow": 6.69,
+        "zoneHigh": 6.69,
+        "strengthScore": 9.56,
+        "strengthLabel": "weak",
+        "auditScore": 0.0956,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 10.2142,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-15",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.52,
+        "zoneLow": 5.52,
+        "zoneHigh": 5.52,
+        "strengthScore": 10,
+        "strengthLabel": "weak",
+        "auditScore": 0.1,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 9.061,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-2",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 2.01,
+        "zoneLow": 2.01,
+        "zoneHigh": 2.01,
+        "strengthScore": 11.43,
+        "strengthLabel": "weak",
+        "auditScore": 0.1143,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 66.8863,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "PBM-support-zone-13",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 4.76,
+        "zoneLow": 4.76,
+        "zoneHigh": 4.76,
+        "strengthScore": 11.64,
+        "strengthLabel": "weak",
+        "auditScore": 0.1164,
+        "freshness": "stale",
+        "touchCount": 3,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 2,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 21.5815,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "possibleClutterLevels": [],
+    "clusteredAreas": [],
+    "extensionCoverage": {
+      "supportExtensions": 3,
+      "resistanceExtensions": 0,
+      "lowestSupportExtension": 2.01,
+      "downsideCoveragePct": 66.8863,
+      "warnings": [
+        "no_resistance_extension_coverage"
+      ]
+    },
+    "nearbyCoverage": {
+      "referencePrice": 6.07,
+      "nearbySupportCount": 1,
+      "nearbyResistanceCount": 1,
+      "nearestSupport": {
+        "levelId": "PBM-support-zone-17",
+        "symbol": "PBM",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 5.91,
+        "zoneLow": 5.91,
+        "zoneHigh": 5.97,
+        "strengthScore": 44.55,
+        "strengthLabel": "major",
+        "auditScore": 0.4455,
+        "freshness": "stale",
+        "touchCount": 19,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 2,
+          "volume": 2,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 2.6359,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      "nearestResistance": {
+        "levelId": "PBM-resistance-zone-15",
+        "symbol": "PBM",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 6.09,
+        "zoneLow": 6.05,
+        "zoneHigh": 6.09,
+        "strengthScore": 40.83,
+        "strengthLabel": "major",
+        "auditScore": 0.4083,
+        "freshness": "stale",
+        "touchCount": 77,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 4,
+          "volume": 2,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 0.3295,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      "overheadResistanceGapPct": 0.3295,
+      "downsideSupportGapPct": 2.6359,
+      "warnings": []
+    },
+    "confluenceSummary": {
+      "sessionConfluenceCount": 2,
+      "volumeConfluenceCount": 16,
+      "shelfConfluenceCount": 2,
+      "marketContextConfluenceCount": 16
+    },
+    "diagnostics": [
+      "no_resistance_extension_coverage",
+      "unenriched_levels_present"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "noRuntimeBehaviorChange": true,
+      "noScoringChange": true
+    }
+  },
+  "diagnostics": [
+    "candle_close_as_of_filter_applied",
+    "candle_inputs_reserved_for_future_fact_generation"
+  ],
+  "safety": {
+    "noLookaheadApplied": true,
+    "levelOutputUnchanged": true,
+    "factsOnlyVWAP": true,
+    "shelvesAreFactsOnly": true,
+    "syntheticExtensionsClearlyMarked": true,
+    "noRuntimeBehaviorChange": true
+  },
+  "referencePrice": 6.07,
+  "sessionFacts": {
+    "symbol": "PBM",
+    "asOfTimestamp": 1778156100000,
+    "sessionDate": "2026-05-07",
+    "previousClose": 5.98,
+    "currentPrice": 6.07,
+    "premarketHigh": 6.09,
+    "premarketLow": 5.95,
+    "premarketHighTimestamp": 1778147700000,
+    "premarketLowTimestamp": 1778145600000,
+    "highOfDay": 6.09,
+    "lowOfDay": 5.95,
+    "highOfDayTimestamp": 1778147700000,
+    "lowOfDayTimestamp": 1778145600000,
+    "vwap": 6.0307,
+    "aboveVWAP": true,
+    "percentFromVWAP": 0.6517,
+    "diagnostics": [
+      {
+        "code": "no_regular_session_candles",
+        "severity": "info",
+        "message": "No closed regular-session candles were available for the requested session date."
+      }
+    ]
+  },
+  "volumeFacts": {
+    "symbol": "PBM",
+    "asOfTimestamp": 1778156100000,
+    "currentVolume": 0,
+    "rollingAverageVolume": 0,
+    "dollarVolume": 19794.27,
+    "volumeState": "unknown",
+    "liquidityQuality": "thin",
+    "accelerationState": "unknown",
+    "pullbackVolumeState": "unknown",
+    "breakoutVolumeState": "not_applicable",
+    "diagnostics": [
+      {
+        "code": "zero_rolling_average_volume",
+        "severity": "warning",
+        "message": "Relative volume was not computed because the rolling average volume is zero."
+      }
+    ]
+  },
+  "volumeShelves": [
+    {
+      "id": "PBM-volume-shelf-6.0093-6.07",
+      "zoneLow": 6.0093,
+      "zoneHigh": 6.07,
+      "representativePrice": 6.0517,
+      "totalVolume": 2339,
+      "dollarVolume": 14154.99,
+      "percentOfWindowVolume": 71.7265,
+      "touchCount": 8,
+      "firstTimestamp": 1778140800000,
+      "lastTimestamp": 1778151600000,
+      "shelfRole": "magnet",
+      "confidence": 0.8586,
+      "reason": "High activity shelf with 71.7265% of closed-window volume across 8 candle(s)."
+    },
+    {
+      "id": "PBM-volume-shelf-5.9486-6.0093",
+      "zoneLow": 5.9486,
+      "zoneHigh": 6.0093,
+      "representativePrice": 5.9624,
+      "totalVolume": 809,
+      "dollarVolume": 4823.57,
+      "percentOfWindowVolume": 24.8083,
+      "touchCount": 4,
+      "firstTimestamp": 1778144700000,
+      "lastTimestamp": 1778145600000,
+      "shelfRole": "unknown",
+      "confidence": 0.594,
+      "reason": "High activity shelf with 24.8083% of closed-window volume across 4 candle(s)."
+    }
+  ],
+  "marketContext": {
+    "primaryContext": "normal_intraday",
+    "confidence": 0.748,
+    "runnerPhase": "not_applicable",
+    "evidence": [
+      {
+        "code": "modest_previous_close_move",
+        "context": "normal_intraday",
+        "message": "Move from previous close is modest.",
+        "weight": 1.1
+      },
+      {
+        "code": "modest_open_move",
+        "context": "normal_intraday",
+        "message": "Move from the regular-session open is modest.",
+        "weight": 1
+      },
+      {
+        "code": "ordinary_relative_volume",
+        "context": "normal_intraday",
+        "message": "Relative volume is not elevated.",
+        "weight": 0.9
+      },
+      {
+        "code": "sufficient_orderly_candles",
+        "context": "normal_intraday",
+        "message": "Closed 5m candles are available for context review.",
+        "weight": 0.4
+      },
+      {
+        "code": "premarket_higher_lows",
+        "context": "premarket_runner",
+        "message": "Premarket candles show higher lows.",
+        "weight": 1.1
+      },
+      {
+        "code": "premarket_high_pressure",
+        "context": "premarket_runner",
+        "message": "Price is near or above premarket high.",
+        "weight": 0.9
+      }
+    ],
+    "warnings": [
+      {
+        "code": "vwap_facts_only",
+        "severity": "info",
+        "message": "VWAP was recorded as a market fact only and did not affect context scoring."
+      }
+    ],
+    "facts": {
+      "percentFromPreviousClose": 1.505,
+      "percentFromOpen": 1.505,
+      "percentFromVWAP": 0.6517,
+      "dollarVolume": 19794.27,
+      "aboveVWAP": true,
+      "abovePremarketHigh": false,
+      "nearHighOfDay": true,
+      "premarketHigh": 6.09,
+      "highOfDay": 6.09,
+      "filteredCandleCount": 51,
+      "filteredPremarketCandleCount": 51,
+      "filteredRegularSessionCandleCount": 0
+    },
+    "scoringAdjustments": {
+      "intradayWeightMultiplier": 1,
+      "dailyWeightMultiplier": 1,
+      "sessionLevelWeightMultiplier": 1,
+      "volumeWeightMultiplier": 1,
+      "extensionRiskPenaltyMultiplier": 1
+    }
+  },
+  "factsBundle": {
+    "symbol": "PBM",
+    "asOfTimestamp": 1778156100000,
+    "sessionFacts": {
+      "symbol": "PBM",
+      "asOfTimestamp": 1778156100000,
+      "sessionDate": "2026-05-07",
+      "previousClose": 5.98,
+      "currentPrice": 6.07,
+      "premarketHigh": 6.09,
+      "premarketLow": 5.95,
+      "premarketHighTimestamp": 1778147700000,
+      "premarketLowTimestamp": 1778145600000,
+      "highOfDay": 6.09,
+      "lowOfDay": 5.95,
+      "highOfDayTimestamp": 1778147700000,
+      "lowOfDayTimestamp": 1778145600000,
+      "vwap": 6.0307,
+      "aboveVWAP": true,
+      "percentFromVWAP": 0.6517,
+      "diagnostics": [
+        {
+          "code": "no_regular_session_candles",
+          "severity": "info",
+          "message": "No closed regular-session candles were available for the requested session date."
+        }
+      ]
+    },
+    "volumeFacts": {
+      "symbol": "PBM",
+      "asOfTimestamp": 1778156100000,
+      "currentVolume": 0,
+      "rollingAverageVolume": 0,
+      "dollarVolume": 19794.27,
+      "volumeState": "unknown",
+      "liquidityQuality": "thin",
+      "accelerationState": "unknown",
+      "pullbackVolumeState": "unknown",
+      "breakoutVolumeState": "not_applicable",
+      "diagnostics": [
+        {
+          "code": "zero_rolling_average_volume",
+          "severity": "warning",
+          "message": "Relative volume was not computed because the rolling average volume is zero."
+        }
+      ]
+    },
+    "volumeShelves": [
+      {
+        "id": "PBM-volume-shelf-6.0093-6.07",
+        "zoneLow": 6.0093,
+        "zoneHigh": 6.07,
+        "representativePrice": 6.0517,
+        "totalVolume": 2339,
+        "dollarVolume": 14154.99,
+        "percentOfWindowVolume": 71.7265,
+        "touchCount": 8,
+        "firstTimestamp": 1778140800000,
+        "lastTimestamp": 1778151600000,
+        "shelfRole": "magnet",
+        "confidence": 0.8586,
+        "reason": "High activity shelf with 71.7265% of closed-window volume across 8 candle(s)."
+      },
+      {
+        "id": "PBM-volume-shelf-5.9486-6.0093",
+        "zoneLow": 5.9486,
+        "zoneHigh": 6.0093,
+        "representativePrice": 5.9624,
+        "totalVolume": 809,
+        "dollarVolume": 4823.57,
+        "percentOfWindowVolume": 24.8083,
+        "touchCount": 4,
+        "firstTimestamp": 1778144700000,
+        "lastTimestamp": 1778145600000,
+        "shelfRole": "unknown",
+        "confidence": 0.594,
+        "reason": "High activity shelf with 24.8083% of closed-window volume across 4 candle(s)."
+      }
+    ],
+    "diagnostics": {
+      "futureCandlesExcluded": 0,
+      "partialCandlesExcluded": 0,
+      "sessionDiagnostics": [
+        {
+          "code": "no_regular_session_candles",
+          "severity": "info",
+          "message": "No closed regular-session candles were available for the requested session date."
+        }
+      ],
+      "volumeDiagnostics": [
+        {
+          "code": "zero_rolling_average_volume",
+          "severity": "warning",
+          "message": "Relative volume was not computed because the rolling average volume is zero."
+        }
+      ]
+    },
+    "levelOutputUnchanged": true,
+    "shelvesAreFactsOnly": true,
+    "vwapFactsOnly": true,
+    "referencePrice": 6.07
+  }
+}

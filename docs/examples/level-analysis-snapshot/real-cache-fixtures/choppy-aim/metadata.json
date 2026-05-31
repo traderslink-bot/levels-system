@@ -1,0 +1,41 @@
+{
+  "scenarioId": "choppy-aim",
+  "scenarioType": "choppy ticker",
+  "symbol": "AIM",
+  "asOfTimestamp": 1779976800000,
+  "asOfIso": "2026-05-28T14:00:00.000Z",
+  "referencePrice": 0.373,
+  "previousClose": 0.3815,
+  "scenarioIntent": "Real cached low-price ticker with muted net move and wider intraday range for choppy behavior review.",
+  "source": {
+    "type": "real_validation_candle_cache",
+    "provider": "ibkr",
+    "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles/ibkr",
+    "files": {
+      "fiveMinute": "AIM/5m/100-1779976500000.json",
+      "fourHour": "AIM/4h/180-1779969600000.json",
+      "daily": "AIM/daily/520-1779926400000.json"
+    }
+  },
+  "candleCounts": {
+    "fiveMinute": 72,
+    "fourHour": 114,
+    "daily": 502
+  },
+  "candleDateRanges": {
+    "fiveMinute": [
+      "2026-05-28T08:00:00.000Z",
+      "2026-05-28T13:55:00.000Z"
+    ],
+    "fourHour": [
+      "2026-04-17T08:00:00.000Z",
+      "2026-05-28T12:00:00.000Z"
+    ],
+    "daily": [
+      "2024-05-28T04:00:00.000Z",
+      "2026-05-28T04:00:00.000Z"
+    ]
+  },
+  "deterministic": true,
+  "networkCalls": false
+}
