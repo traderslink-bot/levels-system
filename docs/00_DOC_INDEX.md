@@ -68,5 +68,6 @@ This folder contains the full plan for the candle-based levels system, including
 - `docs/83_DOWNSTREAM_CONNECTOR_ADAPTER_BLUEPRINT.md`
 - `docs/84_LEVEL_ANALYSIS_SNAPSHOT_V1_HANDOFF_COMPLETE.md`
 - `docs/85_PRODUCTION_SNAPSHOT_RUNNER_PACKAGING.md`
+- `docs/86_PRODUCTION_SNAPSHOT_RUNNER_SMOKE_TESTS.md`
 - Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
 - Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`
