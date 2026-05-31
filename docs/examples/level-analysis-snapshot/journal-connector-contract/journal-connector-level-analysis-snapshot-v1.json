@@ -1,0 +1,836 @@
+{
+  "schemaVersion": "level-analysis-snapshot/v1",
+  "producer": "levels-system",
+  "symbol": "SNAP",
+  "asOfTimestamp": 1777645200000,
+  "referencePrice": 10,
+  "inputSummary": {
+    "timeframesPresent": ["5m", "4h", "daily"],
+    "candleCounts": {
+      "5m": 15,
+      "15m": 0,
+      "4h": 7,
+      "daily": 6
+    },
+    "filteredCandleCounts": {
+      "5m": 15,
+      "15m": 0,
+      "4h": 7,
+      "daily": 6
+    },
+    "excludedFutureCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "excludedPartialCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "timeframes": {
+      "5m": {
+        "provided": true,
+        "candleCount": 15,
+        "filteredCandleCount": 15,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "15m": {
+        "provided": false,
+        "candleCount": 0,
+        "filteredCandleCount": 0,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "4h": {
+        "provided": true,
+        "candleCount": 7,
+        "filteredCandleCount": 7,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "daily": {
+        "provided": true,
+        "candleCount": 6,
+        "filteredCandleCount": 6,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      }
+    },
+    "previousCloseProvided": true
+  },
+  "nearestSupport": {
+    "levelId": "SNAP-support-real-9p75",
+    "kind": "support",
+    "bucket": "intradaySupport",
+    "representativePrice": 9.75,
+    "zoneLow": 9.7,
+    "zoneHigh": 9.8,
+    "strengthScore": 64,
+    "strengthLabel": "strong",
+    "distanceFromReferencePct": 0.025,
+    "isExtension": false
+  },
+  "nearestResistance": {
+    "levelId": "SNAP-resistance-real-10p40",
+    "kind": "resistance",
+    "bucket": "intradayResistance",
+    "representativePrice": 10.4,
+    "zoneLow": 10.35,
+    "zoneHigh": 10.45,
+    "strengthScore": 68,
+    "strengthLabel": "strong",
+    "distanceFromReferencePct": 0.04,
+    "isExtension": false
+  },
+  "levelEngineOutput": {
+    "symbol": "SNAP",
+    "generatedAt": 1777645200000,
+    "metadata": {
+      "providerByTimeframe": {
+        "5m": "fixture",
+        "4h": "fixture",
+        "daily": "fixture"
+      },
+      "dataQualityFlags": [],
+      "freshness": "fresh",
+      "referencePrice": 10
+    },
+    "majorSupport": [],
+    "majorResistance": [],
+    "intermediateSupport": [],
+    "intermediateResistance": [],
+    "intradaySupport": [
+      {
+        "id": "SNAP-support-real-9p75",
+        "symbol": "SNAP",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 9.7,
+        "zoneHigh": 9.8,
+        "representativePrice": 9.75,
+        "strengthScore": 64,
+        "strengthLabel": "strong",
+        "touchCount": 3,
+        "confluenceCount": 2,
+        "sourceTypes": ["swing_low", "opening_range_low"],
+        "timeframeSources": ["5m"],
+        "reactionQualityScore": 0.62,
+        "rejectionScore": 0.58,
+        "displacementScore": 0.44,
+        "sessionSignificanceScore": 0.72,
+        "followThroughScore": 0.55,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1777642200000,
+        "lastTimestamp": 1777644300000,
+        "isExtension": false,
+        "freshness": "fresh",
+        "notes": ["Real historical support candidate from closed candle structure."]
+      }
+    ],
+    "intradayResistance": [
+      {
+        "id": "SNAP-resistance-real-10p40",
+        "symbol": "SNAP",
+        "kind": "resistance",
+        "timeframeBias": "5m",
+        "zoneLow": 10.35,
+        "zoneHigh": 10.45,
+        "representativePrice": 10.4,
+        "strengthScore": 68,
+        "strengthLabel": "strong",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "sourceTypes": ["swing_high", "high_of_day"],
+        "timeframeSources": ["5m"],
+        "reactionQualityScore": 0.66,
+        "rejectionScore": 0.6,
+        "displacementScore": 0.48,
+        "sessionSignificanceScore": 0.8,
+        "followThroughScore": 0.57,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1777642800000,
+        "lastTimestamp": 1777644900000,
+        "isExtension": false,
+        "freshness": "fresh",
+        "notes": ["Real historical resistance candidate from closed candle structure."]
+      }
+    ],
+    "extensionLevels": {
+      "support": [],
+      "resistance": [
+        {
+          "id": "SNAP-synthetic-resistance-extension-1-13p00",
+          "symbol": "SNAP",
+          "kind": "resistance",
+          "timeframeBias": "5m",
+          "zoneLow": 12.95,
+          "zoneHigh": 13.05,
+          "representativePrice": 13,
+          "strengthScore": 0,
+          "strengthLabel": "weak",
+          "touchCount": 0,
+          "confluenceCount": 0,
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "sessionSignificanceScore": 0,
+          "followThroughScore": 0,
+          "sourceEvidenceCount": 0,
+          "firstTimestamp": 1777645200000,
+          "lastTimestamp": 1777645200000,
+          "isExtension": true,
+          "freshness": "fresh",
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "extensionMetadata": {
+            "extensionSource": "synthetic_continuation_map",
+            "generationMethod": "round_number_ladder",
+            "referencePrice": 10,
+            "targetCoveragePct": 0.3,
+            "maxCoveragePct": 0.5,
+            "syntheticIndex": 1,
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ]
+          }
+        }
+      ]
+    },
+    "specialLevels": {
+      "premarketHigh": 10.2,
+      "premarketLow": 9.4,
+      "openingRangeHigh": 10.35,
+      "openingRangeLow": 9.75
+    }
+  },
+  "sessionFacts": {
+    "symbol": "SNAP",
+    "asOfTimestamp": 1777645200000,
+    "sessionDate": "2026-05-01",
+    "currentPrice": 10,
+    "previousClose": 9.1,
+    "highOfDay": 10.45,
+    "lowOfDay": 9.4,
+    "premarketHigh": 10.2,
+    "premarketLow": 9.4,
+    "openingRangeHigh": 10.35,
+    "openingRangeLow": 9.75,
+    "regularSessionOpen": 9.8,
+    "vwap": 10.02,
+    "aboveVWAP": false,
+    "percentFromVWAP": -0.1996,
+    "diagnostics": []
+  },
+  "volumeFacts": {
+    "symbol": "SNAP",
+    "asOfTimestamp": 1777645200000,
+    "currentVolume": 500000,
+    "rollingAverageVolume": 125000,
+    "relativeVolume": 4,
+    "dollarVolume": 5000000,
+    "volumeState": "extreme",
+    "liquidityQuality": "good",
+    "accelerationState": "surging",
+    "pullbackVolumeState": "drying_up",
+    "breakoutVolumeState": "strong",
+    "diagnostics": []
+  },
+  "volumeShelves": [
+    {
+      "id": "SNAP-volume-shelf-10p20-10p30",
+      "zoneLow": 10.2,
+      "zoneHigh": 10.3,
+      "representativePrice": 10.25,
+      "totalVolume": 900000,
+      "dollarVolume": 9000000,
+      "percentOfWindowVolume": 42.5,
+      "touchCount": 4,
+      "firstTimestamp": 1777642800000,
+      "lastTimestamp": 1777644600000,
+      "shelfRole": "magnet",
+      "confidence": 0.82,
+      "reason": "High activity shelf carried as facts-only metadata."
+    }
+  ],
+  "marketContext": {
+    "primaryContext": "day_trade_runner",
+    "confidence": 0.77,
+    "runnerPhase": "high_of_day_breakout",
+    "evidence": [],
+    "warnings": [],
+    "facts": {
+      "percentFromPreviousClose": 9.8901,
+      "percentFromOpen": 2.0408,
+      "relativeVolume": 4,
+      "dollarVolume": 5000000,
+      "aboveVWAP": false,
+      "nearHighOfDay": true,
+      "filteredCandleCount": 15,
+      "filteredPremarketCandleCount": 5,
+      "filteredRegularSessionCandleCount": 10
+    },
+    "scoringAdjustments": {
+      "intradayWeightMultiplier": 1.2,
+      "dailyWeightMultiplier": 0.9,
+      "sessionLevelWeightMultiplier": 1.15,
+      "volumeWeightMultiplier": 1.3,
+      "extensionRiskPenaltyMultiplier": 1.15
+    }
+  },
+  "factsBundle": {
+    "symbol": "SNAP",
+    "asOfTimestamp": 1777645200000,
+    "referencePrice": 10,
+    "sessionFacts": {
+      "symbol": "SNAP",
+      "asOfTimestamp": 1777645200000,
+      "currentPrice": 10,
+      "previousClose": 9.1,
+      "highOfDay": 10.45,
+      "lowOfDay": 9.4,
+      "vwap": 10.02,
+      "aboveVWAP": false
+    },
+    "volumeFacts": {
+      "symbol": "SNAP",
+      "asOfTimestamp": 1777645200000,
+      "relativeVolume": 4,
+      "dollarVolume": 5000000,
+      "volumeState": "extreme",
+      "liquidityQuality": "good",
+      "accelerationState": "surging"
+    },
+    "volumeShelves": [
+      {
+        "id": "SNAP-volume-shelf-10p20-10p30",
+        "representativePrice": 10.25,
+        "zoneLow": 10.2,
+        "zoneHigh": 10.3,
+        "shelfRole": "magnet"
+      }
+    ],
+    "vwapFactsOnly": true,
+    "shelvesAreFactsOnly": true
+  },
+  "levelIntelligenceReport": {
+    "symbol": "SNAP",
+    "generatedAt": 1777645200000,
+    "referencePrice": 10,
+    "profiles": [
+      {
+        "levelId": "SNAP-support-real-9p75",
+        "symbol": "SNAP",
+        "kind": "support",
+        "representativePrice": 9.75,
+        "zoneLow": 9.7,
+        "zoneHigh": 9.8,
+        "zoneWidthPercent": 1.0256,
+        "origin": {
+          "sourceTypes": ["swing_low", "opening_range_low"],
+          "timeframeSources": ["5m"],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777642200000,
+          "lastTimestamp": 1777644300000,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 3,
+          "reactionQualityScore": 0.62,
+          "rejectionScore": 0.58,
+          "displacementScore": 0.44,
+          "followThroughScore": 0.55
+        },
+        "distance": {
+          "referencePrice": 10,
+          "distanceFromReferencePct": 2.5,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "extreme",
+          "relativeVolume": 4,
+          "dollarVolume": 5000000,
+          "liquidityQuality": "good",
+          "accelerationState": "surging",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "strong",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": ["Near opening range low."],
+          "nearVolumeFacts": ["Volume state is extreme."],
+          "nearShelfFacts": [],
+          "contextTags": ["near_opening_range_low", "volume_state_extreme"]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.77
+        },
+        "diagnostics": [],
+        "reason": "support zone 9.75 is sourced from 5m evidence; freshness is fresh; 2.5% from reference price; volume state is extreme.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "SNAP-resistance-real-10p40",
+        "symbol": "SNAP",
+        "kind": "resistance",
+        "representativePrice": 10.4,
+        "zoneLow": 10.35,
+        "zoneHigh": 10.45,
+        "zoneWidthPercent": 0.9615,
+        "origin": {
+          "sourceTypes": ["swing_high", "high_of_day"],
+          "timeframeSources": ["5m"],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777642800000,
+          "lastTimestamp": 1777644900000,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.66,
+          "rejectionScore": 0.6,
+          "displacementScore": 0.48,
+          "followThroughScore": 0.57
+        },
+        "distance": {
+          "referencePrice": 10,
+          "distanceFromReferencePct": 4,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "extreme",
+          "relativeVolume": 4,
+          "dollarVolume": 5000000,
+          "liquidityQuality": "good",
+          "accelerationState": "surging",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "strong",
+          "nearbyShelfIds": ["SNAP-volume-shelf-10p20-10p30"]
+        },
+        "confluence": {
+          "nearSessionFacts": ["Near high of day."],
+          "nearVolumeFacts": ["Volume state is extreme."],
+          "nearShelfFacts": ["Near shelf SNAP-volume-shelf-10p20-10p30."],
+          "contextTags": ["near_high_of_day", "near_volume_shelf"]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.77
+        },
+        "diagnostics": [],
+        "reason": "resistance zone 10.4 is sourced from 5m evidence; freshness is fresh; 4% from reference price; volume state is extreme.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "SNAP-synthetic-resistance-extension-1-13p00",
+        "symbol": "SNAP",
+        "kind": "resistance",
+        "representativePrice": 13,
+        "zoneLow": 12.95,
+        "zoneHigh": 13.05,
+        "zoneWidthPercent": 0.7692,
+        "origin": {
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "primaryTimeframe": "5m",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "synthetic_continuation_map",
+          "label": "Synthetic continuation map",
+          "generationMethod": "round_number_ladder",
+          "evidenceLimitations": [
+            "no_real_extension_candidate_available",
+            "not_historical_support_resistance",
+            "no_touch_or_rejection_history",
+            "no_historical_confluence"
+          ],
+          "referencePrice": 10,
+          "coveragePct": 0.3,
+          "maxCoveragePct": 0.5,
+          "syntheticIndex": 1,
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "isSyntheticContinuationMap": true
+        },
+        "freshness": {
+          "firstTimestamp": 1777645200000,
+          "lastTimestamp": 1777645200000,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 0,
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "followThroughScore": 0
+        },
+        "distance": {
+          "referencePrice": 10,
+          "distanceFromReferencePct": 30,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "extreme",
+          "relativeVolume": 4,
+          "dollarVolume": 5000000,
+          "liquidityQuality": "good",
+          "accelerationState": "surging",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "strong",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": ["Volume state is extreme."],
+          "nearShelfFacts": [],
+          "contextTags": ["synthetic_continuation_map"]
+        },
+        "marketContext": {
+          "primaryContext": "day_trade_runner",
+          "runnerPhase": "high_of_day_breakout",
+          "confidence": 0.77
+        },
+        "diagnostics": ["synthetic_continuation_map"],
+        "reason": "resistance extension 13 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available, not historical support/resistance, no touch or rejection history, no historical confluence; 30% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "buckets": {
+      "majorSupport": [],
+      "majorResistance": [],
+      "intermediateSupport": [],
+      "intermediateResistance": [],
+      "intradaySupport": [
+        {
+          "levelId": "SNAP-support-real-9p75",
+          "symbol": "SNAP",
+          "kind": "support",
+          "representativePrice": 9.75,
+          "zoneLow": 9.7,
+          "zoneHigh": 9.8,
+          "zoneWidthPercent": 1.0256,
+          "origin": {
+            "sourceTypes": ["swing_low", "opening_range_low"],
+            "timeframeSources": ["5m"],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777642200000,
+            "lastTimestamp": 1777644300000,
+            "label": "fresh"
+          },
+          "reaction": {
+            "touchCount": 3,
+            "reactionQualityScore": 0.62,
+            "rejectionScore": 0.58,
+            "displacementScore": 0.44,
+            "followThroughScore": 0.55
+          },
+          "distance": {
+            "referencePrice": 10,
+            "distanceFromReferencePct": 2.5,
+            "category": "approaching"
+          },
+          "confluence": {
+            "nearSessionFacts": ["Near opening range low."],
+            "nearVolumeFacts": ["Volume state is extreme."],
+            "nearShelfFacts": [],
+            "contextTags": ["near_opening_range_low", "volume_state_extreme"]
+          },
+          "diagnostics": [],
+          "reason": "support zone 9.75 is sourced from 5m evidence; freshness is fresh; 2.5% from reference price; volume state is extreme.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intradayResistance": [
+        {
+          "levelId": "SNAP-resistance-real-10p40",
+          "symbol": "SNAP",
+          "kind": "resistance",
+          "representativePrice": 10.4,
+          "zoneLow": 10.35,
+          "zoneHigh": 10.45,
+          "zoneWidthPercent": 0.9615,
+          "origin": {
+            "sourceTypes": ["swing_high", "high_of_day"],
+            "timeframeSources": ["5m"],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777642800000,
+            "lastTimestamp": 1777644900000,
+            "label": "fresh"
+          },
+          "reaction": {
+            "touchCount": 2,
+            "reactionQualityScore": 0.66,
+            "rejectionScore": 0.6,
+            "displacementScore": 0.48,
+            "followThroughScore": 0.57
+          },
+          "distance": {
+            "referencePrice": 10,
+            "distanceFromReferencePct": 4,
+            "category": "approaching"
+          },
+          "confluence": {
+            "nearSessionFacts": ["Near high of day."],
+            "nearVolumeFacts": ["Volume state is extreme."],
+            "nearShelfFacts": ["Near shelf SNAP-volume-shelf-10p20-10p30."],
+            "contextTags": ["near_high_of_day", "near_volume_shelf"]
+          },
+          "diagnostics": [],
+          "reason": "resistance zone 10.4 is sourced from 5m evidence; freshness is fresh; 4% from reference price; volume state is extreme.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "extensionSupport": [],
+      "extensionResistance": [
+        {
+          "levelId": "SNAP-synthetic-resistance-extension-1-13p00",
+          "symbol": "SNAP",
+          "kind": "resistance",
+          "representativePrice": 13,
+          "zoneLow": 12.95,
+          "zoneHigh": 13.05,
+          "zoneWidthPercent": 0.7692,
+          "origin": {
+            "sourceTypes": [],
+            "timeframeSources": [],
+            "primaryTimeframe": "5m",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "synthetic_continuation_map",
+            "label": "Synthetic continuation map",
+            "generationMethod": "round_number_ladder",
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ],
+            "referencePrice": 10,
+            "coveragePct": 0.3,
+            "maxCoveragePct": 0.5,
+            "syntheticIndex": 1,
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "isSyntheticContinuationMap": true
+          },
+          "freshness": {
+            "firstTimestamp": 1777645200000,
+            "lastTimestamp": 1777645200000,
+            "label": "fresh"
+          },
+          "reaction": {
+            "touchCount": 0,
+            "reactionQualityScore": 0,
+            "rejectionScore": 0,
+            "displacementScore": 0,
+            "followThroughScore": 0
+          },
+          "distance": {
+            "referencePrice": 10,
+            "distanceFromReferencePct": 30,
+            "category": "far"
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": ["Volume state is extreme."],
+            "nearShelfFacts": [],
+            "contextTags": ["synthetic_continuation_map"]
+          },
+          "diagnostics": ["synthetic_continuation_map"],
+          "reason": "resistance extension 13 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available, not historical support/resistance, no touch or rejection history, no historical confluence; 30% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ]
+    },
+    "counts": {
+      "majorSupport": 0,
+      "majorResistance": 0,
+      "intermediateSupport": 0,
+      "intermediateResistance": 0,
+      "intradaySupport": 1,
+      "intradayResistance": 1,
+      "extensionSupport": 0,
+      "extensionResistance": 1,
+      "total": 3
+    },
+    "diagnostics": [],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "factsOnly": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "noRuntimeBehaviorChange": true
+    }
+  },
+  "levelQualityAudit": {
+    "symbol": "SNAP",
+    "generatedAt": 1777645200000,
+    "referencePrice": 10,
+    "summary": {
+      "totalLevels": 3,
+      "supportCount": 1,
+      "resistanceCount": 2,
+      "extensionCount": 1,
+      "freshCount": 3,
+      "staleCount": 0,
+      "enrichedCount": 0,
+      "unenrichedCount": 3
+    },
+    "strongestLevels": [
+      {
+        "levelId": "SNAP-resistance-real-10p40",
+        "symbol": "SNAP",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 10.4,
+        "zoneLow": 10.35,
+        "zoneHigh": 10.45,
+        "strengthScore": 68,
+        "strengthLabel": "strong",
+        "auditScore": 0.68,
+        "freshness": "fresh",
+        "touchCount": 2,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 1,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 4,
+        "diagnostics": []
+      }
+    ],
+    "weakestLevels": [
+      {
+        "levelId": "SNAP-synthetic-resistance-extension-1-13p00",
+        "symbol": "SNAP",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 13,
+        "zoneLow": 12.95,
+        "zoneHigh": 13.05,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 1,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30,
+        "diagnostics": ["synthetic_continuation_map"]
+      }
+    ],
+    "staleLevels": [],
+    "freshLevels": [],
+    "strongConfluenceLevels": [],
+    "weakContextLevels": [],
+    "enrichedLevels": [],
+    "unenrichedLevels": [],
+    "possibleClutterLevels": [],
+    "clusteredAreas": [],
+    "extensionCoverage": {
+      "supportExtensions": 0,
+      "resistanceExtensions": 1,
+      "highestResistanceExtension": 13,
+      "upsideCoveragePct": 30,
+      "warnings": ["no_support_extension_coverage"]
+    },
+    "nearbyCoverage": {
+      "referencePrice": 10,
+      "nearbySupportCount": 1,
+      "nearbyResistanceCount": 1,
+      "overheadResistanceGapPct": 4,
+      "downsideSupportGapPct": 2.5,
+      "warnings": []
+    },
+    "confluenceSummary": {
+      "sessionConfluenceCount": 2,
+      "volumeConfluenceCount": 3,
+      "shelfConfluenceCount": 1,
+      "marketContextConfluenceCount": 3
+    },
+    "diagnostics": ["no_support_extension_coverage", "unenriched_levels_present"],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "noRuntimeBehaviorChange": true,
+      "noScoringChange": true
+    }
+  },
+  "diagnostics": ["candle_close_as_of_filter_applied"],
+  "safety": {
+    "noLookaheadApplied": true,
+    "levelOutputUnchanged": true,
+    "factsOnlyVWAP": true,
+    "shelvesAreFactsOnly": true,
+    "syntheticExtensionsClearlyMarked": true,
+    "noRuntimeBehaviorChange": true
+  }
+}
