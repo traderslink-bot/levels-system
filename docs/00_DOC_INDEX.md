@@ -59,3 +59,13 @@ This folder contains the full plan for the candle-based levels system, including
   - the trading journal remains separate and owns journal-specific grading, coaching, behavior scoring, P/L, giveback analysis, product workflows, and trader interpretation.
   - VWAP remains facts-only.
   - volume shelves remain facts-only and are not support/resistance levels.
+
+## LevelAnalysisSnapshot v1 handoff
+
+- `docs/79_JOURNAL_CONNECTOR_LEVEL_ANALYSIS_CONTRACT.md`
+- `docs/81_LEVEL_ANALYSIS_SNAPSHOT_SCHEMA_V1_LOCK.md`
+- `docs/82_LEVEL_ANALYSIS_SNAPSHOT_V1_RELEASE_NOTES.md`
+- `docs/83_DOWNSTREAM_CONNECTOR_ADAPTER_BLUEPRINT.md`
+- `docs/84_LEVEL_ANALYSIS_SNAPSHOT_V1_HANDOFF_COMPLETE.md`
+- Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
+- Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`
