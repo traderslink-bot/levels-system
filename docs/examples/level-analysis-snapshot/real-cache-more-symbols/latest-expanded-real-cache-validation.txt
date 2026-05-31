@@ -1,0 +1,92 @@
+Expanded Real Cache Replay Validation
+Cache: C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles
+Files: 2265; provider/symbol groups: 356; complete 5m/4h/daily groups: 354
+Symbols validated: 12; passed: 12; failed: 0
+Synthetic extension symbols: 6; synthetic extension rows: 7
+Missing resistance extension warnings: none
+Limited downside coverage warnings: YMAT
+
+YMAT (low-price runner)
+  asOf=2026-05-26T20:00:00.000Z reference=1.325 passed=true
+  nearestSupport=1.31 nearestResistance=1.34
+  buckets={"majorSupport":4,"majorResistance":2,"intermediateSupport":5,"intermediateResistance":0,"intradaySupport":3,"intradayResistance":6,"extensionSupport":3,"extensionResistance":3}
+  extensions total=6 real=6 synthetic=0 support=3 resistance=3
+  coverage upside=25.283 downside=14.8226 warnings=limited_downside_extension_coverage
+  shelves=0 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+HCWB (low-price runner)
+  asOf=2026-05-20T15:00:00.000Z reference=2.945 passed=true
+  nearestSupport=1.91 nearestResistance=3.78
+  buckets={"majorSupport":4,"majorResistance":2,"intermediateSupport":5,"intermediateResistance":0,"intradaySupport":4,"intradayResistance":1,"extensionSupport":1,"extensionResistance":0}
+  extensions total=1 real=1 synthetic=0 support=1 resistance=0
+  coverage upside=null downside=92.0475 warnings=no_resistance_extension_coverage
+  shelves=3 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+MEHA (sub-dollar runner)
+  asOf=2026-05-11T15:20:00.000Z reference=0.2033 passed=true
+  nearestSupport=0.1911 nearestResistance=0.22
+  buckets={"majorSupport":4,"majorResistance":4,"intermediateSupport":5,"intermediateResistance":0,"intradaySupport":3,"intradayResistance":1,"extensionSupport":3,"extensionResistance":1}
+  extensions total=4 real=4 synthetic=0 support=3 resistance=1
+  coverage upside=22.3807 downside=25.4796 warnings=none
+  shelves=3 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+INM (sparse intraday runner)
+  asOf=2026-05-19T13:05:00.000Z reference=1.7199 passed=true
+  nearestSupport=1.25 nearestResistance=1.95
+  buckets={"majorSupport":4,"majorResistance":3,"intermediateSupport":4,"intermediateResistance":0,"intradaySupport":1,"intradayResistance":1,"extensionSupport":1,"extensionResistance":2}
+  extensions total=3 real=3 synthetic=0 support=1 resistance=2
+  coverage upside=45.3515 downside=71.4111 warnings=none
+  shelves=3 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+EZGO (sharp selloff / broken low-price ticker)
+  asOf=2026-05-06T22:10:00.000Z reference=0.1234 passed=true
+  nearestSupport=0.1226 nearestResistance=0.1298
+  buckets={"majorSupport":0,"majorResistance":0,"intermediateSupport":0,"intermediateResistance":0,"intradaySupport":2,"intradayResistance":3,"extensionSupport":1,"extensionResistance":2}
+  extensions total=3 real=2 synthetic=1 support=1 resistance=2
+  coverage upside=9.1572 downside=35.1702 warnings=limited_upside_extension_coverage
+  shelves=0 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+SOWG (thin-liquidity ticker)
+  asOf=2026-05-05T11:15:00.000Z reference=1.79 passed=true
+  nearestSupport=1.57 nearestResistance=1.8
+  buckets={"majorSupport":1,"majorResistance":0,"intermediateSupport":1,"intermediateResistance":1,"intradaySupport":0,"intradayResistance":0,"extensionSupport":3,"extensionResistance":2}
+  extensions total=5 real=3 synthetic=2 support=3 resistance=2
+  coverage upside=31.2849 downside=30.1676 warnings=none
+  shelves=1 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+CLPS (thin-liquidity ticker)
+  asOf=2026-05-04T19:00:00.000Z reference=0.93 passed=true
+  nearestSupport=0.8902 nearestResistance=0.96
+  buckets={"majorSupport":4,"majorResistance":4,"intermediateSupport":1,"intermediateResistance":0,"intradaySupport":0,"intradayResistance":0,"extensionSupport":2,"extensionResistance":3}
+  extensions total=5 real=4 synthetic=1 support=2 resistance=3
+  coverage upside=48.3871 downside=30.1075 warnings=none
+  shelves=1 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+AAOI (higher-priced high-volume ticker)
+  asOf=2026-05-04T17:30:00.000Z reference=178.64 passed=true
+  nearestSupport=174.78 nearestResistance=189.5
+  buckets={"majorSupport":4,"majorResistance":0,"intermediateSupport":5,"intermediateResistance":0,"intradaySupport":1,"intradayResistance":1,"extensionSupport":3,"extensionResistance":2}
+  extensions total=5 real=4 synthetic=1 support=3 resistance=2
+  coverage upside=30.15 downside=86.6491 warnings=none
+  shelves=4 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+FLEX (higher-priced clean mover)
+  asOf=2026-05-06T16:40:00.000Z reference=126.7 passed=true
+  nearestSupport=125.27 nearestResistance=126.99
+  buckets={"majorSupport":4,"majorResistance":0,"intermediateSupport":5,"intermediateResistance":0,"intradaySupport":2,"intradayResistance":2,"extensionSupport":3,"extensionResistance":1}
+  extensions total=4 real=3 synthetic=1 support=3 resistance=1
+  coverage upside=30.2289 downside=80.0158 warnings=none
+  shelves=4 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+QUBT (active technical mover)
+  asOf=2026-05-12T14:20:00.000Z reference=12.799 passed=true
+  nearestSupport=12.42 nearestResistance=12.9727
+  buckets={"majorSupport":4,"majorResistance":4,"intermediateSupport":4,"intermediateResistance":0,"intradaySupport":1,"intradayResistance":2,"extensionSupport":3,"extensionResistance":1}
+  extensions total=4 real=4 synthetic=0 support=3 resistance=1
+  coverage upside=32.2799 downside=51.3243 warnings=none
+  shelves=4 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+GME (higher-priced negative mover)
+  asOf=2026-05-04T15:10:00.000Z reference=24.8 passed=true
+  nearestSupport=24.73 nearestResistance=25
+  buckets={"majorSupport":4,"majorResistance":4,"intermediateSupport":1,"intermediateResistance":0,"intradaySupport":0,"intradayResistance":0,"extensionSupport":3,"extensionResistance":3}
+  extensions total=6 real=6 synthetic=0 support=3 resistance=3
+  coverage upside=38.5887 downside=23.7903 warnings=none
+  shelves=4 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
+PHOE (unusual higher-timeframe depth)
+  asOf=2026-05-07T20:45:00.000Z reference=34.75 passed=true
+  nearestSupport=29.85 nearestResistance=40.98
+  buckets={"majorSupport":4,"majorResistance":0,"intermediateSupport":5,"intermediateResistance":1,"intradaySupport":6,"intradayResistance":0,"extensionSupport":3,"extensionResistance":1}
+  extensions total=4 real=3 synthetic=1 support=3 resistance=1
+  coverage upside=30.9353 downside=83.1655 warnings=none
+  shelves=2 diagnostics=candle_close_as_of_filter_applied,candle_inputs_reserved_for_future_fact_generation
