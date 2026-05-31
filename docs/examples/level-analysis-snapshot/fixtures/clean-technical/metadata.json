@@ -1,0 +1,17 @@
+{
+  "scenarioId": "clean-technical",
+  "scenarioType": "clean technical mover",
+  "symbol": "CLNT",
+  "asOf": "2026-05-01T10:30:00-04:00",
+  "asOfTimestamp": 1777645800000,
+  "referencePrice": 48.2,
+  "previousClose": 45.5,
+  "scenarioIntent": "Clean technical mover fixture with higher lows, repeated orderly reactions, and balanced multi-timeframe context.",
+  "candleFiles": {
+    "fiveMinute": "5m-candles.json",
+    "fourHour": "4h-candles.json",
+    "daily": "daily-candles.json"
+  },
+  "deterministic": true,
+  "networkCalls": false
+}

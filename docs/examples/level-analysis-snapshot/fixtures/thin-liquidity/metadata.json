@@ -1,0 +1,17 @@
+{
+  "scenarioId": "thin-liquidity",
+  "scenarioType": "thin-liquidity ticker",
+  "symbol": "THIN",
+  "asOf": "2026-05-01T10:30:00-04:00",
+  "asOfTimestamp": 1777645800000,
+  "referencePrice": 3.45,
+  "previousClose": 3.25,
+  "scenarioIntent": "Thin-liquidity fixture with sparse volume, wider wicks, shallow real candidate inventory, and limited context quality.",
+  "candleFiles": {
+    "fiveMinute": "5m-candles.json",
+    "fourHour": "4h-candles.json",
+    "daily": "daily-candles.json"
+  },
+  "deterministic": true,
+  "networkCalls": false
+}

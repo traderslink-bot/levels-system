@@ -1,0 +1,2665 @@
+{
+  "schemaVersion": "level-analysis-snapshot/v1",
+  "producer": "levels-system",
+  "symbol": "CHOP",
+  "asOfTimestamp": 1777645800000,
+  "inputSummary": {
+    "timeframesPresent": [
+      "5m",
+      "4h",
+      "daily"
+    ],
+    "candleCounts": {
+      "5m": 30,
+      "15m": 0,
+      "4h": 7,
+      "daily": 6
+    },
+    "filteredCandleCounts": {
+      "5m": 30,
+      "15m": 0,
+      "4h": 7,
+      "daily": 6
+    },
+    "excludedFutureCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "excludedPartialCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "timeframes": {
+      "5m": {
+        "provided": true,
+        "candleCount": 30,
+        "filteredCandleCount": 30,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "15m": {
+        "provided": false,
+        "candleCount": 0,
+        "filteredCandleCount": 0,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "4h": {
+        "provided": true,
+        "candleCount": 7,
+        "filteredCandleCount": 7,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "daily": {
+        "provided": true,
+        "candleCount": 6,
+        "filteredCandleCount": 6,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      }
+    },
+    "previousCloseProvided": true
+  },
+  "nearestSupport": {
+    "levelId": "CHOP-support-zone-1",
+    "kind": "support",
+    "bucket": "intradaySupport",
+    "representativePrice": 14.5687,
+    "zoneLow": 14.5491,
+    "zoneHigh": 14.689,
+    "strengthScore": 19.51,
+    "strengthLabel": "moderate",
+    "distanceFromReferencePct": 0.03837,
+    "isExtension": false
+  },
+  "nearestResistance": {
+    "levelId": "CHOP-resistance-zone-1",
+    "kind": "resistance",
+    "bucket": "intermediateResistance",
+    "representativePrice": 15.6305,
+    "zoneLow": 15.6085,
+    "zoneHigh": 15.7438,
+    "strengthScore": 74.89,
+    "strengthLabel": "major",
+    "distanceFromReferencePct": 0.031716,
+    "isExtension": false
+  },
+  "levelEngineOutput": {
+    "symbol": "CHOP",
+    "generatedAt": 1777645800000,
+    "metadata": {
+      "providerByTimeframe": {
+        "daily": "stub",
+        "4h": "stub",
+        "5m": "stub"
+      },
+      "dataQualityFlags": [],
+      "freshness": "fresh",
+      "referencePrice": 15.15
+    },
+    "majorSupport": [],
+    "majorResistance": [],
+    "intermediateSupport": [],
+    "intermediateResistance": [
+      {
+        "id": "CHOP-resistance-zone-1",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "timeframeBias": "mixed",
+        "zoneLow": 15.6085,
+        "zoneHigh": 15.7438,
+        "representativePrice": 15.6305,
+        "strengthScore": 74.89,
+        "strengthLabel": "major",
+        "touchCount": 47,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_high",
+          "opening_range_high",
+          "premarket_high"
+        ],
+        "timeframeSources": [
+          "5m",
+          "4h"
+        ],
+        "reactionQualityScore": 0.7458,
+        "rejectionScore": 0.4724,
+        "displacementScore": 0.1997,
+        "sessionSignificanceScore": 1,
+        "followThroughScore": 0.552,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 9,
+        "firstTimestamp": 1777579200000,
+        "lastTimestamp": 1777645500000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 5m resistance swing.",
+          "displacement=0.0607",
+          "reactions=5",
+          "rejection=0.4344",
+          "followThrough=0.3139",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.0697",
+          "reactions=4",
+          "rejection=0.4991",
+          "followThrough=0.3804",
+          "Derived from 4h resistance swing.",
+          "displacement=0.0727",
+          "reactions=1",
+          "rejection=0.3309",
+          "followThrough=0.6547",
+          "displacement=0.0737",
+          "reactions=3",
+          "rejection=0.4962",
+          "followThrough=0.4122",
+          "displacement=0.0710",
+          "rejection=0.3255",
+          "followThrough=0.3445",
+          "displacement=0.0749",
+          "reactions=2",
+          "rejection=0.3073",
+          "followThrough=0.6871",
+          "Session-accurate opening range high candidate.",
+          "displacement=0.0748",
+          "rejection=0.4881",
+          "followThrough=0.6355",
+          "Session-accurate premarket high candidate.",
+          "freshness=stale",
+          "evidence=9",
+          "rejection=0.4724",
+          "followThrough=0.5520",
+          "gapContinuation=0.0000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intradaySupport": [
+      {
+        "id": "CHOP-support-zone-1",
+        "symbol": "CHOP",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 14.5491,
+        "zoneHigh": 14.689,
+        "representativePrice": 14.5687,
+        "strengthScore": 19.51,
+        "strengthLabel": "moderate",
+        "touchCount": 26,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low",
+          "premarket_low",
+          "opening_range_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.6885,
+        "rejectionScore": 0.4601,
+        "displacementScore": 0.264,
+        "sessionSignificanceScore": 1,
+        "followThroughScore": 0.5961,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 6,
+        "firstTimestamp": 1777636800000,
+        "lastTimestamp": 1777645500000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 5m support swing.",
+          "displacement=0.0737",
+          "reactions=2",
+          "rejection=0.3104",
+          "followThrough=0.5920",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "Session-accurate premarket low candidate.",
+          "displacement=0.0749",
+          "rejection=0.3106",
+          "followThrough=0.6800",
+          "Session-accurate opening range low candidate.",
+          "displacement=0.0748",
+          "reactions=3",
+          "rejection=0.3177",
+          "followThrough=0.5766",
+          "displacement=0.0607",
+          "reactions=7",
+          "rejection=0.4516",
+          "followThrough=0.1880",
+          "freshness=stale",
+          "evidence=6",
+          "rejection=0.4601",
+          "followThrough=0.5961",
+          "gapContinuation=0.0000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intradayResistance": [],
+    "extensionLevels": {
+      "support": [
+        {
+          "id": "CHOP-synthetic-support-extension-1-10p6000",
+          "symbol": "CHOP",
+          "kind": "support",
+          "timeframeBias": "mixed",
+          "zoneLow": 10.5603,
+          "zoneHigh": 10.6398,
+          "representativePrice": 10.6,
+          "strengthScore": 0,
+          "strengthLabel": "weak",
+          "touchCount": 0,
+          "confluenceCount": 0,
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "sessionSignificanceScore": 0,
+          "followThroughScore": 0,
+          "sourceEvidenceCount": 0,
+          "firstTimestamp": 0,
+          "lastTimestamp": 0,
+          "isExtension": true,
+          "freshness": "fresh",
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "extensionMetadata": {
+            "extensionSource": "synthetic_continuation_map",
+            "generationMethod": "round_number_ladder",
+            "referencePrice": 15.15,
+            "targetCoveragePct": 0.3,
+            "maxCoveragePct": 0.5,
+            "syntheticIndex": 1,
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ]
+          }
+        },
+        {
+          "id": "CHOP-synthetic-support-extension-2-7p5000",
+          "symbol": "CHOP",
+          "kind": "support",
+          "timeframeBias": "mixed",
+          "zoneLow": 7.4719,
+          "zoneHigh": 7.5281,
+          "representativePrice": 7.5,
+          "strengthScore": 0,
+          "strengthLabel": "weak",
+          "touchCount": 0,
+          "confluenceCount": 0,
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "sessionSignificanceScore": 0,
+          "followThroughScore": 0,
+          "sourceEvidenceCount": 0,
+          "firstTimestamp": 0,
+          "lastTimestamp": 0,
+          "isExtension": true,
+          "freshness": "fresh",
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "extensionMetadata": {
+            "extensionSource": "synthetic_continuation_map",
+            "generationMethod": "round_number_ladder",
+            "referencePrice": 15.15,
+            "targetCoveragePct": 0.5,
+            "maxCoveragePct": 0.5,
+            "syntheticIndex": 2,
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ]
+          }
+        }
+      ],
+      "resistance": [
+        {
+          "id": "CHOP-synthetic-resistance-extension-1-19p7000",
+          "symbol": "CHOP",
+          "kind": "resistance",
+          "timeframeBias": "mixed",
+          "zoneLow": 19.6261,
+          "zoneHigh": 19.7739,
+          "representativePrice": 19.7,
+          "strengthScore": 0,
+          "strengthLabel": "weak",
+          "touchCount": 0,
+          "confluenceCount": 0,
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "sessionSignificanceScore": 0,
+          "followThroughScore": 0,
+          "sourceEvidenceCount": 0,
+          "firstTimestamp": 0,
+          "lastTimestamp": 0,
+          "isExtension": true,
+          "freshness": "fresh",
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "extensionMetadata": {
+            "extensionSource": "synthetic_continuation_map",
+            "generationMethod": "round_number_ladder",
+            "referencePrice": 15.15,
+            "targetCoveragePct": 0.3,
+            "maxCoveragePct": 0.5,
+            "syntheticIndex": 1,
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ]
+          }
+        }
+      ]
+    },
+    "specialLevels": {
+      "premarketHigh": 15.7438,
+      "premarketLow": 14.5491,
+      "openingRangeHigh": 15.703,
+      "openingRangeLow": 14.5687
+    }
+  },
+  "levelIntelligenceReport": {
+    "symbol": "CHOP",
+    "generatedAt": 1777645800000,
+    "referencePrice": 15.15,
+    "profiles": [
+      {
+        "levelId": "CHOP-resistance-zone-1",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "representativePrice": 15.6305,
+        "zoneLow": 15.6085,
+        "zoneHigh": 15.7438,
+        "zoneWidthPercent": 0.8656,
+        "origin": {
+          "sourceTypes": [
+            "swing_high",
+            "opening_range_high",
+            "premarket_high"
+          ],
+          "timeframeSources": [
+            "5m",
+            "4h"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777579200000,
+          "lastTimestamp": 1777645500000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 47,
+          "reactionQualityScore": 0.7458,
+          "rejectionScore": 0.4724,
+          "displacementScore": 0.1997,
+          "followThroughScore": 0.552
+        },
+        "distance": {
+          "referencePrice": 15.15,
+          "distanceFromReferencePct": 3.1716,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "normal",
+          "relativeVolume": 1.0377,
+          "dollarVolume": 146121750,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "normal",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near high of day 15.7438 (0.7196% away).",
+            "Level is near premarket high 15.7438 (0.7196% away).",
+            "Level is near opening range high 15.703 (0.4617% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is normal.",
+            "Relative volume fact is 1.0377.",
+            "Dollar volume fact is 146121750.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Pullback volume fact is normal."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "near_high_of_day",
+            "near_premarket_high",
+            "near_opening_range_high",
+            "volume_state_normal",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "pullback_volume_normal",
+            "market_context_choppy_low_quality",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 15.6,
+            "type": "ten_cent",
+            "distancePct": 0.1955
+          }
+        },
+        "marketContext": {
+          "primaryContext": "choppy_low_quality",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.776
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 15.6305 is sourced from 5m, 4h evidence; freshness is stale; 3.1716% from reference price; volume state is normal.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "CHOP-support-zone-1",
+        "symbol": "CHOP",
+        "kind": "support",
+        "representativePrice": 14.5687,
+        "zoneLow": 14.5491,
+        "zoneHigh": 14.689,
+        "zoneWidthPercent": 0.9603,
+        "origin": {
+          "sourceTypes": [
+            "swing_low",
+            "premarket_low",
+            "opening_range_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777636800000,
+          "lastTimestamp": 1777645500000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 26,
+          "reactionQualityScore": 0.6885,
+          "rejectionScore": 0.4601,
+          "displacementScore": 0.264,
+          "followThroughScore": 0.5961
+        },
+        "distance": {
+          "referencePrice": 15.15,
+          "distanceFromReferencePct": 3.837,
+          "category": "approaching"
+        },
+        "volume": {
+          "volumeState": "normal",
+          "relativeVolume": 1.0377,
+          "dollarVolume": 146121750,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "normal",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near low of day 14.5491 (0.1347% away).",
+            "Level is near premarket low 14.5491 (0.1347% away).",
+            "Level is near opening range low 14.5687 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is normal.",
+            "Relative volume fact is 1.0377.",
+            "Dollar volume fact is 146121750.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Pullback volume fact is normal."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "near_low_of_day",
+            "near_premarket_low",
+            "near_opening_range_low",
+            "volume_state_normal",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "pullback_volume_normal",
+            "market_context_choppy_low_quality",
+            "runner_phase_not_applicable"
+          ],
+          "nearRoundNumber": {
+            "value": 14.6,
+            "type": "ten_cent",
+            "distancePct": 0.2144
+          }
+        },
+        "marketContext": {
+          "primaryContext": "choppy_low_quality",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.776
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 14.5687 is sourced from 5m evidence; freshness is stale; 3.837% from reference price; volume state is normal.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-1-10p6000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "representativePrice": 10.6,
+        "zoneLow": 10.5603,
+        "zoneHigh": 10.6398,
+        "zoneWidthPercent": 0.75,
+        "origin": {
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "primaryTimeframe": "mixed",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "synthetic_continuation_map",
+          "label": "Synthetic continuation map",
+          "generationMethod": "round_number_ladder",
+          "evidenceLimitations": [
+            "no_real_extension_candidate_available",
+            "not_historical_support_resistance",
+            "no_touch_or_rejection_history",
+            "no_historical_confluence"
+          ],
+          "referencePrice": 15.15,
+          "coveragePct": 0.3,
+          "maxCoveragePct": 0.5,
+          "syntheticIndex": 1,
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "isSyntheticContinuationMap": true
+        },
+        "freshness": {
+          "firstTimestamp": 0,
+          "lastTimestamp": 0,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 0,
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "followThroughScore": 0
+        },
+        "distance": {
+          "referencePrice": 15.15,
+          "distanceFromReferencePct": 30.033,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "normal",
+          "relativeVolume": 1.0377,
+          "dollarVolume": 146121750,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "normal",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is normal.",
+            "Relative volume fact is 1.0377.",
+            "Dollar volume fact is 146121750.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Pullback volume fact is normal."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_normal",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "pullback_volume_normal",
+            "market_context_choppy_low_quality",
+            "runner_phase_not_applicable",
+            "extension_level",
+            "synthetic_continuation_map",
+            "forward_planning_extension"
+          ],
+          "nearRoundNumber": {
+            "value": 10.6,
+            "type": "ten_cent",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "choppy_low_quality",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.776
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support extension 10.6 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available, not historical support/resistance, no touch or rejection history, no historical confluence; 30.033% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-2-7p5000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "representativePrice": 7.5,
+        "zoneLow": 7.4719,
+        "zoneHigh": 7.5281,
+        "zoneWidthPercent": 0.7493,
+        "origin": {
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "primaryTimeframe": "mixed",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "synthetic_continuation_map",
+          "label": "Synthetic continuation map",
+          "generationMethod": "round_number_ladder",
+          "evidenceLimitations": [
+            "no_real_extension_candidate_available",
+            "not_historical_support_resistance",
+            "no_touch_or_rejection_history",
+            "no_historical_confluence"
+          ],
+          "referencePrice": 15.15,
+          "coveragePct": 0.5,
+          "maxCoveragePct": 0.5,
+          "syntheticIndex": 2,
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "isSyntheticContinuationMap": true
+        },
+        "freshness": {
+          "firstTimestamp": 0,
+          "lastTimestamp": 0,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 0,
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "followThroughScore": 0
+        },
+        "distance": {
+          "referencePrice": 15.15,
+          "distanceFromReferencePct": 50.495,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "normal",
+          "relativeVolume": 1.0377,
+          "dollarVolume": 146121750,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "normal",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is normal.",
+            "Relative volume fact is 1.0377.",
+            "Dollar volume fact is 146121750.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Pullback volume fact is normal."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_normal",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "pullback_volume_normal",
+            "market_context_choppy_low_quality",
+            "runner_phase_not_applicable",
+            "extension_level",
+            "synthetic_continuation_map",
+            "forward_planning_extension"
+          ],
+          "nearRoundNumber": {
+            "value": 7.5,
+            "type": "half",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "choppy_low_quality",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.776
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support extension 7.5 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available, not historical support/resistance, no touch or rejection history, no historical confluence; 50.495% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "CHOP-synthetic-resistance-extension-1-19p7000",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "representativePrice": 19.7,
+        "zoneLow": 19.6261,
+        "zoneHigh": 19.7739,
+        "zoneWidthPercent": 0.7503,
+        "origin": {
+          "sourceTypes": [],
+          "timeframeSources": [],
+          "primaryTimeframe": "mixed",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "synthetic_continuation_map",
+          "label": "Synthetic continuation map",
+          "generationMethod": "round_number_ladder",
+          "evidenceLimitations": [
+            "no_real_extension_candidate_available",
+            "not_historical_support_resistance",
+            "no_touch_or_rejection_history",
+            "no_historical_confluence"
+          ],
+          "referencePrice": 15.15,
+          "coveragePct": 0.3,
+          "maxCoveragePct": 0.5,
+          "syntheticIndex": 1,
+          "notes": [
+            "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+          ],
+          "isSyntheticContinuationMap": true
+        },
+        "freshness": {
+          "firstTimestamp": 0,
+          "lastTimestamp": 0,
+          "label": "fresh"
+        },
+        "reaction": {
+          "touchCount": 0,
+          "reactionQualityScore": 0,
+          "rejectionScore": 0,
+          "displacementScore": 0,
+          "followThroughScore": 0
+        },
+        "distance": {
+          "referencePrice": 15.15,
+          "distanceFromReferencePct": 30.033,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "normal",
+          "relativeVolume": 1.0377,
+          "dollarVolume": 146121750,
+          "liquidityQuality": "strong",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "normal",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is normal.",
+            "Relative volume fact is 1.0377.",
+            "Dollar volume fact is 146121750.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is steady.",
+            "Pullback volume fact is normal."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_normal",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_steady",
+            "pullback_volume_normal",
+            "market_context_choppy_low_quality",
+            "runner_phase_not_applicable",
+            "extension_level",
+            "synthetic_continuation_map",
+            "forward_planning_extension"
+          ],
+          "nearRoundNumber": {
+            "value": 19.7,
+            "type": "ten_cent",
+            "distancePct": 0
+          }
+        },
+        "marketContext": {
+          "primaryContext": "choppy_low_quality",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.776
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance extension 19.7 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available, not historical support/resistance, no touch or rejection history, no historical confluence; 30.033% from reference price.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "buckets": {
+      "majorSupport": [],
+      "majorResistance": [],
+      "intermediateSupport": [],
+      "intermediateResistance": [
+        {
+          "levelId": "CHOP-resistance-zone-1",
+          "symbol": "CHOP",
+          "kind": "resistance",
+          "representativePrice": 15.6305,
+          "zoneLow": 15.6085,
+          "zoneHigh": 15.7438,
+          "zoneWidthPercent": 0.8656,
+          "origin": {
+            "sourceTypes": [
+              "swing_high",
+              "opening_range_high",
+              "premarket_high"
+            ],
+            "timeframeSources": [
+              "5m",
+              "4h"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777579200000,
+            "lastTimestamp": 1777645500000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 47,
+            "reactionQualityScore": 0.7458,
+            "rejectionScore": 0.4724,
+            "displacementScore": 0.1997,
+            "followThroughScore": 0.552
+          },
+          "distance": {
+            "referencePrice": 15.15,
+            "distanceFromReferencePct": 3.1716,
+            "category": "approaching"
+          },
+          "volume": {
+            "volumeState": "normal",
+            "relativeVolume": 1.0377,
+            "dollarVolume": 146121750,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "normal",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near high of day 15.7438 (0.7196% away).",
+              "Level is near premarket high 15.7438 (0.7196% away).",
+              "Level is near opening range high 15.703 (0.4617% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is normal.",
+              "Relative volume fact is 1.0377.",
+              "Dollar volume fact is 146121750.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Pullback volume fact is normal."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "near_high_of_day",
+              "near_premarket_high",
+              "near_opening_range_high",
+              "volume_state_normal",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "pullback_volume_normal",
+              "market_context_choppy_low_quality",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 15.6,
+              "type": "ten_cent",
+              "distancePct": 0.1955
+            }
+          },
+          "marketContext": {
+            "primaryContext": "choppy_low_quality",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.776
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 15.6305 is sourced from 5m, 4h evidence; freshness is stale; 3.1716% from reference price; volume state is normal.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intradaySupport": [
+        {
+          "levelId": "CHOP-support-zone-1",
+          "symbol": "CHOP",
+          "kind": "support",
+          "representativePrice": 14.5687,
+          "zoneLow": 14.5491,
+          "zoneHigh": 14.689,
+          "zoneWidthPercent": 0.9603,
+          "origin": {
+            "sourceTypes": [
+              "swing_low",
+              "premarket_low",
+              "opening_range_low"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777636800000,
+            "lastTimestamp": 1777645500000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 26,
+            "reactionQualityScore": 0.6885,
+            "rejectionScore": 0.4601,
+            "displacementScore": 0.264,
+            "followThroughScore": 0.5961
+          },
+          "distance": {
+            "referencePrice": 15.15,
+            "distanceFromReferencePct": 3.837,
+            "category": "approaching"
+          },
+          "volume": {
+            "volumeState": "normal",
+            "relativeVolume": 1.0377,
+            "dollarVolume": 146121750,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "normal",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near low of day 14.5491 (0.1347% away).",
+              "Level is near premarket low 14.5491 (0.1347% away).",
+              "Level is near opening range low 14.5687 (0% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is normal.",
+              "Relative volume fact is 1.0377.",
+              "Dollar volume fact is 146121750.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Pullback volume fact is normal."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "near_low_of_day",
+              "near_premarket_low",
+              "near_opening_range_low",
+              "volume_state_normal",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "pullback_volume_normal",
+              "market_context_choppy_low_quality",
+              "runner_phase_not_applicable"
+            ],
+            "nearRoundNumber": {
+              "value": 14.6,
+              "type": "ten_cent",
+              "distancePct": 0.2144
+            }
+          },
+          "marketContext": {
+            "primaryContext": "choppy_low_quality",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.776
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 14.5687 is sourced from 5m evidence; freshness is stale; 3.837% from reference price; volume state is normal.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intradayResistance": [],
+      "extensionSupport": [
+        {
+          "levelId": "CHOP-synthetic-support-extension-1-10p6000",
+          "symbol": "CHOP",
+          "kind": "support",
+          "representativePrice": 10.6,
+          "zoneLow": 10.5603,
+          "zoneHigh": 10.6398,
+          "zoneWidthPercent": 0.75,
+          "origin": {
+            "sourceTypes": [],
+            "timeframeSources": [],
+            "primaryTimeframe": "mixed",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "synthetic_continuation_map",
+            "label": "Synthetic continuation map",
+            "generationMethod": "round_number_ladder",
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ],
+            "referencePrice": 15.15,
+            "coveragePct": 0.3,
+            "maxCoveragePct": 0.5,
+            "syntheticIndex": 1,
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "isSyntheticContinuationMap": true
+          },
+          "freshness": {
+            "firstTimestamp": 0,
+            "lastTimestamp": 0,
+            "label": "fresh"
+          },
+          "reaction": {
+            "touchCount": 0,
+            "reactionQualityScore": 0,
+            "rejectionScore": 0,
+            "displacementScore": 0,
+            "followThroughScore": 0
+          },
+          "distance": {
+            "referencePrice": 15.15,
+            "distanceFromReferencePct": 30.033,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "normal",
+            "relativeVolume": 1.0377,
+            "dollarVolume": 146121750,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "normal",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is normal.",
+              "Relative volume fact is 1.0377.",
+              "Dollar volume fact is 146121750.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Pullback volume fact is normal."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_normal",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "pullback_volume_normal",
+              "market_context_choppy_low_quality",
+              "runner_phase_not_applicable",
+              "extension_level",
+              "synthetic_continuation_map",
+              "forward_planning_extension"
+            ],
+            "nearRoundNumber": {
+              "value": 10.6,
+              "type": "ten_cent",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "choppy_low_quality",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.776
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support extension 10.6 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available, not historical support/resistance, no touch or rejection history, no historical confluence; 30.033% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "CHOP-synthetic-support-extension-2-7p5000",
+          "symbol": "CHOP",
+          "kind": "support",
+          "representativePrice": 7.5,
+          "zoneLow": 7.4719,
+          "zoneHigh": 7.5281,
+          "zoneWidthPercent": 0.7493,
+          "origin": {
+            "sourceTypes": [],
+            "timeframeSources": [],
+            "primaryTimeframe": "mixed",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "synthetic_continuation_map",
+            "label": "Synthetic continuation map",
+            "generationMethod": "round_number_ladder",
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ],
+            "referencePrice": 15.15,
+            "coveragePct": 0.5,
+            "maxCoveragePct": 0.5,
+            "syntheticIndex": 2,
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "isSyntheticContinuationMap": true
+          },
+          "freshness": {
+            "firstTimestamp": 0,
+            "lastTimestamp": 0,
+            "label": "fresh"
+          },
+          "reaction": {
+            "touchCount": 0,
+            "reactionQualityScore": 0,
+            "rejectionScore": 0,
+            "displacementScore": 0,
+            "followThroughScore": 0
+          },
+          "distance": {
+            "referencePrice": 15.15,
+            "distanceFromReferencePct": 50.495,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "normal",
+            "relativeVolume": 1.0377,
+            "dollarVolume": 146121750,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "normal",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is normal.",
+              "Relative volume fact is 1.0377.",
+              "Dollar volume fact is 146121750.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Pullback volume fact is normal."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_normal",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "pullback_volume_normal",
+              "market_context_choppy_low_quality",
+              "runner_phase_not_applicable",
+              "extension_level",
+              "synthetic_continuation_map",
+              "forward_planning_extension"
+            ],
+            "nearRoundNumber": {
+              "value": 7.5,
+              "type": "half",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "choppy_low_quality",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.776
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support extension 7.5 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available, not historical support/resistance, no touch or rejection history, no historical confluence; 50.495% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "extensionResistance": [
+        {
+          "levelId": "CHOP-synthetic-resistance-extension-1-19p7000",
+          "symbol": "CHOP",
+          "kind": "resistance",
+          "representativePrice": 19.7,
+          "zoneLow": 19.6261,
+          "zoneHigh": 19.7739,
+          "zoneWidthPercent": 0.7503,
+          "origin": {
+            "sourceTypes": [],
+            "timeframeSources": [],
+            "primaryTimeframe": "mixed",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "synthetic_continuation_map",
+            "label": "Synthetic continuation map",
+            "generationMethod": "round_number_ladder",
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ],
+            "referencePrice": 15.15,
+            "coveragePct": 0.3,
+            "maxCoveragePct": 0.5,
+            "syntheticIndex": 1,
+            "notes": [
+              "Synthetic continuation-map extension for forward planning only; not historical support/resistance."
+            ],
+            "isSyntheticContinuationMap": true
+          },
+          "freshness": {
+            "firstTimestamp": 0,
+            "lastTimestamp": 0,
+            "label": "fresh"
+          },
+          "reaction": {
+            "touchCount": 0,
+            "reactionQualityScore": 0,
+            "rejectionScore": 0,
+            "displacementScore": 0,
+            "followThroughScore": 0
+          },
+          "distance": {
+            "referencePrice": 15.15,
+            "distanceFromReferencePct": 30.033,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "normal",
+            "relativeVolume": 1.0377,
+            "dollarVolume": 146121750,
+            "liquidityQuality": "strong",
+            "accelerationState": "steady",
+            "pullbackVolumeState": "normal",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is normal.",
+              "Relative volume fact is 1.0377.",
+              "Dollar volume fact is 146121750.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is steady.",
+              "Pullback volume fact is normal."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_normal",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_steady",
+              "pullback_volume_normal",
+              "market_context_choppy_low_quality",
+              "runner_phase_not_applicable",
+              "extension_level",
+              "synthetic_continuation_map",
+              "forward_planning_extension"
+            ],
+            "nearRoundNumber": {
+              "value": 19.7,
+              "type": "ten_cent",
+              "distancePct": 0
+            }
+          },
+          "marketContext": {
+            "primaryContext": "choppy_low_quality",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.776
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance extension 19.7 is a synthetic continuation-map forward-planning level; not historical support/resistance; evidence limits: no real extension candidate available, not historical support/resistance, no touch or rejection history, no historical confluence; 30.033% from reference price.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ]
+    },
+    "counts": {
+      "majorSupport": 0,
+      "majorResistance": 0,
+      "intermediateSupport": 0,
+      "intermediateResistance": 1,
+      "intradaySupport": 1,
+      "intradayResistance": 0,
+      "extensionSupport": 2,
+      "extensionResistance": 1,
+      "total": 5
+    },
+    "diagnostics": [
+      "enriched_analysis_missing",
+      "no_nearby_volume_shelf"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "factsOnly": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "noRuntimeBehaviorChange": true
+    }
+  },
+  "levelQualityAudit": {
+    "symbol": "CHOP",
+    "generatedAt": 1777645800000,
+    "referencePrice": 15.15,
+    "summary": {
+      "totalLevels": 5,
+      "supportCount": 3,
+      "resistanceCount": 2,
+      "extensionCount": 3,
+      "freshCount": 3,
+      "staleCount": 2,
+      "enrichedCount": 0,
+      "unenrichedCount": 5
+    },
+    "strongestLevels": [
+      {
+        "levelId": "CHOP-resistance-zone-1",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 15.6305,
+        "zoneLow": 15.6085,
+        "zoneHigh": 15.7438,
+        "strengthScore": 74.89,
+        "strengthLabel": "major",
+        "auditScore": 0.7489,
+        "freshness": "stale",
+        "touchCount": 47,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.1716,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-support-zone-1",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 14.5687,
+        "zoneLow": 14.5491,
+        "zoneHigh": 14.689,
+        "strengthScore": 19.51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1951,
+        "freshness": "stale",
+        "touchCount": 26,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.837,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-2-7p5000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 7.5,
+        "zoneLow": 7.4719,
+        "zoneHigh": 7.5281,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 50.495,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-1-10p6000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 10.6,
+        "zoneLow": 10.5603,
+        "zoneHigh": 10.6398,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-resistance-extension-1-19p7000",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 19.7,
+        "zoneLow": 19.6261,
+        "zoneHigh": 19.7739,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "weakestLevels": [
+      {
+        "levelId": "CHOP-synthetic-support-extension-2-7p5000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 7.5,
+        "zoneLow": 7.4719,
+        "zoneHigh": 7.5281,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 50.495,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-1-10p6000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 10.6,
+        "zoneLow": 10.5603,
+        "zoneHigh": 10.6398,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-resistance-extension-1-19p7000",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 19.7,
+        "zoneLow": 19.6261,
+        "zoneHigh": 19.7739,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-support-zone-1",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 14.5687,
+        "zoneLow": 14.5491,
+        "zoneHigh": 14.689,
+        "strengthScore": 19.51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1951,
+        "freshness": "stale",
+        "touchCount": 26,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.837,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-resistance-zone-1",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 15.6305,
+        "zoneLow": 15.6085,
+        "zoneHigh": 15.7438,
+        "strengthScore": 74.89,
+        "strengthLabel": "major",
+        "auditScore": 0.7489,
+        "freshness": "stale",
+        "touchCount": 47,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.1716,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "staleLevels": [
+      {
+        "levelId": "CHOP-support-zone-1",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 14.5687,
+        "zoneLow": 14.5491,
+        "zoneHigh": 14.689,
+        "strengthScore": 19.51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1951,
+        "freshness": "stale",
+        "touchCount": 26,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.837,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-resistance-zone-1",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 15.6305,
+        "zoneLow": 15.6085,
+        "zoneHigh": 15.7438,
+        "strengthScore": 74.89,
+        "strengthLabel": "major",
+        "auditScore": 0.7489,
+        "freshness": "stale",
+        "touchCount": 47,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.1716,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "freshLevels": [
+      {
+        "levelId": "CHOP-synthetic-support-extension-2-7p5000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 7.5,
+        "zoneLow": 7.4719,
+        "zoneHigh": 7.5281,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 50.495,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-1-10p6000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 10.6,
+        "zoneLow": 10.5603,
+        "zoneHigh": 10.6398,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-resistance-extension-1-19p7000",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 19.7,
+        "zoneLow": 19.6261,
+        "zoneHigh": 19.7739,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "strongConfluenceLevels": [
+      {
+        "levelId": "CHOP-resistance-zone-1",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 15.6305,
+        "zoneLow": 15.6085,
+        "zoneHigh": 15.7438,
+        "strengthScore": 74.89,
+        "strengthLabel": "major",
+        "auditScore": 0.7489,
+        "freshness": "stale",
+        "touchCount": 47,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.1716,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-support-zone-1",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 14.5687,
+        "zoneLow": 14.5491,
+        "zoneHigh": 14.689,
+        "strengthScore": 19.51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1951,
+        "freshness": "stale",
+        "touchCount": 26,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.837,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-2-7p5000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 7.5,
+        "zoneLow": 7.4719,
+        "zoneHigh": 7.5281,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 50.495,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-1-10p6000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 10.6,
+        "zoneLow": 10.5603,
+        "zoneHigh": 10.6398,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-resistance-extension-1-19p7000",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 19.7,
+        "zoneLow": 19.6261,
+        "zoneHigh": 19.7739,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "weakContextLevels": [
+      {
+        "levelId": "CHOP-synthetic-support-extension-2-7p5000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 7.5,
+        "zoneLow": 7.4719,
+        "zoneHigh": 7.5281,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 50.495,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-1-10p6000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 10.6,
+        "zoneLow": 10.5603,
+        "zoneHigh": 10.6398,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-resistance-extension-1-19p7000",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 19.7,
+        "zoneLow": 19.6261,
+        "zoneHigh": 19.7739,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "enrichedLevels": [],
+    "unenrichedLevels": [
+      {
+        "levelId": "CHOP-synthetic-support-extension-2-7p5000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 7.5,
+        "zoneLow": 7.4719,
+        "zoneHigh": 7.5281,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 50.495,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-support-extension-1-10p6000",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 10.6,
+        "zoneLow": 10.5603,
+        "zoneHigh": 10.6398,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-synthetic-resistance-extension-1-19p7000",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "extensionResistance",
+        "representativePrice": 19.7,
+        "zoneLow": 19.6261,
+        "zoneHigh": 19.7739,
+        "strengthScore": 0,
+        "strengthLabel": "weak",
+        "auditScore": 0,
+        "freshness": "fresh",
+        "touchCount": 0,
+        "confluenceCount": 0,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 30.033,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-support-zone-1",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 14.5687,
+        "zoneLow": 14.5491,
+        "zoneHigh": 14.689,
+        "strengthScore": 19.51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1951,
+        "freshness": "stale",
+        "touchCount": 26,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.837,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "CHOP-resistance-zone-1",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 15.6305,
+        "zoneLow": 15.6085,
+        "zoneHigh": 15.7438,
+        "strengthScore": 74.89,
+        "strengthLabel": "major",
+        "auditScore": 0.7489,
+        "freshness": "stale",
+        "touchCount": 47,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.1716,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "possibleClutterLevels": [],
+    "clusteredAreas": [],
+    "extensionCoverage": {
+      "supportExtensions": 2,
+      "resistanceExtensions": 1,
+      "highestResistanceExtension": 19.7,
+      "lowestSupportExtension": 7.5,
+      "upsideCoveragePct": 30.033,
+      "downsideCoveragePct": 50.495,
+      "warnings": []
+    },
+    "nearbyCoverage": {
+      "referencePrice": 15.15,
+      "nearbySupportCount": 1,
+      "nearbyResistanceCount": 1,
+      "nearestSupport": {
+        "levelId": "CHOP-support-zone-1",
+        "symbol": "CHOP",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 14.5687,
+        "zoneLow": 14.5491,
+        "zoneHigh": 14.689,
+        "strengthScore": 19.51,
+        "strengthLabel": "moderate",
+        "auditScore": 0.1951,
+        "freshness": "stale",
+        "touchCount": 26,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.837,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      "nearestResistance": {
+        "levelId": "CHOP-resistance-zone-1",
+        "symbol": "CHOP",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 15.6305,
+        "zoneLow": 15.6085,
+        "zoneHigh": 15.7438,
+        "strengthScore": 74.89,
+        "strengthLabel": "major",
+        "auditScore": 0.7489,
+        "freshness": "stale",
+        "touchCount": 47,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 3,
+          "volume": 6,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 3.1716,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      "overheadResistanceGapPct": 3.1716,
+      "downsideSupportGapPct": 3.837,
+      "warnings": []
+    },
+    "confluenceSummary": {
+      "sessionConfluenceCount": 2,
+      "volumeConfluenceCount": 5,
+      "shelfConfluenceCount": 0,
+      "marketContextConfluenceCount": 5
+    },
+    "diagnostics": [
+      "unenriched_levels_present"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "noRuntimeBehaviorChange": true,
+      "noScoringChange": true
+    }
+  },
+  "diagnostics": [
+    "candle_close_as_of_filter_applied",
+    "candle_inputs_reserved_for_future_fact_generation"
+  ],
+  "safety": {
+    "noLookaheadApplied": true,
+    "levelOutputUnchanged": true,
+    "factsOnlyVWAP": true,
+    "shelvesAreFactsOnly": true,
+    "syntheticExtensionsClearlyMarked": true,
+    "noRuntimeBehaviorChange": true
+  },
+  "referencePrice": 15.15,
+  "sessionFacts": {
+    "symbol": "CHOP",
+    "asOfTimestamp": 1777645800000,
+    "sessionDate": "2026-05-01",
+    "previousClose": 15,
+    "regularSessionOpen": 14.92,
+    "currentPrice": 15.15,
+    "premarketHigh": 15.7438,
+    "premarketLow": 14.5491,
+    "premarketHighTimestamp": 1777640100000,
+    "premarketLowTimestamp": 1777638900000,
+    "openingRangeHigh": 15.703,
+    "openingRangeLow": 14.5687,
+    "openingRangeStartTimestamp": 1777642200000,
+    "openingRangeEndTimestamp": 1777644000000,
+    "highOfDay": 15.7438,
+    "lowOfDay": 14.5491,
+    "highOfDayTimestamp": 1777640100000,
+    "lowOfDayTimestamp": 1777638900000,
+    "vwap": 15.1319,
+    "aboveVWAP": true,
+    "percentFromVWAP": 0.1196,
+    "diagnostics": []
+  },
+  "volumeFacts": {
+    "symbol": "CHOP",
+    "asOfTimestamp": 1777645800000,
+    "currentVolume": 330000,
+    "rollingAverageVolume": 318000,
+    "relativeVolume": 1.0377,
+    "dollarVolume": 146121750,
+    "volumeState": "normal",
+    "liquidityQuality": "strong",
+    "accelerationState": "steady",
+    "pullbackVolumeState": "normal",
+    "breakoutVolumeState": "not_applicable",
+    "diagnostics": []
+  },
+  "volumeShelves": [
+    {
+      "id": "CHOP-volume-shelf-15.15-15.3015",
+      "zoneLow": 15.15,
+      "zoneHigh": 15.3015,
+      "representativePrice": 15.2083,
+      "totalVolume": 4345000,
+      "dollarVolume": 66080141.5,
+      "percentOfWindowVolume": 45.0492,
+      "touchCount": 14,
+      "firstTimestamp": 1777637400000,
+      "lastTimestamp": 1777645500000,
+      "shelfRole": "chop_zone",
+      "confidence": 0.7252,
+      "reason": "High activity shelf with 45.0492% of closed-window volume across 14 candle(s)."
+    },
+    {
+      "id": "CHOP-volume-shelf-14.9985-15.15",
+      "zoneLow": 14.9985,
+      "zoneHigh": 15.15,
+      "representativePrice": 15.0952,
+      "totalVolume": 4275000,
+      "dollarVolume": 64531781,
+      "percentOfWindowVolume": 44.3235,
+      "touchCount": 13,
+      "firstTimestamp": 1777636800000,
+      "lastTimestamp": 1777644900000,
+      "shelfRole": "chop_zone",
+      "confidence": 0.7216,
+      "reason": "High activity shelf with 44.3235% of closed-window volume across 13 candle(s)."
+    },
+    {
+      "id": "CHOP-volume-shelf-14.847-14.9985",
+      "zoneLow": 14.847,
+      "zoneHigh": 14.9985,
+      "representativePrice": 14.9611,
+      "totalVolume": 1025000,
+      "dollarVolume": 15335128,
+      "percentOfWindowVolume": 10.6273,
+      "touchCount": 3,
+      "firstTimestamp": 1777637100000,
+      "lastTimestamp": 1777642500000,
+      "shelfRole": "unknown",
+      "confidence": 0.4931,
+      "reason": "High activity shelf with 10.6273% of closed-window volume across 3 candle(s)."
+    }
+  ],
+  "marketContext": {
+    "primaryContext": "choppy_low_quality",
+    "confidence": 0.776,
+    "runnerPhase": "not_applicable",
+    "evidence": [
+      {
+        "code": "modest_previous_close_move",
+        "context": "normal_intraday",
+        "message": "Move from previous close is modest.",
+        "weight": 1.1
+      },
+      {
+        "code": "modest_open_move",
+        "context": "normal_intraday",
+        "message": "Move from the regular-session open is modest.",
+        "weight": 1
+      },
+      {
+        "code": "ordinary_relative_volume",
+        "context": "normal_intraday",
+        "message": "Relative volume is not elevated.",
+        "weight": 0.9
+      },
+      {
+        "code": "sufficient_orderly_candles",
+        "context": "normal_intraday",
+        "message": "Closed 5m candles are available for context review.",
+        "weight": 0.4
+      },
+      {
+        "code": "regular_higher_lows",
+        "context": "day_trade_runner",
+        "message": "Regular-session candles show higher lows.",
+        "weight": 0.9
+      },
+      {
+        "code": "frequent_direction_changes",
+        "context": "choppy_low_quality",
+        "message": "Recent candles alternate direction frequently.",
+        "weight": 1.4
+      },
+      {
+        "code": "overlapping_candle_ranges",
+        "context": "choppy_low_quality",
+        "message": "Recent candle ranges overlap heavily.",
+        "weight": 1.2
+      },
+      {
+        "code": "little_progress_from_open",
+        "context": "choppy_low_quality",
+        "message": "Price has made little net progress from the open.",
+        "weight": 0.8
+      },
+      {
+        "code": "weak_relative_volume",
+        "context": "choppy_low_quality",
+        "message": "Relative volume is weak or ordinary during choppy movement.",
+        "weight": 0.7
+      }
+    ],
+    "warnings": [
+      {
+        "code": "vwap_facts_only",
+        "severity": "info",
+        "message": "VWAP was recorded as a market fact only and did not affect context scoring."
+      },
+      {
+        "code": "low_quality_context",
+        "severity": "warning",
+        "message": "Market context is choppy and evidence confidence should be treated conservatively."
+      }
+    ],
+    "facts": {
+      "percentFromPreviousClose": 1,
+      "percentFromOpen": 1.5416,
+      "percentFromVWAP": 0.1196,
+      "relativeVolume": 1.0377,
+      "dollarVolume": 146121750,
+      "aboveVWAP": true,
+      "abovePremarketHigh": false,
+      "aboveOpeningRangeHigh": false,
+      "nearHighOfDay": false,
+      "premarketHigh": 15.7438,
+      "openingRangeHigh": 15.703,
+      "highOfDay": 15.7438,
+      "filteredCandleCount": 30,
+      "filteredPremarketCandleCount": 18,
+      "filteredRegularSessionCandleCount": 12
+    },
+    "scoringAdjustments": {
+      "intradayWeightMultiplier": 0.85,
+      "dailyWeightMultiplier": 1.05,
+      "sessionLevelWeightMultiplier": 0.9,
+      "volumeWeightMultiplier": 0.85,
+      "extensionRiskPenaltyMultiplier": 1.25
+    }
+  },
+  "factsBundle": {
+    "symbol": "CHOP",
+    "asOfTimestamp": 1777645800000,
+    "sessionFacts": {
+      "symbol": "CHOP",
+      "asOfTimestamp": 1777645800000,
+      "sessionDate": "2026-05-01",
+      "previousClose": 15,
+      "regularSessionOpen": 14.92,
+      "currentPrice": 15.15,
+      "premarketHigh": 15.7438,
+      "premarketLow": 14.5491,
+      "premarketHighTimestamp": 1777640100000,
+      "premarketLowTimestamp": 1777638900000,
+      "openingRangeHigh": 15.703,
+      "openingRangeLow": 14.5687,
+      "openingRangeStartTimestamp": 1777642200000,
+      "openingRangeEndTimestamp": 1777644000000,
+      "highOfDay": 15.7438,
+      "lowOfDay": 14.5491,
+      "highOfDayTimestamp": 1777640100000,
+      "lowOfDayTimestamp": 1777638900000,
+      "vwap": 15.1319,
+      "aboveVWAP": true,
+      "percentFromVWAP": 0.1196,
+      "diagnostics": []
+    },
+    "volumeFacts": {
+      "symbol": "CHOP",
+      "asOfTimestamp": 1777645800000,
+      "currentVolume": 330000,
+      "rollingAverageVolume": 318000,
+      "relativeVolume": 1.0377,
+      "dollarVolume": 146121750,
+      "volumeState": "normal",
+      "liquidityQuality": "strong",
+      "accelerationState": "steady",
+      "pullbackVolumeState": "normal",
+      "breakoutVolumeState": "not_applicable",
+      "diagnostics": []
+    },
+    "volumeShelves": [
+      {
+        "id": "CHOP-volume-shelf-15.15-15.3015",
+        "zoneLow": 15.15,
+        "zoneHigh": 15.3015,
+        "representativePrice": 15.2083,
+        "totalVolume": 4345000,
+        "dollarVolume": 66080141.5,
+        "percentOfWindowVolume": 45.0492,
+        "touchCount": 14,
+        "firstTimestamp": 1777637400000,
+        "lastTimestamp": 1777645500000,
+        "shelfRole": "chop_zone",
+        "confidence": 0.7252,
+        "reason": "High activity shelf with 45.0492% of closed-window volume across 14 candle(s)."
+      },
+      {
+        "id": "CHOP-volume-shelf-14.9985-15.15",
+        "zoneLow": 14.9985,
+        "zoneHigh": 15.15,
+        "representativePrice": 15.0952,
+        "totalVolume": 4275000,
+        "dollarVolume": 64531781,
+        "percentOfWindowVolume": 44.3235,
+        "touchCount": 13,
+        "firstTimestamp": 1777636800000,
+        "lastTimestamp": 1777644900000,
+        "shelfRole": "chop_zone",
+        "confidence": 0.7216,
+        "reason": "High activity shelf with 44.3235% of closed-window volume across 13 candle(s)."
+      },
+      {
+        "id": "CHOP-volume-shelf-14.847-14.9985",
+        "zoneLow": 14.847,
+        "zoneHigh": 14.9985,
+        "representativePrice": 14.9611,
+        "totalVolume": 1025000,
+        "dollarVolume": 15335128,
+        "percentOfWindowVolume": 10.6273,
+        "touchCount": 3,
+        "firstTimestamp": 1777637100000,
+        "lastTimestamp": 1777642500000,
+        "shelfRole": "unknown",
+        "confidence": 0.4931,
+        "reason": "High activity shelf with 10.6273% of closed-window volume across 3 candle(s)."
+      }
+    ],
+    "diagnostics": {
+      "futureCandlesExcluded": 0,
+      "partialCandlesExcluded": 0,
+      "sessionDiagnostics": [],
+      "volumeDiagnostics": []
+    },
+    "levelOutputUnchanged": true,
+    "shelvesAreFactsOnly": true,
+    "vwapFactsOnly": true,
+    "referencePrice": 15.15
+  }
+}

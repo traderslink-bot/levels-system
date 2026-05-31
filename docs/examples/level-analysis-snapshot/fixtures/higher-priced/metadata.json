@@ -1,0 +1,17 @@
+{
+  "scenarioId": "higher-priced",
+  "scenarioType": "higher-priced stock",
+  "symbol": "HIPO",
+  "asOf": "2026-05-01T10:30:00-04:00",
+  "asOfTimestamp": 1777645800000,
+  "referencePrice": 214.5,
+  "previousClose": 208.2,
+  "scenarioIntent": "Higher-priced stock fixture with larger absolute ranges, moderate volume expansion, and higher-timeframe anchors.",
+  "candleFiles": {
+    "fiveMinute": "5m-candles.json",
+    "fourHour": "4h-candles.json",
+    "daily": "daily-candles.json"
+  },
+  "deterministic": true,
+  "networkCalls": false
+}
