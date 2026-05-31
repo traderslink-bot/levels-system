@@ -11,6 +11,8 @@
     "alert:test": "tsx src/scripts/run-alert-intelligence-sample.ts",
     "watchlist:alerts:test": "tsx src/scripts/run-watchlist-alerts-sample.ts",
     "watchlist:manual": "tsx src/runtime/manual-watchlist-server.ts",
+    "snapshot:level-analysis": "tsx src/scripts/run-level-analysis-snapshot.ts",
+    "snapshot:level-analysis:review": "tsx src/scripts/run-level-analysis-snapshot.ts --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json",
     "validation:levels:live": "tsx src/scripts/run-level-candle-health-check.ts",
     "validation:levels:persistence": "tsx src/scripts/run-level-persistence-validation.ts",
     "validation:levels:forward": "tsx src/scripts/run-forward-reaction-validation.ts",
