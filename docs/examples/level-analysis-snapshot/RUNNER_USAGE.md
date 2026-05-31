@@ -20,6 +20,12 @@ Deterministic review fixture:
 npm run snapshot:level-analysis:review
 ```
 
+Ignored production-style smoke artifact:
+
+```powershell
+npm run snapshot:level-analysis:smoke
+```
+
 Direct invocation:
 
 ```powershell
@@ -61,6 +67,14 @@ Recommended production-style output convention:
 ```text
 artifacts/level-analysis-snapshot/<symbol>/<asOfTimestamp>/level-analysis-snapshot-v1.json
 ```
+
+Smoke-test output:
+
+```text
+artifacts/level-analysis-snapshot-smoke/SNAP/1777645200000/level-analysis-snapshot-v1.json
+```
+
+`artifacts/` is ignored by git. Smoke outputs are local operational checks and should not be committed.
 
 ## Verify Output Shape
 
