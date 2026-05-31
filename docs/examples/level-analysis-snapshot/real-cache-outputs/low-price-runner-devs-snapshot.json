@@ -1,0 +1,5565 @@
+{
+  "schemaVersion": "level-analysis-snapshot/v1",
+  "producer": "levels-system",
+  "symbol": "DEVS",
+  "asOfTimestamp": 1780062000000,
+  "inputSummary": {
+    "timeframesPresent": [
+      "5m",
+      "4h",
+      "daily"
+    ],
+    "candleCounts": {
+      "5m": 68,
+      "15m": 0,
+      "4h": 113,
+      "daily": 454
+    },
+    "filteredCandleCounts": {
+      "5m": 68,
+      "15m": 0,
+      "4h": 113,
+      "daily": 454
+    },
+    "excludedFutureCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "excludedPartialCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "timeframes": {
+      "5m": {
+        "provided": true,
+        "candleCount": 68,
+        "filteredCandleCount": 68,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "15m": {
+        "provided": false,
+        "candleCount": 0,
+        "filteredCandleCount": 0,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "4h": {
+        "provided": true,
+        "candleCount": 113,
+        "filteredCandleCount": 113,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      },
+      "daily": {
+        "provided": true,
+        "candleCount": 454,
+        "filteredCandleCount": 454,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0
+      }
+    },
+    "previousCloseProvided": true
+  },
+  "nearestSupport": {
+    "levelId": "DEVS-support-zone-16",
+    "kind": "support",
+    "bucket": "intradaySupport",
+    "representativePrice": 0.2264,
+    "zoneLow": 0.2264,
+    "zoneHigh": 0.2264,
+    "strengthScore": 10.04,
+    "strengthLabel": "weak",
+    "distanceFromReferencePct": 0.126543,
+    "isExtension": false
+  },
+  "nearestResistance": {
+    "levelId": "DEVS-resistance-zone-17",
+    "kind": "resistance",
+    "bucket": "intradayResistance",
+    "representativePrice": 0.2624,
+    "zoneLow": 0.2624,
+    "zoneHigh": 0.2624,
+    "strengthScore": 7.9,
+    "strengthLabel": "weak",
+    "distanceFromReferencePct": 0.012346,
+    "isExtension": false
+  },
+  "levelEngineOutput": {
+    "symbol": "DEVS",
+    "generatedAt": 1780062000000,
+    "metadata": {
+      "providerByTimeframe": {
+        "daily": "stub",
+        "4h": "stub",
+        "5m": "stub"
+      },
+      "dataQualityFlags": [],
+      "freshness": "fresh",
+      "referencePrice": 0.2592
+    },
+    "majorSupport": [
+      {
+        "id": "DEVS-support-zone-7",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "mixed",
+        "zoneLow": 0.1368,
+        "zoneHigh": 0.137,
+        "representativePrice": 0.1368,
+        "strengthScore": 33.49,
+        "strengthLabel": "strong",
+        "touchCount": 7,
+        "confluenceCount": 2,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "daily",
+          "4h"
+        ],
+        "reactionQualityScore": 0.2763,
+        "rejectionScore": 0.2703,
+        "displacementScore": 0.9474,
+        "sessionSignificanceScore": 0.7,
+        "followThroughScore": 0.6973,
+        "gapContinuationScore": 0.6667,
+        "sourceEvidenceCount": 3,
+        "firstTimestamp": 1777867200000,
+        "lastTimestamp": 1778155200000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from daily support swing.",
+          "displacement=1.2115",
+          "reactions=2",
+          "rejection=0.1943",
+          "followThrough=0.7755",
+          "gapContinuation=1.0000",
+          "gap=yes",
+          "Derived from 4h support swing.",
+          "reactions=1",
+          "rejection=0.2714",
+          "followThrough=0.7453",
+          "displacement=0.2254",
+          "rejection=0.3451",
+          "followThrough=0.5712",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=stale",
+          "evidence=3",
+          "rejection=0.2703",
+          "followThrough=0.6973",
+          "gapContinuation=0.6667",
+          "pathClearance=0.8285",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "majorResistance": [],
+    "intermediateSupport": [
+      {
+        "id": "DEVS-support-zone-10",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 0.1495,
+        "zoneHigh": 0.1505,
+        "representativePrice": 0.1505,
+        "strengthScore": 25.61,
+        "strengthLabel": "strong",
+        "touchCount": 18,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.6743,
+        "rejectionScore": 0.4393,
+        "displacementScore": 0.1675,
+        "sessionSignificanceScore": 0.5966,
+        "followThroughScore": 0.5739,
+        "gapContinuationScore": 0.45,
+        "sourceEvidenceCount": 3,
+        "firstTimestamp": 1778673600000,
+        "lastTimestamp": 1779350400000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.1213",
+          "reactions=2",
+          "rejection=0.3085",
+          "followThrough=0.7483",
+          "gapContinuation=1.0000",
+          "gap=yes",
+          "displacement=0.2169",
+          "reactions=3",
+          "rejection=0.4068",
+          "followThrough=0.5242",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.1431",
+          "reactions=4",
+          "rejection=0.6025",
+          "followThrough=0.4491",
+          "gapContinuation=0.3500",
+          "freshness=stale",
+          "evidence=3",
+          "rejection=0.4393",
+          "followThrough=0.5739",
+          "gapContinuation=0.4500",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "DEVS-support-zone-1",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 0.1111,
+        "zoneHigh": 0.112,
+        "representativePrice": 0.112,
+        "strengthScore": 15.78,
+        "strengthLabel": "moderate",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.3353,
+        "rejectionScore": 0.5248,
+        "displacementScore": 0.2321,
+        "sessionSignificanceScore": 0.7046,
+        "followThroughScore": 0.8788,
+        "gapContinuationScore": 0.5666,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1779811200000,
+        "lastTimestamp": 1779955200000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.1390",
+          "reactions=1",
+          "rejection=0.2584",
+          "followThrough=0.8316",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "displacement=0.2907",
+          "rejection=0.7911",
+          "followThrough=0.9260",
+          "gapContinuation=0.7833",
+          "freshness=aging",
+          "evidence=2",
+          "rejection=0.5248",
+          "followThrough=0.8788",
+          "gapContinuation=0.5666",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "DEVS-support-zone-13",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 0.1736,
+        "zoneHigh": 0.1736,
+        "representativePrice": 0.1736,
+        "strengthScore": 11.15,
+        "strengthLabel": "weak",
+        "touchCount": 3,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.351,
+        "rejectionScore": 0.3293,
+        "displacementScore": 0.0902,
+        "sessionSignificanceScore": 0.5066,
+        "followThroughScore": 0.5726,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1778846400000,
+        "lastTimestamp": 1778846400000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.0902",
+          "reactions=2",
+          "rejection=0.3293",
+          "followThrough=0.5726",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.3293",
+          "followThrough=0.5726",
+          "gapContinuation=0.0000",
+          "pathClearance=0.7735",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "DEVS-support-zone-15",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "4h",
+        "zoneLow": 0.1819,
+        "zoneHigh": 0.1819,
+        "representativePrice": 0.1819,
+        "strengthScore": 8.62,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.158,
+        "rejectionScore": 0.29,
+        "displacementScore": 0.3254,
+        "sessionSignificanceScore": 0.504,
+        "followThroughScore": 0.5668,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1777982400000,
+        "lastTimestamp": 1777982400000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h support swing.",
+          "displacement=0.3254",
+          "reactions=1",
+          "rejection=0.2900",
+          "followThrough=0.5668",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.2900",
+          "followThrough=0.5668",
+          "gapContinuation=0.0000",
+          "pathClearance=0.4555",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intermediateResistance": [
+      {
+        "id": "DEVS-resistance-zone-20",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "timeframeBias": "4h",
+        "zoneLow": 0.3126,
+        "zoneHigh": 0.3126,
+        "representativePrice": 0.3126,
+        "strengthScore": 11.53,
+        "strengthLabel": "weak",
+        "touchCount": 3,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.3511,
+        "rejectionScore": 0.339,
+        "displacementScore": 0.1579,
+        "sessionSignificanceScore": 0.504,
+        "followThroughScore": 0.6337,
+        "gapContinuationScore": 0.35,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1777449600000,
+        "lastTimestamp": 1777449600000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h resistance swing.",
+          "displacement=0.1462",
+          "reactions=2",
+          "rejection=0.3390",
+          "followThrough=0.6337",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=1",
+          "rejection=0.3390",
+          "followThrough=0.6337",
+          "gapContinuation=0.3500",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "DEVS-resistance-zone-21",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "timeframeBias": "4h",
+        "zoneLow": 0.348,
+        "zoneHigh": 0.3501,
+        "representativePrice": 0.3501,
+        "strengthScore": 10.66,
+        "strengthLabel": "weak",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "4h"
+        ],
+        "reactionQualityScore": 0.2407,
+        "rejectionScore": 0.7032,
+        "displacementScore": 0.3014,
+        "sessionSignificanceScore": 0.504,
+        "followThroughScore": 0.6314,
+        "gapContinuationScore": 0.175,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1777276800000,
+        "lastTimestamp": 1777320000000,
+        "isExtension": false,
+        "freshness": "stale",
+        "notes": [
+          "Derived from 4h resistance swing.",
+          "displacement=0.2868",
+          "reactions=1",
+          "rejection=0.6383",
+          "followThrough=0.5947",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.2927",
+          "rejection=0.7681",
+          "followThrough=0.6680",
+          "gapContinuation=0.3500",
+          "gap=yes",
+          "freshness=stale",
+          "evidence=2",
+          "rejection=0.7032",
+          "followThrough=0.6314",
+          "gapContinuation=0.1750",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intradaySupport": [
+      {
+        "id": "DEVS-support-zone-3",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 0.12,
+        "zoneHigh": 0.1209,
+        "representativePrice": 0.12,
+        "strengthScore": 23.72,
+        "strengthLabel": "moderate",
+        "touchCount": 18,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low",
+          "premarket_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.6304,
+        "rejectionScore": 0.25,
+        "displacementScore": 0.1787,
+        "sessionSignificanceScore": 1,
+        "followThroughScore": 0.4848,
+        "gapContinuationScore": 0.3043,
+        "sourceEvidenceCount": 4,
+        "firstTimestamp": 1780041600000,
+        "lastTimestamp": 1780061700000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Derived from 5m support swing.",
+          "displacement=0.0464",
+          "reactions=3",
+          "rejection=0.0000",
+          "followThrough=0.6511",
+          "gapContinuation=1.0000",
+          "gap=yes",
+          "displacement=0.0075",
+          "followThrough=0.1240",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "Session-accurate premarket low candidate.",
+          "displacement=0.0531",
+          "reactions=4",
+          "rejection=0.3500",
+          "followThrough=0.4441",
+          "gapContinuation=0.2171",
+          "freshness=aging",
+          "evidence=4",
+          "rejection=0.2500",
+          "followThrough=0.4848",
+          "gapContinuation=0.3043",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "DEVS-support-zone-5",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 0.1257,
+        "zoneHigh": 0.1268,
+        "representativePrice": 0.1268,
+        "strengthScore": 21.64,
+        "strengthLabel": "moderate",
+        "touchCount": 24,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.6472,
+        "rejectionScore": 0.2125,
+        "displacementScore": 0.0217,
+        "sessionSignificanceScore": 0.3885,
+        "followThroughScore": 0.3505,
+        "gapContinuationScore": 0.2706,
+        "sourceEvidenceCount": 4,
+        "firstTimestamp": 1780042500000,
+        "lastTimestamp": 1780052400000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Derived from 5m support swing.",
+          "displacement=0.0142",
+          "reactions=5",
+          "rejection=0.0000",
+          "followThrough=0.0000",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "displacement=0.0274",
+          "reactions=3",
+          "followThrough=0.5049",
+          "gapContinuation=0.1910",
+          "gap=yes",
+          "displacement=0.0211",
+          "rejection=0.3500",
+          "followThrough=0.3593",
+          "displacement=0.0203",
+          "rejection=0.5000",
+          "followThrough=0.5376",
+          "gapContinuation=0.8915",
+          "freshness=aging",
+          "evidence=4",
+          "rejection=0.2125",
+          "followThrough=0.3505",
+          "gapContinuation=0.2706",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=0.8400"
+        ]
+      },
+      {
+        "id": "DEVS-support-zone-4",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 0.1229,
+        "zoneHigh": 0.123,
+        "representativePrice": 0.1229,
+        "strengthScore": 20.86,
+        "strengthLabel": "moderate",
+        "touchCount": 22,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 1,
+        "rejectionScore": 0.175,
+        "displacementScore": 0.0397,
+        "sessionSignificanceScore": 0.3785,
+        "followThroughScore": 0.2895,
+        "gapContinuationScore": 0.5,
+        "sourceEvidenceCount": 2,
+        "firstTimestamp": 1780049700000,
+        "lastTimestamp": 1780050900000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Derived from 5m support swing.",
+          "displacement=0.0367",
+          "reactions=6",
+          "rejection=0.3500",
+          "followThrough=0.3871",
+          "gapContinuation=1.0000",
+          "gap=yes",
+          "displacement=0.0398",
+          "rejection=0.0000",
+          "followThrough=0.1920",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=aging",
+          "evidence=2",
+          "rejection=0.1750",
+          "followThrough=0.2895",
+          "gapContinuation=0.5000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=0.8400"
+        ]
+      },
+      {
+        "id": "DEVS-support-zone-14",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 0.179,
+        "zoneHigh": 0.179,
+        "representativePrice": 0.179,
+        "strengthScore": 12.27,
+        "strengthLabel": "moderate",
+        "touchCount": 5,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.7368,
+        "rejectionScore": 0.6777,
+        "displacementScore": 0.3779,
+        "sessionSignificanceScore": 0.4361,
+        "followThroughScore": 0.7001,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1780059600000,
+        "lastTimestamp": 1780059600000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Derived from 5m support swing.",
+          "displacement=0.3779",
+          "reactions=3",
+          "rejection=0.6777",
+          "followThrough=0.7001",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=aging",
+          "evidence=1",
+          "rejection=0.6777",
+          "followThrough=0.7001",
+          "gapContinuation=0.0000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "DEVS-support-zone-16",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 0.2264,
+        "zoneHigh": 0.2264,
+        "representativePrice": 0.2264,
+        "strengthScore": 10.04,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "opening_range_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.9,
+        "rejectionScore": 0.72,
+        "displacementScore": 0.7,
+        "sessionSignificanceScore": 1,
+        "followThroughScore": 0.82,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1780061400000,
+        "lastTimestamp": 1780061700000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Session-accurate opening range low candidate.",
+          "freshness=aging",
+          "evidence=1",
+          "rejection=0.7200",
+          "followThrough=0.8200",
+          "gapContinuation=0.0000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "DEVS-support-zone-12",
+        "symbol": "DEVS",
+        "kind": "support",
+        "timeframeBias": "5m",
+        "zoneLow": 0.1689,
+        "zoneHigh": 0.1689,
+        "representativePrice": 0.1689,
+        "strengthScore": 7.76,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_low"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.3674,
+        "rejectionScore": 0.6972,
+        "displacementScore": 0.2075,
+        "sessionSignificanceScore": 0.4301,
+        "followThroughScore": 0.7519,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1780058700000,
+        "lastTimestamp": 1780058700000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Derived from 5m support swing.",
+          "displacement=0.2075",
+          "reactions=1",
+          "rejection=0.6972",
+          "followThrough=0.7519",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=aging",
+          "evidence=1",
+          "rejection=0.6972",
+          "followThrough=0.7519",
+          "gapContinuation=0.0000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "intradayResistance": [
+      {
+        "id": "DEVS-resistance-zone-19",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "timeframeBias": "5m",
+        "zoneLow": 0.2875,
+        "zoneHigh": 0.2875,
+        "representativePrice": 0.2875,
+        "strengthScore": 10.04,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "opening_range_high"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.9,
+        "rejectionScore": 0.72,
+        "displacementScore": 0.7,
+        "sessionSignificanceScore": 1,
+        "followThroughScore": 0.82,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1780061400000,
+        "lastTimestamp": 1780061700000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Session-accurate opening range high candidate.",
+          "freshness=aging",
+          "evidence=1",
+          "rejection=0.7200",
+          "followThrough=0.8200",
+          "gapContinuation=0.0000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "DEVS-resistance-zone-18",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "timeframeBias": "5m",
+        "zoneLow": 0.2838,
+        "zoneHigh": 0.2838,
+        "representativePrice": 0.2838,
+        "strengthScore": 9.44,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "premarket_high"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.8,
+        "rejectionScore": 0.65,
+        "displacementScore": 0.6,
+        "sessionSignificanceScore": 1,
+        "followThroughScore": 0.72,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1780041600000,
+        "lastTimestamp": 1780061700000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Session-accurate premarket high candidate.",
+          "freshness=aging",
+          "evidence=1",
+          "rejection=0.6500",
+          "followThrough=0.7200",
+          "gapContinuation=0.0000",
+          "pathClearance=0.7150",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      },
+      {
+        "id": "DEVS-resistance-zone-17",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "timeframeBias": "5m",
+        "zoneLow": 0.2624,
+        "zoneHigh": 0.2624,
+        "representativePrice": 0.2624,
+        "strengthScore": 7.9,
+        "strengthLabel": "weak",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "sourceTypes": [
+          "swing_high"
+        ],
+        "timeframeSources": [
+          "5m"
+        ],
+        "reactionQualityScore": 0.3735,
+        "rejectionScore": 0.6726,
+        "displacementScore": 0.3779,
+        "sessionSignificanceScore": 0.4401,
+        "followThroughScore": 0.7661,
+        "gapContinuationScore": 0,
+        "sourceEvidenceCount": 1,
+        "firstTimestamp": 1780060200000,
+        "lastTimestamp": 1780060200000,
+        "isExtension": false,
+        "freshness": "aging",
+        "notes": [
+          "Derived from 5m resistance swing.",
+          "displacement=0.3779",
+          "reactions=1",
+          "rejection=0.6726",
+          "followThrough=0.7661",
+          "gapContinuation=0.0000",
+          "gap=no",
+          "freshness=aging",
+          "evidence=1",
+          "rejection=0.6726",
+          "followThrough=0.7661",
+          "gapContinuation=0.0000",
+          "pathClearance=1.0000",
+          "crowdingPenalty=1.0000",
+          "recycledPenalty=1.0000"
+        ]
+      }
+    ],
+    "extensionLevels": {
+      "support": [
+        {
+          "id": "DEVS-support-zone-9",
+          "symbol": "DEVS",
+          "kind": "support",
+          "timeframeBias": "4h",
+          "zoneLow": 0.144,
+          "zoneHigh": 0.1454,
+          "representativePrice": 0.144,
+          "strengthScore": 10.07,
+          "strengthLabel": "weak",
+          "touchCount": 2,
+          "confluenceCount": 1,
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "reactionQualityScore": 0.2,
+          "rejectionScore": 0.4999,
+          "displacementScore": 0.2404,
+          "sessionSignificanceScore": 0.504,
+          "followThroughScore": 0.6151,
+          "gapContinuationScore": 0.175,
+          "sourceEvidenceCount": 2,
+          "firstTimestamp": 1778572800000,
+          "lastTimestamp": 1778760000000,
+          "isExtension": true,
+          "freshness": "stale",
+          "notes": [
+            "Derived from 4h support swing.",
+            "displacement=0.1656",
+            "reactions=1",
+            "rejection=0.6714",
+            "followThrough=0.6603",
+            "gapContinuation=0.3500",
+            "gap=yes",
+            "displacement=0.3019",
+            "rejection=0.3284",
+            "followThrough=0.5699",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "freshness=stale",
+            "evidence=2",
+            "rejection=0.4999",
+            "followThrough=0.6151",
+            "gapContinuation=0.1750",
+            "pathClearance=0.3968",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        },
+        {
+          "id": "DEVS-support-zone-8",
+          "symbol": "DEVS",
+          "kind": "support",
+          "timeframeBias": "4h",
+          "zoneLow": 0.142,
+          "zoneHigh": 0.142,
+          "representativePrice": 0.142,
+          "strengthScore": 9.36,
+          "strengthLabel": "weak",
+          "touchCount": 1,
+          "confluenceCount": 1,
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "reactionQualityScore": 0.2433,
+          "rejectionScore": 0.7163,
+          "displacementScore": 0.131,
+          "sessionSignificanceScore": 0.504,
+          "followThroughScore": 0.6009,
+          "gapContinuationScore": 0,
+          "sourceEvidenceCount": 1,
+          "firstTimestamp": 1778500800000,
+          "lastTimestamp": 1778500800000,
+          "isExtension": true,
+          "freshness": "stale",
+          "notes": [
+            "Derived from 4h support swing.",
+            "displacement=0.1310",
+            "reactions=1",
+            "rejection=0.7163",
+            "followThrough=0.6009",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "freshness=stale",
+            "evidence=1",
+            "rejection=0.7163",
+            "followThrough=0.6009",
+            "gapContinuation=0.0000",
+            "pathClearance=1.0000",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        },
+        {
+          "id": "DEVS-support-zone-6",
+          "symbol": "DEVS",
+          "kind": "support",
+          "timeframeBias": "5m",
+          "zoneLow": 0.129,
+          "zoneHigh": 0.13,
+          "representativePrice": 0.13,
+          "strengthScore": 15.5,
+          "strengthLabel": "moderate",
+          "touchCount": 9,
+          "confluenceCount": 1,
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "reactionQualityScore": 0.5831,
+          "rejectionScore": 0.319,
+          "displacementScore": 0.2263,
+          "sessionSignificanceScore": 0.4123,
+          "followThroughScore": 0.5814,
+          "gapContinuationScore": 0,
+          "sourceEvidenceCount": 2,
+          "firstTimestamp": 1780054500000,
+          "lastTimestamp": 1780056000000,
+          "isExtension": true,
+          "freshness": "aging",
+          "notes": [
+            "Derived from 5m support swing.",
+            "displacement=0.0283",
+            "reactions=3",
+            "rejection=0.0000",
+            "followThrough=0.4447",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "displacement=0.4242",
+            "reactions=2",
+            "rejection=0.6379",
+            "followThrough=0.7181",
+            "freshness=aging",
+            "evidence=2",
+            "rejection=0.3190",
+            "followThrough=0.5814",
+            "gapContinuation=0.0000",
+            "pathClearance=1.0000",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ]
+        }
+      ],
+      "resistance": []
+    },
+    "specialLevels": {
+      "premarketHigh": 0.2838,
+      "premarketLow": 0.12,
+      "openingRangeHigh": 0.2875,
+      "openingRangeLow": 0.2264
+    }
+  },
+  "levelIntelligenceReport": {
+    "symbol": "DEVS",
+    "generatedAt": 1780062000000,
+    "referencePrice": 0.2592,
+    "profiles": [
+      {
+        "levelId": "DEVS-support-zone-7",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.1368,
+        "zoneLow": 0.1368,
+        "zoneHigh": 0.137,
+        "zoneWidthPercent": 0.1462,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "daily",
+            "4h"
+          ],
+          "primaryTimeframe": "mixed",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777867200000,
+          "lastTimestamp": 1778155200000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 7,
+          "reactionQualityScore": 0.2763,
+          "rejectionScore": 0.2703,
+          "displacementScore": 0.9474,
+          "followThroughScore": 0.6973
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 47.2222,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.1368 is sourced from daily, 4h evidence; freshness is stale; 47.2222% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-10",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.1505,
+        "zoneLow": 0.1495,
+        "zoneHigh": 0.1505,
+        "zoneWidthPercent": 0.6645,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1778673600000,
+          "lastTimestamp": 1779350400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 18,
+          "reactionQualityScore": 0.6743,
+          "rejectionScore": 0.4393,
+          "displacementScore": 0.1675,
+          "followThroughScore": 0.5739
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 41.9367,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.1505 is sourced from 4h evidence; freshness is stale; 41.9367% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-1",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.112,
+        "zoneLow": 0.1111,
+        "zoneHigh": 0.112,
+        "zoneWidthPercent": 0.8036,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1779811200000,
+          "lastTimestamp": 1779955200000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.3353,
+          "rejectionScore": 0.5248,
+          "displacementScore": 0.2321,
+          "followThroughScore": 0.8788
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 56.7901,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.112 is sourced from 4h evidence; freshness is aging; 56.7901% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-13",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.1736,
+        "zoneLow": 0.1736,
+        "zoneHigh": 0.1736,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1778846400000,
+          "lastTimestamp": 1778846400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 3,
+          "reactionQualityScore": 0.351,
+          "rejectionScore": 0.3293,
+          "displacementScore": 0.0902,
+          "followThroughScore": 0.5726
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 33.0247,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.1736 is sourced from 4h evidence; freshness is stale; 33.0247% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-15",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.1819,
+        "zoneLow": 0.1819,
+        "zoneHigh": 0.1819,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777982400000,
+          "lastTimestamp": 1777982400000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.158,
+          "rejectionScore": 0.29,
+          "displacementScore": 0.3254,
+          "followThroughScore": 0.5668
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 29.8225,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": [
+            "DEVS-volume-shelf-0.18-0.19"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf DEVS-volume-shelf-0.18-0.19 (0.18-0.19, 18.0505% of window volume, role unknown)."
+          ],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "near_volume_shelf",
+            "volume_shelf_role_unknown",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "support zone 0.1819 is sourced from 4h evidence; freshness is stale; 29.8225% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-resistance-zone-20",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "representativePrice": 0.3126,
+        "zoneLow": 0.3126,
+        "zoneHigh": 0.3126,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777449600000,
+          "lastTimestamp": 1777449600000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 3,
+          "reactionQualityScore": 0.3511,
+          "rejectionScore": 0.339,
+          "displacementScore": 0.1579,
+          "followThroughScore": 0.6337
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 20.6019,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 0.3126 is sourced from 4h evidence; freshness is stale; 20.6019% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-resistance-zone-21",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "representativePrice": 0.3501,
+        "zoneLow": 0.348,
+        "zoneHigh": 0.3501,
+        "zoneWidthPercent": 0.5998,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1777276800000,
+          "lastTimestamp": 1777320000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.2407,
+          "rejectionScore": 0.7032,
+          "displacementScore": 0.3014,
+          "followThroughScore": 0.6314
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 35.0694,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 0.3501 is sourced from 4h evidence; freshness is stale; 35.0694% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-3",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.12,
+        "zoneLow": 0.12,
+        "zoneHigh": 0.1209,
+        "zoneWidthPercent": 0.75,
+        "origin": {
+          "sourceTypes": [
+            "swing_low",
+            "premarket_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780041600000,
+          "lastTimestamp": 1780061700000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 18,
+          "reactionQualityScore": 0.6304,
+          "rejectionScore": 0.25,
+          "displacementScore": 0.1787,
+          "followThroughScore": 0.4848
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 53.7037,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near low of day 0.12 (0% away).",
+            "Level is near premarket low 0.12 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "near_low_of_day",
+            "near_premarket_low",
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.12 is sourced from 5m evidence; freshness is aging; 53.7037% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-5",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.1268,
+        "zoneLow": 0.1257,
+        "zoneHigh": 0.1268,
+        "zoneWidthPercent": 0.8675,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780042500000,
+          "lastTimestamp": 1780052400000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 24,
+          "reactionQualityScore": 0.6472,
+          "rejectionScore": 0.2125,
+          "displacementScore": 0.0217,
+          "followThroughScore": 0.3505
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 51.0802,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.1268 is sourced from 5m evidence; freshness is aging; 51.0802% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-4",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.1229,
+        "zoneLow": 0.1229,
+        "zoneHigh": 0.123,
+        "zoneWidthPercent": 0.0814,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780049700000,
+          "lastTimestamp": 1780050900000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 22,
+          "reactionQualityScore": 1,
+          "rejectionScore": 0.175,
+          "displacementScore": 0.0397,
+          "followThroughScore": 0.2895
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 52.5849,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.1229 is sourced from 5m evidence; freshness is aging; 52.5849% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-14",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.179,
+        "zoneLow": 0.179,
+        "zoneHigh": 0.179,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780059600000,
+          "lastTimestamp": 1780059600000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 5,
+          "reactionQualityScore": 0.7368,
+          "rejectionScore": 0.6777,
+          "displacementScore": 0.3779,
+          "followThroughScore": 0.7001
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 30.9414,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.179 is sourced from 5m evidence; freshness is aging; 30.9414% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-16",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.2264,
+        "zoneLow": 0.2264,
+        "zoneHigh": 0.2264,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "opening_range_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780061400000,
+          "lastTimestamp": 1780061700000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.9,
+          "rejectionScore": 0.72,
+          "displacementScore": 0.7,
+          "followThroughScore": 0.82
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 12.6543,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": [
+            "DEVS-volume-shelf-0.22-0.23"
+          ]
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near opening range low 0.2264 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [
+            "Level overlaps volume shelf DEVS-volume-shelf-0.22-0.23 (0.22-0.23, 13.5475% of window volume, role support)."
+          ],
+          "contextTags": [
+            "near_opening_range_low",
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "near_volume_shelf",
+            "volume_shelf_role_support",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ],
+        "reason": "support zone 0.2264 is sourced from 5m evidence; freshness is aging; 12.6543% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-12",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.1689,
+        "zoneLow": 0.1689,
+        "zoneHigh": 0.1689,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780058700000,
+          "lastTimestamp": 1780058700000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.3674,
+          "rejectionScore": 0.6972,
+          "displacementScore": 0.2075,
+          "followThroughScore": 0.7519
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 34.838,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.1689 is sourced from 5m evidence; freshness is aging; 34.838% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-resistance-zone-19",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "representativePrice": 0.2875,
+        "zoneLow": 0.2875,
+        "zoneHigh": 0.2875,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "opening_range_high"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780061400000,
+          "lastTimestamp": 1780061700000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.9,
+          "rejectionScore": 0.72,
+          "displacementScore": 0.7,
+          "followThroughScore": 0.82
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 10.9182,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near high of day 0.2875 (0% away).",
+            "Level is near opening range high 0.2875 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "near_high_of_day",
+            "near_opening_range_high",
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 0.2875 is sourced from 5m evidence; freshness is aging; 10.9182% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-resistance-zone-18",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "representativePrice": 0.2838,
+        "zoneLow": 0.2838,
+        "zoneHigh": 0.2838,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "premarket_high"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780041600000,
+          "lastTimestamp": 1780061700000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.8,
+          "rejectionScore": 0.65,
+          "displacementScore": 0.6,
+          "followThroughScore": 0.72
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 9.4907,
+          "category": "extended"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [
+            "Level is near premarket high 0.2838 (0% away)."
+          ],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "near_premarket_high",
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 0.2838 is sourced from 5m evidence; freshness is aging; 9.4907% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-resistance-zone-17",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "representativePrice": 0.2624,
+        "zoneLow": 0.2624,
+        "zoneHigh": 0.2624,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780060200000,
+          "lastTimestamp": 1780060200000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.3735,
+          "rejectionScore": 0.6726,
+          "displacementScore": 0.3779,
+          "followThroughScore": 0.7661
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 1.2346,
+          "category": "near"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "resistance zone 0.2624 is sourced from 5m evidence; freshness is aging; 1.2346% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-9",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.144,
+        "zoneLow": 0.144,
+        "zoneHigh": 0.1454,
+        "zoneWidthPercent": 0.9722,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from 4h support swing.",
+            "displacement=0.1656",
+            "reactions=1",
+            "rejection=0.6714",
+            "followThrough=0.6603",
+            "gapContinuation=0.3500",
+            "gap=yes",
+            "displacement=0.3019",
+            "rejection=0.3284",
+            "followThrough=0.5699",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "freshness=stale",
+            "evidence=2",
+            "rejection=0.4999",
+            "followThrough=0.6151",
+            "gapContinuation=0.1750",
+            "pathClearance=0.3968",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1778572800000,
+          "lastTimestamp": 1778760000000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 2,
+          "reactionQualityScore": 0.2,
+          "rejectionScore": 0.4999,
+          "displacementScore": 0.2404,
+          "followThroughScore": 0.6151
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 44.4444,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.144 is sourced from 4h evidence; freshness is stale; 44.4444% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-8",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.142,
+        "zoneLow": 0.142,
+        "zoneHigh": 0.142,
+        "zoneWidthPercent": 0,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "4h"
+          ],
+          "primaryTimeframe": "4h",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from 4h support swing.",
+            "displacement=0.1310",
+            "reactions=1",
+            "rejection=0.7163",
+            "followThrough=0.6009",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "freshness=stale",
+            "evidence=1",
+            "rejection=0.7163",
+            "followThrough=0.6009",
+            "gapContinuation=0.0000",
+            "pathClearance=1.0000",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1778500800000,
+          "lastTimestamp": 1778500800000,
+          "label": "stale"
+        },
+        "reaction": {
+          "touchCount": 1,
+          "reactionQualityScore": 0.2433,
+          "rejectionScore": 0.7163,
+          "displacementScore": 0.131,
+          "followThroughScore": 0.6009
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 45.216,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.142 is sourced from 4h evidence; freshness is stale; 45.216% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "levelId": "DEVS-support-zone-6",
+        "symbol": "DEVS",
+        "kind": "support",
+        "representativePrice": 0.13,
+        "zoneLow": 0.129,
+        "zoneHigh": 0.13,
+        "zoneWidthPercent": 0.7692,
+        "origin": {
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "timeframeSources": [
+            "5m"
+          ],
+          "primaryTimeframe": "5m",
+          "isExtension": true
+        },
+        "extension": {
+          "source": "historical_candidate",
+          "label": "Historical candidate extension",
+          "evidenceLimitations": [],
+          "notes": [
+            "Derived from 5m support swing.",
+            "displacement=0.0283",
+            "reactions=3",
+            "rejection=0.0000",
+            "followThrough=0.4447",
+            "gapContinuation=0.0000",
+            "gap=no",
+            "displacement=0.4242",
+            "reactions=2",
+            "rejection=0.6379",
+            "followThrough=0.7181",
+            "freshness=aging",
+            "evidence=2",
+            "rejection=0.3190",
+            "followThrough=0.5814",
+            "gapContinuation=0.0000",
+            "pathClearance=1.0000",
+            "crowdingPenalty=1.0000",
+            "recycledPenalty=1.0000"
+          ],
+          "isSyntheticContinuationMap": false
+        },
+        "freshness": {
+          "firstTimestamp": 1780054500000,
+          "lastTimestamp": 1780056000000,
+          "label": "aging"
+        },
+        "reaction": {
+          "touchCount": 9,
+          "reactionQualityScore": 0.5831,
+          "rejectionScore": 0.319,
+          "displacementScore": 0.2263,
+          "followThroughScore": 0.5814
+        },
+        "distance": {
+          "referencePrice": 0.2592,
+          "distanceFromReferencePct": 49.8457,
+          "category": "far"
+        },
+        "volume": {
+          "volumeState": "low",
+          "relativeVolume": 0.4661,
+          "dollarVolume": 31037968.02,
+          "liquidityQuality": "strong",
+          "accelerationState": "building",
+          "pullbackVolumeState": "unknown",
+          "breakoutVolumeState": "not_applicable",
+          "nearbyShelfIds": []
+        },
+        "confluence": {
+          "nearSessionFacts": [],
+          "nearVolumeFacts": [
+            "Volume state is low.",
+            "Relative volume fact is 0.4661.",
+            "Dollar volume fact is 31037968.02.",
+            "Liquidity quality fact is strong.",
+            "Volume acceleration fact is building."
+          ],
+          "nearShelfFacts": [],
+          "contextTags": [
+            "volume_state_low",
+            "relative_volume_fact",
+            "dollar_volume_fact",
+            "liquidity_strong",
+            "volume_acceleration_building",
+            "market_context_normal_intraday",
+            "runner_phase_not_applicable",
+            "extension_level"
+          ]
+        },
+        "marketContext": {
+          "primaryContext": "normal_intraday",
+          "runnerPhase": "not_applicable",
+          "confidence": 0.468
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "reason": "support zone 0.13 is sourced from 5m evidence; freshness is aging; 49.8457% from reference price; volume state is low.",
+        "safety": {
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "buckets": {
+      "majorSupport": [
+        {
+          "levelId": "DEVS-support-zone-7",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.1368,
+          "zoneLow": 0.1368,
+          "zoneHigh": 0.137,
+          "zoneWidthPercent": 0.1462,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "daily",
+              "4h"
+            ],
+            "primaryTimeframe": "mixed",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777867200000,
+            "lastTimestamp": 1778155200000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 7,
+            "reactionQualityScore": 0.2763,
+            "rejectionScore": 0.2703,
+            "displacementScore": 0.9474,
+            "followThroughScore": 0.6973
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 47.2222,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.1368 is sourced from daily, 4h evidence; freshness is stale; 47.2222% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "majorResistance": [],
+      "intermediateSupport": [
+        {
+          "levelId": "DEVS-support-zone-10",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.1505,
+          "zoneLow": 0.1495,
+          "zoneHigh": 0.1505,
+          "zoneWidthPercent": 0.6645,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1778673600000,
+            "lastTimestamp": 1779350400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 18,
+            "reactionQualityScore": 0.6743,
+            "rejectionScore": 0.4393,
+            "displacementScore": 0.1675,
+            "followThroughScore": 0.5739
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 41.9367,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.1505 is sourced from 4h evidence; freshness is stale; 41.9367% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-1",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.112,
+          "zoneLow": 0.1111,
+          "zoneHigh": 0.112,
+          "zoneWidthPercent": 0.8036,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1779811200000,
+            "lastTimestamp": 1779955200000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 2,
+            "reactionQualityScore": 0.3353,
+            "rejectionScore": 0.5248,
+            "displacementScore": 0.2321,
+            "followThroughScore": 0.8788
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 56.7901,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.112 is sourced from 4h evidence; freshness is aging; 56.7901% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-13",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.1736,
+          "zoneLow": 0.1736,
+          "zoneHigh": 0.1736,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1778846400000,
+            "lastTimestamp": 1778846400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 3,
+            "reactionQualityScore": 0.351,
+            "rejectionScore": 0.3293,
+            "displacementScore": 0.0902,
+            "followThroughScore": 0.5726
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 33.0247,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.1736 is sourced from 4h evidence; freshness is stale; 33.0247% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-15",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.1819,
+          "zoneLow": 0.1819,
+          "zoneHigh": 0.1819,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777982400000,
+            "lastTimestamp": 1777982400000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.158,
+            "rejectionScore": 0.29,
+            "displacementScore": 0.3254,
+            "followThroughScore": 0.5668
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 29.8225,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": [
+              "DEVS-volume-shelf-0.18-0.19"
+            ]
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [
+              "Level overlaps volume shelf DEVS-volume-shelf-0.18-0.19 (0.18-0.19, 18.0505% of window volume, role unknown)."
+            ],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "near_volume_shelf",
+              "volume_shelf_role_unknown",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing"
+          ],
+          "reason": "support zone 0.1819 is sourced from 4h evidence; freshness is stale; 29.8225% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intermediateResistance": [
+        {
+          "levelId": "DEVS-resistance-zone-20",
+          "symbol": "DEVS",
+          "kind": "resistance",
+          "representativePrice": 0.3126,
+          "zoneLow": 0.3126,
+          "zoneHigh": 0.3126,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777449600000,
+            "lastTimestamp": 1777449600000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 3,
+            "reactionQualityScore": 0.3511,
+            "rejectionScore": 0.339,
+            "displacementScore": 0.1579,
+            "followThroughScore": 0.6337
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 20.6019,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 0.3126 is sourced from 4h evidence; freshness is stale; 20.6019% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-resistance-zone-21",
+          "symbol": "DEVS",
+          "kind": "resistance",
+          "representativePrice": 0.3501,
+          "zoneLow": 0.348,
+          "zoneHigh": 0.3501,
+          "zoneWidthPercent": 0.5998,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1777276800000,
+            "lastTimestamp": 1777320000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 2,
+            "reactionQualityScore": 0.2407,
+            "rejectionScore": 0.7032,
+            "displacementScore": 0.3014,
+            "followThroughScore": 0.6314
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 35.0694,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 0.3501 is sourced from 4h evidence; freshness is stale; 35.0694% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intradaySupport": [
+        {
+          "levelId": "DEVS-support-zone-3",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.12,
+          "zoneLow": 0.12,
+          "zoneHigh": 0.1209,
+          "zoneWidthPercent": 0.75,
+          "origin": {
+            "sourceTypes": [
+              "swing_low",
+              "premarket_low"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780041600000,
+            "lastTimestamp": 1780061700000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 18,
+            "reactionQualityScore": 0.6304,
+            "rejectionScore": 0.25,
+            "displacementScore": 0.1787,
+            "followThroughScore": 0.4848
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 53.7037,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near low of day 0.12 (0% away).",
+              "Level is near premarket low 0.12 (0% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "near_low_of_day",
+              "near_premarket_low",
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.12 is sourced from 5m evidence; freshness is aging; 53.7037% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-5",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.1268,
+          "zoneLow": 0.1257,
+          "zoneHigh": 0.1268,
+          "zoneWidthPercent": 0.8675,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780042500000,
+            "lastTimestamp": 1780052400000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 24,
+            "reactionQualityScore": 0.6472,
+            "rejectionScore": 0.2125,
+            "displacementScore": 0.0217,
+            "followThroughScore": 0.3505
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 51.0802,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.1268 is sourced from 5m evidence; freshness is aging; 51.0802% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-4",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.1229,
+          "zoneLow": 0.1229,
+          "zoneHigh": 0.123,
+          "zoneWidthPercent": 0.0814,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780049700000,
+            "lastTimestamp": 1780050900000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 22,
+            "reactionQualityScore": 1,
+            "rejectionScore": 0.175,
+            "displacementScore": 0.0397,
+            "followThroughScore": 0.2895
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 52.5849,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.1229 is sourced from 5m evidence; freshness is aging; 52.5849% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-14",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.179,
+          "zoneLow": 0.179,
+          "zoneHigh": 0.179,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780059600000,
+            "lastTimestamp": 1780059600000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 5,
+            "reactionQualityScore": 0.7368,
+            "rejectionScore": 0.6777,
+            "displacementScore": 0.3779,
+            "followThroughScore": 0.7001
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 30.9414,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.179 is sourced from 5m evidence; freshness is aging; 30.9414% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-16",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.2264,
+          "zoneLow": 0.2264,
+          "zoneHigh": 0.2264,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "opening_range_low"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780061400000,
+            "lastTimestamp": 1780061700000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.9,
+            "rejectionScore": 0.72,
+            "displacementScore": 0.7,
+            "followThroughScore": 0.82
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 12.6543,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": [
+              "DEVS-volume-shelf-0.22-0.23"
+            ]
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near opening range low 0.2264 (0% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [
+              "Level overlaps volume shelf DEVS-volume-shelf-0.22-0.23 (0.22-0.23, 13.5475% of window volume, role support)."
+            ],
+            "contextTags": [
+              "near_opening_range_low",
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "near_volume_shelf",
+              "volume_shelf_role_support",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing"
+          ],
+          "reason": "support zone 0.2264 is sourced from 5m evidence; freshness is aging; 12.6543% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-12",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.1689,
+          "zoneLow": 0.1689,
+          "zoneHigh": 0.1689,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780058700000,
+            "lastTimestamp": 1780058700000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.3674,
+            "rejectionScore": 0.6972,
+            "displacementScore": 0.2075,
+            "followThroughScore": 0.7519
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 34.838,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.1689 is sourced from 5m evidence; freshness is aging; 34.838% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "intradayResistance": [
+        {
+          "levelId": "DEVS-resistance-zone-19",
+          "symbol": "DEVS",
+          "kind": "resistance",
+          "representativePrice": 0.2875,
+          "zoneLow": 0.2875,
+          "zoneHigh": 0.2875,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "opening_range_high"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780061400000,
+            "lastTimestamp": 1780061700000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.9,
+            "rejectionScore": 0.72,
+            "displacementScore": 0.7,
+            "followThroughScore": 0.82
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 10.9182,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near high of day 0.2875 (0% away).",
+              "Level is near opening range high 0.2875 (0% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "near_high_of_day",
+              "near_opening_range_high",
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 0.2875 is sourced from 5m evidence; freshness is aging; 10.9182% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-resistance-zone-18",
+          "symbol": "DEVS",
+          "kind": "resistance",
+          "representativePrice": 0.2838,
+          "zoneLow": 0.2838,
+          "zoneHigh": 0.2838,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "premarket_high"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780041600000,
+            "lastTimestamp": 1780061700000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.8,
+            "rejectionScore": 0.65,
+            "displacementScore": 0.6,
+            "followThroughScore": 0.72
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 9.4907,
+            "category": "extended"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [
+              "Level is near premarket high 0.2838 (0% away)."
+            ],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "near_premarket_high",
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 0.2838 is sourced from 5m evidence; freshness is aging; 9.4907% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-resistance-zone-17",
+          "symbol": "DEVS",
+          "kind": "resistance",
+          "representativePrice": 0.2624,
+          "zoneLow": 0.2624,
+          "zoneHigh": 0.2624,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_high"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780060200000,
+            "lastTimestamp": 1780060200000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.3735,
+            "rejectionScore": 0.6726,
+            "displacementScore": 0.3779,
+            "followThroughScore": 0.7661
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 1.2346,
+            "category": "near"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "resistance zone 0.2624 is sourced from 5m evidence; freshness is aging; 1.2346% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "extensionSupport": [
+        {
+          "levelId": "DEVS-support-zone-9",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.144,
+          "zoneLow": 0.144,
+          "zoneHigh": 0.1454,
+          "zoneWidthPercent": 0.9722,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from 4h support swing.",
+              "displacement=0.1656",
+              "reactions=1",
+              "rejection=0.6714",
+              "followThrough=0.6603",
+              "gapContinuation=0.3500",
+              "gap=yes",
+              "displacement=0.3019",
+              "rejection=0.3284",
+              "followThrough=0.5699",
+              "gapContinuation=0.0000",
+              "gap=no",
+              "freshness=stale",
+              "evidence=2",
+              "rejection=0.4999",
+              "followThrough=0.6151",
+              "gapContinuation=0.1750",
+              "pathClearance=0.3968",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1778572800000,
+            "lastTimestamp": 1778760000000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 2,
+            "reactionQualityScore": 0.2,
+            "rejectionScore": 0.4999,
+            "displacementScore": 0.2404,
+            "followThroughScore": 0.6151
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 44.4444,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable",
+              "extension_level"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.144 is sourced from 4h evidence; freshness is stale; 44.4444% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-8",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.142,
+          "zoneLow": 0.142,
+          "zoneHigh": 0.142,
+          "zoneWidthPercent": 0,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "4h"
+            ],
+            "primaryTimeframe": "4h",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from 4h support swing.",
+              "displacement=0.1310",
+              "reactions=1",
+              "rejection=0.7163",
+              "followThrough=0.6009",
+              "gapContinuation=0.0000",
+              "gap=no",
+              "freshness=stale",
+              "evidence=1",
+              "rejection=0.7163",
+              "followThrough=0.6009",
+              "gapContinuation=0.0000",
+              "pathClearance=1.0000",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1778500800000,
+            "lastTimestamp": 1778500800000,
+            "label": "stale"
+          },
+          "reaction": {
+            "touchCount": 1,
+            "reactionQualityScore": 0.2433,
+            "rejectionScore": 0.7163,
+            "displacementScore": 0.131,
+            "followThroughScore": 0.6009
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 45.216,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable",
+              "extension_level"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.142 is sourced from 4h evidence; freshness is stale; 45.216% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        },
+        {
+          "levelId": "DEVS-support-zone-6",
+          "symbol": "DEVS",
+          "kind": "support",
+          "representativePrice": 0.13,
+          "zoneLow": 0.129,
+          "zoneHigh": 0.13,
+          "zoneWidthPercent": 0.7692,
+          "origin": {
+            "sourceTypes": [
+              "swing_low"
+            ],
+            "timeframeSources": [
+              "5m"
+            ],
+            "primaryTimeframe": "5m",
+            "isExtension": true
+          },
+          "extension": {
+            "source": "historical_candidate",
+            "label": "Historical candidate extension",
+            "evidenceLimitations": [],
+            "notes": [
+              "Derived from 5m support swing.",
+              "displacement=0.0283",
+              "reactions=3",
+              "rejection=0.0000",
+              "followThrough=0.4447",
+              "gapContinuation=0.0000",
+              "gap=no",
+              "displacement=0.4242",
+              "reactions=2",
+              "rejection=0.6379",
+              "followThrough=0.7181",
+              "freshness=aging",
+              "evidence=2",
+              "rejection=0.3190",
+              "followThrough=0.5814",
+              "gapContinuation=0.0000",
+              "pathClearance=1.0000",
+              "crowdingPenalty=1.0000",
+              "recycledPenalty=1.0000"
+            ],
+            "isSyntheticContinuationMap": false
+          },
+          "freshness": {
+            "firstTimestamp": 1780054500000,
+            "lastTimestamp": 1780056000000,
+            "label": "aging"
+          },
+          "reaction": {
+            "touchCount": 9,
+            "reactionQualityScore": 0.5831,
+            "rejectionScore": 0.319,
+            "displacementScore": 0.2263,
+            "followThroughScore": 0.5814
+          },
+          "distance": {
+            "referencePrice": 0.2592,
+            "distanceFromReferencePct": 49.8457,
+            "category": "far"
+          },
+          "volume": {
+            "volumeState": "low",
+            "relativeVolume": 0.4661,
+            "dollarVolume": 31037968.02,
+            "liquidityQuality": "strong",
+            "accelerationState": "building",
+            "pullbackVolumeState": "unknown",
+            "breakoutVolumeState": "not_applicable",
+            "nearbyShelfIds": []
+          },
+          "confluence": {
+            "nearSessionFacts": [],
+            "nearVolumeFacts": [
+              "Volume state is low.",
+              "Relative volume fact is 0.4661.",
+              "Dollar volume fact is 31037968.02.",
+              "Liquidity quality fact is strong.",
+              "Volume acceleration fact is building."
+            ],
+            "nearShelfFacts": [],
+            "contextTags": [
+              "volume_state_low",
+              "relative_volume_fact",
+              "dollar_volume_fact",
+              "liquidity_strong",
+              "volume_acceleration_building",
+              "market_context_normal_intraday",
+              "runner_phase_not_applicable",
+              "extension_level"
+            ]
+          },
+          "marketContext": {
+            "primaryContext": "normal_intraday",
+            "runnerPhase": "not_applicable",
+            "confidence": 0.468
+          },
+          "diagnostics": [
+            "enriched_analysis_missing",
+            "no_nearby_volume_shelf"
+          ],
+          "reason": "support zone 0.13 is sourced from 5m evidence; freshness is aging; 49.8457% from reference price; volume state is low.",
+          "safety": {
+            "factsOnly": true,
+            "noRuntimeBehaviorChange": true,
+            "vwapFactsOnly": true,
+            "shelvesAreFactsOnly": true
+          }
+        }
+      ],
+      "extensionResistance": []
+    },
+    "counts": {
+      "majorSupport": 1,
+      "majorResistance": 0,
+      "intermediateSupport": 4,
+      "intermediateResistance": 2,
+      "intradaySupport": 6,
+      "intradayResistance": 3,
+      "extensionSupport": 3,
+      "extensionResistance": 0,
+      "total": 19
+    },
+    "diagnostics": [
+      "enriched_analysis_missing",
+      "no_nearby_volume_shelf"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "factsOnly": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "noRuntimeBehaviorChange": true
+    }
+  },
+  "levelQualityAudit": {
+    "symbol": "DEVS",
+    "generatedAt": 1780062000000,
+    "referencePrice": 0.2592,
+    "summary": {
+      "totalLevels": 19,
+      "supportCount": 14,
+      "resistanceCount": 5,
+      "extensionCount": 3,
+      "freshCount": 0,
+      "staleCount": 8,
+      "enrichedCount": 0,
+      "unenrichedCount": 19
+    },
+    "strongestLevels": [
+      {
+        "levelId": "DEVS-support-zone-7",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "majorSupport",
+        "representativePrice": 0.1368,
+        "zoneLow": 0.1368,
+        "zoneHigh": 0.137,
+        "strengthScore": 33.49,
+        "strengthLabel": "strong",
+        "auditScore": 0.3349,
+        "freshness": "stale",
+        "touchCount": 7,
+        "confluenceCount": 2,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 47.2222,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-10",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 0.1505,
+        "zoneLow": 0.1495,
+        "zoneHigh": 0.1505,
+        "strengthScore": 25.61,
+        "strengthLabel": "strong",
+        "auditScore": 0.2561,
+        "freshness": "stale",
+        "touchCount": 18,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 41.9367,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-3",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 0.12,
+        "zoneLow": 0.12,
+        "zoneHigh": 0.1209,
+        "strengthScore": 23.72,
+        "strengthLabel": "moderate",
+        "auditScore": 0.2372,
+        "freshness": "aging",
+        "touchCount": 18,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 2,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 53.7037,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-5",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 0.1268,
+        "zoneLow": 0.1257,
+        "zoneHigh": 0.1268,
+        "strengthScore": 21.64,
+        "strengthLabel": "moderate",
+        "auditScore": 0.2164,
+        "freshness": "aging",
+        "touchCount": 24,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 51.0802,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-4",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 0.1229,
+        "zoneLow": 0.1229,
+        "zoneHigh": 0.123,
+        "strengthScore": 20.86,
+        "strengthLabel": "moderate",
+        "auditScore": 0.2086,
+        "freshness": "aging",
+        "touchCount": 22,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 52.5849,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "weakestLevels": [
+      {
+        "levelId": "DEVS-support-zone-12",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 0.1689,
+        "zoneLow": 0.1689,
+        "zoneHigh": 0.1689,
+        "strengthScore": 7.76,
+        "strengthLabel": "weak",
+        "auditScore": 0.0776,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 34.838,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-resistance-zone-17",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 0.2624,
+        "zoneLow": 0.2624,
+        "zoneHigh": 0.2624,
+        "strengthScore": 7.9,
+        "strengthLabel": "weak",
+        "auditScore": 0.079,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 1.2346,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-15",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 0.1819,
+        "zoneLow": 0.1819,
+        "zoneHigh": 0.1819,
+        "strengthScore": 8.62,
+        "strengthLabel": "weak",
+        "auditScore": 0.0862,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 29.8225,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-8",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 0.142,
+        "zoneLow": 0.142,
+        "zoneHigh": 0.142,
+        "strengthScore": 9.36,
+        "strengthLabel": "weak",
+        "auditScore": 0.0936,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 45.216,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-resistance-zone-18",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 0.2838,
+        "zoneLow": 0.2838,
+        "zoneHigh": 0.2838,
+        "strengthScore": 9.44,
+        "strengthLabel": "weak",
+        "auditScore": 0.0944,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 9.4907,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "staleLevels": [
+      {
+        "levelId": "DEVS-support-zone-15",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 0.1819,
+        "zoneLow": 0.1819,
+        "zoneHigh": 0.1819,
+        "strengthScore": 8.62,
+        "strengthLabel": "weak",
+        "auditScore": 0.0862,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 29.8225,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-8",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 0.142,
+        "zoneLow": 0.142,
+        "zoneHigh": 0.142,
+        "strengthScore": 9.36,
+        "strengthLabel": "weak",
+        "auditScore": 0.0936,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 45.216,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-9",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 0.144,
+        "zoneLow": 0.144,
+        "zoneHigh": 0.1454,
+        "strengthScore": 10.07,
+        "strengthLabel": "weak",
+        "auditScore": 0.1007,
+        "freshness": "stale",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 44.4444,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-resistance-zone-21",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "bucket": "intermediateResistance",
+        "representativePrice": 0.3501,
+        "zoneLow": 0.348,
+        "zoneHigh": 0.3501,
+        "strengthScore": 10.66,
+        "strengthLabel": "weak",
+        "auditScore": 0.1066,
+        "freshness": "stale",
+        "touchCount": 2,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 35.0694,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-13",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 0.1736,
+        "zoneLow": 0.1736,
+        "zoneHigh": 0.1736,
+        "strengthScore": 11.15,
+        "strengthLabel": "weak",
+        "auditScore": 0.1115,
+        "freshness": "stale",
+        "touchCount": 3,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 33.0247,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "freshLevels": [],
+    "strongConfluenceLevels": [
+      {
+        "levelId": "DEVS-support-zone-3",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 0.12,
+        "zoneLow": 0.12,
+        "zoneHigh": 0.1209,
+        "strengthScore": 23.72,
+        "strengthLabel": "moderate",
+        "auditScore": 0.2372,
+        "freshness": "aging",
+        "touchCount": 18,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 2,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 53.7037,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-16",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 0.2264,
+        "zoneLow": 0.2264,
+        "zoneHigh": 0.2264,
+        "strengthScore": 10.04,
+        "strengthLabel": "weak",
+        "auditScore": 0.1004,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 5,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 12.6543,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "DEVS-resistance-zone-19",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 0.2875,
+        "zoneLow": 0.2875,
+        "zoneHigh": 0.2875,
+        "strengthScore": 10.04,
+        "strengthLabel": "weak",
+        "auditScore": 0.1004,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 2,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 10.9182,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-resistance-zone-18",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 0.2838,
+        "zoneLow": 0.2838,
+        "zoneHigh": 0.2838,
+        "strengthScore": 9.44,
+        "strengthLabel": "weak",
+        "auditScore": 0.0944,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 9.4907,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-15",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 0.1819,
+        "zoneLow": 0.1819,
+        "zoneHigh": 0.1819,
+        "strengthScore": 8.62,
+        "strengthLabel": "weak",
+        "auditScore": 0.0862,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 29.8225,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      }
+    ],
+    "weakContextLevels": [],
+    "enrichedLevels": [],
+    "unenrichedLevels": [
+      {
+        "levelId": "DEVS-support-zone-12",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 0.1689,
+        "zoneLow": 0.1689,
+        "zoneHigh": 0.1689,
+        "strengthScore": 7.76,
+        "strengthLabel": "weak",
+        "auditScore": 0.0776,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 34.838,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-resistance-zone-17",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 0.2624,
+        "zoneLow": 0.2624,
+        "zoneHigh": 0.2624,
+        "strengthScore": 7.9,
+        "strengthLabel": "weak",
+        "auditScore": 0.079,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 1.2346,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-15",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intermediateSupport",
+        "representativePrice": 0.1819,
+        "zoneLow": 0.1819,
+        "zoneHigh": 0.1819,
+        "strengthScore": 8.62,
+        "strengthLabel": "weak",
+        "auditScore": 0.0862,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 29.8225,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      {
+        "levelId": "DEVS-support-zone-8",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "extensionSupport",
+        "representativePrice": 0.142,
+        "zoneLow": 0.142,
+        "zoneHigh": 0.142,
+        "strengthScore": 9.36,
+        "strengthLabel": "weak",
+        "auditScore": 0.0936,
+        "freshness": "stale",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": true,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 45.216,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      {
+        "levelId": "DEVS-resistance-zone-18",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 0.2838,
+        "zoneLow": 0.2838,
+        "zoneHigh": 0.2838,
+        "strengthScore": 9.44,
+        "strengthLabel": "weak",
+        "auditScore": 0.0944,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 9.4907,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      }
+    ],
+    "possibleClutterLevels": [],
+    "clusteredAreas": [],
+    "extensionCoverage": {
+      "supportExtensions": 3,
+      "resistanceExtensions": 0,
+      "lowestSupportExtension": 0.13,
+      "downsideCoveragePct": 49.8457,
+      "warnings": [
+        "no_resistance_extension_coverage"
+      ]
+    },
+    "nearbyCoverage": {
+      "referencePrice": 0.2592,
+      "nearbySupportCount": 0,
+      "nearbyResistanceCount": 1,
+      "nearestSupport": {
+        "levelId": "DEVS-support-zone-16",
+        "symbol": "DEVS",
+        "kind": "support",
+        "bucket": "intradaySupport",
+        "representativePrice": 0.2264,
+        "zoneLow": 0.2264,
+        "zoneHigh": 0.2264,
+        "strengthScore": 10.04,
+        "strengthLabel": "weak",
+        "auditScore": 0.1004,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 1,
+          "volume": 5,
+          "shelf": 1,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 12.6543,
+        "diagnostics": [
+          "enriched_analysis_missing"
+        ]
+      },
+      "nearestResistance": {
+        "levelId": "DEVS-resistance-zone-17",
+        "symbol": "DEVS",
+        "kind": "resistance",
+        "bucket": "intradayResistance",
+        "representativePrice": 0.2624,
+        "zoneLow": 0.2624,
+        "zoneHigh": 0.2624,
+        "strengthScore": 7.9,
+        "strengthLabel": "weak",
+        "auditScore": 0.079,
+        "freshness": "aging",
+        "touchCount": 1,
+        "confluenceCount": 1,
+        "isExtension": false,
+        "hasEnrichedAnalysis": false,
+        "contextCounts": {
+          "session": 0,
+          "volume": 5,
+          "shelf": 0,
+          "marketContext": 1
+        },
+        "distanceFromReferencePct": 1.2346,
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ]
+      },
+      "overheadResistanceGapPct": 1.2346,
+      "downsideSupportGapPct": 12.6543,
+      "warnings": [
+        "wide_downside_support_gap"
+      ]
+    },
+    "confluenceSummary": {
+      "sessionConfluenceCount": 4,
+      "volumeConfluenceCount": 19,
+      "shelfConfluenceCount": 2,
+      "marketContextConfluenceCount": 19
+    },
+    "diagnostics": [
+      "no_resistance_extension_coverage",
+      "unenriched_levels_present",
+      "wide_downside_support_gap"
+    ],
+    "safety": {
+      "levelOutputUnchanged": true,
+      "noRuntimeBehaviorChange": true,
+      "noScoringChange": true
+    }
+  },
+  "diagnostics": [
+    "candle_close_as_of_filter_applied",
+    "candle_inputs_reserved_for_future_fact_generation"
+  ],
+  "safety": {
+    "noLookaheadApplied": true,
+    "levelOutputUnchanged": true,
+    "factsOnlyVWAP": true,
+    "shelvesAreFactsOnly": true,
+    "syntheticExtensionsClearlyMarked": true,
+    "noRuntimeBehaviorChange": true
+  },
+  "referencePrice": 0.2592,
+  "sessionFacts": {
+    "symbol": "DEVS",
+    "asOfTimestamp": 1780062000000,
+    "sessionDate": "2026-05-29",
+    "previousClose": 0.127,
+    "regularSessionOpen": 0.2812,
+    "currentPrice": 0.2592,
+    "premarketHigh": 0.2838,
+    "premarketLow": 0.12,
+    "premarketHighTimestamp": 1780061100000,
+    "premarketLowTimestamp": 1780043400000,
+    "openingRangeHigh": 0.2875,
+    "openingRangeLow": 0.2264,
+    "openingRangeStartTimestamp": 1780061400000,
+    "openingRangeEndTimestamp": 1780062000000,
+    "highOfDay": 0.2875,
+    "lowOfDay": 0.12,
+    "highOfDayTimestamp": 1780061400000,
+    "lowOfDayTimestamp": 1780043400000,
+    "vwap": 0.2173,
+    "aboveVWAP": true,
+    "percentFromVWAP": 19.2821,
+    "diagnostics": []
+  },
+  "volumeFacts": {
+    "symbol": "DEVS",
+    "asOfTimestamp": 1780062000000,
+    "currentVolume": 5077741,
+    "rollingAverageVolume": 10895100.6,
+    "relativeVolume": 0.4661,
+    "dollarVolume": 31037968.02,
+    "volumeState": "low",
+    "liquidityQuality": "strong",
+    "accelerationState": "building",
+    "pullbackVolumeState": "unknown",
+    "breakoutVolumeState": "not_applicable",
+    "diagnostics": []
+  },
+  "volumeShelves": [
+    {
+      "id": "DEVS-volume-shelf-0.25-0.26",
+      "zoneLow": 0.25,
+      "zoneHigh": 0.26,
+      "representativePrice": 0.2526,
+      "totalVolume": 23589407,
+      "dollarVolume": 5959795.8,
+      "percentOfWindowVolume": 19.6997,
+      "touchCount": 2,
+      "firstTimestamp": 1780061400000,
+      "lastTimestamp": 1780061700000,
+      "shelfRole": "unknown",
+      "confidence": 0.5085,
+      "reason": "High activity shelf with 19.6997% of closed-window volume across 2 candle(s)."
+    },
+    {
+      "id": "DEVS-volume-shelf-0.18-0.19",
+      "zoneLow": 0.18,
+      "zoneHigh": 0.19,
+      "representativePrice": 0.184,
+      "totalVolume": 21614588,
+      "dollarVolume": 3978159.04,
+      "percentOfWindowVolume": 18.0505,
+      "touchCount": 4,
+      "firstTimestamp": 1780057200000,
+      "lastTimestamp": 1780059600000,
+      "shelfRole": "unknown",
+      "confidence": 0.5603,
+      "reason": "High activity shelf with 18.0505% of closed-window volume across 4 candle(s)."
+    },
+    {
+      "id": "DEVS-volume-shelf-0.23-0.24",
+      "zoneLow": 0.23,
+      "zoneHigh": 0.24,
+      "representativePrice": 0.2377,
+      "totalVolume": 18463365,
+      "dollarVolume": 4389112.23,
+      "percentOfWindowVolume": 15.4189,
+      "touchCount": 2,
+      "firstTimestamp": 1780060200000,
+      "lastTimestamp": 1780060800000,
+      "shelfRole": "unknown",
+      "confidence": 0.4871,
+      "reason": "High activity shelf with 15.4189% of closed-window volume across 2 candle(s)."
+    },
+    {
+      "id": "DEVS-volume-shelf-0.22-0.23",
+      "zoneLow": 0.22,
+      "zoneHigh": 0.23,
+      "representativePrice": 0.2236,
+      "totalVolume": 16222543,
+      "dollarVolume": 3627374.41,
+      "percentOfWindowVolume": 13.5475,
+      "touchCount": 2,
+      "firstTimestamp": 1780059900000,
+      "lastTimestamp": 1780060500000,
+      "shelfRole": "support",
+      "confidence": 0.4777,
+      "reason": "High activity shelf with 13.5475% of closed-window volume across 2 candle(s)."
+    },
+    {
+      "id": "DEVS-volume-shelf-0.19-0.2",
+      "zoneLow": 0.19,
+      "zoneHigh": 0.2,
+      "representativePrice": 0.1905,
+      "totalVolume": 14909733,
+      "dollarVolume": 2840693.91,
+      "percentOfWindowVolume": 12.4512,
+      "touchCount": 4,
+      "firstTimestamp": 1780057800000,
+      "lastTimestamp": 1780059300000,
+      "shelfRole": "unknown",
+      "confidence": 0.5323,
+      "reason": "High activity shelf with 12.4512% of closed-window volume across 4 candle(s)."
+    }
+  ],
+  "marketContext": {
+    "primaryContext": "normal_intraday",
+    "confidence": 0.468,
+    "runnerPhase": "not_applicable",
+    "evidence": [
+      {
+        "code": "sufficient_orderly_candles",
+        "context": "normal_intraday",
+        "message": "Closed 5m candles are available for context review.",
+        "weight": 0.4
+      }
+    ],
+    "warnings": [
+      {
+        "code": "vwap_facts_only",
+        "severity": "info",
+        "message": "VWAP was recorded as a market fact only and did not affect context scoring."
+      }
+    ],
+    "facts": {
+      "percentFromPreviousClose": 104.0945,
+      "percentFromOpen": -7.8236,
+      "percentFromVWAP": 19.2821,
+      "relativeVolume": 0.4661,
+      "dollarVolume": 31037968.02,
+      "aboveVWAP": true,
+      "abovePremarketHigh": false,
+      "aboveOpeningRangeHigh": false,
+      "nearHighOfDay": false,
+      "premarketHigh": 0.2838,
+      "openingRangeHigh": 0.2875,
+      "highOfDay": 0.2875,
+      "filteredCandleCount": 68,
+      "filteredPremarketCandleCount": 66,
+      "filteredRegularSessionCandleCount": 2
+    },
+    "scoringAdjustments": {
+      "intradayWeightMultiplier": 1,
+      "dailyWeightMultiplier": 1,
+      "sessionLevelWeightMultiplier": 1,
+      "volumeWeightMultiplier": 1,
+      "extensionRiskPenaltyMultiplier": 1
+    }
+  },
+  "factsBundle": {
+    "symbol": "DEVS",
+    "asOfTimestamp": 1780062000000,
+    "sessionFacts": {
+      "symbol": "DEVS",
+      "asOfTimestamp": 1780062000000,
+      "sessionDate": "2026-05-29",
+      "previousClose": 0.127,
+      "regularSessionOpen": 0.2812,
+      "currentPrice": 0.2592,
+      "premarketHigh": 0.2838,
+      "premarketLow": 0.12,
+      "premarketHighTimestamp": 1780061100000,
+      "premarketLowTimestamp": 1780043400000,
+      "openingRangeHigh": 0.2875,
+      "openingRangeLow": 0.2264,
+      "openingRangeStartTimestamp": 1780061400000,
+      "openingRangeEndTimestamp": 1780062000000,
+      "highOfDay": 0.2875,
+      "lowOfDay": 0.12,
+      "highOfDayTimestamp": 1780061400000,
+      "lowOfDayTimestamp": 1780043400000,
+      "vwap": 0.2173,
+      "aboveVWAP": true,
+      "percentFromVWAP": 19.2821,
+      "diagnostics": []
+    },
+    "volumeFacts": {
+      "symbol": "DEVS",
+      "asOfTimestamp": 1780062000000,
+      "currentVolume": 5077741,
+      "rollingAverageVolume": 10895100.6,
+      "relativeVolume": 0.4661,
+      "dollarVolume": 31037968.02,
+      "volumeState": "low",
+      "liquidityQuality": "strong",
+      "accelerationState": "building",
+      "pullbackVolumeState": "unknown",
+      "breakoutVolumeState": "not_applicable",
+      "diagnostics": []
+    },
+    "volumeShelves": [
+      {
+        "id": "DEVS-volume-shelf-0.25-0.26",
+        "zoneLow": 0.25,
+        "zoneHigh": 0.26,
+        "representativePrice": 0.2526,
+        "totalVolume": 23589407,
+        "dollarVolume": 5959795.8,
+        "percentOfWindowVolume": 19.6997,
+        "touchCount": 2,
+        "firstTimestamp": 1780061400000,
+        "lastTimestamp": 1780061700000,
+        "shelfRole": "unknown",
+        "confidence": 0.5085,
+        "reason": "High activity shelf with 19.6997% of closed-window volume across 2 candle(s)."
+      },
+      {
+        "id": "DEVS-volume-shelf-0.18-0.19",
+        "zoneLow": 0.18,
+        "zoneHigh": 0.19,
+        "representativePrice": 0.184,
+        "totalVolume": 21614588,
+        "dollarVolume": 3978159.04,
+        "percentOfWindowVolume": 18.0505,
+        "touchCount": 4,
+        "firstTimestamp": 1780057200000,
+        "lastTimestamp": 1780059600000,
+        "shelfRole": "unknown",
+        "confidence": 0.5603,
+        "reason": "High activity shelf with 18.0505% of closed-window volume across 4 candle(s)."
+      },
+      {
+        "id": "DEVS-volume-shelf-0.23-0.24",
+        "zoneLow": 0.23,
+        "zoneHigh": 0.24,
+        "representativePrice": 0.2377,
+        "totalVolume": 18463365,
+        "dollarVolume": 4389112.23,
+        "percentOfWindowVolume": 15.4189,
+        "touchCount": 2,
+        "firstTimestamp": 1780060200000,
+        "lastTimestamp": 1780060800000,
+        "shelfRole": "unknown",
+        "confidence": 0.4871,
+        "reason": "High activity shelf with 15.4189% of closed-window volume across 2 candle(s)."
+      },
+      {
+        "id": "DEVS-volume-shelf-0.22-0.23",
+        "zoneLow": 0.22,
+        "zoneHigh": 0.23,
+        "representativePrice": 0.2236,
+        "totalVolume": 16222543,
+        "dollarVolume": 3627374.41,
+        "percentOfWindowVolume": 13.5475,
+        "touchCount": 2,
+        "firstTimestamp": 1780059900000,
+        "lastTimestamp": 1780060500000,
+        "shelfRole": "support",
+        "confidence": 0.4777,
+        "reason": "High activity shelf with 13.5475% of closed-window volume across 2 candle(s)."
+      },
+      {
+        "id": "DEVS-volume-shelf-0.19-0.2",
+        "zoneLow": 0.19,
+        "zoneHigh": 0.2,
+        "representativePrice": 0.1905,
+        "totalVolume": 14909733,
+        "dollarVolume": 2840693.91,
+        "percentOfWindowVolume": 12.4512,
+        "touchCount": 4,
+        "firstTimestamp": 1780057800000,
+        "lastTimestamp": 1780059300000,
+        "shelfRole": "unknown",
+        "confidence": 0.5323,
+        "reason": "High activity shelf with 12.4512% of closed-window volume across 4 candle(s)."
+      }
+    ],
+    "diagnostics": {
+      "futureCandlesExcluded": 0,
+      "partialCandlesExcluded": 0,
+      "sessionDiagnostics": [],
+      "volumeDiagnostics": []
+    },
+    "levelOutputUnchanged": true,
+    "shelvesAreFactsOnly": true,
+    "vwapFactsOnly": true,
+    "referencePrice": 0.2592
+  }
+}
