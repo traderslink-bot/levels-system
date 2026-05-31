@@ -1,0 +1,2236 @@
+{
+  "levelOutputPaths": [
+    "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\aim-level-output.json",
+    "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\devs-level-output.json",
+    "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\dxyz-level-output.json",
+    "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\envx-level-output.json",
+    "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\pbm-level-output.json"
+  ],
+  "reports": [
+    {
+      "levelOutputPath": "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\aim-level-output.json",
+      "report": {
+        "symbol": "AIM",
+        "referencePrice": 0.373,
+        "support": {
+          "symbol": "AIM",
+          "referencePrice": 0.373,
+          "side": "support",
+          "surfacedLevelPrices": [
+            0.35,
+            0.33,
+            0.32,
+            0.2707,
+            0.2503,
+            0.228,
+            0.2206,
+            0.21
+          ],
+          "inputInventoryPrices": [
+            0.35,
+            0.3391,
+            0.33,
+            0.32,
+            0.2858,
+            0.2829,
+            0.2707,
+            0.2503,
+            0.228,
+            0.2206,
+            0.21
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [
+            0.3391,
+            0.2858,
+            0.2829
+          ],
+          "candidatePoolPrices": [
+            0.35,
+            0.3391,
+            0.33,
+            0.32,
+            0.2858,
+            0.2829,
+            0.2707,
+            0.2503,
+            0.228,
+            0.2206,
+            0.21
+          ],
+          "eligibleCandidatePrices": [
+            0.3391,
+            0.2858,
+            0.2829
+          ],
+          "selectedExtensionPrices": [
+            0.3391,
+            0.2858,
+            0.2829
+          ],
+          "skippedCandidatePrices": [
+            0.35,
+            0.33,
+            0.32,
+            0.2707,
+            0.2503,
+            0.228,
+            0.2206,
+            0.21
+          ],
+          "candidateCoveragePct": 24.1555,
+          "selectedCoveragePct": 24.1555,
+          "candidates": [
+            {
+              "id": "AIM-support-zone-13",
+              "price": 0.35,
+              "zoneLow": 0.3492,
+              "zoneHigh": 0.3518,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 59.5164,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-12",
+              "price": 0.3391,
+              "zoneLow": 0.3391,
+              "zoneHigh": 0.3391,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 31.59,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-11",
+              "price": 0.33,
+              "zoneLow": 0.327,
+              "zoneHigh": 0.331,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 38.6701,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-10",
+              "price": 0.32,
+              "zoneLow": 0.32,
+              "zoneHigh": 0.3238,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 37.8005,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-9",
+              "price": 0.2858,
+              "zoneLow": 0.2858,
+              "zoneHigh": 0.2858,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 26.7317,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-8",
+              "price": 0.2829,
+              "zoneLow": 0.2829,
+              "zoneHigh": 0.2829,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 29.2853,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-7",
+              "price": 0.2707,
+              "zoneLow": 0.27,
+              "zoneHigh": 0.2707,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 35.1833,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-6",
+              "price": 0.2503,
+              "zoneLow": 0.2503,
+              "zoneHigh": 0.2503,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.6446,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-4",
+              "price": 0.228,
+              "zoneLow": 0.228,
+              "zoneHigh": 0.228,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 33.2564,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-2",
+              "price": 0.2206,
+              "zoneLow": 0.2206,
+              "zoneHigh": 0.2206,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 29.5577,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-support-zone-1",
+              "price": 0.21,
+              "zoneLow": 0.21,
+              "zoneHigh": 0.21,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 50.8466,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 8,
+            "inside_surfaced_map": 8,
+            "too_close_to_surfaced_level": 8,
+            "selected_extension": 3
+          },
+          "insufficientCandidateInventory": false,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "resistance": {
+          "symbol": "AIM",
+          "referencePrice": 0.373,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            0.375,
+            0.42,
+            0.4282,
+            0.459,
+            0.5299,
+            0.5392
+          ],
+          "inputInventoryPrices": [
+            0.375,
+            0.42,
+            0.4282,
+            0.459,
+            0.5299,
+            0.5392
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            0.375,
+            0.42,
+            0.4282,
+            0.459,
+            0.5299,
+            0.5392
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            0.375,
+            0.42,
+            0.4282,
+            0.459,
+            0.5299,
+            0.5392
+          ],
+          "candidates": [
+            {
+              "id": "AIM-resistance-zone-9",
+              "price": 0.375,
+              "zoneLow": 0.375,
+              "zoneHigh": 0.375,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 29.9797,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-resistance-zone-10",
+              "price": 0.42,
+              "zoneLow": 0.42,
+              "zoneHigh": 0.42,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 29.01,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-resistance-zone-11",
+              "price": 0.4282,
+              "zoneLow": 0.4282,
+              "zoneHigh": 0.4282,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 21.4132,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-resistance-zone-12",
+              "price": 0.459,
+              "zoneLow": 0.459,
+              "zoneHigh": 0.459,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 26.6985,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-resistance-zone-13",
+              "price": 0.5299,
+              "zoneLow": 0.5282,
+              "zoneHigh": 0.5299,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 40.2679,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "AIM-resistance-zone-14",
+              "price": 0.5392,
+              "zoneLow": 0.5358,
+              "zoneHigh": 0.5392,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 60.7099,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 6,
+            "inside_surfaced_map": 6,
+            "too_close_to_surfaced_level": 6
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 0,
+          "lowestSupportExtension": 0.2829,
+          "downsideCoveragePct": 24.1555,
+          "warnings": [
+            "missing_resistance_extension",
+            "insufficient_candidate_inventory"
+          ]
+        },
+        "warnings": [
+          "missing_resistance_extension",
+          "insufficient_candidate_inventory"
+        ],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    },
+    {
+      "levelOutputPath": "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\devs-level-output.json",
+      "report": {
+        "symbol": "DEVS",
+        "referencePrice": 0.2592,
+        "support": {
+          "symbol": "DEVS",
+          "referencePrice": 0.2592,
+          "side": "support",
+          "surfacedLevelPrices": [
+            0.2264,
+            0.1819,
+            0.179,
+            0.1736,
+            0.1689,
+            0.1505,
+            0.1368,
+            0.1268,
+            0.1229,
+            0.12,
+            0.112
+          ],
+          "inputInventoryPrices": [
+            0.2264,
+            0.1819,
+            0.179,
+            0.1736,
+            0.1689,
+            0.1505,
+            0.144,
+            0.142,
+            0.1368,
+            0.13,
+            0.1268,
+            0.1229,
+            0.12,
+            0.112
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [
+            0.144,
+            0.142,
+            0.13
+          ],
+          "candidatePoolPrices": [
+            0.2264,
+            0.1819,
+            0.179,
+            0.1736,
+            0.1689,
+            0.1505,
+            0.144,
+            0.142,
+            0.1368,
+            0.13,
+            0.1268,
+            0.1229,
+            0.12,
+            0.112
+          ],
+          "eligibleCandidatePrices": [
+            0.144,
+            0.142,
+            0.13
+          ],
+          "selectedExtensionPrices": [
+            0.144,
+            0.142,
+            0.13
+          ],
+          "skippedCandidatePrices": [
+            0.2264,
+            0.1819,
+            0.179,
+            0.1736,
+            0.1689,
+            0.1505,
+            0.1368,
+            0.1268,
+            0.1229,
+            0.12,
+            0.112
+          ],
+          "candidateCoveragePct": 49.8457,
+          "selectedCoveragePct": 49.8457,
+          "candidates": [
+            {
+              "id": "DEVS-support-zone-16",
+              "price": 0.2264,
+              "zoneLow": 0.2264,
+              "zoneHigh": 0.2264,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 31.59,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-15",
+              "price": 0.1819,
+              "zoneLow": 0.1819,
+              "zoneHigh": 0.1819,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 21.5434,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-14",
+              "price": 0.179,
+              "zoneLow": 0.179,
+              "zoneHigh": 0.179,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.3014,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-13",
+              "price": 0.1736,
+              "zoneLow": 0.1736,
+              "zoneHigh": 0.1736,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 23.9909,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-12",
+              "price": 0.1689,
+              "zoneLow": 0.1689,
+              "zoneHigh": 0.1689,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 24.0127,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-10",
+              "price": 0.1505,
+              "zoneLow": 0.1495,
+              "zoneHigh": 0.1505,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 41.811,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-9",
+              "price": 0.144,
+              "zoneLow": 0.144,
+              "zoneHigh": 0.1454,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 24.9421,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-8",
+              "price": 0.142,
+              "zoneLow": 0.142,
+              "zoneHigh": 0.142,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 24.9095,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-7",
+              "price": 0.1368,
+              "zoneLow": 0.1368,
+              "zoneHigh": 0.137,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 56.4861,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-6",
+              "price": 0.13,
+              "zoneLow": 0.129,
+              "zoneHigh": 0.13,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 22.6981,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-5",
+              "price": 0.1268,
+              "zoneLow": 0.1257,
+              "zoneHigh": 0.1268,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 32.02,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-4",
+              "price": 0.1229,
+              "zoneLow": 0.1229,
+              "zoneHigh": 0.123,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 32.4495,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-3",
+              "price": 0.12,
+              "zoneLow": 0.12,
+              "zoneHigh": 0.1209,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 36.2221,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-support-zone-1",
+              "price": 0.112,
+              "zoneLow": 0.1111,
+              "zoneHigh": 0.112,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 34.4689,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 11,
+            "inside_surfaced_map": 11,
+            "too_close_to_surfaced_level": 11,
+            "selected_extension": 3
+          },
+          "insufficientCandidateInventory": false,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "resistance": {
+          "symbol": "DEVS",
+          "referencePrice": 0.2592,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            0.2624,
+            0.2838,
+            0.2875,
+            0.3126,
+            0.3501
+          ],
+          "inputInventoryPrices": [
+            0.2624,
+            0.2838,
+            0.2875,
+            0.3126,
+            0.3501
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            0.2624,
+            0.2838,
+            0.2875,
+            0.3126,
+            0.3501
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            0.2624,
+            0.2838,
+            0.2875,
+            0.3126,
+            0.3501
+          ],
+          "candidates": [
+            {
+              "id": "DEVS-resistance-zone-17",
+              "price": 0.2624,
+              "zoneLow": 0.2624,
+              "zoneHigh": 0.2624,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 24.9705,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-resistance-zone-18",
+              "price": 0.2838,
+              "zoneLow": 0.2838,
+              "zoneHigh": 0.2838,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 28.8,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-resistance-zone-19",
+              "price": 0.2875,
+              "zoneLow": 0.2875,
+              "zoneHigh": 0.2875,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 31.59,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-resistance-zone-20",
+              "price": 0.3126,
+              "zoneLow": 0.3126,
+              "zoneHigh": 0.3126,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 25.9665,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DEVS-resistance-zone-21",
+              "price": 0.3501,
+              "zoneLow": 0.348,
+              "zoneHigh": 0.3501,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 27.5534,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 5,
+            "inside_surfaced_map": 5,
+            "too_close_to_surfaced_level": 5
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 0,
+          "lowestSupportExtension": 0.13,
+          "downsideCoveragePct": 49.8457,
+          "warnings": [
+            "missing_resistance_extension",
+            "insufficient_candidate_inventory"
+          ]
+        },
+        "warnings": [
+          "missing_resistance_extension",
+          "insufficient_candidate_inventory"
+        ],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    },
+    {
+      "levelOutputPath": "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\dxyz-level-output.json",
+      "report": {
+        "symbol": "DXYZ",
+        "referencePrice": 46.47,
+        "support": {
+          "symbol": "DXYZ",
+          "referencePrice": 46.47,
+          "side": "support",
+          "surfacedLevelPrices": [
+            45.8,
+            43.43,
+            42.5,
+            36.99,
+            30.8,
+            28.84,
+            27.5,
+            26.75
+          ],
+          "inputInventoryPrices": [
+            45.8,
+            43.43,
+            42.5,
+            36.99,
+            30.8,
+            28.84,
+            27.5,
+            26.75,
+            26.27,
+            25.06,
+            24
+          ],
+          "candidatePoolMode": "strict_frontier",
+          "preSelectionCandidatePrices": [
+            26.27,
+            25.06,
+            24
+          ],
+          "candidatePoolPrices": [
+            45.8,
+            43.43,
+            42.5,
+            36.99,
+            30.8,
+            28.84,
+            27.5,
+            26.75,
+            26.27,
+            25.06,
+            24
+          ],
+          "eligibleCandidatePrices": [
+            26.27,
+            25.06,
+            24
+          ],
+          "selectedExtensionPrices": [
+            26.27,
+            25.06,
+            24
+          ],
+          "skippedCandidatePrices": [
+            45.8,
+            43.43,
+            42.5,
+            36.99,
+            30.8,
+            28.84,
+            27.5,
+            26.75
+          ],
+          "candidateCoveragePct": 48.3538,
+          "selectedCoveragePct": 48.3538,
+          "candidates": [
+            {
+              "id": "DXYZ-support-zone-35",
+              "price": 45.8,
+              "zoneLow": 45.8,
+              "zoneHigh": 46.21,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 58.1475,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-33",
+              "price": 43.43,
+              "zoneLow": 43.43,
+              "zoneHigh": 43.57,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 29.5292,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-32",
+              "price": 42.5,
+              "zoneLow": 42.5,
+              "zoneHigh": 42.5,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 24.069,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-30",
+              "price": 36.99,
+              "zoneLow": 36.99,
+              "zoneHigh": 37.25,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 55.0986,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-26",
+              "price": 30.8,
+              "zoneLow": 30.8,
+              "zoneHigh": 30.8,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 24.9247,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-25",
+              "price": 28.84,
+              "zoneLow": 28.6,
+              "zoneHigh": 29.14,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 98.4042,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-23",
+              "price": 27.5,
+              "zoneLow": 27.46,
+              "zoneHigh": 27.67,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 31.7537,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-22",
+              "price": 26.75,
+              "zoneLow": 26.75,
+              "zoneHigh": 26.88,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 49.3746,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-21",
+              "price": 26.27,
+              "zoneLow": 26.27,
+              "zoneHigh": 26.5,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 33.2305,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-18",
+              "price": 25.06,
+              "zoneLow": 25.06,
+              "zoneHigh": 25.25,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 35.9771,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "DXYZ-support-zone-17",
+              "price": 24,
+              "zoneLow": 24,
+              "zoneHigh": 24,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 23.6971,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 8,
+            "inside_surfaced_map": 8,
+            "too_close_to_surfaced_level": 8,
+            "selected_extension": 3
+          },
+          "insufficientCandidateInventory": false,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "resistance": {
+          "symbol": "DXYZ",
+          "referencePrice": 46.47,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            46.8,
+            50,
+            55.38,
+            61.7,
+            67
+          ],
+          "inputInventoryPrices": [
+            46.8,
+            50,
+            55.38,
+            61.7,
+            67,
+            67.69
+          ],
+          "candidatePoolMode": "strict_frontier",
+          "preSelectionCandidatePrices": [
+            67.69
+          ],
+          "candidatePoolPrices": [
+            46.8,
+            50,
+            55.38,
+            61.7,
+            67,
+            67.69
+          ],
+          "eligibleCandidatePrices": [
+            67.69
+          ],
+          "selectedExtensionPrices": [
+            67.69
+          ],
+          "skippedCandidatePrices": [
+            46.8,
+            50,
+            55.38,
+            61.7,
+            67
+          ],
+          "candidateCoveragePct": 45.6639,
+          "selectedCoveragePct": 45.6639,
+          "candidates": [
+            {
+              "id": "DXYZ-resistance-zone-31",
+              "price": 46.8,
+              "zoneLow": 46.49,
+              "zoneHigh": 46.8,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 79.8869,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-resistance-zone-33",
+              "price": 50,
+              "zoneLow": 50,
+              "zoneHigh": 50.5,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 33.605,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-resistance-zone-34",
+              "price": 55.38,
+              "zoneLow": 55.38,
+              "zoneHigh": 55.38,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 25.7342,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-resistance-zone-36",
+              "price": 61.7,
+              "zoneLow": 61.7,
+              "zoneHigh": 61.7,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 27.9668,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-resistance-zone-37",
+              "price": 67,
+              "zoneLow": 67,
+              "zoneHigh": 67,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.3971,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "DXYZ-resistance-zone-38",
+              "price": 67.69,
+              "zoneLow": 67.69,
+              "zoneHigh": 67.69,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 28.5274,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 5,
+            "inside_surfaced_map": 5,
+            "too_close_to_surfaced_level": 5,
+            "selected_extension": 1
+          },
+          "insufficientCandidateInventory": false,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 1,
+          "lowestSupportExtension": 24,
+          "highestResistanceExtension": 67.69,
+          "downsideCoveragePct": 48.3538,
+          "upsideCoveragePct": 45.6639,
+          "warnings": []
+        },
+        "warnings": [],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    },
+    {
+      "levelOutputPath": "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\envx-level-output.json",
+      "report": {
+        "symbol": "ENVX",
+        "referencePrice": 6.73,
+        "support": {
+          "symbol": "ENVX",
+          "referencePrice": 6.73,
+          "side": "support",
+          "surfacedLevelPrices": [
+            6.68,
+            6.38,
+            6.11,
+            5.95,
+            5.75,
+            5.69,
+            5.43,
+            4.6
+          ],
+          "inputInventoryPrices": [
+            6.68,
+            6.55,
+            6.38,
+            6.11,
+            5.95,
+            5.86,
+            5.75,
+            5.69,
+            5.59,
+            5.43,
+            4.6
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [
+            6.55,
+            5.86,
+            5.59
+          ],
+          "candidatePoolPrices": [
+            6.68,
+            6.55,
+            6.38,
+            6.11,
+            5.95,
+            5.86,
+            5.75,
+            5.69,
+            5.59,
+            5.43,
+            4.6
+          ],
+          "eligibleCandidatePrices": [
+            6.55,
+            5.86,
+            5.59
+          ],
+          "selectedExtensionPrices": [
+            6.55,
+            5.86,
+            5.59
+          ],
+          "skippedCandidatePrices": [
+            6.68,
+            6.38,
+            6.11,
+            5.95,
+            5.75,
+            5.69,
+            5.43,
+            4.6
+          ],
+          "candidateCoveragePct": 16.9391,
+          "selectedCoveragePct": 16.9391,
+          "candidates": [
+            {
+              "id": "ENVX-support-zone-14",
+              "price": 6.68,
+              "zoneLow": 6.66,
+              "zoneHigh": 6.68,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 56.8038,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-13",
+              "price": 6.55,
+              "zoneLow": 6.5,
+              "zoneHigh": 6.58,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 61.3978,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-11",
+              "price": 6.38,
+              "zoneLow": 6.25,
+              "zoneHigh": 6.38,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 151.9524,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-10",
+              "price": 6.11,
+              "zoneLow": 6.09,
+              "zoneHigh": 6.16,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 61.882,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-9",
+              "price": 5.95,
+              "zoneLow": 5.95,
+              "zoneHigh": 5.99,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 28.0397,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-8",
+              "price": 5.86,
+              "zoneLow": 5.83,
+              "zoneHigh": 5.86,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 50.5714,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-7",
+              "price": 5.75,
+              "zoneLow": 5.75,
+              "zoneHigh": 5.75,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 26.4075,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-6",
+              "price": 5.69,
+              "zoneLow": 5.69,
+              "zoneHigh": 5.69,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 32.8082,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-5",
+              "price": 5.59,
+              "zoneLow": 5.59,
+              "zoneHigh": 5.6,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 31.0682,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-4",
+              "price": 5.43,
+              "zoneLow": 5.39,
+              "zoneHigh": 5.43,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 27.5653,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-support-zone-1",
+              "price": 4.6,
+              "zoneLow": 4.6,
+              "zoneHigh": 4.61,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.2386,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 8,
+            "inside_surfaced_map": 8,
+            "too_close_to_surfaced_level": 8,
+            "selected_extension": 3
+          },
+          "insufficientCandidateInventory": false,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "resistance": {
+          "symbol": "ENVX",
+          "referencePrice": 6.73,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            6.8,
+            7.11,
+            8.58,
+            9.16,
+            9.5
+          ],
+          "inputInventoryPrices": [
+            6.8,
+            7.11,
+            8.58,
+            9.16,
+            9.5,
+            9.86
+          ],
+          "candidatePoolMode": "strict_frontier",
+          "preSelectionCandidatePrices": [
+            9.86
+          ],
+          "candidatePoolPrices": [
+            6.8,
+            7.11,
+            8.58,
+            9.16,
+            9.5,
+            9.86
+          ],
+          "eligibleCandidatePrices": [
+            9.86
+          ],
+          "selectedExtensionPrices": [
+            9.86
+          ],
+          "skippedCandidatePrices": [
+            6.8,
+            7.11,
+            8.58,
+            9.16,
+            9.5
+          ],
+          "candidateCoveragePct": 46.5082,
+          "selectedCoveragePct": 46.5082,
+          "candidates": [
+            {
+              "id": "ENVX-resistance-zone-7",
+              "price": 6.8,
+              "zoneLow": 6.74,
+              "zoneHigh": 6.8,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 50.9653,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-resistance-zone-9",
+              "price": 7.11,
+              "zoneLow": 7,
+              "zoneHigh": 7.11,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 67.6752,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-resistance-zone-12",
+              "price": 8.58,
+              "zoneLow": 8.5,
+              "zoneHigh": 8.58,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.6878,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-resistance-zone-15",
+              "price": 9.16,
+              "zoneLow": 9.16,
+              "zoneHigh": 9.19,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 33.5127,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-resistance-zone-16",
+              "price": 9.5,
+              "zoneLow": 9.5,
+              "zoneHigh": 9.5,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 32.311,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "ENVX-resistance-zone-17",
+              "price": 9.86,
+              "zoneLow": 9.86,
+              "zoneHigh": 9.86,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 30.89,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 5,
+            "inside_surfaced_map": 5,
+            "too_close_to_surfaced_level": 5,
+            "selected_extension": 1
+          },
+          "insufficientCandidateInventory": false,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 1,
+          "lowestSupportExtension": 5.59,
+          "highestResistanceExtension": 9.86,
+          "downsideCoveragePct": 16.9391,
+          "upsideCoveragePct": 46.5082,
+          "warnings": [
+            "limited_downside_extension_coverage"
+          ]
+        },
+        "warnings": [
+          "limited_downside_extension_coverage"
+        ],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    },
+    {
+      "levelOutputPath": "docs\\examples\\level-analysis-snapshot\\real-cache-extension-diagnostics\\level-outputs\\pbm-level-output.json",
+      "report": {
+        "symbol": "PBM",
+        "referencePrice": 6.07,
+        "support": {
+          "symbol": "PBM",
+          "referencePrice": 6.07,
+          "side": "support",
+          "surfacedLevelPrices": [
+            5.91,
+            5.52,
+            5,
+            4.76,
+            4.51,
+            3.9838,
+            2.74,
+            2.45,
+            2.4
+          ],
+          "inputInventoryPrices": [
+            5.91,
+            5.52,
+            5,
+            4.76,
+            4.51,
+            3.9838,
+            2.74,
+            2.45,
+            2.4,
+            2.31,
+            2.26,
+            2.01
+          ],
+          "candidatePoolMode": "strict_frontier",
+          "preSelectionCandidatePrices": [
+            2.31,
+            2.26,
+            2.01
+          ],
+          "candidatePoolPrices": [
+            5.91,
+            5.52,
+            5,
+            4.76,
+            4.51,
+            3.9838,
+            2.74,
+            2.45,
+            2.4,
+            2.31,
+            2.26,
+            2.01
+          ],
+          "eligibleCandidatePrices": [
+            2.31,
+            2.26,
+            2.01
+          ],
+          "selectedExtensionPrices": [
+            2.31,
+            2.26,
+            2.01
+          ],
+          "skippedCandidatePrices": [
+            5.91,
+            5.52,
+            5,
+            4.76,
+            4.51,
+            3.9838,
+            2.74,
+            2.45,
+            2.4
+          ],
+          "candidateCoveragePct": 66.8863,
+          "selectedCoveragePct": 66.8863,
+          "candidates": [
+            {
+              "id": "PBM-support-zone-17",
+              "price": 5.91,
+              "zoneLow": 5.91,
+              "zoneHigh": 5.97,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 63.096,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-15",
+              "price": 5.52,
+              "zoneLow": 5.52,
+              "zoneHigh": 5.52,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 27.2773,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-14",
+              "price": 5,
+              "zoneLow": 5,
+              "zoneHigh": 5,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 36.3388,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-13",
+              "price": 4.76,
+              "zoneLow": 4.76,
+              "zoneHigh": 4.76,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 26.5616,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-12",
+              "price": 4.51,
+              "zoneLow": 4.51,
+              "zoneHigh": 4.51,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 46.9749,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-10",
+              "price": 3.9838,
+              "zoneLow": 3.9838,
+              "zoneHigh": 3.9838,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 38.5632,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-8",
+              "price": 2.74,
+              "zoneLow": 2.73,
+              "zoneHigh": 2.74,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 32.2297,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-6",
+              "price": 2.45,
+              "zoneLow": 2.45,
+              "zoneHigh": 2.45,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 19.2315,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-5",
+              "price": 2.4,
+              "zoneLow": 2.4,
+              "zoneHigh": 2.4,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 66.4615,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-4",
+              "price": 2.31,
+              "zoneLow": 2.31,
+              "zoneHigh": 2.34,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 47.4785,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-3",
+              "price": 2.26,
+              "zoneLow": 2.26,
+              "zoneHigh": 2.28,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 53.4423,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            },
+            {
+              "id": "PBM-support-zone-2",
+              "price": 2.01,
+              "zoneLow": 2.01,
+              "zoneHigh": 2.01,
+              "isSurfaced": false,
+              "isPreSelectionCandidate": true,
+              "isEligibleExtensionCandidate": true,
+              "isSelectedExtension": true,
+              "usefulnessScore": 25.5429,
+              "skipReasons": [
+                "selected_extension"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 9,
+            "inside_surfaced_map": 9,
+            "too_close_to_surfaced_level": 9,
+            "selected_extension": 3
+          },
+          "insufficientCandidateInventory": false,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "resistance": {
+          "symbol": "PBM",
+          "referencePrice": 6.07,
+          "side": "resistance",
+          "surfacedLevelPrices": [
+            6.09,
+            6.5625,
+            6.69,
+            8
+          ],
+          "inputInventoryPrices": [
+            6.09,
+            6.5625,
+            6.69,
+            8
+          ],
+          "candidatePoolMode": "expanded_unselected_scored",
+          "preSelectionCandidatePrices": [],
+          "candidatePoolPrices": [
+            6.09,
+            6.5625,
+            6.69,
+            8
+          ],
+          "eligibleCandidatePrices": [],
+          "selectedExtensionPrices": [],
+          "skippedCandidatePrices": [
+            6.09,
+            6.5625,
+            6.69,
+            8
+          ],
+          "candidates": [
+            {
+              "id": "PBM-resistance-zone-15",
+              "price": 6.09,
+              "zoneLow": 6.05,
+              "zoneHigh": 6.09,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 52.3705,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-resistance-zone-16",
+              "price": 6.5625,
+              "zoneLow": 6.5625,
+              "zoneHigh": 6.5625,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 30.5498,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-resistance-zone-17",
+              "price": 6.69,
+              "zoneLow": 6.69,
+              "zoneHigh": 6.69,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 23.4602,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            },
+            {
+              "id": "PBM-resistance-zone-18",
+              "price": 8,
+              "zoneLow": 8,
+              "zoneHigh": 8,
+              "isSurfaced": true,
+              "isPreSelectionCandidate": false,
+              "isEligibleExtensionCandidate": false,
+              "isSelectedExtension": false,
+              "usefulnessScore": 48.7229,
+              "skipReasons": [
+                "already_surfaced",
+                "inside_surfaced_map",
+                "too_close_to_surfaced_level"
+              ]
+            }
+          ],
+          "rejectionReasonCounts": {
+            "already_surfaced": 4,
+            "inside_surfaced_map": 4,
+            "too_close_to_surfaced_level": 4
+          },
+          "insufficientCandidateInventory": true,
+          "syntheticGenerationAvailable": true,
+          "undeterminedRejectionCount": 0,
+          "notes": [
+            "Candidate inventory is limited to final LevelEngineOutput levels; raw pre-extension candidates are not available.",
+            "No eligible candidate inventory is visible for this side.",
+            "Synthetic continuation-map extension generation is available only as a fallback after real candidates are considered."
+          ]
+        },
+        "extensionCoverage": {
+          "supportExtensions": 3,
+          "resistanceExtensions": 0,
+          "lowestSupportExtension": 2.01,
+          "downsideCoveragePct": 66.8863,
+          "warnings": [
+            "missing_resistance_extension",
+            "insufficient_candidate_inventory"
+          ]
+        },
+        "warnings": [
+          "missing_resistance_extension",
+          "insufficient_candidate_inventory"
+        ],
+        "diagnostics": [
+          "candidate_inventory_limited_to_level_output"
+        ],
+        "safety": {
+          "extensionGenerationUnchanged": true,
+          "supportResistanceDetectionUnchanged": true,
+          "noRuntimeBehaviorChange": true,
+          "noScoringChange": true,
+          "reviewOnly": true
+        }
+      }
+    }
+  ],
+  "summary": {
+    "sampleCount": 5,
+    "missingSupportExtensionCount": 0,
+    "missingResistanceExtensionCount": 3,
+    "limitedUpsideCoverageCount": 0,
+    "limitedDownsideCoverageCount": 1,
+    "insufficientCandidateInventoryCount": 3,
+    "undeterminedRejectionCount": 0
+  },
+  "safety": {
+    "extensionGenerationUnchanged": true,
+    "supportResistanceDetectionUnchanged": true,
+    "noRuntimeBehaviorChange": true,
+    "noScoringChange": true,
+    "reviewOnly": true
+  }
+}
