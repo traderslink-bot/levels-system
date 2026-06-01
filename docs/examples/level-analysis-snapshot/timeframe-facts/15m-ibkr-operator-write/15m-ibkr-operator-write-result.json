@@ -1,0 +1,107 @@
+{
+  "generatedAt": "2026-06-01T18:20:00.000Z",
+  "gate": "levels_system_15m_cache_collection_operator_write",
+  "provider": "ibkr",
+  "timeframe": "15m",
+  "lookbackBars": 100,
+  "endTime": "2026-06-01T16:00:00Z",
+  "endTimeMs": 1780329600000,
+  "cacheRoot": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles",
+  "targetSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "dryRun": {
+    "plannedCount": 5,
+    "writtenCount": 0,
+    "skippedExistingCount": 0,
+    "failedCount": 0
+  },
+  "writeAttempted": true,
+  "writeCommandTimedOut": true,
+  "writeTimeoutMs": 300000,
+  "leftoverWriteProcessesStopped": true,
+  "overwriteUsed": false,
+  "writeObservedFromFiles": {
+    "writtenCount": 5,
+    "skippedExistingCount": 0,
+    "failedCount": 0
+  },
+  "writtenFiles": [
+    {
+      "symbol": "DEVS",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\DEVS\\15m\\100-1780329600000.json",
+      "candles": 96,
+      "completenessStatus": "partial",
+      "firstTimestamp": 1780041600000,
+      "lastTimestamp": 1780328700000
+    },
+    {
+      "symbol": "ENVX",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\ENVX\\15m\\100-1780329600000.json",
+      "candles": 96,
+      "completenessStatus": "partial",
+      "firstTimestamp": 1780041600000,
+      "lastTimestamp": 1780328700000
+    },
+    {
+      "symbol": "DXYZ",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\DXYZ\\15m\\100-1780329600000.json",
+      "candles": 96,
+      "completenessStatus": "partial",
+      "firstTimestamp": 1780041600000,
+      "lastTimestamp": 1780328700000
+    },
+    {
+      "symbol": "QUBT",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\QUBT\\15m\\100-1780329600000.json",
+      "candles": 96,
+      "completenessStatus": "partial",
+      "firstTimestamp": 1780041600000,
+      "lastTimestamp": 1780328700000
+    },
+    {
+      "symbol": "GME",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\GME\\15m\\100-1780329600000.json",
+      "candles": 96,
+      "completenessStatus": "partial",
+      "firstTimestamp": 1780041600000,
+      "lastTimestamp": 1780328700000
+    }
+  ],
+  "coverageBefore": {
+    "totalJsonFiles": 2274,
+    "validationCacheEntries": 2274,
+    "fifteenMinuteJsonFiles": 0,
+    "groupsWithAny15m": 0,
+    "groupsWith5m15m4hDaily": 0,
+    "malformedJsonFiles": 0,
+    "diagnostics": [
+      "no_15m_cache_found"
+    ]
+  },
+  "coverageAfter": {
+    "totalJsonFiles": 2279,
+    "validationCacheEntries": 2279,
+    "fifteenMinuteJsonFiles": 5,
+    "groupsWithAny15m": 5,
+    "groupsWith5m15m4hDaily": 5,
+    "malformedJsonFiles": 0,
+    "diagnostics": [],
+    "symbolsWith15m": [
+      "ibkr/DEVS",
+      "ibkr/DXYZ",
+      "ibkr/ENVX",
+      "ibkr/GME",
+      "ibkr/QUBT"
+    ]
+  },
+  "rawCacheFilesCommitted": false,
+  "productionBugFound": true,
+  "productionBugSummary": "IBKR write command wrote the expected files but did not exit cleanly after the write.",
+  "recommendedNextGate": "levels_system_15m_cache_collection_cli_exit_cleanup",
+  "followUpGateAfterCleanup": "levels_system_15m_facts_real_cache_validation_with_supplied_15m"
+}
