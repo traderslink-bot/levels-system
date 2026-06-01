@@ -4,8 +4,26 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { Candle, CandleProviderName } from "../lib/market-data/candle-types.js";
+import { buildProviderHistoricalFetchPlan } from "../lib/market-data/fetch-planning.js";
+import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
+import type {
+  BaseProviderCandleResponse,
+  ProviderHistoricalFetchPlan,
+  ProviderHistoricalFetchRequest,
+} from "../lib/market-data/provider-types.js";
+import { TwelveDataHistoricalCandleProvider } from "../lib/market-data/providers/twelve-data-historical-candle-provider.js";
+import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
+import { createIbkrClient } from "./shared/ibkr-runtime.js";
 
 type FifteenMinuteTimeframe = "15m";
+type FifteenMinuteValidationCacheRuntimeEnv = Record<string, string | undefined>;
+type FifteenMinuteProviderFetcher = {
+  readonly providerName: CandleProviderName;
+  fetchCandles(
+    request: ProviderHistoricalFetchRequest,
+    plan: ProviderHistoricalFetchPlan,
+  ): Promise<BaseProviderCandleResponse>;
+};
 
 export type FifteenMinuteValidationCacheFetchRequest = {
   symbol: string;
@@ -63,10 +81,14 @@ export type CollectFifteenMinuteValidationCacheOptions = {
   overwrite?: boolean;
   generatedAt?: string;
   fetcher?: FifteenMinuteValidationCacheFetcher;
+  runtimeEnv?: FifteenMinuteValidationCacheRuntimeEnv;
 };
 
 export type CollectFifteenMinuteValidationCacheCliOptions =
-  Omit<CollectFifteenMinuteValidationCacheOptions, "fetcher" | "mode" | "symbols"> & {
+  Omit<
+    CollectFifteenMinuteValidationCacheOptions,
+    "fetcher" | "mode" | "runtimeEnv" | "symbols"
+  > & {
     symbols: string[];
     dryRun: boolean;
     write: boolean;
@@ -116,6 +138,13 @@ export type CollectFifteenMinuteValidationCacheResult = {
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const SYMBOL_PATTERN = /^[A-Z][A-Z0-9.-]{0,15}$/;
+const ENABLE_IBKR_LIVE_15M_ENV = "LEVEL_15M_CACHE_ENABLE_IBKR";
+const IBKR_HOST_ENV = "LEVEL_15M_CACHE_IBKR_HOST";
+const IBKR_PORT_ENV = "LEVEL_15M_CACHE_IBKR_PORT";
+const IBKR_CLIENT_ID_ENV = "LEVEL_15M_CACHE_IBKR_CLIENT_ID";
+const IBKR_CONNECTION_TIMEOUT_ENV = "LEVEL_15M_CACHE_IBKR_CONNECTION_TIMEOUT_MS";
+const IBKR_HISTORICAL_TIMEOUT_ENV = "LEVEL_VALIDATION_IBKR_TIMEOUT_MS";
+const TWELVE_DATA_API_KEY_ENV = "TWELVE_DATA_API_KEY";
 
 function normalizeEndTimeMs(rawEndTimeMs: number): number {
   return Math.floor(rawEndTimeMs / FIFTEEN_MINUTES_MS) * FIFTEEN_MINUTES_MS;
@@ -150,6 +179,27 @@ function parseProvider(value: string): CandleProviderName {
   }
 
   throw new Error(`Unsupported --provider value "${value}".`);
+}
+
+function resolveOptionalPositiveInteger(
+  value: string | undefined,
+  label: string,
+): number | undefined {
+  if (value === undefined || value.trim() === "") {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${label} must be a positive integer when supplied.`);
+  }
+
+  return parsed;
+}
+
+function isTruthy(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
 }
 
 export function parseFifteenMinuteCacheSymbols(value: string): string[] {
@@ -339,6 +389,58 @@ function normalizeProviderResponse(
   };
 }
 
+function responseFromLiveProvider(
+  response: BaseProviderCandleResponse,
+  request: FifteenMinuteValidationCacheFetchRequest,
+): FifteenMinuteValidationCacheProviderResponse {
+  if (response.timeframe !== "15m") {
+    throw new Error(
+      `Live provider returned ${response.timeframe} candles for ${request.symbol}; expected 15m.`,
+    );
+  }
+
+  return {
+    provider: request.provider,
+    symbol: request.symbol,
+    timeframe: "15m",
+    requestedLookbackBars: request.lookbackBars,
+    candles: [...response.candles],
+    fetchStartTimestamp: response.fetchStartTimestamp,
+    fetchEndTimestamp: response.fetchEndTimestamp,
+    requestedStartTimestamp: response.requestedStartTimestamp,
+    requestedEndTimestamp: response.requestedEndTimestamp,
+    sessionMetadataAvailable: response.sessionMetadataAvailable,
+    providerMetadata: response.providerMetadata,
+    actualBarsReturned: response.candles.length,
+    completenessStatus:
+      response.candles.length === 0
+        ? "empty"
+        : response.candles.length >= request.lookbackBars
+          ? "complete"
+          : "partial",
+    stale: false,
+    validationIssues: [],
+    sessionSummary: null,
+  };
+}
+
+function buildFifteenMinuteLiveProviderFetcher(
+  provider: FifteenMinuteProviderFetcher,
+): FifteenMinuteValidationCacheFetcher {
+  return async (request) => {
+    const providerRequest: ProviderHistoricalFetchRequest = {
+      symbol: request.symbol,
+      timeframe: "15m",
+      lookbackBars: request.lookbackBars,
+      endTimeMs: request.endTimeMs,
+      preferredProvider: request.provider,
+    };
+    const plan = buildProviderHistoricalFetchPlan(providerRequest, request.provider);
+    const response = await provider.fetchCandles(providerRequest, plan);
+    return responseFromLiveProvider(response, request);
+  };
+}
+
 function deterministicValue(seed: number): number {
   const value = Math.sin(seed) * 10000;
   return value - Math.floor(value);
@@ -393,18 +495,58 @@ async function fetchStubFifteenMinuteCandles(
   };
 }
 
-function defaultFetcherForProvider(
-  provider: CandleProviderName,
+async function createIbkrFifteenMinuteFetcher(
+  env: FifteenMinuteValidationCacheRuntimeEnv,
+): Promise<FifteenMinuteValidationCacheFetcher> {
+  if (!isTruthy(env[ENABLE_IBKR_LIVE_15M_ENV])) {
+    throw new Error(
+      `IBKR live 15m collection requires ${ENABLE_IBKR_LIVE_15M_ENV}=true. Dry-run remains available without IBKR config.`,
+    );
+  }
+
+  const clientId = resolveOptionalPositiveInteger(env[IBKR_CLIENT_ID_ENV], IBKR_CLIENT_ID_ENV);
+  const port = resolveOptionalPositiveInteger(env[IBKR_PORT_ENV], IBKR_PORT_ENV);
+  const connectionTimeoutMs = resolveOptionalPositiveInteger(
+    env[IBKR_CONNECTION_TIMEOUT_ENV],
+    IBKR_CONNECTION_TIMEOUT_ENV,
+  );
+  const historicalTimeoutMs = resolveOptionalPositiveInteger(
+    env[IBKR_HISTORICAL_TIMEOUT_ENV],
+    IBKR_HISTORICAL_TIMEOUT_ENV,
+  );
+  const ib = createIbkrClient(clientId, env[IBKR_HOST_ENV], port);
+  await waitForIbkrConnection(ib, connectionTimeoutMs);
+  return buildFifteenMinuteLiveProviderFetcher(
+    new IbkrHistoricalCandleProvider(ib, historicalTimeoutMs),
+  );
+}
+
+function createTwelveDataFifteenMinuteFetcher(
+  env: FifteenMinuteValidationCacheRuntimeEnv,
 ): FifteenMinuteValidationCacheFetcher {
+  const apiKey = env[TWELVE_DATA_API_KEY_ENV]?.trim();
+  if (!apiKey) {
+    throw new Error(
+      `Twelve Data live 15m collection requires ${TWELVE_DATA_API_KEY_ENV}. Dry-run remains available without Twelve Data config.`,
+    );
+  }
+
+  return buildFifteenMinuteLiveProviderFetcher(new TwelveDataHistoricalCandleProvider(apiKey));
+}
+
+export async function createDefaultFifteenMinuteValidationCacheFetcher(
+  provider: CandleProviderName,
+  env: FifteenMinuteValidationCacheRuntimeEnv = process.env,
+): Promise<FifteenMinuteValidationCacheFetcher> {
   if (provider === "stub") {
     return fetchStubFifteenMinuteCandles;
   }
 
-  return async () => {
-    throw new Error(
-      `Live 15m collection for provider ${provider} is not wired yet. Use --dry-run for planning, or run the next provider-hookup gate before writing live 15m cache files.`,
-    );
-  };
+  if (provider === "ibkr") {
+    return createIbkrFifteenMinuteFetcher(env);
+  }
+
+  return createTwelveDataFifteenMinuteFetcher(env);
 }
 
 async function writeCacheEntry(path: string, entry: FifteenMinuteValidationCacheEntry): Promise<void> {
@@ -421,7 +563,18 @@ export async function collectFifteenMinuteValidationCache(
   const dryRun = mode !== "write";
   const endTimeMs = normalizeEndTimeMs(options.endTimeMs);
   const symbols = [...new Set(options.symbols.map((symbol) => symbol.trim().toUpperCase()))];
-  const fetcher = options.fetcher ?? defaultFetcherForProvider(options.provider);
+  let defaultFetcherPromise: Promise<FifteenMinuteValidationCacheFetcher> | undefined;
+  const resolveFetcher = async (): Promise<FifteenMinuteValidationCacheFetcher> => {
+    if (options.fetcher) {
+      return options.fetcher;
+    }
+
+    defaultFetcherPromise ??= createDefaultFifteenMinuteValidationCacheFetcher(
+      options.provider,
+      options.runtimeEnv,
+    );
+    return defaultFetcherPromise;
+  };
   const items: CollectFifteenMinuteValidationCacheItem[] = [];
 
   for (const symbol of symbols) {
@@ -470,6 +623,7 @@ export async function collectFifteenMinuteValidationCache(
     };
 
     try {
+      const fetcher = await resolveFetcher();
       const response = normalizeProviderResponse(await fetcher(request), request);
       if (response.candles.length === 0) {
         items.push({

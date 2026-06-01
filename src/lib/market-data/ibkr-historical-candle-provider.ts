@@ -1,7 +1,18 @@
 import { EventName, IBApi, WhatToShow } from "@stoqey/ib";
 
-import type { BaseCandleProviderResponse, Candle, CandleTimeframe } from "./candle-types.js";
-import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "./provider-types.js";
+import type {
+  BaseCandleProviderResponse,
+  Candle,
+  ProviderCandleTimeframe,
+} from "./candle-types.js";
+import type {
+  BaseProviderCandleResponse,
+  HistoricalCandleProvider,
+  HistoricalFetchPlan,
+  HistoricalFetchRequest,
+  ProviderHistoricalFetchPlan,
+  ProviderHistoricalFetchRequest,
+} from "./provider-types.js";
 import { sharedIbkrPacingQueue } from "./ibkr-pacing-queue.js";
 
 type HistoricalDataListener = (
@@ -80,7 +91,15 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
   async fetchCandles(
     request: HistoricalFetchRequest,
     plan: HistoricalFetchPlan,
-  ): Promise<BaseCandleProviderResponse> {
+  ): Promise<BaseCandleProviderResponse>;
+  async fetchCandles(
+    request: ProviderHistoricalFetchRequest,
+    plan: ProviderHistoricalFetchPlan,
+  ): Promise<BaseProviderCandleResponse>;
+  async fetchCandles(
+    request: ProviderHistoricalFetchRequest,
+    plan: ProviderHistoricalFetchPlan,
+  ): Promise<BaseProviderCandleResponse> {
     this.validateRequest(request);
 
     const reqId = IbkrHistoricalCandleProvider.nextRequestId++;
@@ -118,7 +137,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     return this.ib as unknown as IBApiHistoricalClient;
   }
 
-  private validateRequest(request: HistoricalFetchRequest): void {
+  private validateRequest(request: ProviderHistoricalFetchRequest): void {
     if (!request.symbol.trim()) {
       throw new Error("symbol is required.");
     }
@@ -131,8 +150,8 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
   private requestHistoricalBars(
     reqId: number,
     symbol: string,
-    request: HistoricalFetchRequest,
-    plan: HistoricalFetchPlan,
+    request: ProviderHistoricalFetchRequest,
+    plan: ProviderHistoricalFetchPlan,
   ): Promise<IbkrHistoricalBar[]> {
     return new Promise<IbkrHistoricalBar[]>((resolve, reject) => {
       const bars: IbkrHistoricalBar[] = [];
@@ -275,7 +294,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
   private mapBarToCandle(
     bar: IbkrHistoricalBar,
     symbol: string,
-    timeframe: CandleTimeframe,
+    timeframe: ProviderCandleTimeframe,
     index: number,
   ): Candle {
     const timestamp = this.parseIbkrTimestamp(bar.time);
@@ -359,10 +378,12 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     return fallbackTimestamp;
   }
 
-  private getFallbackDuration(timeframe: CandleTimeframe): string {
+  private getFallbackDuration(timeframe: ProviderCandleTimeframe): string {
     switch (timeframe) {
       case "5m":
         return "3 D";
+      case "15m":
+        return "4 D";
       case "4h":
         return "2 M";
       case "daily":
@@ -374,7 +395,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     value: number,
     fieldName: string,
     symbol: string,
-    timeframe: CandleTimeframe,
+    timeframe: ProviderCandleTimeframe,
     index: number,
   ): number {
     if (!Number.isFinite(value)) {

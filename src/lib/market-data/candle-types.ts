@@ -2,7 +2,10 @@
 // Shared candle type definitions for the levels system market-data layer.
 
 export type CandleTimeframe = "daily" | "4h" | "5m";
-export type CandleFetchTimeframe = CandleTimeframe | "15m" | "1m";
+export type LevelEngineEligibleTimeframe = CandleTimeframe;
+export type ProviderCandleTimeframe = "daily" | "4h" | "15m" | "5m";
+export type ValidationCacheCollectionTimeframe = ProviderCandleTimeframe;
+export type CandleFetchTimeframe = ProviderCandleTimeframe | "1m";
 
 export type CandleProviderName = "ibkr" | "stub" | "twelve_data";
 
@@ -81,3 +84,33 @@ export type CandleSeries = {
   timeframe: CandleTimeframe;
   candles: Candle[];
 };
+
+export const LEVEL_ENGINE_ELIGIBLE_TIMEFRAMES: readonly LevelEngineEligibleTimeframe[] = [
+  "daily",
+  "4h",
+  "5m",
+];
+
+export const PROVIDER_CANDLE_TIMEFRAMES: readonly ProviderCandleTimeframe[] = [
+  "daily",
+  "4h",
+  "15m",
+  "5m",
+];
+
+export function isLevelEngineEligibleTimeframe(
+  timeframe: CandleFetchTimeframe,
+): timeframe is LevelEngineEligibleTimeframe {
+  return timeframe === "daily" || timeframe === "4h" || timeframe === "5m";
+}
+
+export function isProviderCandleTimeframe(
+  timeframe: CandleFetchTimeframe,
+): timeframe is ProviderCandleTimeframe {
+  return (
+    timeframe === "daily" ||
+    timeframe === "4h" ||
+    timeframe === "15m" ||
+    timeframe === "5m"
+  );
+}
