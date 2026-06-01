@@ -1,0 +1,27 @@
+LevelAnalysisSnapshot 15m Facts Real-Cache Validation
+
+Generated at: 2026-06-01T00:00:00.000Z
+Source cache: C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles
+Total cache JSON files: 2274
+Providers: ibkr, stub
+Provider/symbol groups: 357
+Groups with 5m/4h/daily: 355
+Groups with any 15m: 0
+Groups with 5m/15m/4h/daily: 0
+Real 15m cache exists: false
+Validation mode: absent_15m_fallback
+
+Selected symbols:
+- DEVS: 5m, 4h, daily | 15m 0/0 | passed true
+- ENVX: 5m, 4h, daily | 15m 0/0 | passed true
+- DXYZ: 5m, 4h, daily | 15m 0/0 | passed true
+- QUBT: 5m, 4h, daily | 15m 0/0 | passed true
+- GME: 5m, 4h, daily | 15m 0/0 | passed true
+
+Deterministic supplied-15m fixture coverage:
+- sample 15m facts present: true
+- sample 15m validation valid: true
+- sample 15m availability: limited
+- sample LevelEngine unchanged: true
+
+Recommended next gate: levels_system_15m_cache_collection_plan
