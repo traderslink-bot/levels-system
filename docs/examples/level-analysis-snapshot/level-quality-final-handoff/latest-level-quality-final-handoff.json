@@ -1,0 +1,186 @@
+{
+  "schemaVersion": "level-quality-final-handoff/v1",
+  "generatedAt": "2026-06-01T22:23:47.713Z",
+  "providerFocus": "ibkr",
+  "currentMergedBaselineCommit": "d43e4d0897101ac1c5a3cd2fd0fcc8af844750aa",
+  "sourceBaselineLockCommit": "678c3b1352deba0777c3dee5a0f4e536a685f183",
+  "decision": "defer_level_generation_behavior_tuning",
+  "recommendedNextGate": "level_engine_behavior_tuning_backlog",
+  "currentStatus": [
+    "LevelAnalysisSnapshot_v1_locked_and_handed_off",
+    "production_snapshot_runner_packaged_and_smoke_tested",
+    "batch_manifest_workflow_packaged",
+    "optional_15m_input_supported_as_context_only",
+    "supplied_real_IBKR_15m_facts_validated",
+    "enrichment_mapping_hardened",
+    "audit_wording_hardened",
+    "extension_coverage_fixture_pack_merged",
+    "cluster_density_fixture_pack_merged",
+    "post_fixture_quality_review_rerun_merged",
+    "behavior_tuning_decision_gate_merged",
+    "decision_baseline_locked",
+    "LevelEngine_generation_behavior_not_tuned"
+  ],
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "validatedState": {
+    "supplied15mRealCacheValidation": {
+      "selectedSymbolCount": 5,
+      "passedSymbolCount": 5,
+      "factsValidCount": 5,
+      "levelEngineParityPassedCount": 5,
+      "nearestSupportParityPassedCount": 5,
+      "nearestResistanceParityPassedCount": 5,
+      "levelQualityAuditParityPassedCount": 5,
+      "allSafetyFlagsTrueCount": 5
+    },
+    "lockedQualityBaseline": {
+      "totalSymbols": 10,
+      "nearestSupportParityCount": 10,
+      "nearestResistanceParityCount": 10,
+      "bucketCountParityCount": 10,
+      "extensionCountParityCount": 10,
+      "syntheticCountParityCount": 10,
+      "syntheticMarkingParityCount": 10,
+      "diagnosticsParityCount": 10,
+      "diagnosticSemanticsParityCount": 10,
+      "enrichmentBreakdownParityCount": 10,
+      "extensionCoverageWarningParityCount": 10,
+      "clusteredDensityDiagnosticParityCount": 10,
+      "fifteenMinuteContextOnlyCount": 10,
+      "possibleBugCount": 0,
+      "prohibitedLanguageHitCount": 0
+    }
+  },
+  "currentKnownWeaknesses": {
+    "clusteredLevelAreasPresent": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "GME",
+      "AIM",
+      "HCWB",
+      "YMAT"
+    ],
+    "denseMapReviewCases": [
+      "QUBT",
+      "AAOI",
+      "PHOE"
+    ],
+    "noResistanceExtensionCoverage": [
+      "DEVS",
+      "AIM",
+      "HCWB"
+    ],
+    "limitedDownsideExtensionCoverage": [
+      "DEVS",
+      "ENVX",
+      "YMAT"
+    ],
+    "wideNearestLevelGaps": [
+      "HCWB",
+      "PHOE"
+    ],
+    "syntheticContinuationMapPresent": [
+      "AAOI",
+      "PHOE"
+    ]
+  },
+  "deferredAreas": [
+    "extension_generation_tuning",
+    "cluster_density_behavior_tuning",
+    "nearest_level_generation_changes",
+    "15m_LevelEngine_input",
+    "synthetic_continuation_map_policy_changes"
+  ],
+  "futureBehaviorTuningRules": [
+    "start_from_docs_116_LEVEL_QUALITY_DECISION_BASELINE_LOCK",
+    "change_one_behavior_knob_only",
+    "name_exact_expected_output_diff_before_implementation",
+    "include_deterministic_fixture_coverage",
+    "include_before_after_compact_artifacts",
+    "rerun_the_10_symbol_real_cache_review_against_the_locked_baseline",
+    "compare_nearest_support_and_resistance",
+    "compare_bucket_counts",
+    "compare_extension_counts",
+    "compare_synthetic_continuation_map_count_and_markings",
+    "compare_diagnostics_and_diagnosticSemantics",
+    "compare_enrichmentBreakdown",
+    "prove_no_prohibited_language",
+    "keep_15m_context_only_unless_separate_approved_gate_changes_boundary",
+    "commit_no_raw_cache_files"
+  ],
+  "sourceDocs": [
+    "docs/84_LEVEL_ANALYSIS_SNAPSHOT_V1_HANDOFF_COMPLETE.md",
+    "docs/85_PRODUCTION_SNAPSHOT_RUNNER_PACKAGING.md",
+    "docs/86_PRODUCTION_SNAPSHOT_RUNNER_SMOKE_TESTS.md",
+    "docs/87_LEVEL_ANALYSIS_SNAPSHOT_MULTI_TIMEFRAME_HARDENING.md",
+    "docs/88_LEVEL_ANALYSIS_SNAPSHOT_MULTI_TIMEFRAME_REAL_CACHE_VALIDATION.md",
+    "docs/89_PRODUCTION_SNAPSHOT_RUNNER_BATCH_MANIFEST.md",
+    "docs/90_LEVEL_ANALYSIS_SNAPSHOT_BATCH_MANIFEST_REAL_CACHE_DRY_RUN.md",
+    "docs/91_PRODUCTION_SNAPSHOT_RUNNER_BATCH_MANIFEST_PACKAGING.md",
+    "docs/92_LEVELS_SYSTEM_15M_FACT_GENERATION_DESIGN.md",
+    "docs/93_LEVELS_SYSTEM_15M_FACTS_CONTRACT.md",
+    "docs/94_LEVELS_SYSTEM_15M_FACTS_BUILDER.md",
+    "docs/95_LEVELS_SYSTEM_15M_FACTS_REAL_CACHE_VALIDATION.md",
+    "docs/96_LEVELS_SYSTEM_15M_CACHE_COLLECTION_PLAN.md",
+    "docs/97_LEVELS_SYSTEM_15M_CACHE_COLLECTION_TOOL.md",
+    "docs/98_LEVELS_SYSTEM_15M_CACHE_COLLECTION_DRY_RUN.md",
+    "docs/99_LEVELS_SYSTEM_15M_LIVE_PROVIDER_HOOKUP_DESIGN.md",
+    "docs/100_LEVELS_SYSTEM_15M_LIVE_PROVIDER_HOOKUP_TOOL.md",
+    "docs/101_LEVELS_SYSTEM_15M_CACHE_COLLECTION_LIVE_DRY_RUN.md",
+    "docs/102_LEVELS_SYSTEM_15M_IBKR_OPERATOR_WRITE_PLAN.md",
+    "docs/103_LEVELS_SYSTEM_15M_CACHE_COLLECTION_OPERATOR_WRITE.md",
+    "docs/104_LEVELS_SYSTEM_15M_CACHE_COLLECTION_CLI_EXIT_CLEANUP.md",
+    "docs/105_LEVELS_SYSTEM_15M_FACTS_REAL_CACHE_VALIDATION_WITH_SUPPLIED_15M.md",
+    "docs/106_LEVEL_ENGINE_MULTI_TIMEFRAME_LEVEL_QUALITY_REVIEW.md",
+    "docs/107_LEVEL_ENGINE_QUALITY_TUNING_PLAN.md",
+    "docs/108_LEVEL_QUALITY_ENRICHMENT_MAPPING_HARDENING.md",
+    "docs/109_LEVEL_ENGINE_MULTI_TIMEFRAME_QUALITY_REVIEW_RERUN.md",
+    "docs/110_LEVEL_QUALITY_AUDIT_WORDING_HARDENING.md",
+    "docs/111_LEVEL_ENGINE_MULTI_TIMEFRAME_QUALITY_REVIEW_RERUN_AFTER_WORDING.md",
+    "docs/112_LEVEL_ENGINE_EXTENSION_COVERAGE_TUNING_PLAN_OR_FIXTURE_PACK.md",
+    "docs/113_LEVEL_ENGINE_CLUSTER_DENSITY_TUNING_PLAN_OR_FIXTURE_PACK.md",
+    "docs/114_LEVEL_ENGINE_MULTI_TIMEFRAME_QUALITY_REVIEW_RERUN_AFTER_FIXTURE_PACKS.md",
+    "docs/115_LEVEL_QUALITY_BEHAVIOR_TUNING_DECISION_GATE.md",
+    "docs/116_LEVEL_QUALITY_DECISION_BASELINE_LOCK.md"
+  ],
+  "sourceArtifacts": [
+    "docs/examples/level-analysis-snapshot/level-quality-baseline-lock/latest-level-quality-baseline-lock.json",
+    "docs/examples/level-analysis-snapshot/level-quality-decision-gate/latest-level-quality-behavior-tuning-decision.json",
+    "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-fixture-packs/latest-level-quality-review-rerun-after-fixture-packs.json",
+    "docs/examples/level-analysis-snapshot/timeframe-facts/15m-supplied-real-cache-validation/latest-15m-supplied-real-cache-validation.json",
+    "docs/examples/level-analysis-snapshot/level-extension-coverage/latest-extension-coverage-fixture-pack.json",
+    "docs/examples/level-analysis-snapshot/level-cluster-density/latest-cluster-density-fixture-pack.json"
+  ],
+  "hardBoundaries": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "newCacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "discordAlertMonitoringChanged": false,
+    "journalAppChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceAdded": false
+  }
+}
