@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "level-extension-coverage-fixture-pack/v1",
+  "generatedAt": "2026-06-01T20:45:00.000Z",
+  "sourceArtifact": "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-wording/latest-level-quality-review-rerun-after-wording.json",
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "evidenceSummary": {
+    "noResistanceExtensionCoverage": [
+      "DEVS",
+      "AIM",
+      "HCWB"
+    ],
+    "limitedDownsideExtensionCoverage": [
+      "DEVS",
+      "ENVX",
+      "YMAT"
+    ],
+    "adequateCoverageByCurrentAuditThreshold": [
+      "DXYZ",
+      "QUBT",
+      "GME",
+      "AAOI",
+      "PHOE"
+    ],
+    "syntheticContinuationMapPresent": [
+      "AAOI",
+      "PHOE"
+    ],
+    "possibleBugFound": false
+  },
+  "fixtureScenarios": [
+    {
+      "name": "balanced_extension_coverage",
+      "intent": "Support and resistance extension rows both exist and current audit thresholds report no extension coverage warnings.",
+      "expectedDiagnostics": [],
+      "currentBehaviorLocked": "No synthetic continuation-map row is required when both sides already have adequate factual extension coverage."
+    },
+    {
+      "name": "no_resistance_extension_coverage",
+      "intent": "Support extension rows exist while resistance extension rows are absent.",
+      "expectedDiagnostics": [
+        "no_resistance_extension_coverage"
+      ],
+      "currentBehaviorLocked": "The audit runner reports coverage status and does not fabricate resistance extension rows."
+    },
+    {
+      "name": "limited_downside_extension_coverage",
+      "intent": "A support extension exists but remains inside the configured downside coverage threshold.",
+      "expectedDiagnostics": [
+        "limited_downside_extension_coverage"
+      ],
+      "currentBehaviorLocked": "Selected extension rows remain factual historical-candidate context."
+    },
+    {
+      "name": "synthetic_continuation_map_preservation",
+      "intent": "Synthetic rows remain marked as forward-planning context and separate from historical enrichment gaps.",
+      "expectedDiagnostics": [
+        "unenriched_synthetic_levels_present"
+      ],
+      "currentBehaviorLocked": "Synthetic rows are not treated as historical support/resistance evidence."
+    },
+    {
+      "name": "spacing_guard",
+      "intent": "Closely spaced extension candidates do not all need to surface under current selection behavior.",
+      "expectedDiagnostics": [
+        "too_close_to_another_extension"
+      ],
+      "currentBehaviorLocked": "Spacing diagnostics explain skipped candidates without tuning selection behavior."
+    }
+  ],
+  "possibleFutureTuningKnobs": [
+    "extensionCoverageWarningPct",
+    "spacingPct",
+    "maxExtensionPerSide",
+    "searchWindowPct",
+    "forwardPlanningRangePct",
+    "realCandidatePoolEligibility",
+    "syntheticContinuationMapFallbackLimits"
+  ],
+  "boundaries": {
+    "extensionGenerationBehaviorChanged": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedSupportResistanceLevelsChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "journalBehaviorAdded": false,
+    "recommendationOrTradeAdviceAdded": false
+  },
+  "recommendedNextGate": "level_engine_cluster_density_tuning_plan_or_fixture_pack"
+}
