@@ -7,6 +7,7 @@ import {
   type LevelQualityAuditItem,
   type LevelQualityAuditReport,
 } from "./level-quality-audit-runner.js";
+import { describeLevelQualityDiagnostic } from "./level-quality-audit-wording.js";
 import type { LevelIntelligenceReport } from "./level-intelligence-report.js";
 import type { LevelEngineOutput } from "./level-types.js";
 
@@ -291,7 +292,14 @@ export function renderLevelQualityAuditReport(report: LevelQualityAuditReport): 
   lines.push("");
 
   lines.push("## Diagnostics");
-  lines.push(...(report.diagnostics.length > 0 ? report.diagnostics.map((diagnostic) => `- ${diagnostic}`) : ["- none"]));
+  lines.push(
+    ...(report.diagnostics.length > 0
+      ? report.diagnostics.map((diagnostic) => {
+        const semantics = describeLevelQualityDiagnostic(diagnostic);
+        return `- ${diagnostic} (${semantics.category}/${semantics.severity}): ${semantics.label}. ${semantics.description}`;
+      })
+      : ["- none"]),
+  );
   lines.push("");
 
   lines.push("## Safety");

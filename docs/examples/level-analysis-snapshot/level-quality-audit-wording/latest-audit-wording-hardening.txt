@@ -1,0 +1,27 @@
+Level quality audit wording hardening
+Generated at: 2026-06-01T19:40:31.998Z
+Entries: 20
+Categories: context, coverage, density, enrichment, synthetic
+Severities: info, review, watch
+Safety: factual-only wording; no LevelEngine behavior, support/resistance generation, or extension generation changes.
+
+- clustered_level_areas_present [density/watch]: Clustered level areas present - Multiple audited levels sit within the configured cluster distance threshold.
+- enriched_analysis_missing [enrichment/watch]: Enriched analysis missing - The level does not include enrichedAnalysis metadata.
+- level_intelligence_report_missing [context/review]: Level intelligence report missing - The audit did not receive LevelIntelligenceReport context for enriched level explanations.
+- levels_without_context_present [context/watch]: Levels without nearby context present - At least one audited level has no attached session, volume, shelf, or market context facts.
+- limited_downside_extension_coverage [coverage/watch]: Limited downside extension coverage - The lowest support extension does not reach the configured downside coverage threshold.
+- limited_upside_extension_coverage [coverage/watch]: Limited upside extension coverage - The highest resistance extension does not reach the configured upside coverage threshold.
+- no_nearby_volume_shelf [context/info]: No nearby volume shelf - No supplied volume shelf overlaps or sits near this level.
+- no_resistance_above_reference [coverage/review]: No resistance above reference - The audited level map has no resistance level above the supplied reference price.
+- no_resistance_extension_coverage [coverage/review]: No resistance extension coverage - The extension ladder contains no resistance extension rows for the audited snapshot.
+- no_support_below_reference [coverage/review]: No support below reference - The audited level map has no support level below the supplied reference price.
+- no_support_extension_coverage [coverage/review]: No support extension coverage - The extension ladder contains no support extension rows for the audited snapshot.
+- reference_price_missing [context/review]: Reference price missing - The audit could not compute nearest-level distances because no reference price was supplied.
+- session_facts_missing [context/info]: Session facts missing - No session facts were supplied for this level context profile.
+- unenriched_extension_levels_present [enrichment/watch]: Extension enrichment coverage gap present - At least one extension row is missing enrichedAnalysis metadata.
+- unenriched_historical_levels_present [enrichment/watch]: Historical enrichment coverage gap present - At least one historical support or resistance level is missing enrichedAnalysis metadata.
+- unenriched_levels_present [enrichment/watch]: General enrichment coverage gap present - At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.
+- unenriched_synthetic_levels_present [synthetic/info]: Synthetic continuation-map enrichment gap present - At least one marked synthetic continuation-map row is missing enrichedAnalysis metadata; it remains forward-planning context, not historical evidence.
+- volume_facts_missing [context/info]: Volume facts missing - No volume facts were supplied for this level context profile.
+- wide_downside_support_gap [coverage/watch]: Wide nearest support gap - The nearest support below reference is outside the configured nearby coverage threshold.
+- wide_overhead_resistance_gap [coverage/watch]: Wide nearest resistance gap - The nearest resistance above reference is outside the configured nearby coverage threshold.
