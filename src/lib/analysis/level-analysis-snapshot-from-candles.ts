@@ -19,6 +19,10 @@ import type { Candle, CandleTimeframe } from "../market-data/candle-types.js";
 import { buildSessionMarketFacts } from "../session/index.js";
 import { buildVolumeMarketFacts, detectVolumeShelves } from "../volume/index.js";
 import {
+  buildFifteenMinuteFacts,
+  FIFTEEN_MINUTE_TREND_FACT_MIN_CANDLES,
+} from "./level-analysis-15m-facts-builder.js";
+import {
   buildLevelAnalysisSnapshot,
   type LevelAnalysisSnapshot,
   type LevelAnalysisSnapshotInputSummary,
@@ -291,9 +295,13 @@ function diagnosticSummary(params: {
 
     if (item.timeframe === "15m") {
       if (item.provided) {
-        diagnostics.add("15m_candles_reserved_for_future_fact_generation");
         if (item.candles.length === 0) {
+          diagnostics.add("15m_facts_unavailable");
           diagnostics.add("15m_closed_candles_missing");
+        } else if (item.candles.length < FIFTEEN_MINUTE_TREND_FACT_MIN_CANDLES) {
+          diagnostics.add("15m_facts_limited");
+        } else {
+          diagnostics.add("15m_facts_generated");
         }
       }
       continue;
@@ -384,6 +392,19 @@ export function buildLevelAnalysisSnapshotFromCandles(
           dollarVolume: volumeFacts.dollarVolume,
         })
       : undefined;
+  const timeframeFacts = fifteenMinute.provided
+    ? {
+        "15m": buildFifteenMinuteFacts({
+          symbol,
+          asOfTimestamp: request.asOfTimestamp,
+          referencePrice,
+          rawCandleCount: fifteenMinute.inputCandleCount,
+          closedCandles: fifteenMinute.candles,
+          excludedFutureCandleCount: fifteenMinute.excludedFutureCount,
+          excludedPartialCandleCount: fifteenMinute.excludedPartialCount,
+        }),
+      }
+    : undefined;
   const snapshot = buildLevelAnalysisSnapshot({
     symbol,
     asOfTimestamp: request.asOfTimestamp,
@@ -400,6 +421,7 @@ export function buildLevelAnalysisSnapshotFromCandles(
     volumeFacts,
     volumeShelves: shelfResult.shelves,
     marketContext: marketContextResult?.marketContext.profile,
+    timeframeFacts,
   });
   const diagnostics = diagnosticSummary({
     series,

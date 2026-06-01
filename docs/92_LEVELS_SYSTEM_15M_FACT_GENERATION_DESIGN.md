@@ -27,13 +27,17 @@ The from-candles builder and runner can accept optional 15m candles. Supplied
 15m candles are parsed, filtered with candle-close no-lookahead semantics, and
 counted in `inputSummary`.
 
+Update after the builder gate: supplied 15m input can now populate optional
+facts-only `timeframeFacts["15m"]` while still remaining outside LevelEngine.
+
 Current hard boundary:
 
 - 15m candles are not included in `levelEngineSeries`.
 - 15m candles are not used for candidate generation.
 - 15m candles are not used for clustering, scoring, ranking, surfaced buckets,
   or extension generation.
-- supplied 15m input is diagnosed as reserved for future fact generation.
+- supplied 15m input may be diagnosed as generated, limited, or unavailable
+  15m facts depending on closed-candle availability.
 
 ## Why 15m Facts May Matter
 

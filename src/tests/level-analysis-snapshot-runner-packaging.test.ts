@@ -109,7 +109,9 @@ test("packaged runner produces v1 handoff fields from deterministic fixtures", (
   assert.ok(snapshot.inputSummary);
   assert.equal(snapshot.inputSummary.candleCounts["15m"], 3);
   assert.equal(snapshot.inputSummary.filteredCandleCounts["15m"], 3);
-  assert.ok(snapshot.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
+  assert.ok(snapshot.diagnostics.includes("15m_facts_limited"));
+  assert.ok(snapshot.timeframeFacts?.["15m"]);
+  assert.equal(snapshot.timeframeFacts["15m"].schemaVersion, "level-analysis-15m-facts/v1");
   assert.ok("nearestSupport" in snapshot);
   assert.ok("nearestResistance" in snapshot);
   assert.ok(snapshot.levelEngineOutput);

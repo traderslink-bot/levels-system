@@ -260,7 +260,9 @@ test("runner loads candle fixtures and builds a JSON snapshot", () => withTempDi
   assert.equal(result.snapshot.inputSummary.candleCounts["15m"], 3);
   assert.equal(result.snapshot.inputSummary.candleCounts["4h"], 7);
   assert.equal(result.snapshot.inputSummary.candleCounts.daily, 6);
-  assert.ok(result.snapshot.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
+  assert.ok(result.snapshot.diagnostics.includes("15m_facts_limited"));
+  assert.ok(result.snapshot.timeframeFacts?.["15m"]);
+  assert.equal(result.snapshot.timeframeFacts["15m"].schemaVersion, "level-analysis-15m-facts/v1");
   assert.equal(result.snapshot.inputSummary.previousCloseProvided, true);
   assert.equal(result.snapshot.nearestSupport?.representativePrice, 9.98);
   assert.equal(result.snapshot.nearestResistance, null);

@@ -195,6 +195,7 @@ test("15m facts remain facts-only and do not carry level creation or journal int
 
 test("LevelAnalysisSnapshot remains compatible when timeframeFacts is absent or additively supplied", () => {
   const baseFixture = loadSnapshotFixture();
+  const baseFixtureWithoutTimeframeFacts = clone(baseFixture) as Record<string, unknown>;
   const baseline = buildLevelAnalysisSnapshot(buildSnapshotRequest(baseFixture));
   const mixedFacts = loadFifteenMinuteFacts("mixed");
   const withFifteenMinuteFacts = buildLevelAnalysisSnapshot({
@@ -204,8 +205,9 @@ test("LevelAnalysisSnapshot remains compatible when timeframeFacts is absent or 
     },
   });
 
+  delete baseFixtureWithoutTimeframeFacts.timeframeFacts;
   assert.equal(baseFixture.schemaVersion, "level-analysis-snapshot/v1");
-  assert.equal("timeframeFacts" in baseFixture, false);
+  assert.equal("timeframeFacts" in baseFixtureWithoutTimeframeFacts, false);
   assert.equal(withFifteenMinuteFacts.schemaVersion, "level-analysis-snapshot/v1");
   assert.equal(withFifteenMinuteFacts.producer, "levels-system");
   assert.deepEqual(withFifteenMinuteFacts.timeframeFacts?.["15m"], mixedFacts);

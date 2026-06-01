@@ -76,5 +76,6 @@ This folder contains the full plan for the candle-based levels system, including
 - `docs/91_PRODUCTION_SNAPSHOT_RUNNER_BATCH_MANIFEST_PACKAGING.md`
 - `docs/92_LEVELS_SYSTEM_15M_FACT_GENERATION_DESIGN.md`
 - `docs/93_LEVELS_SYSTEM_15M_FACTS_CONTRACT.md`
+- `docs/94_LEVELS_SYSTEM_15M_FACTS_BUILDER.md`
 - Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
 - Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`

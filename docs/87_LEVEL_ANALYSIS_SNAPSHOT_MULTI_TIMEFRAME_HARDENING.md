@@ -47,11 +47,11 @@ When supplied, `15m` candles are:
 - filtered with candle-close as-of semantics
 - counted in `inputSummary`
 - included in `timeframesPresent` when filtered count is positive
-- marked with `15m_candles_reserved_for_future_fact_generation`
+- available to the facts-only `timeframeFacts["15m"]` builder when that later
+  contract is present
 
-`15m` candles remain reserved and are not fed into LevelEngine candidate
-generation, clustering, scoring, ranking, surfaced buckets, or extension
-generation.
+`15m` candles remain outside LevelEngine candidate generation, clustering,
+scoring, ranking, surfaced buckets, and extension generation.
 
 ## Discovered Gaps
 
