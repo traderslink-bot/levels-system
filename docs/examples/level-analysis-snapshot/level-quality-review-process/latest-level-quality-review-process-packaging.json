@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "level-quality-review-process-packaging/v1",
+  "generatedAt": "2026-06-01T22:54:14.337Z",
+  "providerFocus": "ibkr",
+  "script": "src/scripts/run-level-quality-review.ts",
+  "packageScript": {
+    "name": "review:level-quality",
+    "command": "tsx src/scripts/run-level-quality-review.ts"
+  },
+  "purpose": "Package the locked real-cache LevelEngine quality review process as a repeatable read-only command.",
+  "baselineDependency": {
+    "baselineDoc": "docs/116_LEVEL_QUALITY_DECISION_BASELINE_LOCK.md",
+    "finalHandoffDoc": "docs/117_LEVEL_QUALITY_FINAL_HANDOFF_SUMMARY.md",
+    "backlogDoc": "docs/118_LEVEL_ENGINE_BEHAVIOR_TUNING_BACKLOG.md",
+    "defaultBaselineArtifact": "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-fixture-packs/latest-level-quality-review-rerun-after-fixture-packs.json"
+  },
+  "cli": {
+    "requiredOptions": [
+      "--cache-root <path>",
+      "--baseline <path>",
+      "--out-json <path>",
+      "--out-text <path>",
+      "--generated-at <ISO>"
+    ],
+    "optionalOptions": [
+      "--provider ibkr"
+    ],
+    "example": "npm run review:level-quality -- --cache-root C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles --provider ibkr --baseline docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-fixture-packs/latest-level-quality-review-rerun-after-fixture-packs.json --out-json artifacts/level-quality-review/latest-level-quality-review.json --out-text artifacts/level-quality-review/latest-level-quality-review.txt --generated-at 2026-06-01T22:45:00.000Z"
+  },
+  "comparisonFields": [
+    "nearest_support",
+    "nearest_resistance",
+    "bucket_counts",
+    "extension_counts",
+    "synthetic_continuation_map_count",
+    "synthetic_continuation_map_marking",
+    "LevelQualityAudit_diagnostics",
+    "diagnosticSemantics",
+    "enrichmentBreakdown",
+    "extension_coverage_warning_sets",
+    "cluster_density_diagnostics",
+    "15m_context_only_status"
+  ],
+  "outputs": {
+    "json": "compact review result",
+    "text": "compact operator summary",
+    "defaultDirectory": "artifacts/level-quality-review/",
+    "rawCandlesWritten": false,
+    "fullSnapshotsWritten": false,
+    "cacheFilesWritten": false
+  },
+  "tests": [
+    "src/tests/level-quality-review-process-packaging.test.ts"
+  ],
+  "safety": {
+    "readOnlyCacheReview": true,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "fullSnapshotsCommitted": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "discordAlertMonitoringChanged": false,
+    "journalAppChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": "level_quality_audit_density_metric_design"
+}

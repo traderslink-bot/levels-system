@@ -1,0 +1,54 @@
+Level quality review process packaging
+Generated: 2026-06-01T22:54:14.337Z
+Provider focus: IBKR
+
+Purpose
+- Package the locked real-cache LevelEngine quality review process as a repeatable read-only command.
+
+Command
+- npm run review:level-quality
+- Script: src/scripts/run-level-quality-review.ts
+
+Default baseline
+- docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-fixture-packs/latest-level-quality-review-rerun-after-fixture-packs.json
+
+Required inputs
+- --cache-root <path>
+- --baseline <path>
+- --out-json <path>
+- --out-text <path>
+- --generated-at <ISO>
+
+Comparison fields
+- nearest support and resistance
+- bucket counts
+- extension counts
+- synthetic continuation-map count and marking
+- LevelQualityAudit diagnostics
+- diagnosticSemantics
+- enrichmentBreakdown
+- extension coverage warning sets
+- cluster/density diagnostics
+- 15m context-only status
+
+Outputs
+- Compact JSON review result.
+- Compact text operator summary.
+- Outputs should usually remain under ignored artifacts/ paths.
+
+Safety
+- No provider calls.
+- No cache writes.
+- No raw candle arrays written.
+- No full snapshots written.
+- No support/resistance behavior changes.
+- No LevelEngine scoring/ranking/clustering changes.
+- No surfaced level changes.
+- No extension generation changes.
+- 15m remains context-only.
+
+Focused test
+- src/tests/level-quality-review-process-packaging.test.ts
+
+Recommended next gate
+- level_quality_audit_density_metric_design
