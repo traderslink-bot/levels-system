@@ -24,6 +24,11 @@ type FifteenMinuteProviderFetcher = {
     plan: ProviderHistoricalFetchPlan,
   ): Promise<BaseProviderCandleResponse>;
 };
+type FifteenMinuteValidationCacheFetcherCleanup = () => Promise<void> | void;
+type FifteenMinuteValidationCacheFetcherBundle = {
+  fetcher: FifteenMinuteValidationCacheFetcher;
+  cleanup?: FifteenMinuteValidationCacheFetcherCleanup;
+};
 
 export type FifteenMinuteValidationCacheFetchRequest = {
   symbol: string;
@@ -81,6 +86,7 @@ export type CollectFifteenMinuteValidationCacheOptions = {
   overwrite?: boolean;
   generatedAt?: string;
   fetcher?: FifteenMinuteValidationCacheFetcher;
+  fetcherCleanup?: FifteenMinuteValidationCacheFetcherCleanup;
   runtimeEnv?: FifteenMinuteValidationCacheRuntimeEnv;
 };
 
@@ -495,9 +501,21 @@ async function fetchStubFifteenMinuteCandles(
   };
 }
 
-async function createIbkrFifteenMinuteFetcher(
+type DisconnectableIbkrClient = {
+  disconnect: () => void;
+};
+
+function disconnectIbkrClient(ib: DisconnectableIbkrClient): void {
+  try {
+    ib.disconnect();
+  } catch {
+    // Ignore disconnect failures during operator cleanup.
+  }
+}
+
+async function createIbkrFifteenMinuteFetcherBundle(
   env: FifteenMinuteValidationCacheRuntimeEnv,
-): Promise<FifteenMinuteValidationCacheFetcher> {
+): Promise<FifteenMinuteValidationCacheFetcherBundle> {
   if (!isTruthy(env[ENABLE_IBKR_LIVE_15M_ENV])) {
     throw new Error(
       `IBKR live 15m collection requires ${ENABLE_IBKR_LIVE_15M_ENV}=true. Dry-run remains available without IBKR config.`,
@@ -515,15 +533,24 @@ async function createIbkrFifteenMinuteFetcher(
     IBKR_HISTORICAL_TIMEOUT_ENV,
   );
   const ib = createIbkrClient(clientId, env[IBKR_HOST_ENV], port);
-  await waitForIbkrConnection(ib, connectionTimeoutMs);
-  return buildFifteenMinuteLiveProviderFetcher(
-    new IbkrHistoricalCandleProvider(ib, historicalTimeoutMs),
-  );
+  try {
+    await waitForIbkrConnection(ib, connectionTimeoutMs);
+  } catch (error) {
+    disconnectIbkrClient(ib);
+    throw error;
+  }
+
+  return {
+    fetcher: buildFifteenMinuteLiveProviderFetcher(
+      new IbkrHistoricalCandleProvider(ib, historicalTimeoutMs),
+    ),
+    cleanup: () => disconnectIbkrClient(ib),
+  };
 }
 
-function createTwelveDataFifteenMinuteFetcher(
+function createTwelveDataFifteenMinuteFetcherBundle(
   env: FifteenMinuteValidationCacheRuntimeEnv,
-): FifteenMinuteValidationCacheFetcher {
+): FifteenMinuteValidationCacheFetcherBundle {
   const apiKey = env[TWELVE_DATA_API_KEY_ENV]?.trim();
   if (!apiKey) {
     throw new Error(
@@ -531,22 +558,34 @@ function createTwelveDataFifteenMinuteFetcher(
     );
   }
 
-  return buildFifteenMinuteLiveProviderFetcher(new TwelveDataHistoricalCandleProvider(apiKey));
+  return {
+    fetcher: buildFifteenMinuteLiveProviderFetcher(new TwelveDataHistoricalCandleProvider(apiKey)),
+  };
+}
+
+export async function createDefaultFifteenMinuteValidationCacheFetcherBundle(
+  provider: CandleProviderName,
+  env: FifteenMinuteValidationCacheRuntimeEnv = process.env,
+): Promise<FifteenMinuteValidationCacheFetcherBundle> {
+  if (provider === "stub") {
+    return {
+      fetcher: fetchStubFifteenMinuteCandles,
+    };
+  }
+
+  if (provider === "ibkr") {
+    return createIbkrFifteenMinuteFetcherBundle(env);
+  }
+
+  return createTwelveDataFifteenMinuteFetcherBundle(env);
 }
 
 export async function createDefaultFifteenMinuteValidationCacheFetcher(
   provider: CandleProviderName,
   env: FifteenMinuteValidationCacheRuntimeEnv = process.env,
 ): Promise<FifteenMinuteValidationCacheFetcher> {
-  if (provider === "stub") {
-    return fetchStubFifteenMinuteCandles;
-  }
-
-  if (provider === "ibkr") {
-    return createIbkrFifteenMinuteFetcher(env);
-  }
-
-  return createTwelveDataFifteenMinuteFetcher(env);
+  const bundle = await createDefaultFifteenMinuteValidationCacheFetcherBundle(provider, env);
+  return bundle.fetcher;
 }
 
 async function writeCacheEntry(path: string, entry: FifteenMinuteValidationCacheEntry): Promise<void> {
@@ -563,69 +602,102 @@ export async function collectFifteenMinuteValidationCache(
   const dryRun = mode !== "write";
   const endTimeMs = normalizeEndTimeMs(options.endTimeMs);
   const symbols = [...new Set(options.symbols.map((symbol) => symbol.trim().toUpperCase()))];
-  let defaultFetcherPromise: Promise<FifteenMinuteValidationCacheFetcher> | undefined;
+  let cleanup: FifteenMinuteValidationCacheFetcherCleanup | undefined;
+  let defaultFetcherPromise: Promise<FifteenMinuteValidationCacheFetcherBundle> | undefined;
   const resolveFetcher = async (): Promise<FifteenMinuteValidationCacheFetcher> => {
     if (options.fetcher) {
+      cleanup ??= options.fetcherCleanup;
       return options.fetcher;
     }
 
-    defaultFetcherPromise ??= createDefaultFifteenMinuteValidationCacheFetcher(
+    defaultFetcherPromise ??= createDefaultFifteenMinuteValidationCacheFetcherBundle(
       options.provider,
       options.runtimeEnv,
     );
-    return defaultFetcherPromise;
+    const bundle = await defaultFetcherPromise;
+    cleanup ??= bundle.cleanup;
+    return bundle.fetcher;
   };
   const items: CollectFifteenMinuteValidationCacheItem[] = [];
 
-  for (const symbol of symbols) {
-    const outputPath = deriveFifteenMinuteValidationCachePath({
-      cacheRoot: options.cacheRoot,
-      provider: options.provider,
-      symbol,
-      lookbackBars: options.lookbackBars,
-      endTimeMs,
-    });
-
-    if (dryRun) {
-      items.push({
-        symbol,
+  try {
+    for (const symbol of symbols) {
+      const outputPath = deriveFifteenMinuteValidationCachePath({
+        cacheRoot: options.cacheRoot,
         provider: options.provider,
+        symbol,
+        lookbackBars: options.lookbackBars,
+        endTimeMs,
+      });
+
+      if (dryRun) {
+        items.push({
+          symbol,
+          provider: options.provider,
+          timeframe: "15m",
+          lookbackBars: options.lookbackBars,
+          endTimeMs,
+          outputPath,
+          status: "planned",
+          dryRun: true,
+        });
+        continue;
+      }
+
+      if (existsSync(outputPath) && !options.overwrite) {
+        items.push({
+          symbol,
+          provider: options.provider,
+          timeframe: "15m",
+          lookbackBars: options.lookbackBars,
+          endTimeMs,
+          outputPath,
+          status: "skipped_existing",
+          dryRun: false,
+        });
+        continue;
+      }
+
+      const request: FifteenMinuteValidationCacheFetchRequest = {
+        symbol,
         timeframe: "15m",
         lookbackBars: options.lookbackBars,
         endTimeMs,
-        outputPath,
-        status: "planned",
-        dryRun: true,
-      });
-      continue;
-    }
-
-    if (existsSync(outputPath) && !options.overwrite) {
-      items.push({
-        symbol,
         provider: options.provider,
-        timeframe: "15m",
-        lookbackBars: options.lookbackBars,
-        endTimeMs,
-        outputPath,
-        status: "skipped_existing",
-        dryRun: false,
-      });
-      continue;
-    }
+      };
 
-    const request: FifteenMinuteValidationCacheFetchRequest = {
-      symbol,
-      timeframe: "15m",
-      lookbackBars: options.lookbackBars,
-      endTimeMs,
-      provider: options.provider,
-    };
+      try {
+        const fetcher = await resolveFetcher();
+        const response = normalizeProviderResponse(await fetcher(request), request);
+        if (response.candles.length === 0) {
+          items.push({
+            symbol,
+            provider: options.provider,
+            timeframe: "15m",
+            lookbackBars: options.lookbackBars,
+            endTimeMs,
+            outputPath,
+            status: "failed",
+            dryRun: false,
+            candleCount: 0,
+            error: "Provider returned zero 15m candles.",
+          });
+          continue;
+        }
 
-    try {
-      const fetcher = await resolveFetcher();
-      const response = normalizeProviderResponse(await fetcher(request), request);
-      if (response.candles.length === 0) {
+        await writeCacheEntry(outputPath, buildCacheEntry({ request, response, cachedAt }));
+        items.push({
+          symbol,
+          provider: options.provider,
+          timeframe: "15m",
+          lookbackBars: options.lookbackBars,
+          endTimeMs,
+          outputPath,
+          status: "written",
+          dryRun: false,
+          candleCount: response.candles.length,
+        });
+      } catch (error) {
         items.push({
           symbol,
           provider: options.provider,
@@ -635,36 +707,13 @@ export async function collectFifteenMinuteValidationCache(
           outputPath,
           status: "failed",
           dryRun: false,
-          candleCount: 0,
-          error: "Provider returned zero 15m candles.",
+          error: error instanceof Error ? error.message : String(error),
         });
-        continue;
       }
-
-      await writeCacheEntry(outputPath, buildCacheEntry({ request, response, cachedAt }));
-      items.push({
-        symbol,
-        provider: options.provider,
-        timeframe: "15m",
-        lookbackBars: options.lookbackBars,
-        endTimeMs,
-        outputPath,
-        status: "written",
-        dryRun: false,
-        candleCount: response.candles.length,
-      });
-    } catch (error) {
-      items.push({
-        symbol,
-        provider: options.provider,
-        timeframe: "15m",
-        lookbackBars: options.lookbackBars,
-        endTimeMs,
-        outputPath,
-        status: "failed",
-        dryRun: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    }
+  } finally {
+    if (cleanup) {
+      await cleanup();
     }
   }
 
