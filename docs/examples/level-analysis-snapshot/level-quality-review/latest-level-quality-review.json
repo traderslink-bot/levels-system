@@ -1,0 +1,2132 @@
+{
+  "schemaVersion": "levels-system-level-quality-review/v1",
+  "generatedAt": "2026-06-01T18:40:11.680Z",
+  "provider": "ibkr",
+  "cacheRoot": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles",
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "comparisonSymbolsWithout15m": [
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "summary": {
+    "reviewedSymbolCount": 10,
+    "supplied15mSymbolCount": 5,
+    "symbolsWithNearestSupport": 10,
+    "symbolsWithNearestResistance": 10,
+    "symbolsWithBalancedNearestCoverage": 8,
+    "symbolsWithExtensionCoverageWarnings": 5,
+    "symbolsWithClusteredAreas": 7,
+    "syntheticContinuationMapCount": 2,
+    "syntheticClearlyMarkedCount": 2,
+    "possibleBugCount": 0
+  },
+  "strengths": [
+    "supplied_15m_context_populates_without_level_generation",
+    "level_engine_uses_5m_4h_daily_only_for_all_reviewed_snapshots",
+    "level_quality_audit_surfaces_nearby_and_extension_coverage_gaps",
+    "synthetic_continuation_map_rows_are_marked_when_present",
+    "level_intelligence_report_profiles_remain_factual_and_safety_marked"
+  ],
+  "weaknesses": [
+    "some_symbols_have_nearby_support_or_resistance_gap_warnings",
+    "some_symbols_have_extension_coverage_warnings",
+    "clustered_level_areas_present_on_some_symbols",
+    "unenriched_levels_present_in_current_output"
+  ],
+  "crossSymbolDiagnostics": [
+    "clustered_level_areas_present",
+    "limited_downside_extension_coverage",
+    "no_resistance_extension_coverage",
+    "unenriched_levels_present",
+    "wide_downside_support_gap",
+    "wide_overhead_resistance_gap"
+  ],
+  "improvementCandidates": [
+    "consider_future_15m_explanation_context_only_after_tuning_plan",
+    "keep_synthetic_continuation_map_as_marked_forward_context",
+    "review_cluster_density_and_near_duplicate_levels",
+    "review_extension_spacing_and_coverage_depth",
+    "review_forward_resistance_coverage",
+    "review_level_enrichment_mapping_coverage",
+    "review_nearest_level_gap_thresholds"
+  ],
+  "possibleBugs": [],
+  "entries": [
+    {
+      "symbol": "DEVS",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 0.2705,
+      "previousClose": 0.25,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/DEVS/5m/100-1780314300000.json",
+        "15m": "ibkr/DEVS/15m/100-1780329600000.json",
+        "4h": "ibkr/DEVS/4h/180-1780300800000.json",
+        "daily": "ibkr/DEVS/daily/520-1780272000000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "15m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 46,
+          "15m": 96,
+          "4h": 113,
+          "daily": 455
+        },
+        "filteredCandleCounts": {
+          "5m": 46,
+          "15m": 96,
+          "4h": 113,
+          "daily": 454
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 1
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "DEVS-support-zone-15",
+          "bucket": "intermediateSupport",
+          "price": 0.27,
+          "distancePct": 0.1848,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "DEVS-resistance-zone-12",
+          "bucket": "intradayResistance",
+          "price": 0.2772,
+          "distancePct": 2.4769,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 2,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 2,
+        "intradaySupport": 1,
+        "intradayResistance": 3,
+        "extensionSupport": 3,
+        "extensionResistance": 0,
+        "total": 16
+      },
+      "balance": {
+        "supportCount": 11,
+        "resistanceCount": 5,
+        "nearbySupportCount": 4,
+        "nearbyResistanceCount": 2,
+        "downsideSupportGapPct": 0.1848,
+        "overheadResistanceGapPct": 2.4769,
+        "assessment": "nearest_coverage_present",
+        "warnings": []
+      },
+      "density": {
+        "assessment": "clustered_level_areas_present",
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "clusteredAreas": [
+          {
+            "kind": "resistance",
+            "zoneLow": 0.3091,
+            "zoneHigh": 0.3126,
+            "levelCount": 2,
+            "buckets": [
+              "intradayResistance",
+              "intermediateResistance"
+            ],
+            "maxDistancePct": 1.1196
+          }
+        ]
+      },
+      "extensionCoverage": {
+        "assessment": "limited_or_one_sided_extension_coverage",
+        "support": 3,
+        "resistance": 0,
+        "lowestSupportExtension": 0.2402,
+        "downsideCoveragePct": 11.2015,
+        "supportSpacingPct": [
+          2.6228,
+          4.0568
+        ],
+        "resistanceSpacingPct": [],
+        "warnings": [
+          "limited_downside_extension_coverage",
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "no_resistance_extension_coverage",
+          "unenriched_levels_present"
+        ],
+        "summary": {
+          "totalLevels": 16,
+          "supportCount": 11,
+          "resistanceCount": 5,
+          "extensionCount": 3,
+          "freshCount": 8,
+          "staleCount": 7,
+          "enrichedCount": 0,
+          "unenrichedCount": 16
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 3,
+          "volumeConfluenceCount": 16,
+          "shelfConfluenceCount": 7,
+          "marketContextConfluenceCount": 16
+        },
+        "strongestLevelIds": [
+          "DEVS-support-zone-14",
+          "DEVS-support-zone-3",
+          "DEVS-support-zone-12",
+          "DEVS-support-zone-6",
+          "DEVS-support-zone-13"
+        ],
+        "weakestLevelIds": [
+          "DEVS-support-zone-11",
+          "DEVS-resistance-zone-13",
+          "DEVS-resistance-zone-12",
+          "DEVS-support-zone-9",
+          "DEVS-resistance-zone-16"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 16,
+        "countSummary": {
+          "majorSupport": 2,
+          "majorResistance": 0,
+          "intermediateSupport": 5,
+          "intermediateResistance": 2,
+          "intradaySupport": 1,
+          "intradayResistance": 3,
+          "extensionSupport": 3,
+          "extensionResistance": 0,
+          "total": 16
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 0.2607 is sourced from 5m, daily, 4h evidence; freshness is fresh; 3.6229% from reference price; volume state is elevated.",
+          "support zone 0.1368 is sourced from daily, 4h evidence; freshness is stale; 49.427% from reference price; volume state is elevated.",
+          "support zone 0.1505 is sourced from 4h evidence; freshness is stale; 44.3623% from reference price; volume state is elevated."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": true,
+        "valid": true,
+        "validationErrors": [],
+        "summary": {
+          "schemaVersion": "level-analysis-15m-facts/v1",
+          "symbol": "DEVS",
+          "asOfTimestamp": 1780329600000,
+          "availabilityStatus": "available",
+          "closedCandleCount": 96,
+          "rangeState": "compressed",
+          "trendState": "up",
+          "volumeState": "low",
+          "limitationCount": 0,
+          "diagnosticCount": 1,
+          "noLookaheadApplied": true,
+          "levelOutputUnchanged": true,
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true
+        },
+        "diagnostics": [
+          "15m_facts_generated"
+        ],
+        "limitations": [],
+        "levelEngineProviderIncludes15m": false,
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "consider_future_15m_explanation_context_only_after_tuning_plan",
+        "review_cluster_density_and_near_duplicate_levels",
+        "review_extension_spacing_and_coverage_depth",
+        "review_forward_resistance_coverage",
+        "review_level_enrichment_mapping_coverage"
+      ],
+      "possibleBugFlags": []
+    },
+    {
+      "symbol": "ENVX",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 6.73,
+      "previousClose": 6.74,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/ENVX/5m/100-1779463200000.json",
+        "15m": "ibkr/ENVX/15m/100-1780329600000.json",
+        "4h": "ibkr/ENVX/4h/180-1779451200000.json",
+        "daily": "ibkr/ENVX/daily/520-1779408000000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "15m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 89,
+          "15m": 96,
+          "4h": 118,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 89,
+          "15m": 96,
+          "4h": 118,
+          "daily": 501
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "ENVX-support-zone-14",
+          "bucket": "majorSupport",
+          "price": 6.68,
+          "distancePct": 0.7429,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "ENVX-resistance-zone-7",
+          "bucket": "intermediateResistance",
+          "price": 6.8,
+          "distancePct": 1.0401,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 3,
+        "intermediateResistance": 1,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1,
+        "total": 16
+      },
+      "balance": {
+        "supportCount": 10,
+        "resistanceCount": 6,
+        "nearbySupportCount": 3,
+        "nearbyResistanceCount": 2,
+        "downsideSupportGapPct": 0.7429,
+        "overheadResistanceGapPct": 1.0401,
+        "assessment": "nearest_coverage_present",
+        "warnings": []
+      },
+      "density": {
+        "assessment": "clustered_level_areas_present",
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "clusteredAreas": [
+          {
+            "kind": "support",
+            "zoneLow": 5.69,
+            "zoneHigh": 5.75,
+            "levelCount": 2,
+            "buckets": [
+              "extensionSupport",
+              "intermediateSupport"
+            ],
+            "maxDistancePct": 1.0435
+          }
+        ]
+      },
+      "extensionCoverage": {
+        "assessment": "limited_or_one_sided_extension_coverage",
+        "support": 3,
+        "resistance": 1,
+        "highestResistanceExtension": 9.86,
+        "lowestSupportExtension": 5.69,
+        "upsideCoveragePct": 46.5082,
+        "downsideCoveragePct": 15.4532,
+        "supportSpacingPct": [
+          2.9877,
+          11.7747
+        ],
+        "resistanceSpacingPct": [],
+        "warnings": [
+          "limited_downside_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "unenriched_levels_present"
+        ],
+        "summary": {
+          "totalLevels": 16,
+          "supportCount": 10,
+          "resistanceCount": 6,
+          "extensionCount": 4,
+          "freshCount": 0,
+          "staleCount": 16,
+          "enrichedCount": 0,
+          "unenrichedCount": 16
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 1,
+          "volumeConfluenceCount": 16,
+          "shelfConfluenceCount": 3,
+          "marketContextConfluenceCount": 16
+        },
+        "strongestLevelIds": [
+          "ENVX-support-zone-11",
+          "ENVX-resistance-zone-9",
+          "ENVX-support-zone-13",
+          "ENVX-support-zone-10",
+          "ENVX-support-zone-14"
+        ],
+        "weakestLevelIds": [
+          "ENVX-support-zone-7",
+          "ENVX-resistance-zone-17",
+          "ENVX-support-zone-1",
+          "ENVX-support-zone-9",
+          "ENVX-support-zone-6"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 16,
+        "countSummary": {
+          "majorSupport": 4,
+          "majorResistance": 4,
+          "intermediateSupport": 3,
+          "intermediateResistance": 1,
+          "intradaySupport": 0,
+          "intradayResistance": 0,
+          "extensionSupport": 3,
+          "extensionResistance": 1,
+          "total": 16
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 6.11 is sourced from 4h, daily evidence; freshness is stale; 9.2125% from reference price; volume state is elevated.",
+          "support zone 6.68 is sourced from 4h, daily evidence; freshness is stale; 0.7429% from reference price; volume state is elevated.",
+          "support zone 5.39 is sourced from daily, 4h evidence; freshness is stale; 19.9108% from reference price; volume state is elevated."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": true,
+        "valid": true,
+        "validationErrors": [],
+        "summary": {
+          "schemaVersion": "level-analysis-15m-facts/v1",
+          "symbol": "ENVX",
+          "asOfTimestamp": 1780329600000,
+          "availabilityStatus": "available",
+          "closedCandleCount": 96,
+          "rangeState": "expanded",
+          "trendState": "up",
+          "volumeState": "elevated",
+          "limitationCount": 0,
+          "diagnosticCount": 1,
+          "noLookaheadApplied": true,
+          "levelOutputUnchanged": true,
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true
+        },
+        "diagnostics": [
+          "15m_facts_generated"
+        ],
+        "limitations": [],
+        "levelEngineProviderIncludes15m": false,
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "consider_future_15m_explanation_context_only_after_tuning_plan",
+        "review_cluster_density_and_near_duplicate_levels",
+        "review_extension_spacing_and_coverage_depth",
+        "review_level_enrichment_mapping_coverage"
+      ],
+      "possibleBugFlags": []
+    },
+    {
+      "symbol": "DXYZ",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 46.47,
+      "previousClose": 46.47,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/DXYZ/5m/100-1778845800000.json",
+        "15m": "ibkr/DXYZ/15m/100-1780329600000.json",
+        "4h": "ibkr/DXYZ/4h/180-1778832000000.json",
+        "daily": "ibkr/DXYZ/daily/520-1778803200000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "15m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 47,
+          "15m": 96,
+          "4h": 117,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 47,
+          "15m": 96,
+          "4h": 117,
+          "daily": 501
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "DXYZ-support-zone-35",
+          "bucket": "majorSupport",
+          "price": 45.8,
+          "distancePct": 1.4418,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "DXYZ-resistance-zone-31",
+          "bucket": "majorResistance",
+          "price": 46.8,
+          "distancePct": 0.7101,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 3,
+        "intermediateResistance": 1,
+        "intradaySupport": 1,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1,
+        "total": 17
+      },
+      "balance": {
+        "supportCount": 11,
+        "resistanceCount": 6,
+        "nearbySupportCount": 2,
+        "nearbyResistanceCount": 2,
+        "downsideSupportGapPct": 1.4418,
+        "overheadResistanceGapPct": 0.7101,
+        "assessment": "nearest_coverage_present",
+        "warnings": []
+      },
+      "density": {
+        "assessment": "clustered_level_areas_present",
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "clusteredAreas": [
+          {
+            "kind": "resistance",
+            "zoneLow": 67,
+            "zoneHigh": 67.69,
+            "levelCount": 2,
+            "buckets": [
+              "majorResistance",
+              "extensionResistance"
+            ],
+            "maxDistancePct": 1.0194
+          }
+        ]
+      },
+      "extensionCoverage": {
+        "assessment": "extension_coverage_present",
+        "support": 3,
+        "resistance": 1,
+        "highestResistanceExtension": 67.69,
+        "lowestSupportExtension": 24,
+        "upsideCoveragePct": 45.6639,
+        "downsideCoveragePct": 48.3538,
+        "supportSpacingPct": [
+          4.4167,
+          4.8284
+        ],
+        "resistanceSpacingPct": [],
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "unenriched_levels_present"
+        ],
+        "summary": {
+          "totalLevels": 17,
+          "supportCount": 11,
+          "resistanceCount": 6,
+          "extensionCount": 4,
+          "freshCount": 0,
+          "staleCount": 17,
+          "enrichedCount": 0,
+          "unenrichedCount": 17
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 1,
+          "volumeConfluenceCount": 17,
+          "shelfConfluenceCount": 1,
+          "marketContextConfluenceCount": 17
+        },
+        "strongestLevelIds": [
+          "DXYZ-support-zone-25",
+          "DXYZ-resistance-zone-31",
+          "DXYZ-support-zone-35",
+          "DXYZ-support-zone-30",
+          "DXYZ-support-zone-22"
+        ],
+        "weakestLevelIds": [
+          "DXYZ-support-zone-26",
+          "DXYZ-support-zone-32",
+          "DXYZ-support-zone-17",
+          "DXYZ-resistance-zone-36",
+          "DXYZ-resistance-zone-34"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 17,
+        "countSummary": {
+          "majorSupport": 4,
+          "majorResistance": 4,
+          "intermediateSupport": 3,
+          "intermediateResistance": 1,
+          "intradaySupport": 1,
+          "intradayResistance": 0,
+          "extensionSupport": 3,
+          "extensionResistance": 1,
+          "total": 17
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 28.84 is sourced from daily, 4h evidence; freshness is stale; 37.9385% from reference price; volume state is normal.",
+          "support zone 45.8 is sourced from daily, 5m evidence; freshness is stale; 1.4418% from reference price; volume state is normal.",
+          "support zone 36.99 is sourced from daily, 4h evidence; freshness is stale; 20.4003% from reference price; volume state is normal."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": true,
+        "valid": true,
+        "validationErrors": [],
+        "summary": {
+          "schemaVersion": "level-analysis-15m-facts/v1",
+          "symbol": "DXYZ",
+          "asOfTimestamp": 1780329600000,
+          "availabilityStatus": "available",
+          "closedCandleCount": 96,
+          "rangeState": "expanded",
+          "trendState": "mixed",
+          "volumeState": "extreme",
+          "limitationCount": 0,
+          "diagnosticCount": 1,
+          "noLookaheadApplied": true,
+          "levelOutputUnchanged": true,
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true
+        },
+        "diagnostics": [
+          "15m_facts_generated"
+        ],
+        "limitations": [],
+        "levelEngineProviderIncludes15m": false,
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "consider_future_15m_explanation_context_only_after_tuning_plan",
+        "review_cluster_density_and_near_duplicate_levels",
+        "review_level_enrichment_mapping_coverage"
+      ],
+      "possibleBugFlags": []
+    },
+    {
+      "symbol": "QUBT",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 12.799,
+      "previousClose": 12.89,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/QUBT/5m/100-1778595300000.json",
+        "15m": "ibkr/QUBT/15m/100-1780329600000.json",
+        "4h": "ibkr/QUBT/4h/180-1778587200000.json",
+        "daily": "ibkr/QUBT/daily/520-1778544000000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "15m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 76,
+          "15m": 96,
+          "4h": 114,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 76,
+          "15m": 96,
+          "4h": 114,
+          "daily": 501
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "QUBT-support-zone-38",
+          "bucket": "intradaySupport",
+          "price": 12.42,
+          "distancePct": 2.9612,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "QUBT-resistance-zone-33",
+          "bucket": "intradayResistance",
+          "price": 12.9727,
+          "distancePct": 1.3571,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 4,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 2,
+        "extensionSupport": 3,
+        "extensionResistance": 1,
+        "total": 19
+      },
+      "balance": {
+        "supportCount": 12,
+        "resistanceCount": 7,
+        "nearbySupportCount": 1,
+        "nearbyResistanceCount": 2,
+        "downsideSupportGapPct": 2.9612,
+        "overheadResistanceGapPct": 1.3571,
+        "assessment": "nearest_coverage_present",
+        "warnings": []
+      },
+      "density": {
+        "assessment": "dense_level_map",
+        "clusteredAreaCount": 0,
+        "possibleClutterLevelCount": 0,
+        "clusteredAreas": []
+      },
+      "extensionCoverage": {
+        "assessment": "extension_coverage_present",
+        "support": 3,
+        "resistance": 1,
+        "highestResistanceExtension": 16.9305,
+        "lowestSupportExtension": 6.23,
+        "upsideCoveragePct": 32.2799,
+        "downsideCoveragePct": 51.3243,
+        "supportSpacingPct": [
+          1.2841,
+          2.8526
+        ],
+        "resistanceSpacingPct": [],
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "unenriched_levels_present"
+        ],
+        "summary": {
+          "totalLevels": 19,
+          "supportCount": 12,
+          "resistanceCount": 7,
+          "extensionCount": 4,
+          "freshCount": 0,
+          "staleCount": 19,
+          "enrichedCount": 0,
+          "unenrichedCount": 19
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 0,
+          "volumeConfluenceCount": 19,
+          "shelfConfluenceCount": 1,
+          "marketContextConfluenceCount": 19
+        },
+        "strongestLevelIds": [
+          "QUBT-support-zone-19",
+          "QUBT-support-zone-36",
+          "QUBT-resistance-zone-34",
+          "QUBT-support-zone-29",
+          "QUBT-support-zone-28"
+        ],
+        "weakestLevelIds": [
+          "QUBT-resistance-zone-37",
+          "QUBT-support-zone-25",
+          "QUBT-support-zone-24",
+          "QUBT-resistance-zone-41",
+          "QUBT-support-zone-26"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 19,
+        "countSummary": {
+          "majorSupport": 4,
+          "majorResistance": 4,
+          "intermediateSupport": 4,
+          "intermediateResistance": 0,
+          "intradaySupport": 1,
+          "intradayResistance": 2,
+          "extensionSupport": 3,
+          "extensionResistance": 1,
+          "total": 19
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 6.7 is sourced from daily, 4h evidence; freshness is stale; 47.6522% from reference price; volume state is low.",
+          "support zone 11.37 is sourced from daily, 5m evidence; freshness is stale; 11.1649% from reference price; volume state is low.",
+          "support zone 9.26 is sourced from 4h, daily evidence; freshness is stale; 27.6506% from reference price; volume state is low."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": true,
+        "valid": true,
+        "validationErrors": [],
+        "summary": {
+          "schemaVersion": "level-analysis-15m-facts/v1",
+          "symbol": "QUBT",
+          "asOfTimestamp": 1780329600000,
+          "availabilityStatus": "available",
+          "closedCandleCount": 96,
+          "rangeState": "expanded",
+          "trendState": "mixed",
+          "volumeState": "high",
+          "limitationCount": 0,
+          "diagnosticCount": 1,
+          "noLookaheadApplied": true,
+          "levelOutputUnchanged": true,
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true
+        },
+        "diagnostics": [
+          "15m_facts_generated"
+        ],
+        "limitations": [],
+        "levelEngineProviderIncludes15m": false,
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "consider_future_15m_explanation_context_only_after_tuning_plan",
+        "review_level_enrichment_mapping_coverage"
+      ],
+      "possibleBugFlags": []
+    },
+    {
+      "symbol": "GME",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 24.8,
+      "previousClose": 24.8,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/GME/5m/100-1777907100000.json",
+        "15m": "ibkr/GME/15m/100-1780329600000.json",
+        "4h": "ibkr/GME/4h/180-1777896000000.json",
+        "daily": "ibkr/GME/daily/520-1777852800000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "15m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 86,
+          "15m": 96,
+          "4h": 114,
+          "daily": 500
+        },
+        "filteredCandleCounts": {
+          "5m": 86,
+          "15m": 96,
+          "4h": 114,
+          "daily": 500
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "GME-support-zone-17",
+          "bucket": "intermediateSupport",
+          "price": 24.73,
+          "distancePct": 0.2823,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "GME-resistance-zone-7",
+          "bucket": "majorResistance",
+          "price": 25,
+          "distancePct": 0.8065,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 1,
+        "intermediateResistance": 0,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 3,
+        "total": 15
+      },
+      "balance": {
+        "supportCount": 8,
+        "resistanceCount": 7,
+        "nearbySupportCount": 3,
+        "nearbyResistanceCount": 2,
+        "downsideSupportGapPct": 0.2823,
+        "overheadResistanceGapPct": 0.8065,
+        "assessment": "nearest_coverage_present",
+        "warnings": []
+      },
+      "density": {
+        "assessment": "clustered_level_areas_present",
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "clusteredAreas": [
+          {
+            "kind": "support",
+            "zoneLow": 24.21,
+            "zoneHigh": 24.92,
+            "levelCount": 2,
+            "buckets": [
+              "majorSupport",
+              "intermediateSupport"
+            ],
+            "maxDistancePct": 1.0918
+          }
+        ]
+      },
+      "extensionCoverage": {
+        "assessment": "extension_coverage_present",
+        "support": 3,
+        "resistance": 3,
+        "highestResistanceExtension": 34.37,
+        "lowestSupportExtension": 19.61,
+        "upsideCoveragePct": 38.5887,
+        "downsideCoveragePct": 20.9274,
+        "supportSpacingPct": [
+          4.5895,
+          5.1195
+        ],
+        "resistanceSpacingPct": [
+          1.4529,
+          7.005
+        ],
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "unenriched_levels_present"
+        ],
+        "summary": {
+          "totalLevels": 15,
+          "supportCount": 8,
+          "resistanceCount": 7,
+          "extensionCount": 6,
+          "freshCount": 0,
+          "staleCount": 15,
+          "enrichedCount": 0,
+          "unenrichedCount": 15
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 2,
+          "volumeConfluenceCount": 15,
+          "shelfConfluenceCount": 1,
+          "marketContextConfluenceCount": 15
+        },
+        "strongestLevelIds": [
+          "GME-resistance-zone-10",
+          "GME-support-zone-17",
+          "GME-support-zone-11",
+          "GME-support-zone-10",
+          "GME-resistance-zone-7"
+        ],
+        "weakestLevelIds": [
+          "GME-resistance-zone-18",
+          "GME-support-zone-4",
+          "GME-resistance-zone-17",
+          "GME-resistance-zone-19",
+          "GME-resistance-zone-16"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 15,
+        "countSummary": {
+          "majorSupport": 4,
+          "majorResistance": 4,
+          "intermediateSupport": 1,
+          "intermediateResistance": 0,
+          "intradaySupport": 0,
+          "intradayResistance": 0,
+          "extensionSupport": 3,
+          "extensionResistance": 3,
+          "total": 15
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 22.45 is sourced from daily, 4h evidence; freshness is stale; 9.4758% from reference price; volume state is low.",
+          "support zone 21.88 is sourced from daily, 4h evidence; freshness is stale; 11.7742% from reference price; volume state is low.",
+          "support zone 24.46 is sourced from 4h, daily, 5m evidence; freshness is stale; 1.371% from reference price; volume state is low."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": true,
+        "valid": true,
+        "validationErrors": [],
+        "summary": {
+          "schemaVersion": "level-analysis-15m-facts/v1",
+          "symbol": "GME",
+          "asOfTimestamp": 1780329600000,
+          "availabilityStatus": "available",
+          "closedCandleCount": 96,
+          "rangeState": "normal",
+          "trendState": "mixed",
+          "volumeState": "normal",
+          "limitationCount": 0,
+          "diagnosticCount": 1,
+          "noLookaheadApplied": true,
+          "levelOutputUnchanged": true,
+          "factsOnly": true,
+          "noRuntimeBehaviorChange": true
+        },
+        "diagnostics": [
+          "15m_facts_generated"
+        ],
+        "limitations": [],
+        "levelEngineProviderIncludes15m": false,
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "consider_future_15m_explanation_context_only_after_tuning_plan",
+        "review_cluster_density_and_near_duplicate_levels",
+        "review_level_enrichment_mapping_coverage"
+      ],
+      "possibleBugFlags": []
+    },
+    {
+      "symbol": "AIM",
+      "provider": "ibkr",
+      "asOfTimestamp": 1779976800000,
+      "asOfIso": "2026-05-28T14:00:00.000Z",
+      "referencePrice": 0.373,
+      "previousClose": 0.3815,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/AIM/5m/100-1779976500000.json",
+        "4h": "ibkr/AIM/4h/180-1779969600000.json",
+        "daily": "ibkr/AIM/daily/520-1779926400000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 72,
+          "15m": 0,
+          "4h": 114,
+          "daily": 502
+        },
+        "filteredCandleCounts": {
+          "5m": 72,
+          "15m": 0,
+          "4h": 113,
+          "daily": 501
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "AIM-support-zone-13",
+          "bucket": "intradaySupport",
+          "price": 0.35,
+          "distancePct": 6.1662,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "AIM-resistance-zone-9",
+          "bucket": "intradayResistance",
+          "price": 0.375,
+          "distancePct": 0.5362,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 1,
+        "majorResistance": 1,
+        "intermediateSupport": 4,
+        "intermediateResistance": 3,
+        "intradaySupport": 3,
+        "intradayResistance": 2,
+        "extensionSupport": 3,
+        "extensionResistance": 0,
+        "total": 17
+      },
+      "balance": {
+        "supportCount": 11,
+        "resistanceCount": 6,
+        "nearbySupportCount": 1,
+        "nearbyResistanceCount": 1,
+        "downsideSupportGapPct": 6.1662,
+        "overheadResistanceGapPct": 0.5362,
+        "assessment": "nearest_coverage_present",
+        "warnings": []
+      },
+      "density": {
+        "assessment": "clustered_level_areas_present",
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "clusteredAreas": [
+          {
+            "kind": "support",
+            "zoneLow": 0.2829,
+            "zoneHigh": 0.2858,
+            "levelCount": 2,
+            "buckets": [
+              "extensionSupport"
+            ],
+            "maxDistancePct": 1.0147
+          }
+        ]
+      },
+      "extensionCoverage": {
+        "assessment": "limited_or_one_sided_extension_coverage",
+        "support": 3,
+        "resistance": 0,
+        "lowestSupportExtension": 0.2829,
+        "downsideCoveragePct": 24.1555,
+        "supportSpacingPct": [
+          1.0251,
+          18.6494
+        ],
+        "resistanceSpacingPct": [],
+        "warnings": [
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "no_resistance_extension_coverage",
+          "unenriched_levels_present"
+        ],
+        "summary": {
+          "totalLevels": 17,
+          "supportCount": 11,
+          "resistanceCount": 6,
+          "extensionCount": 3,
+          "freshCount": 0,
+          "staleCount": 9,
+          "enrichedCount": 0,
+          "unenrichedCount": 17
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 5,
+          "volumeConfluenceCount": 17,
+          "shelfConfluenceCount": 3,
+          "marketContextConfluenceCount": 17
+        },
+        "strongestLevelIds": [
+          "AIM-support-zone-13",
+          "AIM-resistance-zone-14",
+          "AIM-support-zone-1",
+          "AIM-resistance-zone-13",
+          "AIM-support-zone-11"
+        ],
+        "weakestLevelIds": [
+          "AIM-resistance-zone-11",
+          "AIM-support-zone-9",
+          "AIM-resistance-zone-10",
+          "AIM-resistance-zone-12",
+          "AIM-support-zone-12"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 17,
+        "countSummary": {
+          "majorSupport": 1,
+          "majorResistance": 1,
+          "intermediateSupport": 4,
+          "intermediateResistance": 3,
+          "intradaySupport": 3,
+          "intradayResistance": 2,
+          "extensionSupport": 3,
+          "extensionResistance": 0,
+          "total": 17
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 0.21 is sourced from daily, 4h evidence; freshness is stale; 43.6997% from reference price; volume state is low.",
+          "resistance zone 0.5392 is sourced from 4h, daily evidence; freshness is stale; 44.5576% from reference price; volume state is low.",
+          "support zone 0.2707 is sourced from 4h evidence; freshness is stale; 27.4263% from reference price; volume state is low."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": false,
+        "validationErrors": [],
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "review_cluster_density_and_near_duplicate_levels",
+        "review_forward_resistance_coverage",
+        "review_level_enrichment_mapping_coverage"
+      ],
+      "possibleBugFlags": []
+    },
+    {
+      "symbol": "HCWB",
+      "provider": "ibkr",
+      "asOfTimestamp": 1779289200000,
+      "asOfIso": "2026-05-20T15:00:00.000Z",
+      "referencePrice": 2.945,
+      "previousClose": 1.02,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/HCWB/5m/100-1779288900000.json",
+        "4h": "ibkr/HCWB/4h/180-1779278400000.json",
+        "daily": "ibkr/HCWB/daily/520-1779235200000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 84,
+          "15m": 0,
+          "4h": 118,
+          "daily": 277
+        },
+        "filteredCandleCounts": {
+          "5m": 84,
+          "15m": 0,
+          "4h": 117,
+          "daily": 276
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "HCWB-support-zone-23",
+          "bucket": "majorSupport",
+          "price": 1.91,
+          "distancePct": 35.1443,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "HCWB-resistance-zone-26",
+          "bucket": "majorResistance",
+          "price": 3.78,
+          "distancePct": 28.3531,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 2,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 4,
+        "intradayResistance": 1,
+        "extensionSupport": 1,
+        "extensionResistance": 0,
+        "total": 17
+      },
+      "balance": {
+        "supportCount": 14,
+        "resistanceCount": 3,
+        "nearbySupportCount": 0,
+        "nearbyResistanceCount": 0,
+        "downsideSupportGapPct": 35.1443,
+        "overheadResistanceGapPct": 28.3531,
+        "assessment": "wide_nearby_gap",
+        "warnings": [
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ]
+      },
+      "density": {
+        "assessment": "clustered_level_areas_present",
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "clusteredAreas": [
+          {
+            "kind": "support",
+            "zoneLow": 0.9117,
+            "zoneHigh": 0.935,
+            "levelCount": 2,
+            "buckets": [
+              "intermediateSupport",
+              "intradaySupport"
+            ],
+            "maxDistancePct": 1.224
+          }
+        ]
+      },
+      "extensionCoverage": {
+        "assessment": "limited_or_one_sided_extension_coverage",
+        "support": 1,
+        "resistance": 0,
+        "lowestSupportExtension": 0.2342,
+        "downsideCoveragePct": 92.0475,
+        "supportSpacingPct": [],
+        "resistanceSpacingPct": [],
+        "warnings": [
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "no_resistance_extension_coverage",
+          "unenriched_levels_present",
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ],
+        "summary": {
+          "totalLevels": 17,
+          "supportCount": 14,
+          "resistanceCount": 3,
+          "extensionCount": 1,
+          "freshCount": 0,
+          "staleCount": 17,
+          "enrichedCount": 0,
+          "unenrichedCount": 17
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 3,
+          "volumeConfluenceCount": 17,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 17
+        },
+        "strongestLevelIds": [
+          "HCWB-support-zone-16",
+          "HCWB-support-zone-2",
+          "HCWB-support-zone-4",
+          "HCWB-support-zone-14",
+          "HCWB-support-zone-3"
+        ],
+        "weakestLevelIds": [
+          "HCWB-support-zone-20",
+          "HCWB-resistance-zone-27",
+          "HCWB-support-zone-10",
+          "HCWB-resistance-zone-28",
+          "HCWB-support-zone-17"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 17,
+        "countSummary": {
+          "majorSupport": 4,
+          "majorResistance": 2,
+          "intermediateSupport": 5,
+          "intermediateResistance": 0,
+          "intradaySupport": 4,
+          "intradayResistance": 1,
+          "extensionSupport": 1,
+          "extensionResistance": 0,
+          "total": 17
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 0.9532 is sourced from 5m, daily evidence; freshness is stale; 67.6333% from reference price; volume state is low.",
+          "support zone 0.3 is sourced from daily, 4h evidence; freshness is stale; 89.8132% from reference price; volume state is low.",
+          "support zone 0.3352 is sourced from 4h, daily evidence; freshness is stale; 88.618% from reference price; volume state is low."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": false,
+        "validationErrors": [],
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "review_cluster_density_and_near_duplicate_levels",
+        "review_forward_resistance_coverage",
+        "review_level_enrichment_mapping_coverage",
+        "review_nearest_level_gap_thresholds"
+      ],
+      "possibleBugFlags": []
+    },
+    {
+      "symbol": "YMAT",
+      "provider": "ibkr",
+      "asOfTimestamp": 1779825600000,
+      "asOfIso": "2026-05-26T20:00:00.000Z",
+      "referencePrice": 1.325,
+      "previousClose": 1.3302,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/YMAT/5m/100-1779825300000.json",
+        "4h": "ibkr/YMAT/4h/180-1779811200000.json",
+        "daily": "ibkr/YMAT/daily/520-1779753600000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 144,
+          "15m": 0,
+          "4h": 110,
+          "daily": 207
+        },
+        "filteredCandleCounts": {
+          "5m": 144,
+          "15m": 0,
+          "4h": 110,
+          "daily": 207
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "YMAT-support-zone-30",
+          "bucket": "extensionSupport",
+          "price": 1.31,
+          "distancePct": 1.1321,
+          "isExtension": true
+        },
+        "resistance": {
+          "levelId": "YMAT-resistance-zone-22",
+          "bucket": "majorResistance",
+          "price": 1.34,
+          "distancePct": 1.1321,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 2,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 3,
+        "intradayResistance": 6,
+        "extensionSupport": 3,
+        "extensionResistance": 3,
+        "total": 26
+      },
+      "balance": {
+        "supportCount": 15,
+        "resistanceCount": 11,
+        "nearbySupportCount": 4,
+        "nearbyResistanceCount": 3,
+        "downsideSupportGapPct": 1.1321,
+        "overheadResistanceGapPct": 1.1321,
+        "assessment": "nearest_coverage_present",
+        "warnings": []
+      },
+      "density": {
+        "assessment": "clustered_level_areas_present",
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "clusteredAreas": [
+          {
+            "kind": "resistance",
+            "zoneLow": 1.64,
+            "zoneHigh": 1.66,
+            "levelCount": 2,
+            "buckets": [
+              "intradayResistance",
+              "extensionResistance"
+            ],
+            "maxDistancePct": 1.2048
+          }
+        ]
+      },
+      "extensionCoverage": {
+        "assessment": "limited_or_one_sided_extension_coverage",
+        "support": 3,
+        "resistance": 3,
+        "highestResistanceExtension": 1.66,
+        "lowestSupportExtension": 1.1286,
+        "upsideCoveragePct": 25.283,
+        "downsideCoveragePct": 14.8226,
+        "supportSpacingPct": [
+          8.0985,
+          7.377
+        ],
+        "resistanceSpacingPct": [
+          16.1765,
+          5.0633
+        ],
+        "warnings": [
+          "limited_downside_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "unenriched_levels_present"
+        ],
+        "summary": {
+          "totalLevels": 26,
+          "supportCount": 15,
+          "resistanceCount": 11,
+          "extensionCount": 6,
+          "freshCount": 0,
+          "staleCount": 11,
+          "enrichedCount": 0,
+          "unenrichedCount": 26
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 4,
+          "volumeConfluenceCount": 26,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 26
+        },
+        "strongestLevelIds": [
+          "YMAT-resistance-zone-22",
+          "YMAT-resistance-zone-23",
+          "YMAT-support-zone-16",
+          "YMAT-support-zone-17",
+          "YMAT-support-zone-18"
+        ],
+        "weakestLevelIds": [
+          "YMAT-resistance-zone-24",
+          "YMAT-resistance-zone-28",
+          "YMAT-resistance-zone-26",
+          "YMAT-support-zone-30",
+          "YMAT-resistance-zone-30"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 26,
+        "countSummary": {
+          "majorSupport": 4,
+          "majorResistance": 2,
+          "intermediateSupport": 5,
+          "intermediateResistance": 0,
+          "intradaySupport": 3,
+          "intradayResistance": 6,
+          "extensionSupport": 3,
+          "extensionResistance": 3,
+          "total": 26
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 0.4506 is sourced from 4h, daily evidence; freshness is stale; 65.9925% from reference price; volume state is normal.",
+          "support zone 0.5 is sourced from 4h, daily evidence; freshness is stale; 62.2642% from reference price; volume state is normal.",
+          "support zone 0.2483 is sourced from daily, 4h evidence; freshness is stale; 81.2604% from reference price; volume state is normal."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": false,
+        "validationErrors": [],
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "review_cluster_density_and_near_duplicate_levels",
+        "review_extension_spacing_and_coverage_depth",
+        "review_level_enrichment_mapping_coverage"
+      ],
+      "possibleBugFlags": []
+    },
+    {
+      "symbol": "AAOI",
+      "provider": "ibkr",
+      "asOfTimestamp": 1777915800000,
+      "asOfIso": "2026-05-04T17:30:00.000Z",
+      "referencePrice": 178.64,
+      "previousClose": 182.85,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/AAOI/5m/100-1777915500000.json",
+        "4h": "ibkr/AAOI/4h/180-1777910400000.json",
+        "daily": "ibkr/AAOI/daily/520-1777852800000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 114,
+          "15m": 0,
+          "4h": 115,
+          "daily": 500
+        },
+        "filteredCandleCounts": {
+          "5m": 114,
+          "15m": 0,
+          "4h": 114,
+          "daily": 499
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "AAOI-support-zone-51",
+          "bucket": "intradaySupport",
+          "price": 174.78,
+          "distancePct": 2.1608,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "AAOI-resistance-zone-52",
+          "bucket": "intradayResistance",
+          "price": 189.5,
+          "distancePct": 6.0793,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 1,
+        "extensionSupport": 3,
+        "extensionResistance": 2,
+        "total": 16
+      },
+      "balance": {
+        "supportCount": 13,
+        "resistanceCount": 3,
+        "nearbySupportCount": 1,
+        "nearbyResistanceCount": 2,
+        "downsideSupportGapPct": 2.1608,
+        "overheadResistanceGapPct": 6.0793,
+        "assessment": "nearest_coverage_present",
+        "warnings": []
+      },
+      "density": {
+        "assessment": "dense_level_map",
+        "clusteredAreaCount": 0,
+        "possibleClutterLevelCount": 0,
+        "clusteredAreas": []
+      },
+      "extensionCoverage": {
+        "assessment": "extension_coverage_present",
+        "support": 3,
+        "resistance": 2,
+        "highestResistanceExtension": 232.5,
+        "lowestSupportExtension": 23.85,
+        "upsideCoveragePct": 30.15,
+        "downsideCoveragePct": 86.6491,
+        "supportSpacingPct": [
+          4.109,
+          2.2956
+        ],
+        "resistanceSpacingPct": [
+          21.119
+        ],
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 1,
+        "clearlyMarkedCount": 1,
+        "entries": [
+          {
+            "levelId": "AAOI-synthetic-resistance-extension-1-232p5000",
+            "kind": "resistance",
+            "representativePrice": 232.5,
+            "bucket": "extensionResistance",
+            "clearlyMarked": true,
+            "evidenceLimitations": [
+              "real_extension_coverage_below_threshold",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ]
+          }
+        ]
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "unenriched_levels_present"
+        ],
+        "summary": {
+          "totalLevels": 16,
+          "supportCount": 13,
+          "resistanceCount": 3,
+          "extensionCount": 5,
+          "freshCount": 1,
+          "staleCount": 15,
+          "enrichedCount": 0,
+          "unenrichedCount": 16
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 2,
+          "volumeConfluenceCount": 16,
+          "shelfConfluenceCount": 1,
+          "marketContextConfluenceCount": 16
+        },
+        "strongestLevelIds": [
+          "AAOI-support-zone-37",
+          "AAOI-resistance-zone-52",
+          "AAOI-support-zone-44",
+          "AAOI-support-zone-39",
+          "AAOI-support-zone-51"
+        ],
+        "weakestLevelIds": [
+          "AAOI-synthetic-resistance-extension-1-232p5000",
+          "AAOI-resistance-zone-53",
+          "AAOI-support-zone-27",
+          "AAOI-support-zone-47",
+          "AAOI-support-zone-45"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 16,
+        "countSummary": {
+          "majorSupport": 4,
+          "majorResistance": 0,
+          "intermediateSupport": 5,
+          "intermediateResistance": 0,
+          "intradaySupport": 1,
+          "intradayResistance": 1,
+          "extensionSupport": 3,
+          "extensionResistance": 2,
+          "total": 16
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 78.575 is sourced from daily, 4h evidence; freshness is stale; 56.0149% from reference price; volume state is normal.",
+          "support zone 132.63 is sourced from daily, 4h evidence; freshness is stale; 25.7557% from reference price; volume state is normal.",
+          "support zone 82.5 is sourced from 4h, daily evidence; freshness is stale; 53.8177% from reference price; volume state is normal."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": false,
+        "validationErrors": [],
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "keep_synthetic_continuation_map_as_marked_forward_context",
+        "review_level_enrichment_mapping_coverage"
+      ],
+      "possibleBugFlags": []
+    },
+    {
+      "symbol": "PHOE",
+      "provider": "ibkr",
+      "asOfTimestamp": 1778186700000,
+      "asOfIso": "2026-05-07T20:45:00.000Z",
+      "referencePrice": 34.75,
+      "previousClose": 28.2,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/PHOE/5m/100-1778186400000.json",
+        "4h": "ibkr/PHOE/4h/180-1778184000000.json",
+        "daily": "ibkr/PHOE/daily/520-1778112000000.json"
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 134,
+          "15m": 0,
+          "4h": 77,
+          "daily": 236
+        },
+        "filteredCandleCounts": {
+          "5m": 134,
+          "15m": 0,
+          "4h": 76,
+          "daily": 236
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 0
+        }
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "PHOE-support-zone-35",
+          "bucket": "intradaySupport",
+          "price": 29.85,
+          "distancePct": 14.1007,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "PHOE-resistance-zone-36",
+          "bucket": "intermediateResistance",
+          "price": 40.98,
+          "distancePct": 17.9281,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 1,
+        "intradaySupport": 6,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1,
+        "total": 20
+      },
+      "balance": {
+        "supportCount": 18,
+        "resistanceCount": 2,
+        "nearbySupportCount": 0,
+        "nearbyResistanceCount": 0,
+        "downsideSupportGapPct": 14.1007,
+        "overheadResistanceGapPct": 17.9281,
+        "assessment": "wide_nearby_gap",
+        "warnings": [
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ]
+      },
+      "density": {
+        "assessment": "dense_level_map",
+        "clusteredAreaCount": 0,
+        "possibleClutterLevelCount": 0,
+        "clusteredAreas": []
+      },
+      "extensionCoverage": {
+        "assessment": "extension_coverage_present",
+        "support": 3,
+        "resistance": 1,
+        "highestResistanceExtension": 45.5,
+        "lowestSupportExtension": 5.85,
+        "upsideCoveragePct": 30.9353,
+        "downsideCoveragePct": 83.1655,
+        "supportSpacingPct": [
+          12.1368,
+          1.372
+        ],
+        "resistanceSpacingPct": [],
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 1,
+        "clearlyMarkedCount": 1,
+        "entries": [
+          {
+            "levelId": "PHOE-synthetic-resistance-extension-1-45p5000",
+            "kind": "resistance",
+            "representativePrice": 45.5,
+            "bucket": "extensionResistance",
+            "clearlyMarked": true,
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ]
+          }
+        ]
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "unenriched_levels_present",
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ],
+        "summary": {
+          "totalLevels": 20,
+          "supportCount": 18,
+          "resistanceCount": 2,
+          "extensionCount": 4,
+          "freshCount": 1,
+          "staleCount": 19,
+          "enrichedCount": 0,
+          "unenrichedCount": 20
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 1,
+          "volumeConfluenceCount": 20,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 20
+        },
+        "strongestLevelIds": [
+          "PHOE-support-zone-20",
+          "PHOE-support-zone-17",
+          "PHOE-support-zone-14",
+          "PHOE-support-zone-35",
+          "PHOE-support-zone-7"
+        ],
+        "weakestLevelIds": [
+          "PHOE-synthetic-resistance-extension-1-45p5000",
+          "PHOE-support-zone-31",
+          "PHOE-resistance-zone-36",
+          "PHOE-support-zone-30",
+          "PHOE-support-zone-6"
+        ]
+      },
+      "intelligenceReport": {
+        "profileCount": 20,
+        "countSummary": {
+          "majorSupport": 4,
+          "majorResistance": 0,
+          "intermediateSupport": 5,
+          "intermediateResistance": 1,
+          "intradaySupport": 6,
+          "intradayResistance": 0,
+          "extensionSupport": 3,
+          "extensionResistance": 1,
+          "total": 20
+        },
+        "diagnostics": [
+          "enriched_analysis_missing",
+          "no_nearby_volume_shelf"
+        ],
+        "factOnlySafety": true,
+        "sampleReasons": [
+          "support zone 15.4 is sourced from daily, 4h evidence; freshness is stale; 55.6835% from reference price; volume state is normal.",
+          "support zone 14.31 is sourced from daily, 4h evidence; freshness is stale; 58.8201% from reference price; volume state is normal.",
+          "support zone 13.26 is sourced from daily, 4h evidence; freshness is stale; 61.8417% from reference price; volume state is normal."
+        ]
+      },
+      "fifteenMinuteFactsContext": {
+        "provided": false,
+        "validationErrors": [],
+        "contextOnly": true
+      },
+      "improvementCandidates": [
+        "keep_synthetic_continuation_map_as_marked_forward_context",
+        "review_level_enrichment_mapping_coverage",
+        "review_nearest_level_gap_thresholds"
+      ],
+      "possibleBugFlags": []
+    }
+  ],
+  "behaviorChanges": {
+    "levelEngineChanged": false,
+    "supportResistanceDetectionChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "runtimeDefaultsChanged": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppChanged": false
+  },
+  "recommendedNextGate": "level_engine_quality_tuning_plan"
+}
