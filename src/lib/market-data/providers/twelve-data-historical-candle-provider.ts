@@ -1,5 +1,16 @@
-import type { BaseCandleProviderResponse, Candle, CandleTimeframe } from "../candle-types.js";
-import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "../provider-types.js";
+import type {
+  BaseCandleProviderResponse,
+  Candle,
+  ProviderCandleTimeframe,
+} from "../candle-types.js";
+import type {
+  BaseProviderCandleResponse,
+  HistoricalCandleProvider,
+  HistoricalFetchPlan,
+  HistoricalFetchRequest,
+  ProviderHistoricalFetchPlan,
+  ProviderHistoricalFetchRequest,
+} from "../provider-types.js";
 
 type TwelveDataValuesRow = {
   datetime: string;
@@ -49,7 +60,15 @@ export class TwelveDataHistoricalCandleProvider implements HistoricalCandleProvi
   async fetchCandles(
     request: HistoricalFetchRequest,
     plan: HistoricalFetchPlan,
-  ): Promise<BaseCandleProviderResponse> {
+  ): Promise<BaseCandleProviderResponse>;
+  async fetchCandles(
+    request: ProviderHistoricalFetchRequest,
+    plan: ProviderHistoricalFetchPlan,
+  ): Promise<BaseProviderCandleResponse>;
+  async fetchCandles(
+    request: ProviderHistoricalFetchRequest,
+    plan: ProviderHistoricalFetchPlan,
+  ): Promise<BaseProviderCandleResponse> {
     if (!this.apiKey.trim()) {
       throw new Error("Twelve Data API key is required.");
     }
@@ -90,12 +109,14 @@ export class TwelveDataHistoricalCandleProvider implements HistoricalCandleProvi
     };
   }
 
-  private mapInterval(timeframe: CandleTimeframe): string {
+  private mapInterval(timeframe: ProviderCandleTimeframe): string {
     switch (timeframe) {
       case "daily":
         return "1day";
       case "4h":
         return "4h";
+      case "15m":
+        return "15min";
       case "5m":
         return "5min";
     }

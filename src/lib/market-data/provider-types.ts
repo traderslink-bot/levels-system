@@ -2,6 +2,7 @@ import type {
   BaseCandleProviderResponse,
   CandleProviderName,
   CandleTimeframe,
+  ProviderCandleTimeframe,
 } from "./candle-types.js";
 
 export type HistoricalFetchRequest = {
@@ -27,6 +28,18 @@ export type HistoricalFetchPlan = {
     interval?: string;
     outputSize?: number;
   };
+};
+
+export type ProviderHistoricalFetchRequest = Omit<HistoricalFetchRequest, "timeframe"> & {
+  timeframe: ProviderCandleTimeframe;
+};
+
+export type ProviderHistoricalFetchPlan = Omit<HistoricalFetchPlan, "timeframe"> & {
+  timeframe: ProviderCandleTimeframe;
+};
+
+export type BaseProviderCandleResponse = Omit<BaseCandleProviderResponse, "timeframe"> & {
+  timeframe: ProviderCandleTimeframe;
 };
 
 export interface HistoricalCandleProvider {

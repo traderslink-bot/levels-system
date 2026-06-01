@@ -1,30 +1,47 @@
-import type { CandleProviderName, CandleTimeframe } from "./candle-types.js";
-import type { HistoricalFetchPlan, HistoricalFetchRequest } from "./provider-types.js";
+import type {
+  CandleProviderName,
+  CandleTimeframe,
+  ProviderCandleTimeframe,
+} from "./candle-types.js";
+import type {
+  HistoricalFetchPlan,
+  HistoricalFetchRequest,
+  ProviderHistoricalFetchPlan,
+  ProviderHistoricalFetchRequest,
+} from "./provider-types.js";
 
-const TIMEFRAME_TO_INTERVAL_MS: Record<CandleTimeframe, number> = {
+const TIMEFRAME_TO_INTERVAL_MS: Record<ProviderCandleTimeframe, number> = {
   daily: 24 * 60 * 60 * 1000,
   "4h": 4 * 60 * 60 * 1000,
+  "15m": 15 * 60 * 1000,
   "5m": 5 * 60 * 1000,
 };
 
-const TIMEFRAME_TO_BAR_SIZE: Record<CandleTimeframe, string> = {
+const TIMEFRAME_TO_BAR_SIZE: Record<ProviderCandleTimeframe, string> = {
   daily: "1 day",
   "4h": "4 hours",
+  "15m": "15 mins",
   "5m": "5 mins",
 };
 
-const TIMEFRAME_TO_REMOTE_INTERVAL: Record<CandleTimeframe, string> = {
+const TIMEFRAME_TO_REMOTE_INTERVAL: Record<ProviderCandleTimeframe, string> = {
   daily: "1day",
   "4h": "4h",
+  "15m": "15min",
   "5m": "5min",
 };
 
-function resolvePlannedBarCount(timeframe: CandleTimeframe, lookbackBars: number): number {
+function resolvePlannedBarCount(
+  timeframe: ProviderCandleTimeframe,
+  lookbackBars: number,
+): number {
   switch (timeframe) {
     case "daily":
       return Math.max(lookbackBars + 40, Math.ceil(lookbackBars * 1.25));
     case "4h":
       return Math.max(lookbackBars + 30, Math.ceil(lookbackBars * 1.4));
+    case "15m":
+      return Math.max(lookbackBars + 60, Math.ceil(lookbackBars * 1.6));
     case "5m":
       return Math.max(lookbackBars + 60, Math.ceil(lookbackBars * 1.6));
   }
@@ -51,10 +68,10 @@ function formatIbkrDurationFromMs(spanMs: number): string {
   return `${Math.max(1, Math.ceil(spanMs / yearMs))} Y`;
 }
 
-export function buildHistoricalFetchPlan(
-  request: HistoricalFetchRequest,
+export function buildProviderHistoricalFetchPlan(
+  request: ProviderHistoricalFetchRequest,
   provider: CandleProviderName,
-): HistoricalFetchPlan {
+): ProviderHistoricalFetchPlan {
   const requestEndTimestamp = request.endTimeMs ?? Date.now();
   const intervalMs = TIMEFRAME_TO_INTERVAL_MS[request.timeframe];
   const plannedBarCount = resolvePlannedBarCount(request.timeframe, request.lookbackBars);
@@ -77,4 +94,11 @@ export function buildHistoricalFetchPlan(
     sessionMetadataAvailable: request.timeframe === "5m",
     providerRequest,
   };
+}
+
+export function buildHistoricalFetchPlan(
+  request: HistoricalFetchRequest,
+  provider: CandleProviderName,
+): HistoricalFetchPlan {
+  return buildProviderHistoricalFetchPlan(request, provider) as HistoricalFetchPlan;
 }
