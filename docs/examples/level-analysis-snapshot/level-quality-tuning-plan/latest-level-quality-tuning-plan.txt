@@ -1,0 +1,71 @@
+LevelEngine quality tuning plan
+Generated at: 2026-06-01T19:00:00.000Z
+Provider: ibkr
+Evidence:
+- docs/106_LEVEL_ENGINE_MULTI_TIMEFRAME_LEVEL_QUALITY_REVIEW.md
+- docs/examples/level-analysis-snapshot/level-quality-review/latest-level-quality-review.json
+- docs/examples/level-analysis-snapshot/level-quality-review/latest-level-quality-review.txt
+
+Reviewed symbols:
+DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+
+Summary findings:
+- Reviewed symbols: 10
+- Symbols with supplied 15m context: 5
+- Symbols with nearest support: 10
+- Symbols with nearest resistance: 10
+- Symbols with balanced nearest coverage: 8
+- Symbols with extension coverage warnings: 5
+- Symbols with clustered areas: 7
+- Synthetic continuation-map rows clearly marked: true
+- Possible production bugs found: 0
+
+Tuning categories:
+
+1. Cluster density / near-duplicate levels
+Observed: clustered areas appeared on seven reviewed symbols, with dense maps on QUBT, AAOI, and PHOE.
+Likely areas: level-clusterer, level-ranker, level-ranking, level-zone-utils, level-quality-audit-runner.
+Risk: over-filtering can remove valid confluence and hide useful intraday structure.
+
+2. Extension coverage / spacing
+Observed: five reviewed symbols reported extension coverage warnings, including no resistance extension coverage for DEVS, AIM, and HCWB.
+Likely areas: level-extension-engine, level-ranker, level-quality-audit-runner.
+Risk: extension tuning can fabricate levels or make synthetic continuation rows look historical if not guarded.
+
+3. Nearest-level gap thresholds
+Observed: HCWB and PHOE had wide nearest support and resistance gaps that were already diagnosed by LevelQualityAudit.
+Likely area: level-quality-audit-runner.
+Risk: treating wide gaps as generation defects too early can create excessive or fabricated levels.
+
+4. Enrichment mapping coverage
+Observed: all reviewed symbols reported unenriched levels.
+Likely areas: level-runtime-output-adapter, level-intelligence-profile, level-intelligence-report, level-context-explainer, level-quality-audit-runner.
+Recommended first gate: level_quality_enrichment_mapping_hardening.
+Risk: mapping improvements must not imply stronger confidence or alter LevelEngine generation.
+
+5. Forward resistance coverage
+Observed: several symbols had limited or absent resistance extension coverage even when nearest resistance existed.
+Likely areas: level-extension-engine, level-quality-audit-runner.
+Risk: forward resistance wording must stay factual and avoid target or advice language.
+
+Rollout phases:
+1. level_quality_enrichment_mapping_hardening
+2. level_quality_audit_wording_hardening
+3. level_engine_extension_coverage_tuning_plan_or_fixture_pack
+4. level_engine_extension_coverage_tuning
+5. level_engine_cluster_density_tuning_plan_or_fixture_pack
+6. level_engine_multi_timeframe_quality_review_rerun
+
+Recommended first implementation gate:
+level_quality_enrichment_mapping_hardening
+
+Reason:
+All reviewed symbols reported unenriched levels. Improving mapping coverage can make LevelQualityAudit and LevelIntelligenceReport more useful without changing support/resistance generation, scoring, ranking, clustering, 15m handling, alerts, monitoring, Discord, or journal behavior.
+
+Anti-goals:
+- no support/resistance tuning in this planning gate
+- no LevelEngine scoring/ranking/clustering changes
+- no 15m LevelEngine input
+- no recommendations or trade advice
+- no journal app changes
+- no alert/monitoring/Discord changes

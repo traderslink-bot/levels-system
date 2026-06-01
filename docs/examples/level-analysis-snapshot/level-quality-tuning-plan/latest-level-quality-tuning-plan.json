@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "levels-system-level-quality-tuning-plan/v1",
+  "generatedAt": "2026-06-01T19:00:00.000Z",
+  "evidence": {
+    "reviewDoc": "docs/106_LEVEL_ENGINE_MULTI_TIMEFRAME_LEVEL_QUALITY_REVIEW.md",
+    "reviewJson": "docs/examples/level-analysis-snapshot/level-quality-review/latest-level-quality-review.json",
+    "reviewText": "docs/examples/level-analysis-snapshot/level-quality-review/latest-level-quality-review.txt",
+    "provider": "ibkr"
+  },
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "summaryFindings": {
+    "reviewedSymbolCount": 10,
+    "symbolsWithSupplied15mContext": 5,
+    "symbolsWithNearestSupport": 10,
+    "symbolsWithNearestResistance": 10,
+    "symbolsWithBalancedNearestCoverage": 8,
+    "symbolsWithExtensionCoverageWarnings": 5,
+    "symbolsWithClusteredAreas": 7,
+    "syntheticContinuationMapRowsClearlyMarked": true,
+    "possibleProductionBugsFound": 0
+  },
+  "tuningCategories": [
+    {
+      "id": "cluster_density_near_duplicate_levels",
+      "observed": "Clustered areas appeared on seven reviewed symbols, with dense maps on QUBT, AAOI, and PHOE.",
+      "likelyCodeAreas": [
+        "src/lib/levels/level-clusterer.ts",
+        "src/lib/levels/level-ranker.ts",
+        "src/lib/levels/level-ranking.ts",
+        "src/lib/levels/level-zone-utils.ts",
+        "src/lib/levels/level-quality-audit-runner.ts"
+      ],
+      "firstImplementationCandidate": false,
+      "risk": "Over-filtering can remove valid confluence and hide useful intraday structure."
+    },
+    {
+      "id": "extension_coverage_spacing",
+      "observed": "Five reviewed symbols reported extension coverage warnings, including no resistance extension coverage for DEVS, AIM, and HCWB.",
+      "likelyCodeAreas": [
+        "src/lib/levels/level-extension-engine.ts",
+        "src/lib/levels/level-ranker.ts",
+        "src/lib/levels/level-quality-audit-runner.ts"
+      ],
+      "firstImplementationCandidate": false,
+      "risk": "Extension tuning can fabricate levels or make synthetic continuation rows look historical if not guarded."
+    },
+    {
+      "id": "nearest_level_gap_thresholds",
+      "observed": "HCWB and PHOE had wide nearest support and resistance gaps that were already diagnosed by LevelQualityAudit.",
+      "likelyCodeAreas": [
+        "src/lib/levels/level-quality-audit-runner.ts"
+      ],
+      "firstImplementationCandidate": false,
+      "risk": "Treating wide gaps as generation defects too early can create excessive or fabricated levels."
+    },
+    {
+      "id": "enrichment_mapping_coverage",
+      "observed": "All reviewed symbols reported unenriched levels.",
+      "likelyCodeAreas": [
+        "src/lib/levels/level-runtime-output-adapter.ts",
+        "src/lib/levels/level-intelligence-profile.ts",
+        "src/lib/levels/level-intelligence-report.ts",
+        "src/lib/levels/level-context-explainer.ts",
+        "src/lib/levels/level-quality-audit-runner.ts"
+      ],
+      "firstImplementationCandidate": true,
+      "proposedGate": "level_quality_enrichment_mapping_hardening",
+      "risk": "Mapping improvements must not imply stronger confidence or alter LevelEngine generation."
+    },
+    {
+      "id": "forward_resistance_coverage",
+      "observed": "Several symbols had limited or absent resistance extension coverage even when nearest resistance existed.",
+      "likelyCodeAreas": [
+        "src/lib/levels/level-extension-engine.ts",
+        "src/lib/levels/level-quality-audit-runner.ts"
+      ],
+      "firstImplementationCandidate": false,
+      "risk": "Forward resistance wording must stay factual and avoid target or advice language."
+    }
+  ],
+  "rolloutPhases": [
+    "level_quality_enrichment_mapping_hardening",
+    "level_quality_audit_wording_hardening",
+    "level_engine_extension_coverage_tuning_plan_or_fixture_pack",
+    "level_engine_extension_coverage_tuning",
+    "level_engine_cluster_density_tuning_plan_or_fixture_pack",
+    "level_engine_multi_timeframe_quality_review_rerun"
+  ],
+  "riskControls": [
+    "one tuning category per gate",
+    "prefer audit and enrichment improvements before generation tuning",
+    "keep 15m outside LevelEngine",
+    "preserve runtime defaults",
+    "commit compact summaries only",
+    "require before-after artifacts for behavior changes",
+    "keep synthetic continuation-map rows clearly marked"
+  ],
+  "recommendedFirstImplementationGate": "level_quality_enrichment_mapping_hardening",
+  "antiGoals": [
+    "no support/resistance tuning in this planning gate",
+    "no LevelEngine scoring/ranking/clustering changes",
+    "no 15m LevelEngine input",
+    "no recommendations or trade advice",
+    "no journal app changes",
+    "no alert/monitoring/Discord changes"
+  ]
+}
