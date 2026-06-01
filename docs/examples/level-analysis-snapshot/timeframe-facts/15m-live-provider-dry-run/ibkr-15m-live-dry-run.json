@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-06-01T17:30:00.000Z",
+  "mode": "dry-run",
+  "cacheRoot": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles",
+  "provider": "ibkr",
+  "timeframe": "15m",
+  "lookbackBars": 100,
+  "endTimeMs": 1780329600000,
+  "targetSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "summary": {
+    "dryRun": true,
+    "write": false,
+    "overwrite": false,
+    "totalSymbols": 5,
+    "plannedCount": 5,
+    "writtenCount": 0,
+    "skippedExistingCount": 0,
+    "failedCount": 0
+  },
+  "plannedOutputPaths": [
+    "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\DEVS\\15m\\100-1780329600000.json",
+    "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\ENVX\\15m\\100-1780329600000.json",
+    "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\DXYZ\\15m\\100-1780329600000.json",
+    "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\QUBT\\15m\\100-1780329600000.json",
+    "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\GME\\15m\\100-1780329600000.json"
+  ],
+  "plannedFilesExistedAfterDryRun": false,
+  "providerConstructed": false,
+  "providerCallsExpected": false,
+  "ibkrLoginRequired": false,
+  "realCacheMutationExpected": false,
+  "productionBugFound": false,
+  "recommendedNextGate": "levels_system_15m_ibkr_operator_write_plan"
+}

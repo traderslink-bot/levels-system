@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-06-01T17:31:00.000Z",
+  "mode": "write",
+  "cacheRoot": "C:\\Users\\jerac\\AppData\\Local\\Temp\\levels-system-15m-ibkr-write-disabled-preflight-20260601",
+  "provider": "ibkr",
+  "timeframe": "15m",
+  "lookbackBars": 100,
+  "endTimeMs": 1780329600000,
+  "targetSymbols": [
+    "TEST"
+  ],
+  "environment": {
+    "LEVEL_15M_CACHE_ENABLE_IBKR": "unset"
+  },
+  "summary": {
+    "dryRun": false,
+    "write": true,
+    "overwrite": false,
+    "totalSymbols": 1,
+    "plannedCount": 0,
+    "writtenCount": 0,
+    "skippedExistingCount": 0,
+    "failedCount": 1,
+    "exitCode": 1
+  },
+  "failedItems": [
+    {
+      "symbol": "TEST",
+      "outputPath": "C:\\Users\\jerac\\AppData\\Local\\Temp\\levels-system-15m-ibkr-write-disabled-preflight-20260601\\ibkr\\TEST\\15m\\100-1780329600000.json",
+      "error": "IBKR live 15m collection requires LEVEL_15M_CACHE_ENABLE_IBKR=true. Dry-run remains available without IBKR config."
+    }
+  ],
+  "plannedFileExistedAfterPreflight": false,
+  "tempRootExistedAfterPreflight": false,
+  "providerConnectionExpected": false,
+  "filesWritten": 0,
+  "realCacheMutationExpected": false,
+  "productionBugFound": false,
+  "recommendedNextGate": "levels_system_15m_ibkr_operator_write_plan"
+}
