@@ -18,7 +18,7 @@ It:
 
 - reads candle JSON files
 - accepts required symbol, as-of timestamp, reference price, and 5m candles
-- accepts optional 4h candles, daily candles, and previous close
+- accepts optional 15m candles, 4h candles, daily candles, and previous close
 - delegates to the no-lookahead-safe from-candles snapshot builder
 - writes deterministic JSON
 - prints JSON to stdout when no output path is supplied
@@ -56,6 +56,7 @@ Supported CLI inputs:
 - `--as-of <timestamp|ISO>`
 - `--reference-price <number>`
 - `--candles-5m <path>`
+- `--candles-15m <path>`
 - `--candles-4h <path>`
 - `--candles-daily <path>`
 - `--previous-close <number>`
@@ -90,11 +91,12 @@ Required for every runner call:
 Recommended for journal-ready snapshots:
 
 - `--candles-4h`
+- `--candles-15m`
 - `--candles-daily`
 - `--previous-close`
 - `--out`
 
-If higher timeframes are omitted, the snapshot can still be generated, but the downstream consumer should treat the missing timeframe data as a completeness limitation.
+If higher timeframes are omitted, the snapshot can still be generated, but the downstream consumer should treat the missing timeframe data as a completeness limitation. The `15m` input is optional and currently reserved for inputSummary/readiness only; it is not used for LevelEngine level generation.
 
 ## Output Artifact Shape
 
@@ -150,7 +152,7 @@ Do not commit bulky production candle inputs or large production snapshot dumps 
 Generic package script:
 
 ```powershell
-npm run snapshot:level-analysis -- --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json
+npm run snapshot:level-analysis -- --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-15m docs/examples/level-analysis-snapshot/sample-15m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json
 ```
 
 Deterministic review script:
@@ -162,7 +164,7 @@ npm run snapshot:level-analysis:review
 Direct runner invocation remains supported:
 
 ```powershell
-npx tsx src/scripts/run-level-analysis-snapshot.ts --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json
+npx tsx src/scripts/run-level-analysis-snapshot.ts --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-15m docs/examples/level-analysis-snapshot/sample-15m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json
 ```
 
 ## No-Lookahead Expectations
@@ -203,7 +205,7 @@ The package test coverage verifies the package scripts and runner output shape. 
 Example:
 
 ```powershell
-npm run snapshot:level-analysis -- --symbol ABCD --as-of 2026-05-01T15:55:00-04:00 --reference-price 2.47 --candles-5m path/to/ABCD-5m.json --candles-4h path/to/ABCD-4h.json --candles-daily path/to/ABCD-daily.json --previous-close 2.1 --out artifacts/level-analysis-snapshot/ABCD/1777665300000/level-analysis-snapshot-v1.json
+npm run snapshot:level-analysis -- --symbol ABCD --as-of 2026-05-01T15:55:00-04:00 --reference-price 2.47 --candles-5m path/to/ABCD-5m.json --candles-15m path/to/ABCD-15m.json --candles-4h path/to/ABCD-4h.json --candles-daily path/to/ABCD-daily.json --previous-close 2.1 --out artifacts/level-analysis-snapshot/ABCD/1777665300000/level-analysis-snapshot-v1.json
 ```
 
 Use cached or prebuilt candle files only. The runner must not be used as a live data fetcher.
@@ -266,7 +268,7 @@ Current runner limitations:
 - Does not batch multiple symbols by itself.
 - Does not package manifests or checksums yet.
 - Does not write a production job summary.
-- `15m` remains reserved in the snapshot schema but is not a hardened runner input yet.
+- `15m` is a hardened optional runner input for summary/no-lookahead readiness, but remains reserved and is not used for LevelEngine level generation yet.
 - Large production artifacts should be kept out of git unless explicitly requested.
 
 ## Operational Safety Rules

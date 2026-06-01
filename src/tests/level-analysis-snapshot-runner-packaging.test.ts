@@ -81,7 +81,7 @@ test("package exposes stable LevelAnalysisSnapshot runner scripts", () => {
   assert.equal(scripts["snapshot:level-analysis"], "tsx src/scripts/run-level-analysis-snapshot.ts");
   assert.equal(
     scripts["snapshot:level-analysis:review"],
-    "tsx src/scripts/run-level-analysis-snapshot.ts --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json",
+    "tsx src/scripts/run-level-analysis-snapshot.ts --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-15m docs/examples/level-analysis-snapshot/sample-15m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json",
   );
 });
 
@@ -92,6 +92,7 @@ test("packaged runner produces v1 handoff fields from deterministic fixtures", (
     asOfTimestamp: Date.parse("2026-05-01T10:20:00-04:00"),
     referencePrice: 10.68,
     candles5mPath: fixturePath("sample-5m-candles.json"),
+    candles15mPath: fixturePath("sample-15m-candles.json"),
     candles4hPath: fixturePath("sample-4h-candles.json"),
     candlesDailyPath: fixturePath("sample-daily-candles.json"),
     previousClose: 9.1,
@@ -106,6 +107,9 @@ test("packaged runner produces v1 handoff fields from deterministic fixtures", (
   assert.equal(snapshot.symbol, "SNAP");
   assert.equal(snapshot.referencePrice, 10.68);
   assert.ok(snapshot.inputSummary);
+  assert.equal(snapshot.inputSummary.candleCounts["15m"], 3);
+  assert.equal(snapshot.inputSummary.filteredCandleCounts["15m"], 3);
+  assert.ok(snapshot.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
   assert.ok("nearestSupport" in snapshot);
   assert.ok("nearestResistance" in snapshot);
   assert.ok(snapshot.levelEngineOutput);
@@ -127,6 +131,7 @@ test("runner packaging docs describe commands output conventions and downstream 
   for (const text of [packagingDoc, usageDoc]) {
     assert.ok(text.includes("npm run snapshot:level-analysis"));
     assert.ok(text.includes("npm run snapshot:level-analysis:review"));
+    assert.ok(text.includes("--candles-15m"));
     assert.ok(text.includes("level-analysis-snapshot/v1"));
     assert.ok(text.includes("producer"));
     assert.ok(text.includes("safety.noLookaheadApplied"));

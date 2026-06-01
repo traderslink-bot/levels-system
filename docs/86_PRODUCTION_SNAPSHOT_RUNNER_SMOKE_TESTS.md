@@ -31,6 +31,7 @@ The smoke path uses the deterministic sample fixtures:
 
 ```text
 docs/examples/level-analysis-snapshot/sample-5m-candles.json
+docs/examples/level-analysis-snapshot/sample-15m-candles.json
 docs/examples/level-analysis-snapshot/sample-4h-candles.json
 docs/examples/level-analysis-snapshot/sample-daily-candles.json
 ```
@@ -95,7 +96,7 @@ npm test
 The smoke test invokes the packaged generic runner command with explicit arguments:
 
 ```powershell
-npm run snapshot:level-analysis -- --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out <temp>/level-analysis-snapshot-smoke/SNAP/1777645200000/level-analysis-snapshot-v1.json
+npm run snapshot:level-analysis -- --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-15m docs/examples/level-analysis-snapshot/sample-15m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out <temp>/level-analysis-snapshot-smoke/SNAP/1777645200000/level-analysis-snapshot-v1.json
 ```
 
 ## Expected Artifact Fields
@@ -115,6 +116,8 @@ Smoke output must include:
 - `safety`
 
 The smoke test also verifies that `symbol`, `asOfTimestamp`, and `referencePrice` match the smoke input.
+
+The smoke input includes optional `15m` candles. The expected output counts and filters them in `inputSummary`, while diagnostics mark `15m` as reserved for future fact generation. The `15m` fixture is not used for LevelEngine level generation.
 
 ## Schema And Safety Checks
 

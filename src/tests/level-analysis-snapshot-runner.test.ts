@@ -76,6 +76,14 @@ function fourHourCandles(): Candle[] {
   ];
 }
 
+function fifteenMinuteCandles(): Candle[] {
+  return [
+    candle("2026-05-01T09:30:00-04:00", 9.65, 10.35, 9.6, 10.12, 2_050_000),
+    candle("2026-05-01T09:45:00-04:00", 10.12, 10.5, 10.02, 10.08, 2_530_000),
+    candle("2026-05-01T10:00:00-04:00", 10.08, 10.62, 9.98, 10.38, 2_960_000),
+  ];
+}
+
 function withTempDir<T>(callback: (dir: string) => T): T {
   const dir = mkdtempSync(join(tmpdir(), "level-analysis-snapshot-runner-"));
 
@@ -123,6 +131,7 @@ function runnerOptions(dir: string) {
     asOfTimestamp: AS_OF,
     referencePrice: 10.68,
     candles5mPath: writeJson(dir, "5m.json", candles5m()),
+    candles15mPath: writeJson(dir, "15m.json", fifteenMinuteCandles()),
     candles4hPath: writeJson(dir, "4h.json", fourHourCandles()),
     candlesDailyPath: writeJson(dir, "daily.json", dailyCandles()),
     previousClose: 9.1,
@@ -161,6 +170,8 @@ test("parses level analysis snapshot runner CLI options", () => {
       "10.68",
       "--candles-5m",
       "5m.json",
+      "--candles-15m",
+      "15m.json",
       "--candles-4h",
       "4h.json",
       "--candles-daily",
@@ -177,6 +188,7 @@ test("parses level analysis snapshot runner CLI options", () => {
       asOfTimestamp: AS_OF,
       referencePrice: 10.68,
       candles5mPath: "5m.json",
+      candles15mPath: "15m.json",
       candles4hPath: "4h.json",
       candlesDailyPath: "daily.json",
       previousClose: 9.1,
@@ -245,8 +257,10 @@ test("runner loads candle fixtures and builds a JSON snapshot", () => withTempDi
   assert.equal(result.snapshot.asOfTimestamp, AS_OF);
   assert.equal(result.snapshot.referencePrice, 10.68);
   assert.equal(result.snapshot.inputSummary.candleCounts["5m"], 15);
+  assert.equal(result.snapshot.inputSummary.candleCounts["15m"], 3);
   assert.equal(result.snapshot.inputSummary.candleCounts["4h"], 7);
   assert.equal(result.snapshot.inputSummary.candleCounts.daily, 6);
+  assert.ok(result.snapshot.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
   assert.equal(result.snapshot.inputSummary.previousCloseProvided, true);
   assert.equal(result.snapshot.nearestSupport?.representativePrice, 9.98);
   assert.equal(result.snapshot.nearestResistance, null);

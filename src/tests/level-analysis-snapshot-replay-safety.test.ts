@@ -124,11 +124,25 @@ function buildFutureAppendedSnapshot() {
   });
 }
 
-test("appending future and still-forming candles does not change the as-of snapshot", () => {
+test("appending future and still-forming candles does not change as-of level output or facts", () => {
   const closedOnly = buildClosedSnapshot();
   const futureAppended = buildFutureAppendedSnapshot();
 
-  assert.deepEqual(futureAppended, closedOnly);
+  assert.deepEqual(futureAppended.levelEngineOutput, closedOnly.levelEngineOutput);
+  assert.deepEqual(futureAppended.sessionFacts, closedOnly.sessionFacts);
+  assert.deepEqual(futureAppended.volumeFacts, closedOnly.volumeFacts);
+  assert.deepEqual(futureAppended.volumeShelves, closedOnly.volumeShelves);
+  assert.deepEqual(futureAppended.marketContext, closedOnly.marketContext);
+  assert.deepEqual(futureAppended.levelIntelligenceReport, closedOnly.levelIntelligenceReport);
+  assert.deepEqual(futureAppended.levelQualityAudit, closedOnly.levelQualityAudit);
+  assert.equal(futureAppended.inputSummary.filteredCandleCounts["5m"], closedOnly.inputSummary.filteredCandleCounts["5m"]);
+  assert.equal(futureAppended.inputSummary.filteredCandleCounts["4h"], closedOnly.inputSummary.filteredCandleCounts["4h"]);
+  assert.equal(futureAppended.inputSummary.filteredCandleCounts.daily, closedOnly.inputSummary.filteredCandleCounts.daily);
+  assert.equal(futureAppended.inputSummary.excludedFutureCandleCounts["5m"], 2);
+  assert.equal(futureAppended.inputSummary.excludedPartialCandleCounts["5m"], 1);
+  assert.equal(futureAppended.inputSummary.excludedFutureCandleCounts["4h"], 1);
+  assert.equal(futureAppended.inputSummary.excludedPartialCandleCounts["4h"], 1);
+  assert.equal(futureAppended.inputSummary.excludedPartialCandleCounts.daily, 1);
 });
 
 test("future and partial candles are excluded from level output and facts", () => {
@@ -157,7 +171,12 @@ test("replay snapshot components are stable across full historical arrays", () =
   assert.deepEqual(futureAppended.marketContext, closedOnly.marketContext);
   assert.deepEqual(futureAppended.levelIntelligenceReport, closedOnly.levelIntelligenceReport);
   assert.deepEqual(futureAppended.levelQualityAudit, closedOnly.levelQualityAudit);
-  assert.deepEqual(futureAppended.diagnostics, closedOnly.diagnostics);
+  assert.ok(futureAppended.diagnostics.includes("5m_future_candles_filtered"));
+  assert.ok(futureAppended.diagnostics.includes("5m_partial_candles_filtered"));
+  assert.ok(futureAppended.diagnostics.includes("4h_future_candles_filtered"));
+  assert.ok(futureAppended.diagnostics.includes("4h_partial_candles_filtered"));
+  assert.ok(futureAppended.diagnostics.includes("daily_partial_candles_filtered"));
+  assert.ok(closedOnly.diagnostics.includes("candle_close_as_of_filter_applied"));
 });
 
 test("snapshot generation is deterministic and does not mutate candle inputs", () => {

@@ -31,6 +31,7 @@ export type LevelAnalysisSnapshotFromCandlesInput = {
   asOfTimestamp: number;
   referencePrice?: number;
   candles5m: Candle[];
+  candles15m?: Candle[];
   dailyCandles?: Candle[];
   fourHourCandles?: Candle[];
   previousClose?: number;
@@ -38,13 +39,17 @@ export type LevelAnalysisSnapshotFromCandlesInput = {
 };
 
 type FilteredSeries = {
-  timeframe: CandleTimeframe;
+  timeframe: LevelAnalysisSnapshotInputTimeframe;
   provided: boolean;
   inputCandleCount: number;
   candles: Candle[];
   diagnostics: CandleAsOfFilterDiagnostic[];
   excludedFutureCount: number;
   excludedPartialCount: number;
+};
+
+type EngineFilteredSeries = Omit<FilteredSeries, "timeframe"> & {
+  timeframe: CandleTimeframe;
 };
 
 function clone<T>(value: T): T {
@@ -61,7 +66,7 @@ function round(value: number, decimals = 4): number {
 }
 
 function filterSeries(
-  timeframe: CandleTimeframe,
+  timeframe: LevelAnalysisSnapshotInputTimeframe,
   candles: Candle[] | undefined,
   asOfTimestamp: number,
 ): FilteredSeries {
@@ -98,7 +103,6 @@ function buildInputSummary(params: {
   previousCloseProvided: boolean;
 }): LevelAnalysisSnapshotInputSummary {
   const keys: LevelAnalysisSnapshotInputTimeframe[] = ["5m", "15m", "4h", "daily"];
-  const byTimeframe = new Map(params.series.map((item) => [item.timeframe, item]));
   const timeframes: Record<LevelAnalysisSnapshotInputTimeframe, LevelAnalysisSnapshotTimeframeInputSummary> = {
     "5m": emptyTimeframeSummary(),
     "15m": emptyTimeframeSummary(),
@@ -107,19 +111,17 @@ function buildInputSummary(params: {
   };
 
   for (const item of params.series) {
-    // Keep the public snapshot stable for replay: future/partial candles are
-    // filtered before the contract summary and are not allowed to change it.
     timeframes[item.timeframe] = {
       provided: item.provided,
-      candleCount: item.candles.length,
+      candleCount: item.inputCandleCount,
       filteredCandleCount: item.candles.length,
-      excludedFutureCandleCount: 0,
-      excludedPartialCandleCount: 0,
+      excludedFutureCandleCount: item.excludedFutureCount,
+      excludedPartialCandleCount: item.excludedPartialCount,
     };
   }
 
   return {
-    timeframesPresent: keys.filter((timeframe) => (byTimeframe.get(timeframe as CandleTimeframe)?.candles.length ?? 0) > 0),
+    timeframesPresent: keys.filter((timeframe) => timeframes[timeframe].filteredCandleCount > 0),
     candleCounts: Object.fromEntries(keys.map((timeframe) => [timeframe, timeframes[timeframe].candleCount])) as Record<
       LevelAnalysisSnapshotInputTimeframe,
       number
@@ -142,7 +144,7 @@ function deriveReferencePrice(request: LevelAnalysisSnapshotFromCandlesInput, fi
   return request.referencePrice ?? fiveMinute.at(-1)?.close;
 }
 
-function deriveFreshness(series: FilteredSeries[], asOfTimestamp: number): LevelDataFreshness {
+function deriveFreshness(series: EngineFilteredSeries[], asOfTimestamp: number): LevelDataFreshness {
   const latestClose = Math.max(
     0,
     ...series.flatMap((item) =>
@@ -157,7 +159,7 @@ function deriveFreshness(series: FilteredSeries[], asOfTimestamp: number): Level
   return ageHours <= 24 ? "fresh" : ageHours <= 24 * 7 ? "aging" : "stale";
 }
 
-function providerByTimeframe(series: FilteredSeries[]): LevelEngineOutput["metadata"]["providerByTimeframe"] {
+function providerByTimeframe(series: EngineFilteredSeries[]): LevelEngineOutput["metadata"]["providerByTimeframe"] {
   const provider: LevelEngineOutput["metadata"]["providerByTimeframe"] = {};
   for (const item of series) {
     if (item.candles.length > 0) {
@@ -167,7 +169,7 @@ function providerByTimeframe(series: FilteredSeries[]): LevelEngineOutput["metad
   return provider;
 }
 
-function dataQualityFlags(series: FilteredSeries[]): string[] {
+function dataQualityFlags(series: EngineFilteredSeries[]): string[] {
   return series
     .filter((item) => item.candles.length === 0)
     .map((item) => `${item.timeframe}:unavailable`);
@@ -176,7 +178,7 @@ function dataQualityFlags(series: FilteredSeries[]): string[] {
 function buildCandidateInventory(params: {
   symbol: string;
   config: LevelEngineConfig;
-  series: FilteredSeries[];
+  series: EngineFilteredSeries[];
 }): {
   rawCandidates: RawLevelCandidate[];
   specialLevels: LevelEngineOutput["specialLevels"];
@@ -220,7 +222,7 @@ function buildLevelOutputFromFilteredCandles(params: {
   asOfTimestamp: number;
   referencePrice?: number;
   config: LevelEngineConfig;
-  series: FilteredSeries[];
+  series: EngineFilteredSeries[];
 }): LevelEngineOutput {
   const inventory = buildCandidateInventory({
     symbol: params.symbol,
@@ -283,6 +285,20 @@ function diagnosticSummary(params: {
   const diagnostics = new Set<string>();
 
   for (const item of params.series) {
+    for (const diagnostic of item.diagnostics) {
+      diagnostics.add(`${item.timeframe}_${diagnostic.code}`);
+    }
+
+    if (item.timeframe === "15m") {
+      if (item.provided) {
+        diagnostics.add("15m_candles_reserved_for_future_fact_generation");
+        if (item.candles.length === 0) {
+          diagnostics.add("15m_closed_candles_missing");
+        }
+      }
+      continue;
+    }
+
     if (item.candles.length === 0) {
       diagnostics.add(`${item.timeframe}_closed_candles_missing`);
     }
@@ -309,15 +325,21 @@ function diagnosticSummary(params: {
   return [...diagnostics].sort();
 }
 
+function isEngineSeries(item: FilteredSeries): item is EngineFilteredSeries {
+  return item.timeframe !== "15m";
+}
+
 export function buildLevelAnalysisSnapshotFromCandles(
   request: LevelAnalysisSnapshotFromCandlesInput,
 ): LevelAnalysisSnapshot {
   const symbol = normalizeSymbol(request.symbol);
   const config = request.config ?? DEFAULT_LEVEL_ENGINE_CONFIG;
   const fiveMinute = filterSeries("5m", request.candles5m, request.asOfTimestamp);
+  const fifteenMinute = filterSeries("15m", request.candles15m, request.asOfTimestamp);
   const daily = filterSeries("daily", request.dailyCandles, request.asOfTimestamp);
   const fourHour = filterSeries("4h", request.fourHourCandles, request.asOfTimestamp);
-  const series = [daily, fourHour, fiveMinute];
+  const series = [daily, fourHour, fifteenMinute, fiveMinute];
+  const levelEngineSeries = series.filter(isEngineSeries);
   const inputSummary = buildInputSummary({
     series,
     previousCloseProvided: request.previousClose !== undefined,
@@ -328,7 +350,7 @@ export function buildLevelAnalysisSnapshotFromCandles(
     asOfTimestamp: request.asOfTimestamp,
     referencePrice,
     config,
-    series,
+    series: levelEngineSeries,
   });
   const sessionFacts = buildSessionMarketFacts({
     symbol,
@@ -369,6 +391,7 @@ export function buildLevelAnalysisSnapshotFromCandles(
     levelEngineOutput,
     closedCandles: {
       fiveMinute: fiveMinute.candles,
+      ...(fifteenMinute.provided ? { fifteenMinute: fifteenMinute.candles } : {}),
       fourHour: fourHour.candles,
       daily: daily.candles,
     },

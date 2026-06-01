@@ -6,18 +6,19 @@
   "inputSummary": {
     "timeframesPresent": [
       "5m",
+      "15m",
       "4h",
       "daily"
     ],
     "candleCounts": {
       "5m": 15,
-      "15m": 0,
+      "15m": 3,
       "4h": 7,
       "daily": 6
     },
     "filteredCandleCounts": {
       "5m": 15,
-      "15m": 0,
+      "15m": 3,
       "4h": 7,
       "daily": 6
     },
@@ -42,9 +43,9 @@
         "excludedPartialCandleCount": 0
       },
       "15m": {
-        "provided": false,
-        "candleCount": 0,
-        "filteredCandleCount": 0,
+        "provided": true,
+        "candleCount": 3,
+        "filteredCandleCount": 3,
         "excludedFutureCandleCount": 0,
         "excludedPartialCandleCount": 0
       },
@@ -2199,6 +2200,7 @@
     }
   },
   "diagnostics": [
+    "15m_candles_reserved_for_future_fact_generation",
     "candle_close_as_of_filter_applied",
     "candle_inputs_reserved_for_future_fact_generation"
   ],
