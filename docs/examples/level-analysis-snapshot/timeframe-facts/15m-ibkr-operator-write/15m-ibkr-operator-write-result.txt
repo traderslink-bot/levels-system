@@ -1,0 +1,55 @@
+15m IBKR operator write result
+Generated at: 2026-06-01T18:20:00.000Z
+Gate: levels_system_15m_cache_collection_operator_write
+Provider: ibkr
+Timeframe: 15m
+Lookback bars: 100
+End time: 2026-06-01T16:00:00Z
+Normalized end time: 1780329600000
+Cache root: C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles
+Target symbols: DEVS, ENVX, DXYZ, QUBT, GME
+Overwrite used: false
+
+Dry-run result:
+- Planned: 5
+- Written: 0
+- Skipped existing: 0
+- Failed: 0
+
+Write attempt:
+- Attempted: true
+- Timed out after ms: 300000
+- Leftover write processes stopped: true
+- Raw cache files committed: false
+
+Observed written files:
+- DEVS: written, candles=96, completeness=partial, first=1780041600000, last=1780328700000
+- ENVX: written, candles=96, completeness=partial, first=1780041600000, last=1780328700000
+- DXYZ: written, candles=96, completeness=partial, first=1780041600000, last=1780328700000
+- QUBT: written, candles=96, completeness=partial, first=1780041600000, last=1780328700000
+- GME: written, candles=96, completeness=partial, first=1780041600000, last=1780328700000
+
+Coverage before:
+- Total JSON files: 2274
+- Validation cache entries: 2274
+- 15m JSON files: 0
+- Groups with any 15m: 0
+- Groups with 5m/15m/4h/daily: 0
+- Malformed JSON files: 0
+- Diagnostics: no_15m_cache_found
+
+Coverage after:
+- Total JSON files: 2279
+- Validation cache entries: 2279
+- 15m JSON files: 5
+- Groups with any 15m: 5
+- Groups with 5m/15m/4h/daily: 5
+- Malformed JSON files: 0
+- Diagnostics: none
+- Symbols with 15m: ibkr/DEVS, ibkr/DXYZ, ibkr/ENVX, ibkr/GME, ibkr/QUBT
+
+Production bug found:
+IBKR write command wrote the expected files but did not exit cleanly after the write.
+
+Recommended next gate: levels_system_15m_cache_collection_cli_exit_cleanup
+Follow-up gate after cleanup: levels_system_15m_facts_real_cache_validation_with_supplied_15m
