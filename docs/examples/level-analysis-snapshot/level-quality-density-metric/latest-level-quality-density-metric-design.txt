@@ -1,0 +1,62 @@
+Level quality audit density metric design
+Generated: 2026-06-01T23:06:22.729Z
+Provider focus: IBKR
+
+Purpose
+- Design an audit-only density metric for dense-but-separated level maps before any generation behavior tuning.
+
+Helper contract added
+- src/lib/levels/level-quality-density-metric.ts
+
+Primary exports
+- LevelQualityDensityMetric
+- LevelQualityDensityBucket
+- LevelQualityDensityClassification
+- LevelQualityDensitySideBias
+- LevelQualityDensityRow
+- classifyLevelMapDensity
+- describeLevelQualityDensityMetric
+
+Classifications
+- sparse
+- balanced
+- dense_separated
+- dense_clustered
+
+Side density
+- none
+- support_heavy
+- resistance_heavy
+- mixed
+
+Row buckets
+- historical
+- extension
+- synthetic
+
+Proposed thresholds
+- auditWindowPct: 30
+- sparseBelowCount: 6
+- denseAtOrAboveCount: 10
+- sideHeavyShare: 0.65
+- extensionHeavyShare: 0.35
+
+Evidence
+- Clustered areas remain present on DEVS, ENVX, DXYZ, GME, AIM, HCWB, and YMAT.
+- Dense-but-separated review cases remain QUBT, AAOI, and PHOE.
+- No production bug was found.
+
+Audit-only boundary
+- No support/resistance detection changes.
+- No LevelEngine scoring/ranking/clustering changes.
+- No surfaced level changes.
+- No extension generation changes.
+- 15m remains outside LevelEngine.
+- No cache writes.
+- No alert, monitoring, Discord, or journal behavior changes.
+
+Focused test
+- src/tests/level-quality-density-metric-design.test.ts
+
+Recommended next gate
+- level_quality_audit_density_metric_contract
