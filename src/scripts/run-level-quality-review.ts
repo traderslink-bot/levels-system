@@ -9,6 +9,7 @@ import type {
   LevelAnalysisSnapshot,
   LevelAnalysisSnapshotNearestLevel,
 } from "../lib/analysis/level-analysis-snapshot.js";
+import type { LevelQualityDensityMetric } from "../lib/levels/level-quality-density-metric.js";
 import type { LevelQualityDiagnosticDescription } from "../lib/levels/level-quality-audit-wording.js";
 import type { Candle, CandleProviderName } from "../lib/market-data/candle-types.js";
 
@@ -74,12 +75,26 @@ type CompactFifteenMinuteContext = {
   stillContextOnly: boolean;
 };
 
+type CompactDensityMetric = {
+  present: boolean;
+  classification?: LevelQualityDensityMetric["classification"];
+  sideBias?: LevelQualityDensityMetric["sideBias"];
+  totalRows?: number;
+  rowsInsideAuditWindow?: number;
+  counts?: LevelQualityDensityMetric["counts"];
+  densityBuckets?: LevelQualityDensityMetric["densityBuckets"];
+  flags?: LevelQualityDensityMetric["flags"];
+  diagnostics?: string[];
+  safety?: LevelQualityDensityMetric["safety"];
+};
+
 type CompactQualityAudit = {
   diagnostics: string[];
   diagnosticSemantics: LevelQualityDiagnosticDescription[];
   summary: LevelAnalysisSnapshot["levelQualityAudit"]["summary"];
   enrichmentBreakdown?: LevelAnalysisSnapshot["levelQualityAudit"]["enrichmentBreakdown"];
   extensionCoverage: LevelAnalysisSnapshot["levelQualityAudit"]["extensionCoverage"];
+  densityMetric?: CompactDensityMetric;
   clusteredAreaCount: number;
   possibleClutterLevelCount: number;
 };
@@ -189,6 +204,7 @@ export type LevelQualityReviewRunnerResult = {
     extensionCoverageWarningParityCount: number;
     clusteredDensityDiagnosticParityCount: number;
     fifteenMinuteContextOnlyCount: number;
+    densityMetricPresentCount: number;
     mismatchCount: number;
     prohibitedLanguageHitCount: number;
   };
@@ -588,6 +604,26 @@ function compactQualityAudit(snapshot: LevelAnalysisSnapshot): CompactQualityAud
     summary: structuredClone(audit.summary),
     ...(audit.enrichmentBreakdown ? { enrichmentBreakdown: structuredClone(audit.enrichmentBreakdown) } : {}),
     extensionCoverage: structuredClone(audit.extensionCoverage),
+    ...(audit.densityMetric
+      ? {
+          densityMetric: {
+            present: true,
+            classification: audit.densityMetric.classification,
+            sideBias: audit.densityMetric.sideBias,
+            totalRows: audit.densityMetric.totalRows,
+            rowsInsideAuditWindow: audit.densityMetric.rowsInsideAuditWindow,
+            counts: structuredClone(audit.densityMetric.counts),
+            densityBuckets: structuredClone(audit.densityMetric.densityBuckets),
+            flags: structuredClone(audit.densityMetric.flags),
+            diagnostics: [...audit.densityMetric.diagnostics].sort(),
+            safety: structuredClone(audit.densityMetric.safety),
+          },
+        }
+      : {
+          densityMetric: {
+            present: false,
+          },
+        }),
     clusteredAreaCount: audit.clusteredAreas.length,
     possibleClutterLevelCount: audit.possibleClutterLevels.length,
   };
@@ -768,6 +804,7 @@ function summarizeEntries(entries: LevelQualityReviewRunnerEntry[]) {
     extensionCoverageWarningParityCount: entries.filter((entry) => entry.parity.extensionCoverageWarnings).length,
     clusteredDensityDiagnosticParityCount: entries.filter((entry) => entry.parity.clusteredDensityDiagnostics).length,
     fifteenMinuteContextOnlyCount: entries.filter((entry) => entry.parity.fifteenMinuteStillContextOnly).length,
+    densityMetricPresentCount: entries.filter((entry) => entry.qualityAudit.densityMetric?.present === true).length,
     mismatchCount: entries.reduce((sum, entry) => sum + entry.mismatches.length, 0),
     prohibitedLanguageHitCount: 0,
   };
@@ -792,6 +829,7 @@ export function renderLevelQualityReviewText(result: Omit<LevelQualityReviewRunn
     `Extension warning parity: ${result.summary.extensionCoverageWarningParityCount}/${result.summary.totalSymbols}`,
     `Cluster/density diagnostic parity: ${result.summary.clusteredDensityDiagnosticParityCount}/${result.summary.totalSymbols}`,
     `15m context-only count: ${result.summary.fifteenMinuteContextOnlyCount}/${result.summary.totalSymbols}`,
+    `Density metric present count: ${result.summary.densityMetricPresentCount}/${result.summary.totalSymbols}`,
     `Mismatch count: ${result.summary.mismatchCount}`,
     `Prohibited-language hits: ${result.summary.prohibitedLanguageHitCount}`,
     "",
@@ -800,7 +838,7 @@ export function renderLevelQualityReviewText(result: Omit<LevelQualityReviewRunn
 
   for (const entry of result.entries) {
     lines.push(
-      `- ${entry.symbol}: mismatches=${entry.mismatches.length === 0 ? "none" : entry.mismatches.join(",")}; 15mContextOnly=${entry.fifteenMinuteContext.stillContextOnly}`,
+      `- ${entry.symbol}: mismatches=${entry.mismatches.length === 0 ? "none" : entry.mismatches.join(",")}; density=${entry.qualityAudit.densityMetric?.classification ?? "none"}; 15mContextOnly=${entry.fifteenMinuteContext.stillContextOnly}`,
     );
   }
 

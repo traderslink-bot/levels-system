@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "level-quality-density-metric-report-wiring/v1",
+  "generatedAt": "2026-06-01T23:49:59.730Z",
+  "providerFocus": "ibkr",
+  "purpose": "Wire the audit-only density metric into LevelQualityAuditReport additively without changing LevelEngine generation behavior.",
+  "sourceContract": "docs/121_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_CONTRACT.md",
+  "reportWiringDoc": "docs/122_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_REPORT_WIRING.md",
+  "changedModules": [
+    "src/lib/levels/level-quality-audit-runner.ts",
+    "src/scripts/run-level-quality-review.ts"
+  ],
+  "additiveReportField": {
+    "path": "LevelQualityAuditReport.densityMetric",
+    "type": "LevelQualityDensityMetric",
+    "computedFrom": [
+      "LevelQualityAuditItem[]",
+      "referencePrice",
+      "existing diagnostics",
+      "clusteredAreas.length"
+    ]
+  },
+  "reportLevelDiagnosticsAdded": [],
+  "diagnosticSemanticsAdded": [],
+  "densityMetricDiagnosticsRemainInsideMetric": true,
+  "reviewProcessOutput": {
+    "entryPath": "qualityAudit.densityMetric",
+    "summaryField": "densityMetricPresentCount",
+    "rawCandlesWritten": false,
+    "fullSnapshotsWritten": false
+  },
+  "classificationCoverage": [
+    "sparse",
+    "balanced",
+    "dense_separated",
+    "dense_clustered",
+    "support_heavy",
+    "resistance_heavy",
+    "extension_heavy",
+    "synthetic_present"
+  ],
+  "focusedTest": "src/tests/level-quality-density-metric-report-wiring.test.ts",
+  "compatibility": {
+    "existingDiagnosticsPreserved": true,
+    "existingDiagnosticSemanticsPreserved": true,
+    "existingEnrichmentBreakdownPreserved": true,
+    "existingParityFieldsPreserved": true,
+    "levelEngineOutputChanged": false
+  },
+  "auditOnlyBoundary": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "discordAlertMonitoringChanged": false,
+    "journalAppChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": "level_quality_review_rerun_after_density_metric_wiring"
+}

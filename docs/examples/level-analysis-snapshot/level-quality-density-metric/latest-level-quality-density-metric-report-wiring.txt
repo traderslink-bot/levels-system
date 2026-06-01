@@ -1,0 +1,43 @@
+Level quality audit density metric report wiring
+Generated: 2026-06-01T23:49:59.730Z
+Provider focus: IBKR
+
+Purpose
+- Wire the audit-only density metric into LevelQualityAuditReport additively.
+
+Additive report field
+- LevelQualityAuditReport.densityMetric
+- Type: LevelQualityDensityMetric
+- Source: existing audit rows, reference price, existing diagnostics, and clustered area count
+
+Diagnostic semantics
+- No new report-level diagnostics were added.
+- No new diagnosticSemantics entries were added.
+- Density-specific diagnostics remain inside densityMetric.diagnostics.
+
+Review process output
+- Compact path: qualityAudit.densityMetric
+- Summary field: densityMetricPresentCount
+- No raw candle arrays.
+- No full snapshots.
+
+Compatibility
+- Existing diagnostics remain preserved.
+- Existing diagnosticSemantics remain preserved.
+- Existing enrichmentBreakdown remains preserved.
+- Existing LevelEngine output remains unchanged.
+
+Focused test
+- src/tests/level-quality-density-metric-report-wiring.test.ts
+
+Audit-only boundary
+- No support/resistance detection changes.
+- No LevelEngine scoring/ranking/clustering changes.
+- No surfaced level changes.
+- No extension generation changes.
+- 15m remains outside LevelEngine.
+- No cache writes.
+- No alert, monitoring, Discord, or journal behavior changes.
+
+Recommended next gate
+- level_quality_review_rerun_after_density_metric_wiring

@@ -1,6 +1,10 @@
 import type { LevelIntelligenceProfile } from "./level-intelligence-profile.js";
 import type { LevelIntelligenceReport } from "./level-intelligence-report.js";
 import {
+  classifyLevelMapDensity,
+  type LevelQualityDensityMetric,
+} from "./level-quality-density-metric.js";
+import {
   describeLevelQualityDiagnostic,
   type LevelQualityDiagnosticDescription,
 } from "./level-quality-audit-wording.js";
@@ -133,6 +137,7 @@ export type LevelQualityAuditReport = {
   confluenceSummary: LevelQualityConfluenceSummary;
   diagnostics: string[];
   diagnosticSemantics?: LevelQualityDiagnosticDescription[];
+  densityMetric?: LevelQualityDensityMetric;
   safety: {
     levelOutputUnchanged: true;
     noRuntimeBehaviorChange: true;
@@ -551,6 +556,12 @@ export function buildLevelQualityAuditReport(
   };
 
   const diagnostics = collectDiagnostics(reportSeed);
+  const densityMetric = classifyLevelMapDensity({
+    rows: items,
+    referencePrice,
+    diagnostics,
+    clusteredAreaCount: clusteredAreas.length,
+  });
 
   return {
     symbol: output.symbol,
@@ -582,6 +593,7 @@ export function buildLevelQualityAuditReport(
     confluenceSummary: buildConfluenceSummary(items),
     diagnostics,
     diagnosticSemantics: diagnostics.map((diagnostic) => describeLevelQualityDiagnostic(diagnostic)),
+    densityMetric,
     safety: {
       levelOutputUnchanged: true,
       noRuntimeBehaviorChange: true,
