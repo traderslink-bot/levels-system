@@ -1,0 +1,64 @@
+LevelEngine extension coverage fixture pack
+Generated at: 2026-06-01T20:45:00.000Z
+
+Source artifact:
+docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-wording/latest-level-quality-review-rerun-after-wording.json
+
+Reviewed symbols:
+DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+
+Evidence summary:
+- No resistance extension coverage: DEVS, AIM, HCWB
+- Limited downside extension coverage: DEVS, ENVX, YMAT
+- Adequate coverage by current audit threshold: DXYZ, QUBT, GME, AAOI, PHOE
+- Synthetic continuation-map present: AAOI, PHOE
+- Possible bug found: false
+
+Fixture scenarios:
+1. balanced_extension_coverage
+   - Locks current audit behavior when both support and resistance extension rows exist.
+   - Expected extension coverage diagnostics: none.
+   - Synthetic continuation-map row is not required.
+
+2. no_resistance_extension_coverage
+   - Locks audit reporting when support extensions exist and resistance extensions are absent.
+   - Expected diagnostic: no_resistance_extension_coverage.
+   - Audit reports coverage status and does not fabricate rows.
+
+3. limited_downside_extension_coverage
+   - Locks audit reporting when support extension coverage is inside threshold.
+   - Expected diagnostic: limited_downside_extension_coverage.
+   - Selected extension rows remain factual historical-candidate context.
+
+4. synthetic_continuation_map_preservation
+   - Locks synthetic rows as marked forward-planning context.
+   - Expected diagnostic: unenriched_synthetic_levels_present.
+   - Synthetic rows remain separate from historical support/resistance evidence.
+
+5. spacing_guard
+   - Locks current spacing diagnostics for close extension candidates.
+   - Expected diagnostic: too_close_to_another_extension.
+   - Diagnostics explain skipped candidates without tuning selection behavior.
+
+Possible future tuning knobs:
+- extensionCoverageWarningPct
+- spacingPct
+- maxExtensionPerSide
+- searchWindowPct
+- forwardPlanningRangePct
+- realCandidatePoolEligibility
+- syntheticContinuationMapFallbackLimits
+
+Boundaries:
+- Extension generation behavior changed: false
+- Support/resistance detection changed: false
+- LevelEngine scoring/ranking/clustering changed: false
+- Surfaced support/resistance levels changed: false
+- 15m fed into LevelEngine: false
+- Cache files written: false
+- Raw cache files committed: false
+- Journal behavior added: false
+- Recommendation or trade advice added: false
+
+Recommended next gate:
+level_engine_cluster_density_tuning_plan_or_fixture_pack
