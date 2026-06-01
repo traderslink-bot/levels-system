@@ -70,12 +70,14 @@ Current from-candles behavior remains unchanged:
 - optional 15m candles can be supplied to the snapshot builder path;
 - 15m candles are filtered with candle-close as-of rules;
 - 15m input counts are reported in `inputSummary`;
-- supplied 15m input is diagnosed as reserved for future fact generation;
+- supplied 15m input can populate optional `timeframeFacts["15m"]` after the
+  builder gate;
 - 15m candles are not fed into LevelEngine;
 - 15m candles do not change surfaced support/resistance buckets.
 
-This gate does not add automatic generation of `timeframeFacts["15m"]` from
-candles. That remains a future gate.
+The contract gate itself did not add automatic generation of
+`timeframeFacts["15m"]` from candles. That generation is owned by the later
+builder gate.
 
 ## Validation Helpers
 

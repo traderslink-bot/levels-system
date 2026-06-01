@@ -70,8 +70,8 @@ Recommended:
 Candle JSON can be an array or an object with a `candles` array.
 
 `--candles-15m` is optional. The runner counts and filters 15m candles in
-`inputSummary` and records a reserved-input diagnostic, but 15m candles are not
-used for LevelEngine level generation yet.
+`inputSummary` and, when supplied, can populate `timeframeFacts["15m"]` as
+facts-only context. 15m candles are not used for LevelEngine level generation.
 
 ## Outputs
 

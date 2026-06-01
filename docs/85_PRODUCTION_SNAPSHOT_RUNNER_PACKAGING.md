@@ -97,7 +97,7 @@ Recommended for journal-ready snapshots:
 - `--previous-close`
 - `--out`
 
-If higher timeframes are omitted, the snapshot can still be generated, but the downstream consumer should treat the missing timeframe data as a completeness limitation. The `15m` input is optional and currently reserved for inputSummary/readiness only; it is not used for LevelEngine level generation.
+If higher timeframes are omitted, the snapshot can still be generated, but the downstream consumer should treat the missing timeframe data as a completeness limitation. The `15m` input is optional; when supplied, it is counted in `inputSummary` and can populate `timeframeFacts["15m"]` as facts-only context. It is still not used for LevelEngine level generation.
 
 ## Output Artifact Shape
 
@@ -283,7 +283,7 @@ Current runner limitations:
 - Does not batch multiple symbols by itself; the manifest script indexes already-generated artifacts.
 - Batch manifests include per-artifact SHA-256 checksums when artifact content is readable.
 - Does not write a production job summary.
-- `15m` is a hardened optional runner input for summary/no-lookahead readiness, but remains reserved and is not used for LevelEngine level generation yet.
+- `15m` is a hardened optional runner input for summary/no-lookahead readiness and facts-only `timeframeFacts["15m"]`, but remains outside LevelEngine level generation.
 - Large production artifacts should be kept out of git unless explicitly requested.
 
 ## Operational Safety Rules

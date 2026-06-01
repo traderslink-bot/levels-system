@@ -200,7 +200,7 @@ test("applies as-of filtering and excludes future and partial candles", () => {
   assert.equal(withFutureCandles.inputSummary.excludedPartialCandleCounts["5m"], 1);
 });
 
-test("accepts optional 15m candles as reserved input without changing LevelEngine output", () => {
+test("accepts optional 15m candles as facts-only input without changing LevelEngine output", () => {
   const withoutFifteen = buildSnapshot();
   const withFifteen = buildLevelAnalysisSnapshotFromCandles({
     symbol: "snap",
@@ -219,7 +219,11 @@ test("accepts optional 15m candles as reserved input without changing LevelEngin
   assert.equal(withFifteen.inputSummary.excludedFutureCandleCounts["15m"], 0);
   assert.equal(withFifteen.inputSummary.excludedPartialCandleCounts["15m"], 0);
   assert.deepEqual(withFifteen.inputSummary.timeframesPresent, ["5m", "15m", "4h", "daily"]);
-  assert.ok(withFifteen.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
+  assert.ok(withFifteen.diagnostics.includes("15m_facts_limited"));
+  assert.equal(withFifteen.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"), false);
+  assert.ok(withFifteen.timeframeFacts?.["15m"]);
+  assert.equal(withFifteen.timeframeFacts["15m"].schemaVersion, "level-analysis-15m-facts/v1");
+  assert.equal(withFifteen.timeframeFacts["15m"].dataCompleteness.availabilityStatus, "limited");
   assert.deepEqual(withFifteen.levelEngineOutput, withoutFifteen.levelEngineOutput);
   assert.deepEqual(withFifteen.nearestSupport, withoutFifteen.nearestSupport);
   assert.deepEqual(withFifteen.nearestResistance, withoutFifteen.nearestResistance);

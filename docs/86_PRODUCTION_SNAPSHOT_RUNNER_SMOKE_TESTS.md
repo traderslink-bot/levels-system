@@ -117,7 +117,7 @@ Smoke output must include:
 
 The smoke test also verifies that `symbol`, `asOfTimestamp`, and `referencePrice` match the smoke input.
 
-The smoke input includes optional `15m` candles. The expected output counts and filters them in `inputSummary`, while diagnostics mark `15m` as reserved for future fact generation. The `15m` fixture is not used for LevelEngine level generation.
+The smoke input includes optional `15m` candles. The expected output counts and filters them in `inputSummary`, and supplied 15m input can populate `timeframeFacts["15m"]` as facts-only context. The `15m` fixture is not used for LevelEngine level generation.
 
 ## Schema And Safety Checks
 

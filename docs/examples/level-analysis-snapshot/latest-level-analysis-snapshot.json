@@ -2200,7 +2200,7 @@
     }
   },
   "diagnostics": [
-    "15m_candles_reserved_for_future_fact_generation",
+    "15m_facts_limited",
     "candle_close_as_of_filter_applied",
     "candle_inputs_reserved_for_future_fact_generation"
   ],
@@ -2562,5 +2562,74 @@
     "shelvesAreFactsOnly": true,
     "vwapFactsOnly": true,
     "referencePrice": 10.68
+  },
+  "timeframeFacts": {
+    "15m": {
+      "schemaVersion": "level-analysis-15m-facts/v1",
+      "symbol": "SNAP",
+      "asOfTimestamp": 1777645200000,
+      "dataCompleteness": {
+        "availabilityStatus": "limited",
+        "provided": true,
+        "rawCandleCount": 3,
+        "closedCandleCount": 3,
+        "excludedFutureCandleCount": 0,
+        "excludedPartialCandleCount": 0,
+        "firstClosedTimestamp": 1777642200000,
+        "lastClosedTimestamp": 1777644000000,
+        "sufficientForTrendFacts": false,
+        "sufficientForVolumeFacts": false
+      },
+      "range": {
+        "lookbackCandleCount": 3,
+        "recentHigh": 10.62,
+        "recentLow": 9.6,
+        "recentMidpoint": 10.11,
+        "latestRangePct": 0.061657,
+        "averageRangePct": 0.061129,
+        "rangeState": "unknown",
+        "referencePosition": "above_recent_range"
+      },
+      "trend": {
+        "trendState": "unknown",
+        "higherCloseCount": 1,
+        "lowerCloseCount": 1,
+        "greenCandleCount": 2,
+        "redCandleCount": 1,
+        "latestCloseLocation": "middle_third"
+      },
+      "volume": {
+        "volumeState": "unknown",
+        "latestVolume": 2960000,
+        "rollingAverageVolume": 2513333.3333,
+        "relativeVolume": 1.1777,
+        "dollarVolume": 30724800,
+        "participationState": "unknown"
+      },
+      "structure": {
+        "consolidationState": "not_present",
+        "pullbackState": "not_present",
+        "continuationState": "not_present",
+        "recentHighTimestamp": 1777644000000,
+        "recentLowTimestamp": 1777642200000
+      },
+      "diagnostics": [
+        {
+          "code": "15m_facts_limited",
+          "severity": "info",
+          "message": "15m facts were built with limited closed-candle coverage."
+        }
+      ],
+      "limitations": [
+        "15m_insufficient_trend_history",
+        "15m_insufficient_volume_history"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnly": true,
+        "noRuntimeBehaviorChange": true
+      }
+    }
   }
 }

@@ -159,7 +159,10 @@ test("optional 15m input is counted and diagnosed without changing LevelEngine o
   assert.equal(withFifteen.inputSummary.excludedFutureCandleCounts["15m"], 0);
   assert.equal(withFifteen.inputSummary.excludedPartialCandleCounts["15m"], 0);
   assert.deepEqual(withFifteen.inputSummary.timeframesPresent, ["5m", "15m", "4h", "daily"]);
-  assert.ok(withFifteen.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
+  assert.ok(withFifteen.diagnostics.includes("15m_facts_limited"));
+  assert.equal(withFifteen.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"), false);
+  assert.ok(withFifteen.timeframeFacts?.["15m"]);
+  assert.equal(withFifteen.timeframeFacts["15m"].schemaVersion, "level-analysis-15m-facts/v1");
   assert.deepEqual(withFifteen.levelEngineOutput, baseline.levelEngineOutput);
   assert.deepEqual(withFifteen.nearestSupport, baseline.nearestSupport);
   assert.deepEqual(withFifteen.nearestResistance, baseline.nearestResistance);
@@ -214,7 +217,7 @@ test("no-lookahead filtering reports future and still-forming candles across all
   assert.equal(withFutureAndPartial.safety.noLookaheadApplied, true);
 });
 
-test("runner accepts --candles-15m and writes v1 output with reserved 15m summary", () =>
+test("runner accepts --candles-15m and writes v1 output with 15m facts summary", () =>
   withTempDir((dir) => {
     const outPath = join(dir, "snapshot.json");
     const options = parseLevelAnalysisSnapshotRunnerArgs([
@@ -245,7 +248,9 @@ test("runner accepts --candles-15m and writes v1 output with reserved 15m summar
     assert.equal(result.snapshot.producer, "levels-system");
     assert.equal(result.snapshot.inputSummary.candleCounts["15m"], 3);
     assert.equal(result.snapshot.inputSummary.filteredCandleCounts["15m"], 3);
-    assert.ok(result.snapshot.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
+    assert.ok(result.snapshot.diagnostics.includes("15m_facts_limited"));
+    assert.ok(result.snapshot.timeframeFacts?.["15m"]);
+    assert.equal(result.snapshot.timeframeFacts["15m"].schemaVersion, "level-analysis-15m-facts/v1");
     assert.equal(result.snapshot.safety.noLookaheadApplied, true);
     assert.equal(JSON.parse(readFileSync(outPath, "utf8")).inputSummary.candleCounts["15m"], 3);
   }));

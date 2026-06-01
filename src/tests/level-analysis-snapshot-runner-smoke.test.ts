@@ -135,7 +135,9 @@ test("packaged LevelAnalysisSnapshot runner writes and validates a production-sh
     assert.ok(snapshot.inputSummary);
     assert.equal(snapshot.inputSummary.candleCounts["15m"], 3);
     assert.equal(snapshot.inputSummary.filteredCandleCounts["15m"], 3);
-    assert.ok(snapshot.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
+    assert.ok(snapshot.diagnostics.includes("15m_facts_limited"));
+    assert.ok(snapshot.timeframeFacts?.["15m"]);
+    assert.equal(snapshot.timeframeFacts["15m"].schemaVersion, "level-analysis-15m-facts/v1");
     assert.ok(snapshot.levelEngineOutput);
     assert.ok(snapshot.levelIntelligenceReport);
     assert.ok(snapshot.levelQualityAudit);

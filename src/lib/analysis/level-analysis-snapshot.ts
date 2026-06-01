@@ -408,7 +408,7 @@ function buildDiagnostics(params: {
     diagnostics.add("candle_inputs_reserved_for_future_fact_generation");
   }
 
-  if (params.request.closedCandles?.fifteenMinute !== undefined) {
+  if (params.request.closedCandles?.fifteenMinute !== undefined && !params.request.timeframeFacts?.["15m"]) {
     diagnostics.add("15m_candles_reserved_for_future_fact_generation");
   }
 

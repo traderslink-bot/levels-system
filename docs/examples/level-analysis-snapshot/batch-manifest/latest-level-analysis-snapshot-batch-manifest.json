@@ -15,14 +15,14 @@
       "referencePrice": 10.68,
       "artifactPath": "docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json",
       "artifactExists": true,
-      "fileSizeBytes": 79006,
-      "checksumSha256": "d360c718279b6b4dd415253022dcb937fc3fc005088228604c30bc36535b71e4",
+      "fileSizeBytes": 81073,
+      "checksumSha256": "eaaf71fd7f3b1aebb4a395d59a8f7e5b7bd134b142310d47d14fb195d84db41a",
       "snapshotSchemaVersion": "level-analysis-snapshot/v1",
       "snapshotProducer": "levels-system",
       "status": "accepted",
       "validationErrors": [],
       "diagnostics": [
-        "15m_candles_reserved_for_future_fact_generation",
+        "15m_facts_limited",
         "candle_close_as_of_filter_applied",
         "candle_inputs_reserved_for_future_fact_generation"
       ],
@@ -87,7 +87,7 @@
     "noLookaheadAppliedCount": 1,
     "syntheticExtensionsClearlyMarkedCount": 1,
     "uniqueDiagnostics": [
-      "15m_candles_reserved_for_future_fact_generation",
+      "15m_facts_limited",
       "candle_close_as_of_filter_applied",
       "candle_inputs_reserved_for_future_fact_generation"
     ],
