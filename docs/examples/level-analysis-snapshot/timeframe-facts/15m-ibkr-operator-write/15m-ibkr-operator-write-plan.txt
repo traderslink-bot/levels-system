@@ -1,0 +1,54 @@
+15m IBKR operator write plan
+Gate: levels_system_15m_ibkr_operator_write_plan
+Provider: ibkr
+Timeframe: 15m
+Lookback bars: 100
+End time: 2026-06-01T16:00:00Z
+Normalized end time: 1780329600000
+Cache root: C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles
+Target symbols: DEVS, ENVX, DXYZ, QUBT, GME
+
+Dry-run command:
+npm run cache:collect:15m -- --cache-root C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles --provider ibkr --symbols DEVS,ENVX,DXYZ,QUBT,GME --lookback-bars 100 --end-time 2026-06-01T16:00:00Z --dry-run
+
+Write command:
+$env:LEVEL_15M_CACHE_ENABLE_IBKR="true"; npm run cache:collect:15m -- --cache-root C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles --provider ibkr --symbols DEVS,ENVX,DXYZ,QUBT,GME --lookback-bars 100 --end-time 2026-06-01T16:00:00Z --write
+
+Required environment:
+- LEVEL_15M_CACHE_ENABLE_IBKR=true
+
+Optional environment:
+- LEVEL_15M_CACHE_IBKR_HOST
+- LEVEL_15M_CACHE_IBKR_PORT
+- LEVEL_15M_CACHE_IBKR_CLIENT_ID
+- LEVEL_15M_CACHE_IBKR_CONNECTION_TIMEOUT_MS
+- LEVEL_VALIDATION_IBKR_TIMEOUT_MS
+
+Expected output paths:
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DEVS\15m\100-1780329600000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\ENVX\15m\100-1780329600000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DXYZ\15m\100-1780329600000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\QUBT\15m\100-1780329600000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\GME\15m\100-1780329600000.json
+
+Pre-write checklist:
+- IBKR TWS or Gateway is running, logged in, connected, and API-enabled.
+- Operator intentionally sets LEVEL_15M_CACHE_ENABLE_IBKR=true.
+- Dry-run has just planned exactly the expected target paths.
+- No target output path exists unless skip behavior is intended.
+- No --overwrite flag is used for the first write.
+
+Post-write validation:
+- Run inspect-15m-cache-coverage.ts against the real cache root.
+- Verify target symbols have 15m files.
+- Run levels_system_15m_facts_real_cache_validation_with_supplied_15m.
+- Verify timeframeFacts["15m"] exists and validates.
+- Verify LevelEngine output is unchanged with and without supplied 15m candles.
+- Verify no-lookahead filtering and diagnostics remain factual.
+
+Rollback summary:
+Stop, identify only the five expected target paths, verify resolved paths under the IBKR 15m cache folders, then move to quarantine or delete only after path confirmation.
+
+Real write executed in this gate: false
+Real 15m cache files written in this gate: false
+Recommended next gate: levels_system_15m_cache_collection_operator_write
