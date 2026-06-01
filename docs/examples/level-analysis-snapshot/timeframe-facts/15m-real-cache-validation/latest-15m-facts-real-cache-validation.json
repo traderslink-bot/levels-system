@@ -1,0 +1,330 @@
+{
+  "generatedAt": "2026-06-01T00:00:00.000Z",
+  "sourceCacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles",
+  "cacheSummary": {
+    "totalJsonFiles": 2274,
+    "providers": [
+      "ibkr",
+      "stub"
+    ],
+    "providerSymbolGroups": 357,
+    "groupsWith5m4hDaily": 355,
+    "groupsWithAny15m": 0,
+    "groupsWith5m15m4hDaily": 0,
+    "real15mCacheExists": false
+  },
+  "selectedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "realCacheValidationMode": "absent_15m_fallback",
+  "selected": [
+    {
+      "symbol": "DEVS",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780314300000,
+      "asOfIso": "2026-06-01T11:45:00.000Z",
+      "referencePrice": 0.2705,
+      "selectedFiles": {
+        "5m": "ibkr\\DEVS\\5m\\100-1780314300000.json",
+        "4h": "ibkr\\DEVS\\4h\\180-1780300800000.json",
+        "daily": "ibkr\\DEVS\\daily\\520-1780272000000.json"
+      },
+      "counts": {
+        "5m": {
+          "raw": 46,
+          "filtered": 45
+        },
+        "15m": {
+          "raw": 0,
+          "filtered": 0
+        },
+        "4h": {
+          "raw": 113,
+          "filtered": 112
+        },
+        "daily": {
+          "raw": 455,
+          "filtered": 454
+        }
+      },
+      "timeframesPresent": [
+        "5m",
+        "4h",
+        "daily"
+      ],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "5m_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "timeframeFacts15mPresent": false,
+      "syntheticExtensionCount": 0,
+      "levelQualityAuditDiagnostics": [
+        "clustered_level_areas_present",
+        "limited_downside_extension_coverage",
+        "no_resistance_extension_coverage",
+        "unenriched_levels_present"
+      ],
+      "passed": true
+    },
+    {
+      "symbol": "ENVX",
+      "provider": "ibkr",
+      "asOfTimestamp": 1779463200000,
+      "asOfIso": "2026-05-22T15:20:00.000Z",
+      "referencePrice": 6.73,
+      "selectedFiles": {
+        "5m": "ibkr\\ENVX\\5m\\100-1779463200000.json",
+        "4h": "ibkr\\ENVX\\4h\\180-1779451200000.json",
+        "daily": "ibkr\\ENVX\\daily\\520-1779408000000.json"
+      },
+      "counts": {
+        "5m": {
+          "raw": 89,
+          "filtered": 88
+        },
+        "15m": {
+          "raw": 0,
+          "filtered": 0
+        },
+        "4h": {
+          "raw": 118,
+          "filtered": 117
+        },
+        "daily": {
+          "raw": 501,
+          "filtered": 500
+        }
+      },
+      "timeframesPresent": [
+        "5m",
+        "4h",
+        "daily"
+      ],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "5m_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "timeframeFacts15mPresent": false,
+      "syntheticExtensionCount": 0,
+      "levelQualityAuditDiagnostics": [
+        "clustered_level_areas_present",
+        "limited_downside_extension_coverage",
+        "unenriched_levels_present"
+      ],
+      "passed": true
+    },
+    {
+      "symbol": "DXYZ",
+      "provider": "ibkr",
+      "asOfTimestamp": 1778845800000,
+      "asOfIso": "2026-05-15T11:50:00.000Z",
+      "referencePrice": 46.47,
+      "selectedFiles": {
+        "5m": "ibkr\\DXYZ\\5m\\100-1778845800000.json",
+        "4h": "ibkr\\DXYZ\\4h\\180-1778832000000.json",
+        "daily": "ibkr\\DXYZ\\daily\\520-1778803200000.json"
+      },
+      "counts": {
+        "5m": {
+          "raw": 47,
+          "filtered": 46
+        },
+        "15m": {
+          "raw": 0,
+          "filtered": 0
+        },
+        "4h": {
+          "raw": 117,
+          "filtered": 116
+        },
+        "daily": {
+          "raw": 501,
+          "filtered": 500
+        }
+      },
+      "timeframesPresent": [
+        "5m",
+        "4h",
+        "daily"
+      ],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "5m_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "timeframeFacts15mPresent": false,
+      "syntheticExtensionCount": 0,
+      "levelQualityAuditDiagnostics": [
+        "clustered_level_areas_present",
+        "unenriched_levels_present"
+      ],
+      "passed": true
+    },
+    {
+      "symbol": "QUBT",
+      "provider": "ibkr",
+      "asOfTimestamp": 1778595300000,
+      "asOfIso": "2026-05-12T14:15:00.000Z",
+      "referencePrice": 12.799,
+      "selectedFiles": {
+        "5m": "ibkr\\QUBT\\5m\\100-1778595300000.json",
+        "4h": "ibkr\\QUBT\\4h\\180-1778587200000.json",
+        "daily": "ibkr\\QUBT\\daily\\520-1778544000000.json"
+      },
+      "counts": {
+        "5m": {
+          "raw": 76,
+          "filtered": 75
+        },
+        "15m": {
+          "raw": 0,
+          "filtered": 0
+        },
+        "4h": {
+          "raw": 114,
+          "filtered": 113
+        },
+        "daily": {
+          "raw": 501,
+          "filtered": 500
+        }
+      },
+      "timeframesPresent": [
+        "5m",
+        "4h",
+        "daily"
+      ],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "5m_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "timeframeFacts15mPresent": false,
+      "syntheticExtensionCount": 0,
+      "levelQualityAuditDiagnostics": [
+        "unenriched_levels_present"
+      ],
+      "passed": true
+    },
+    {
+      "symbol": "GME",
+      "provider": "ibkr",
+      "asOfTimestamp": 1777907100000,
+      "asOfIso": "2026-05-04T15:05:00.000Z",
+      "referencePrice": 24.8,
+      "selectedFiles": {
+        "5m": "ibkr\\GME\\5m\\100-1777907100000.json",
+        "4h": "ibkr\\GME\\4h\\180-1777896000000.json",
+        "daily": "ibkr\\GME\\daily\\520-1777852800000.json"
+      },
+      "counts": {
+        "5m": {
+          "raw": 86,
+          "filtered": 85
+        },
+        "15m": {
+          "raw": 0,
+          "filtered": 0
+        },
+        "4h": {
+          "raw": 114,
+          "filtered": 113
+        },
+        "daily": {
+          "raw": 500,
+          "filtered": 499
+        }
+      },
+      "timeframesPresent": [
+        "5m",
+        "4h",
+        "daily"
+      ],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "5m_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "timeframeFacts15mPresent": false,
+      "syntheticExtensionCount": 0,
+      "levelQualityAuditDiagnostics": [
+        "clustered_level_areas_present",
+        "unenriched_levels_present"
+      ],
+      "passed": true
+    }
+  ],
+  "deterministicFixtureCoverage": {
+    "sample15mFactsPresent": true,
+    "sample15mValidationValid": true,
+    "sample15mAvailabilityStatus": "limited",
+    "sample15mClosedCandleCount": 3,
+    "sampleLevelEngineUnchangedWith15mFacts": true,
+    "sampleNearestSupportUnchangedWith15mFacts": true,
+    "sampleNearestResistanceUnchangedWith15mFacts": true,
+    "sampleDiagnostics": [
+      "15m_facts_limited"
+    ]
+  },
+  "productionBugFound": false,
+  "limitations": [
+    "No local real-cache 15m candle directories were present; supplied-15m real-cache validation is blocked by cache availability."
+  ],
+  "recommendedNextGate": "levels_system_15m_cache_collection_plan"
+}
