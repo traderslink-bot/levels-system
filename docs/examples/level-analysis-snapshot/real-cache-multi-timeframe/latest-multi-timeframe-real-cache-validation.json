@@ -1,0 +1,2295 @@
+{
+  "generatedAt": "2026-06-01T11:03:01.250Z",
+  "purpose": "Multi-timeframe LevelAnalysisSnapshot real-cache validation after optional 15m inputSummary hardening.",
+  "cacheSummary": {
+    "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles",
+    "providers": [
+      "ibkr",
+      "stub"
+    ],
+    "fileCount": 2265,
+    "providerSymbolGroups": 356,
+    "groupsWith5m4hDaily": 354,
+    "groupsWith5m15m4hDaily": 0,
+    "groupsWith15m": 0,
+    "real15mCacheExists": false
+  },
+  "selectedSymbols": [
+    "DEVS",
+    "ENVX",
+    "AIM",
+    "PBM",
+    "DXYZ",
+    "YMAT",
+    "HCWB",
+    "MEHA",
+    "INM",
+    "EZGO",
+    "SOWG",
+    "CLPS",
+    "AAOI",
+    "FLEX",
+    "QUBT",
+    "GME",
+    "PHOE"
+  ],
+  "aggregate": {
+    "symbolCount": 17,
+    "passed": 17,
+    "failed": 0,
+    "with15mInput": 0,
+    "absent15mValidated": 17,
+    "withSyntheticExtensions": 6,
+    "totalSyntheticExtensions": 7,
+    "levelEngineComparisons": 0,
+    "levelEngineUnchangedComparisons": 0,
+    "uniqueDiagnostics": [
+      "4h_partial_candles_filtered",
+      "candle_close_as_of_filter_applied",
+      "candle_inputs_reserved_for_future_fact_generation",
+      "daily_partial_candles_filtered"
+    ],
+    "uniqueAuditDiagnostics": [
+      "clustered_level_areas_present",
+      "limited_downside_extension_coverage",
+      "limited_upside_extension_coverage",
+      "no_resistance_extension_coverage",
+      "unenriched_levels_present",
+      "wide_downside_support_gap",
+      "wide_overhead_resistance_gap"
+    ]
+  },
+  "symbols": [
+    {
+      "symbol": "DEVS",
+      "provider": "ibkr",
+      "scenario": "low-price runner",
+      "asOfTimestamp": 1780062000000,
+      "asOfIso": "2026-05-29T13:40:00.000Z",
+      "referencePrice": 0.2592,
+      "previousClose": 0.127,
+      "cacheFiles": {
+        "5m": "ibkr\\DEVS\\5m\\100-1780061700000.json",
+        "15m": null,
+        "4h": "ibkr\\DEVS\\4h\\180-1780056000000.json",
+        "daily": "ibkr\\DEVS\\daily\\520-1780012800000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 68,
+        "15m": 0,
+        "4h": 114,
+        "daily": 455
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 68,
+          "15m": 0,
+          "4h": 114,
+          "daily": 455
+        },
+        "filteredCandleCounts": {
+          "5m": 68,
+          "15m": 0,
+          "4h": 113,
+          "daily": 454
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 68,
+            "filteredCandleCount": 68,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 114,
+            "filteredCandleCount": 113,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 455,
+            "filteredCandleCount": 454,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 0.2264,
+          "bucket": "intradaySupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 0.2624,
+          "bucket": "intradayResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 1,
+        "majorResistance": 0,
+        "intermediateSupport": 4,
+        "intermediateResistance": 2,
+        "intradaySupport": 6,
+        "intradayResistance": 3,
+        "extensionSupport": 3,
+        "extensionResistance": 0
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "no_resistance_extension_coverage",
+        "unenriched_levels_present",
+        "wide_downside_support_gap"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "ENVX",
+      "provider": "ibkr",
+      "scenario": "clean technical mover",
+      "asOfTimestamp": 1779463500000,
+      "asOfIso": "2026-05-22T15:25:00.000Z",
+      "referencePrice": 6.73,
+      "previousClose": 6.26,
+      "cacheFiles": {
+        "5m": "ibkr\\ENVX\\5m\\100-1779463200000.json",
+        "15m": null,
+        "4h": "ibkr\\ENVX\\4h\\180-1779451200000.json",
+        "daily": "ibkr\\ENVX\\daily\\520-1779408000000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 89,
+        "15m": 0,
+        "4h": 118,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 89,
+          "15m": 0,
+          "4h": 118,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 89,
+          "15m": 0,
+          "4h": 117,
+          "daily": 500
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 89,
+            "filteredCandleCount": 89,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 118,
+            "filteredCandleCount": 117,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 501,
+            "filteredCandleCount": 500,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 6.68,
+          "bucket": "majorSupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 6.8,
+          "bucket": "intermediateResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 4,
+        "intermediateResistance": 1,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "limited_downside_extension_coverage",
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "AIM",
+      "provider": "ibkr",
+      "scenario": "choppy ticker",
+      "asOfTimestamp": 1779976800000,
+      "asOfIso": "2026-05-28T14:00:00.000Z",
+      "referencePrice": 0.373,
+      "previousClose": 0.3815,
+      "cacheFiles": {
+        "5m": "ibkr\\AIM\\5m\\100-1779976500000.json",
+        "15m": null,
+        "4h": "ibkr\\AIM\\4h\\180-1779969600000.json",
+        "daily": "ibkr\\AIM\\daily\\520-1779926400000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 72,
+        "15m": 0,
+        "4h": 114,
+        "daily": 502
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 72,
+          "15m": 0,
+          "4h": 114,
+          "daily": 502
+        },
+        "filteredCandleCounts": {
+          "5m": 72,
+          "15m": 0,
+          "4h": 113,
+          "daily": 501
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 72,
+            "filteredCandleCount": 72,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 114,
+            "filteredCandleCount": 113,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 502,
+            "filteredCandleCount": 501,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 0.35,
+          "bucket": "intradaySupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 0.375,
+          "bucket": "intradayResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 1,
+        "majorResistance": 1,
+        "intermediateSupport": 4,
+        "intermediateResistance": 3,
+        "intradaySupport": 3,
+        "intradayResistance": 2,
+        "extensionSupport": 3,
+        "extensionResistance": 0
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "no_resistance_extension_coverage",
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "PBM",
+      "provider": "ibkr",
+      "scenario": "thin-liquidity ticker",
+      "asOfTimestamp": 1778156100000,
+      "asOfIso": "2026-05-07T12:15:00.000Z",
+      "referencePrice": 6.07,
+      "previousClose": 5.98,
+      "cacheFiles": {
+        "5m": "ibkr\\PBM\\5m\\100-1778155800000.json",
+        "15m": null,
+        "4h": "ibkr\\PBM\\4h\\180-1778155200000.json",
+        "daily": "ibkr\\PBM\\daily\\520-1778112000000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 51,
+        "15m": 0,
+        "4h": 108,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 51,
+          "15m": 0,
+          "4h": 108,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 51,
+          "15m": 0,
+          "4h": 107,
+          "daily": 500
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 51,
+            "filteredCandleCount": 51,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 108,
+            "filteredCandleCount": 107,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 501,
+            "filteredCandleCount": 500,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 5.91,
+          "bucket": "intermediateSupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 6.09,
+          "bucket": "intradayResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 2,
+        "intermediateSupport": 5,
+        "intermediateResistance": 1,
+        "intradaySupport": 0,
+        "intradayResistance": 1,
+        "extensionSupport": 3,
+        "extensionResistance": 0
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "no_resistance_extension_coverage",
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "DXYZ",
+      "provider": "ibkr",
+      "scenario": "higher-priced stock",
+      "asOfTimestamp": 1778846100000,
+      "asOfIso": "2026-05-15T11:55:00.000Z",
+      "referencePrice": 46.47,
+      "previousClose": 48.94,
+      "cacheFiles": {
+        "5m": "ibkr\\DXYZ\\5m\\100-1778845800000.json",
+        "15m": null,
+        "4h": "ibkr\\DXYZ\\4h\\180-1778832000000.json",
+        "daily": "ibkr\\DXYZ\\daily\\520-1778803200000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 47,
+        "15m": 0,
+        "4h": 117,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 47,
+          "15m": 0,
+          "4h": 117,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 47,
+          "15m": 0,
+          "4h": 116,
+          "daily": 500
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 47,
+            "filteredCandleCount": 47,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 117,
+            "filteredCandleCount": 116,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 501,
+            "filteredCandleCount": 500,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 45.8,
+          "bucket": "majorSupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 46.8,
+          "bucket": "majorResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 3,
+        "intermediateResistance": 1,
+        "intradaySupport": 1,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "YMAT",
+      "provider": "ibkr",
+      "scenario": "low-price runner",
+      "asOfTimestamp": 1779825600000,
+      "asOfIso": "2026-05-26T20:00:00.000Z",
+      "referencePrice": 1.325,
+      "previousClose": 0.4361,
+      "cacheFiles": {
+        "5m": "ibkr\\YMAT\\5m\\100-1779825300000.json",
+        "15m": null,
+        "4h": "ibkr\\YMAT\\4h\\180-1779811200000.json",
+        "daily": "ibkr\\YMAT\\daily\\520-1779753600000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 144,
+        "15m": 0,
+        "4h": 110,
+        "daily": 207
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 144,
+          "15m": 0,
+          "4h": 110,
+          "daily": 207
+        },
+        "filteredCandleCounts": {
+          "5m": 144,
+          "15m": 0,
+          "4h": 110,
+          "daily": 207
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 144,
+            "filteredCandleCount": 144,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 110,
+            "filteredCandleCount": 110,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 207,
+            "filteredCandleCount": 207,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 1.31,
+          "bucket": "extensionSupport",
+          "isExtension": true
+        },
+        "resistance": {
+          "price": 1.34,
+          "bucket": "majorResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 2,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 3,
+        "intradayResistance": 6,
+        "extensionSupport": 3,
+        "extensionResistance": 3
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "limited_downside_extension_coverage",
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "HCWB",
+      "provider": "ibkr",
+      "scenario": "low-price runner",
+      "asOfTimestamp": 1779289200000,
+      "asOfIso": "2026-05-20T15:00:00.000Z",
+      "referencePrice": 2.945,
+      "previousClose": 1.02,
+      "cacheFiles": {
+        "5m": "ibkr\\HCWB\\5m\\100-1779288900000.json",
+        "15m": null,
+        "4h": "ibkr\\HCWB\\4h\\180-1779278400000.json",
+        "daily": "ibkr\\HCWB\\daily\\520-1779235200000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 84,
+        "15m": 0,
+        "4h": 118,
+        "daily": 277
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 84,
+          "15m": 0,
+          "4h": 118,
+          "daily": 277
+        },
+        "filteredCandleCounts": {
+          "5m": 84,
+          "15m": 0,
+          "4h": 117,
+          "daily": 276
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 84,
+            "filteredCandleCount": 84,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 118,
+            "filteredCandleCount": 117,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 277,
+            "filteredCandleCount": 276,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 1.91,
+          "bucket": "majorSupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 3.78,
+          "bucket": "majorResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 2,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 4,
+        "intradayResistance": 1,
+        "extensionSupport": 1,
+        "extensionResistance": 0
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "no_resistance_extension_coverage",
+        "unenriched_levels_present",
+        "wide_downside_support_gap",
+        "wide_overhead_resistance_gap"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "MEHA",
+      "provider": "ibkr",
+      "scenario": "sub-dollar runner",
+      "asOfTimestamp": 1778512800000,
+      "asOfIso": "2026-05-11T15:20:00.000Z",
+      "referencePrice": 0.2033,
+      "previousClose": 0.092,
+      "cacheFiles": {
+        "5m": "ibkr\\MEHA\\5m\\100-1778512500000.json",
+        "15m": null,
+        "4h": "ibkr\\MEHA\\4h\\180-1778500800000.json",
+        "daily": "ibkr\\MEHA\\daily\\520-1778457600000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 88,
+        "15m": 0,
+        "4h": 112,
+        "daily": 128
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 88,
+          "15m": 0,
+          "4h": 112,
+          "daily": 128
+        },
+        "filteredCandleCounts": {
+          "5m": 88,
+          "15m": 0,
+          "4h": 111,
+          "daily": 127
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 88,
+            "filteredCandleCount": 88,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 112,
+            "filteredCandleCount": 111,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 128,
+            "filteredCandleCount": 127,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 0.1911,
+          "bucket": "extensionSupport",
+          "isExtension": true
+        },
+        "resistance": {
+          "price": 0.22,
+          "bucket": "intradayResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 3,
+        "intradayResistance": 1,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present",
+        "wide_overhead_resistance_gap"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "INM",
+      "provider": "ibkr",
+      "scenario": "sparse intraday runner",
+      "asOfTimestamp": 1779195900000,
+      "asOfIso": "2026-05-19T13:05:00.000Z",
+      "referencePrice": 1.7199,
+      "previousClose": 0.6801,
+      "cacheFiles": {
+        "5m": "ibkr\\INM\\5m\\100-1779195600000.json",
+        "15m": null,
+        "4h": "ibkr\\INM\\4h\\180-1779192000000.json",
+        "daily": "ibkr\\INM\\daily\\520-1779148800000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 8,
+        "15m": 0,
+        "4h": 100,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 8,
+          "15m": 0,
+          "4h": 100,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 8,
+          "15m": 0,
+          "4h": 99,
+          "daily": 500
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 8,
+            "filteredCandleCount": 8,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 100,
+            "filteredCandleCount": 99,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 501,
+            "filteredCandleCount": 500,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 1.25,
+          "bucket": "intradaySupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 1.95,
+          "bucket": "majorResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 3,
+        "intermediateSupport": 4,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 1,
+        "extensionSupport": 1,
+        "extensionResistance": 2
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present",
+        "wide_downside_support_gap",
+        "wide_overhead_resistance_gap"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "EZGO",
+      "provider": "ibkr",
+      "scenario": "sharp selloff / broken low-price ticker",
+      "asOfTimestamp": 1778105400000,
+      "asOfIso": "2026-05-06T22:10:00.000Z",
+      "referencePrice": 0.1234,
+      "previousClose": 3.05,
+      "cacheFiles": {
+        "5m": "ibkr\\EZGO\\5m\\100-1778105100000.json",
+        "15m": null,
+        "4h": "ibkr\\EZGO\\4h\\180-1778097600000.json",
+        "daily": "ibkr\\EZGO\\daily\\520-1778025600000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 160,
+        "15m": 0,
+        "4h": 98,
+        "daily": 502
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 160,
+          "15m": 0,
+          "4h": 98,
+          "daily": 502
+        },
+        "filteredCandleCounts": {
+          "5m": 160,
+          "15m": 0,
+          "4h": 97,
+          "daily": 502
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 0
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 160,
+            "filteredCandleCount": 160,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 98,
+            "filteredCandleCount": 97,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 502,
+            "filteredCandleCount": 502,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 0.1226,
+          "bucket": "intradaySupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 0.1298,
+          "bucket": "intradayResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 0,
+        "majorResistance": 0,
+        "intermediateSupport": 0,
+        "intermediateResistance": 0,
+        "intradaySupport": 2,
+        "intradayResistance": 3,
+        "extensionSupport": 1,
+        "extensionResistance": 2
+      },
+      "syntheticSummary": {
+        "count": 1,
+        "sources": [
+          "synthetic_continuation_map"
+        ],
+        "notHistoricalEvidenceCount": 1
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "limited_upside_extension_coverage",
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "SOWG",
+      "provider": "ibkr",
+      "scenario": "thin-liquidity ticker",
+      "asOfTimestamp": 1777979700000,
+      "asOfIso": "2026-05-05T11:15:00.000Z",
+      "referencePrice": 1.79,
+      "previousClose": 1.765,
+      "cacheFiles": {
+        "5m": "ibkr\\SOWG\\5m\\100-1777980300000.json",
+        "15m": null,
+        "4h": "ibkr\\SOWG\\4h\\180-1777968000000.json",
+        "daily": "ibkr\\SOWG\\daily\\520-1777939200000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 27,
+        "15m": 0,
+        "4h": 109,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 27,
+          "15m": 0,
+          "4h": 109,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 27,
+          "15m": 0,
+          "4h": 108,
+          "daily": 500
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 27,
+            "filteredCandleCount": 27,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 109,
+            "filteredCandleCount": 108,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 501,
+            "filteredCandleCount": 500,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 1.57,
+          "bucket": "intermediateSupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 1.8,
+          "bucket": "intermediateResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 1,
+        "majorResistance": 0,
+        "intermediateSupport": 1,
+        "intermediateResistance": 1,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 2
+      },
+      "syntheticSummary": {
+        "count": 2,
+        "sources": [
+          "synthetic_continuation_map"
+        ],
+        "notHistoricalEvidenceCount": 2
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present",
+        "wide_downside_support_gap"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "CLPS",
+      "provider": "ibkr",
+      "scenario": "thin-liquidity ticker",
+      "asOfTimestamp": 1777921200000,
+      "asOfIso": "2026-05-04T19:00:00.000Z",
+      "referencePrice": 0.93,
+      "previousClose": 0.9499,
+      "cacheFiles": {
+        "5m": "ibkr\\CLPS\\5m\\100-1777920900000.json",
+        "15m": null,
+        "4h": "ibkr\\CLPS\\4h\\180-1777910400000.json",
+        "daily": "ibkr\\CLPS\\daily\\520-1777852800000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 30,
+        "15m": 0,
+        "4h": 88,
+        "daily": 495
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 30,
+          "15m": 0,
+          "4h": 88,
+          "daily": 495
+        },
+        "filteredCandleCounts": {
+          "5m": 30,
+          "15m": 0,
+          "4h": 87,
+          "daily": 494
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 30,
+            "filteredCandleCount": 30,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 88,
+            "filteredCandleCount": 87,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 495,
+            "filteredCandleCount": 494,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 0.8902,
+          "bucket": "majorSupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 0.96,
+          "bucket": "majorResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 1,
+        "intermediateResistance": 0,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 2,
+        "extensionResistance": 3
+      },
+      "syntheticSummary": {
+        "count": 1,
+        "sources": [
+          "synthetic_continuation_map"
+        ],
+        "notHistoricalEvidenceCount": 1
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "AAOI",
+      "provider": "ibkr",
+      "scenario": "higher-priced high-volume ticker",
+      "asOfTimestamp": 1777915800000,
+      "asOfIso": "2026-05-04T17:30:00.000Z",
+      "referencePrice": 178.64,
+      "previousClose": 182.85,
+      "cacheFiles": {
+        "5m": "ibkr\\AAOI\\5m\\100-1777915500000.json",
+        "15m": null,
+        "4h": "ibkr\\AAOI\\4h\\180-1777910400000.json",
+        "daily": "ibkr\\AAOI\\daily\\520-1777852800000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 114,
+        "15m": 0,
+        "4h": 115,
+        "daily": 500
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 114,
+          "15m": 0,
+          "4h": 115,
+          "daily": 500
+        },
+        "filteredCandleCounts": {
+          "5m": 114,
+          "15m": 0,
+          "4h": 114,
+          "daily": 499
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 114,
+            "filteredCandleCount": 114,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 115,
+            "filteredCandleCount": 114,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 500,
+            "filteredCandleCount": 499,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 174.78,
+          "bucket": "intradaySupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 189.5,
+          "bucket": "intradayResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 1,
+        "extensionSupport": 3,
+        "extensionResistance": 2
+      },
+      "syntheticSummary": {
+        "count": 1,
+        "sources": [
+          "synthetic_continuation_map"
+        ],
+        "notHistoricalEvidenceCount": 1
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "FLEX",
+      "provider": "ibkr",
+      "scenario": "higher-priced clean mover",
+      "asOfTimestamp": 1778085600000,
+      "asOfIso": "2026-05-06T16:40:00.000Z",
+      "referencePrice": 126.7,
+      "previousClose": 113.01,
+      "cacheFiles": {
+        "5m": "ibkr\\FLEX\\5m\\100-1778085300000.json",
+        "15m": null,
+        "4h": "ibkr\\FLEX\\4h\\180-1778083200000.json",
+        "daily": "ibkr\\FLEX\\daily\\520-1778025600000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 104,
+        "15m": 0,
+        "4h": 112,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 104,
+          "15m": 0,
+          "4h": 112,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 104,
+          "15m": 0,
+          "4h": 111,
+          "daily": 500
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 104,
+            "filteredCandleCount": 104,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 112,
+            "filteredCandleCount": 111,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 501,
+            "filteredCandleCount": 500,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 125.27,
+          "bucket": "intradaySupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 126.99,
+          "bucket": "intradayResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 2,
+        "intradayResistance": 2,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "syntheticSummary": {
+        "count": 1,
+        "sources": [
+          "synthetic_continuation_map"
+        ],
+        "notHistoricalEvidenceCount": 1
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "QUBT",
+      "provider": "ibkr",
+      "scenario": "active technical mover",
+      "asOfTimestamp": 1778595600000,
+      "asOfIso": "2026-05-12T14:20:00.000Z",
+      "referencePrice": 12.799,
+      "previousClose": 11.7989,
+      "cacheFiles": {
+        "5m": "ibkr\\QUBT\\5m\\100-1778595300000.json",
+        "15m": null,
+        "4h": "ibkr\\QUBT\\4h\\180-1778587200000.json",
+        "daily": "ibkr\\QUBT\\daily\\520-1778544000000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 76,
+        "15m": 0,
+        "4h": 114,
+        "daily": 501
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 76,
+          "15m": 0,
+          "4h": 114,
+          "daily": 501
+        },
+        "filteredCandleCounts": {
+          "5m": 76,
+          "15m": 0,
+          "4h": 113,
+          "daily": 500
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 76,
+            "filteredCandleCount": 76,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 114,
+            "filteredCandleCount": 113,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 501,
+            "filteredCandleCount": 500,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 12.42,
+          "bucket": "intradaySupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 12.9727,
+          "bucket": "intradayResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 4,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 2,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "GME",
+      "provider": "ibkr",
+      "scenario": "higher-priced negative mover",
+      "asOfTimestamp": 1777907400000,
+      "asOfIso": "2026-05-04T15:10:00.000Z",
+      "referencePrice": 24.8,
+      "previousClose": 27.58,
+      "cacheFiles": {
+        "5m": "ibkr\\GME\\5m\\100-1777907100000.json",
+        "15m": null,
+        "4h": "ibkr\\GME\\4h\\180-1777896000000.json",
+        "daily": "ibkr\\GME\\daily\\520-1777852800000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 86,
+        "15m": 0,
+        "4h": 114,
+        "daily": 500
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 86,
+          "15m": 0,
+          "4h": 114,
+          "daily": 500
+        },
+        "filteredCandleCounts": {
+          "5m": 86,
+          "15m": 0,
+          "4h": 113,
+          "daily": 499
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 1
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 86,
+            "filteredCandleCount": 86,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 114,
+            "filteredCandleCount": 113,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 500,
+            "filteredCandleCount": 499,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 24.73,
+          "bucket": "intermediateSupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 25,
+          "bucket": "majorResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 1,
+        "intermediateResistance": 0,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 3
+      },
+      "syntheticSummary": {
+        "count": 0,
+        "sources": [],
+        "notHistoricalEvidenceCount": 0
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "unenriched_levels_present"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    },
+    {
+      "symbol": "PHOE",
+      "provider": "ibkr",
+      "scenario": "unusual higher-timeframe depth",
+      "asOfTimestamp": 1778186700000,
+      "asOfIso": "2026-05-07T20:45:00.000Z",
+      "referencePrice": 34.75,
+      "previousClose": 28.6,
+      "cacheFiles": {
+        "5m": "ibkr\\PHOE\\5m\\100-1778186400000.json",
+        "15m": null,
+        "4h": "ibkr\\PHOE\\4h\\180-1778184000000.json",
+        "daily": "ibkr\\PHOE\\daily\\520-1778112000000.json"
+      },
+      "rawCandleCounts": {
+        "5m": 134,
+        "15m": 0,
+        "4h": 77,
+        "daily": 236
+      },
+      "inputSummary": {
+        "timeframesPresent": [
+          "5m",
+          "4h",
+          "daily"
+        ],
+        "candleCounts": {
+          "5m": 134,
+          "15m": 0,
+          "4h": 77,
+          "daily": 236
+        },
+        "filteredCandleCounts": {
+          "5m": 134,
+          "15m": 0,
+          "4h": 76,
+          "daily": 236
+        },
+        "excludedFutureCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 0,
+          "daily": 0
+        },
+        "excludedPartialCandleCounts": {
+          "5m": 0,
+          "15m": 0,
+          "4h": 1,
+          "daily": 0
+        },
+        "timeframes": {
+          "5m": {
+            "provided": true,
+            "candleCount": 134,
+            "filteredCandleCount": 134,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "15m": {
+            "provided": false,
+            "candleCount": 0,
+            "filteredCandleCount": 0,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          },
+          "4h": {
+            "provided": true,
+            "candleCount": 77,
+            "filteredCandleCount": 76,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 1
+          },
+          "daily": {
+            "provided": true,
+            "candleCount": 236,
+            "filteredCandleCount": 236,
+            "excludedFutureCandleCount": 0,
+            "excludedPartialCandleCount": 0
+          }
+        }
+      },
+      "nearest": {
+        "support": {
+          "price": 29.85,
+          "bucket": "intradaySupport",
+          "isExtension": false
+        },
+        "resistance": {
+          "price": 40.98,
+          "bucket": "intermediateResistance",
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 1,
+        "intradaySupport": 6,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1
+      },
+      "syntheticSummary": {
+        "count": 1,
+        "sources": [
+          "synthetic_continuation_map"
+        ],
+        "notHistoricalEvidenceCount": 1
+      },
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "auditDiagnostics": [
+        "unenriched_levels_present",
+        "wide_downside_support_gap",
+        "wide_overhead_resistance_gap"
+      ],
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      },
+      "validationPassed": true,
+      "validationFailures": [],
+      "levelEngineUnchangedWith15m": "not_applicable_no_15m_cache"
+    }
+  ],
+  "limitations": [
+    "No local real-cache 15m candle directories were present, so this run validates the absent-15m fallback path on real cache and leaves supplied-15m real-cache comparison blocked.",
+    "Committed artifacts are compact summaries, not raw candle data or full snapshots.",
+    "The selected symbols reuse previous real-cache validation symbols for continuity and are not an exhaustive pass across every cached group."
+  ],
+  "productionBugFound": false,
+  "recommendedNextGate": "production_snapshot_runner_batch_manifest"
+}

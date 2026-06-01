@@ -1,0 +1,48 @@
+# Multi-Timeframe Real-Cache Validation Summary
+
+Generated: 2026-06-01T11:03:01.250Z
+Cache root: C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles
+Cache files: 2265
+Provider/symbol groups: 356
+Groups with 5m/4h/daily: 354
+Groups with 5m/15m/4h/daily: 0
+Real 15m cache exists: false
+
+Selected symbols (17): DEVS, ENVX, AIM, PBM, DXYZ, YMAT, HCWB, MEHA, INM, EZGO, SOWG, CLPS, AAOI, FLEX, QUBT, GME, PHOE
+Passed: 17
+Failed: 0
+Absent-15m fallback validations: 17
+15m LevelEngine comparisons: 0
+Synthetic extension symbols: 6
+Total synthetic extension rows: 7
+
+| Symbol | 15m | Present | 5m raw/filtered | 4h raw/filtered | Daily raw/filtered | Future Excl. | Partial Excl. | Diagnostics | Passed |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| DEVS | 0/0 | 5m, 4h, daily | 68/68 | 114/113 | 455/454 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| ENVX | 0/0 | 5m, 4h, daily | 89/89 | 118/117 | 501/500 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| AIM | 0/0 | 5m, 4h, daily | 72/72 | 114/113 | 502/501 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| PBM | 0/0 | 5m, 4h, daily | 51/51 | 108/107 | 501/500 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| DXYZ | 0/0 | 5m, 4h, daily | 47/47 | 117/116 | 501/500 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| YMAT | 0/0 | 5m, 4h, daily | 144/144 | 110/110 | 207/207 | 0 | 0 | candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation | yes |
+| HCWB | 0/0 | 5m, 4h, daily | 84/84 | 118/117 | 277/276 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| MEHA | 0/0 | 5m, 4h, daily | 88/88 | 112/111 | 128/127 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| INM | 0/0 | 5m, 4h, daily | 8/8 | 100/99 | 501/500 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| EZGO | 0/0 | 5m, 4h, daily | 160/160 | 98/97 | 502/502 | 0 | 1 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation | yes |
+| SOWG | 0/0 | 5m, 4h, daily | 27/27 | 109/108 | 501/500 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| CLPS | 0/0 | 5m, 4h, daily | 30/30 | 88/87 | 495/494 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| AAOI | 0/0 | 5m, 4h, daily | 114/114 | 115/114 | 500/499 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| FLEX | 0/0 | 5m, 4h, daily | 104/104 | 112/111 | 501/500 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| QUBT | 0/0 | 5m, 4h, daily | 76/76 | 114/113 | 501/500 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| GME | 0/0 | 5m, 4h, daily | 86/86 | 114/113 | 500/499 | 0 | 2 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered | yes |
+| PHOE | 0/0 | 5m, 4h, daily | 134/134 | 77/76 | 236/236 | 0 | 1 | 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation | yes |
+
+Unique diagnostics: 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered
+Unique audit diagnostics: clustered_level_areas_present, limited_downside_extension_coverage, limited_upside_extension_coverage, no_resistance_extension_coverage, unenriched_levels_present, wide_downside_support_gap, wide_overhead_resistance_gap
+
+Limitations:
+- No local real-cache 15m candle directories were present, so this run validates the absent-15m fallback path on real cache and leaves supplied-15m real-cache comparison blocked.
+- Committed artifacts are compact summaries, not raw candle data or full snapshots.
+- The selected symbols reuse previous real-cache validation symbols for continuity and are not an exhaustive pass across every cached group.
+
+Recommended next gate: production_snapshot_runner_batch_manifest
+
