@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "level-analysis-15m-facts/v1",
+  "symbol": "SNAP",
+  "asOfTimestamp": 1777645200000,
+  "dataCompleteness": {
+    "availabilityStatus": "available",
+    "provided": true,
+    "rawCandleCount": 6,
+    "closedCandleCount": 6,
+    "excludedFutureCandleCount": 0,
+    "excludedPartialCandleCount": 0,
+    "firstClosedTimestamp": 1777640400000,
+    "lastClosedTimestamp": 1777644900000,
+    "sufficientForTrendFacts": true,
+    "sufficientForVolumeFacts": true
+  },
+  "range": {
+    "lookbackCandleCount": 6,
+    "recentHigh": 10.74,
+    "recentLow": 9.6,
+    "recentMidpoint": 10.17,
+    "latestRangePct": 0.0387,
+    "averageRangePct": 0.0492,
+    "rangeState": "normal",
+    "referencePosition": "near_recent_high"
+  },
+  "trend": {
+    "trendState": "mixed",
+    "higherCloseCount": 3,
+    "lowerCloseCount": 2,
+    "greenCandleCount": 4,
+    "redCandleCount": 2,
+    "latestCloseLocation": "upper_third"
+  },
+  "volume": {
+    "volumeState": "normal",
+    "latestVolume": 2960000,
+    "rollingAverageVolume": 2510000,
+    "relativeVolume": 1.18,
+    "dollarVolume": 31612800,
+    "participationState": "steady"
+  },
+  "structure": {
+    "consolidationState": "not_present",
+    "pullbackState": "present",
+    "continuationState": "unknown",
+    "recentHighTimestamp": 1777644900000,
+    "recentLowTimestamp": 1777640400000
+  },
+  "diagnostics": [
+    {
+      "code": "15m_facts_contract_fixture",
+      "severity": "info",
+      "message": "Deterministic 15m mixed-state contract fixture."
+    }
+  ],
+  "limitations": [
+    "15m_facts_contract_only"
+  ],
+  "safety": {
+    "noLookaheadApplied": true,
+    "levelOutputUnchanged": true,
+    "factsOnly": true,
+    "noRuntimeBehaviorChange": true
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "level-analysis-15m-facts/v1",
+  "symbol": "SNAP",
+  "asOfTimestamp": 1777645200000,
+  "dataCompleteness": {
+    "availabilityStatus": "unavailable",
+    "provided": false,
+    "rawCandleCount": 0,
+    "closedCandleCount": 0,
+    "excludedFutureCandleCount": 0,
+    "excludedPartialCandleCount": 0,
+    "sufficientForTrendFacts": false,
+    "sufficientForVolumeFacts": false
+  },
+  "range": {
+    "lookbackCandleCount": 0,
+    "rangeState": "unknown",
+    "referencePosition": "unknown"
+  },
+  "trend": {
+    "trendState": "unknown",
+    "higherCloseCount": 0,
+    "lowerCloseCount": 0,
+    "greenCandleCount": 0,
+    "redCandleCount": 0,
+    "latestCloseLocation": "unknown"
+  },
+  "structure": {
+    "consolidationState": "unknown",
+    "pullbackState": "unknown",
+    "continuationState": "unknown"
+  },
+  "diagnostics": [
+    {
+      "code": "15m_facts_unavailable",
+      "severity": "info",
+      "message": "No closed 15m facts are available for this snapshot."
+    }
+  ],
+  "limitations": [
+    "15m_input_not_provided",
+    "15m_facts_contract_only"
+  ],
+  "safety": {
+    "noLookaheadApplied": true,
+    "levelOutputUnchanged": true,
+    "factsOnly": true,
+    "noRuntimeBehaviorChange": true
+  }
+}

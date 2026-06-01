@@ -15,6 +15,7 @@ import {
 } from "../market-context/index.js";
 import type { SessionMarketFacts } from "../session/index.js";
 import type { VolumeMarketFacts, VolumeShelf } from "../volume/index.js";
+import type { LevelAnalysisTimeframeFacts } from "./level-analysis-timeframe-facts.js";
 
 export const LEVEL_ANALYSIS_SNAPSHOT_SCHEMA_VERSION = "level-analysis-snapshot/v1";
 export const LEVEL_ANALYSIS_SNAPSHOT_PRODUCER = "levels-system";
@@ -94,6 +95,7 @@ export type LevelAnalysisSnapshot = {
   volumeShelves?: VolumeShelf[];
   marketContext?: MarketContextProfile;
   factsBundle?: MarketContextFactsBundle;
+  timeframeFacts?: LevelAnalysisTimeframeFacts;
   levelIntelligenceReport: LevelIntelligenceReport;
   levelQualityAudit: LevelQualityAuditReport;
   diagnostics: string[];
@@ -112,6 +114,7 @@ export type BuildLevelAnalysisSnapshotRequest = {
   volumeShelves?: VolumeShelf[];
   marketContext?: MarketContextProfile;
   factsBundle?: MarketContextFactsBundle;
+  timeframeFacts?: LevelAnalysisTimeframeFacts;
 };
 
 function clone<T>(value: T): T {
@@ -508,6 +511,9 @@ export function buildLevelAnalysisSnapshot(
   }
   if (factsBundle) {
     snapshot.factsBundle = clone(factsBundle);
+  }
+  if (request.timeframeFacts) {
+    snapshot.timeframeFacts = clone(request.timeframeFacts);
   }
 
   return snapshot;

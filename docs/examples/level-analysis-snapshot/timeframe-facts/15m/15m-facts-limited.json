@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "level-analysis-15m-facts/v1",
+  "symbol": "SNAP",
+  "asOfTimestamp": 1777645200000,
+  "dataCompleteness": {
+    "availabilityStatus": "limited",
+    "provided": true,
+    "rawCandleCount": 2,
+    "closedCandleCount": 1,
+    "excludedFutureCandleCount": 0,
+    "excludedPartialCandleCount": 1,
+    "firstClosedTimestamp": 1777643100000,
+    "lastClosedTimestamp": 1777643100000,
+    "sufficientForTrendFacts": false,
+    "sufficientForVolumeFacts": false
+  },
+  "range": {
+    "lookbackCandleCount": 1,
+    "recentHigh": 10.35,
+    "recentLow": 9.6,
+    "recentMidpoint": 9.975,
+    "latestRangePct": 0.0752,
+    "rangeState": "unknown",
+    "referencePosition": "above_recent_range"
+  },
+  "trend": {
+    "trendState": "unknown",
+    "higherCloseCount": 0,
+    "lowerCloseCount": 0,
+    "greenCandleCount": 1,
+    "redCandleCount": 0,
+    "latestCloseLocation": "upper_third"
+  },
+  "volume": {
+    "volumeState": "unknown",
+    "latestVolume": 2050000,
+    "participationState": "unknown"
+  },
+  "structure": {
+    "consolidationState": "unknown",
+    "pullbackState": "unknown",
+    "continuationState": "unknown",
+    "recentHighTimestamp": 1777643100000,
+    "recentLowTimestamp": 1777643100000
+  },
+  "diagnostics": [
+    {
+      "code": "15m_insufficient_trend_history",
+      "severity": "info",
+      "message": "Closed 15m candle coverage is below the trend fact threshold."
+    },
+    {
+      "code": "15m_partial_candles_filtered",
+      "severity": "info",
+      "message": "One still-forming 15m candle was excluded at the as-of boundary."
+    }
+  ],
+  "limitations": [
+    "15m_insufficient_trend_history",
+    "15m_insufficient_volume_history",
+    "15m_partial_candles_filtered",
+    "15m_facts_contract_only"
+  ],
+  "safety": {
+    "noLookaheadApplied": true,
+    "levelOutputUnchanged": true,
+    "factsOnly": true,
+    "noRuntimeBehaviorChange": true
+  }
+}
