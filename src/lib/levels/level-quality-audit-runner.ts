@@ -35,9 +35,29 @@ export type LevelQualityAuditItem = {
   confluenceCount: number;
   isExtension: boolean;
   hasEnrichedAnalysis: boolean;
+  extensionSource?: NonNullable<FinalLevelZone["extensionMetadata"]>["extensionSource"];
+  syntheticContinuationMap?: boolean;
   contextCounts: LevelQualityAuditContextCounts;
   distanceFromReferencePct?: number;
   diagnostics: string[];
+};
+
+export type LevelQualityEnrichmentBreakdown = {
+  historical: {
+    enriched: number;
+    unenriched: number;
+    unenrichedLevelIds: string[];
+  };
+  extension: {
+    enriched: number;
+    unenriched: number;
+    unenrichedLevelIds: string[];
+  };
+  synthetic: {
+    enriched: number;
+    unenriched: number;
+    unenrichedLevelIds: string[];
+  };
 };
 
 export type LevelQualityCluster = {
@@ -101,6 +121,7 @@ export type LevelQualityAuditReport = {
   weakContextLevels: LevelQualityAuditItem[];
   enrichedLevels: LevelQualityAuditItem[];
   unenrichedLevels: LevelQualityAuditItem[];
+  enrichmentBreakdown?: LevelQualityEnrichmentBreakdown;
   possibleClutterLevels: LevelQualityAuditItem[];
   clusteredAreas: LevelQualityCluster[];
   extensionCoverage: LevelQualityExtensionCoverage;
@@ -207,6 +228,8 @@ function buildAuditItem(
     confluenceCount: level.confluenceCount,
     isExtension: level.isExtension,
     hasEnrichedAnalysis: level.enrichedAnalysis !== undefined,
+    extensionSource: level.extensionMetadata?.extensionSource,
+    syntheticContinuationMap: level.extensionMetadata?.extensionSource === "synthetic_continuation_map",
     contextCounts: counts,
     distanceFromReferencePct: profile?.distance?.distanceFromReferencePct,
     diagnostics: profile?.diagnostics ? [...profile.diagnostics] : [],
@@ -396,9 +419,48 @@ function buildConfluenceSummary(items: LevelQualityAuditItem[]): LevelQualityCon
   );
 }
 
+function buildEnrichmentBreakdown(items: LevelQualityAuditItem[]): LevelQualityEnrichmentBreakdown {
+  const breakdown: LevelQualityEnrichmentBreakdown = {
+    historical: {
+      enriched: 0,
+      unenriched: 0,
+      unenrichedLevelIds: [],
+    },
+    extension: {
+      enriched: 0,
+      unenriched: 0,
+      unenrichedLevelIds: [],
+    },
+    synthetic: {
+      enriched: 0,
+      unenriched: 0,
+      unenrichedLevelIds: [],
+    },
+  };
+
+  for (const item of items) {
+    const bucket = item.syntheticContinuationMap
+      ? breakdown.synthetic
+      : item.isExtension
+        ? breakdown.extension
+        : breakdown.historical;
+
+    if (item.hasEnrichedAnalysis) {
+      bucket.enriched += 1;
+      continue;
+    }
+
+    bucket.unenriched += 1;
+    bucket.unenrichedLevelIds.push(item.levelId);
+  }
+
+  return breakdown;
+}
+
 function collectDiagnostics(params: {
   intelligenceReport: LevelIntelligenceReport | undefined;
   items: LevelQualityAuditItem[];
+  enrichmentBreakdown: LevelQualityEnrichmentBreakdown;
   clusteredAreas: LevelQualityCluster[];
   extensionCoverage: LevelQualityExtensionCoverage;
   nearbyCoverage: LevelQualityCoverageSummary;
@@ -410,6 +472,15 @@ function collectDiagnostics(params: {
   }
   if (params.items.some((item) => !item.hasEnrichedAnalysis)) {
     diagnostics.add("unenriched_levels_present");
+  }
+  if (params.enrichmentBreakdown.historical.unenriched > 0) {
+    diagnostics.add("unenriched_historical_levels_present");
+  }
+  if (params.enrichmentBreakdown.extension.unenriched > 0) {
+    diagnostics.add("unenriched_extension_levels_present");
+  }
+  if (params.enrichmentBreakdown.synthetic.unenriched > 0) {
+    diagnostics.add("unenriched_synthetic_levels_present");
   }
   if (params.items.some((item) => totalContext(item.contextCounts) === 0)) {
     diagnostics.add("levels_without_context_present");
@@ -447,6 +518,7 @@ export function buildLevelQualityAuditReport(
   const staleLevels = items.filter((item) => item.freshness === "stale").sort(itemSortAscending);
   const enrichedCount = items.filter((item) => item.hasEnrichedAnalysis).length;
   const clusteredAreas = buildClusteredAreas(items, clusterThresholdPct);
+  const enrichmentBreakdown = buildEnrichmentBreakdown(items);
   const referencePrice = output.metadata.referencePrice ?? request.intelligenceReport?.referencePrice;
   const extensionCoverage = buildExtensionCoverage(output, referencePrice, extensionCoverageWarningPct);
   const nearbyCoverage = buildNearbyCoverage(items, referencePrice, nearbyThresholdPct);
@@ -467,6 +539,7 @@ export function buildLevelQualityAuditReport(
   const reportSeed = {
     intelligenceReport: request.intelligenceReport,
     items,
+    enrichmentBreakdown,
     clusteredAreas,
     extensionCoverage,
     nearbyCoverage,
@@ -494,6 +567,7 @@ export function buildLevelQualityAuditReport(
     weakContextLevels,
     enrichedLevels: items.filter((item) => item.hasEnrichedAnalysis).sort(itemSortDescending).slice(0, maxItems),
     unenrichedLevels: items.filter((item) => !item.hasEnrichedAnalysis).sort(itemSortAscending).slice(0, maxItems),
+    enrichmentBreakdown,
     possibleClutterLevels,
     clusteredAreas,
     extensionCoverage,

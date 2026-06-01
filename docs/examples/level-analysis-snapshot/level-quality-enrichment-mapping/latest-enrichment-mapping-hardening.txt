@@ -1,0 +1,47 @@
+Level quality enrichment mapping hardening
+Generated at: 2026-06-01T19:30:00.000Z
+Provider focus: ibkr
+
+Evidence:
+- docs/107_LEVEL_ENGINE_QUALITY_TUNING_PLAN.md
+- docs/106_LEVEL_ENGINE_MULTI_TIMEFRAME_LEVEL_QUALITY_REVIEW.md
+- src/tests/level-quality-enrichment-mapping-hardening.test.ts
+
+Root cause:
+- Old/default runtime output intentionally has no enrichedAnalysis shadow metadata.
+- Quality audit diagnostics previously collapsed historical, extension, and synthetic missing enrichment into one broad unenriched_levels_present diagnostic.
+- Runtime projection mapping did not explicitly prefer exact level ID matches before price/source/timeframe fallback.
+
+Fix summary:
+- Exact ID-first enrichment mapping now runs before normalized price/source/timeframe fallback.
+- Runtime enrichment diagnostics classify historical, extension, and synthetic unmatched zones.
+- LevelQualityAuditReport exposes an additive enrichmentBreakdown.
+- Specific diagnostics distinguish unenriched_historical_levels_present, unenriched_extension_levels_present, and unenriched_synthetic_levels_present.
+- Synthetic continuation-map rows remain unenriched by design and stay marked as forward-planning context.
+
+Focused test summary:
+- Tests: 5
+- Passed: 5
+- Covered: id mapping, fallback mapping, extension/synthetic diagnostic separation, synthetic continuation-map preservation, boundary guard
+
+Parity guarantees:
+- support/resistance generation changed: false
+- scoring/ranking/clustering changed: false
+- surfaced buckets changed: false
+- level prices changed: false
+- extension generation changed: false
+- 15m fed into LevelEngine: false
+
+Quality review follow-up:
+- Ten-symbol rerun not performed in this gate.
+- Recommended next gate: level_engine_multi_timeframe_quality_review_rerun
+- Symbols: DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+
+Anti-goals preserved:
+- no support/resistance tuning
+- no LevelEngine scoring/ranking/clustering changes
+- no extension generation changes
+- no 15m LevelEngine input
+- no alerts, monitoring, or Discord changes
+- no journal app changes
+- no recommendations or trade advice
