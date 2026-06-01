@@ -1,0 +1,33 @@
+15m supplied real-cache validation
+Generated at: 2026-06-01T18:12:46.881Z
+Provider: ibkr
+Cache root: C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles
+Selected symbols: DEVS, ENVX, DXYZ, QUBT, GME
+As-of: 2026-06-01T16:00:00.000Z
+Cache JSON files: 2279
+15m JSON files: 5
+Groups with any 15m: 5
+Malformed JSON files: 0
+Validation result: passed
+
+Per-symbol summary:
+Symbol | 15m raw/filtered | 15m status | LevelEngine parity | Nearest support/resistance parity | Quality parity | Diagnostics
+--- | ---: | --- | --- | --- | --- | ---
+DEVS | 96/96 | available | pass | pass | pass | 15m_facts_generated, candle_close_as_of_filter_applied
+ENVX | 96/96 | available | pass | pass | pass | 15m_facts_generated, candle_close_as_of_filter_applied
+DXYZ | 96/96 | available | pass | pass | pass | 15m_facts_generated, candle_close_as_of_filter_applied
+QUBT | 96/96 | available | pass | pass | pass | 15m_facts_generated, candle_close_as_of_filter_applied
+GME | 96/96 | available | pass | pass | pass | 15m_facts_generated, candle_close_as_of_filter_applied
+
+Failures: none
+
+Boundary confirmations:
+- Existing local IBKR 15m cache files were read only.
+- No new cache files were written.
+- Raw .validation-cache files are not part of this artifact.
+- 15m facts stayed outside LevelEngine support/resistance generation.
+- LevelEngine output, nearest levels, surfaced buckets, extension levels, and LevelQualityAudit matched with and without supplied 15m.
+- 15m facts passed validateFifteenMinuteFacts and facts-only boundary checks.
+- No Discord, alert, monitoring, journal, scoring, coaching, or recommendation behavior was exercised.
+
+Recommended next gate: level_engine_multi_timeframe_level_quality_review

@@ -87,5 +87,6 @@ This folder contains the full plan for the candle-based levels system, including
 - `docs/102_LEVELS_SYSTEM_15M_IBKR_OPERATOR_WRITE_PLAN.md`
 - `docs/103_LEVELS_SYSTEM_15M_CACHE_COLLECTION_OPERATOR_WRITE.md`
 - `docs/104_LEVELS_SYSTEM_15M_CACHE_COLLECTION_CLI_EXIT_CLEANUP.md`
+- `docs/105_LEVELS_SYSTEM_15M_FACTS_REAL_CACHE_VALIDATION_WITH_SUPPLIED_15M.md`
 - Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
 - Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`
