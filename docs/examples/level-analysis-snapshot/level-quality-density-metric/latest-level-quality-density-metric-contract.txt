@@ -1,0 +1,70 @@
+Level quality audit density metric contract
+Generated: 2026-06-01T23:29:58.801Z
+Provider focus: IBKR
+
+Purpose
+- Add an additive audit-only density metric contract and deterministic fixtures before report wiring.
+
+Contract module
+- src/lib/levels/level-quality-density-metric.ts
+
+Validation helpers
+- isLevelQualityDensityMetric
+- validateLevelQualityDensityMetric
+- assertLevelQualityDensityMetricFactsOnly
+
+Contract fixtures
+- density-metric-sparse.json
+- density-metric-balanced.json
+- density-metric-dense-separated.json
+- density-metric-dense-clustered.json
+- density-metric-support-heavy.json
+- density-metric-resistance-heavy.json
+- density-metric-extension-heavy.json
+- density-metric-synthetic-present.json
+
+Classifications
+- sparse
+- balanced
+- dense_separated
+- dense_clustered
+
+Side bias
+- none
+- support_heavy
+- resistance_heavy
+- mixed
+
+Row buckets
+- historical
+- extension
+- synthetic
+
+Safety flags
+- auditOnly
+- generatedLevelsUnchanged
+- rankingUnchanged
+- clusteringUnchanged
+- surfacedLevelsUnchanged
+- extensionGenerationUnchanged
+
+Not wired yet
+- LevelQualityAuditReport
+- diagnosticSemantics
+- packaged review output
+- LevelEngine runtime output
+
+Audit-only boundary
+- No support/resistance detection changes.
+- No LevelEngine scoring/ranking/clustering changes.
+- No surfaced level changes.
+- No extension generation changes.
+- 15m remains outside LevelEngine.
+- No cache writes.
+- No alert, monitoring, Discord, or journal behavior changes.
+
+Focused test
+- src/tests/level-quality-density-metric-contract.test.ts
+
+Recommended next gate
+- level_quality_audit_density_metric_report_wiring

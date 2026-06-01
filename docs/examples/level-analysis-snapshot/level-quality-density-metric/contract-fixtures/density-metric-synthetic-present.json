@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "level-quality-density-metric-fixture/v1",
+  "generatedAt": "2026-06-01T23:29:58.801Z",
+  "fixtureName": "density-metric-synthetic-present",
+  "inputSummary": {
+    "referencePrice": 10,
+    "rowCount": 4,
+    "clusteredAreaCount": 0,
+    "diagnostics": [],
+    "thresholds": {
+      "auditWindowPct": 30,
+      "sparseBelowCount": 6,
+      "denseAtOrAboveCount": 10,
+      "sideHeavyShare": 0.65,
+      "extensionHeavyShare": 0.35
+    }
+  },
+  "metric": {
+    "schemaVersion": "level-quality-density-metric/v1",
+    "classification": "sparse",
+    "sideBias": "mixed",
+    "auditWindowPct": 30,
+    "referencePrice": 10,
+    "totalRows": 4,
+    "rowsInsideAuditWindow": 4,
+    "counts": {
+      "support": 2,
+      "resistance": 2,
+      "historical": 2,
+      "extension": 1,
+      "synthetic": 1
+    },
+    "bucketCounts": {
+      "majorSupport": 0,
+      "majorResistance": 0,
+      "intermediateSupport": 0,
+      "intermediateResistance": 0,
+      "intradaySupport": 1,
+      "intradayResistance": 1,
+      "extensionSupport": 1,
+      "extensionResistance": 1
+    },
+    "densityBuckets": {
+      "historical": 2,
+      "extension": 1,
+      "synthetic": 1
+    },
+    "flags": {
+      "clusteredAreasPresent": false,
+      "denseButSeparated": false,
+      "extensionHeavy": false,
+      "syntheticPresent": true
+    },
+    "thresholds": {
+      "auditWindowPct": 30,
+      "sparseBelowCount": 6,
+      "denseAtOrAboveCount": 10,
+      "sideHeavyShare": 0.65,
+      "extensionHeavyShare": 0.35
+    },
+    "diagnostics": [
+      "density_classification:sparse",
+      "density_side_bias:mixed",
+      "synthetic_rows_present"
+    ],
+    "safety": {
+      "auditOnly": true,
+      "generatedLevelsUnchanged": true,
+      "rankingUnchanged": true,
+      "clusteringUnchanged": true,
+      "surfacedLevelsUnchanged": true,
+      "extensionGenerationUnchanged": true
+    }
+  },
+  "expected": {
+    "classification": "sparse",
+    "sideBias": "mixed",
+    "densityBuckets": {
+      "historical": 2,
+      "extension": 1,
+      "synthetic": 1
+    },
+    "bucketCounts": {
+      "intradaySupport": 1,
+      "intradayResistance": 1,
+      "extensionSupport": 1,
+      "extensionResistance": 1
+    }
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}
