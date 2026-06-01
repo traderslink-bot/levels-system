@@ -1,0 +1,43 @@
+LevelEngine multi-timeframe level quality review
+Generated at: 2026-06-01T18:40:11.680Z
+Provider: ibkr
+Reviewed symbols: DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+Supplied 15m symbols: DEVS, ENVX, DXYZ, QUBT, GME
+Comparison symbols without 15m: AIM, HCWB, YMAT, AAOI, PHOE
+
+Summary:
+- Reviewed symbols: 10
+- Symbols with supplied 15m context: 5
+- Symbols with nearest support: 10
+- Symbols with nearest resistance: 10
+- Symbols with balanced nearest coverage: 8
+- Symbols with extension coverage warnings: 5
+- Symbols with clustered areas: 7
+- Synthetic continuation-map rows: 2/2 clearly marked
+
+Per-symbol summary:
+Symbol | Ref | 15m | Nearest support | Nearest resistance | Counts S/R/Ext | Coverage | Density | Audit diagnostics
+--- | ---: | --- | --- | --- | --- | --- | --- | ---
+DEVS | 0.2705 | present | 0.27 (0.1848%) | 0.2772 (2.4769%) | 11/5/3 | nearest_coverage_present | clustered_level_areas_present | clustered_level_areas_present, limited_downside_extension_coverage, no_resistance_extension_coverage, unenriched_levels_present
+ENVX | 6.73 | present | 6.68 (0.7429%) | 6.8 (1.0401%) | 10/6/4 | nearest_coverage_present | clustered_level_areas_present | clustered_level_areas_present, limited_downside_extension_coverage, unenriched_levels_present
+DXYZ | 46.47 | present | 45.8 (1.4418%) | 46.8 (0.7101%) | 11/6/4 | nearest_coverage_present | clustered_level_areas_present | clustered_level_areas_present, unenriched_levels_present
+QUBT | 12.799 | present | 12.42 (2.9612%) | 12.9727 (1.3571%) | 12/7/4 | nearest_coverage_present | dense_level_map | unenriched_levels_present
+GME | 24.8 | present | 24.73 (0.2823%) | 25 (0.8065%) | 8/7/6 | nearest_coverage_present | clustered_level_areas_present | clustered_level_areas_present, unenriched_levels_present
+AIM | 0.373 | absent | 0.35 (6.1662%) | 0.375 (0.5362%) | 11/6/3 | nearest_coverage_present | clustered_level_areas_present | clustered_level_areas_present, no_resistance_extension_coverage, unenriched_levels_present
+HCWB | 2.945 | absent | 1.91 (35.1443%) | 3.78 (28.3531%) | 14/3/1 | wide_nearby_gap | clustered_level_areas_present | clustered_level_areas_present, no_resistance_extension_coverage, unenriched_levels_present, wide_downside_support_gap, wide_overhead_resistance_gap
+YMAT | 1.325 | absent | 1.31 (1.1321%) | 1.34 (1.1321%) | 15/11/6 | nearest_coverage_present | clustered_level_areas_present | clustered_level_areas_present, limited_downside_extension_coverage, unenriched_levels_present
+AAOI | 178.64 | absent | 174.78 (2.1608%) | 189.5 (6.0793%) | 13/3/5 | nearest_coverage_present | dense_level_map | unenriched_levels_present
+PHOE | 34.75 | absent | 29.85 (14.1007%) | 40.98 (17.9281%) | 18/2/4 | wide_nearby_gap | dense_level_map | unenriched_levels_present, wide_downside_support_gap, wide_overhead_resistance_gap
+
+Strengths: supplied_15m_context_populates_without_level_generation, level_engine_uses_5m_4h_daily_only_for_all_reviewed_snapshots, level_quality_audit_surfaces_nearby_and_extension_coverage_gaps, synthetic_continuation_map_rows_are_marked_when_present, level_intelligence_report_profiles_remain_factual_and_safety_marked
+Weaknesses: some_symbols_have_nearby_support_or_resistance_gap_warnings, some_symbols_have_extension_coverage_warnings, clustered_level_areas_present_on_some_symbols, unenriched_levels_present_in_current_output
+Potential bugs: none
+Improvement candidates: consider_future_15m_explanation_context_only_after_tuning_plan, keep_synthetic_continuation_map_as_marked_forward_context, review_cluster_density_and_near_duplicate_levels, review_extension_spacing_and_coverage_depth, review_forward_resistance_coverage, review_level_enrichment_mapping_coverage, review_nearest_level_gap_thresholds
+
+15m context assessment:
+- Supplied 15m facts were present for DEVS, ENVX, DXYZ, QUBT, and GME.
+- 15m facts were reported as context only and did not appear in LevelEngine providerByTimeframe metadata.
+- Comparison symbols without 15m built with 5m/4h/daily only.
+
+Recommended next gate:
+level_engine_quality_tuning_plan
