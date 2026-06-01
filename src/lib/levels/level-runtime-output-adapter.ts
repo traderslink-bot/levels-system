@@ -35,6 +35,14 @@ export type EnrichmentDiagnostics = {
   enrichedZones: number;
   unenrichedZones: number;
   unmatchedRuntimeZoneIds: string[];
+  enrichedHistoricalZones: number;
+  unenrichedHistoricalZones: number;
+  enrichedExtensionZones: number;
+  unenrichedExtensionZones: number;
+  unenrichedSyntheticZones: number;
+  unmatchedHistoricalRuntimeZoneIds: string[];
+  unmatchedExtensionRuntimeZoneIds: string[];
+  unmatchedSyntheticRuntimeZoneIds: string[];
 };
 
 export type NewRuntimeCompatibleLevelOutput = {
@@ -325,6 +333,16 @@ function findEnrichmentMatch(
   zone: FinalLevelZone,
   rankedLevels: RankedLevel[],
 ): RankedLevel | undefined {
+  const idMatch = rankedLevels.find((level) =>
+    level.symbol === zone.symbol &&
+    level.type === zone.kind &&
+    level.id === zone.id,
+  );
+
+  if (idMatch) {
+    return idMatch;
+  }
+
   return rankedLevels.find((level) =>
     level.symbol === zone.symbol &&
     level.type === zone.kind &&
@@ -333,24 +351,73 @@ function findEnrichmentMatch(
   );
 }
 
+function isSyntheticContinuationMapZone(zone: FinalLevelZone): boolean {
+  return zone.extensionMetadata?.extensionSource === "synthetic_continuation_map";
+}
+
+function recordUnenrichedRuntimeZone(
+  zone: FinalLevelZone,
+  diagnostics: EnrichmentDiagnostics,
+): void {
+  diagnostics.unenrichedZones += 1;
+  diagnostics.unmatchedRuntimeZoneIds.push(zone.id);
+
+  if (isSyntheticContinuationMapZone(zone)) {
+    diagnostics.unenrichedSyntheticZones += 1;
+    diagnostics.unmatchedSyntheticRuntimeZoneIds.push(zone.id);
+    return;
+  }
+
+  if (zone.isExtension) {
+    diagnostics.unenrichedExtensionZones += 1;
+    diagnostics.unmatchedExtensionRuntimeZoneIds.push(zone.id);
+    return;
+  }
+
+  diagnostics.unenrichedHistoricalZones += 1;
+  diagnostics.unmatchedHistoricalRuntimeZoneIds.push(zone.id);
+}
+
+function recordEnrichedRuntimeZone(
+  zone: FinalLevelZone,
+  diagnostics: EnrichmentDiagnostics,
+): void {
+  diagnostics.enrichedZones += 1;
+
+  if (zone.isExtension) {
+    diagnostics.enrichedExtensionZones += 1;
+    return;
+  }
+
+  diagnostics.enrichedHistoricalZones += 1;
+}
+
 function cloneRuntimeZoneWithEnrichment(
   zone: FinalLevelZone,
   rankedLevels: RankedLevel[],
   diagnostics: EnrichmentDiagnostics,
 ): FinalLevelZone {
   const cloned = cloneRuntimeZone(zone);
-  const match = findEnrichmentMatch(zone, rankedLevels);
 
-  if (!match) {
-    diagnostics.unenrichedZones += 1;
-    diagnostics.unmatchedRuntimeZoneIds.push(zone.id);
+  if (isSyntheticContinuationMapZone(zone)) {
+    recordUnenrichedRuntimeZone(zone, diagnostics);
     return {
       ...cloned,
       enrichedAnalysis: undefined,
     };
   }
 
-  diagnostics.enrichedZones += 1;
+  const match = findEnrichmentMatch(zone, rankedLevels);
+
+  if (!match) {
+    recordUnenrichedRuntimeZone(zone, diagnostics);
+    return {
+      ...cloned,
+      enrichedAnalysis: undefined,
+    };
+  }
+
+  recordEnrichedRuntimeZone(zone, diagnostics);
   return {
     ...cloned,
     enrichedAnalysis: toEnrichedAnalysis(match),
@@ -437,6 +504,14 @@ export function buildNewRuntimeCompatibleLevelOutput(
     enrichedZones: 0,
     unenrichedZones: 0,
     unmatchedRuntimeZoneIds: [],
+    enrichedHistoricalZones: 0,
+    unenrichedHistoricalZones: 0,
+    enrichedExtensionZones: 0,
+    unenrichedExtensionZones: 0,
+    unenrichedSyntheticZones: 0,
+    unmatchedHistoricalRuntimeZoneIds: [],
+    unmatchedExtensionRuntimeZoneIds: [],
+    unmatchedSyntheticRuntimeZoneIds: [],
   };
   const supportBuckets = buildActionableBuckets(rankedOutput.supports, generatedAt);
   const resistanceBuckets = buildActionableBuckets(rankedOutput.resistances, generatedAt);
@@ -475,8 +550,9 @@ export function buildNewRuntimeCompatibleLevelOutput(
       input.legacyExtensionLevels
         ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path for practical forward planning."
         : "Extension levels remain empty unless a legacy extension ladder is supplied.",
+      "Enrichment diagnostics classify unmatched runtime zones as historical, extension, or synthetic continuation-map rows so synthetic forward-planning rows are not treated as historical enrichment failures.",
       diagnostics.unenrichedZones > 0
-        ? `enrichedAnalysis attached to ${diagnostics.enrichedZones} runtime zones; ${diagnostics.unenrichedZones} remain undefined because no safe ranked-level match was available.`
+        ? `enrichedAnalysis attached to ${diagnostics.enrichedZones} runtime zones; ${diagnostics.unenrichedZones} remain undefined because no safe ranked-level match was available (${diagnostics.unenrichedHistoricalZones} historical, ${diagnostics.unenrichedExtensionZones} extension, ${diagnostics.unenrichedSyntheticZones} synthetic).`
         : `enrichedAnalysis attached to all ${diagnostics.enrichedZones} matched runtime zones as additive shadow metadata.`,
     ],
   };
