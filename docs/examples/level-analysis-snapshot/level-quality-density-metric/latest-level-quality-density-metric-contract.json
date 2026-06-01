@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "level-quality-density-metric-contract/v1",
+  "generatedAt": "2026-06-01T23:29:58.801Z",
+  "providerFocus": "ibkr",
+  "purpose": "Add an additive audit-only density metric contract and deterministic fixtures before report wiring.",
+  "sourceDesign": "docs/120_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_DESIGN.md",
+  "contractDoc": "docs/121_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_CONTRACT.md",
+  "contractModule": "src/lib/levels/level-quality-density-metric.ts",
+  "validationHelpers": [
+    "isLevelQualityDensityMetric",
+    "validateLevelQualityDensityMetric",
+    "assertLevelQualityDensityMetricFactsOnly"
+  ],
+  "fixtureDirectory": "docs/examples/level-analysis-snapshot/level-quality-density-metric/contract-fixtures",
+  "fixtures": [
+    {
+      "file": "density-metric-sparse.json",
+      "classification": "sparse",
+      "sideBias": "mixed"
+    },
+    {
+      "file": "density-metric-balanced.json",
+      "classification": "balanced",
+      "sideBias": "mixed"
+    },
+    {
+      "file": "density-metric-dense-separated.json",
+      "classification": "dense_separated",
+      "sideBias": "mixed"
+    },
+    {
+      "file": "density-metric-dense-clustered.json",
+      "classification": "dense_clustered",
+      "sideBias": "mixed"
+    },
+    {
+      "file": "density-metric-support-heavy.json",
+      "classification": "balanced",
+      "sideBias": "support_heavy"
+    },
+    {
+      "file": "density-metric-resistance-heavy.json",
+      "classification": "balanced",
+      "sideBias": "resistance_heavy"
+    },
+    {
+      "file": "density-metric-extension-heavy.json",
+      "classification": "balanced",
+      "sideBias": "support_heavy"
+    },
+    {
+      "file": "density-metric-synthetic-present.json",
+      "classification": "sparse",
+      "sideBias": "mixed"
+    }
+  ],
+  "classificationRules": {
+    "sparse": "rowsInsideAuditWindow < sparseBelowCount",
+    "balanced": "rowsInsideAuditWindow >= sparseBelowCount and rowsInsideAuditWindow < denseAtOrAboveCount",
+    "dense_separated": "rowsInsideAuditWindow >= denseAtOrAboveCount and clusteredAreasPresent is false",
+    "dense_clustered": "rowsInsideAuditWindow >= denseAtOrAboveCount and clusteredAreasPresent is true"
+  },
+  "sideBiasRules": {
+    "none": "no support or resistance rows inside the audit window",
+    "support_heavy": "support share reaches sideHeavyShare",
+    "resistance_heavy": "resistance share reaches sideHeavyShare",
+    "mixed": "neither side reaches sideHeavyShare"
+  },
+  "rowBuckets": [
+    "historical",
+    "extension",
+    "synthetic"
+  ],
+  "safetyFlagsRequiredTrue": [
+    "auditOnly",
+    "generatedLevelsUnchanged",
+    "rankingUnchanged",
+    "clusteringUnchanged",
+    "surfacedLevelsUnchanged",
+    "extensionGenerationUnchanged"
+  ],
+  "notWiredYet": {
+    "levelQualityAuditReport": true,
+    "diagnosticSemantics": true,
+    "packagedReviewOutput": true,
+    "levelEngineRuntimeOutput": true
+  },
+  "auditOnlyBoundary": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "discordAlertMonitoringChanged": false,
+    "journalAppChanged": false,
+    "interpretiveBehaviorAdded": false
+  },
+  "focusedTest": "src/tests/level-quality-density-metric-contract.test.ts",
+  "recommendedNextGate": "level_quality_audit_density_metric_report_wiring"
+}
