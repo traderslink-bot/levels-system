@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "level-quality-density-metric-design/v1",
+  "generatedAt": "2026-06-01T23:06:22.729Z",
+  "providerFocus": "ibkr",
+  "purpose": "Design an audit-only density metric for dense-but-separated level maps before any generation behavior tuning.",
+  "evidenceSources": [
+    "docs/113_LEVEL_ENGINE_CLUSTER_DENSITY_TUNING_PLAN_OR_FIXTURE_PACK.md",
+    "docs/114_LEVEL_ENGINE_MULTI_TIMEFRAME_QUALITY_REVIEW_RERUN_AFTER_FIXTURE_PACKS.md",
+    "docs/118_LEVEL_ENGINE_BEHAVIOR_TUNING_BACKLOG.md",
+    "docs/119_LEVEL_QUALITY_REVIEW_PROCESS_PACKAGING.md",
+    "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-fixture-packs/latest-level-quality-review-rerun-after-fixture-packs.json"
+  ],
+  "helperContractAdded": {
+    "file": "src/lib/levels/level-quality-density-metric.ts",
+    "exports": [
+      "LevelQualityDensityMetric",
+      "LevelQualityDensityBucket",
+      "LevelQualityDensityClassification",
+      "LevelQualityDensitySideBias",
+      "LevelQualityDensityRow",
+      "LevelQualityDensityMetricInput",
+      "LevelQualityDensityMetricThresholds",
+      "classifyLevelMapDensity",
+      "describeLevelQualityDensityMetric"
+    ],
+    "wiredIntoAuditReport": false
+  },
+  "classifications": [
+    "sparse",
+    "balanced",
+    "dense_separated",
+    "dense_clustered"
+  ],
+  "sideBiases": [
+    "none",
+    "support_heavy",
+    "resistance_heavy",
+    "mixed"
+  ],
+  "rowBuckets": [
+    "historical",
+    "extension",
+    "synthetic"
+  ],
+  "proposedThresholds": {
+    "auditWindowPct": 30,
+    "sparseBelowCount": 6,
+    "denseAtOrAboveCount": 10,
+    "sideHeavyShare": 0.65,
+    "extensionHeavyShare": 0.35
+  },
+  "currentEvidence": {
+    "clusteredLevelAreasPresent": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "GME",
+      "AIM",
+      "HCWB",
+      "YMAT"
+    ],
+    "denseButSeparatedReviewCases": [
+      "QUBT",
+      "AAOI",
+      "PHOE"
+    ],
+    "productionBugFound": false
+  },
+  "tests": [
+    "src/tests/level-quality-density-metric-design.test.ts"
+  ],
+  "auditOnlyBoundary": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "discordAlertMonitoringChanged": false,
+    "journalAppChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": "level_quality_audit_density_metric_contract"
+}
