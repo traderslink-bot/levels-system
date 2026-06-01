@@ -16,6 +16,7 @@ export type LevelAnalysisSnapshotRunnerOptions = {
   asOfTimestamp: number;
   referencePrice: number;
   candles5mPath: string;
+  candles15mPath?: string;
   candles4hPath?: string;
   candlesDailyPath?: string;
   previousClose?: number;
@@ -29,6 +30,7 @@ export type LevelAnalysisSnapshotRunnerResult = {
   referencePrice: number;
   inputPaths: {
     candles5m: string;
+    candles15m?: string;
     candles4h?: string;
     candlesDaily?: string;
   };
@@ -94,6 +96,7 @@ export function parseLevelAnalysisSnapshotRunnerArgs(
   let asOfTimestamp: number | undefined;
   let referencePrice: number | undefined;
   let candles5mPath: string | undefined;
+  let candles15mPath: string | undefined;
   let candles4hPath: string | undefined;
   let candlesDailyPath: string | undefined;
   let previousClose: number | undefined;
@@ -120,6 +123,11 @@ export function parseLevelAnalysisSnapshotRunnerArgs(
     }
     if (arg === "--candles-5m") {
       candles5mPath = requireValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--candles-15m") {
+      candles15mPath = requireValue(args, index, arg);
       index += 1;
       continue;
     }
@@ -170,6 +178,7 @@ export function parseLevelAnalysisSnapshotRunnerArgs(
     asOfTimestamp,
     referencePrice,
     candles5mPath,
+    candles15mPath,
     candles4hPath,
     candlesDailyPath,
     previousClose,
@@ -269,6 +278,9 @@ function buildSnapshotInput(
     asOfTimestamp: options.asOfTimestamp,
     referencePrice: options.referencePrice,
     candles5m: loadCandleJson(options.candles5mPath, fileSystem),
+    candles15m: options.candles15mPath
+      ? loadCandleJson(options.candles15mPath, fileSystem)
+      : undefined,
     fourHourCandles: options.candles4hPath
       ? loadCandleJson(options.candles4hPath, fileSystem)
       : undefined,
@@ -297,6 +309,7 @@ export function runLevelAnalysisSnapshotRunner(
     referencePrice: options.referencePrice,
     inputPaths: {
       candles5m: options.candles5mPath,
+      candles15m: options.candles15mPath,
       candles4h: options.candles4hPath,
       candlesDaily: options.candlesDailyPath,
     },

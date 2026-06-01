@@ -45,6 +45,8 @@ function timeframeDurationMs(timeframe: CandleFetchTimeframe): number {
       return ONE_MINUTE_MS;
     case "5m":
       return 5 * ONE_MINUTE_MS;
+    case "15m":
+      return 15 * ONE_MINUTE_MS;
     case "4h":
       return 4 * 60 * ONE_MINUTE_MS;
     case "daily":

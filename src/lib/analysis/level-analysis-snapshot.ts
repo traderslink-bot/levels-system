@@ -405,6 +405,10 @@ function buildDiagnostics(params: {
     diagnostics.add("candle_inputs_reserved_for_future_fact_generation");
   }
 
+  if (params.request.closedCandles?.fifteenMinute !== undefined) {
+    diagnostics.add("15m_candles_reserved_for_future_fact_generation");
+  }
+
   return [...diagnostics].sort();
 }
 

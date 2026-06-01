@@ -70,6 +70,14 @@ function fourHourCandles(): Candle[] {
   ];
 }
 
+function fifteenMinuteCandles(): Candle[] {
+  return [
+    candle("2026-05-01T09:30:00-04:00", 9.65, 10.35, 9.6, 10.12, 2_050_000),
+    candle("2026-05-01T09:45:00-04:00", 10.12, 10.5, 10.02, 10.08, 2_530_000),
+    candle("2026-05-01T10:00:00-04:00", 10.08, 10.62, 9.98, 10.38, 2_960_000),
+  ];
+}
+
 function buildSnapshot() {
   return buildLevelAnalysisSnapshotFromCandles({
     symbol: "snap",
@@ -138,6 +146,9 @@ test("includes input summary with candle counts by timeframe", () => {
     daily: 6,
   });
   assert.equal(snapshot.inputSummary.timeframes["5m"].provided, true);
+  assert.equal(snapshot.inputSummary.timeframes["15m"].provided, false);
+  assert.equal(snapshot.inputSummary.timeframes["15m"].excludedFutureCandleCount, 0);
+  assert.equal(snapshot.inputSummary.timeframes["15m"].excludedPartialCandleCount, 0);
   assert.equal(snapshot.inputSummary.timeframes["4h"].provided, true);
   assert.equal(snapshot.inputSummary.timeframes.daily.provided, true);
   assert.equal(snapshot.inputSummary.previousCloseProvided, true);
@@ -174,14 +185,44 @@ test("applies as-of filtering and excludes future and partial candles", () => {
     previousClose: 9.1,
   });
 
-  assert.deepEqual(withFutureCandles, filteredOnly);
+  assert.deepEqual(withFutureCandles.levelEngineOutput, filteredOnly.levelEngineOutput);
+  assert.deepEqual(withFutureCandles.sessionFacts, filteredOnly.sessionFacts);
+  assert.deepEqual(withFutureCandles.volumeFacts, filteredOnly.volumeFacts);
+  assert.deepEqual(withFutureCandles.volumeShelves, filteredOnly.volumeShelves);
   assert.equal(withFutureCandles.sessionFacts?.currentPrice, 10.38);
   assert.equal(withFutureCandles.levelEngineOutput.metadata.referencePrice, 10.38);
   assert.ok(withFutureCandles.diagnostics.includes("candle_close_as_of_filter_applied"));
-  assert.equal(withFutureCandles.inputSummary.candleCounts["5m"], 14);
+  assert.ok(withFutureCandles.diagnostics.includes("5m_future_candles_filtered"));
+  assert.ok(withFutureCandles.diagnostics.includes("5m_partial_candles_filtered"));
+  assert.equal(withFutureCandles.inputSummary.candleCounts["5m"], 16);
   assert.equal(withFutureCandles.inputSummary.filteredCandleCounts["5m"], 14);
-  assert.equal(withFutureCandles.inputSummary.excludedFutureCandleCounts["5m"], 0);
-  assert.equal(withFutureCandles.inputSummary.excludedPartialCandleCounts["5m"], 0);
+  assert.equal(withFutureCandles.inputSummary.excludedFutureCandleCounts["5m"], 1);
+  assert.equal(withFutureCandles.inputSummary.excludedPartialCandleCounts["5m"], 1);
+});
+
+test("accepts optional 15m candles as reserved input without changing LevelEngine output", () => {
+  const withoutFifteen = buildSnapshot();
+  const withFifteen = buildLevelAnalysisSnapshotFromCandles({
+    symbol: "snap",
+    asOfTimestamp: AS_OF,
+    referencePrice: 10.68,
+    candles5m: candles5m(),
+    candles15m: fifteenMinuteCandles(),
+    dailyCandles: dailyCandles(),
+    fourHourCandles: fourHourCandles(),
+    previousClose: 9.1,
+  });
+
+  assert.equal(withFifteen.inputSummary.timeframes["15m"].provided, true);
+  assert.equal(withFifteen.inputSummary.candleCounts["15m"], 3);
+  assert.equal(withFifteen.inputSummary.filteredCandleCounts["15m"], 3);
+  assert.equal(withFifteen.inputSummary.excludedFutureCandleCounts["15m"], 0);
+  assert.equal(withFifteen.inputSummary.excludedPartialCandleCounts["15m"], 0);
+  assert.deepEqual(withFifteen.inputSummary.timeframesPresent, ["5m", "15m", "4h", "daily"]);
+  assert.ok(withFifteen.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
+  assert.deepEqual(withFifteen.levelEngineOutput, withoutFifteen.levelEngineOutput);
+  assert.deepEqual(withFifteen.nearestSupport, withoutFifteen.nearestSupport);
+  assert.deepEqual(withFifteen.nearestResistance, withoutFifteen.nearestResistance);
 });
 
 test("includes LevelEngineOutput LevelIntelligenceReport and LevelQualityAuditReport", () => {

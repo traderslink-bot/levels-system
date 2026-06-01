@@ -2,7 +2,7 @@
 // Shared candle type definitions for the levels system market-data layer.
 
 export type CandleTimeframe = "daily" | "4h" | "5m";
-export type CandleFetchTimeframe = CandleTimeframe | "1m";
+export type CandleFetchTimeframe = CandleTimeframe | "15m" | "1m";
 
 export type CandleProviderName = "ibkr" | "stub" | "twelve_data";
 

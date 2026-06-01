@@ -111,6 +111,8 @@ test("packaged LevelAnalysisSnapshot runner writes and validates a production-sh
         "10.68",
         "--candles-5m",
         "docs/examples/level-analysis-snapshot/sample-5m-candles.json",
+        "--candles-15m",
+        "docs/examples/level-analysis-snapshot/sample-15m-candles.json",
         "--candles-4h",
         "docs/examples/level-analysis-snapshot/sample-4h-candles.json",
         "--candles-daily",
@@ -131,6 +133,9 @@ test("packaged LevelAnalysisSnapshot runner writes and validates a production-sh
     assert.equal(snapshot.asOfTimestamp, AS_OF);
     assert.equal(snapshot.referencePrice, 10.68);
     assert.ok(snapshot.inputSummary);
+    assert.equal(snapshot.inputSummary.candleCounts["15m"], 3);
+    assert.equal(snapshot.inputSummary.filteredCandleCounts["15m"], 3);
+    assert.ok(snapshot.diagnostics.includes("15m_candles_reserved_for_future_fact_generation"));
     assert.ok(snapshot.levelEngineOutput);
     assert.ok(snapshot.levelIntelligenceReport);
     assert.ok(snapshot.levelQualityAudit);
@@ -153,6 +158,6 @@ test("package exposes a deterministic ignored smoke command", () => {
 
   assert.equal(
     scripts["snapshot:level-analysis:smoke"],
-    "tsx src/scripts/run-level-analysis-snapshot.ts --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out artifacts/level-analysis-snapshot-smoke/SNAP/1777645200000/level-analysis-snapshot-v1.json",
+    "tsx src/scripts/run-level-analysis-snapshot.ts --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-15m docs/examples/level-analysis-snapshot/sample-15m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out artifacts/level-analysis-snapshot-smoke/SNAP/1777645200000/level-analysis-snapshot-v1.json",
   );
 });
