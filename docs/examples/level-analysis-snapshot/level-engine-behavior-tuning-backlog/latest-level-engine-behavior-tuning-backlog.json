@@ -1,0 +1,236 @@
+{
+  "schemaVersion": "level-engine-behavior-tuning-backlog/v1",
+  "generatedAt": "2026-06-01T22:36:17.103Z",
+  "providerFocus": "ibkr",
+  "currentMainMergeCommit": "db9f94908c0abee8666f5197c7056b0de6c65b00",
+  "lockedBaselineMergeCommit": "d43e4d0897101ac1c5a3cd2fd0fcc8af844750aa",
+  "sourceBaselineLockCommit": "678c3b1352deba0777c3dee5a0f4e536a685f183",
+  "decision": "defer_level_generation_behavior_tuning",
+  "recommendedNextGate": "level_quality_review_process_packaging",
+  "baselineDependency": {
+    "sourceDocs": [
+      "docs/115_LEVEL_QUALITY_BEHAVIOR_TUNING_DECISION_GATE.md",
+      "docs/116_LEVEL_QUALITY_DECISION_BASELINE_LOCK.md",
+      "docs/117_LEVEL_QUALITY_FINAL_HANDOFF_SUMMARY.md"
+    ],
+    "sourceArtifacts": [
+      "docs/examples/level-analysis-snapshot/level-quality-final-handoff/latest-level-quality-final-handoff.json",
+      "docs/examples/level-analysis-snapshot/level-quality-baseline-lock/latest-level-quality-baseline-lock.json",
+      "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-fixture-packs/latest-level-quality-review-rerun-after-fixture-packs.json",
+      "docs/examples/level-analysis-snapshot/level-extension-coverage/latest-extension-coverage-fixture-pack.json",
+      "docs/examples/level-analysis-snapshot/level-cluster-density/latest-cluster-density-fixture-pack.json"
+    ],
+    "reviewedSymbols": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "QUBT",
+      "GME",
+      "AIM",
+      "HCWB",
+      "YMAT",
+      "AAOI",
+      "PHOE"
+    ],
+    "supplied15mSymbols": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "QUBT",
+      "GME"
+    ]
+  },
+  "knownWeaknessesCarriedForward": {
+    "clusteredLevelAreasPresent": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "GME",
+      "AIM",
+      "HCWB",
+      "YMAT"
+    ],
+    "denseMapReviewCases": [
+      "QUBT",
+      "AAOI",
+      "PHOE"
+    ],
+    "extensionCoverageWarnings": [
+      "DEVS",
+      "ENVX",
+      "AIM",
+      "HCWB",
+      "YMAT"
+    ],
+    "wideNearestLevelGaps": [
+      "HCWB",
+      "PHOE"
+    ],
+    "syntheticContinuationMapPresent": [
+      "AAOI",
+      "PHOE"
+    ]
+  },
+  "hardGateRequirementsForBehaviorChanges": [
+    "one_behavior_knob_only",
+    "exact_expected_output_diff_before_implementation",
+    "deterministic_fixture_coverage",
+    "before_after_compact_artifacts",
+    "ten_symbol_real_cache_rerun_against_locked_baseline",
+    "nearest_support_resistance_comparison",
+    "bucket_count_comparison",
+    "extension_count_comparison",
+    "synthetic_continuation_map_count_and_marking_comparison",
+    "diagnostic_and_diagnosticSemantics_comparison",
+    "enrichmentBreakdown_comparison",
+    "prohibited_language_guard",
+    "15m_context_only_unless_separately_approved",
+    "no_raw_cache_commits"
+  ],
+  "backlogCandidates": [
+    {
+      "rank": 1,
+      "gate": "level_quality_review_process_packaging",
+      "purpose": "Package the real-cache quality review process into a repeatable command, script, or documented harness.",
+      "risk": "low",
+      "expectedBenefit": "Improves repeatability and makes future baseline comparisons less dependent on one-off inline harnesses.",
+      "behaviorChange": "none",
+      "evidenceRequired": [
+        "current_review_artifacts",
+        "baseline_lock",
+        "existing_10_symbol_review_method"
+      ],
+      "requiredTestsArtifacts": [
+        "deterministic_parser_or_script_tests_if_code_is_added",
+        "compact_review_output_without_raw_candles_or_full_snapshots"
+      ],
+      "recommendation": "recommended_first"
+    },
+    {
+      "rank": 2,
+      "gate": "level_quality_audit_density_metric_design",
+      "purpose": "Design an audit-only metric for dense but separated maps.",
+      "risk": "low_to_medium",
+      "expectedBenefit": "Improves factual diagnostics for dense maps without changing generated levels.",
+      "behaviorChange": "audit_reporting_only_if_later_implemented",
+      "evidenceRequired": [
+        "QUBT_AAOI_PHOE_dense_map_review_cases",
+        "cluster_density_fixture_pack",
+        "diagnosticSemantics_boundaries"
+      ],
+      "requiredTestsArtifacts": [
+        "deterministic_audit_fixture_coverage",
+        "compact_before_after_diagnostic_artifacts_if_implemented"
+      ],
+      "recommendation": "safe_after_review_process_packaging"
+    },
+    {
+      "rank": 3,
+      "gate": "level_quality_nearest_gap_investigation",
+      "purpose": "Investigate wide nearest-level gaps on HCWB and PHOE.",
+      "risk": "medium",
+      "expectedBenefit": "Clarifies whether wide gaps are audit/reporting context or evidence of missed candidate coverage.",
+      "behaviorChange": "none_in_investigation_phase",
+      "evidenceRequired": [
+        "candidate_inventory_review",
+        "nearest_support_resistance_baseline_comparison",
+        "missed_candidate_proof_before_any_generation_change"
+      ],
+      "requiredTestsArtifacts": [
+        "compact_candidate_inventory_summaries",
+        "deterministic_fixtures_only_if_clear_missed_candidate_hypothesis_appears"
+      ],
+      "recommendation": "investigate_before_any_nearest_level_generation_change"
+    },
+    {
+      "rank": 4,
+      "gate": "level_engine_extension_coverage_tuning_investigation",
+      "purpose": "Investigate no-resistance and limited-downside extension coverage cases.",
+      "risk": "medium_to_high",
+      "expectedBenefit": "May identify whether extension coverage warnings represent factual scarcity or a specific tuning opportunity.",
+      "behaviorChange": "none_in_investigation_phase",
+      "evidenceRequired": [
+        "extension_candidate_inventory",
+        "no_fabrication_rules",
+        "extension_fixture_pack",
+        "before_after_plan_for_any_proposed_knob"
+      ],
+      "requiredTestsArtifacts": [
+        "deterministic_extension_fixtures",
+        "compact_real_cache_comparison_plan",
+        "synthetic_continuation_map_boundary_checks"
+      ],
+      "recommendation": "defer_until_lower_risk_packaging_and_audit_only_work_are_done"
+    },
+    {
+      "rank": 5,
+      "gate": "level_engine_cluster_density_tuning_investigation",
+      "purpose": "Investigate clustered and dense maps without changing clustering, ranking, or surfaced levels.",
+      "risk": "medium_to_high",
+      "expectedBenefit": "Clarifies whether density is a display, audit, candidate, or generation tuning issue.",
+      "behaviorChange": "none_in_investigation_phase",
+      "evidenceRequired": [
+        "cluster_density_fixture_pack",
+        "nearest_level_preservation_checks",
+        "proof_any_proposed_tuning_would_not_over_filter_useful_levels"
+      ],
+      "requiredTestsArtifacts": [
+        "representative_cluster_fixtures",
+        "nearest_level_parity_checks",
+        "compact_10_symbol_before_after_plan_before_behavior_implementation"
+      ],
+      "recommendation": "keep_behind_audit_only_density_design"
+    },
+    {
+      "rank": 6,
+      "gate": "synthetic_continuation_map_policy_review",
+      "purpose": "Review synthetic continuation-map limits and wording.",
+      "risk": "medium",
+      "expectedBenefit": "Keeps synthetic rows clearly separated from historical support/resistance evidence.",
+      "behaviorChange": "none_in_review_phase",
+      "evidenceRequired": [
+        "AAOI_PHOE_synthetic_continuation_map_rows",
+        "current_synthetic_diagnostics",
+        "wording_boundary_checks"
+      ],
+      "requiredTestsArtifacts": [
+        "compact_policy_summary",
+        "fixtures_proving_synthetic_rows_remain_marked_forward_planning_context_not_historical_evidence"
+      ],
+      "recommendation": "review_only_without_policy_change"
+    },
+    {
+      "rank": 7,
+      "gate": "levels_system_15m_future_use_backlog",
+      "purpose": "Define what evidence would be required before 15m facts could influence LevelEngine behavior.",
+      "risk": "high_if_behavior_changing",
+      "expectedBenefit": "Makes the future 15m decision explicit while preserving the current context-only boundary.",
+      "behaviorChange": "none_in_backlog_or_design_phase",
+      "evidenceRequired": [
+        "supplied_IBKR_15m_facts_validation",
+        "no_lookahead_proof",
+        "separate_approved_decision_gate_before_any_LevelEngine_input_change"
+      ],
+      "requiredTestsArtifacts": [
+        "future_use_decision_artifact",
+        "no_lookahead_comparisons",
+        "before_after_10_symbol_review_plan_if_behavior_use_is_ever_proposed"
+      ],
+      "recommendation": "keep_15m_context_only_for_now"
+    }
+  ],
+  "boundaries": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "runtimeDefaultsChanged": false,
+    "discordAlertMonitoringChanged": false,
+    "journalAppChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  }
+}

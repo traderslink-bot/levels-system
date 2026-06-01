@@ -1,0 +1,88 @@
+LevelEngine behavior tuning backlog
+Generated: 2026-06-01T22:36:17.103Z
+Provider focus: IBKR
+
+Decision
+- Defer LevelEngine generation behavior tuning.
+- Keep 15m facts context-only.
+- Require future behavior tuning to compare against the locked baseline.
+
+Baseline sources
+- docs/115_LEVEL_QUALITY_BEHAVIOR_TUNING_DECISION_GATE.md
+- docs/116_LEVEL_QUALITY_DECISION_BASELINE_LOCK.md
+- docs/117_LEVEL_QUALITY_FINAL_HANDOFF_SUMMARY.md
+- docs/examples/level-analysis-snapshot/level-quality-final-handoff/latest-level-quality-final-handoff.json
+- docs/examples/level-analysis-snapshot/level-quality-baseline-lock/latest-level-quality-baseline-lock.json
+- docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-fixture-packs/latest-level-quality-review-rerun-after-fixture-packs.json
+- docs/examples/level-analysis-snapshot/level-extension-coverage/latest-extension-coverage-fixture-pack.json
+- docs/examples/level-analysis-snapshot/level-cluster-density/latest-cluster-density-fixture-pack.json
+
+Reviewed symbols
+- DEVS
+- ENVX
+- DXYZ
+- QUBT
+- GME
+- AIM
+- HCWB
+- YMAT
+- AAOI
+- PHOE
+
+Ranked backlog
+1. level_quality_review_process_packaging
+   Risk: low.
+   Behavior change: none.
+   Purpose: package the real-cache quality review process into a repeatable command, script, or documented harness.
+
+2. level_quality_audit_density_metric_design
+   Risk: low to medium.
+   Behavior change: audit/reporting only if later implemented.
+   Purpose: design an audit-only metric for dense but separated maps.
+
+3. level_quality_nearest_gap_investigation
+   Risk: medium.
+   Behavior change: none in investigation phase.
+   Purpose: investigate wide nearest-level gaps on HCWB and PHOE.
+
+4. level_engine_extension_coverage_tuning_investigation
+   Risk: medium to high.
+   Behavior change: none in investigation phase.
+   Purpose: investigate no-resistance and limited-downside extension coverage cases.
+
+5. level_engine_cluster_density_tuning_investigation
+   Risk: medium to high.
+   Behavior change: none in investigation phase.
+   Purpose: investigate clustered and dense maps without changing clustering, ranking, or surfaced levels.
+
+6. synthetic_continuation_map_policy_review
+   Risk: medium.
+   Behavior change: none in review phase.
+   Purpose: review synthetic continuation-map limits and wording while preserving the not-historical boundary.
+
+7. levels_system_15m_future_use_backlog
+   Risk: high if behavior-changing.
+   Behavior change: none in backlog/design phase.
+   Purpose: define what evidence would be required before 15m facts could influence LevelEngine behavior.
+
+Hard requirements for any behavior-changing gate
+- Change one behavior knob only.
+- Name the exact expected output diff before implementation.
+- Include deterministic fixture coverage.
+- Include before/after compact artifacts.
+- Rerun the 10-symbol real-cache review against the locked baseline.
+- Compare nearest support/resistance.
+- Compare bucket counts.
+- Compare extension counts.
+- Compare synthetic continuation-map count and marking.
+- Compare diagnostics and diagnosticSemantics.
+- Compare enrichmentBreakdown.
+- Prove no prohibited language was introduced.
+- Keep 15m context-only unless a separate approved gate changes that boundary.
+- Commit no raw cache files.
+
+Recommended next gate
+- level_quality_review_process_packaging
+
+Reason
+- Before any additional behavior work, package the real-cache quality review process so future reviews are repeatable and less dependent on one-off inline harnesses.
