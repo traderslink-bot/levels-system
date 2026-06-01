@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "level-cluster-density-fixture-pack/v1",
+  "generatedAt": "2026-06-01T21:20:00.000Z",
+  "sourceArtifacts": [
+    "docs/106_LEVEL_ENGINE_MULTI_TIMEFRAME_LEVEL_QUALITY_REVIEW.md",
+    "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-wording/latest-level-quality-review-rerun-after-wording.json"
+  ],
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "evidenceSummary": {
+    "clusteredLevelAreasPresent": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "GME",
+      "AIM",
+      "HCWB",
+      "YMAT"
+    ],
+    "denseMapReviewCasesWithoutAuditClusterDiagnostic": [
+      "QUBT",
+      "AAOI",
+      "PHOE"
+    ],
+    "wideNearestLevelGapCases": [
+      "HCWB",
+      "PHOE"
+    ],
+    "symbolsWithClusterDiagnosticCount": 7,
+    "possibleBugFound": false
+  },
+  "fixtureScenarios": [
+    {
+      "name": "sparse_map_no_cluster_warning",
+      "intent": "Levels are far enough apart that current audit clustering reports no clustered areas.",
+      "expectedDiagnostics": [],
+      "currentBehaviorLocked": "Sparse maps do not emit clustered_level_areas_present."
+    },
+    {
+      "name": "support_only_cluster",
+      "intent": "Several support rows sit within the configured audit cluster threshold.",
+      "expectedDiagnostics": [
+        "clustered_level_areas_present"
+      ],
+      "currentBehaviorLocked": "Audit reports a support cluster and preserves surfaced level arrays."
+    },
+    {
+      "name": "resistance_only_cluster",
+      "intent": "Several resistance rows sit within the configured audit cluster threshold.",
+      "expectedDiagnostics": [
+        "clustered_level_areas_present"
+      ],
+      "currentBehaviorLocked": "Audit reports a resistance cluster and preserves surfaced level arrays."
+    },
+    {
+      "name": "mixed_cluster",
+      "intent": "Support and resistance rows sit near one another around the reference price.",
+      "expectedDiagnostics": [
+        "clustered_level_areas_present"
+      ],
+      "currentBehaviorLocked": "Audit reports a mixed cluster without reclassifying support or resistance sides."
+    },
+    {
+      "name": "dense_clustered_map",
+      "intent": "Multiple rows sit inside the configured cluster threshold.",
+      "expectedDiagnostics": [
+        "clustered_level_areas_present"
+      ],
+      "currentBehaviorLocked": "Diagnostic semantics classify clustered_level_areas_present as density, and current anchor-based clustering captures five rows in this fixture."
+    },
+    {
+      "name": "large_separated_map",
+      "intent": "Many rows are present but separated enough to avoid current audit cluster detection.",
+      "expectedDiagnostics": [],
+      "currentBehaviorLocked": "Dense review cases can exist without clustered_level_areas_present when rows are not inside the audit threshold."
+    },
+    {
+      "name": "nearest_level_preservation",
+      "intent": "Nearby clusters are audited while nearest support and resistance identities remain stable.",
+      "expectedDiagnostics": [
+        "clustered_level_areas_present"
+      ],
+      "currentBehaviorLocked": "Audit diagnostics do not mutate the supplied LevelEngineOutput or change nearest level identity."
+    }
+  ],
+  "possibleFutureTuningKnobs": [
+    "clusterThresholdPct",
+    "timeframeClusterTolerancePct",
+    "clusterRepresentativeSelection",
+    "bucketLevelMaximumOutputCounts",
+    "nearDuplicateSuppressionDistance",
+    "crowdedBandRankingPenalty",
+    "surfacedMapDisplayCaps",
+    "denseSeparatedMapAuditMetric"
+  ],
+  "boundaries": {
+    "clusteringBehaviorChanged": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingChanged": false,
+    "surfacedSupportResistanceLevelsChanged": false,
+    "extensionGenerationBehaviorChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "journalBehaviorAdded": false,
+    "recommendationOrTradeAdviceAdded": false
+  },
+  "recommendedNextGate": "level_engine_multi_timeframe_quality_review_rerun_after_fixture_packs"
+}

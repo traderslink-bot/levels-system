@@ -95,5 +95,6 @@ This folder contains the full plan for the candle-based levels system, including
 - `docs/110_LEVEL_QUALITY_AUDIT_WORDING_HARDENING.md`
 - `docs/111_LEVEL_ENGINE_MULTI_TIMEFRAME_QUALITY_REVIEW_RERUN_AFTER_WORDING.md`
 - `docs/112_LEVEL_ENGINE_EXTENSION_COVERAGE_TUNING_PLAN_OR_FIXTURE_PACK.md`
+- `docs/113_LEVEL_ENGINE_CLUSTER_DENSITY_TUNING_PLAN_OR_FIXTURE_PACK.md`
 - Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
 - Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`

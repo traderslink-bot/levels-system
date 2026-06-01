@@ -1,0 +1,77 @@
+LevelEngine cluster density fixture pack
+Generated at: 2026-06-01T21:20:00.000Z
+
+Source artifacts:
+- docs/106_LEVEL_ENGINE_MULTI_TIMEFRAME_LEVEL_QUALITY_REVIEW.md
+- docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-wording/latest-level-quality-review-rerun-after-wording.json
+
+Reviewed symbols:
+DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+
+Evidence summary:
+- Clustered level areas present: DEVS, ENVX, DXYZ, GME, AIM, HCWB, YMAT
+- Dense map review cases without audit cluster diagnostic: QUBT, AAOI, PHOE
+- Wide nearest-level gap cases: HCWB, PHOE
+- Symbols with cluster diagnostic count: 7
+- Possible bug found: false
+
+Fixture scenarios:
+1. sparse_map_no_cluster_warning
+   - Levels are far enough apart that current audit clustering reports no clustered areas.
+   - Expected cluster diagnostics: none.
+
+2. support_only_cluster
+   - Support rows sit within the configured audit cluster threshold.
+   - Expected diagnostic: clustered_level_areas_present.
+   - Surfaced level arrays are preserved.
+
+3. resistance_only_cluster
+   - Resistance rows sit within the configured audit cluster threshold.
+   - Expected diagnostic: clustered_level_areas_present.
+   - Surfaced level arrays are preserved.
+
+4. mixed_cluster
+   - Support and resistance rows sit near one another around reference price.
+   - Expected diagnostic: clustered_level_areas_present.
+   - Support and resistance sides remain intact.
+
+5. dense_clustered_map
+   - Multiple rows sit inside the configured cluster threshold.
+   - Expected diagnostic: clustered_level_areas_present.
+   - Diagnostic semantics classify the diagnostic as density.
+   - Current anchor-based clustering captures five rows in the fixture.
+
+6. large_separated_map
+   - Many rows are present but separated enough to avoid current audit cluster detection.
+   - Expected cluster diagnostics: none.
+   - Documents that dense review cases can exist without clustered_level_areas_present.
+
+7. nearest_level_preservation
+   - Nearby clusters are audited while nearest support and resistance identities remain stable.
+   - Expected diagnostic: clustered_level_areas_present.
+   - Audit diagnostics do not mutate the supplied LevelEngineOutput.
+
+Possible future tuning knobs:
+- clusterThresholdPct
+- timeframeClusterTolerancePct
+- clusterRepresentativeSelection
+- bucketLevelMaximumOutputCounts
+- nearDuplicateSuppressionDistance
+- crowdedBandRankingPenalty
+- surfacedMapDisplayCaps
+- denseSeparatedMapAuditMetric
+
+Boundaries:
+- Clustering behavior changed: false
+- Support/resistance detection changed: false
+- LevelEngine scoring/ranking changed: false
+- Surfaced support/resistance levels changed: false
+- Extension generation behavior changed: false
+- 15m fed into LevelEngine: false
+- Cache files written: false
+- Raw cache files committed: false
+- Journal behavior added: false
+- Recommendation or trade advice added: false
+
+Recommended next gate:
+level_engine_multi_timeframe_quality_review_rerun_after_fixture_packs
