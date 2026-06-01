@@ -26,6 +26,18 @@ Ignored production-style smoke artifact:
 npm run snapshot:level-analysis:smoke
 ```
 
+Deterministic review batch manifest:
+
+```powershell
+npm run manifest:level-analysis:snapshots:review
+```
+
+Generic batch manifest:
+
+```powershell
+npm run manifest:level-analysis:snapshots -- --input artifacts/level-analysis-snapshot --out artifacts/level-analysis-snapshot/<batchId>/level-analysis-snapshot-batch-manifest-v1.json --output-root artifacts/level-analysis-snapshot --batch-id <batchId>
+```
+
 Direct invocation:
 
 ```powershell
@@ -73,6 +85,18 @@ Recommended production-style output convention:
 artifacts/level-analysis-snapshot/<symbol>/<asOfTimestamp>/level-analysis-snapshot-v1.json
 ```
 
+Recommended production-style manifest convention:
+
+```text
+artifacts/level-analysis-snapshot/<batchId>/level-analysis-snapshot-batch-manifest-v1.json
+```
+
+Committed review manifest:
+
+```text
+docs/examples/level-analysis-snapshot/batch-manifest/latest-level-analysis-snapshot-batch-manifest.json
+```
+
 Smoke-test output:
 
 ```text
@@ -106,6 +130,22 @@ For replay/journal use, require:
 - `safety.factsOnlyVWAP: true`
 - `safety.shelvesAreFactsOnly: true`
 - `safety.syntheticExtensionsClearlyMarked: true`
+
+## Verify Batch Manifests
+
+Generated manifests should include:
+
+- `schemaVersion: level-analysis-snapshot-batch-manifest/v1`
+- `producer: levels-system`
+- `batchId`
+- `generatedAt`
+- `entries`
+- `summary`
+- `safety`
+
+Each entry should include artifact path, validation status, timeframe coverage,
+missing 15m tracking, safety flags, diagnostics, and checksum when artifact
+content is readable.
 
 ## Downstream Adapter Fixture
 
