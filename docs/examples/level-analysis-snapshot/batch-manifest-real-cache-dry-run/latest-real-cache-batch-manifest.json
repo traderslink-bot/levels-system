@@ -1,0 +1,348 @@
+{
+  "schemaVersion": "level-analysis-snapshot-batch-manifest/v1",
+  "producer": "levels-system",
+  "batchId": "real-cache-batch-manifest-dry-run-2026-06-01",
+  "generatedAt": "2026-06-01T00:00:00.000Z",
+  "outputRoot": "artifacts/level-analysis-snapshot-real-cache-dry-run/real-cache-batch-manifest-dry-run-2026-06-01",
+  "runConfig": {
+    "inputPath": "artifacts/level-analysis-snapshot-real-cache-dry-run/real-cache-batch-manifest-dry-run-2026-06-01",
+    "artifactCount": 5
+  },
+  "entries": [
+    {
+      "symbol": "DEVS",
+      "asOfTimestamp": 1780314600000,
+      "referencePrice": 0.2705,
+      "artifactPath": "artifacts\\level-analysis-snapshot-real-cache-dry-run\\real-cache-batch-manifest-dry-run-2026-06-01\\DEVS\\1780314600000\\level-analysis-snapshot-v1.json",
+      "artifactExists": true,
+      "fileSizeBytes": 161523,
+      "checksumSha256": "23f46e992e5739abe445527e844dfd3b4b1d6f6db4ce905be412ab47b3b3d721",
+      "snapshotSchemaVersion": "level-analysis-snapshot/v1",
+      "snapshotProducer": "levels-system",
+      "status": "accepted",
+      "validationErrors": [],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "timeframeCoverage": {
+        "5m": {
+          "provided": true,
+          "candleCount": 46,
+          "filteredCandleCount": 46,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "15m": {
+          "provided": false,
+          "candleCount": 0,
+          "filteredCandleCount": 0,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "4h": {
+          "provided": true,
+          "candleCount": 113,
+          "filteredCandleCount": 112,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        },
+        "daily": {
+          "provided": true,
+          "candleCount": 455,
+          "filteredCandleCount": 454,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        }
+      },
+      "has15mInput": false,
+      "missing15mInput": true,
+      "noLookaheadApplied": true,
+      "syntheticExtensionsClearlyMarked": true,
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      }
+    },
+    {
+      "symbol": "DXYZ",
+      "asOfTimestamp": 1778846100000,
+      "referencePrice": 46.47,
+      "artifactPath": "artifacts\\level-analysis-snapshot-real-cache-dry-run\\real-cache-batch-manifest-dry-run-2026-06-01\\DXYZ\\1778846100000\\level-analysis-snapshot-v1.json",
+      "artifactExists": true,
+      "fileSizeBytes": 170856,
+      "checksumSha256": "03e0366914e0d6791038cc1dc8ef8a7f5cbfd159a0ab4b4cf54355d142f72fdc",
+      "snapshotSchemaVersion": "level-analysis-snapshot/v1",
+      "snapshotProducer": "levels-system",
+      "status": "accepted",
+      "validationErrors": [],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "timeframeCoverage": {
+        "5m": {
+          "provided": true,
+          "candleCount": 47,
+          "filteredCandleCount": 47,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "15m": {
+          "provided": false,
+          "candleCount": 0,
+          "filteredCandleCount": 0,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "4h": {
+          "provided": true,
+          "candleCount": 117,
+          "filteredCandleCount": 116,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        },
+        "daily": {
+          "provided": true,
+          "candleCount": 501,
+          "filteredCandleCount": 500,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        }
+      },
+      "has15mInput": false,
+      "missing15mInput": true,
+      "noLookaheadApplied": true,
+      "syntheticExtensionsClearlyMarked": true,
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      }
+    },
+    {
+      "symbol": "ENVX",
+      "asOfTimestamp": 1779463500000,
+      "referencePrice": 6.73,
+      "artifactPath": "artifacts\\level-analysis-snapshot-real-cache-dry-run\\real-cache-batch-manifest-dry-run-2026-06-01\\ENVX\\1779463500000\\level-analysis-snapshot-v1.json",
+      "artifactExists": true,
+      "fileSizeBytes": 178819,
+      "checksumSha256": "769bc2cd39335ca671d9c86e6a39c5809e9f32f97e2e30a0694e457e237435de",
+      "snapshotSchemaVersion": "level-analysis-snapshot/v1",
+      "snapshotProducer": "levels-system",
+      "status": "accepted",
+      "validationErrors": [],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "timeframeCoverage": {
+        "5m": {
+          "provided": true,
+          "candleCount": 89,
+          "filteredCandleCount": 89,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "15m": {
+          "provided": false,
+          "candleCount": 0,
+          "filteredCandleCount": 0,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "4h": {
+          "provided": true,
+          "candleCount": 118,
+          "filteredCandleCount": 117,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        },
+        "daily": {
+          "provided": true,
+          "candleCount": 501,
+          "filteredCandleCount": 500,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        }
+      },
+      "has15mInput": false,
+      "missing15mInput": true,
+      "noLookaheadApplied": true,
+      "syntheticExtensionsClearlyMarked": true,
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      }
+    },
+    {
+      "symbol": "GME",
+      "asOfTimestamp": 1777907400000,
+      "referencePrice": 24.8,
+      "artifactPath": "artifacts\\level-analysis-snapshot-real-cache-dry-run\\real-cache-batch-manifest-dry-run-2026-06-01\\GME\\1777907400000\\level-analysis-snapshot-v1.json",
+      "artifactExists": true,
+      "fileSizeBytes": 168721,
+      "checksumSha256": "a24b91810e185863b9ac97bcf3e955f8cfc92cc2e73d399769dc77bde7121169",
+      "snapshotSchemaVersion": "level-analysis-snapshot/v1",
+      "snapshotProducer": "levels-system",
+      "status": "accepted",
+      "validationErrors": [],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "timeframeCoverage": {
+        "5m": {
+          "provided": true,
+          "candleCount": 86,
+          "filteredCandleCount": 86,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "15m": {
+          "provided": false,
+          "candleCount": 0,
+          "filteredCandleCount": 0,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "4h": {
+          "provided": true,
+          "candleCount": 114,
+          "filteredCandleCount": 113,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        },
+        "daily": {
+          "provided": true,
+          "candleCount": 500,
+          "filteredCandleCount": 499,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        }
+      },
+      "has15mInput": false,
+      "missing15mInput": true,
+      "noLookaheadApplied": true,
+      "syntheticExtensionsClearlyMarked": true,
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      }
+    },
+    {
+      "symbol": "QUBT",
+      "asOfTimestamp": 1778595600000,
+      "referencePrice": 12.799,
+      "artifactPath": "artifacts\\level-analysis-snapshot-real-cache-dry-run\\real-cache-batch-manifest-dry-run-2026-06-01\\QUBT\\1778595600000\\level-analysis-snapshot-v1.json",
+      "artifactExists": true,
+      "fileSizeBytes": 189016,
+      "checksumSha256": "3cd20b42d3a3d09051aca4c77b7cc37e9951ce7f910bef4bc7c6bf90e24b7408",
+      "snapshotSchemaVersion": "level-analysis-snapshot/v1",
+      "snapshotProducer": "levels-system",
+      "status": "accepted",
+      "validationErrors": [],
+      "diagnostics": [
+        "4h_partial_candles_filtered",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation",
+        "daily_partial_candles_filtered"
+      ],
+      "timeframeCoverage": {
+        "5m": {
+          "provided": true,
+          "candleCount": 76,
+          "filteredCandleCount": 76,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "15m": {
+          "provided": false,
+          "candleCount": 0,
+          "filteredCandleCount": 0,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "4h": {
+          "provided": true,
+          "candleCount": 114,
+          "filteredCandleCount": 113,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        },
+        "daily": {
+          "provided": true,
+          "candleCount": 501,
+          "filteredCandleCount": 500,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 1
+        }
+      },
+      "has15mInput": false,
+      "missing15mInput": true,
+      "noLookaheadApplied": true,
+      "syntheticExtensionsClearlyMarked": true,
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      }
+    }
+  ],
+  "summary": {
+    "totalEntries": 5,
+    "acceptedCount": 5,
+    "failedCount": 0,
+    "skippedCount": 0,
+    "quarantinedCount": 0,
+    "missing15mInputCount": 5,
+    "with15mInputCount": 0,
+    "timeframeAvailability": {
+      "5m": 5,
+      "15m": 0,
+      "4h": 5,
+      "daily": 5
+    },
+    "noLookaheadAppliedCount": 5,
+    "syntheticExtensionsClearlyMarkedCount": 5,
+    "uniqueDiagnostics": [
+      "4h_partial_candles_filtered",
+      "candle_close_as_of_filter_applied",
+      "candle_inputs_reserved_for_future_fact_generation",
+      "daily_partial_candles_filtered"
+    ],
+    "uniqueValidationErrors": []
+  },
+  "diagnostics": [],
+  "safety": {
+    "noLookaheadAppliedForAccepted": true,
+    "syntheticExtensionsClearlyMarkedForAccepted": true,
+    "noRuntimeBehaviorChange": true
+  }
+}

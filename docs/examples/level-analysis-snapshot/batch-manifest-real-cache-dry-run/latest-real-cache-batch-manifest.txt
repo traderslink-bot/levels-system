@@ -1,0 +1,34 @@
+# Real-Cache Batch Manifest Dry Run Summary
+
+Batch: real-cache-batch-manifest-dry-run-2026-06-01
+Generated: 2026-06-01T00:00:00.000Z
+Cache root: C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles
+Cache files: 2274
+Provider/symbol groups: 357
+Groups with 5m/4h/daily: 355
+Groups with 5m/15m/4h/daily: 0
+Real 15m cache exists: false
+
+Entries: 5
+Accepted: 5
+Failed: 0
+Quarantined: 0
+Missing 15m input: 5
+With 15m input: 0
+No-lookahead accepted count: 5
+Synthetic marking accepted count: 5
+
+| Symbol | As Of | Reference | Size | 15m | Status | Checksum |
+| --- | --- | ---: | ---: | --- | --- | --- |
+| DEVS | 2026-06-01T11:50:00.000Z | 0.2705 | 161523 | missing | accepted | 23f46e992e57... |
+| DXYZ | 2026-05-15T11:55:00.000Z | 46.47 | 170856 | missing | accepted | 03e0366914e0... |
+| ENVX | 2026-05-22T15:25:00.000Z | 6.73 | 178819 | missing | accepted | 769bc2cd3933... |
+| GME | 2026-05-04T15:10:00.000Z | 24.8 | 168721 | missing | accepted | a24b91810e18... |
+| QUBT | 2026-05-12T14:20:00.000Z | 12.799 | 189016 | missing | accepted | 3cd20b42d3a3... |
+
+Unique diagnostics: 4h_partial_candles_filtered, candle_close_as_of_filter_applied, candle_inputs_reserved_for_future_fact_generation, daily_partial_candles_filtered
+Unique validation errors: none
+
+Full snapshot artifacts were generated under ignored artifacts/ and are not committed.
+Committed manifest paths are relative to the repository worktree.
+
