@@ -1,0 +1,27 @@
+15m IBKR live-provider dry run
+Generated at: 2026-06-01T17:30:00.000Z
+Mode: dry-run
+Cache root: C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles
+Provider: ibkr
+Timeframe: 15m
+Lookback bars: 100
+End time: 1780329600000
+Symbols: DEVS, ENVX, DXYZ, QUBT, GME
+Planned: 5
+Written: 0
+Skipped existing: 0
+Failed: 0
+Provider constructed: false
+Provider calls expected: false
+IBKR login required: false
+Planned files existed after dry-run: false
+Real cache mutation expected: false
+
+Planned paths:
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DEVS\15m\100-1780329600000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\ENVX\15m\100-1780329600000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DXYZ\15m\100-1780329600000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\QUBT\15m\100-1780329600000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\GME\15m\100-1780329600000.json
+
+Recommended next gate: levels_system_15m_ibkr_operator_write_plan
