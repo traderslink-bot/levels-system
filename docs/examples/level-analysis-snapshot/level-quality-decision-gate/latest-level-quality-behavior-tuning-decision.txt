@@ -1,0 +1,73 @@
+Level quality behavior tuning decision gate
+Generated at: 2026-06-01T21:25:37.978Z
+Provider focus: IBKR
+
+Decision:
+defer_level_generation_behavior_tuning
+
+Recommended next gate:
+level_quality_decision_baseline_lock
+
+Evidence reviewed:
+- docs/107 through docs/114
+- Post-fixture rerun compact artifact
+- Extension coverage fixture pack artifact
+- Cluster/density fixture pack artifact
+
+Post-fixture rerun summary:
+- nearest support parity: 10/10
+- nearest resistance parity: 10/10
+- bucket-count parity: 10/10
+- extension-count parity: 10/10
+- synthetic count and marking parity: 10/10
+- diagnostics parity: 10/10
+- diagnostic semantics parity: 10/10
+- enrichment breakdown parity: 10/10
+- extension warning-code parity: 10/10
+- cluster/density diagnostic parity: 10/10
+- 15m context-only checks: 10/10
+- possible bug count: 0
+- prohibited-language hit count: 0
+
+Decision matrix summary:
+- Extension coverage tuning: defer. No bug found; risk is high because changes can alter forward rows and extension counts.
+- Cluster/density tuning: defer. No bug found; risk is high because changes can alter surfaced rows, nearest levels, and bucket counts.
+- Nearest-level gap handling: defer generation changes. HCWB and PHOE gaps are already factual audit diagnostics; no missed-candidate bug is proven.
+- Enrichment/audit improvements: current safe improvements are complete for this scope.
+- 15m facts future use: keep context-only. Do not feed 15m into LevelEngine without a separate design gate.
+- Synthetic continuation-map policy: defer policy changes. Preserve marked forward-planning context and historical-evidence separation.
+
+Approved now:
+- baseline locking
+- compact decision artifacts
+- future review/reporting handoff
+- audit or documentation clarifications that do not change generated levels
+
+Deferred:
+- extension generation tuning
+- clusterer/ranker/surfaced-level tuning
+- nearest-level gap generation changes
+- 15m as LevelEngine input
+- synthetic continuation-map policy changes that add or remove generated rows
+
+Future tuning rules:
+- Change one knob only.
+- Name the expected output diff before implementation.
+- Preserve or explicitly document nearest support/resistance changes.
+- Compare bucket counts, extension counts, synthetic markings, diagnostics, and diagnostic semantics before and after.
+- Keep 15m outside LevelEngine unless a separate design gate changes that boundary.
+- Include deterministic fixtures and a compact real-cache rerun.
+- Do not introduce grading, coaching, P/L, giveback, behavior scoring, recommendations, or trade advice.
+
+Boundary confirmations:
+- no support/resistance detection behavior changed
+- no LevelEngine scoring/ranking/clustering changed
+- no surfaced support/resistance levels changed
+- no extension generation behavior changed
+- 15m was not fed into LevelEngine
+- no new cache files were written
+- no raw cache files were committed
+- no Discord/alert/monitoring behavior changed
+- no journal app files changed
+- no journal grading/coaching/P&L/giveback/behavior scoring added
+- no recommendation/trade advice behavior added
