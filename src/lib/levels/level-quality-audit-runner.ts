@@ -1,5 +1,9 @@
 import type { LevelIntelligenceProfile } from "./level-intelligence-profile.js";
 import type { LevelIntelligenceReport } from "./level-intelligence-report.js";
+import {
+  describeLevelQualityDiagnostic,
+  type LevelQualityDiagnosticDescription,
+} from "./level-quality-audit-wording.js";
 import type { FinalLevelZone, LevelEngineOutput, LevelDataFreshness } from "./level-types.js";
 
 export type LevelQualityAuditBucket =
@@ -128,6 +132,7 @@ export type LevelQualityAuditReport = {
   nearbyCoverage: LevelQualityCoverageSummary;
   confluenceSummary: LevelQualityConfluenceSummary;
   diagnostics: string[];
+  diagnosticSemantics?: LevelQualityDiagnosticDescription[];
   safety: {
     levelOutputUnchanged: true;
     noRuntimeBehaviorChange: true;
@@ -545,6 +550,8 @@ export function buildLevelQualityAuditReport(
     nearbyCoverage,
   };
 
+  const diagnostics = collectDiagnostics(reportSeed);
+
   return {
     symbol: output.symbol,
     generatedAt: output.generatedAt,
@@ -573,7 +580,8 @@ export function buildLevelQualityAuditReport(
     extensionCoverage,
     nearbyCoverage,
     confluenceSummary: buildConfluenceSummary(items),
-    diagnostics: collectDiagnostics(reportSeed),
+    diagnostics,
+    diagnosticSemantics: diagnostics.map((diagnostic) => describeLevelQualityDiagnostic(diagnostic)),
     safety: {
       levelOutputUnchanged: true,
       noRuntimeBehaviorChange: true,
