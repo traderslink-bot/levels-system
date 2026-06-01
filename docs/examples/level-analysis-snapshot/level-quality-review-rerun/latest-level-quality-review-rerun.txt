@@ -1,0 +1,43 @@
+LevelEngine multi-timeframe quality review rerun
+Generated at: 2026-06-01T19:22:36.298Z
+Provider: ibkr
+Baseline: docs/examples/level-analysis-snapshot/level-quality-review/latest-level-quality-review.json (2026-06-01T18:40:11.680Z)
+Reviewed symbols: DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+Supplied 15m symbols: DEVS, ENVX, DXYZ, QUBT, GME
+
+Summary:
+- Reviewed symbols: 10
+- Nearest support parity: 10/10
+- Nearest resistance parity: 10/10
+- Bucket-count parity: 10/10
+- Extension-count parity: 10/10
+- Synthetic count parity: 10/10
+- Synthetic marking parity: 10/10
+- 15m context-only checks: 10/10
+- Enrichment breakdown present: 10/10
+- Specific enrichment diagnostics present: 10/10
+- Broad unenriched diagnostic still present: 10/10
+- Possible bugs: 0
+
+Per-symbol parity and enrichment diagnostics:
+Symbol | 15m | Nearest | Buckets | Ext | Synthetic | Added enrichment diagnostics | Breakdown H/E/S unenriched
+--- | --- | --- | --- | --- | --- | --- | ---
+DEVS | present | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present | 13/3/0
+ENVX | present | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present | 12/4/0
+DXYZ | present | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present | 13/4/0
+QUBT | present | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present | 15/4/0
+GME | present | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present | 9/6/0
+AIM | absent | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present | 14/3/0
+HCWB | absent | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present | 16/1/0
+YMAT | absent | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present | 20/6/0
+AAOI | absent | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_synthetic_levels_present | 11/4/1
+PHOE | absent | same | same | same | same | unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_synthetic_levels_present | 16/3/1
+
+Remaining weaknesses:
+- clustered_level_areas_present_on_some_symbols
+- extension_coverage_warnings_remain_on_some_symbols
+- wide_nearby_support_or_resistance_gaps_remain_on_hcwb_and_phoe
+- broad_unenriched_levels_present_remains_for_compatibility
+
+Recommended next gate:
+level_quality_audit_wording_hardening
