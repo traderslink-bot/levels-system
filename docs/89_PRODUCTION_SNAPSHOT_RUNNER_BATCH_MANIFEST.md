@@ -248,6 +248,31 @@ npm run manifest:level-analysis:snapshots -- --input artifacts/level-analysis-sn
 npm run manifest:level-analysis:snapshots:review
 ```
 
+## Real-Cache Batch Packaging Script
+
+The packaged local-cache batch runner is:
+
+```text
+src/scripts/run-level-analysis-snapshot-real-cache-batch.ts
+```
+
+Package command:
+
+```powershell
+npm run snapshot:level-analysis:batch:real-cache -- --cache-root .validation-cache/candles --provider ibkr --symbols DEVS,ENVX,DXYZ,QUBT,GME --out-root artifacts/level-analysis-snapshot-real-cache-batch --batch-id real-cache-batch-2026-06-01 --generated-at 2026-06-01T00:00:00.000Z
+```
+
+The script:
+
+- reads existing local validation-cache candle files only;
+- requires `5m`, `4h`, and `daily` cache for every selected symbol;
+- includes `15m` cache when present;
+- writes full snapshot artifacts under `<out-root>/<batch-id>/<symbol>/<asOfTimestamp>/`;
+- writes `level-analysis-snapshot-batch-manifest-v1.json` under `<out-root>/<batch-id>/`;
+- prints a compact factual summary;
+- does not fetch data, post alerts, change monitoring, or change LevelEngine
+  output behavior.
+
 ## Downstream Consumption
 
 Downstream systems should:
@@ -280,11 +305,9 @@ scores, recommendations, or trade advice.
 Recommended next gate:
 
 ```text
-level_analysis_snapshot_batch_manifest_real_cache_dry_run
+production_snapshot_runner_batch_manifest_packaging
 ```
 
-Reason: the manifest contract and deterministic review path are now defined.
-The next operational check should run the manifest over a small generated
-real-cache batch or existing real-cache snapshot outputs and confirm the batch
-summary, missing-15m tracking, safety fields, and checksums under realistic
-multi-symbol conditions.
+Reason: the manifest contract and real-cache dry run are now defined. The next
+operational step should package the cache-to-snapshot-to-manifest workflow into
+a repeatable operator path.

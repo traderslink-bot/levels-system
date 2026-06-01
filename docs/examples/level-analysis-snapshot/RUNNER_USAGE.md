@@ -38,6 +38,12 @@ Generic batch manifest:
 npm run manifest:level-analysis:snapshots -- --input artifacts/level-analysis-snapshot --out artifacts/level-analysis-snapshot/<batchId>/level-analysis-snapshot-batch-manifest-v1.json --output-root artifacts/level-analysis-snapshot --batch-id <batchId>
 ```
 
+Local real-cache batch runner:
+
+```powershell
+npm run snapshot:level-analysis:batch:real-cache -- --cache-root .validation-cache/candles --provider ibkr --symbols DEVS,ENVX,DXYZ,QUBT,GME --out-root artifacts/level-analysis-snapshot-real-cache-batch --batch-id real-cache-batch-2026-06-01 --generated-at 2026-06-01T00:00:00.000Z
+```
+
 Direct invocation:
 
 ```powershell
@@ -89,6 +95,13 @@ Recommended production-style manifest convention:
 
 ```text
 artifacts/level-analysis-snapshot/<batchId>/level-analysis-snapshot-batch-manifest-v1.json
+```
+
+Recommended local real-cache batch convention:
+
+```text
+artifacts/level-analysis-snapshot-real-cache-batch/<batchId>/<symbol>/<asOfTimestamp>/level-analysis-snapshot-v1.json
+artifacts/level-analysis-snapshot-real-cache-batch/<batchId>/level-analysis-snapshot-batch-manifest-v1.json
 ```
 
 Committed review manifest:
@@ -146,6 +159,32 @@ Generated manifests should include:
 Each entry should include artifact path, validation status, timeframe coverage,
 missing 15m tracking, safety flags, diagnostics, and checksum when artifact
 content is readable.
+
+## Generate A Local Real-Cache Batch
+
+Use the real-cache batch runner when snapshot artifacts do not exist yet and
+the local validation cache already has candle files.
+
+Required cache layout:
+
+```text
+<cache-root>/<provider>/<SYMBOL>/<timeframe>/<lookbackBars>-<endTimeMs>.json
+```
+
+Required timeframes:
+
+- `5m`
+- `4h`
+- `daily`
+
+Optional:
+
+- `15m`
+
+The runner reads local files only. It does not fetch from providers or alter
+LevelEngine behavior. If required timeframe cache is missing for a selected
+symbol, the run fails with an explicit missing-cache message. If 15m is absent,
+the generated manifest records the missing 15m condition.
 
 ## Downstream Adapter Fixture
 
