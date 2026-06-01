@@ -17,6 +17,7 @@
     "snapshot:level-analysis:batch:real-cache": "tsx src/scripts/run-level-analysis-snapshot-real-cache-batch.ts",
     "manifest:level-analysis:snapshots": "tsx src/scripts/run-level-analysis-snapshot-batch-manifest.ts",
     "manifest:level-analysis:snapshots:review": "tsx src/scripts/run-level-analysis-snapshot-batch-manifest.ts --input docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json --out docs/examples/level-analysis-snapshot/batch-manifest/latest-level-analysis-snapshot-batch-manifest.json --output-root docs/examples/level-analysis-snapshot --batch-id level-analysis-snapshot-review-batch --generated-at 2026-06-01T00:00:00.000Z",
+    "review:level-quality": "tsx src/scripts/run-level-quality-review.ts",
     "cache:collect:15m": "tsx src/scripts/collect-15m-validation-cache.ts",
     "validation:levels:live": "tsx src/scripts/run-level-candle-health-check.ts",
     "validation:levels:persistence": "tsx src/scripts/run-level-persistence-validation.ts",
