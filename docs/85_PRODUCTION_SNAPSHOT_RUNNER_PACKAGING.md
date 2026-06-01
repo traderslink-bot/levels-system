@@ -23,6 +23,7 @@ It:
 - writes deterministic JSON
 - prints JSON to stdout when no output path is supplied
 - writes JSON to `--out` when supplied
+- can be indexed by the batch manifest script after artifacts are generated
 - does not fetch live data
 - does not call network APIs
 - does not call Discord, alerts, monitoring, or trader-context code
@@ -138,6 +139,8 @@ Recommended local/review locations:
   - `docs/examples/level-analysis-snapshot/outputs/`
 - real-cache compact summaries:
   - `docs/examples/level-analysis-snapshot/real-cache-more-symbols/`
+- deterministic batch manifest review output:
+  - `docs/examples/level-analysis-snapshot/batch-manifest/latest-level-analysis-snapshot-batch-manifest.json`
 
 Recommended production-style convention:
 
@@ -165,6 +168,18 @@ Direct runner invocation remains supported:
 
 ```powershell
 npx tsx src/scripts/run-level-analysis-snapshot.ts --symbol SNAP --as-of 2026-05-01T10:20:00-04:00 --reference-price 10.68 --candles-5m docs/examples/level-analysis-snapshot/sample-5m-candles.json --candles-15m docs/examples/level-analysis-snapshot/sample-15m-candles.json --candles-4h docs/examples/level-analysis-snapshot/sample-4h-candles.json --candles-daily docs/examples/level-analysis-snapshot/sample-daily-candles.json --previous-close 9.1 --out docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json
+```
+
+Batch manifest review script:
+
+```powershell
+npm run manifest:level-analysis:snapshots:review
+```
+
+Generic batch manifest script:
+
+```powershell
+npm run manifest:level-analysis:snapshots -- --input artifacts/level-analysis-snapshot --out artifacts/level-analysis-snapshot/<batchId>/level-analysis-snapshot-batch-manifest-v1.json --output-root artifacts/level-analysis-snapshot --batch-id <batchId>
 ```
 
 ## No-Lookahead Expectations
@@ -265,8 +280,8 @@ Current runner limitations:
 - JSON output only.
 - Requires local candle JSON inputs.
 - Does not fetch live/cached candles by symbol.
-- Does not batch multiple symbols by itself.
-- Does not package manifests or checksums yet.
+- Does not batch multiple symbols by itself; the manifest script indexes already-generated artifacts.
+- Batch manifests include per-artifact SHA-256 checksums when artifact content is readable.
 - Does not write a production job summary.
 - `15m` is a hardened optional runner input for summary/no-lookahead readiness, but remains reserved and is not used for LevelEngine level generation yet.
 - Large production artifacts should be kept out of git unless explicitly requested.

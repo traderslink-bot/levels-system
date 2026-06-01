@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "level-analysis-snapshot-batch-manifest/v1",
+  "producer": "levels-system",
+  "batchId": "level-analysis-snapshot-review-batch",
+  "generatedAt": "2026-06-01T00:00:00.000Z",
+  "outputRoot": "docs/examples/level-analysis-snapshot",
+  "runConfig": {
+    "inputPath": "docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json",
+    "artifactCount": 1
+  },
+  "entries": [
+    {
+      "symbol": "SNAP",
+      "asOfTimestamp": 1777645200000,
+      "referencePrice": 10.68,
+      "artifactPath": "docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json",
+      "artifactExists": true,
+      "fileSizeBytes": 79006,
+      "checksumSha256": "d360c718279b6b4dd415253022dcb937fc3fc005088228604c30bc36535b71e4",
+      "snapshotSchemaVersion": "level-analysis-snapshot/v1",
+      "snapshotProducer": "levels-system",
+      "status": "accepted",
+      "validationErrors": [],
+      "diagnostics": [
+        "15m_candles_reserved_for_future_fact_generation",
+        "candle_close_as_of_filter_applied",
+        "candle_inputs_reserved_for_future_fact_generation"
+      ],
+      "timeframeCoverage": {
+        "5m": {
+          "provided": true,
+          "candleCount": 15,
+          "filteredCandleCount": 15,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "15m": {
+          "provided": true,
+          "candleCount": 3,
+          "filteredCandleCount": 3,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "4h": {
+          "provided": true,
+          "candleCount": 7,
+          "filteredCandleCount": 7,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        },
+        "daily": {
+          "provided": true,
+          "candleCount": 6,
+          "filteredCandleCount": 6,
+          "excludedFutureCandleCount": 0,
+          "excludedPartialCandleCount": 0
+        }
+      },
+      "has15mInput": true,
+      "missing15mInput": false,
+      "noLookaheadApplied": true,
+      "syntheticExtensionsClearlyMarked": true,
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "factsOnlyVWAP": true,
+        "shelvesAreFactsOnly": true,
+        "syntheticExtensionsClearlyMarked": true,
+        "noRuntimeBehaviorChange": true
+      }
+    }
+  ],
+  "summary": {
+    "totalEntries": 1,
+    "acceptedCount": 1,
+    "failedCount": 0,
+    "skippedCount": 0,
+    "quarantinedCount": 0,
+    "missing15mInputCount": 0,
+    "with15mInputCount": 1,
+    "timeframeAvailability": {
+      "5m": 1,
+      "15m": 1,
+      "4h": 1,
+      "daily": 1
+    },
+    "noLookaheadAppliedCount": 1,
+    "syntheticExtensionsClearlyMarkedCount": 1,
+    "uniqueDiagnostics": [
+      "15m_candles_reserved_for_future_fact_generation",
+      "candle_close_as_of_filter_applied",
+      "candle_inputs_reserved_for_future_fact_generation"
+    ],
+    "uniqueValidationErrors": []
+  },
+  "diagnostics": [],
+  "safety": {
+    "noLookaheadAppliedForAccepted": true,
+    "syntheticExtensionsClearlyMarkedForAccepted": true,
+    "noRuntimeBehaviorChange": true
+  }
+}
