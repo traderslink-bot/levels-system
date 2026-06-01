@@ -1,0 +1,93 @@
+Level quality final handoff summary
+Generated at: 2026-06-01T22:23:47.713Z
+Provider focus: IBKR
+
+Current merged baseline commit:
+d43e4d0897101ac1c5a3cd2fd0fcc8af844750aa
+
+Decision:
+defer_level_generation_behavior_tuning
+
+Current locked state:
+- LevelAnalysisSnapshot v1 is locked and handed off.
+- Production snapshot runner is packaged and smoke-tested.
+- Batch manifest workflow is packaged.
+- Optional 15m input is supported as factual context only.
+- Supplied real IBKR 15m facts validate cleanly.
+- Enrichment mapping is hardened.
+- Audit wording is hardened.
+- Extension coverage fixture pack is merged.
+- Cluster/density fixture pack is merged.
+- Post-fixture quality review rerun is merged.
+- Behavior tuning decision gate is merged.
+- Decision baseline is locked.
+- LevelEngine generation behavior has not been tuned.
+
+Reviewed symbols:
+DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+
+Supplied 15m symbols:
+DEVS, ENVX, DXYZ, QUBT, GME
+
+Validated state:
+- supplied real IBKR 15m validation passed 5/5 symbols
+- 15m facts valid for 5/5 supplied symbols
+- LevelEngine parity passed 5/5 with supplied 15m versus no 15m
+- locked ten-symbol nearest support parity: 10/10
+- locked ten-symbol nearest resistance parity: 10/10
+- locked ten-symbol bucket-count parity: 10/10
+- locked ten-symbol extension-count parity: 10/10
+- locked ten-symbol synthetic count/marking parity: 10/10
+- locked ten-symbol diagnostics parity: 10/10
+- locked ten-symbol diagnosticSemantics parity: 10/10
+- locked ten-symbol enrichmentBreakdown parity: 10/10
+- possible production bug count: 0
+- prohibited-language hit count: 0
+
+Deferred areas:
+- extension generation tuning
+- cluster/density behavior tuning
+- nearest-level generation changes
+- 15m LevelEngine input
+- synthetic continuation-map policy changes
+
+Known weaknesses locked as review candidates:
+- clustered level areas: DEVS, ENVX, DXYZ, GME, AIM, HCWB, YMAT
+- dense map review cases: QUBT, AAOI, PHOE
+- no resistance extension coverage: DEVS, AIM, HCWB
+- limited downside extension coverage: DEVS, ENVX, YMAT
+- wide nearest-level gaps: HCWB, PHOE
+- synthetic continuation-map present: AAOI, PHOE
+
+Future behavior tuning rules:
+- start from docs/116_LEVEL_QUALITY_DECISION_BASELINE_LOCK.md
+- change one behavior knob only
+- name exact expected output diff before implementation
+- include deterministic fixture coverage
+- include before/after compact artifacts
+- rerun the ten-symbol real-cache review against the locked baseline
+- compare nearest support/resistance
+- compare bucket counts
+- compare extension counts
+- compare synthetic markings
+- compare diagnostics and diagnosticSemantics
+- compare enrichmentBreakdown
+- prove no prohibited language
+- keep 15m context-only unless a separate approved gate changes that boundary
+- commit no raw cache files
+
+Recommended next gate:
+level_engine_behavior_tuning_backlog
+
+Boundary confirmations:
+- no support/resistance detection behavior changed
+- no LevelEngine scoring/ranking/clustering changed
+- no surfaced support/resistance levels changed
+- no extension generation behavior changed
+- 15m was not fed into LevelEngine
+- no new cache files were written
+- no raw cache files were committed
+- no Discord/alert/monitoring behavior changed
+- no journal app files changed
+- no journal grading/coaching/P&L/giveback/behavior scoring added
+- no recommendation/trade advice behavior added
