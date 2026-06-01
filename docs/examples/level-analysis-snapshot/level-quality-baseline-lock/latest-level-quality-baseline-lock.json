@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "level-quality-decision-baseline-lock/v1",
+  "generatedAt": "2026-06-01T22:13:43.216Z",
+  "providerFocus": "ibkr",
+  "baselineMainMergeCommit": "e4a2ce4ac3648d62e1b432507352799bc99f5738",
+  "sourceDecisionGateCommit": "d42c6a1084a20bf636f4afd73de5472c6ee4a0f6",
+  "decision": "defer_level_generation_behavior_tuning",
+  "recommendedNextGate": "level_quality_final_handoff_summary",
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "sourceDocs": [
+    "docs/107_LEVEL_ENGINE_QUALITY_TUNING_PLAN.md",
+    "docs/108_LEVEL_QUALITY_ENRICHMENT_MAPPING_HARDENING.md",
+    "docs/109_LEVEL_ENGINE_MULTI_TIMEFRAME_QUALITY_REVIEW_RERUN.md",
+    "docs/110_LEVEL_QUALITY_AUDIT_WORDING_HARDENING.md",
+    "docs/111_LEVEL_ENGINE_MULTI_TIMEFRAME_QUALITY_REVIEW_RERUN_AFTER_WORDING.md",
+    "docs/112_LEVEL_ENGINE_EXTENSION_COVERAGE_TUNING_PLAN_OR_FIXTURE_PACK.md",
+    "docs/113_LEVEL_ENGINE_CLUSTER_DENSITY_TUNING_PLAN_OR_FIXTURE_PACK.md",
+    "docs/114_LEVEL_ENGINE_MULTI_TIMEFRAME_QUALITY_REVIEW_RERUN_AFTER_FIXTURE_PACKS.md",
+    "docs/115_LEVEL_QUALITY_BEHAVIOR_TUNING_DECISION_GATE.md"
+  ],
+  "sourceArtifacts": [
+    "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-fixture-packs/latest-level-quality-review-rerun-after-fixture-packs.json",
+    "docs/examples/level-analysis-snapshot/level-quality-decision-gate/latest-level-quality-behavior-tuning-decision.json",
+    "docs/examples/level-analysis-snapshot/level-extension-coverage/latest-extension-coverage-fixture-pack.json",
+    "docs/examples/level-analysis-snapshot/level-cluster-density/latest-cluster-density-fixture-pack.json"
+  ],
+  "lockedPostFixtureRerunSummary": {
+    "totalSymbols": 10,
+    "nearestSupportParityCount": 10,
+    "nearestResistanceParityCount": 10,
+    "bucketCountParityCount": 10,
+    "extensionCountParityCount": 10,
+    "syntheticCountParityCount": 10,
+    "syntheticMarkingParityCount": 10,
+    "diagnosticsParityCount": 10,
+    "diagnosticSemanticsParityCount": 10,
+    "enrichmentBreakdownParityCount": 10,
+    "extensionCoverageWarningParityCount": 10,
+    "clusteredDensityDiagnosticParityCount": 10,
+    "fifteenMinuteContextOnlyCount": 10,
+    "possibleBugCount": 0,
+    "prohibitedLanguageHitCount": 0
+  },
+  "knownWeaknessesLockedAsReviewCandidates": {
+    "clusteredLevelAreasPresent": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "GME",
+      "AIM",
+      "HCWB",
+      "YMAT"
+    ],
+    "denseMapReviewCases": [
+      "QUBT",
+      "AAOI",
+      "PHOE"
+    ],
+    "noResistanceExtensionCoverage": [
+      "DEVS",
+      "AIM",
+      "HCWB"
+    ],
+    "limitedDownsideExtensionCoverage": [
+      "DEVS",
+      "ENVX",
+      "YMAT"
+    ],
+    "wideNearestLevelGaps": [
+      "HCWB",
+      "PHOE"
+    ],
+    "syntheticContinuationMapPresent": [
+      "AAOI",
+      "PHOE"
+    ]
+  },
+  "deferredTuningAreas": [
+    "extension_generation_tuning",
+    "cluster_density_behavior_tuning",
+    "nearest_level_generation_changes",
+    "15m_LevelEngine_input",
+    "synthetic_continuation_map_policy_changes"
+  ],
+  "requiredFutureComparisonChecks": [
+    "nearest_support_price_and_distance",
+    "nearest_resistance_price_and_distance",
+    "major_intermediate_intraday_extension_bucket_counts",
+    "extension_support_resistance_counts",
+    "synthetic_continuation_map_count_and_marking",
+    "LevelQualityAudit_diagnostics",
+    "diagnosticSemantics",
+    "enrichmentBreakdown",
+    "extension_warning_code_sets",
+    "cluster_density_diagnostics",
+    "15m_context_only_status",
+    "prohibited_language_guard"
+  ],
+  "futureBehaviorTuningEntryRequirements": [
+    "one_behavior_knob_only",
+    "exact_expected_output_diff_before_implementation",
+    "deterministic_fixture_coverage",
+    "before_after_compact_artifacts",
+    "ten_symbol_real_cache_rerun_against_this_baseline",
+    "nearest_support_resistance_comparison",
+    "bucket_count_comparison",
+    "extension_count_comparison",
+    "synthetic_marking_comparison",
+    "diagnostic_and_diagnosticSemantics_comparison",
+    "15m_context_only_confirmation_unless_separate_gate_changes_boundary",
+    "no_raw_cache_commits",
+    "no_recommendation_or_trade_advice_language"
+  ],
+  "prohibitedWithoutNewGate": [
+    "support_resistance_detection_tuning",
+    "LevelEngine_scoring_ranking_clustering_bucket_assignment_changes",
+    "surfaced_support_resistance_level_changes",
+    "extension_generation_changes",
+    "15m_LevelEngine_input",
+    "synthetic_continuation_map_policy_changes",
+    "runtime_default_changes",
+    "alert_monitoring_Discord_behavior_changes",
+    "journal_app_changes",
+    "journal_grading_coaching_pnl_giveback_behavior_scoring_recommendations_or_trade_advice"
+  ],
+  "boundaries": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "newCacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "discordAlertMonitoringChanged": false,
+    "journalAppChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceAdded": false
+  }
+}
