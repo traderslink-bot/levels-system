@@ -1,0 +1,37 @@
+LevelEngine quality review rerun after audit wording
+Generated at: 2026-06-01T19:54:54.818Z
+Baseline: docs/examples/level-analysis-snapshot/level-quality-review-rerun/latest-level-quality-review-rerun.json (2026-06-01T19:22:36.298Z)
+Symbols: DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+
+Parity summary:
+- Nearest support: 10/10
+- Nearest resistance: 10/10
+- Bucket counts: 10/10
+- Extension counts: 10/10
+- Synthetic count/marking: 10/10 / 10/10
+- Diagnostics unchanged: 10/10
+- Enrichment breakdown parity: 10/10
+- 15m context only: 10/10
+
+Diagnostic semantics:
+- Symbols with diagnosticSemantics: 10/10
+- Codes match diagnostics: 10/10
+- Factual-only semantics: 10/10
+- Categories: coverage=10, density=7, enrichment=30, synthetic=2
+- Severities: info=2, review=3, watch=44
+- Prohibited language hits: 0
+
+Per-symbol semantic codes:
+- DEVS: clustered_level_areas_present, limited_downside_extension_coverage, no_resistance_extension_coverage, unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present
+- ENVX: clustered_level_areas_present, limited_downside_extension_coverage, unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present
+- DXYZ: clustered_level_areas_present, unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present
+- QUBT: unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present
+- GME: clustered_level_areas_present, unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present
+- AIM: clustered_level_areas_present, no_resistance_extension_coverage, unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present
+- HCWB: clustered_level_areas_present, no_resistance_extension_coverage, unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present, wide_downside_support_gap, wide_overhead_resistance_gap
+- YMAT: clustered_level_areas_present, limited_downside_extension_coverage, unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present
+- AAOI: unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present, unenriched_synthetic_levels_present
+- PHOE: unenriched_extension_levels_present, unenriched_historical_levels_present, unenriched_levels_present, unenriched_synthetic_levels_present, wide_downside_support_gap, wide_overhead_resistance_gap
+
+Possible bugs: none
+Recommended next gate: level_engine_extension_coverage_tuning_plan_or_fixture_pack
