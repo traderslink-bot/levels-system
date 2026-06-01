@@ -1,0 +1,20 @@
+15m validation cache coverage
+Generated at: 2026-06-01T00:00:00.000Z
+Cache root: C:\Users\jerac\AppData\Local\Temp\levels-system-15m-stub-write-dry-run-20260601
+Cache root exists: true
+Providers: stub
+Provider/symbol groups: 2
+Total cache JSON files: 2
+Malformed JSON files: 0
+Validation cache entries: 2
+Non-JSON files ignored: 0
+5m JSON files: 0
+15m JSON files: 2
+4h JSON files: 0
+Daily JSON files: 0
+Groups with 5m/4h/daily: 0
+Groups with any 15m: 2
+Groups with 5m/15m/4h/daily: 0
+Groups missing 15m among 5m/4h/daily: 0
+Diagnostics: none
+Symbols with 15m: stub/TESTA, stub/TESTB

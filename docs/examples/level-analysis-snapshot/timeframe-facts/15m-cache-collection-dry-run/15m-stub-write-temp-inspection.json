@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-06-01T00:00:00.000Z",
+  "cacheRoot": "C:\\Users\\jerac\\AppData\\Local\\Temp\\levels-system-15m-stub-write-dry-run-20260601",
+  "cacheRootExists": true,
+  "providers": [
+    "stub"
+  ],
+  "providerSymbolGroups": 2,
+  "totalJsonFiles": 2,
+  "malformedJsonFiles": 0,
+  "validationCacheEntries": 2,
+  "nonJsonFiles": 0,
+  "groupsWith5m4hDaily": 0,
+  "groupsWithAny15m": 2,
+  "groupsWith5m15m4hDaily": 0,
+  "groupsMissing15mAmong5m4hDaily": 0,
+  "timeframeJsonFileCounts": {
+    "5m": 0,
+    "15m": 2,
+    "4h": 0,
+    "daily": 0
+  },
+  "diagnostics": [],
+  "symbolsWith15mSample": [
+    "stub/TESTA",
+    "stub/TESTB"
+  ],
+  "symbolsMissing15mAmong5m4hDailySample": []
+}
