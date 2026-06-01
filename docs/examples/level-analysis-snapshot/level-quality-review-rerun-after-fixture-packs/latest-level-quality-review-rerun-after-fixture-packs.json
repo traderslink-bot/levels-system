@@ -1,0 +1,2990 @@
+{
+  "schemaVersion": "level-engine-quality-review-rerun-after-fixture-packs/v1",
+  "generatedAt": "2026-06-01T21:45:00.000Z",
+  "provider": "ibkr",
+  "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles",
+  "baseline": {
+    "source": "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-wording/latest-level-quality-review-rerun-after-wording.json",
+    "generatedAt": "2026-06-01T19:54:54.818Z"
+  },
+  "fixturePacks": {
+    "extensionCoverage": {
+      "source": "docs/examples/level-analysis-snapshot/level-extension-coverage/latest-extension-coverage-fixture-pack.json",
+      "possibleBugFound": false,
+      "recommendedNextGate": "level_engine_cluster_density_tuning_plan_or_fixture_pack"
+    },
+    "clusterDensity": {
+      "source": "docs/examples/level-analysis-snapshot/level-cluster-density/latest-cluster-density-fixture-pack.json",
+      "possibleBugFound": false,
+      "recommendedNextGate": "level_engine_multi_timeframe_quality_review_rerun_after_fixture_packs"
+    }
+  },
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "comparisonSymbolsWithout15m": [
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "summary": {
+    "totalSymbols": 10,
+    "nearestSupportParityCount": 10,
+    "nearestResistanceParityCount": 10,
+    "bucketCountParityCount": 10,
+    "extensionCountParityCount": 10,
+    "syntheticCountParityCount": 10,
+    "syntheticMarkingParityCount": 10,
+    "diagnosticsParityCount": 10,
+    "diagnosticSemanticsParityCount": 10,
+    "enrichmentBreakdownParityCount": 10,
+    "extensionCoverageWarningParityCount": 10,
+    "clusteredDensityDiagnosticParityCount": 10,
+    "fifteenMinuteContextOnlyCount": 10,
+    "possibleBugCount": 0,
+    "prohibitedLanguageHitCount": 0
+  },
+  "extensionCoverageSummary": {
+    "noResistanceExtensionCoverage": [
+      "DEVS",
+      "AIM",
+      "HCWB"
+    ],
+    "limitedDownsideExtensionCoverage": [
+      "DEVS",
+      "ENVX",
+      "YMAT"
+    ],
+    "noExtensionCoverageWarnings": [
+      "DXYZ",
+      "QUBT",
+      "GME",
+      "AAOI",
+      "PHOE"
+    ],
+    "syntheticContinuationMapPresent": [
+      "AAOI",
+      "PHOE"
+    ]
+  },
+  "clusterDensitySummary": {
+    "clusteredLevelAreasPresent": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "GME",
+      "AIM",
+      "HCWB",
+      "YMAT"
+    ],
+    "denseMapReviewCasesWithoutAuditClusterDiagnostic": [
+      "QUBT",
+      "AAOI",
+      "PHOE"
+    ],
+    "possibleClutterLevelCounts": {
+      "DEVS": 2,
+      "ENVX": 2,
+      "DXYZ": 2,
+      "QUBT": 0,
+      "GME": 2,
+      "AIM": 2,
+      "HCWB": 2,
+      "YMAT": 2,
+      "AAOI": 0,
+      "PHOE": 0
+    },
+    "clusteredAreaCounts": {
+      "DEVS": 1,
+      "ENVX": 1,
+      "DXYZ": 1,
+      "QUBT": 0,
+      "GME": 1,
+      "AIM": 1,
+      "HCWB": 1,
+      "YMAT": 1,
+      "AAOI": 0,
+      "PHOE": 0
+    }
+  },
+  "diagnosticSemanticsSummary": {
+    "symbolsWithDiagnosticSemantics": 10,
+    "semanticCodesMatchDiagnostics": 10,
+    "semanticsFactualOnly": 10,
+    "uniqueCodes": [
+      "clustered_level_areas_present",
+      "limited_downside_extension_coverage",
+      "no_resistance_extension_coverage",
+      "unenriched_extension_levels_present",
+      "unenriched_historical_levels_present",
+      "unenriched_levels_present",
+      "unenriched_synthetic_levels_present",
+      "wide_downside_support_gap",
+      "wide_overhead_resistance_gap"
+    ],
+    "categories": {
+      "density": 7,
+      "coverage": 10,
+      "enrichment": 30,
+      "synthetic": 2
+    },
+    "severities": {
+      "watch": 44,
+      "review": 3,
+      "info": 2
+    },
+    "prohibitedLanguageHits": []
+  },
+  "fifteenMinuteContextAssessment": {
+    "suppliedSymbols": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "QUBT",
+      "GME"
+    ],
+    "symbolsWithFacts": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "QUBT",
+      "GME"
+    ],
+    "symbolsWithProviderMetadata15m": [],
+    "contextOnlySymbols": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "QUBT",
+      "GME"
+    ]
+  },
+  "expectedOutcome": {
+    "levelEngineParityHeld": true,
+    "diagnosticSemanticsRemainFactual": true,
+    "behaviorChangeDetected": false
+  },
+  "possibleBugs": [],
+  "remainingWeaknesses": [
+    "clustered level areas remain present on seven symbols",
+    "dense maps without audit cluster diagnostics remain review cases for QUBT, AAOI, and PHOE",
+    "extension coverage warnings remain present on DEVS, ENVX, AIM, HCWB, and YMAT",
+    "wide nearest-level gaps remain present on HCWB and PHOE",
+    "behavior tuning still needs an explicit decision gate before changing LevelEngine behavior"
+  ],
+  "recommendedNextGate": "level_quality_behavior_tuning_decision_gate",
+  "entries": [
+    {
+      "symbol": "DEVS",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 0.2705,
+      "previousClose": 0.25,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/DEVS/5m/100-1780314300000.json",
+        "15m": "ibkr/DEVS/15m/100-1780329600000.json",
+        "4h": "ibkr/DEVS/4h/180-1780300800000.json",
+        "daily": "ibkr/DEVS/daily/520-1780272000000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "DEVS-support-zone-15",
+          "bucket": "intermediateSupport",
+          "price": 0.27,
+          "distancePct": 0.1848,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "DEVS-resistance-zone-12",
+          "bucket": "intradayResistance",
+          "price": 0.2772,
+          "distancePct": 2.4769,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 2,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 2,
+        "intradaySupport": 1,
+        "intradayResistance": 3,
+        "extensionSupport": 3,
+        "extensionResistance": 0,
+        "total": 16
+      },
+      "extensionCoverage": {
+        "support": 3,
+        "resistance": 0,
+        "lowestSupportExtension": 0.2402,
+        "downsideCoveragePct": 11.2015,
+        "warnings": [
+          "limited_downside_extension_coverage",
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "no_resistance_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "clustered_level_areas_present",
+            "category": "density",
+            "severity": "watch",
+            "label": "Clustered level areas present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "limited_downside_extension_coverage",
+            "category": "coverage",
+            "severity": "watch",
+            "label": "Limited downside extension coverage",
+            "description": "The lowest support extension does not reach the configured downside coverage threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "no_resistance_extension_coverage",
+            "category": "coverage",
+            "severity": "review",
+            "label": "No resistance extension coverage",
+            "description": "The extension ladder contains no resistance extension rows for the audited snapshot.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 16,
+          "supportCount": 11,
+          "resistanceCount": 5,
+          "extensionCount": 3,
+          "freshCount": 8,
+          "staleCount": 7,
+          "enrichedCount": 0,
+          "unenrichedCount": 16
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 13,
+            "unenrichedLevelIds": [
+              "DEVS-support-zone-14",
+              "DEVS-support-zone-3",
+              "DEVS-support-zone-6",
+              "DEVS-support-zone-1",
+              "DEVS-support-zone-15",
+              "DEVS-support-zone-8",
+              "DEVS-support-zone-9",
+              "DEVS-resistance-zone-15",
+              "DEVS-resistance-zone-16",
+              "DEVS-support-zone-12",
+              "DEVS-resistance-zone-14",
+              "DEVS-resistance-zone-12",
+              "DEVS-resistance-zone-13"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 3,
+            "unenrichedLevelIds": [
+              "DEVS-support-zone-13",
+              "DEVS-support-zone-11",
+              "DEVS-support-zone-10"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 0,
+            "unenrichedLevelIds": []
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 3,
+          "volumeConfluenceCount": 16,
+          "shelfConfluenceCount": 7,
+          "marketContextConfluenceCount": 16
+        },
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "strongestLevelIds": [
+          "DEVS-support-zone-14",
+          "DEVS-support-zone-3",
+          "DEVS-support-zone-12",
+          "DEVS-support-zone-6",
+          "DEVS-support-zone-13"
+        ],
+        "weakestLevelIds": [
+          "DEVS-support-zone-11",
+          "DEVS-resistance-zone-13",
+          "DEVS-resistance-zone-12",
+          "DEVS-support-zone-9",
+          "DEVS-resistance-zone-16"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "density": 1,
+          "coverage": 2,
+          "enrichment": 3
+        },
+        "severities": {
+          "watch": 5,
+          "review": 1
+        },
+        "labels": [
+          {
+            "code": "clustered_level_areas_present",
+            "label": "Clustered level areas present"
+          },
+          {
+            "code": "limited_downside_extension_coverage",
+            "label": "Limited downside extension coverage"
+          },
+          {
+            "code": "no_resistance_extension_coverage",
+            "label": "No resistance extension coverage"
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "clustered_level_areas_present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold."
+          },
+          {
+            "code": "limited_downside_extension_coverage",
+            "description": "The lowest support extension does not reach the configured downside coverage threshold."
+          },
+          {
+            "code": "no_resistance_extension_coverage",
+            "description": "The extension ladder contains no resistance extension rows for the audited snapshot."
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": true,
+        "filteredCandleCount": 96,
+        "factsPresent": true,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "no_resistance_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "rerunDiagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "no_resistance_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "unchanged": true
+      }
+    },
+    {
+      "symbol": "ENVX",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 6.73,
+      "previousClose": 6.74,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/ENVX/5m/100-1779463200000.json",
+        "15m": "ibkr/ENVX/15m/100-1780329600000.json",
+        "4h": "ibkr/ENVX/4h/180-1779451200000.json",
+        "daily": "ibkr/ENVX/daily/520-1779408000000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "ENVX-support-zone-14",
+          "bucket": "majorSupport",
+          "price": 6.68,
+          "distancePct": 0.7429,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "ENVX-resistance-zone-7",
+          "bucket": "intermediateResistance",
+          "price": 6.8,
+          "distancePct": 1.0401,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 3,
+        "intermediateResistance": 1,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1,
+        "total": 16
+      },
+      "extensionCoverage": {
+        "support": 3,
+        "resistance": 1,
+        "lowestSupportExtension": 5.69,
+        "highestResistanceExtension": 9.86,
+        "upsideCoveragePct": 46.5082,
+        "downsideCoveragePct": 15.4532,
+        "warnings": [
+          "limited_downside_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "clustered_level_areas_present",
+            "category": "density",
+            "severity": "watch",
+            "label": "Clustered level areas present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "limited_downside_extension_coverage",
+            "category": "coverage",
+            "severity": "watch",
+            "label": "Limited downside extension coverage",
+            "description": "The lowest support extension does not reach the configured downside coverage threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 16,
+          "supportCount": 10,
+          "resistanceCount": 6,
+          "extensionCount": 4,
+          "freshCount": 0,
+          "staleCount": 16,
+          "enrichedCount": 0,
+          "unenrichedCount": 16
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 12,
+            "unenrichedLevelIds": [
+              "ENVX-support-zone-10",
+              "ENVX-support-zone-14",
+              "ENVX-support-zone-4",
+              "ENVX-support-zone-1",
+              "ENVX-resistance-zone-9",
+              "ENVX-resistance-zone-16",
+              "ENVX-resistance-zone-15",
+              "ENVX-resistance-zone-12",
+              "ENVX-support-zone-11",
+              "ENVX-support-zone-9",
+              "ENVX-support-zone-7",
+              "ENVX-resistance-zone-7"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 4,
+            "unenrichedLevelIds": [
+              "ENVX-support-zone-13",
+              "ENVX-support-zone-8",
+              "ENVX-support-zone-6",
+              "ENVX-resistance-zone-17"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 0,
+            "unenrichedLevelIds": []
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 1,
+          "volumeConfluenceCount": 16,
+          "shelfConfluenceCount": 3,
+          "marketContextConfluenceCount": 16
+        },
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "strongestLevelIds": [
+          "ENVX-support-zone-11",
+          "ENVX-resistance-zone-9",
+          "ENVX-support-zone-13",
+          "ENVX-support-zone-10",
+          "ENVX-support-zone-14"
+        ],
+        "weakestLevelIds": [
+          "ENVX-support-zone-7",
+          "ENVX-resistance-zone-17",
+          "ENVX-support-zone-1",
+          "ENVX-support-zone-9",
+          "ENVX-support-zone-6"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "density": 1,
+          "coverage": 1,
+          "enrichment": 3
+        },
+        "severities": {
+          "watch": 5
+        },
+        "labels": [
+          {
+            "code": "clustered_level_areas_present",
+            "label": "Clustered level areas present"
+          },
+          {
+            "code": "limited_downside_extension_coverage",
+            "label": "Limited downside extension coverage"
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "clustered_level_areas_present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold."
+          },
+          {
+            "code": "limited_downside_extension_coverage",
+            "description": "The lowest support extension does not reach the configured downside coverage threshold."
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": true,
+        "filteredCandleCount": 96,
+        "factsPresent": true,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "rerunDiagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "unchanged": true
+      }
+    },
+    {
+      "symbol": "DXYZ",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 46.47,
+      "previousClose": 46.47,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/DXYZ/5m/100-1778845800000.json",
+        "15m": "ibkr/DXYZ/15m/100-1780329600000.json",
+        "4h": "ibkr/DXYZ/4h/180-1778832000000.json",
+        "daily": "ibkr/DXYZ/daily/520-1778803200000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "DXYZ-support-zone-35",
+          "bucket": "majorSupport",
+          "price": 45.8,
+          "distancePct": 1.4418,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "DXYZ-resistance-zone-31",
+          "bucket": "majorResistance",
+          "price": 46.8,
+          "distancePct": 0.7101,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 3,
+        "intermediateResistance": 1,
+        "intradaySupport": 1,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1,
+        "total": 17
+      },
+      "extensionCoverage": {
+        "support": 3,
+        "resistance": 1,
+        "lowestSupportExtension": 24,
+        "highestResistanceExtension": 67.69,
+        "upsideCoveragePct": 45.6639,
+        "downsideCoveragePct": 48.3538,
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "clustered_level_areas_present",
+            "category": "density",
+            "severity": "watch",
+            "label": "Clustered level areas present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 17,
+          "supportCount": 11,
+          "resistanceCount": 6,
+          "extensionCount": 4,
+          "freshCount": 0,
+          "staleCount": 17,
+          "enrichedCount": 0,
+          "unenrichedCount": 17
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 13,
+            "unenrichedLevelIds": [
+              "DXYZ-support-zone-25",
+              "DXYZ-support-zone-35",
+              "DXYZ-support-zone-30",
+              "DXYZ-support-zone-22",
+              "DXYZ-resistance-zone-31",
+              "DXYZ-resistance-zone-33",
+              "DXYZ-resistance-zone-37",
+              "DXYZ-resistance-zone-34",
+              "DXYZ-support-zone-23",
+              "DXYZ-support-zone-32",
+              "DXYZ-support-zone-26",
+              "DXYZ-resistance-zone-36",
+              "DXYZ-support-zone-33"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 4,
+            "unenrichedLevelIds": [
+              "DXYZ-support-zone-21",
+              "DXYZ-support-zone-18",
+              "DXYZ-support-zone-17",
+              "DXYZ-resistance-zone-38"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 0,
+            "unenrichedLevelIds": []
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 1,
+          "volumeConfluenceCount": 17,
+          "shelfConfluenceCount": 1,
+          "marketContextConfluenceCount": 17
+        },
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "strongestLevelIds": [
+          "DXYZ-support-zone-25",
+          "DXYZ-resistance-zone-31",
+          "DXYZ-support-zone-35",
+          "DXYZ-support-zone-30",
+          "DXYZ-support-zone-22"
+        ],
+        "weakestLevelIds": [
+          "DXYZ-support-zone-26",
+          "DXYZ-support-zone-32",
+          "DXYZ-support-zone-17",
+          "DXYZ-resistance-zone-36",
+          "DXYZ-resistance-zone-34"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "density": 1,
+          "enrichment": 3
+        },
+        "severities": {
+          "watch": 4
+        },
+        "labels": [
+          {
+            "code": "clustered_level_areas_present",
+            "label": "Clustered level areas present"
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "clustered_level_areas_present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold."
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": true,
+        "filteredCandleCount": 96,
+        "factsPresent": true,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "clustered_level_areas_present",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "rerunDiagnostics": [
+          "clustered_level_areas_present",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "unchanged": true
+      }
+    },
+    {
+      "symbol": "QUBT",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 12.799,
+      "previousClose": 12.89,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/QUBT/5m/100-1778595300000.json",
+        "15m": "ibkr/QUBT/15m/100-1780329600000.json",
+        "4h": "ibkr/QUBT/4h/180-1778587200000.json",
+        "daily": "ibkr/QUBT/daily/520-1778544000000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "QUBT-support-zone-38",
+          "bucket": "intradaySupport",
+          "price": 12.42,
+          "distancePct": 2.9612,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "QUBT-resistance-zone-33",
+          "bucket": "intradayResistance",
+          "price": 12.9727,
+          "distancePct": 1.3571,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 4,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 2,
+        "extensionSupport": 3,
+        "extensionResistance": 1,
+        "total": 19
+      },
+      "extensionCoverage": {
+        "support": 3,
+        "resistance": 1,
+        "lowestSupportExtension": 6.23,
+        "highestResistanceExtension": 16.9305,
+        "upsideCoveragePct": 32.2799,
+        "downsideCoveragePct": 51.3243,
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 19,
+          "supportCount": 12,
+          "resistanceCount": 7,
+          "extensionCount": 4,
+          "freshCount": 0,
+          "staleCount": 19,
+          "enrichedCount": 0,
+          "unenrichedCount": 19
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 15,
+            "unenrichedLevelIds": [
+              "QUBT-support-zone-19",
+              "QUBT-support-zone-36",
+              "QUBT-support-zone-29",
+              "QUBT-support-zone-28",
+              "QUBT-resistance-zone-34",
+              "QUBT-resistance-zone-39",
+              "QUBT-resistance-zone-38",
+              "QUBT-resistance-zone-41",
+              "QUBT-support-zone-27",
+              "QUBT-support-zone-26",
+              "QUBT-support-zone-24",
+              "QUBT-support-zone-25",
+              "QUBT-support-zone-38",
+              "QUBT-resistance-zone-33",
+              "QUBT-resistance-zone-37"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 4,
+            "unenrichedLevelIds": [
+              "QUBT-support-zone-18",
+              "QUBT-support-zone-17",
+              "QUBT-support-zone-16",
+              "QUBT-resistance-zone-40"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 0,
+            "unenrichedLevelIds": []
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 0,
+          "volumeConfluenceCount": 19,
+          "shelfConfluenceCount": 1,
+          "marketContextConfluenceCount": 19
+        },
+        "clusteredAreaCount": 0,
+        "possibleClutterLevelCount": 0,
+        "strongestLevelIds": [
+          "QUBT-support-zone-19",
+          "QUBT-support-zone-36",
+          "QUBT-resistance-zone-34",
+          "QUBT-support-zone-29",
+          "QUBT-support-zone-28"
+        ],
+        "weakestLevelIds": [
+          "QUBT-resistance-zone-37",
+          "QUBT-support-zone-25",
+          "QUBT-support-zone-24",
+          "QUBT-resistance-zone-41",
+          "QUBT-support-zone-26"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "enrichment": 3
+        },
+        "severities": {
+          "watch": 3
+        },
+        "labels": [
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": true,
+        "filteredCandleCount": 96,
+        "factsPresent": true,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "rerunDiagnostics": [
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "unchanged": true
+      }
+    },
+    {
+      "symbol": "GME",
+      "provider": "ibkr",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 24.8,
+      "previousClose": 24.8,
+      "hasSupplied15m": true,
+      "sourceFiles": {
+        "5m": "ibkr/GME/5m/100-1777907100000.json",
+        "15m": "ibkr/GME/15m/100-1780329600000.json",
+        "4h": "ibkr/GME/4h/180-1777896000000.json",
+        "daily": "ibkr/GME/daily/520-1777852800000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "GME-support-zone-17",
+          "bucket": "intermediateSupport",
+          "price": 24.73,
+          "distancePct": 0.2823,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "GME-resistance-zone-7",
+          "bucket": "majorResistance",
+          "price": 25,
+          "distancePct": 0.8065,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 4,
+        "intermediateSupport": 1,
+        "intermediateResistance": 0,
+        "intradaySupport": 0,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 3,
+        "total": 15
+      },
+      "extensionCoverage": {
+        "support": 3,
+        "resistance": 3,
+        "lowestSupportExtension": 19.61,
+        "highestResistanceExtension": 34.37,
+        "upsideCoveragePct": 38.5887,
+        "downsideCoveragePct": 20.9274,
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "clustered_level_areas_present",
+            "category": "density",
+            "severity": "watch",
+            "label": "Clustered level areas present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 15,
+          "supportCount": 8,
+          "resistanceCount": 7,
+          "extensionCount": 6,
+          "freshCount": 0,
+          "staleCount": 15,
+          "enrichedCount": 0,
+          "unenrichedCount": 15
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 9,
+            "unenrichedLevelIds": [
+              "GME-support-zone-11",
+              "GME-support-zone-10",
+              "GME-support-zone-16",
+              "GME-support-zone-15",
+              "GME-resistance-zone-10",
+              "GME-resistance-zone-7",
+              "GME-resistance-zone-13",
+              "GME-resistance-zone-16",
+              "GME-support-zone-17"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 6,
+            "unenrichedLevelIds": [
+              "GME-support-zone-9",
+              "GME-support-zone-6",
+              "GME-support-zone-4",
+              "GME-resistance-zone-17",
+              "GME-resistance-zone-18",
+              "GME-resistance-zone-19"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 0,
+            "unenrichedLevelIds": []
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 2,
+          "volumeConfluenceCount": 15,
+          "shelfConfluenceCount": 1,
+          "marketContextConfluenceCount": 15
+        },
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "strongestLevelIds": [
+          "GME-resistance-zone-10",
+          "GME-support-zone-17",
+          "GME-support-zone-11",
+          "GME-support-zone-10",
+          "GME-resistance-zone-7"
+        ],
+        "weakestLevelIds": [
+          "GME-resistance-zone-18",
+          "GME-support-zone-4",
+          "GME-resistance-zone-17",
+          "GME-resistance-zone-19",
+          "GME-resistance-zone-16"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "density": 1,
+          "enrichment": 3
+        },
+        "severities": {
+          "watch": 4
+        },
+        "labels": [
+          {
+            "code": "clustered_level_areas_present",
+            "label": "Clustered level areas present"
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "clustered_level_areas_present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold."
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": true,
+        "filteredCandleCount": 96,
+        "factsPresent": true,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "clustered_level_areas_present",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "rerunDiagnostics": [
+          "clustered_level_areas_present",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "unchanged": true
+      }
+    },
+    {
+      "symbol": "AIM",
+      "provider": "ibkr",
+      "asOfTimestamp": 1779976800000,
+      "asOfIso": "2026-05-28T14:00:00.000Z",
+      "referencePrice": 0.373,
+      "previousClose": 0.3815,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/AIM/5m/100-1779976500000.json",
+        "4h": "ibkr/AIM/4h/180-1779969600000.json",
+        "daily": "ibkr/AIM/daily/520-1779926400000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "AIM-support-zone-13",
+          "bucket": "intradaySupport",
+          "price": 0.35,
+          "distancePct": 6.1662,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "AIM-resistance-zone-9",
+          "bucket": "intradayResistance",
+          "price": 0.375,
+          "distancePct": 0.5362,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 1,
+        "majorResistance": 1,
+        "intermediateSupport": 4,
+        "intermediateResistance": 3,
+        "intradaySupport": 3,
+        "intradayResistance": 2,
+        "extensionSupport": 3,
+        "extensionResistance": 0,
+        "total": 17
+      },
+      "extensionCoverage": {
+        "support": 3,
+        "resistance": 0,
+        "lowestSupportExtension": 0.2829,
+        "downsideCoveragePct": 24.1555,
+        "warnings": [
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "no_resistance_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "clustered_level_areas_present",
+            "category": "density",
+            "severity": "watch",
+            "label": "Clustered level areas present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "no_resistance_extension_coverage",
+            "category": "coverage",
+            "severity": "review",
+            "label": "No resistance extension coverage",
+            "description": "The extension ladder contains no resistance extension rows for the audited snapshot.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 17,
+          "supportCount": 11,
+          "resistanceCount": 6,
+          "extensionCount": 3,
+          "freshCount": 0,
+          "staleCount": 9,
+          "enrichedCount": 0,
+          "unenrichedCount": 17
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 14,
+            "unenrichedLevelIds": [
+              "AIM-support-zone-1",
+              "AIM-resistance-zone-14",
+              "AIM-support-zone-7",
+              "AIM-support-zone-6",
+              "AIM-support-zone-4",
+              "AIM-support-zone-2",
+              "AIM-resistance-zone-13",
+              "AIM-resistance-zone-12",
+              "AIM-resistance-zone-11",
+              "AIM-support-zone-13",
+              "AIM-support-zone-11",
+              "AIM-support-zone-10",
+              "AIM-resistance-zone-9",
+              "AIM-resistance-zone-10"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 3,
+            "unenrichedLevelIds": [
+              "AIM-support-zone-12",
+              "AIM-support-zone-9",
+              "AIM-support-zone-8"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 0,
+            "unenrichedLevelIds": []
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 5,
+          "volumeConfluenceCount": 17,
+          "shelfConfluenceCount": 3,
+          "marketContextConfluenceCount": 17
+        },
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "strongestLevelIds": [
+          "AIM-support-zone-13",
+          "AIM-resistance-zone-14",
+          "AIM-support-zone-1",
+          "AIM-resistance-zone-13",
+          "AIM-support-zone-11"
+        ],
+        "weakestLevelIds": [
+          "AIM-resistance-zone-11",
+          "AIM-support-zone-9",
+          "AIM-resistance-zone-10",
+          "AIM-resistance-zone-12",
+          "AIM-support-zone-12"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "density": 1,
+          "coverage": 1,
+          "enrichment": 3
+        },
+        "severities": {
+          "watch": 4,
+          "review": 1
+        },
+        "labels": [
+          {
+            "code": "clustered_level_areas_present",
+            "label": "Clustered level areas present"
+          },
+          {
+            "code": "no_resistance_extension_coverage",
+            "label": "No resistance extension coverage"
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "clustered_level_areas_present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold."
+          },
+          {
+            "code": "no_resistance_extension_coverage",
+            "description": "The extension ladder contains no resistance extension rows for the audited snapshot."
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": false,
+        "filteredCandleCount": 0,
+        "factsPresent": false,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "clustered_level_areas_present",
+          "no_resistance_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "rerunDiagnostics": [
+          "clustered_level_areas_present",
+          "no_resistance_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "unchanged": true
+      }
+    },
+    {
+      "symbol": "HCWB",
+      "provider": "ibkr",
+      "asOfTimestamp": 1779289200000,
+      "asOfIso": "2026-05-20T15:00:00.000Z",
+      "referencePrice": 2.945,
+      "previousClose": 1.02,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/HCWB/5m/100-1779288900000.json",
+        "4h": "ibkr/HCWB/4h/180-1779278400000.json",
+        "daily": "ibkr/HCWB/daily/520-1779235200000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "HCWB-support-zone-23",
+          "bucket": "majorSupport",
+          "price": 1.91,
+          "distancePct": 35.1443,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "HCWB-resistance-zone-26",
+          "bucket": "majorResistance",
+          "price": 3.78,
+          "distancePct": 28.3531,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 2,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 4,
+        "intradayResistance": 1,
+        "extensionSupport": 1,
+        "extensionResistance": 0,
+        "total": 17
+      },
+      "extensionCoverage": {
+        "support": 1,
+        "resistance": 0,
+        "lowestSupportExtension": 0.2342,
+        "downsideCoveragePct": 92.0475,
+        "warnings": [
+          "no_resistance_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "no_resistance_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present",
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "clustered_level_areas_present",
+            "category": "density",
+            "severity": "watch",
+            "label": "Clustered level areas present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "no_resistance_extension_coverage",
+            "category": "coverage",
+            "severity": "review",
+            "label": "No resistance extension coverage",
+            "description": "The extension ladder contains no resistance extension rows for the audited snapshot.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          },
+          {
+            "code": "wide_downside_support_gap",
+            "category": "coverage",
+            "severity": "watch",
+            "label": "Wide nearest support gap",
+            "description": "The nearest support below reference is outside the configured nearby coverage threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "wide_overhead_resistance_gap",
+            "category": "coverage",
+            "severity": "watch",
+            "label": "Wide nearest resistance gap",
+            "description": "The nearest resistance above reference is outside the configured nearby coverage threshold.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 17,
+          "supportCount": 14,
+          "resistanceCount": 3,
+          "extensionCount": 1,
+          "freshCount": 0,
+          "staleCount": 17,
+          "enrichedCount": 0,
+          "unenrichedCount": 17
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 16,
+            "unenrichedLevelIds": [
+              "HCWB-support-zone-16",
+              "HCWB-support-zone-2",
+              "HCWB-support-zone-4",
+              "HCWB-support-zone-23",
+              "HCWB-resistance-zone-26",
+              "HCWB-resistance-zone-28",
+              "HCWB-support-zone-14",
+              "HCWB-support-zone-3",
+              "HCWB-support-zone-6",
+              "HCWB-support-zone-7",
+              "HCWB-support-zone-10",
+              "HCWB-support-zone-15",
+              "HCWB-support-zone-18",
+              "HCWB-support-zone-17",
+              "HCWB-support-zone-20",
+              "HCWB-resistance-zone-27"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 1,
+            "unenrichedLevelIds": [
+              "HCWB-support-zone-1"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 0,
+            "unenrichedLevelIds": []
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 3,
+          "volumeConfluenceCount": 17,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 17
+        },
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "strongestLevelIds": [
+          "HCWB-support-zone-16",
+          "HCWB-support-zone-2",
+          "HCWB-support-zone-4",
+          "HCWB-support-zone-14",
+          "HCWB-support-zone-3"
+        ],
+        "weakestLevelIds": [
+          "HCWB-support-zone-20",
+          "HCWB-resistance-zone-27",
+          "HCWB-support-zone-10",
+          "HCWB-resistance-zone-28",
+          "HCWB-support-zone-17"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "density": 1,
+          "coverage": 3,
+          "enrichment": 3
+        },
+        "severities": {
+          "watch": 6,
+          "review": 1
+        },
+        "labels": [
+          {
+            "code": "clustered_level_areas_present",
+            "label": "Clustered level areas present"
+          },
+          {
+            "code": "no_resistance_extension_coverage",
+            "label": "No resistance extension coverage"
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          },
+          {
+            "code": "wide_downside_support_gap",
+            "label": "Wide nearest support gap"
+          },
+          {
+            "code": "wide_overhead_resistance_gap",
+            "label": "Wide nearest resistance gap"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "clustered_level_areas_present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold."
+          },
+          {
+            "code": "no_resistance_extension_coverage",
+            "description": "The extension ladder contains no resistance extension rows for the audited snapshot."
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          },
+          {
+            "code": "wide_downside_support_gap",
+            "description": "The nearest support below reference is outside the configured nearby coverage threshold."
+          },
+          {
+            "code": "wide_overhead_resistance_gap",
+            "description": "The nearest resistance above reference is outside the configured nearby coverage threshold."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": false,
+        "filteredCandleCount": 0,
+        "factsPresent": false,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "clustered_level_areas_present",
+          "no_resistance_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present",
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ],
+        "rerunDiagnostics": [
+          "clustered_level_areas_present",
+          "no_resistance_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present",
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ],
+        "unchanged": true
+      }
+    },
+    {
+      "symbol": "YMAT",
+      "provider": "ibkr",
+      "asOfTimestamp": 1779825600000,
+      "asOfIso": "2026-05-26T20:00:00.000Z",
+      "referencePrice": 1.325,
+      "previousClose": 1.3302,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/YMAT/5m/100-1779825300000.json",
+        "4h": "ibkr/YMAT/4h/180-1779811200000.json",
+        "daily": "ibkr/YMAT/daily/520-1779753600000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "YMAT-support-zone-30",
+          "bucket": "extensionSupport",
+          "price": 1.31,
+          "distancePct": 1.1321,
+          "isExtension": true
+        },
+        "resistance": {
+          "levelId": "YMAT-resistance-zone-22",
+          "bucket": "majorResistance",
+          "price": 1.34,
+          "distancePct": 1.1321,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 2,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 3,
+        "intradayResistance": 6,
+        "extensionSupport": 3,
+        "extensionResistance": 3,
+        "total": 26
+      },
+      "extensionCoverage": {
+        "support": 3,
+        "resistance": 3,
+        "lowestSupportExtension": 1.1286,
+        "highestResistanceExtension": 1.66,
+        "upsideCoveragePct": 25.283,
+        "downsideCoveragePct": 14.8226,
+        "warnings": [
+          "limited_downside_extension_coverage"
+        ]
+      },
+      "syntheticContinuationMap": {
+        "count": 0,
+        "clearlyMarkedCount": 0,
+        "entries": []
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "clustered_level_areas_present",
+            "category": "density",
+            "severity": "watch",
+            "label": "Clustered level areas present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "limited_downside_extension_coverage",
+            "category": "coverage",
+            "severity": "watch",
+            "label": "Limited downside extension coverage",
+            "description": "The lowest support extension does not reach the configured downside coverage threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 26,
+          "supportCount": 15,
+          "resistanceCount": 11,
+          "extensionCount": 6,
+          "freshCount": 0,
+          "staleCount": 11,
+          "enrichedCount": 0,
+          "unenrichedCount": 26
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 20,
+            "unenrichedLevelIds": [
+              "YMAT-support-zone-17",
+              "YMAT-support-zone-18",
+              "YMAT-support-zone-8",
+              "YMAT-support-zone-1",
+              "YMAT-resistance-zone-22",
+              "YMAT-resistance-zone-32",
+              "YMAT-support-zone-7",
+              "YMAT-support-zone-6",
+              "YMAT-support-zone-10",
+              "YMAT-support-zone-20",
+              "YMAT-support-zone-15",
+              "YMAT-support-zone-16",
+              "YMAT-support-zone-29",
+              "YMAT-support-zone-28",
+              "YMAT-resistance-zone-29",
+              "YMAT-resistance-zone-31",
+              "YMAT-resistance-zone-25",
+              "YMAT-resistance-zone-27",
+              "YMAT-resistance-zone-26",
+              "YMAT-resistance-zone-24"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 6,
+            "unenrichedLevelIds": [
+              "YMAT-support-zone-30",
+              "YMAT-support-zone-27",
+              "YMAT-support-zone-26",
+              "YMAT-resistance-zone-23",
+              "YMAT-resistance-zone-28",
+              "YMAT-resistance-zone-30"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 0,
+            "unenrichedLevelIds": []
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 4,
+          "volumeConfluenceCount": 26,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 26
+        },
+        "clusteredAreaCount": 1,
+        "possibleClutterLevelCount": 2,
+        "strongestLevelIds": [
+          "YMAT-resistance-zone-22",
+          "YMAT-resistance-zone-23",
+          "YMAT-support-zone-16",
+          "YMAT-support-zone-17",
+          "YMAT-support-zone-18"
+        ],
+        "weakestLevelIds": [
+          "YMAT-resistance-zone-24",
+          "YMAT-resistance-zone-28",
+          "YMAT-resistance-zone-26",
+          "YMAT-support-zone-30",
+          "YMAT-resistance-zone-30"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "density": 1,
+          "coverage": 1,
+          "enrichment": 3
+        },
+        "severities": {
+          "watch": 5
+        },
+        "labels": [
+          {
+            "code": "clustered_level_areas_present",
+            "label": "Clustered level areas present"
+          },
+          {
+            "code": "limited_downside_extension_coverage",
+            "label": "Limited downside extension coverage"
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "clustered_level_areas_present",
+            "description": "Multiple audited levels sit within the configured cluster distance threshold."
+          },
+          {
+            "code": "limited_downside_extension_coverage",
+            "description": "The lowest support extension does not reach the configured downside coverage threshold."
+          },
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": false,
+        "filteredCandleCount": 0,
+        "factsPresent": false,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "rerunDiagnostics": [
+          "clustered_level_areas_present",
+          "limited_downside_extension_coverage",
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present"
+        ],
+        "unchanged": true
+      }
+    },
+    {
+      "symbol": "AAOI",
+      "provider": "ibkr",
+      "asOfTimestamp": 1777915800000,
+      "asOfIso": "2026-05-04T17:30:00.000Z",
+      "referencePrice": 178.64,
+      "previousClose": 182.85,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/AAOI/5m/100-1777915500000.json",
+        "4h": "ibkr/AAOI/4h/180-1777910400000.json",
+        "daily": "ibkr/AAOI/daily/520-1777852800000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "AAOI-support-zone-51",
+          "bucket": "intradaySupport",
+          "price": 174.78,
+          "distancePct": 2.1608,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "AAOI-resistance-zone-52",
+          "bucket": "intradayResistance",
+          "price": 189.5,
+          "distancePct": 6.0793,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 0,
+        "intradaySupport": 1,
+        "intradayResistance": 1,
+        "extensionSupport": 3,
+        "extensionResistance": 2,
+        "total": 16
+      },
+      "extensionCoverage": {
+        "support": 3,
+        "resistance": 2,
+        "lowestSupportExtension": 23.85,
+        "highestResistanceExtension": 232.5,
+        "upsideCoveragePct": 30.15,
+        "downsideCoveragePct": 86.6491,
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 1,
+        "clearlyMarkedCount": 1,
+        "entries": [
+          {
+            "levelId": "AAOI-synthetic-resistance-extension-1-232p5000",
+            "side": "resistance",
+            "price": 232.5,
+            "extensionSource": "synthetic_continuation_map",
+            "generationMethod": "round_number_ladder",
+            "evidenceLimitations": [
+              "real_extension_coverage_below_threshold",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ]
+          }
+        ]
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present",
+          "unenriched_synthetic_levels_present"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_synthetic_levels_present",
+            "category": "synthetic",
+            "severity": "info",
+            "label": "Synthetic continuation-map enrichment gap present",
+            "description": "At least one marked synthetic continuation-map row is missing enrichedAnalysis metadata; it remains forward-planning context, not historical evidence.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 16,
+          "supportCount": 13,
+          "resistanceCount": 3,
+          "extensionCount": 5,
+          "freshCount": 1,
+          "staleCount": 15,
+          "enrichedCount": 0,
+          "unenrichedCount": 16
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 11,
+            "unenrichedLevelIds": [
+              "AAOI-support-zone-37",
+              "AAOI-support-zone-44",
+              "AAOI-support-zone-39",
+              "AAOI-support-zone-28",
+              "AAOI-support-zone-43",
+              "AAOI-support-zone-49",
+              "AAOI-support-zone-42",
+              "AAOI-support-zone-45",
+              "AAOI-support-zone-47",
+              "AAOI-support-zone-51",
+              "AAOI-resistance-zone-52"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 4,
+            "unenrichedLevelIds": [
+              "AAOI-support-zone-27",
+              "AAOI-support-zone-26",
+              "AAOI-support-zone-25",
+              "AAOI-resistance-zone-53"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 1,
+            "unenrichedLevelIds": [
+              "AAOI-synthetic-resistance-extension-1-232p5000"
+            ]
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 2,
+          "volumeConfluenceCount": 16,
+          "shelfConfluenceCount": 1,
+          "marketContextConfluenceCount": 16
+        },
+        "clusteredAreaCount": 0,
+        "possibleClutterLevelCount": 0,
+        "strongestLevelIds": [
+          "AAOI-support-zone-37",
+          "AAOI-resistance-zone-52",
+          "AAOI-support-zone-44",
+          "AAOI-support-zone-39",
+          "AAOI-support-zone-51"
+        ],
+        "weakestLevelIds": [
+          "AAOI-synthetic-resistance-extension-1-232p5000",
+          "AAOI-resistance-zone-53",
+          "AAOI-support-zone-27",
+          "AAOI-support-zone-47",
+          "AAOI-support-zone-45"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "enrichment": 3,
+          "synthetic": 1
+        },
+        "severities": {
+          "watch": 3,
+          "info": 1
+        },
+        "labels": [
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_synthetic_levels_present",
+            "label": "Synthetic continuation-map enrichment gap present"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          },
+          {
+            "code": "unenriched_synthetic_levels_present",
+            "description": "At least one marked synthetic continuation-map row is missing enrichedAnalysis metadata; it remains forward-planning context, not historical evidence."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": false,
+        "filteredCandleCount": 0,
+        "factsPresent": false,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present",
+          "unenriched_synthetic_levels_present"
+        ],
+        "rerunDiagnostics": [
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present",
+          "unenriched_synthetic_levels_present"
+        ],
+        "unchanged": true
+      }
+    },
+    {
+      "symbol": "PHOE",
+      "provider": "ibkr",
+      "asOfTimestamp": 1778186700000,
+      "asOfIso": "2026-05-07T20:45:00.000Z",
+      "referencePrice": 34.75,
+      "previousClose": 28.2,
+      "hasSupplied15m": false,
+      "sourceFiles": {
+        "5m": "ibkr/PHOE/5m/100-1778186400000.json",
+        "4h": "ibkr/PHOE/4h/180-1778184000000.json",
+        "daily": "ibkr/PHOE/daily/520-1778112000000.json"
+      },
+      "nearestLevels": {
+        "support": {
+          "levelId": "PHOE-support-zone-35",
+          "bucket": "intradaySupport",
+          "price": 29.85,
+          "distancePct": 14.1007,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "PHOE-resistance-zone-36",
+          "bucket": "intermediateResistance",
+          "price": 40.98,
+          "distancePct": 17.9281,
+          "isExtension": false
+        }
+      },
+      "bucketCounts": {
+        "majorSupport": 4,
+        "majorResistance": 0,
+        "intermediateSupport": 5,
+        "intermediateResistance": 1,
+        "intradaySupport": 6,
+        "intradayResistance": 0,
+        "extensionSupport": 3,
+        "extensionResistance": 1,
+        "total": 20
+      },
+      "extensionCoverage": {
+        "support": 3,
+        "resistance": 1,
+        "lowestSupportExtension": 5.85,
+        "highestResistanceExtension": 45.5,
+        "upsideCoveragePct": 30.9353,
+        "downsideCoveragePct": 83.1655,
+        "warnings": []
+      },
+      "syntheticContinuationMap": {
+        "count": 1,
+        "clearlyMarkedCount": 1,
+        "entries": [
+          {
+            "levelId": "PHOE-synthetic-resistance-extension-1-45p5000",
+            "side": "resistance",
+            "price": 45.5,
+            "extensionSource": "synthetic_continuation_map",
+            "generationMethod": "round_number_ladder",
+            "evidenceLimitations": [
+              "no_real_extension_candidate_available",
+              "not_historical_support_resistance",
+              "no_touch_or_rejection_history",
+              "no_historical_confluence"
+            ]
+          }
+        ]
+      },
+      "qualityAudit": {
+        "diagnostics": [
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present",
+          "unenriched_synthetic_levels_present",
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ],
+        "diagnosticSemantics": [
+          {
+            "code": "unenriched_extension_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Extension enrichment coverage gap present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "Historical enrichment coverage gap present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_levels_present",
+            "category": "enrichment",
+            "severity": "watch",
+            "label": "General enrichment coverage gap present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility.",
+            "factualOnly": true
+          },
+          {
+            "code": "unenriched_synthetic_levels_present",
+            "category": "synthetic",
+            "severity": "info",
+            "label": "Synthetic continuation-map enrichment gap present",
+            "description": "At least one marked synthetic continuation-map row is missing enrichedAnalysis metadata; it remains forward-planning context, not historical evidence.",
+            "factualOnly": true
+          },
+          {
+            "code": "wide_downside_support_gap",
+            "category": "coverage",
+            "severity": "watch",
+            "label": "Wide nearest support gap",
+            "description": "The nearest support below reference is outside the configured nearby coverage threshold.",
+            "factualOnly": true
+          },
+          {
+            "code": "wide_overhead_resistance_gap",
+            "category": "coverage",
+            "severity": "watch",
+            "label": "Wide nearest resistance gap",
+            "description": "The nearest resistance above reference is outside the configured nearby coverage threshold.",
+            "factualOnly": true
+          }
+        ],
+        "summary": {
+          "totalLevels": 20,
+          "supportCount": 18,
+          "resistanceCount": 2,
+          "extensionCount": 4,
+          "freshCount": 1,
+          "staleCount": 19,
+          "enrichedCount": 0,
+          "unenrichedCount": 20
+        },
+        "enrichmentBreakdown": {
+          "historical": {
+            "enriched": 0,
+            "unenriched": 16,
+            "unenrichedLevelIds": [
+              "PHOE-support-zone-20",
+              "PHOE-support-zone-17",
+              "PHOE-support-zone-14",
+              "PHOE-support-zone-7",
+              "PHOE-support-zone-21",
+              "PHOE-support-zone-24",
+              "PHOE-support-zone-22",
+              "PHOE-support-zone-18",
+              "PHOE-support-zone-30",
+              "PHOE-resistance-zone-36",
+              "PHOE-support-zone-35",
+              "PHOE-support-zone-29",
+              "PHOE-support-zone-27",
+              "PHOE-support-zone-32",
+              "PHOE-support-zone-33",
+              "PHOE-support-zone-31"
+            ]
+          },
+          "extension": {
+            "enriched": 0,
+            "unenriched": 3,
+            "unenrichedLevelIds": [
+              "PHOE-support-zone-6",
+              "PHOE-support-zone-5",
+              "PHOE-support-zone-4"
+            ]
+          },
+          "synthetic": {
+            "enriched": 0,
+            "unenriched": 1,
+            "unenrichedLevelIds": [
+              "PHOE-synthetic-resistance-extension-1-45p5000"
+            ]
+          }
+        },
+        "confluenceSummary": {
+          "sessionConfluenceCount": 1,
+          "volumeConfluenceCount": 20,
+          "shelfConfluenceCount": 0,
+          "marketContextConfluenceCount": 20
+        },
+        "clusteredAreaCount": 0,
+        "possibleClutterLevelCount": 0,
+        "strongestLevelIds": [
+          "PHOE-support-zone-20",
+          "PHOE-support-zone-17",
+          "PHOE-support-zone-14",
+          "PHOE-support-zone-35",
+          "PHOE-support-zone-7"
+        ],
+        "weakestLevelIds": [
+          "PHOE-synthetic-resistance-extension-1-45p5000",
+          "PHOE-support-zone-31",
+          "PHOE-resistance-zone-36",
+          "PHOE-support-zone-30",
+          "PHOE-support-zone-6"
+        ]
+      },
+      "diagnosticSemantics": {
+        "present": true,
+        "codesMatchDiagnostics": true,
+        "allFactualOnly": true,
+        "categories": {
+          "enrichment": 3,
+          "synthetic": 1,
+          "coverage": 2
+        },
+        "severities": {
+          "watch": 5,
+          "info": 1
+        },
+        "labels": [
+          {
+            "code": "unenriched_extension_levels_present",
+            "label": "Extension enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "label": "Historical enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_levels_present",
+            "label": "General enrichment coverage gap present"
+          },
+          {
+            "code": "unenriched_synthetic_levels_present",
+            "label": "Synthetic continuation-map enrichment gap present"
+          },
+          {
+            "code": "wide_downside_support_gap",
+            "label": "Wide nearest support gap"
+          },
+          {
+            "code": "wide_overhead_resistance_gap",
+            "label": "Wide nearest resistance gap"
+          }
+        ],
+        "descriptions": [
+          {
+            "code": "unenriched_extension_levels_present",
+            "description": "At least one extension row is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_historical_levels_present",
+            "description": "At least one historical support or resistance level is missing enrichedAnalysis metadata."
+          },
+          {
+            "code": "unenriched_levels_present",
+            "description": "At least one audited level is missing enrichedAnalysis metadata; this broad diagnostic remains for compatibility."
+          },
+          {
+            "code": "unenriched_synthetic_levels_present",
+            "description": "At least one marked synthetic continuation-map row is missing enrichedAnalysis metadata; it remains forward-planning context, not historical evidence."
+          },
+          {
+            "code": "wide_downside_support_gap",
+            "description": "The nearest support below reference is outside the configured nearby coverage threshold."
+          },
+          {
+            "code": "wide_overhead_resistance_gap",
+            "description": "The nearest resistance above reference is outside the configured nearby coverage threshold."
+          }
+        ],
+        "prohibitedLanguageHits": []
+      },
+      "fifteenMinuteContext": {
+        "inputProvided": false,
+        "filteredCandleCount": 0,
+        "factsPresent": false,
+        "providerMetadataHas15m": false,
+        "stillContextOnly": true
+      },
+      "safety": {
+        "noLookaheadApplied": true,
+        "levelOutputUnchanged": true,
+        "noRuntimeBehaviorChange": true,
+        "syntheticExtensionsClearlyMarked": true
+      },
+      "parity": {
+        "nearestSupport": true,
+        "nearestResistance": true,
+        "bucketCounts": true,
+        "extensionCounts": true,
+        "syntheticContinuationMapCount": true,
+        "syntheticContinuationMapMarking": true,
+        "diagnosticsUnchanged": true,
+        "diagnosticSemanticsUnchanged": true,
+        "enrichmentBreakdown": true,
+        "extensionCoverageWarnings": true,
+        "clusteredDensityDiagnostics": true,
+        "fifteenMinuteStillContextOnly": true
+      },
+      "diagnosticsComparison": {
+        "baselineDiagnostics": [
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present",
+          "unenriched_synthetic_levels_present",
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ],
+        "rerunDiagnostics": [
+          "unenriched_extension_levels_present",
+          "unenriched_historical_levels_present",
+          "unenriched_levels_present",
+          "unenriched_synthetic_levels_present",
+          "wide_downside_support_gap",
+          "wide_overhead_resistance_gap"
+        ],
+        "unchanged": true
+      }
+    }
+  ],
+  "notes": [
+    "Extension coverage warning parity is evaluated as a warning-code set; raw compact warning order is not treated as behavior.",
+    "LevelQualityAudit diagnostics and diagnosticSemantics remained byte-identical to the rerun-after-wording baseline."
+  ]
+}
