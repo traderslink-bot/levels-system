@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "level-quality-density-metric-baseline-lock/v1",
+  "generatedAt": "2026-06-02T00:32:15.054Z",
+  "providerFocus": "ibkr",
+  "baselineCommit": "dd65cd4da8b44feb54ec6b02a59cb165731e9b37",
+  "sourceDocs": [
+    "docs/120_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_DESIGN.md",
+    "docs/121_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_CONTRACT.md",
+    "docs/122_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_REPORT_WIRING.md",
+    "docs/123_LEVEL_QUALITY_REVIEW_RERUN_AFTER_DENSITY_METRIC_WIRING.md",
+    "docs/124_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_SEMANTICS_REVIEW.md"
+  ],
+  "sourceArtifacts": [
+    "docs/examples/level-analysis-snapshot/level-quality-density-metric/latest-level-quality-density-metric-design.json",
+    "docs/examples/level-analysis-snapshot/level-quality-density-metric/latest-level-quality-density-metric-contract.json",
+    "docs/examples/level-analysis-snapshot/level-quality-density-metric/latest-level-quality-density-metric-report-wiring.json",
+    "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-density-metric/latest-level-quality-review-rerun-after-density-metric.json",
+    "docs/examples/level-analysis-snapshot/level-quality-density-metric/latest-level-quality-density-metric-semantics-review.json"
+  ],
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "lockedDensityBaseline": {
+    "densityMetricPresent": "10/10",
+    "contractValid": "10/10",
+    "factualOnly": "10/10",
+    "prohibitedLanguageHits": 0,
+    "reportLevelDensityDiagnosticsAdded": false,
+    "densitySemanticsPromotedToReportLevelDiagnosticSemantics": false,
+    "classificationCounts": {
+      "dense_clustered": 5,
+      "balanced": 4,
+      "sparse": 1,
+      "dense_separated": 0
+    },
+    "classificationSymbols": {
+      "dense_clustered": [
+        "DEVS",
+        "ENVX",
+        "GME",
+        "AIM",
+        "YMAT"
+      ],
+      "balanced": [
+        "DXYZ",
+        "QUBT",
+        "AAOI",
+        "PHOE"
+      ],
+      "sparse": [
+        "HCWB"
+      ],
+      "dense_separated": []
+    },
+    "sideBiasCounts": {
+      "mixed": 6,
+      "support_heavy": 3,
+      "resistance_heavy": 1,
+      "none": 0
+    },
+    "extensionHeavySymbols": [
+      "GME",
+      "YMAT"
+    ],
+    "syntheticPresentSymbols": []
+  },
+  "semanticsDecision": {
+    "outcome": "keep_density_semantics_inside_densityMetric",
+    "deferredPromotionAreas": [
+      "dense_clustered_level_map",
+      "dense_separated_level_map",
+      "support_heavy_density",
+      "resistance_heavy_density",
+      "extension_heavy_level_map",
+      "synthetic_level_context_present"
+    ],
+    "reportLevelDensityDiagnosticsAdded": false,
+    "reportLevelDiagnosticSemanticsAdded": false,
+    "promoteLaterOnlyWithSeparateGate": true
+  },
+  "futureDensityChangeComparisonRequirements": [
+    "densityMetric presence",
+    "densityMetric contract validation",
+    "classification counts",
+    "per-symbol classification",
+    "side-bias counts",
+    "extension-heavy flags",
+    "synthetic-present flags",
+    "densityMetric.diagnostics",
+    "report-level diagnostics",
+    "report-level diagnosticSemantics",
+    "nearest support and resistance",
+    "bucket counts",
+    "extension counts",
+    "synthetic continuation-map count and markings",
+    "15m context-only status",
+    "prohibited-language hits"
+  ],
+  "futureDensitySemanticsPromotionRules": [
+    "use a separate approved gate",
+    "require repeated real-cache evidence before promotion",
+    "add deterministic fixtures for each promoted diagnostic",
+    "add factual wording catalog entries before report-level semantics",
+    "update report-level diagnostic parity expectations intentionally",
+    "prove support/resistance generation behavior is unchanged",
+    "prove LevelEngine scoring ranking clustering surfaced levels and extension generation are unchanged",
+    "prove no prohibited language was introduced",
+    "keep 15m context-only unless a separate approved gate changes that"
+  ],
+  "auditOnlyBoundary": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppChanged": false
+  },
+  "recommendedNextGate": "level_quality_audit_density_metric_handoff"
+}

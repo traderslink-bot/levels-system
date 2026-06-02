@@ -107,5 +107,6 @@ This folder contains the full plan for the candle-based levels system, including
 - `docs/122_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_REPORT_WIRING.md`
 - `docs/123_LEVEL_QUALITY_REVIEW_RERUN_AFTER_DENSITY_METRIC_WIRING.md`
 - `docs/124_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_SEMANTICS_REVIEW.md`
+- `docs/125_LEVEL_QUALITY_DENSITY_METRIC_BASELINE_LOCK.md`
 - Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
 - Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`
