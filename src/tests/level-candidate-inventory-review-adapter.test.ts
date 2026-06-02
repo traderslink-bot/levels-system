@@ -458,15 +458,11 @@ test("adapter output and fixtures remain facts-only", () => {
   }
 });
 
-test("candidate inventory review adapter source stays isolated and is not wired into packaged review yet", () => {
+test("candidate inventory review adapter source stays isolated from providers cache writes alert monitoring Discord and journal paths", () => {
   const source = readFileSync(
     fileURLToPath(new URL("../lib/levels/level-candidate-inventory-review-adapter.ts", import.meta.url)),
     "utf8",
   ).toLowerCase();
-  const reviewRunnerSource = readFileSync(
-    fileURLToPath(new URL("../scripts/run-level-quality-review.ts", import.meta.url)),
-    "utf8",
-  );
 
   for (const blocked of [
     "../alerts/",
@@ -483,6 +479,4 @@ test("candidate inventory review adapter source stays isolated and is not wired 
   ]) {
     assert.equal(source.includes(blocked), false, `Unexpected source reference: ${blocked}`);
   }
-
-  assert.equal(reviewRunnerSource.includes("candidateInventoryVisibility"), false);
 });

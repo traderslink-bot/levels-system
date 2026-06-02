@@ -1,0 +1,41 @@
+Level quality review complete
+Generated: 2026-06-02T02:49:56.718Z
+Provider: ibkr
+Baseline: docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-density-metric/latest-level-quality-review-rerun-after-density-metric.json
+Symbols: 10
+Nearest support parity: 10/10
+Nearest resistance parity: 10/10
+Bucket count parity: 10/10
+Extension count parity: 10/10
+Synthetic count parity: 10/10
+Synthetic marking parity: 10/10
+Diagnostics parity: 10/10
+Diagnostic semantics parity: 10/10
+Enrichment breakdown parity: 10/10
+Extension warning parity: 10/10
+Cluster/density diagnostic parity: 10/10
+15m context-only count: 10/10
+Density metric present count: 10/10
+Candidate inventory present count: 10/10
+Candidate inventory valid count: 10/10
+Candidate inventory missing count: 0/10
+Candidate inventory closer-unsurfaced count: 5
+Candidate inventory support closer-unsurfaced count: 5
+Candidate inventory resistance closer-unsurfaced count: 1
+Candidate inventory overall truthful market-context count: 0
+Candidate inventory support truthful market-context count: 0
+Candidate inventory resistance truthful market-context count: 2
+Mismatch count: 0
+Prohibited-language hits: 0
+
+Entries
+- DEVS: mismatches=none; density=dense_clustered; 15mContextOnly=true; candidateInventory=present:true; gap=no_gap; supportCloser=0; resistanceCloser=0
+- ENVX: mismatches=none; density=dense_clustered; 15mContextOnly=true; candidateInventory=present:true; gap=no_gap; supportCloser=0; resistanceCloser=0
+- DXYZ: mismatches=none; density=balanced; 15mContextOnly=true; candidateInventory=present:true; gap=no_gap; supportCloser=0; resistanceCloser=0
+- QUBT: mismatches=none; density=balanced; 15mContextOnly=true; candidateInventory=present:true; gap=closer_unsurfaced_candidate; supportCloser=2; resistanceCloser=0
+- GME: mismatches=none; density=dense_clustered; 15mContextOnly=true; candidateInventory=present:true; gap=no_gap; supportCloser=0; resistanceCloser=0
+- AIM: mismatches=none; density=dense_clustered; 15mContextOnly=true; candidateInventory=present:true; gap=no_gap; supportCloser=0; resistanceCloser=0
+- HCWB: mismatches=none; density=sparse; 15mContextOnly=true; candidateInventory=present:true; gap=closer_unsurfaced_candidate; supportCloser=1; resistanceCloser=0
+- YMAT: mismatches=none; density=dense_clustered; 15mContextOnly=true; candidateInventory=present:true; gap=closer_unsurfaced_candidate; supportCloser=1; resistanceCloser=0
+- AAOI: mismatches=none; density=balanced; 15mContextOnly=true; candidateInventory=present:true; gap=closer_unsurfaced_candidate; supportCloser=1; resistanceCloser=1
+- PHOE: mismatches=none; density=balanced; 15mContextOnly=true; candidateInventory=present:true; gap=closer_unsurfaced_candidate; supportCloser=1; resistanceCloser=0
