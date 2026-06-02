@@ -1,0 +1,47 @@
+Level Quality Density Metric Semantics Review
+Generated: 2026-06-02T00:19:21.822Z
+Provider focus: IBKR
+
+Source artifact:
+docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-density-metric/latest-level-quality-review-rerun-after-density-metric.json
+
+Reviewed symbols:
+DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+
+Density metric rerun summary:
+- densityMetric present: 10/10
+- contract-valid: 10/10
+- factual-only: 10/10
+- mismatch count: 0
+- prohibited-language hits: 0
+
+Classification counts:
+- dense_clustered: 5 (DEVS, ENVX, GME, AIM, YMAT)
+- balanced: 4 (DXYZ, QUBT, AAOI, PHOE)
+- sparse: 1 (HCWB)
+- dense_separated: 0
+
+Side-bias counts:
+- mixed: 6
+- support_heavy: 3
+- resistance_heavy: 1
+- none: 0
+
+Additional flags:
+- extensionHeavy: GME, YMAT
+- syntheticPresent: none
+
+Semantic candidate decisions:
+- dense_clustered_level_map: keep inside densityMetric. It overlaps clustered_level_areas_present.
+- dense_separated_level_map: promote later only after repeated real-cache evidence. No cases appeared in this rerun.
+- support_heavy_density: keep inside densityMetric. Useful map-shape context, but needs careful wording before any promotion.
+- resistance_heavy_density: keep inside densityMetric. Current evidence is one symbol.
+- extension_heavy_level_map: keep inside densityMetric. Evidence is narrow and should be reviewed with extension coverage context.
+- synthetic_level_context_present: keep inside densityMetric. No cases appeared in this rerun and synthetic rows already have forward-context safeguards.
+
+Decision:
+Keep density-specific semantics inside densityMetric for now.
+Do not add report-level density diagnostics or diagnosticSemantics in this gate.
+
+Recommended next gate:
+level_quality_density_metric_baseline_lock
