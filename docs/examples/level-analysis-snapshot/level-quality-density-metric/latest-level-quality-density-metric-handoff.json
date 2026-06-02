@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "level-quality-density-metric-handoff/v1",
+  "generatedAt": "2026-06-02T00:42:26.664Z",
+  "providerFocus": "ibkr",
+  "baselineCommit": "b4f25816e7d95224266af566de770b03d9f60510",
+  "currentStatus": {
+    "designHelperExists": true,
+    "contractFixturesExist": true,
+    "wiredIntoLevelQualityAuditReport": true,
+    "packagedReviewIncludesDensityMetric": true,
+    "realCacheRerunPassed": true,
+    "baselineLocked": true,
+    "reportLevelDensityDiagnosticsAdded": false,
+    "densitySemanticsPromotedToReportLevelDiagnosticSemantics": false
+  },
+  "codeLocations": {
+    "metricModule": "src/lib/levels/level-quality-density-metric.ts",
+    "auditReportWiring": "src/lib/levels/level-quality-audit-runner.ts",
+    "reviewProcessOutput": "src/scripts/run-level-quality-review.ts"
+  },
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "lockedDensityState": {
+    "densityMetricPresent": "10/10",
+    "contractValid": "10/10",
+    "factualOnly": "10/10",
+    "prohibitedLanguageHits": 0,
+    "classificationCounts": {
+      "dense_clustered": 5,
+      "balanced": 4,
+      "sparse": 1,
+      "dense_separated": 0
+    },
+    "classificationSymbols": {
+      "dense_clustered": [
+        "DEVS",
+        "ENVX",
+        "GME",
+        "AIM",
+        "YMAT"
+      ],
+      "balanced": [
+        "DXYZ",
+        "QUBT",
+        "AAOI",
+        "PHOE"
+      ],
+      "sparse": [
+        "HCWB"
+      ],
+      "dense_separated": []
+    },
+    "sideBiasCounts": {
+      "mixed": 6,
+      "support_heavy": 3,
+      "resistance_heavy": 1,
+      "none": 0
+    },
+    "extensionHeavySymbols": [
+      "GME",
+      "YMAT"
+    ],
+    "syntheticPresentSymbols": []
+  },
+  "semanticsDecision": {
+    "outcome": "keep_density_semantics_inside_densityMetric",
+    "notPromoted": [
+      "dense_clustered_level_map",
+      "dense_separated_level_map",
+      "support_heavy_density",
+      "resistance_heavy_density",
+      "extension_heavy_level_map",
+      "synthetic_level_context_present"
+    ],
+    "requiresSeparateGateForPromotion": true
+  },
+  "futureDensityChangeRules": [
+    "compare densityMetric presence",
+    "compare contract validation",
+    "compare classification counts",
+    "compare per-symbol classifications",
+    "compare side-bias counts",
+    "compare extension-heavy flags",
+    "compare synthetic-present flags",
+    "compare densityMetric.diagnostics",
+    "compare report-level diagnostics",
+    "compare report-level diagnosticSemantics",
+    "compare nearest support and resistance",
+    "compare bucket counts",
+    "compare extension counts",
+    "compare synthetic continuation-map count and markings",
+    "compare 15m context-only status",
+    "compare prohibited-language hits"
+  ],
+  "auditOnlyBoundary": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppChanged": false
+  },
+  "artifactMap": [
+    "docs/120_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_DESIGN.md",
+    "docs/121_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_CONTRACT.md",
+    "docs/122_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_REPORT_WIRING.md",
+    "docs/123_LEVEL_QUALITY_REVIEW_RERUN_AFTER_DENSITY_METRIC_WIRING.md",
+    "docs/124_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_SEMANTICS_REVIEW.md",
+    "docs/125_LEVEL_QUALITY_DENSITY_METRIC_BASELINE_LOCK.md",
+    "docs/126_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_HANDOFF.md",
+    "docs/examples/level-analysis-snapshot/level-quality-density-metric/latest-level-quality-density-metric-baseline-lock.json"
+  ],
+  "recommendedNextGate": "level_quality_nearest_gap_investigation"
+}
