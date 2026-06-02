@@ -1,0 +1,190 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-baseline-lock/v1",
+  "generatedAt": "2026-06-02T03:13:59.984Z",
+  "providerFocus": "ibkr",
+  "purpose": "Lock the candidate-inventory review baseline after candidate inventory visibility was wired additively into packaged level quality review output.",
+  "mergedBaselineCommit": "2a7937739bae32762e90fc59ab39f53513e74be1",
+  "sourceDocs": [
+    "docs/128_LEVEL_QUALITY_CANDIDATE_INVENTORY_VISIBILITY_DESIGN.md",
+    "docs/129_LEVEL_QUALITY_CANDIDATE_INVENTORY_VISIBILITY_CONTRACT.md",
+    "docs/130_LEVEL_QUALITY_CANDIDATE_INVENTORY_REVIEW_WIRING_DESIGN.md",
+    "docs/131_LEVEL_QUALITY_CANDIDATE_INVENTORY_REVIEW_WIRING_CONTRACT.md",
+    "docs/132_LEVEL_QUALITY_CANDIDATE_INVENTORY_REVIEW_ADAPTER.md",
+    "docs/133_LEVEL_QUALITY_CANDIDATE_INVENTORY_REVIEW_WIRING.md"
+  ],
+  "sourceArtifacts": [
+    "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-wiring.json",
+    "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-wiring.txt"
+  ],
+  "oldFieldBaselineSource": "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-density-metric/latest-level-quality-review-rerun-after-density-metric.json",
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "lockedSummary": {
+    "candidateInventoryPresent": "10/10",
+    "candidateInventoryValid": "10/10",
+    "candidateInventoryMissing": "0/10",
+    "existingBaselineMismatchCount": 0,
+    "supportSideCloserUnsurfacedCount": 5,
+    "resistanceSideCloserUnsurfacedCount": 1,
+    "overallCloserUnsurfacedCount": 5,
+    "resistanceSideTruthfulMarketContextCount": 2,
+    "fifteenMinuteContextOnly": "10/10",
+    "prohibitedLanguageHits": 0
+  },
+  "perSymbolGapSummary": [
+    {
+      "symbol": "DEVS",
+      "overall": "no_gap",
+      "support": "no_gap",
+      "resistance": "no_gap",
+      "supportCloserCount": 0,
+      "resistanceCloserCount": 0
+    },
+    {
+      "symbol": "ENVX",
+      "overall": "no_gap",
+      "support": "no_gap",
+      "resistance": "no_gap",
+      "supportCloserCount": 0,
+      "resistanceCloserCount": 0
+    },
+    {
+      "symbol": "DXYZ",
+      "overall": "no_gap",
+      "support": "no_gap",
+      "resistance": "no_gap",
+      "supportCloserCount": 0,
+      "resistanceCloserCount": 0
+    },
+    {
+      "symbol": "QUBT",
+      "overall": "closer_unsurfaced_candidate",
+      "support": "closer_unsurfaced_candidate",
+      "resistance": "no_gap",
+      "supportCloserCount": 2,
+      "resistanceCloserCount": 0
+    },
+    {
+      "symbol": "GME",
+      "overall": "no_gap",
+      "support": "no_gap",
+      "resistance": "no_gap",
+      "supportCloserCount": 0,
+      "resistanceCloserCount": 0
+    },
+    {
+      "symbol": "AIM",
+      "overall": "no_gap",
+      "support": "no_gap",
+      "resistance": "no_gap",
+      "supportCloserCount": 0,
+      "resistanceCloserCount": 0
+    },
+    {
+      "symbol": "HCWB",
+      "overall": "closer_unsurfaced_candidate",
+      "support": "closer_unsurfaced_candidate",
+      "resistance": "truthful_market_context_gap",
+      "supportCloserCount": 1,
+      "resistanceCloserCount": 0
+    },
+    {
+      "symbol": "YMAT",
+      "overall": "closer_unsurfaced_candidate",
+      "support": "closer_unsurfaced_candidate",
+      "resistance": "no_gap",
+      "supportCloserCount": 1,
+      "resistanceCloserCount": 0
+    },
+    {
+      "symbol": "AAOI",
+      "overall": "closer_unsurfaced_candidate",
+      "support": "closer_unsurfaced_candidate",
+      "resistance": "closer_unsurfaced_candidate",
+      "supportCloserCount": 1,
+      "resistanceCloserCount": 1
+    },
+    {
+      "symbol": "PHOE",
+      "overall": "closer_unsurfaced_candidate",
+      "support": "closer_unsurfaced_candidate",
+      "resistance": "truthful_market_context_gap",
+      "supportCloserCount": 1,
+      "resistanceCloserCount": 0
+    }
+  ],
+  "oldBaselineCompatibility": {
+    "nearestSupportResistance": "10/10",
+    "bucketCounts": "10/10",
+    "extensionCounts": "10/10",
+    "syntheticContinuationMapCount": "10/10",
+    "syntheticContinuationMapMarking": "10/10",
+    "diagnostics": "10/10",
+    "diagnosticSemantics": "10/10",
+    "enrichmentBreakdown": "10/10",
+    "extensionWarningCodeSets": "10/10",
+    "clusterDensityDiagnostics": "10/10",
+    "densityMetricPresence": "10/10",
+    "fifteenMinuteContextOnly": "10/10",
+    "mismatchCount": 0
+  },
+  "futureCandidateInventoryComparisonRequirements": [
+    "candidateInventoryVisibility presence",
+    "wrapper validation status",
+    "gap classification by side and overall",
+    "support and resistance closer-unsurfaced counts",
+    "stageCounts by side and total",
+    "nearest raw, clustered, scored, and surfaced levels by side",
+    "extension candidate counts and selected extension counts",
+    "limitations",
+    "diagnostics",
+    "facts-only and prohibited-language status"
+  ],
+  "futureOldFieldComparisonRequirements": [
+    "nearest support/resistance",
+    "bucket counts",
+    "extension counts",
+    "synthetic continuation-map count and marking",
+    "diagnostics and diagnosticSemantics",
+    "enrichment breakdown",
+    "densityMetric",
+    "15m context-only status"
+  ],
+  "limitations": [
+    "surfaced_selection_reason_not_serialized"
+  ],
+  "safety": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "alertMonitoringDiscordBehaviorChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": {
+    "name": "level_quality_candidate_inventory_volume_session_context_design",
+    "reason": "Candidate inventory visibility is wired and baseline-locked; the next chart-reading upgrade should connect candidate and surfaced levels to existing session and volume facts while staying facts-only and avoiding generation behavior changes."
+  }
+}

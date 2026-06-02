@@ -1,0 +1,69 @@
+Level quality candidate inventory review baseline lock
+Generated: 2026-06-02T03:13:59.984Z
+Provider focus: ibkr
+Merged baseline commit: 2a7937739bae32762e90fc59ab39f53513e74be1
+
+Source artifact:
+docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-wiring.json
+
+Reviewed symbols:
+DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+
+Supplied 15m symbols:
+DEVS, ENVX, DXYZ, QUBT, GME
+
+Locked summary:
+- Candidate inventory present: 10/10
+- Candidate inventory valid: 10/10
+- Candidate inventory missing: 0/10
+- Existing baseline mismatch count: 0
+- Support-side closer-unsurfaced count: 5
+- Resistance-side closer-unsurfaced count: 1
+- Overall closer-unsurfaced count: 5
+- Resistance-side truthful market-context count: 2
+- 15m context-only count: 10/10
+- Prohibited-language hits: 0
+
+Per-symbol gap summary:
+- DEVS: no gap
+- ENVX: no gap
+- DXYZ: no gap
+- QUBT: closer-unsurfaced candidate; support closer count 2
+- GME: no gap
+- AIM: no gap
+- HCWB: support closer-unsurfaced; resistance truthful market-context
+- YMAT: closer-unsurfaced candidate; support closer count 1
+- AAOI: closer-unsurfaced candidate; support closer count 1; resistance closer count 1
+- PHOE: support closer-unsurfaced; resistance truthful market-context
+
+Old baseline compatibility:
+- nearest support/resistance: 10/10
+- bucket counts: 10/10
+- extension counts: 10/10
+- synthetic continuation-map count and marking: 10/10
+- diagnostics and diagnosticSemantics: 10/10
+- enrichment breakdown: 10/10
+- densityMetric: 10/10
+- 15m context-only status: 10/10
+- mismatch count: 0
+
+Future candidate inventory comparisons must include:
+- candidateInventoryVisibility presence
+- wrapper validation status
+- gap classification by side and overall
+- support/resistance closer-unsurfaced counts
+- stageCounts by side and total
+- nearest raw/clustered/scored/surfaced by side
+- extension candidate and selected extension counts
+- limitations
+- diagnostics
+- facts-only/prohibited-language status
+
+Limitation:
+surfaced_selection_reason_not_serialized
+
+Recommended next gate:
+level_quality_candidate_inventory_volume_session_context_design
+
+Safety:
+No support/resistance detection, LevelEngine scoring/ranking/clustering, surfaced levels, extension generation, 15m LevelEngine eligibility, cache writing, alert/monitoring/Discord behavior, journal app behavior, or recommendation/trade-advice behavior changed.
