@@ -426,6 +426,11 @@ export function validateLevelCandidateInventoryVisibility(
   if (!isRecord(value.stageCounts)) {
     errors.push("stageCounts must be an object");
   } else {
+    for (const key of Object.keys(value.stageCounts)) {
+      if (!isStage(key)) {
+        errors.push(`stageCounts.${key} is not a known candidate inventory stage`);
+      }
+    }
     for (const stage of STAGES) {
       validateStageSummary(errors, value.stageCounts[stage], stage);
     }
@@ -434,6 +439,11 @@ export function validateLevelCandidateInventoryVisibility(
   if (!isRecord(value.nearest)) {
     errors.push("nearest must be an object");
   } else {
+    for (const key of Object.keys(value.nearest)) {
+      if (!isStage(key)) {
+        errors.push(`nearest.${key} is not a known candidate inventory stage`);
+      }
+    }
     for (const stage of STAGES) {
       const stageNearest = value.nearest[stage];
       if (stageNearest === undefined) {

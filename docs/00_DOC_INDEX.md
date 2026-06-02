@@ -111,5 +111,6 @@ This folder contains the full plan for the candle-based levels system, including
 - `docs/126_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_HANDOFF.md`
 - `docs/127_LEVEL_QUALITY_NEAREST_GAP_INVESTIGATION.md`
 - `docs/128_LEVEL_QUALITY_CANDIDATE_INVENTORY_VISIBILITY_DESIGN.md`
+- `docs/129_LEVEL_QUALITY_CANDIDATE_INVENTORY_VISIBILITY_CONTRACT.md`
 - Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
 - Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`

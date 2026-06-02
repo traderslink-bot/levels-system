@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "level-candidate-inventory-visibility-contract/v1",
+  "generatedAt": "2026-06-02T01:24:13.942Z",
+  "providerFocus": "ibkr",
+  "purpose": "Lock the candidate inventory visibility contract and deterministic fixture suite before runtime review wiring.",
+  "contract": {
+    "module": "src/lib/levels/level-candidate-inventory-visibility.ts",
+    "primaryType": "LevelCandidateInventoryVisibility",
+    "runtimeReviewWiringAdded": false,
+    "rootFields": [
+      "schemaVersion",
+      "symbol",
+      "provider",
+      "asOfTimestamp",
+      "asOfIso",
+      "referencePrice",
+      "sourceFiles",
+      "stageCounts",
+      "nearest",
+      "unsurfacedCloser",
+      "gapClassification",
+      "diagnostics",
+      "limitations",
+      "safety"
+    ]
+  },
+  "stageModel": [
+    "raw",
+    "clustered",
+    "scored",
+    "surfaced",
+    "extension_candidate",
+    "extension_selected"
+  ],
+  "gapClassifications": [
+    "no_gap",
+    "closer_unsurfaced_candidate",
+    "truthful_market_context_gap",
+    "inconclusive_missing_reasons"
+  ],
+  "reasonAvailabilityValues": [
+    "available",
+    "not_available",
+    "not_needed"
+  ],
+  "knownLimitations": [
+    "surfaced_selection_reason_not_serialized",
+    "raw_clustered_scored_inventory_not_available"
+  ],
+  "fixtures": {
+    "path": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/contract-fixtures/",
+    "files": [
+      "candidate-inventory-no-gap.json",
+      "candidate-inventory-closer-unsurfaced-support.json",
+      "candidate-inventory-closer-unsurfaced-resistance.json",
+      "candidate-inventory-truthful-market-context-gap.json",
+      "candidate-inventory-inconclusive-missing-reasons.json"
+    ],
+    "classificationCoverage": {
+      "no_gap": true,
+      "closer_unsurfaced_candidate": true,
+      "truthful_market_context_gap": true,
+      "inconclusive_missing_reasons": true
+    }
+  },
+  "validationHelpers": [
+    "validateLevelCandidateInventoryVisibility",
+    "isLevelCandidateInventoryVisibility",
+    "assertLevelCandidateInventoryVisibilityFactsOnly",
+    "summarizeLevelCandidateInventoryGaps"
+  ],
+  "validationRules": [
+    "schema version must match level-candidate-inventory-visibility/v1",
+    "symbol must be non-empty",
+    "sourceFiles only supports 5m 15m 4h daily",
+    "all known stageCounts are required",
+    "unknown stageCounts and nearest stage keys fail",
+    "nearest rows must match expected stage and side",
+    "unsurfacedCloser is side-specific",
+    "known gap classifications are required",
+    "known reasonAvailability values are required",
+    "safety flags must match read-only audit-only boundary",
+    "facts-only assertion rejects prohibited language"
+  ],
+  "tests": {
+    "contractTest": "src/tests/level-candidate-inventory-visibility-contract.test.ts",
+    "designTest": "src/tests/level-candidate-inventory-visibility-design.test.ts",
+    "coverage": [
+      "all fixtures parse and validate",
+      "fixture classifications are locked",
+      "malformed schema fails",
+      "unknown stage fails",
+      "unknown classification fails",
+      "missing or false safety flags fail",
+      "prohibited language fails facts-only assertion",
+      "helpers do not mutate input",
+      "source stays isolated from providers cache writes alert monitoring Discord and journal paths"
+    ]
+  },
+  "factsOnlyBoundary": {
+    "recommendationOrTradeAdviceLanguageAllowed": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAllowed": false,
+    "buySellHoldInstructionsAllowed": false
+  },
+  "safety": {
+    "readOnly": true,
+    "auditOnly": true,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppFilesChanged": false
+  },
+  "recommendedNextGate": "level_quality_candidate_inventory_review_wiring_design"
+}
