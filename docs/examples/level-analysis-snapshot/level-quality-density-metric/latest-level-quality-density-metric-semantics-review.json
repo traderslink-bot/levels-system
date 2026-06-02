@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "level-quality-density-metric-semantics-review/v1",
+  "generatedAt": "2026-06-02T00:19:21.822Z",
+  "providerFocus": "ibkr",
+  "sourceRerunArtifact": "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-density-metric/latest-level-quality-review-rerun-after-density-metric.json",
+  "sourceDocs": [
+    "docs/122_LEVEL_QUALITY_AUDIT_DENSITY_METRIC_REPORT_WIRING.md",
+    "docs/123_LEVEL_QUALITY_REVIEW_RERUN_AFTER_DENSITY_METRIC_WIRING.md"
+  ],
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "densityMetricSummary": {
+    "presentCount": 10,
+    "contractValidCount": 10,
+    "factualOnlyCount": 10,
+    "mismatchCount": 0,
+    "prohibitedLanguageHitCount": 0,
+    "classificationCounts": {
+      "dense_clustered": 5,
+      "balanced": 4,
+      "sparse": 1,
+      "dense_separated": 0
+    },
+    "sideBiasCounts": {
+      "mixed": 6,
+      "support_heavy": 3,
+      "resistance_heavy": 1,
+      "none": 0
+    },
+    "classificationSymbols": {
+      "dense_clustered": [
+        "DEVS",
+        "ENVX",
+        "GME",
+        "AIM",
+        "YMAT"
+      ],
+      "balanced": [
+        "DXYZ",
+        "QUBT",
+        "AAOI",
+        "PHOE"
+      ],
+      "sparse": [
+        "HCWB"
+      ],
+      "dense_separated": []
+    },
+    "extensionHeavySymbols": [
+      "GME",
+      "YMAT"
+    ],
+    "syntheticPresentSymbols": []
+  },
+  "semanticCandidateMatrix": [
+    {
+      "candidate": "dense_clustered_level_map",
+      "evidenceSymbols": [
+        "DEVS",
+        "ENVX",
+        "GME",
+        "AIM",
+        "YMAT"
+      ],
+      "evidenceCount": 5,
+      "duplicatesExistingDiagnostics": true,
+      "existingDiagnosticOverlap": "clustered_level_areas_present",
+      "topLevelVisibilityValue": "medium",
+      "misinterpretationRisk": "medium",
+      "recommendedAction": "keep_inside_densityMetric",
+      "rationale": "The state is visible in densityMetric and overlaps an existing report-level clustered-area diagnostic."
+    },
+    {
+      "candidate": "dense_separated_level_map",
+      "evidenceSymbols": [],
+      "evidenceCount": 0,
+      "duplicatesExistingDiagnostics": false,
+      "existingDiagnosticOverlap": null,
+      "topLevelVisibilityValue": "high_if_repeated",
+      "misinterpretationRisk": "medium",
+      "recommendedAction": "promote_later_after_repeated_real_cache_evidence",
+      "rationale": "This is the clearest new density concept, but it did not appear in the locked 10-symbol rerun."
+    },
+    {
+      "candidate": "support_heavy_density",
+      "evidenceSymbols": [
+        "ENVX",
+        "AAOI",
+        "PHOE"
+      ],
+      "evidenceCount": 3,
+      "duplicatesExistingDiagnostics": false,
+      "existingDiagnosticOverlap": null,
+      "topLevelVisibilityValue": "medium",
+      "misinterpretationRisk": "medium",
+      "recommendedAction": "keep_inside_densityMetric",
+      "rationale": "Useful as map-shape context, but should not be promoted before wording and baseline rules are locked."
+    },
+    {
+      "candidate": "resistance_heavy_density",
+      "evidenceSymbols": [
+        "HCWB"
+      ],
+      "evidenceCount": 1,
+      "duplicatesExistingDiagnostics": false,
+      "existingDiagnosticOverlap": null,
+      "topLevelVisibilityValue": "low_to_medium",
+      "misinterpretationRisk": "medium",
+      "recommendedAction": "keep_inside_densityMetric",
+      "rationale": "Current evidence is narrow and could be misread as directional commentary if promoted too early."
+    },
+    {
+      "candidate": "extension_heavy_level_map",
+      "evidenceSymbols": [
+        "GME",
+        "YMAT"
+      ],
+      "evidenceCount": 2,
+      "duplicatesExistingDiagnostics": false,
+      "existingDiagnosticOverlap": "extension_coverage_context",
+      "topLevelVisibilityValue": "medium",
+      "misinterpretationRisk": "medium",
+      "recommendedAction": "keep_inside_densityMetric",
+      "rationale": "The state is useful, but should be interpreted alongside extension coverage diagnostics and rerun evidence."
+    },
+    {
+      "candidate": "synthetic_level_context_present",
+      "evidenceSymbols": [],
+      "evidenceCount": 0,
+      "duplicatesExistingDiagnostics": true,
+      "existingDiagnosticOverlap": "synthetic_forward_context_guards",
+      "topLevelVisibilityValue": "low_in_current_rerun",
+      "misinterpretationRisk": "medium",
+      "recommendedAction": "keep_inside_densityMetric",
+      "rationale": "No real-cache evidence appeared in this rerun, and synthetic rows already have forward-context safeguards."
+    }
+  ],
+  "decision": {
+    "outcome": "keep_density_semantics_inside_densityMetric",
+    "reportLevelDensityDiagnosticsAdded": false,
+    "reportLevelDiagnosticSemanticsAdded": false,
+    "promoteLaterOnlyWithSeparateGate": true,
+    "rationale": [
+      "dense_separated did not appear in the locked rerun",
+      "dense_clustered overlaps clustered_level_areas_present",
+      "side-bias semantics could be misread if promoted before wording and baseline rules are locked",
+      "extension-heavy evidence is narrow",
+      "synthetic-present evidence did not appear in the real-cache rerun"
+    ]
+  },
+  "deferredPromotionRules": [
+    "use a separate approved gate",
+    "require repeated real-cache evidence before promotion",
+    "add deterministic fixtures for promoted codes",
+    "add factual wording catalog entries before report-level semantics",
+    "update report-level parity expectations intentionally",
+    "prove no support/resistance generation behavior changed",
+    "prove no prohibited language was introduced",
+    "keep 15m context-only unless a separate approved gate changes that"
+  ],
+  "recommendedNextGate": "level_quality_density_metric_baseline_lock"
+}
