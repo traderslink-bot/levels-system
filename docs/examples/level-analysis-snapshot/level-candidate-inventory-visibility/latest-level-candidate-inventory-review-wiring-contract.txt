@@ -1,0 +1,57 @@
+Level candidate inventory review wiring contract
+Generated: 2026-06-02T01:51:30.704Z
+Provider focus: IBKR
+
+Purpose
+- Lock candidate inventory review wiring wrapper shape and deterministic fixtures before real review output wiring.
+
+Runtime review wiring
+- Added: false
+
+Contract module
+- src/lib/levels/level-candidate-inventory-review-wiring.ts
+
+Primary type
+- LevelCandidateInventoryReviewVisibilityWrapper
+
+Wrapper shapes
+- Present: present=true, visibility=LevelCandidateInventoryVisibility, gapSummary=LevelCandidateInventoryGapSummary.
+- Missing: present=false, limitations=raw_clustered_scored_inventory_not_available, diagnostics=candidate_inventory_visibility_not_available.
+
+Fixtures
+- review-wiring-present-no-gap.json
+- review-wiring-present-closer-unsurfaced-support.json
+- review-wiring-present-closer-unsurfaced-resistance.json
+- review-wiring-present-truthful-market-context-gap.json
+- review-wiring-missing-inventory.json
+
+Validation helpers
+- validateLevelCandidateInventoryReviewVisibilityWrapper
+- isLevelCandidateInventoryReviewVisibilityWrapper
+- assertLevelCandidateInventoryReviewVisibilityFactsOnly
+
+Baseline compatibility
+- Existing parity fields remain unchanged.
+- Old baseline mismatch counts do not include candidate inventory.
+- Candidate-inventory parity requires a separate baseline lock.
+
+Safety
+- Read-only: true
+- Audit-only: true
+- Runtime review wiring added: false
+- Provider calls made: false
+- Cache files written: false
+- Raw candles included: false
+- Full snapshots included: false
+- Support/resistance detection changed: false
+- LevelEngine scoring/ranking/clustering changed: false
+- Surfaced levels changed: false
+- Extension generation changed: false
+- 15m fed into LevelEngine: false
+- Alert/monitoring/Discord changed: false
+- Journal app files changed: false
+- Journal grading/coaching/P&L/giveback/behavior scoring added: false
+- Recommendation or trade advice behavior added: false
+
+Recommended next gate
+- level_quality_candidate_inventory_review_adapter

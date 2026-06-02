@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-wiring-contract/v1",
+  "generatedAt": "2026-06-02T01:51:30.704Z",
+  "providerFocus": "ibkr",
+  "purpose": "Lock candidate inventory review wiring wrapper shape and deterministic fixtures before real review output wiring.",
+  "runtimeReviewWiringAdded": false,
+  "contract": {
+    "module": "src/lib/levels/level-candidate-inventory-review-wiring.ts",
+    "primaryType": "LevelCandidateInventoryReviewVisibilityWrapper",
+    "presentType": "LevelCandidateInventoryReviewPresentWrapper",
+    "missingType": "LevelCandidateInventoryReviewMissingWrapper",
+    "helpers": [
+      "validateLevelCandidateInventoryReviewVisibilityWrapper",
+      "isLevelCandidateInventoryReviewVisibilityWrapper",
+      "assertLevelCandidateInventoryReviewVisibilityFactsOnly"
+    ]
+  },
+  "presentWrapperShape": {
+    "present": true,
+    "visibility": "LevelCandidateInventoryVisibility",
+    "gapSummary": "LevelCandidateInventoryGapSummary"
+  },
+  "missingWrapperShape": {
+    "present": false,
+    "limitations": [
+      "raw_clustered_scored_inventory_not_available"
+    ],
+    "diagnostics": [
+      "candidate_inventory_visibility_not_available"
+    ]
+  },
+  "baselineCompatibility": {
+    "existingParityFieldsRemainUnchanged": [
+      "nearest support/resistance",
+      "bucket counts",
+      "extension counts",
+      "synthetic continuation-map count and marking",
+      "diagnostics",
+      "diagnosticSemantics",
+      "enrichmentBreakdown",
+      "densityMetric",
+      "15m context-only checks"
+    ],
+    "oldBaselineMismatchCountsIncludeCandidateInventory": false,
+    "candidateInventoryBaselineLockRequiredBeforeParity": true
+  },
+  "fixtures": {
+    "path": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/review-wiring-fixtures/",
+    "files": [
+      "review-wiring-present-no-gap.json",
+      "review-wiring-present-closer-unsurfaced-support.json",
+      "review-wiring-present-closer-unsurfaced-resistance.json",
+      "review-wiring-present-truthful-market-context-gap.json",
+      "review-wiring-missing-inventory.json"
+    ],
+    "coverage": {
+      "presentNoGap": true,
+      "presentCloserUnsurfacedSupport": true,
+      "presentCloserUnsurfacedResistance": true,
+      "presentTruthfulMarketContextGap": true,
+      "missingInventory": true
+    }
+  },
+  "validationRules": [
+    "present must be boolean",
+    "present wrappers must contain valid LevelCandidateInventoryVisibility",
+    "present gapSummary must match nested visibility",
+    "missing wrappers must include raw_clustered_scored_inventory_not_available",
+    "missing wrappers must include candidate_inventory_visibility_not_available",
+    "missing wrappers must omit visibility and gapSummary",
+    "facts-only assertion rejects prohibited language",
+    "helpers do not mutate input"
+  ],
+  "tests": {
+    "contractTest": "src/tests/level-candidate-inventory-review-wiring-contract.test.ts",
+    "visibilityContractTest": "src/tests/level-candidate-inventory-visibility-contract.test.ts"
+  },
+  "safety": {
+    "readOnly": true,
+    "auditOnly": true,
+    "runtimeReviewWiringAdded": false,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationOrTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": "level_quality_candidate_inventory_review_adapter"
+}
