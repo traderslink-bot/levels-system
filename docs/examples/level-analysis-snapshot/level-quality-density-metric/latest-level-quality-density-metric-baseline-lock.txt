@@ -1,0 +1,45 @@
+Level Quality Density Metric Baseline Lock
+Generated: 2026-06-02T00:32:15.054Z
+Baseline commit: dd65cd4da8b44feb54ec6b02a59cb165731e9b37
+Provider focus: IBKR
+
+Reviewed symbols:
+DEVS, ENVX, DXYZ, QUBT, GME, AIM, HCWB, YMAT, AAOI, PHOE
+
+Supplied 15m symbols:
+DEVS, ENVX, DXYZ, QUBT, GME
+
+Locked density metric baseline:
+- densityMetric present: 10/10
+- contract-valid: 10/10
+- factual-only: 10/10
+- prohibited-language hits: 0
+- report-level density diagnostics added: false
+- density semantics promoted to report-level diagnosticSemantics: false
+
+Classification counts:
+- dense_clustered: 5 (DEVS, ENVX, GME, AIM, YMAT)
+- balanced: 4 (DXYZ, QUBT, AAOI, PHOE)
+- sparse: 1 (HCWB)
+- dense_separated: 0
+
+Side-bias counts:
+- mixed: 6
+- support_heavy: 3
+- resistance_heavy: 1
+- none: 0
+
+Additional flags:
+- extensionHeavy: GME, YMAT
+- syntheticPresent: none
+
+Semantics decision:
+Keep density-specific semantics inside densityMetric.diagnostics for now.
+Do not add report-level density diagnostics.
+Do not promote density semantics into report-level diagnosticSemantics.
+
+Future density changes must compare:
+densityMetric presence, contract validation, classification counts, per-symbol classification, side-bias counts, extension-heavy flags, synthetic-present flags, densityMetric.diagnostics, report-level diagnostics, report-level diagnosticSemantics, nearest support/resistance, bucket counts, extension counts, synthetic markings, 15m context-only status, and prohibited-language hits.
+
+Recommended next gate:
+level_quality_audit_density_metric_handoff
