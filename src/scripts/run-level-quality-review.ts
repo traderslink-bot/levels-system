@@ -9,9 +9,23 @@ import type {
   LevelAnalysisSnapshot,
   LevelAnalysisSnapshotNearestLevel,
 } from "../lib/analysis/level-analysis-snapshot.js";
+import { DEFAULT_LEVEL_ENGINE_CONFIG, type LevelEngineConfig } from "../lib/levels/level-config.js";
+import { clusterRawLevelCandidates } from "../lib/levels/level-clusterer.js";
+import { buildLevelCandidatePoolDiagnostics } from "../lib/levels/level-candidate-pool-diagnostics.js";
+import { buildLevelCandidateInventoryReviewVisibility } from "../lib/levels/level-candidate-inventory-review-adapter.js";
+import {
+  validateLevelCandidateInventoryReviewVisibilityWrapper,
+  type LevelCandidateInventoryReviewVisibilityWrapper,
+} from "../lib/levels/level-candidate-inventory-review-wiring.js";
 import type { LevelQualityDensityMetric } from "../lib/levels/level-quality-density-metric.js";
 import type { LevelQualityDiagnosticDescription } from "../lib/levels/level-quality-audit-wording.js";
-import type { Candle, CandleProviderName } from "../lib/market-data/candle-types.js";
+import { scoreLevelZones } from "../lib/levels/level-scorer.js";
+import { buildRawLevelCandidates } from "../lib/levels/raw-level-candidate-builder.js";
+import { buildSpecialLevelCandidates } from "../lib/levels/special-level-builder.js";
+import { detectSwingPoints } from "../lib/levels/swing-detector.js";
+import type { LevelEngineOutput, RawLevelCandidate } from "../lib/levels/level-types.js";
+import { filterCandlesByCloseAsOf } from "../lib/market-data/candle-as-of-filter.js";
+import type { Candle, CandleProviderName, CandleTimeframe } from "../lib/market-data/candle-types.js";
 
 type ReviewTimeframe = "5m" | "15m" | "4h" | "daily";
 
@@ -83,6 +97,18 @@ type CompactDensityMetric =
       present: false;
     };
 
+type CompactCandidateInventorySummary = {
+  presentCount: number;
+  validCount: number;
+  missingCount: number;
+  closerUnsurfacedCount: number;
+  supportCloserUnsurfacedCount: number;
+  resistanceCloserUnsurfacedCount: number;
+  truthfulMarketContextCount: number;
+  supportTruthfulMarketContextCount: number;
+  resistanceTruthfulMarketContextCount: number;
+};
+
 type CompactQualityAudit = {
   diagnostics: string[];
   diagnosticSemantics: LevelQualityDiagnosticDescription[];
@@ -153,6 +179,7 @@ export type LevelQualityReviewRunnerEntry = {
   qualityAudit: CompactQualityAudit;
   diagnosticSemantics: CompactDiagnosticSemantics;
   fifteenMinuteContext: CompactFifteenMinuteContext;
+  candidateInventoryVisibility: LevelCandidateInventoryReviewVisibilityWrapper;
   safety: {
     noLookaheadApplied: boolean;
     levelOutputUnchanged: boolean;
@@ -200,6 +227,15 @@ export type LevelQualityReviewRunnerResult = {
     clusteredDensityDiagnosticParityCount: number;
     fifteenMinuteContextOnlyCount: number;
     densityMetricPresentCount: number;
+    candidateInventoryPresentCount: number;
+    candidateInventoryValidCount: number;
+    candidateInventoryCloserUnsurfacedCount: number;
+    candidateInventorySupportCloserUnsurfacedCount: number;
+    candidateInventoryResistanceCloserUnsurfacedCount: number;
+    candidateInventoryTruthfulMarketContextCount: number;
+    candidateInventorySupportTruthfulMarketContextCount: number;
+    candidateInventoryResistanceTruthfulMarketContextCount: number;
+    candidateInventoryMissingCount: number;
     mismatchCount: number;
     prohibitedLanguageHitCount: number;
   };
@@ -390,6 +426,115 @@ function readCacheCandles(filePath: string): Candle[] {
   return extractCandleArray(parsed, filePath).map((item, index) =>
     normalizeCandle(item, filePath, index),
   );
+}
+
+function filterEngineCandles(params: {
+  timeframe: CandleTimeframe;
+  candles: Candle[];
+  asOfTimestamp: number;
+}): Candle[] {
+  return filterCandlesByCloseAsOf({
+    candles: structuredClone(params.candles),
+    timeframe: params.timeframe,
+    asOfTimestamp: params.asOfTimestamp,
+  }).candles;
+}
+
+function buildCandidatePoolDiagnosticsForReview(params: {
+  symbol: string;
+  asOfTimestamp: number;
+  referencePrice?: number;
+  candles5m: Candle[];
+  fourHourCandles: Candle[];
+  dailyCandles: Candle[];
+  levelOutput: LevelEngineOutput;
+  config?: LevelEngineConfig;
+}) {
+  const config = params.config ?? DEFAULT_LEVEL_ENGINE_CONFIG;
+  const series: Array<{ timeframe: CandleTimeframe; candles: Candle[] }> = [
+    {
+      timeframe: "daily",
+      candles: filterEngineCandles({
+        timeframe: "daily",
+        candles: params.dailyCandles,
+        asOfTimestamp: params.asOfTimestamp,
+      }),
+    },
+    {
+      timeframe: "4h",
+      candles: filterEngineCandles({
+        timeframe: "4h",
+        candles: params.fourHourCandles,
+        asOfTimestamp: params.asOfTimestamp,
+      }),
+    },
+    {
+      timeframe: "5m",
+      candles: filterEngineCandles({
+        timeframe: "5m",
+        candles: params.candles5m,
+        asOfTimestamp: params.asOfTimestamp,
+      }),
+    },
+  ];
+  const rawCandidates: RawLevelCandidate[] = [];
+
+  for (const item of series) {
+    if (item.candles.length === 0) {
+      continue;
+    }
+    const timeframeConfig = config.timeframeConfig[item.timeframe];
+    const swings = detectSwingPoints(item.candles, {
+      swingWindow: timeframeConfig.swingWindow,
+      minimumDisplacementPct: timeframeConfig.minimumDisplacementPct,
+      minimumSeparationBars: timeframeConfig.minimumSwingSeparationBars,
+    });
+
+    rawCandidates.push(
+      ...buildRawLevelCandidates({
+        symbol: params.symbol,
+        timeframe: item.timeframe,
+        candles: item.candles,
+        swings,
+      }),
+    );
+  }
+
+  const fiveMinute = series.find((item) => item.timeframe === "5m")?.candles ?? [];
+  const special = buildSpecialLevelCandidates(params.symbol, fiveMinute);
+  rawCandidates.push(...special.candidates);
+
+  const tolerance = Math.max(
+    config.timeframeConfig.daily.clusterTolerancePct,
+    config.timeframeConfig["4h"].clusterTolerancePct,
+  );
+  const clusteredSupportZones = clusterRawLevelCandidates(
+    params.symbol,
+    "support",
+    rawCandidates,
+    tolerance,
+    config,
+  );
+  const clusteredResistanceZones = clusterRawLevelCandidates(
+    params.symbol,
+    "resistance",
+    rawCandidates,
+    tolerance,
+    config,
+  );
+  const scoredSupportZones = scoreLevelZones(clusteredSupportZones, config);
+  const scoredResistanceZones = scoreLevelZones(clusteredResistanceZones, config);
+
+  return buildLevelCandidatePoolDiagnostics({
+    symbol: params.symbol,
+    referencePrice: params.referencePrice,
+    rawCandidates,
+    clusteredSupportZones,
+    clusteredResistanceZones,
+    scoredSupportZones,
+    scoredResistanceZones,
+    levelOutput: params.levelOutput,
+  });
 }
 
 export function loadLevelQualityReviewBaseline(filePath: string): LevelQualityReviewBaseline {
@@ -630,6 +775,35 @@ function compactFifteenMinuteContext(snapshot: LevelAnalysisSnapshot): CompactFi
   };
 }
 
+function candidateInventorySourceFiles(
+  sourceFiles: Partial<Record<ReviewTimeframe, string>>,
+): Partial<Record<ReviewTimeframe, string>> {
+  return {
+    ...(sourceFiles["5m"] ? { "5m": sourceFiles["5m"] } : {}),
+    ...(sourceFiles["4h"] ? { "4h": sourceFiles["4h"] } : {}),
+    ...(sourceFiles.daily ? { daily: sourceFiles.daily } : {}),
+  };
+}
+
+function candidateInventorySummary(
+  entries: LevelQualityReviewRunnerEntry[],
+): CompactCandidateInventorySummary {
+  const wrappers = entries.map((entry) => entry.candidateInventoryVisibility);
+  const present = wrappers.filter((wrapper) => wrapper.present);
+
+  return {
+    presentCount: present.length,
+    validCount: wrappers.filter((wrapper) => validateLevelCandidateInventoryReviewVisibilityWrapper(wrapper).valid).length,
+    missingCount: wrappers.filter((wrapper) => !wrapper.present).length,
+    closerUnsurfacedCount: present.filter((wrapper) => wrapper.gapSummary.overall === "closer_unsurfaced_candidate").length,
+    supportCloserUnsurfacedCount: present.filter((wrapper) => wrapper.gapSummary.support === "closer_unsurfaced_candidate").length,
+    resistanceCloserUnsurfacedCount: present.filter((wrapper) => wrapper.gapSummary.resistance === "closer_unsurfaced_candidate").length,
+    truthfulMarketContextCount: present.filter((wrapper) => wrapper.gapSummary.overall === "truthful_market_context_gap").length,
+    supportTruthfulMarketContextCount: present.filter((wrapper) => wrapper.gapSummary.support === "truthful_market_context_gap").length,
+    resistanceTruthfulMarketContextCount: present.filter((wrapper) => wrapper.gapSummary.resistance === "truthful_market_context_gap").length,
+  };
+}
+
 function stable(value: unknown): string {
   return JSON.stringify(value);
 }
@@ -660,7 +834,7 @@ export function summarizeLevelQualitySnapshot(
     snapshot: LevelAnalysisSnapshot;
     provider: CandleProviderName;
   },
-): Omit<LevelQualityReviewRunnerEntry, "parity" | "mismatches"> {
+): Omit<LevelQualityReviewRunnerEntry, "candidateInventoryVisibility" | "parity" | "mismatches"> {
   const nearestLevels = {
     support: compactNearest(params.snapshot.nearestSupport, params.snapshot.referencePrice),
     resistance: compactNearest(params.snapshot.nearestResistance, params.snapshot.referencePrice),
@@ -702,7 +876,7 @@ export function summarizeLevelQualitySnapshot(
 
 function buildParity(
   baselineEntry: LevelQualityReviewBaselineEntry,
-  entry: Omit<LevelQualityReviewRunnerEntry, "parity" | "mismatches">,
+  entry: Omit<LevelQualityReviewRunnerEntry, "candidateInventoryVisibility" | "parity" | "mismatches">,
 ): LevelQualityReviewRunnerEntry["parity"] {
   return {
     nearestSupport: sameValue(baselineEntry.nearestLevels?.support ?? null, entry.nearestLevels.support),
@@ -751,17 +925,39 @@ export function buildLevelQualityReviewEntry(
   const fourHourPath = resolveCachePath(params.cacheRoot, requireSourceFile(baselineEntry, "4h"));
   const dailyPath = resolveCachePath(params.cacheRoot, requireSourceFile(baselineEntry, "daily"));
   const fifteenMinuteSource = baselineEntry.sourceFiles["15m"];
+  const candles5m = readCacheCandles(fiveMinutePath);
+  const fourHourCandles = readCacheCandles(fourHourPath);
+  const dailyCandles = readCacheCandles(dailyPath);
+  const candles15m = fifteenMinuteSource
+    ? readCacheCandles(resolveCachePath(params.cacheRoot, fifteenMinuteSource))
+    : undefined;
   const snapshot = buildLevelAnalysisSnapshotFromCandles({
     symbol: baselineEntry.symbol,
     asOfTimestamp: baselineEntry.asOfTimestamp,
     referencePrice: baselineEntry.referencePrice,
-    candles5m: readCacheCandles(fiveMinutePath),
-    ...(fifteenMinuteSource
-      ? { candles15m: readCacheCandles(resolveCachePath(params.cacheRoot, fifteenMinuteSource)) }
-      : {}),
-    fourHourCandles: readCacheCandles(fourHourPath),
-    dailyCandles: readCacheCandles(dailyPath),
+    candles5m,
+    ...(candles15m ? { candles15m } : {}),
+    fourHourCandles,
+    dailyCandles,
     previousClose: baselineEntry.previousClose,
+  });
+  const candidatePoolDiagnostics = buildCandidatePoolDiagnosticsForReview({
+    symbol: baselineEntry.symbol.toUpperCase(),
+    asOfTimestamp: baselineEntry.asOfTimestamp,
+    referencePrice: snapshot.referencePrice,
+    candles5m,
+    fourHourCandles,
+    dailyCandles,
+    levelOutput: snapshot.levelEngineOutput,
+  });
+  const candidateInventoryVisibility = buildLevelCandidateInventoryReviewVisibility({
+    symbol: baselineEntry.symbol,
+    provider: params.provider,
+    asOfTimestamp: baselineEntry.asOfTimestamp,
+    asOfIso: new Date(baselineEntry.asOfTimestamp).toISOString(),
+    referencePrice: snapshot.referencePrice,
+    sourceFiles: candidateInventorySourceFiles(baselineEntry.sourceFiles),
+    candidatePoolDiagnostics,
   });
   const compact = summarizeLevelQualitySnapshot({
     baselineEntry,
@@ -772,12 +968,15 @@ export function buildLevelQualityReviewEntry(
 
   return {
     ...compact,
+    candidateInventoryVisibility,
     parity,
     mismatches: collectMismatches(parity),
   };
 }
 
 function summarizeEntries(entries: LevelQualityReviewRunnerEntry[]) {
+  const candidateInventory = candidateInventorySummary(entries);
+
   return {
     totalSymbols: entries.length,
     nearestSupportParityCount: entries.filter((entry) => entry.parity.nearestSupport).length,
@@ -793,9 +992,33 @@ function summarizeEntries(entries: LevelQualityReviewRunnerEntry[]) {
     clusteredDensityDiagnosticParityCount: entries.filter((entry) => entry.parity.clusteredDensityDiagnostics).length,
     fifteenMinuteContextOnlyCount: entries.filter((entry) => entry.parity.fifteenMinuteStillContextOnly).length,
     densityMetricPresentCount: entries.filter((entry) => entry.qualityAudit.densityMetric?.present === true).length,
+    candidateInventoryPresentCount: candidateInventory.presentCount,
+    candidateInventoryValidCount: candidateInventory.validCount,
+    candidateInventoryCloserUnsurfacedCount: candidateInventory.closerUnsurfacedCount,
+    candidateInventorySupportCloserUnsurfacedCount: candidateInventory.supportCloserUnsurfacedCount,
+    candidateInventoryResistanceCloserUnsurfacedCount: candidateInventory.resistanceCloserUnsurfacedCount,
+    candidateInventoryTruthfulMarketContextCount: candidateInventory.truthfulMarketContextCount,
+    candidateInventorySupportTruthfulMarketContextCount: candidateInventory.supportTruthfulMarketContextCount,
+    candidateInventoryResistanceTruthfulMarketContextCount: candidateInventory.resistanceTruthfulMarketContextCount,
+    candidateInventoryMissingCount: candidateInventory.missingCount,
     mismatchCount: entries.reduce((sum, entry) => sum + entry.mismatches.length, 0),
     prohibitedLanguageHitCount: 0,
   };
+}
+
+function renderCandidateInventoryLine(
+  wrapper: LevelCandidateInventoryReviewVisibilityWrapper,
+): string {
+  if (!wrapper.present) {
+    return `candidateInventory=present:false; limitations=${wrapper.limitations.join("|")}`;
+  }
+
+  return [
+    `candidateInventory=present:true`,
+    `gap=${wrapper.gapSummary.overall}`,
+    `supportCloser=${wrapper.visibility.unsurfacedCloser.support.count}`,
+    `resistanceCloser=${wrapper.visibility.unsurfacedCloser.resistance.count}`,
+  ].join("; ");
 }
 
 export function renderLevelQualityReviewText(result: Omit<LevelQualityReviewRunnerResult, "content">): string {
@@ -818,6 +1041,15 @@ export function renderLevelQualityReviewText(result: Omit<LevelQualityReviewRunn
     `Cluster/density diagnostic parity: ${result.summary.clusteredDensityDiagnosticParityCount}/${result.summary.totalSymbols}`,
     `15m context-only count: ${result.summary.fifteenMinuteContextOnlyCount}/${result.summary.totalSymbols}`,
     `Density metric present count: ${result.summary.densityMetricPresentCount}/${result.summary.totalSymbols}`,
+    `Candidate inventory present count: ${result.summary.candidateInventoryPresentCount}/${result.summary.totalSymbols}`,
+    `Candidate inventory valid count: ${result.summary.candidateInventoryValidCount}/${result.summary.totalSymbols}`,
+    `Candidate inventory missing count: ${result.summary.candidateInventoryMissingCount}/${result.summary.totalSymbols}`,
+    `Candidate inventory closer-unsurfaced count: ${result.summary.candidateInventoryCloserUnsurfacedCount}`,
+    `Candidate inventory support closer-unsurfaced count: ${result.summary.candidateInventorySupportCloserUnsurfacedCount}`,
+    `Candidate inventory resistance closer-unsurfaced count: ${result.summary.candidateInventoryResistanceCloserUnsurfacedCount}`,
+    `Candidate inventory overall truthful market-context count: ${result.summary.candidateInventoryTruthfulMarketContextCount}`,
+    `Candidate inventory support truthful market-context count: ${result.summary.candidateInventorySupportTruthfulMarketContextCount}`,
+    `Candidate inventory resistance truthful market-context count: ${result.summary.candidateInventoryResistanceTruthfulMarketContextCount}`,
     `Mismatch count: ${result.summary.mismatchCount}`,
     `Prohibited-language hits: ${result.summary.prohibitedLanguageHitCount}`,
     "",
@@ -829,7 +1061,7 @@ export function renderLevelQualityReviewText(result: Omit<LevelQualityReviewRunn
       ? entry.qualityAudit.densityMetric.classification
       : "none";
     lines.push(
-      `- ${entry.symbol}: mismatches=${entry.mismatches.length === 0 ? "none" : entry.mismatches.join(",")}; density=${densityClassification}; 15mContextOnly=${entry.fifteenMinuteContext.stillContextOnly}`,
+      `- ${entry.symbol}: mismatches=${entry.mismatches.length === 0 ? "none" : entry.mismatches.join(",")}; density=${densityClassification}; 15mContextOnly=${entry.fifteenMinuteContext.stillContextOnly}; ${renderCandidateInventoryLine(entry.candidateInventoryVisibility)}`,
     );
   }
 

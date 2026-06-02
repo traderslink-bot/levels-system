@@ -175,15 +175,11 @@ test("candidate inventory review wiring fixtures remain facts-only", () => {
   }
 });
 
-test("candidate inventory review wiring source stays isolated and is not wired into packaged review yet", () => {
+test("candidate inventory review wiring source stays isolated from providers cache writes alert monitoring Discord and journal paths", () => {
   const helperSource = readFileSync(
     fileURLToPath(new URL("../lib/levels/level-candidate-inventory-review-wiring.ts", import.meta.url)),
     "utf8",
   ).toLowerCase();
-  const reviewRunnerSource = readFileSync(
-    fileURLToPath(new URL("../scripts/run-level-quality-review.ts", import.meta.url)),
-    "utf8",
-  );
 
   for (const blocked of [
     "../alerts/",
@@ -200,6 +196,4 @@ test("candidate inventory review wiring source stays isolated and is not wired i
   ]) {
     assert.equal(helperSource.includes(blocked), false, `Unexpected source reference: ${blocked}`);
   }
-
-  assert.equal(reviewRunnerSource.includes("candidateInventoryVisibility"), false);
 });
