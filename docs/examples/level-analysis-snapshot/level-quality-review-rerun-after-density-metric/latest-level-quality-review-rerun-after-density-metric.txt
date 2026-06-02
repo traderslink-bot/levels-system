@@ -1,0 +1,32 @@
+Level quality review complete
+Generated: 2026-06-02T00:07:51.752Z
+Provider: ibkr
+Baseline: docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-fixture-packs/latest-level-quality-review-rerun-after-fixture-packs.json
+Symbols: 10
+Nearest support parity: 10/10
+Nearest resistance parity: 10/10
+Bucket count parity: 10/10
+Extension count parity: 10/10
+Synthetic count parity: 10/10
+Synthetic marking parity: 10/10
+Diagnostics parity: 10/10
+Diagnostic semantics parity: 10/10
+Enrichment breakdown parity: 10/10
+Extension warning parity: 10/10
+Cluster/density diagnostic parity: 10/10
+15m context-only count: 10/10
+Density metric present count: 10/10
+Mismatch count: 0
+Prohibited-language hits: 0
+
+Entries
+- DEVS: mismatches=none; density=dense_clustered; 15mContextOnly=true
+- ENVX: mismatches=none; density=dense_clustered; 15mContextOnly=true
+- DXYZ: mismatches=none; density=balanced; 15mContextOnly=true
+- QUBT: mismatches=none; density=balanced; 15mContextOnly=true
+- GME: mismatches=none; density=dense_clustered; 15mContextOnly=true
+- AIM: mismatches=none; density=dense_clustered; 15mContextOnly=true
+- HCWB: mismatches=none; density=sparse; 15mContextOnly=true
+- YMAT: mismatches=none; density=dense_clustered; 15mContextOnly=true
+- AAOI: mismatches=none; density=balanced; 15mContextOnly=true
+- PHOE: mismatches=none; density=balanced; 15mContextOnly=true

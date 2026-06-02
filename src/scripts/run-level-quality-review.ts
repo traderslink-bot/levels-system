@@ -75,18 +75,13 @@ type CompactFifteenMinuteContext = {
   stillContextOnly: boolean;
 };
 
-type CompactDensityMetric = {
-  present: boolean;
-  classification?: LevelQualityDensityMetric["classification"];
-  sideBias?: LevelQualityDensityMetric["sideBias"];
-  totalRows?: number;
-  rowsInsideAuditWindow?: number;
-  counts?: LevelQualityDensityMetric["counts"];
-  densityBuckets?: LevelQualityDensityMetric["densityBuckets"];
-  flags?: LevelQualityDensityMetric["flags"];
-  diagnostics?: string[];
-  safety?: LevelQualityDensityMetric["safety"];
-};
+type CompactDensityMetric =
+  | ({
+      present: true;
+    } & LevelQualityDensityMetric)
+  | {
+      present: false;
+    };
 
 type CompactQualityAudit = {
   diagnostics: string[];
@@ -608,15 +603,8 @@ function compactQualityAudit(snapshot: LevelAnalysisSnapshot): CompactQualityAud
       ? {
           densityMetric: {
             present: true,
-            classification: audit.densityMetric.classification,
-            sideBias: audit.densityMetric.sideBias,
-            totalRows: audit.densityMetric.totalRows,
-            rowsInsideAuditWindow: audit.densityMetric.rowsInsideAuditWindow,
-            counts: structuredClone(audit.densityMetric.counts),
-            densityBuckets: structuredClone(audit.densityMetric.densityBuckets),
-            flags: structuredClone(audit.densityMetric.flags),
+            ...structuredClone(audit.densityMetric),
             diagnostics: [...audit.densityMetric.diagnostics].sort(),
-            safety: structuredClone(audit.densityMetric.safety),
           },
         }
       : {
@@ -837,8 +825,11 @@ export function renderLevelQualityReviewText(result: Omit<LevelQualityReviewRunn
   ];
 
   for (const entry of result.entries) {
+    const densityClassification = entry.qualityAudit.densityMetric?.present === true
+      ? entry.qualityAudit.densityMetric.classification
+      : "none";
     lines.push(
-      `- ${entry.symbol}: mismatches=${entry.mismatches.length === 0 ? "none" : entry.mismatches.join(",")}; density=${entry.qualityAudit.densityMetric?.classification ?? "none"}; 15mContextOnly=${entry.fifteenMinuteContext.stillContextOnly}`,
+      `- ${entry.symbol}: mismatches=${entry.mismatches.length === 0 ? "none" : entry.mismatches.join(",")}; density=${densityClassification}; 15mContextOnly=${entry.fifteenMinuteContext.stillContextOnly}`,
     );
   }
 
