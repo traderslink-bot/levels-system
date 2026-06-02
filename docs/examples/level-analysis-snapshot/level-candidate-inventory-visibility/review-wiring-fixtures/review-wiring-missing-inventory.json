@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-wiring-fixture/v1",
+  "fixtureName": "review-wiring-missing-inventory",
+  "wrapper": {
+    "present": false,
+    "limitations": ["raw_clustered_scored_inventory_not_available"],
+    "diagnostics": ["candidate_inventory_visibility_not_available"]
+  },
+  "expectedPresent": false,
+  "expectedGapClassification": {
+    "support": "inconclusive_missing_reasons",
+    "resistance": "inconclusive_missing_reasons",
+    "overall": "inconclusive_missing_reasons"
+  },
+  "expectedLimitations": ["raw_clustered_scored_inventory_not_available"],
+  "expectedDiagnostics": ["candidate_inventory_visibility_not_available"],
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

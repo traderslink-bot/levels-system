@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-wiring-fixture/v1",
+  "fixtureName": "review-wiring-present-closer-unsurfaced-support",
+  "wrapper": {
+    "present": true,
+    "visibility": {
+      "schemaVersion": "level-candidate-inventory-visibility/v1",
+      "symbol": "SUPVIS",
+      "provider": "fixture",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 10,
+      "sourceFiles": {
+        "5m": "fixture/SUPVIS/5m.json",
+        "4h": "fixture/SUPVIS/4h.json",
+        "daily": "fixture/SUPVIS/daily.json"
+      },
+      "stageCounts": {
+        "raw": { "stage": "raw", "support": 5, "resistance": 3, "total": 8 },
+        "clustered": { "stage": "clustered", "support": 4, "resistance": 2, "total": 6 },
+        "scored": { "stage": "scored", "support": 4, "resistance": 2, "total": 6 },
+        "surfaced": { "stage": "surfaced", "support": 2, "resistance": 2, "total": 4 },
+        "extension_candidate": { "stage": "extension_candidate", "support": 1, "resistance": 0, "total": 1 },
+        "extension_selected": { "stage": "extension_selected", "support": 1, "resistance": 0, "total": 1 }
+      },
+      "nearest": {
+        "raw": {
+          "support": { "stage": "raw", "side": "support", "price": 9.75, "distancePct": 2.5, "sourceTypes": ["swing_low"] },
+          "resistance": { "stage": "raw", "side": "resistance", "price": 10.3, "distancePct": 3, "sourceTypes": ["swing_high"] }
+        },
+        "clustered": {
+          "support": { "stage": "clustered", "side": "support", "levelId": "SUPVIS-support-zone-2", "price": 9.75, "distancePct": 2.5, "sourceTypes": ["swing_low"] },
+          "resistance": { "stage": "clustered", "side": "resistance", "levelId": "SUPVIS-resistance-zone-1", "price": 10.3, "distancePct": 3, "sourceTypes": ["swing_high"] }
+        },
+        "scored": {
+          "support": { "stage": "scored", "side": "support", "levelId": "SUPVIS-support-zone-2", "price": 9.75, "distancePct": 2.5, "sourceTypes": ["swing_low"] },
+          "resistance": { "stage": "scored", "side": "resistance", "levelId": "SUPVIS-resistance-zone-1", "price": 10.3, "distancePct": 3, "sourceTypes": ["swing_high"] }
+        },
+        "surfaced": {
+          "support": { "stage": "surfaced", "side": "support", "levelId": "SUPVIS-support-zone-1", "bucket": "majorSupport", "price": 9.1, "distancePct": 9, "surfaced": true, "sourceTypes": ["swing_low"] },
+          "resistance": { "stage": "surfaced", "side": "resistance", "levelId": "SUPVIS-resistance-zone-1", "bucket": "intradayResistance", "price": 10.3, "distancePct": 3, "surfaced": true, "sourceTypes": ["swing_high"] }
+        },
+        "extension_candidate": {},
+        "extension_selected": {}
+      },
+      "unsurfacedCloser": {
+        "support": {
+          "side": "support",
+          "present": true,
+          "count": 1,
+          "nearest": { "stage": "scored", "side": "support", "levelId": "SUPVIS-support-zone-2", "price": 9.75, "distancePct": 2.5, "surfaced": false, "sourceTypes": ["swing_low"] },
+          "reasonAvailability": "not_available",
+          "reasons": [],
+          "limitations": ["surfaced_selection_reason_not_serialized"]
+        },
+        "resistance": { "side": "resistance", "present": false, "count": 0, "reasonAvailability": "not_needed", "reasons": [], "limitations": [] }
+      },
+      "gapClassification": {
+        "support": "closer_unsurfaced_candidate",
+        "resistance": "no_gap",
+        "overall": "closer_unsurfaced_candidate"
+      },
+      "diagnostics": ["closer_unsurfaced_support_present"],
+      "limitations": ["surfaced_selection_reason_not_serialized"],
+      "safety": {
+        "readOnly": true,
+        "auditOnly": true,
+        "providerCallsMade": false,
+        "cacheFilesWritten": false,
+        "rawCandlesIncluded": false,
+        "fullSnapshotsIncluded": false,
+        "supportResistanceDetectionChanged": false,
+        "levelEngineScoringRankingClusteringChanged": false,
+        "surfacedLevelsChanged": false,
+        "extensionGenerationChanged": false,
+        "fifteenMinuteFedIntoLevelEngine": false
+      }
+    },
+    "gapSummary": {
+      "support": "closer_unsurfaced_candidate",
+      "resistance": "no_gap",
+      "overall": "closer_unsurfaced_candidate"
+    }
+  },
+  "expectedPresent": true,
+  "expectedGapClassification": {
+    "support": "closer_unsurfaced_candidate",
+    "resistance": "no_gap",
+    "overall": "closer_unsurfaced_candidate"
+  },
+  "expectedLimitations": ["surfaced_selection_reason_not_serialized"],
+  "expectedDiagnostics": ["closer_unsurfaced_support_present"],
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}
