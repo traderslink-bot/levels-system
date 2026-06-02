@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "level-candidate-inventory-volume-session-context-contract/v1",
+  "generatedAt": "2026-06-02T17:33:42.046Z",
+  "providerFocus": "ibkr",
+  "purpose": "Lock the compact facts-only contract and deterministic fixtures for candidate/surfaced-level volume-session context.",
+  "mergedDesignCommit": "16094566c95c86b2f135a0e62767a463546e202d",
+  "contractModule": "src/lib/levels/level-candidate-volume-session-context.ts",
+  "contractExports": [
+    "LevelCandidateVolumeSessionContext",
+    "LevelCandidateVolumeSessionContextRow",
+    "LevelCandidateSessionFactProximity",
+    "LevelCandidateVolumeShelfOverlap",
+    "LevelCandidateVolumeSessionComparisonSummary",
+    "LevelCandidateVolumeSessionComparisonOutcome",
+    "validateLevelCandidateVolumeSessionContext",
+    "isLevelCandidateVolumeSessionContext",
+    "assertLevelCandidateVolumeSessionContextFactsOnly"
+  ],
+  "rootShape": [
+    "schemaVersion",
+    "symbol",
+    "provider",
+    "asOfTimestamp",
+    "asOfIso",
+    "referencePrice",
+    "contexts",
+    "comparisonSummary",
+    "diagnostics",
+    "safety"
+  ],
+  "rowShape": [
+    "rowId",
+    "levelId",
+    "candidateId",
+    "side",
+    "stage",
+    "price",
+    "zoneLow",
+    "zoneHigh",
+    "distanceFromReferencePct",
+    "session",
+    "volume",
+    "shelves",
+    "diagnostics",
+    "safety"
+  ],
+  "stages": [
+    "raw",
+    "clustered",
+    "scored",
+    "surfaced",
+    "extension_candidate",
+    "extension_selected"
+  ],
+  "sessionFacts": [
+    "vwap",
+    "premarket_high",
+    "premarket_low",
+    "opening_range_high",
+    "opening_range_low",
+    "high_of_day",
+    "low_of_day",
+    "previous_close",
+    "regular_session_open"
+  ],
+  "volumeFields": [
+    "relativeVolume",
+    "dollarVolume",
+    "volumeState",
+    "liquidityQuality",
+    "accelerationState",
+    "pullbackVolumeState",
+    "breakoutVolumeState",
+    "diagnostics"
+  ],
+  "shelfFields": [
+    "shelfId",
+    "zoneLow",
+    "zoneHigh",
+    "representativePrice",
+    "relation",
+    "shelfRole",
+    "totalVolume",
+    "dollarVolume",
+    "percentOfWindowVolume",
+    "factsOnly"
+  ],
+  "comparisonOutcomes": [
+    "surfaced_has_more_session_volume_context",
+    "unsurfaced_has_more_session_volume_context",
+    "similar_session_volume_context",
+    "missing_facts_inconclusive",
+    "candidate_identifier_unavailable",
+    "no_nearby_session_volume_context"
+  ],
+  "fixtures": [
+    {
+      "name": "volume-session-context-surfaced-vwap-shelf-overlap",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/contract-fixtures/volume-session-context-surfaced-vwap-shelf-overlap.json",
+      "expectedOutcome": "surfaced_has_more_session_volume_context"
+    },
+    {
+      "name": "volume-session-context-closer-unsurfaced-less-context",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/contract-fixtures/volume-session-context-closer-unsurfaced-less-context.json",
+      "expectedOutcome": "surfaced_has_more_session_volume_context"
+    },
+    {
+      "name": "volume-session-context-unsurfaced-more-context",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/contract-fixtures/volume-session-context-unsurfaced-more-context.json",
+      "expectedOutcome": "unsurfaced_has_more_session_volume_context"
+    },
+    {
+      "name": "volume-session-context-missing-facts-inconclusive",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/contract-fixtures/volume-session-context-missing-facts-inconclusive.json",
+      "expectedOutcome": "missing_facts_inconclusive"
+    },
+    {
+      "name": "volume-session-context-no-nearby-context",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/contract-fixtures/volume-session-context-no-nearby-context.json",
+      "expectedOutcome": "no_nearby_session_volume_context"
+    }
+  ],
+  "validation": {
+    "focusedTest": "src/tests/level-candidate-volume-session-context-contract.test.ts",
+    "fixtureCount": 5,
+    "prohibitedLanguageHitCount": 0,
+    "sourceIsolationChecked": true
+  },
+  "safety": {
+    "volumeSessionContextWiredIntoRuntimeReviewOutput": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "alertMonitoringDiscordBehaviorChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": {
+    "name": "level_quality_candidate_inventory_volume_session_context_builder",
+    "reason": "After the facts-only contract and fixtures are locked, build a pure builder from existing SessionMarketFacts, VolumeMarketFacts, VolumeShelf[], and candidate inventory rows into the contract."
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "level-candidate-volume-session-context-fixture/v1",
+  "fixtureName": "volume-session-context-surfaced-vwap-shelf-overlap",
+  "inputSummary": {
+    "scenario": "surfaced support row has nearby VWAP and overlapping volume shelf context",
+    "rowCount": 1,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false
+  },
+  "context": {
+    "schemaVersion": "level-candidate-volume-session-context/v1",
+    "symbol": "FIXA",
+    "provider": "ibkr",
+    "asOfTimestamp": 1780329600000,
+    "asOfIso": "2026-06-01T16:00:00.000Z",
+    "referencePrice": 10.25,
+    "contexts": [
+      {
+        "rowId": "surfaced-support-1",
+        "levelId": "FIXA-support-zone-1",
+        "side": "support",
+        "stage": "surfaced",
+        "price": 10.12,
+        "zoneLow": 10.08,
+        "zoneHigh": 10.16,
+        "distanceFromReferencePct": 1.2683,
+        "session": {
+          "nearbyFacts": [
+            {
+              "fact": "vwap",
+              "price": 10.1,
+              "distancePct": 0.1976,
+              "relation": "near",
+              "factsOnly": true
+            },
+            {
+              "fact": "opening_range_low",
+              "price": 10.08,
+              "distancePct": 0.0,
+              "relation": "overlaps",
+              "factsOnly": true
+            }
+          ],
+          "vwap": {
+            "fact": "vwap",
+            "price": 10.1,
+            "distancePct": 0.1976,
+            "relation": "near",
+            "factsOnly": true
+          },
+          "diagnostics": []
+        },
+        "volume": {
+          "relativeVolume": 2.1,
+          "dollarVolume": 840000,
+          "volumeState": "elevated",
+          "liquidityQuality": "acceptable",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "not_applicable",
+          "diagnostics": []
+        },
+        "shelves": {
+          "nearbyShelfIds": [
+            "FIXA-shelf-1"
+          ],
+          "overlaps": [
+            {
+              "shelfId": "FIXA-shelf-1",
+              "zoneLow": 10.05,
+              "zoneHigh": 10.18,
+              "representativePrice": 10.11,
+              "relation": "overlaps",
+              "shelfRole": "support",
+              "totalVolume": 125000,
+              "dollarVolume": 1263750,
+              "percentOfWindowVolume": 22.5,
+              "factsOnly": true
+            }
+          ],
+          "diagnostics": []
+        },
+        "diagnostics": [
+          "surfaced_vwap_shelf_overlap_context_present"
+        ],
+        "safety": {
+          "factsOnly": true,
+          "noLevelSelectionChange": true,
+          "noRankingChange": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "comparisonSummary": {
+      "outcome": "surfaced_has_more_session_volume_context",
+      "support": "surfaced_has_more_session_volume_context",
+      "comparedRowIds": [
+        "surfaced-support-1"
+      ],
+      "surfacedRowIds": [
+        "surfaced-support-1"
+      ],
+      "unsurfacedRowIds": [],
+      "diagnostics": [
+        "surfaced_vwap_shelf_overlap_context_present"
+      ]
+    },
+    "diagnostics": [
+      "surfaced_vwap_shelf_overlap_context_present"
+    ],
+    "safety": {
+      "factsOnly": true,
+      "noLevelSelectionChange": true,
+      "noRankingChange": true,
+      "noRuntimeBehaviorChange": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "fifteenMinuteFedIntoLevelEngine": false,
+      "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+      "supportResistanceDetectionChanged": false,
+      "levelEngineScoringRankingClusteringChanged": false,
+      "surfacedLevelsChanged": false,
+      "extensionGenerationChanged": false,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "rawCandlesIncluded": false,
+      "fullSnapshotsIncluded": false
+    }
+  },
+  "expected": {
+    "comparisonOutcome": "surfaced_has_more_session_volume_context",
+    "diagnostics": [
+      "surfaced_vwap_shelf_overlap_context_present"
+    ]
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

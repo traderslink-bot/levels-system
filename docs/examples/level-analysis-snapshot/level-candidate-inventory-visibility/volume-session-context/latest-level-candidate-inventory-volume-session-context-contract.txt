@@ -1,0 +1,52 @@
+Level candidate inventory volume/session context contract
+Generated: 2026-06-02T17:33:42.046Z
+Provider focus: ibkr
+Merged design commit: 16094566c95c86b2f135a0e62767a463546e202d
+
+Contract module:
+src/lib/levels/level-candidate-volume-session-context.ts
+
+Exports:
+- LevelCandidateVolumeSessionContext
+- LevelCandidateVolumeSessionContextRow
+- LevelCandidateSessionFactProximity
+- LevelCandidateVolumeShelfOverlap
+- LevelCandidateVolumeSessionComparisonSummary
+- LevelCandidateVolumeSessionComparisonOutcome
+- validateLevelCandidateVolumeSessionContext
+- isLevelCandidateVolumeSessionContext
+- assertLevelCandidateVolumeSessionContextFactsOnly
+
+Supported stages:
+raw, clustered, scored, surfaced, extension_candidate, extension_selected
+
+Supported session facts:
+vwap, premarket_high, premarket_low, opening_range_high, opening_range_low, high_of_day, low_of_day, previous_close, regular_session_open
+
+Supported comparison outcomes:
+- surfaced_has_more_session_volume_context
+- unsurfaced_has_more_session_volume_context
+- similar_session_volume_context
+- missing_facts_inconclusive
+- candidate_identifier_unavailable
+- no_nearby_session_volume_context
+
+Fixtures:
+- volume-session-context-surfaced-vwap-shelf-overlap.json
+- volume-session-context-closer-unsurfaced-less-context.json
+- volume-session-context-unsurfaced-more-context.json
+- volume-session-context-missing-facts-inconclusive.json
+- volume-session-context-no-nearby-context.json
+
+Validation:
+- focused test: src/tests/level-candidate-volume-session-context-contract.test.ts
+- fixture count: 5
+- prohibited-language hits: 0
+- source isolation checked
+
+Safety:
+Volume/session context is not wired into runtime review output.
+No support/resistance detection, LevelEngine scoring/ranking/clustering, surfaced levels, extension generation, 15m LevelEngine input, scoring or surfaced-selection use of volume/session facts, cache writing, alert/monitoring/Discord behavior, journal behavior, or recommendation/trade-advice behavior changed.
+
+Recommended next gate:
+level_quality_candidate_inventory_volume_session_context_builder
