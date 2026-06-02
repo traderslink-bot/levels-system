@@ -1,0 +1,64 @@
+Level candidate inventory volume/session context design
+Generated: 2026-06-02T03:37:46.284Z
+Provider focus: ibkr
+Merged baseline commit: 8158039093ef0962037434d4f72804cf4c3bee5a
+
+Purpose:
+Design a facts-only volume/session context layer for candidate inventory and surfaced levels without changing LevelEngine generation behavior.
+
+Evidence sources:
+- docs/34_SESSION_AND_VOLUME_INTELLIGENCE_PLAN.md
+- docs/38_LEVEL_INTELLIGENCE_AND_VOLUME_ENRICHMENT_PLAN.md
+- docs/134_LEVEL_QUALITY_CANDIDATE_INVENTORY_REVIEW_BASELINE_LOCK.md
+- docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-baseline-lock.json
+
+Current candidate inventory baseline:
+- Candidate inventory present/valid: 10/10
+- Old baseline mismatch count: 0
+- Support-side closer-unsurfaced count: 5
+- Resistance-side closer-unsurfaced count: 1
+- Resistance-side truthful market-context count: 2
+- HCWB: support closer-unsurfaced, resistance truthful market-context
+- PHOE: support closer-unsurfaced, resistance truthful market-context
+
+Proposed context:
+LevelCandidateVolumeSessionContext
+
+Context rows should cover:
+- candidate or level id when available
+- side and candidate inventory stage
+- price or zone
+- distance from reference price
+- nearby session facts
+- nearby volume facts
+- nearby or overlapping volume shelves
+- diagnostics and missing-fact limitations
+- facts-only safety flags
+
+Session facts to support:
+VWAP, premarket high/low, opening range high/low, high/low of day, previous close, regular-session open.
+
+Volume facts to support:
+relative volume, dollar volume, volume state, liquidity quality, acceleration state, pullback volume state, breakout volume state.
+
+Volume shelf policy:
+Shelves remain facts-only zones. They may be reported as near or overlapping but must not become support/resistance levels or influence selection in this path.
+
+VWAP/session facts policy:
+VWAP and session landmarks remain facts-only proximity context and must not change support/resistance generation, scoring, ranking, clustering, surfaced selection, or extension generation.
+
+HCWB/PHOE use case:
+Future review output should be able to compare surfaced support with closer unsurfaced support and state whether session/volume facts are stronger, similar, weaker, missing, or inconclusive. It should also preserve resistance-side truthful market-context visibility.
+
+Future gate sequence:
+1. level_quality_candidate_inventory_volume_session_context_contract
+2. level_quality_candidate_inventory_volume_session_context_builder
+3. level_quality_candidate_inventory_volume_session_context_review_wiring
+4. level_quality_candidate_inventory_volume_session_context_rerun
+5. level_quality_candidate_inventory_volume_session_context_baseline_lock
+
+Recommended next gate:
+level_quality_candidate_inventory_volume_session_context_contract
+
+Safety:
+No support/resistance detection, LevelEngine scoring/ranking/clustering, surfaced levels, extension generation, 15m LevelEngine input, volume/session scoring use, cache writing, alert/monitoring/Discord behavior, journal behavior, or recommendation/trade-advice behavior changed.
