@@ -1,0 +1,52 @@
+Level quality nearest-gap investigation
+Generated: 2026-06-02T00:55:11.280Z
+Provider focus: IBKR
+Baseline: docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-density-metric/latest-level-quality-review-rerun-after-density-metric.json
+Cache root: C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles
+
+Primary symbols
+- HCWB
+- PHOE
+
+Comparison symbols
+- DXYZ
+- QUBT
+
+Method
+- Temporary read-only TypeScript harness rebuilt candidate stages from local cache wrapper files.
+- Existing swing detection, raw candidate building, clustering, scoring, ranking, and candidate-pool diagnostics helpers were used.
+- No provider calls were made.
+- No cache files were written.
+- No raw candles or full snapshots are committed.
+
+Findings
+- HCWB support gap: candidate_selection_visibility_issue. The nearest surfaced support is 1.91 (35.1443% away), but the nearest scored support below reference is 2.77 (5.9423% away) and is not surfaced.
+- HCWB resistance gap: truthful_market_context. The nearest raw, scored, and surfaced resistance above reference is 3.78 (28.3531% away).
+- PHOE support gap: candidate_selection_visibility_issue. The nearest surfaced support is 29.85 (14.1007% away), but the nearest scored support below reference is 30.99 (10.8201% away) and is not surfaced.
+- PHOE resistance gap: truthful_market_context. The nearest raw, scored, and surfaced resistance above reference is 40.98 (17.9281% away).
+
+Candidate inventory availability
+- The packaged compact review output does not expose raw, clustered, scored-but-unsurfaced, or per-zone surfaced-selection reasons.
+- Existing pure candidate-pool diagnostics can inspect prebuilt pipeline inputs.
+- This gate used a temporary read-only harness, so a packaged candidate inventory/debug view is still needed before behavior tuning.
+
+Bug assessment
+- No deterministic production bug was found.
+- The support-side evidence points to surfaced-selection visibility rather than missing candidate generation.
+- The resistance-side evidence is truthful sparse overhead context for both primary symbols.
+
+Recommended next gate
+- level_quality_candidate_inventory_visibility_design
+
+Safety
+- Support/resistance detection changed: false
+- LevelEngine scoring/ranking/clustering changed: false
+- Surfaced levels changed: false
+- Extension generation changed: false
+- 15m fed into LevelEngine: false
+- Cache files written: false
+- Raw cache files committed: false
+- Alert/monitoring/Discord changed: false
+- Journal app files changed: false
+- Journal grading/coaching/P&L/giveback/behavior scoring added: false
+- Recommendation or trade-advice behavior added: false

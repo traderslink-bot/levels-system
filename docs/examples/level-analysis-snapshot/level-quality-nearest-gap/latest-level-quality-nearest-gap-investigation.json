@@ -1,0 +1,262 @@
+{
+  "schemaVersion": "level-quality-nearest-gap-investigation/v1",
+  "generatedAt": "2026-06-02T00:55:11.280Z",
+  "providerFocus": "ibkr",
+  "baselineSource": {
+    "reviewArtifact": "docs/examples/level-analysis-snapshot/level-quality-review-rerun-after-density-metric/latest-level-quality-review-rerun-after-density-metric.json",
+    "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles"
+  },
+  "method": {
+    "mode": "temporary_read_only_tsx_harness",
+    "description": "Rebuilt existing LevelEngine candidate stages from local cache wrapper files using existing swing detection, raw candidate building, clustering, scoring, ranking, and candidate-pool diagnostics helpers.",
+    "packagedCandidateInventoryAvailable": false,
+    "rawCandlesCommitted": false,
+    "fullSnapshotsCommitted": false,
+    "cacheFilesWritten": false,
+    "providerCallsMade": false
+  },
+  "symbolsInvestigated": [
+    "HCWB",
+    "PHOE"
+  ],
+  "comparisonSymbols": [
+    "DXYZ",
+    "QUBT"
+  ],
+  "summary": {
+    "bugFound": false,
+    "supportGapClassification": "candidate_selection_visibility_issue",
+    "resistanceGapClassification": "truthful_market_context",
+    "candidateInventoryAvailability": "available_through_temporary_read_only_harness_not_packaged_review_output",
+    "recommendedNextGate": "level_quality_candidate_inventory_visibility_design"
+  },
+  "entries": [
+    {
+      "symbol": "HCWB",
+      "role": "primary",
+      "asOfIso": "2026-05-20T15:00:00.000Z",
+      "referencePrice": 2.945,
+      "nearestSurfaced": {
+        "support": {
+          "levelId": "HCWB-support-zone-23",
+          "bucket": "majorSupport",
+          "price": 1.91,
+          "distancePct": 35.1443,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "HCWB-resistance-zone-26",
+          "bucket": "majorResistance",
+          "price": 3.78,
+          "distancePct": 28.3531,
+          "isExtension": false
+        }
+      },
+      "candidatePool": {
+        "summary": {
+          "rawCandidateCount": 118,
+          "clusteredZoneCount": 72,
+          "scoredZoneCount": 72,
+          "surfacedLevelCount": 16,
+          "extensionCandidateCount": 1,
+          "selectedExtensionCount": 1
+        },
+        "supportStageCounts": {
+          "raw": 62,
+          "clustered": 35,
+          "scored": 35,
+          "surfaced": 13,
+          "extensionCandidates": 1,
+          "selectedExtensions": 1
+        },
+        "resistanceStageCounts": {
+          "raw": 56,
+          "clustered": 37,
+          "scored": 37,
+          "surfaced": 3,
+          "extensionCandidates": 0,
+          "selectedExtensions": 0
+        },
+        "nearestScoredSupportBelowReference": {
+          "levelId": "HCWB-support-zone-24",
+          "price": 2.77,
+          "distancePct": 5.9423,
+          "timeframeBias": "daily",
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "surfaced": false
+        },
+        "nearestScoredResistanceAboveReference": {
+          "levelId": "HCWB-resistance-zone-26",
+          "price": 3.78,
+          "distancePct": 28.3531,
+          "timeframeBias": "daily",
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "surfaced": true
+        }
+      },
+      "densityMetric": {
+        "classification": "sparse",
+        "sideBias": "resistance_heavy"
+      },
+      "auditDiagnostics": [
+        "clustered_level_areas_present",
+        "no_resistance_extension_coverage",
+        "unenriched_extension_levels_present",
+        "unenriched_historical_levels_present",
+        "unenriched_levels_present",
+        "wide_downside_support_gap",
+        "wide_overhead_resistance_gap"
+      ],
+      "gapClassification": {
+        "support": "candidate_selection_visibility_issue",
+        "resistance": "truthful_market_context",
+        "overall": "mixed_candidate_selection_visibility_and_truthful_market_context"
+      }
+    },
+    {
+      "symbol": "PHOE",
+      "role": "primary",
+      "asOfIso": "2026-05-07T20:45:00.000Z",
+      "referencePrice": 34.75,
+      "nearestSurfaced": {
+        "support": {
+          "levelId": "PHOE-support-zone-35",
+          "bucket": "intradaySupport",
+          "price": 29.85,
+          "distancePct": 14.1007,
+          "isExtension": false
+        },
+        "resistance": {
+          "levelId": "PHOE-resistance-zone-36",
+          "bucket": "intermediateResistance",
+          "price": 40.98,
+          "distancePct": 17.9281,
+          "isExtension": false
+        }
+      },
+      "candidatePool": {
+        "summary": {
+          "rawCandidateCount": 114,
+          "clusteredZoneCount": 74,
+          "scoredZoneCount": 74,
+          "surfacedLevelCount": 16,
+          "extensionCandidateCount": 6,
+          "selectedExtensionCount": 4
+        },
+        "supportStageCounts": {
+          "raw": 55,
+          "clustered": 36,
+          "scored": 36,
+          "surfaced": 15,
+          "extensionCandidates": 6,
+          "selectedExtensions": 3
+        },
+        "resistanceStageCounts": {
+          "raw": 59,
+          "clustered": 38,
+          "scored": 38,
+          "surfaced": 1,
+          "extensionCandidates": 0,
+          "selectedExtensions": 1
+        },
+        "nearestScoredSupportBelowReference": {
+          "levelId": "PHOE-support-zone-36",
+          "price": 30.99,
+          "distancePct": 10.8201,
+          "timeframeBias": "5m",
+          "sourceTypes": [
+            "swing_low"
+          ],
+          "surfaced": false
+        },
+        "nearestScoredResistanceAboveReference": {
+          "levelId": "PHOE-resistance-zone-36",
+          "price": 40.98,
+          "distancePct": 17.9281,
+          "timeframeBias": "4h",
+          "sourceTypes": [
+            "swing_high"
+          ],
+          "surfaced": true
+        }
+      },
+      "densityMetric": {
+        "classification": "balanced",
+        "sideBias": "support_heavy"
+      },
+      "auditDiagnostics": [
+        "unenriched_extension_levels_present",
+        "unenriched_historical_levels_present",
+        "unenriched_levels_present",
+        "unenriched_synthetic_levels_present",
+        "wide_downside_support_gap",
+        "wide_overhead_resistance_gap"
+      ],
+      "gapClassification": {
+        "support": "candidate_selection_visibility_issue",
+        "resistance": "truthful_market_context",
+        "overall": "mixed_candidate_selection_visibility_and_truthful_market_context"
+      }
+    },
+    {
+      "symbol": "DXYZ",
+      "role": "comparison",
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 46.47,
+      "hasSupplied15m": true,
+      "nearestSurfaced": {
+        "supportPrice": 45.8,
+        "supportDistancePct": 1.4418,
+        "resistancePrice": 46.8,
+        "resistanceDistancePct": 0.7101
+      },
+      "densityMetric": {
+        "classification": "balanced",
+        "sideBias": "mixed"
+      },
+      "fifteenMinuteContextOnly": true
+    },
+    {
+      "symbol": "QUBT",
+      "role": "comparison",
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 12.799,
+      "hasSupplied15m": true,
+      "nearestSurfaced": {
+        "supportPrice": 12.42,
+        "supportDistancePct": 2.9612,
+        "resistancePrice": 12.9727,
+        "resistanceDistancePct": 1.3571
+      },
+      "densityMetric": {
+        "classification": "balanced",
+        "sideBias": "mixed"
+      },
+      "fifteenMinuteContextOnly": true
+    }
+  ],
+  "candidateInventoryAvailability": {
+    "compactReviewOutputIncludesRawCandidateInventory": false,
+    "compactReviewOutputIncludesScoredUnsurfacedInventory": false,
+    "existingPureCandidatePoolDiagnosticsHelper": true,
+    "temporaryReadOnlyHarnessUsed": true,
+    "futurePackagedVisibilityNeeded": true
+  },
+  "safety": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationOrTradeAdviceBehaviorAdded": false
+  }
+}
