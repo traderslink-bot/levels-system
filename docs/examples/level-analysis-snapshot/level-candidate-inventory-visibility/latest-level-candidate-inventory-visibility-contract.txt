@@ -1,0 +1,86 @@
+Level candidate inventory visibility contract
+Generated: 2026-06-02T01:24:13.942Z
+Provider focus: IBKR
+
+Purpose
+- Lock the candidate inventory visibility contract and deterministic fixture suite before runtime review wiring.
+
+Contract module
+- src/lib/levels/level-candidate-inventory-visibility.ts
+
+Primary type
+- LevelCandidateInventoryVisibility
+
+Runtime review wiring
+- Added: false
+
+Stages
+- raw
+- clustered
+- scored
+- surfaced
+- extension_candidate
+- extension_selected
+
+Gap classifications
+- no_gap
+- closer_unsurfaced_candidate
+- truthful_market_context_gap
+- inconclusive_missing_reasons
+
+Reason availability values
+- available
+- not_available
+- not_needed
+
+Known limitations
+- surfaced_selection_reason_not_serialized
+- raw_clustered_scored_inventory_not_available
+
+Fixtures
+- candidate-inventory-no-gap.json
+- candidate-inventory-closer-unsurfaced-support.json
+- candidate-inventory-closer-unsurfaced-resistance.json
+- candidate-inventory-truthful-market-context-gap.json
+- candidate-inventory-inconclusive-missing-reasons.json
+
+Validation helpers
+- validateLevelCandidateInventoryVisibility
+- isLevelCandidateInventoryVisibility
+- assertLevelCandidateInventoryVisibilityFactsOnly
+- summarizeLevelCandidateInventoryGaps
+
+Validation rules
+- schema version must match level-candidate-inventory-visibility/v1
+- symbol must be non-empty
+- sourceFiles only supports 5m 15m 4h daily
+- all known stageCounts are required
+- unknown stageCounts and nearest stage keys fail
+- nearest rows must match expected stage and side
+- unsurfacedCloser is side-specific
+- known gap classifications are required
+- known reasonAvailability values are required
+- safety flags must match read-only audit-only boundary
+- facts-only assertion rejects prohibited language
+
+Tests
+- src/tests/level-candidate-inventory-visibility-contract.test.ts
+- src/tests/level-candidate-inventory-visibility-design.test.ts
+
+Safety
+- Read-only: true
+- Audit-only: true
+- Provider calls made: false
+- Cache files written: false
+- Raw candles included: false
+- Full snapshots included: false
+- Support/resistance detection changed: false
+- LevelEngine scoring/ranking/clustering changed: false
+- Surfaced levels changed: false
+- Extension generation changed: false
+- 15m fed into LevelEngine: false
+- Alert/monitoring/Discord changed: false
+- Journal app files changed: false
+
+Recommended next gate
+- level_quality_candidate_inventory_review_wiring_design
