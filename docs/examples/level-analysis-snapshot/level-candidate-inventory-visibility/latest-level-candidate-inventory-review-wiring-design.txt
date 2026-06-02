@@ -1,0 +1,85 @@
+Level candidate inventory review wiring design
+Generated: 2026-06-02T01:41:14.832Z
+Provider focus: IBKR
+
+Purpose
+- Design future additive review wiring from candidate-pool diagnostics into the locked candidate inventory visibility contract.
+
+Runtime review wiring
+- Added: false
+
+Existing diagnostic source
+- src/lib/levels/level-candidate-pool-diagnostics.ts
+- src/scripts/run-level-candidate-pool-diagnostics.ts
+
+Available stages
+- raw
+- clustered
+- scored
+- surfaced
+- extension_candidate
+- extension_selected
+
+Proposed adapter
+- Suggested module: src/lib/levels/level-candidate-inventory-review-adapter.ts
+- Input: LevelCandidatePoolDiagnosticsReport plus symbol, provider, as-of, reference price, and source file metadata.
+- Output: LevelCandidateInventoryVisibility.
+
+Adapter responsibilities
+- Extract stage counts by side.
+- Extract nearest support and resistance by stage.
+- Detect closer scored candidates that did not surface.
+- Classify no_gap, closer_unsurfaced_candidate, truthful_market_context_gap, and inconclusive_missing_reasons.
+- Preserve surfaced_selection_reason_not_serialized when reason data is unavailable.
+- Validate the visibility payload.
+- Assert facts-only wording.
+
+Review output field plan
+- Field: entries[].candidateInventoryVisibility
+- Present shape: present=true, visibility=LevelCandidateInventoryVisibility, gapSummary=LevelCandidateInventoryGapSummary.
+- Missing shape: present=false with raw_clustered_scored_inventory_not_available and candidate_inventory_visibility_not_available.
+- Text output: one compact line per symbol with overall gap classification and side-specific closer-unsurfaced counts.
+
+Baseline compatibility
+- Existing parity fields remain unchanged.
+- Old baseline mismatch counts do not include candidate inventory.
+- First wiring gate reports candidate-inventory presence and validation separately.
+- A later baseline-lock gate is required before candidate-inventory parity becomes part of locked comparisons.
+
+Limitation model
+- surfaced_selection_reason_not_serialized
+- raw_clustered_scored_inventory_not_available
+
+Future test plan
+- Adapter builds visibility from fixture candidate-pool diagnostics.
+- Packaged review output includes candidateInventoryVisibility.
+- Old parity fields remain unchanged.
+- Closer unsurfaced support and resistance cases are detected.
+- Truthful market-context gaps are detected.
+- Inconclusive missing reasons are represented safely.
+- Missing inventory emits a compact not-present wrapper.
+- No raw candles or full snapshots are written.
+- No provider, cache-write, alert, monitoring, Discord, or journal imports are introduced.
+- No prohibited language appears.
+- 15m remains context-only.
+
+Safety
+- Read-only: true
+- Audit-only: true
+- Runtime review wiring added: false
+- Provider calls made: false
+- Cache files written: false
+- Raw candles included: false
+- Full snapshots included: false
+- Support/resistance detection changed: false
+- LevelEngine scoring/ranking/clustering changed: false
+- Surfaced levels changed: false
+- Extension generation changed: false
+- 15m fed into LevelEngine: false
+- Alert/monitoring/Discord changed: false
+- Journal app files changed: false
+- Journal grading/coaching/P&L/giveback/behavior scoring added: false
+- Recommendation or trade advice behavior added: false
+
+Recommended next gate
+- level_quality_candidate_inventory_review_wiring_contract
