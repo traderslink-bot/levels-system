@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-adapter-fixture/v1",
+  "fixtureName": "adapter-closer-unsurfaced-support",
+  "adapterInputSummary": {
+    "symbol": "SUPVIS",
+    "provider": "fixture",
+    "referencePrice": 10,
+    "scenario": "closer scored support exists but a farther support is surfaced"
+  },
+  "expectedWrapper": {
+    "present": true,
+    "visibility": {
+      "schemaVersion": "level-candidate-inventory-visibility/v1",
+      "symbol": "SUPVIS",
+      "provider": "fixture",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 10,
+      "sourceFiles": {
+        "5m": "fixture/SUPVIS/5m.json",
+        "4h": "fixture/SUPVIS/4h.json",
+        "daily": "fixture/SUPVIS/daily.json"
+      },
+      "stageCounts": {
+        "raw": { "stage": "raw", "support": 3, "resistance": 1, "total": 4 },
+        "clustered": { "stage": "clustered", "support": 2, "resistance": 1, "total": 3 },
+        "scored": { "stage": "scored", "support": 2, "resistance": 1, "total": 3 },
+        "surfaced": { "stage": "surfaced", "support": 1, "resistance": 1, "total": 2 },
+        "extension_candidate": { "stage": "extension_candidate", "support": 1, "resistance": 0, "total": 1 },
+        "extension_selected": { "stage": "extension_selected", "support": 1, "resistance": 0, "total": 1 }
+      },
+      "nearest": {
+        "raw": {
+          "support": { "stage": "raw", "side": "support", "price": 9.75, "distancePct": 2.5 },
+          "resistance": { "stage": "raw", "side": "resistance", "price": 10.3, "distancePct": 3 }
+        },
+        "clustered": {
+          "support": { "stage": "clustered", "side": "support", "price": 9.75, "distancePct": 2.5 },
+          "resistance": { "stage": "clustered", "side": "resistance", "price": 10.3, "distancePct": 3 }
+        },
+        "scored": {
+          "support": { "stage": "scored", "side": "support", "price": 9.75, "distancePct": 2.5 },
+          "resistance": { "stage": "scored", "side": "resistance", "price": 10.3, "distancePct": 3 }
+        },
+        "surfaced": {
+          "support": { "stage": "surfaced", "side": "support", "price": 9.1, "distancePct": 9, "surfaced": true },
+          "resistance": { "stage": "surfaced", "side": "resistance", "price": 10.3, "distancePct": 3, "surfaced": true }
+        },
+        "extension_candidate": {
+          "support": { "stage": "extension_candidate", "side": "support", "price": 8, "distancePct": 20 }
+        },
+        "extension_selected": {
+          "support": { "stage": "extension_selected", "side": "support", "price": 8, "distancePct": 20 }
+        }
+      },
+      "unsurfacedCloser": {
+        "support": {
+          "side": "support",
+          "present": true,
+          "count": 1,
+          "nearest": { "stage": "scored", "side": "support", "price": 9.75, "distancePct": 2.5, "surfaced": false },
+          "reasonAvailability": "not_available",
+          "reasons": [],
+          "limitations": ["surfaced_selection_reason_not_serialized"]
+        },
+        "resistance": { "side": "resistance", "present": false, "count": 0, "reasonAvailability": "not_needed", "reasons": [], "limitations": [] }
+      },
+      "gapClassification": {
+        "support": "closer_unsurfaced_candidate",
+        "resistance": "no_gap",
+        "overall": "closer_unsurfaced_candidate"
+      },
+      "diagnostics": ["closer_unsurfaced_support_present"],
+      "limitations": ["surfaced_selection_reason_not_serialized"],
+      "safety": {
+        "readOnly": true,
+        "auditOnly": true,
+        "providerCallsMade": false,
+        "cacheFilesWritten": false,
+        "rawCandlesIncluded": false,
+        "fullSnapshotsIncluded": false,
+        "supportResistanceDetectionChanged": false,
+        "levelEngineScoringRankingClusteringChanged": false,
+        "surfacedLevelsChanged": false,
+        "extensionGenerationChanged": false,
+        "fifteenMinuteFedIntoLevelEngine": false
+      }
+    },
+    "gapSummary": {
+      "support": "closer_unsurfaced_candidate",
+      "resistance": "no_gap",
+      "overall": "closer_unsurfaced_candidate"
+    }
+  },
+  "expectedClassification": {
+    "support": "closer_unsurfaced_candidate",
+    "resistance": "no_gap",
+    "overall": "closer_unsurfaced_candidate"
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

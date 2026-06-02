@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-adapter-fixture/v1",
+  "fixtureName": "adapter-no-gap",
+  "adapterInputSummary": {
+    "symbol": "NOGAP",
+    "provider": "fixture",
+    "referencePrice": 10,
+    "scenario": "nearest scored and surfaced levels match on both sides"
+  },
+  "expectedWrapper": {
+    "present": true,
+    "visibility": {
+      "schemaVersion": "level-candidate-inventory-visibility/v1",
+      "symbol": "NOGAP",
+      "provider": "fixture",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 10,
+      "sourceFiles": {
+        "5m": "fixture/NOGAP/5m.json",
+        "4h": "fixture/NOGAP/4h.json",
+        "daily": "fixture/NOGAP/daily.json"
+      },
+      "stageCounts": {
+        "raw": { "stage": "raw", "support": 2, "resistance": 2, "total": 4 },
+        "clustered": { "stage": "clustered", "support": 1, "resistance": 1, "total": 2 },
+        "scored": { "stage": "scored", "support": 1, "resistance": 1, "total": 2 },
+        "surfaced": { "stage": "surfaced", "support": 1, "resistance": 1, "total": 2 },
+        "extension_candidate": { "stage": "extension_candidate", "support": 1, "resistance": 1, "total": 2 },
+        "extension_selected": { "stage": "extension_selected", "support": 1, "resistance": 1, "total": 2 }
+      },
+      "nearest": {
+        "raw": {
+          "support": { "stage": "raw", "side": "support", "price": 9.8, "distancePct": 2 },
+          "resistance": { "stage": "raw", "side": "resistance", "price": 10.2, "distancePct": 2 }
+        },
+        "clustered": {
+          "support": { "stage": "clustered", "side": "support", "price": 9.8, "distancePct": 2 },
+          "resistance": { "stage": "clustered", "side": "resistance", "price": 10.2, "distancePct": 2 }
+        },
+        "scored": {
+          "support": { "stage": "scored", "side": "support", "price": 9.8, "distancePct": 2 },
+          "resistance": { "stage": "scored", "side": "resistance", "price": 10.2, "distancePct": 2 }
+        },
+        "surfaced": {
+          "support": { "stage": "surfaced", "side": "support", "price": 9.8, "distancePct": 2, "surfaced": true },
+          "resistance": { "stage": "surfaced", "side": "resistance", "price": 10.2, "distancePct": 2, "surfaced": true }
+        },
+        "extension_candidate": {
+          "support": { "stage": "extension_candidate", "side": "support", "price": 8, "distancePct": 20 },
+          "resistance": { "stage": "extension_candidate", "side": "resistance", "price": 12, "distancePct": 20 }
+        },
+        "extension_selected": {
+          "support": { "stage": "extension_selected", "side": "support", "price": 8, "distancePct": 20 },
+          "resistance": { "stage": "extension_selected", "side": "resistance", "price": 12, "distancePct": 20 }
+        }
+      },
+      "unsurfacedCloser": {
+        "support": { "side": "support", "present": false, "count": 0, "reasonAvailability": "not_needed", "reasons": [], "limitations": [] },
+        "resistance": { "side": "resistance", "present": false, "count": 0, "reasonAvailability": "not_needed", "reasons": [], "limitations": [] }
+      },
+      "gapClassification": {
+        "support": "no_gap",
+        "resistance": "no_gap",
+        "overall": "no_gap"
+      },
+      "diagnostics": ["candidate_inventory_visibility_adapter"],
+      "limitations": [],
+      "safety": {
+        "readOnly": true,
+        "auditOnly": true,
+        "providerCallsMade": false,
+        "cacheFilesWritten": false,
+        "rawCandlesIncluded": false,
+        "fullSnapshotsIncluded": false,
+        "supportResistanceDetectionChanged": false,
+        "levelEngineScoringRankingClusteringChanged": false,
+        "surfacedLevelsChanged": false,
+        "extensionGenerationChanged": false,
+        "fifteenMinuteFedIntoLevelEngine": false
+      }
+    },
+    "gapSummary": {
+      "support": "no_gap",
+      "resistance": "no_gap",
+      "overall": "no_gap"
+    }
+  },
+  "expectedClassification": {
+    "support": "no_gap",
+    "resistance": "no_gap",
+    "overall": "no_gap"
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

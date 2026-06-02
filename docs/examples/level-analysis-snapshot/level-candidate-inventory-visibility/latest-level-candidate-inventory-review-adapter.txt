@@ -1,0 +1,64 @@
+Level candidate inventory review adapter
+Generated: 2026-06-02T02:20:40.378Z
+Provider focus: IBKR
+
+Purpose
+- Add a pure read-only adapter from candidate-pool diagnostics into the locked candidate inventory review visibility wrapper.
+
+Runtime review wiring
+- Added: false
+
+Adapter module
+- src/lib/levels/level-candidate-inventory-review-adapter.ts
+
+Exports
+- buildLevelCandidateInventoryReviewVisibility
+- buildMissingCandidateInventoryReviewVisibility
+- extractNearestCandidateInventoryRows
+- deriveCandidateInventoryGapClassification
+
+Stage mapping
+- raw: support.raw/resistance.raw
+- clustered: support.clustered/resistance.clustered
+- scored: support.scored/resistance.scored
+- surfaced: support.surfaced/resistance.surfaced
+- extension_candidate: support.extensionCandidates/resistance.extensionCandidates
+- extension_selected: support.selectedExtensions/resistance.selectedExtensions
+
+Gap classifications covered
+- no_gap
+- closer_unsurfaced_candidate
+- truthful_market_context_gap
+- inconclusive_missing_reasons
+
+Fixtures
+- adapter-no-gap.json
+- adapter-closer-unsurfaced-support.json
+- adapter-closer-unsurfaced-resistance.json
+- adapter-truthful-market-context-gap.json
+- adapter-missing-inventory.json
+
+Focused test
+- src/tests/level-candidate-inventory-review-adapter.test.ts
+
+Safety
+- Read-only: true
+- Audit-only: true
+- Fixture-only: true
+- Runtime review wiring added: false
+- Provider calls made: false
+- Cache files written: false
+- Raw candles included: false
+- Full snapshots included: false
+- Support/resistance detection changed: false
+- LevelEngine scoring/ranking/clustering changed: false
+- Surfaced levels changed: false
+- Extension generation changed: false
+- 15m fed into LevelEngine: false
+- Alert/monitoring/Discord changed: false
+- Journal app files changed: false
+- Journal grading/coaching/P&L/giveback/behavior scoring added: false
+- Recommendation or trade advice behavior added: false
+
+Recommended next gate
+- level_quality_candidate_inventory_review_wiring
