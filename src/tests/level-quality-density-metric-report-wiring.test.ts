@@ -14,7 +14,10 @@ import test from "node:test";
 
 import { buildLevelAnalysisSnapshotFromCandles } from "../lib/analysis/level-analysis-snapshot-from-candles.js";
 import { buildLevelQualityAuditReport } from "../lib/levels/level-quality-audit-runner.js";
-import { assertLevelQualityDensityMetricFactsOnly } from "../lib/levels/level-quality-density-metric.js";
+import {
+  assertLevelQualityDensityMetricFactsOnly,
+  validateLevelQualityDensityMetric,
+} from "../lib/levels/level-quality-density-metric.js";
 import type { FinalLevelZone, LevelEngineOutput } from "../lib/levels/level-types.js";
 import type { Candle } from "../lib/market-data/candle-types.js";
 import {
@@ -475,6 +478,12 @@ test("packaged review output includes compact density metric summary without raw
     assert.equal(result.summary.densityMetricPresentCount, 1);
     assert.equal(result.entries[0]?.qualityAudit.densityMetric?.present, true);
     assert.equal(parsed.entries[0]?.qualityAudit.densityMetric?.present, true);
+    const parsedDensityMetric = parsed.entries[0]?.qualityAudit.densityMetric;
+    assert.ok(parsedDensityMetric?.present);
+    const validation = validateLevelQualityDensityMetric(parsedDensityMetric);
+    assert.equal(validation.valid, true);
+    assert.deepEqual(validation.errors, []);
+    assertLevelQualityDensityMetricFactsOnly(parsedDensityMetric);
     assert.equal(JSON.stringify(parsed).includes("levelEngineOutput"), false);
     assert.match(readFileSync(outTextPath, "utf8"), /Density metric present count: 1\/1/);
     assert.match(readFileSync(outTextPath, "utf8"), /density=/);
