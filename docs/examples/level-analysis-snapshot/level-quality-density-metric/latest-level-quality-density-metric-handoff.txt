@@ -1,0 +1,40 @@
+Level Quality Audit Density Metric Handoff
+Generated: 2026-06-02T00:42:26.664Z
+Baseline commit: b4f25816e7d95224266af566de770b03d9f60510
+Provider focus: IBKR
+
+Current status:
+- density metric design/helper exists
+- contract fixtures exist
+- densityMetric is wired additively into LevelQualityAuditReport
+- packaged review output includes densityMetric
+- 10-symbol real-cache rerun passed
+- baseline is locked
+- no report-level density diagnostics were added
+- no density semantics were promoted to report-level diagnosticSemantics
+
+Locked density state:
+- densityMetric present: 10/10
+- contract-valid: 10/10
+- factual-only: 10/10
+- prohibited-language hits: 0
+- dense_clustered: 5 (DEVS, ENVX, GME, AIM, YMAT)
+- balanced: 4 (DXYZ, QUBT, AAOI, PHOE)
+- sparse: 1 (HCWB)
+- dense_separated: 0
+- mixed side bias: 6
+- support_heavy side bias: 3
+- resistance_heavy side bias: 1
+- none side bias: 0
+- extensionHeavy: GME, YMAT
+- syntheticPresent: none
+
+Semantics decision:
+Keep density-specific semantics inside densityMetric.diagnostics.
+Do not promote density diagnostics into report-level diagnostics or diagnosticSemantics without a separate approved gate.
+
+Future density changes must compare:
+densityMetric presence, contract validation, classification counts, per-symbol classifications, side-bias counts, extension-heavy flags, synthetic-present flags, densityMetric.diagnostics, report-level diagnostics, report-level diagnosticSemantics, nearest support/resistance, bucket counts, extension counts, synthetic markings, 15m context-only status, and prohibited-language hits.
+
+Recommended next gate:
+level_quality_nearest_gap_investigation
