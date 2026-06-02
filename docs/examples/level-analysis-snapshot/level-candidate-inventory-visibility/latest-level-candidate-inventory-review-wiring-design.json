@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-wiring-design/v1",
+  "generatedAt": "2026-06-02T01:41:14.832Z",
+  "providerFocus": "ibkr",
+  "purpose": "Design future additive review wiring from candidate-pool diagnostics into the locked candidate inventory visibility contract.",
+  "runtimeReviewWiringAdded": false,
+  "sourceDocs": [
+    "docs/128_LEVEL_QUALITY_CANDIDATE_INVENTORY_VISIBILITY_DESIGN.md",
+    "docs/129_LEVEL_QUALITY_CANDIDATE_INVENTORY_VISIBILITY_CONTRACT.md"
+  ],
+  "sourceArtifacts": [
+    "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-visibility-contract.json"
+  ],
+  "existingDiagnosticSource": {
+    "module": "src/lib/levels/level-candidate-pool-diagnostics.ts",
+    "script": "src/scripts/run-level-candidate-pool-diagnostics.ts",
+    "availableStages": [
+      "raw",
+      "clustered",
+      "scored",
+      "surfaced",
+      "extension_candidate",
+      "extension_selected"
+    ]
+  },
+  "proposedAdapter": {
+    "suggestedModule": "src/lib/levels/level-candidate-inventory-review-adapter.ts",
+    "inputSource": "LevelCandidatePoolDiagnosticsReport plus symbol provider as-of reference price and source file metadata",
+    "outputContract": "LevelCandidateInventoryVisibility",
+    "responsibilities": [
+      "extract stage counts by side",
+      "extract nearest support and resistance by stage",
+      "detect closer scored candidates that did not surface",
+      "classify no_gap closer_unsurfaced_candidate truthful_market_context_gap and inconclusive_missing_reasons",
+      "preserve surfaced_selection_reason_not_serialized when reason data is not available",
+      "validate the final visibility payload",
+      "assert facts-only wording"
+    ]
+  },
+  "reviewOutputPlan": {
+    "fieldName": "candidateInventoryVisibility",
+    "location": "entries[].candidateInventoryVisibility",
+    "shapeWhenPresent": {
+      "present": true,
+      "visibility": "LevelCandidateInventoryVisibility",
+      "gapSummary": "LevelCandidateInventoryGapSummary"
+    },
+    "shapeWhenMissing": {
+      "present": false,
+      "limitations": [
+        "raw_clustered_scored_inventory_not_available"
+      ],
+      "diagnostics": [
+        "candidate_inventory_visibility_not_available"
+      ]
+    },
+    "textOutput": "one compact line per symbol with overall gap classification and side-specific closer-unsurfaced counts"
+  },
+  "baselineCompatibility": {
+    "existingParityFieldsRemainUnchanged": [
+      "nearest support/resistance",
+      "bucket counts",
+      "extension counts",
+      "synthetic continuation-map count and marking",
+      "diagnostics",
+      "diagnosticSemantics",
+      "enrichmentBreakdown",
+      "densityMetric",
+      "15m context-only checks"
+    ],
+    "oldBaselineMismatchCountsIncludeCandidateInventory": false,
+    "firstWiringGateReportsPresenceAndValidationSeparately": true,
+    "futureBaselineLockRequiredBeforeCandidateInventoryParity": true
+  },
+  "limitationModel": [
+    "surfaced_selection_reason_not_serialized",
+    "raw_clustered_scored_inventory_not_available"
+  ],
+  "futureTestPlan": [
+    "adapter builds visibility from fixture candidate-pool diagnostics",
+    "packaged review output includes candidateInventoryVisibility",
+    "old parity fields remain unchanged",
+    "closer unsurfaced support and resistance cases are detected",
+    "truthful market-context gaps are detected",
+    "inconclusive missing reasons are represented safely",
+    "missing inventory emits a compact not-present wrapper",
+    "no raw candles or full snapshots are written",
+    "no provider cache-write alert monitoring Discord or journal imports are introduced",
+    "no prohibited language appears",
+    "15m remains context-only"
+  ],
+  "safety": {
+    "readOnly": true,
+    "auditOnly": true,
+    "runtimeReviewWiringAdded": false,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationOrTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": "level_quality_candidate_inventory_review_wiring_contract"
+}
