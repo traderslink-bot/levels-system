@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-adapter-fixture/v1",
+  "fixtureName": "adapter-missing-inventory",
+  "adapterInputSummary": {
+    "symbol": "MISS",
+    "provider": "fixture",
+    "referencePrice": 10,
+    "scenario": "candidate-pool diagnostics are not available"
+  },
+  "expectedWrapper": {
+    "present": false,
+    "limitations": ["raw_clustered_scored_inventory_not_available"],
+    "diagnostics": ["candidate_inventory_visibility_not_available"]
+  },
+  "expectedClassification": {
+    "support": "inconclusive_missing_reasons",
+    "resistance": "inconclusive_missing_reasons",
+    "overall": "inconclusive_missing_reasons"
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

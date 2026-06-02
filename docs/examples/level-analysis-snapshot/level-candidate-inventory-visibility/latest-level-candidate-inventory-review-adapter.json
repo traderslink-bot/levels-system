@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-adapter/v1",
+  "generatedAt": "2026-06-02T02:20:40.378Z",
+  "providerFocus": "ibkr",
+  "purpose": "Add a pure read-only adapter from candidate-pool diagnostics into the locked candidate inventory review visibility wrapper.",
+  "runtimeReviewWiringAdded": false,
+  "adapter": {
+    "module": "src/lib/levels/level-candidate-inventory-review-adapter.ts",
+    "exports": [
+      "buildLevelCandidateInventoryReviewVisibility",
+      "buildMissingCandidateInventoryReviewVisibility",
+      "extractNearestCandidateInventoryRows",
+      "deriveCandidateInventoryGapClassification"
+    ],
+    "input": "LevelCandidateInventoryReviewAdapterInput",
+    "output": "LevelCandidateInventoryReviewVisibilityWrapper"
+  },
+  "stageMapping": {
+    "raw": "support.raw/resistance.raw",
+    "clustered": "support.clustered/resistance.clustered",
+    "scored": "support.scored/resistance.scored",
+    "surfaced": "support.surfaced/resistance.surfaced",
+    "extension_candidate": "support.extensionCandidates/resistance.extensionCandidates",
+    "extension_selected": "support.selectedExtensions/resistance.selectedExtensions"
+  },
+  "gapClassificationsCovered": [
+    "no_gap",
+    "closer_unsurfaced_candidate",
+    "truthful_market_context_gap",
+    "inconclusive_missing_reasons"
+  ],
+  "fixturePack": {
+    "path": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/adapter-fixtures/",
+    "files": [
+      "adapter-no-gap.json",
+      "adapter-closer-unsurfaced-support.json",
+      "adapter-closer-unsurfaced-resistance.json",
+      "adapter-truthful-market-context-gap.json",
+      "adapter-missing-inventory.json"
+    ]
+  },
+  "tests": {
+    "focusedTest": "src/tests/level-candidate-inventory-review-adapter.test.ts",
+    "covered": [
+      "present wrapper",
+      "missing wrapper",
+      "closer unsurfaced support",
+      "closer unsurfaced resistance",
+      "truthful market-context gap",
+      "incomplete diagnostics",
+      "malformed diagnostics",
+      "wrapper validation",
+      "visibility validation",
+      "facts-only guard",
+      "immutability",
+      "source isolation"
+    ]
+  },
+  "safety": {
+    "readOnly": true,
+    "auditOnly": true,
+    "fixtureOnly": true,
+    "runtimeReviewWiringAdded": false,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationOrTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": "level_quality_candidate_inventory_review_wiring"
+}

@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "level-candidate-inventory-review-adapter-fixture/v1",
+  "fixtureName": "adapter-truthful-market-context-gap",
+  "adapterInputSummary": {
+    "symbol": "TRUTH",
+    "provider": "fixture",
+    "referencePrice": 10,
+    "scenario": "nearest raw clustered scored and surfaced levels match despite wide distances"
+  },
+  "expectedWrapper": {
+    "present": true,
+    "visibility": {
+      "schemaVersion": "level-candidate-inventory-visibility/v1",
+      "symbol": "TRUTH",
+      "provider": "fixture",
+      "asOfTimestamp": 1780329600000,
+      "asOfIso": "2026-06-01T16:00:00.000Z",
+      "referencePrice": 10,
+      "sourceFiles": {
+        "5m": "fixture/TRUTH/5m.json",
+        "4h": "fixture/TRUTH/4h.json",
+        "daily": "fixture/TRUTH/daily.json"
+      },
+      "stageCounts": {
+        "raw": { "stage": "raw", "support": 1, "resistance": 1, "total": 2 },
+        "clustered": { "stage": "clustered", "support": 1, "resistance": 1, "total": 2 },
+        "scored": { "stage": "scored", "support": 1, "resistance": 1, "total": 2 },
+        "surfaced": { "stage": "surfaced", "support": 1, "resistance": 1, "total": 2 },
+        "extension_candidate": { "stage": "extension_candidate", "support": 0, "resistance": 0, "total": 0 },
+        "extension_selected": { "stage": "extension_selected", "support": 0, "resistance": 0, "total": 0 }
+      },
+      "nearest": {
+        "raw": {
+          "support": { "stage": "raw", "side": "support", "price": 7.5, "distancePct": 25 },
+          "resistance": { "stage": "raw", "side": "resistance", "price": 13, "distancePct": 30 }
+        },
+        "clustered": {
+          "support": { "stage": "clustered", "side": "support", "price": 7.5, "distancePct": 25 },
+          "resistance": { "stage": "clustered", "side": "resistance", "price": 13, "distancePct": 30 }
+        },
+        "scored": {
+          "support": { "stage": "scored", "side": "support", "price": 7.5, "distancePct": 25 },
+          "resistance": { "stage": "scored", "side": "resistance", "price": 13, "distancePct": 30 }
+        },
+        "surfaced": {
+          "support": { "stage": "surfaced", "side": "support", "price": 7.5, "distancePct": 25, "surfaced": true },
+          "resistance": { "stage": "surfaced", "side": "resistance", "price": 13, "distancePct": 30, "surfaced": true }
+        },
+        "extension_candidate": {},
+        "extension_selected": {}
+      },
+      "unsurfacedCloser": {
+        "support": { "side": "support", "present": false, "count": 0, "reasonAvailability": "not_needed", "reasons": [], "limitations": [] },
+        "resistance": { "side": "resistance", "present": false, "count": 0, "reasonAvailability": "not_needed", "reasons": [], "limitations": [] }
+      },
+      "gapClassification": {
+        "support": "truthful_market_context_gap",
+        "resistance": "truthful_market_context_gap",
+        "overall": "truthful_market_context_gap"
+      },
+      "diagnostics": ["wide_downside_support_gap", "wide_overhead_resistance_gap"],
+      "limitations": [],
+      "safety": {
+        "readOnly": true,
+        "auditOnly": true,
+        "providerCallsMade": false,
+        "cacheFilesWritten": false,
+        "rawCandlesIncluded": false,
+        "fullSnapshotsIncluded": false,
+        "supportResistanceDetectionChanged": false,
+        "levelEngineScoringRankingClusteringChanged": false,
+        "surfacedLevelsChanged": false,
+        "extensionGenerationChanged": false,
+        "fifteenMinuteFedIntoLevelEngine": false
+      }
+    },
+    "gapSummary": {
+      "support": "truthful_market_context_gap",
+      "resistance": "truthful_market_context_gap",
+      "overall": "truthful_market_context_gap"
+    }
+  },
+  "expectedClassification": {
+    "support": "truthful_market_context_gap",
+    "resistance": "truthful_market_context_gap",
+    "overall": "truthful_market_context_gap"
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}
