@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "level-candidate-inventory-volume-session-context-design/v1",
+  "generatedAt": "2026-06-02T03:37:46.284Z",
+  "providerFocus": "ibkr",
+  "purpose": "Design a facts-only volume/session context layer for candidate inventory and surfaced levels without changing LevelEngine generation behavior.",
+  "mergedBaselineCommit": "8158039093ef0962037434d4f72804cf4c3bee5a",
+  "sourceDocs": [
+    "docs/34_SESSION_AND_VOLUME_INTELLIGENCE_PLAN.md",
+    "docs/38_LEVEL_INTELLIGENCE_AND_VOLUME_ENRICHMENT_PLAN.md",
+    "docs/134_LEVEL_QUALITY_CANDIDATE_INVENTORY_REVIEW_BASELINE_LOCK.md"
+  ],
+  "sourceArtifacts": [
+    "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-baseline-lock.json"
+  ],
+  "sourceModules": [
+    "src/lib/session/session-market-facts.ts",
+    "src/lib/volume/volume-market-facts.ts",
+    "src/lib/volume/volume-shelf-detector.ts",
+    "src/lib/levels/level-candidate-inventory-visibility.ts",
+    "src/lib/levels/level-candidate-inventory-review-adapter.ts",
+    "src/scripts/run-level-quality-review.ts",
+    "src/lib/levels/level-intelligence-profile.ts",
+    "src/lib/levels/level-intelligence-report.ts",
+    "src/lib/levels/level-context-explainer.ts"
+  ],
+  "currentCandidateInventoryBaseline": {
+    "candidateInventoryPresent": "10/10",
+    "candidateInventoryValid": "10/10",
+    "oldBaselineMismatchCount": 0,
+    "supportSideCloserUnsurfacedCount": 5,
+    "resistanceSideCloserUnsurfacedCount": 1,
+    "resistanceSideTruthfulMarketContextCount": 2,
+    "hcwb": {
+      "support": "closer_unsurfaced_candidate",
+      "resistance": "truthful_market_context_gap"
+    },
+    "phoe": {
+      "support": "closer_unsurfaced_candidate",
+      "resistance": "truthful_market_context_gap"
+    }
+  },
+  "proposedContext": {
+    "name": "LevelCandidateVolumeSessionContext",
+    "scope": "compact facts-only review context for candidate inventory rows and surfaced levels",
+    "rowFields": [
+      "rowId",
+      "levelId",
+      "candidateId",
+      "side",
+      "stage",
+      "price",
+      "zoneLow",
+      "zoneHigh",
+      "distanceFromReferencePct",
+      "session",
+      "volume",
+      "shelves",
+      "diagnostics",
+      "safety"
+    ],
+    "sessionFacts": [
+      "vwap",
+      "premarket_high",
+      "premarket_low",
+      "opening_range_high",
+      "opening_range_low",
+      "high_of_day",
+      "low_of_day",
+      "previous_close",
+      "regular_session_open"
+    ],
+    "volumeFacts": [
+      "relativeVolume",
+      "dollarVolume",
+      "volumeState",
+      "liquidityQuality",
+      "accelerationState",
+      "pullbackVolumeState",
+      "breakoutVolumeState"
+    ],
+    "shelfFacts": [
+      "shelfId",
+      "zoneLow",
+      "zoneHigh",
+      "representativePrice",
+      "relation",
+      "shelfRole",
+      "totalVolume",
+      "dollarVolume",
+      "percentOfWindowVolume"
+    ]
+  },
+  "comparisonQuestions": [
+    "Did the closer unsurfaced support have less, equal, stronger, or missing session/volume evidence than the surfaced support?",
+    "Did the surfaced support overlap a stronger volume shelf?",
+    "Was the surfaced level near VWAP, opening range, or premarket levels?",
+    "Were support-side volume facts drying up, normal, elevated, or unavailable?",
+    "Was resistance-side truthful market context near session landmarks or a volume shelf?",
+    "Were facts missing, making the comparison inconclusive?"
+  ],
+  "candidateSurfacedComparisonOutcomes": [
+    "surfaced_has_more_session_volume_context",
+    "unsurfaced_has_more_session_volume_context",
+    "similar_session_volume_context",
+    "missing_facts_inconclusive",
+    "candidate_identifier_unavailable",
+    "no_nearby_session_volume_context"
+  ],
+  "diagnostics": [
+    "session_facts_missing",
+    "volume_facts_missing",
+    "volume_shelf_facts_missing",
+    "no_nearby_volume_shelf",
+    "vwap_unavailable",
+    "candidate_id_unavailable",
+    "level_id_unavailable",
+    "candidate_inventory_visibility_missing",
+    "surfaced_selection_reason_not_serialized",
+    "volume_session_comparison_inconclusive"
+  ],
+  "policies": {
+    "volumeShelfPolicy": "Volume shelves remain facts-only zones; they may be reported as near or overlapping but must not become support/resistance levels or influence selection in this path.",
+    "vwapSessionPolicy": "VWAP and session landmarks remain facts-only proximity context and must not change support/resistance generation, scoring, ranking, clustering, surfaced selection, or extension generation.",
+    "missingFactsPolicy": "Missing facts produce explicit diagnostics and inconclusive comparison states rather than inferred judgments."
+  },
+  "futureGateSequence": [
+    "level_quality_candidate_inventory_volume_session_context_contract",
+    "level_quality_candidate_inventory_volume_session_context_builder",
+    "level_quality_candidate_inventory_volume_session_context_review_wiring",
+    "level_quality_candidate_inventory_volume_session_context_rerun",
+    "level_quality_candidate_inventory_volume_session_context_baseline_lock"
+  ],
+  "safety": {
+    "factsOnly": true,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "alertMonitoringDiscordBehaviorChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": {
+    "name": "level_quality_candidate_inventory_volume_session_context_contract",
+    "reason": "After design, lock a compact facts-only contract and deterministic fixtures before building or wiring volume/session context into review output."
+  }
+}
