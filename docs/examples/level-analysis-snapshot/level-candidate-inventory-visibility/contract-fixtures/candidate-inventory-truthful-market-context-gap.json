@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "level-candidate-inventory-visibility-fixture/v1",
+  "fixtureName": "candidate-inventory-truthful-market-context-gap",
+  "inputSummary": {
+    "symbol": "TRUTH",
+    "referencePrice": 10,
+    "scenario": "nearest raw clustered scored and surfaced levels match despite wide distances"
+  },
+  "visibility": {
+    "schemaVersion": "level-candidate-inventory-visibility/v1",
+    "symbol": "TRUTH",
+    "provider": "fixture",
+    "asOfTimestamp": 1780329600000,
+    "asOfIso": "2026-06-01T16:00:00.000Z",
+    "referencePrice": 10,
+    "sourceFiles": {
+      "5m": "fixture/TRUTH/5m.json",
+      "4h": "fixture/TRUTH/4h.json",
+      "daily": "fixture/TRUTH/daily.json"
+    },
+    "stageCounts": {
+      "raw": { "stage": "raw", "support": 2, "resistance": 2, "total": 4 },
+      "clustered": { "stage": "clustered", "support": 1, "resistance": 1, "total": 2 },
+      "scored": { "stage": "scored", "support": 1, "resistance": 1, "total": 2 },
+      "surfaced": { "stage": "surfaced", "support": 1, "resistance": 1, "total": 2 },
+      "extension_candidate": { "stage": "extension_candidate", "support": 0, "resistance": 0, "total": 0 },
+      "extension_selected": { "stage": "extension_selected", "support": 0, "resistance": 0, "total": 0 }
+    },
+    "nearest": {
+      "raw": {
+        "support": { "stage": "raw", "side": "support", "price": 7.5, "distancePct": 25, "sourceTypes": ["swing_low"] },
+        "resistance": { "stage": "raw", "side": "resistance", "price": 13, "distancePct": 30, "sourceTypes": ["swing_high"] }
+      },
+      "clustered": {
+        "support": { "stage": "clustered", "side": "support", "levelId": "TRUTH-support-zone-1", "price": 7.5, "distancePct": 25, "sourceTypes": ["swing_low"] },
+        "resistance": { "stage": "clustered", "side": "resistance", "levelId": "TRUTH-resistance-zone-1", "price": 13, "distancePct": 30, "sourceTypes": ["swing_high"] }
+      },
+      "scored": {
+        "support": { "stage": "scored", "side": "support", "levelId": "TRUTH-support-zone-1", "price": 7.5, "distancePct": 25, "sourceTypes": ["swing_low"] },
+        "resistance": { "stage": "scored", "side": "resistance", "levelId": "TRUTH-resistance-zone-1", "price": 13, "distancePct": 30, "sourceTypes": ["swing_high"] }
+      },
+      "surfaced": {
+        "support": { "stage": "surfaced", "side": "support", "levelId": "TRUTH-support-zone-1", "bucket": "majorSupport", "price": 7.5, "distancePct": 25, "surfaced": true, "sourceTypes": ["swing_low"] },
+        "resistance": { "stage": "surfaced", "side": "resistance", "levelId": "TRUTH-resistance-zone-1", "bucket": "majorResistance", "price": 13, "distancePct": 30, "surfaced": true, "sourceTypes": ["swing_high"] }
+      },
+      "extension_candidate": {},
+      "extension_selected": {}
+    },
+    "unsurfacedCloser": {
+      "support": { "side": "support", "present": false, "count": 0, "reasonAvailability": "not_needed", "reasons": [], "limitations": [] },
+      "resistance": { "side": "resistance", "present": false, "count": 0, "reasonAvailability": "not_needed", "reasons": [], "limitations": [] }
+    },
+    "gapClassification": {
+      "support": "truthful_market_context_gap",
+      "resistance": "truthful_market_context_gap",
+      "overall": "truthful_market_context_gap"
+    },
+    "diagnostics": ["wide_downside_support_gap", "wide_overhead_resistance_gap"],
+    "limitations": [],
+    "safety": {
+      "readOnly": true,
+      "auditOnly": true,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "rawCandlesIncluded": false,
+      "fullSnapshotsIncluded": false,
+      "supportResistanceDetectionChanged": false,
+      "levelEngineScoringRankingClusteringChanged": false,
+      "surfacedLevelsChanged": false,
+      "extensionGenerationChanged": false,
+      "fifteenMinuteFedIntoLevelEngine": false
+    }
+  },
+  "expectedClassification": {
+    "support": "truthful_market_context_gap",
+    "resistance": "truthful_market_context_gap",
+    "overall": "truthful_market_context_gap"
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

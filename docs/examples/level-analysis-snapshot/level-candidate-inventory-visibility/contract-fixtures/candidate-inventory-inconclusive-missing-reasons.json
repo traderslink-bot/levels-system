@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "level-candidate-inventory-visibility-fixture/v1",
+  "fixtureName": "candidate-inventory-inconclusive-missing-reasons",
+  "inputSummary": {
+    "symbol": "INCON",
+    "referencePrice": 10,
+    "scenario": "compact output lacks scored inventory and surfaced-selection reasons"
+  },
+  "visibility": {
+    "schemaVersion": "level-candidate-inventory-visibility/v1",
+    "symbol": "INCON",
+    "provider": "fixture",
+    "asOfTimestamp": 1780329600000,
+    "asOfIso": "2026-06-01T16:00:00.000Z",
+    "referencePrice": 10,
+    "sourceFiles": {
+      "5m": "fixture/INCON/5m.json",
+      "4h": "fixture/INCON/4h.json",
+      "daily": "fixture/INCON/daily.json"
+    },
+    "stageCounts": {
+      "raw": { "stage": "raw", "support": 0, "resistance": 0, "total": 0 },
+      "clustered": { "stage": "clustered", "support": 0, "resistance": 0, "total": 0 },
+      "scored": { "stage": "scored", "support": 0, "resistance": 0, "total": 0 },
+      "surfaced": { "stage": "surfaced", "support": 1, "resistance": 1, "total": 2 },
+      "extension_candidate": { "stage": "extension_candidate", "support": 0, "resistance": 0, "total": 0 },
+      "extension_selected": { "stage": "extension_selected", "support": 0, "resistance": 0, "total": 0 }
+    },
+    "nearest": {
+      "raw": {},
+      "clustered": {},
+      "scored": {},
+      "surfaced": {
+        "support": { "stage": "surfaced", "side": "support", "levelId": "INCON-support-zone-1", "bucket": "majorSupport", "price": 8.4, "distancePct": 16, "surfaced": true, "sourceTypes": ["swing_low"] },
+        "resistance": { "stage": "surfaced", "side": "resistance", "levelId": "INCON-resistance-zone-1", "bucket": "majorResistance", "price": 11.9, "distancePct": 19, "surfaced": true, "sourceTypes": ["swing_high"] }
+      },
+      "extension_candidate": {},
+      "extension_selected": {}
+    },
+    "unsurfacedCloser": {
+      "support": {
+        "side": "support",
+        "present": false,
+        "count": 0,
+        "reasonAvailability": "not_available",
+        "reasons": [],
+        "limitations": ["raw_clustered_scored_inventory_not_available"]
+      },
+      "resistance": {
+        "side": "resistance",
+        "present": false,
+        "count": 0,
+        "reasonAvailability": "not_available",
+        "reasons": [],
+        "limitations": ["raw_clustered_scored_inventory_not_available"]
+      }
+    },
+    "gapClassification": {
+      "support": "inconclusive_missing_reasons",
+      "resistance": "inconclusive_missing_reasons",
+      "overall": "inconclusive_missing_reasons"
+    },
+    "diagnostics": ["candidate_stage_inventory_missing"],
+    "limitations": ["raw_clustered_scored_inventory_not_available", "surfaced_selection_reason_not_serialized"],
+    "safety": {
+      "readOnly": true,
+      "auditOnly": true,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "rawCandlesIncluded": false,
+      "fullSnapshotsIncluded": false,
+      "supportResistanceDetectionChanged": false,
+      "levelEngineScoringRankingClusteringChanged": false,
+      "surfacedLevelsChanged": false,
+      "extensionGenerationChanged": false,
+      "fifteenMinuteFedIntoLevelEngine": false
+    }
+  },
+  "expectedClassification": {
+    "support": "inconclusive_missing_reasons",
+    "resistance": "inconclusive_missing_reasons",
+    "overall": "inconclusive_missing_reasons"
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

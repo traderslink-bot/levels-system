@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "level-candidate-inventory-visibility-design/v1",
+  "generatedAt": "2026-06-02T01:12:40.882Z",
+  "providerFocus": "ibkr",
+  "purpose": "Design a safe read-only candidate inventory visibility layer for future LevelEngine quality investigations.",
+  "evidenceSources": [
+    "docs/127_LEVEL_QUALITY_NEAREST_GAP_INVESTIGATION.md",
+    "docs/examples/level-analysis-snapshot/level-quality-nearest-gap/latest-level-quality-nearest-gap-investigation.json",
+    "src/lib/levels/level-candidate-pool-diagnostics.ts",
+    "src/scripts/run-level-quality-review.ts"
+  ],
+  "helperTypeContract": {
+    "added": true,
+    "path": "src/lib/levels/level-candidate-inventory-visibility.ts",
+    "exports": [
+      "LevelCandidateInventoryVisibility",
+      "LevelCandidateInventoryStageSummary",
+      "LevelCandidateInventoryNearest",
+      "LevelCandidateInventoryUnsurfacedCloserSummary",
+      "validateLevelCandidateInventoryVisibility",
+      "isLevelCandidateInventoryVisibility",
+      "summarizeLevelCandidateInventoryGaps",
+      "assertLevelCandidateInventoryVisibilityFactsOnly"
+    ],
+    "wiredIntoRuntimeReviewOutput": false
+  },
+  "candidateStagesCovered": [
+    "raw",
+    "clustered",
+    "scored",
+    "surfaced",
+    "extension_candidate",
+    "extension_selected"
+  ],
+  "nearestComparisonModel": {
+    "supportsRawNearest": true,
+    "supportsClusteredNearest": true,
+    "supportsScoredNearest": true,
+    "supportsSurfacedNearest": true,
+    "supportsExtensionCandidateNearest": true,
+    "supportsSelectedExtensionNearest": true
+  },
+  "gapClassifications": [
+    "no_gap",
+    "closer_unsurfaced_candidate",
+    "truthful_market_context_gap",
+    "inconclusive_missing_reasons"
+  ],
+  "limitationsReasonModel": {
+    "reasonAvailabilityValues": [
+      "available",
+      "not_available",
+      "not_needed"
+    ],
+    "knownCurrentLimitations": [
+      "surfaced_selection_reason_not_serialized",
+      "raw_clustered_scored_inventory_not_available"
+    ]
+  },
+  "fixtures": {
+    "added": true,
+    "path": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/contract-fixtures/",
+    "files": [
+      "candidate-inventory-no-gap.json",
+      "candidate-inventory-closer-unsurfaced-support.json",
+      "candidate-inventory-closer-unsurfaced-resistance.json",
+      "candidate-inventory-truthful-market-context-gap.json",
+      "candidate-inventory-inconclusive-missing-reasons.json"
+    ]
+  },
+  "tests": {
+    "added": true,
+    "path": "src/tests/level-candidate-inventory-visibility-design.test.ts",
+    "coverage": [
+      "fixture validation",
+      "closer unsurfaced support",
+      "closer unsurfaced resistance",
+      "truthful market-context gap",
+      "inconclusive missing reasons",
+      "safety flags",
+      "prohibited language",
+      "source isolation",
+      "input immutability"
+    ]
+  },
+  "safety": {
+    "readOnly": true,
+    "auditOnly": true,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationOrTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": "level_quality_candidate_inventory_visibility_contract"
+}

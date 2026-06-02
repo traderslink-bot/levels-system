@@ -1,0 +1,61 @@
+Level candidate inventory visibility design
+Generated: 2026-06-02T01:12:40.882Z
+Provider focus: IBKR
+
+Purpose
+- Design a safe read-only candidate inventory visibility layer for future LevelEngine quality investigations.
+
+Evidence sources
+- docs/127_LEVEL_QUALITY_NEAREST_GAP_INVESTIGATION.md
+- docs/examples/level-analysis-snapshot/level-quality-nearest-gap/latest-level-quality-nearest-gap-investigation.json
+- src/lib/levels/level-candidate-pool-diagnostics.ts
+- src/scripts/run-level-quality-review.ts
+
+Helper/type contract
+- Added: true
+- Path: src/lib/levels/level-candidate-inventory-visibility.ts
+- Runtime review wiring: false
+
+Candidate stages covered
+- raw
+- clustered
+- scored
+- surfaced
+- extension_candidate
+- extension_selected
+
+Gap classifications
+- no_gap
+- closer_unsurfaced_candidate
+- truthful_market_context_gap
+- inconclusive_missing_reasons
+
+Fixtures added
+- docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/contract-fixtures/candidate-inventory-no-gap.json
+- docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/contract-fixtures/candidate-inventory-closer-unsurfaced-support.json
+- docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/contract-fixtures/candidate-inventory-closer-unsurfaced-resistance.json
+- docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/contract-fixtures/candidate-inventory-truthful-market-context-gap.json
+- docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/contract-fixtures/candidate-inventory-inconclusive-missing-reasons.json
+
+Tests added
+- src/tests/level-candidate-inventory-visibility-design.test.ts
+
+Limitations/reason model
+- reasonAvailability values: available, not_available, not_needed
+- Known current limitations: surfaced_selection_reason_not_serialized, raw_clustered_scored_inventory_not_available
+
+Safety
+- Read-only: true
+- Audit-only: true
+- Provider calls made: false
+- Cache files written: false
+- Raw candles included: false
+- Full snapshots included: false
+- Support/resistance detection changed: false
+- LevelEngine scoring/ranking/clustering changed: false
+- Surfaced levels changed: false
+- Extension generation changed: false
+- 15m fed into LevelEngine: false
+
+Recommended next gate
+- level_quality_candidate_inventory_visibility_contract
