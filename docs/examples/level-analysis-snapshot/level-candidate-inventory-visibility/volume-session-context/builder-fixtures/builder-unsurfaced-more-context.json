@@ -1,0 +1,202 @@
+{
+  "schemaVersion": "level-candidate-volume-session-context-builder-fixture/v1",
+  "fixtureName": "builder-unsurfaced-more-context",
+  "inputSummary": {
+    "scenario": "closer scored support row has more nearby session and shelf context than surfaced support",
+    "rowCount": 2,
+    "sessionFactsPresent": true,
+    "volumeFactsPresent": true,
+    "volumeShelvesPresent": true,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false
+  },
+  "expectedContext": {
+    "schemaVersion": "level-candidate-volume-session-context/v1",
+    "symbol": "FIXC",
+    "provider": "ibkr",
+    "asOfTimestamp": 1780329600000,
+    "asOfIso": "2026-06-01T16:00:00.000Z",
+    "referencePrice": 21.5,
+    "contexts": [
+      {
+        "rowId": "surfaced-support-1",
+        "levelId": "FIXC-support-zone-9",
+        "side": "support",
+        "stage": "surfaced",
+        "price": 19.4,
+        "zoneLow": 19.25,
+        "zoneHigh": 19.55,
+        "distanceFromReferencePct": 9.7674,
+        "session": {
+          "nearbyFacts": [
+            {
+              "fact": "regular_session_open",
+              "price": 20.55,
+              "distancePct": 5.9278,
+              "relation": "outside_threshold",
+              "factsOnly": true
+            }
+          ],
+          "diagnostics": [
+            "no_nearby_session_fact"
+          ]
+        },
+        "volume": {
+          "relativeVolume": 2.8,
+          "dollarVolume": 2450000,
+          "volumeState": "high",
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "diagnostics": []
+        },
+        "shelves": {
+          "nearbyShelfIds": [],
+          "overlaps": [],
+          "diagnostics": [
+            "no_nearby_volume_shelf"
+          ]
+        },
+        "diagnostics": [
+          "no_nearby_session_volume_context",
+          "unsurfaced_more_session_volume_context"
+        ],
+        "safety": {
+          "factsOnly": true,
+          "noLevelSelectionChange": true,
+          "noRankingChange": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "rowId": "unsurfaced-support-1",
+        "candidateId": "FIXC-scored-support-4",
+        "side": "support",
+        "stage": "scored",
+        "price": 20.6,
+        "distanceFromReferencePct": 4.186,
+        "session": {
+          "nearbyFacts": [
+            {
+              "fact": "vwap",
+              "price": 20.62,
+              "distancePct": 0.0971,
+              "relation": "near",
+              "factsOnly": true
+            },
+            {
+              "fact": "regular_session_open",
+              "price": 20.55,
+              "distancePct": 0.2427,
+              "relation": "near",
+              "factsOnly": true
+            }
+          ],
+          "vwap": {
+            "fact": "vwap",
+            "price": 20.62,
+            "distancePct": 0.0971,
+            "relation": "near",
+            "factsOnly": true
+          },
+          "diagnostics": []
+        },
+        "volume": {
+          "relativeVolume": 2.8,
+          "dollarVolume": 2450000,
+          "volumeState": "high",
+          "liquidityQuality": "good",
+          "accelerationState": "building",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "confirmed",
+          "diagnostics": []
+        },
+        "shelves": {
+          "nearbyShelfIds": [
+            "FIXC-shelf-3"
+          ],
+          "overlaps": [
+            {
+              "shelfId": "FIXC-shelf-3",
+              "zoneLow": 20.5,
+              "zoneHigh": 20.7,
+              "representativePrice": 20.61,
+              "relation": "overlaps",
+              "shelfRole": "support",
+              "totalVolume": 184000,
+              "dollarVolume": 3792240,
+              "percentOfWindowVolume": 31.2,
+              "factsOnly": true
+            }
+          ],
+          "diagnostics": []
+        },
+        "diagnostics": [
+          "unsurfaced_more_session_volume_context"
+        ],
+        "safety": {
+          "factsOnly": true,
+          "noLevelSelectionChange": true,
+          "noRankingChange": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "comparisonSummary": {
+      "outcome": "unsurfaced_has_more_session_volume_context",
+      "comparedRowIds": [
+        "surfaced-support-1",
+        "unsurfaced-support-1"
+      ],
+      "surfacedRowIds": [
+        "surfaced-support-1"
+      ],
+      "unsurfacedRowIds": [
+        "unsurfaced-support-1"
+      ],
+      "diagnostics": [
+        "unsurfaced_more_session_volume_context"
+      ],
+      "support": "unsurfaced_has_more_session_volume_context"
+    },
+    "diagnostics": [
+      "no_nearby_session_fact",
+      "no_nearby_session_volume_context",
+      "no_nearby_volume_shelf",
+      "unsurfaced_more_session_volume_context"
+    ],
+    "safety": {
+      "factsOnly": true,
+      "noLevelSelectionChange": true,
+      "noRankingChange": true,
+      "noRuntimeBehaviorChange": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "fifteenMinuteFedIntoLevelEngine": false,
+      "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+      "supportResistanceDetectionChanged": false,
+      "levelEngineScoringRankingClusteringChanged": false,
+      "surfacedLevelsChanged": false,
+      "extensionGenerationChanged": false,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "rawCandlesIncluded": false,
+      "fullSnapshotsIncluded": false
+    }
+  },
+  "expected": {
+    "comparisonOutcome": "unsurfaced_has_more_session_volume_context",
+    "diagnostics": [
+      "unsurfaced_more_session_volume_context"
+    ]
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

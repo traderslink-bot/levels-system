@@ -1,0 +1,197 @@
+{
+  "schemaVersion": "level-candidate-volume-session-context-builder-fixture/v1",
+  "fixtureName": "builder-closer-unsurfaced-less-context",
+  "inputSummary": {
+    "scenario": "closer scored support row has less nearby session and shelf context than surfaced support",
+    "rowCount": 2,
+    "sessionFactsPresent": true,
+    "volumeFactsPresent": true,
+    "volumeShelvesPresent": true,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false
+  },
+  "expectedContext": {
+    "schemaVersion": "level-candidate-volume-session-context/v1",
+    "symbol": "FIXB",
+    "provider": "ibkr",
+    "asOfTimestamp": 1780329600000,
+    "asOfIso": "2026-06-01T16:00:00.000Z",
+    "referencePrice": 4.2,
+    "contexts": [
+      {
+        "rowId": "surfaced-support-1",
+        "levelId": "FIXB-support-zone-4",
+        "side": "support",
+        "stage": "surfaced",
+        "price": 3.96,
+        "zoneLow": 3.93,
+        "zoneHigh": 4,
+        "distanceFromReferencePct": 5.7143,
+        "session": {
+          "nearbyFacts": [
+            {
+              "fact": "premarket_low",
+              "price": 3.95,
+              "distancePct": 0.2525,
+              "relation": "overlaps",
+              "factsOnly": true
+            }
+          ],
+          "diagnostics": []
+        },
+        "volume": {
+          "relativeVolume": 1.8,
+          "dollarVolume": 520000,
+          "volumeState": "elevated",
+          "liquidityQuality": "acceptable",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "not_applicable",
+          "diagnostics": []
+        },
+        "shelves": {
+          "nearbyShelfIds": [
+            "FIXB-shelf-2"
+          ],
+          "overlaps": [
+            {
+              "shelfId": "FIXB-shelf-2",
+              "zoneLow": 3.9,
+              "zoneHigh": 4.01,
+              "representativePrice": 3.97,
+              "relation": "overlaps",
+              "shelfRole": "support",
+              "totalVolume": 92000,
+              "dollarVolume": 365240,
+              "percentOfWindowVolume": 18.4,
+              "factsOnly": true
+            }
+          ],
+          "diagnostics": []
+        },
+        "diagnostics": [
+          "closer_unsurfaced_less_session_volume_context",
+          "surfaced_session_volume_context_present"
+        ],
+        "safety": {
+          "factsOnly": true,
+          "noLevelSelectionChange": true,
+          "noRankingChange": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      },
+      {
+        "rowId": "unsurfaced-support-1",
+        "candidateId": "FIXB-scored-support-2",
+        "side": "support",
+        "stage": "scored",
+        "price": 4.08,
+        "distanceFromReferencePct": 2.8571,
+        "session": {
+          "nearbyFacts": [
+            {
+              "fact": "vwap",
+              "price": 4.02,
+              "distancePct": 1.4706,
+              "relation": "outside_threshold",
+              "factsOnly": true
+            }
+          ],
+          "vwap": {
+            "fact": "vwap",
+            "price": 4.02,
+            "distancePct": 1.4706,
+            "relation": "outside_threshold",
+            "factsOnly": true
+          },
+          "diagnostics": [
+            "no_nearby_session_fact"
+          ]
+        },
+        "volume": {
+          "relativeVolume": 1.8,
+          "dollarVolume": 520000,
+          "volumeState": "elevated",
+          "liquidityQuality": "acceptable",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "drying_up",
+          "breakoutVolumeState": "not_applicable",
+          "diagnostics": []
+        },
+        "shelves": {
+          "nearbyShelfIds": [],
+          "overlaps": [],
+          "diagnostics": [
+            "no_nearby_volume_shelf"
+          ]
+        },
+        "diagnostics": [
+          "closer_unsurfaced_less_session_volume_context",
+          "no_nearby_session_volume_context"
+        ],
+        "safety": {
+          "factsOnly": true,
+          "noLevelSelectionChange": true,
+          "noRankingChange": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "comparisonSummary": {
+      "outcome": "surfaced_has_more_session_volume_context",
+      "comparedRowIds": [
+        "surfaced-support-1",
+        "unsurfaced-support-1"
+      ],
+      "surfacedRowIds": [
+        "surfaced-support-1"
+      ],
+      "unsurfacedRowIds": [
+        "unsurfaced-support-1"
+      ],
+      "diagnostics": [
+        "closer_unsurfaced_less_session_volume_context"
+      ],
+      "support": "surfaced_has_more_session_volume_context"
+    },
+    "diagnostics": [
+      "closer_unsurfaced_less_session_volume_context",
+      "no_nearby_session_fact",
+      "no_nearby_session_volume_context",
+      "no_nearby_volume_shelf",
+      "surfaced_session_volume_context_present"
+    ],
+    "safety": {
+      "factsOnly": true,
+      "noLevelSelectionChange": true,
+      "noRankingChange": true,
+      "noRuntimeBehaviorChange": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "fifteenMinuteFedIntoLevelEngine": false,
+      "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+      "supportResistanceDetectionChanged": false,
+      "levelEngineScoringRankingClusteringChanged": false,
+      "surfacedLevelsChanged": false,
+      "extensionGenerationChanged": false,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "rawCandlesIncluded": false,
+      "fullSnapshotsIncluded": false
+    }
+  },
+  "expected": {
+    "comparisonOutcome": "surfaced_has_more_session_volume_context",
+    "diagnostics": [
+      "closer_unsurfaced_less_session_volume_context"
+    ]
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

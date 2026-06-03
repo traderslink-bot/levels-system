@@ -1,0 +1,31 @@
+Level candidate inventory volume/session context builder
+
+Purpose:
+- Add a pure facts-only builder from existing SessionMarketFacts, VolumeMarketFacts, VolumeShelf[], and compact candidate/surfaced rows into the locked LevelCandidateVolumeSessionContext contract.
+
+Builder module:
+- src/lib/levels/level-candidate-volume-session-context-builder.ts
+
+Builder exports:
+- buildLevelCandidateVolumeSessionContext
+- buildLevelCandidateVolumeSessionContextRow
+- findNearbySessionFactsForCandidate
+- findVolumeShelfOverlapsForCandidate
+- deriveVolumeSessionComparisonSummary
+
+Fixture coverage:
+- builder-surfaced-vwap-shelf-overlap -> surfaced_has_more_session_volume_context
+- builder-closer-unsurfaced-less-context -> surfaced_has_more_session_volume_context
+- builder-unsurfaced-more-context -> unsurfaced_has_more_session_volume_context
+- builder-missing-facts-inconclusive -> missing_facts_inconclusive
+- builder-no-nearby-context -> no_nearby_session_volume_context
+
+Safety:
+- Volume/session context is not wired into runtime review output yet.
+- No support/resistance detection, LevelEngine scoring/ranking/clustering, surfaced-level, or extension-generation behavior changed.
+- 15m was not fed into LevelEngine.
+- Volume/session facts were not used to change scoring or surfaced selection.
+- No cache files, raw candles, full snapshots, Discord/alert/monitoring behavior, journal behavior, or recommendation/trade-advice behavior were added.
+
+Recommended next gate:
+- level_quality_candidate_inventory_volume_session_context_review_wiring

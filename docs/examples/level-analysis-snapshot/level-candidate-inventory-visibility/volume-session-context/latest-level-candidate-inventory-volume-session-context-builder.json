@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "level-candidate-inventory-volume-session-context-builder/v1",
+  "generatedAt": "2026-06-03T01:34:37.477Z",
+  "providerFocus": "ibkr",
+  "purpose": "Add a pure facts-only builder from existing session facts, volume facts, volume shelves, and compact candidate/surfaced rows into the locked LevelCandidateVolumeSessionContext contract.",
+  "mergedContractCommit": "d01a2906a3c045d8ae4d52ac584487a7c13adba8",
+  "builderModule": "src/lib/levels/level-candidate-volume-session-context-builder.ts",
+  "builderExports": [
+    "buildLevelCandidateVolumeSessionContext",
+    "buildLevelCandidateVolumeSessionContextRow",
+    "findNearbySessionFactsForCandidate",
+    "findVolumeShelfOverlapsForCandidate",
+    "deriveVolumeSessionComparisonSummary"
+  ],
+  "inputFacts": [
+    "SessionMarketFacts",
+    "VolumeMarketFacts",
+    "VolumeShelf[]",
+    "compact candidate/surfaced rows"
+  ],
+  "sessionProximityLogic": {
+    "facts": [
+      "vwap",
+      "premarket_high",
+      "premarket_low",
+      "opening_range_high",
+      "opening_range_low",
+      "high_of_day",
+      "low_of_day",
+      "previous_close",
+      "regular_session_open"
+    ],
+    "relations": [
+      "overlaps",
+      "near",
+      "outside_threshold"
+    ],
+    "defaultNearPct": 1,
+    "defaultOverlapPct": 0.05
+  },
+  "volumeFactsMapped": [
+    "relativeVolume",
+    "dollarVolume",
+    "volumeState",
+    "liquidityQuality",
+    "accelerationState",
+    "pullbackVolumeState",
+    "breakoutVolumeState"
+  ],
+  "shelfOverlapLogic": {
+    "relations": [
+      "overlaps",
+      "near"
+    ],
+    "defaultNearPct": 1
+  },
+  "comparisonOutcomes": [
+    "surfaced_has_more_session_volume_context",
+    "unsurfaced_has_more_session_volume_context",
+    "similar_session_volume_context",
+    "missing_facts_inconclusive",
+    "candidate_identifier_unavailable",
+    "no_nearby_session_volume_context"
+  ],
+  "fixtures": [
+    {
+      "name": "builder-surfaced-vwap-shelf-overlap",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/builder-fixtures/builder-surfaced-vwap-shelf-overlap.json",
+      "expectedOutcome": "surfaced_has_more_session_volume_context"
+    },
+    {
+      "name": "builder-closer-unsurfaced-less-context",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/builder-fixtures/builder-closer-unsurfaced-less-context.json",
+      "expectedOutcome": "surfaced_has_more_session_volume_context"
+    },
+    {
+      "name": "builder-unsurfaced-more-context",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/builder-fixtures/builder-unsurfaced-more-context.json",
+      "expectedOutcome": "unsurfaced_has_more_session_volume_context"
+    },
+    {
+      "name": "builder-missing-facts-inconclusive",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/builder-fixtures/builder-missing-facts-inconclusive.json",
+      "expectedOutcome": "missing_facts_inconclusive"
+    },
+    {
+      "name": "builder-no-nearby-context",
+      "file": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/builder-fixtures/builder-no-nearby-context.json",
+      "expectedOutcome": "no_nearby_session_volume_context"
+    }
+  ],
+  "validation": {
+    "focusedTest": "src/tests/level-candidate-volume-session-context-builder.test.ts",
+    "contractTest": "src/tests/level-candidate-volume-session-context-contract.test.ts",
+    "fixtureCount": 5,
+    "prohibitedLanguageHitCount": 0,
+    "sourceIsolationChecked": true
+  },
+  "safety": {
+    "volumeSessionContextWiredIntoRuntimeReviewOutput": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "alertMonitoringDiscordBehaviorChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": {
+    "name": "level_quality_candidate_inventory_volume_session_context_review_wiring",
+    "reason": "After the pure builder is fixture-tested, wire it additively into the packaged review process and rerun the 10-symbol review."
+  }
+}
