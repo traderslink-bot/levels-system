@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "level-candidate-volume-session-context-builder-fixture/v1",
+  "fixtureName": "builder-no-nearby-context",
+  "inputSummary": {
+    "scenario": "facts are available but no nearby session or volume shelf context is found",
+    "rowCount": 1,
+    "sessionFactsPresent": true,
+    "volumeFactsPresent": true,
+    "volumeShelvesPresent": true,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false
+  },
+  "expectedContext": {
+    "schemaVersion": "level-candidate-volume-session-context/v1",
+    "symbol": "FIXE",
+    "provider": "ibkr",
+    "asOfTimestamp": 1780329600000,
+    "asOfIso": "2026-06-01T16:00:00.000Z",
+    "referencePrice": 7.5,
+    "contexts": [
+      {
+        "rowId": "surfaced-resistance-1",
+        "levelId": "FIXE-resistance-zone-1",
+        "side": "resistance",
+        "stage": "surfaced",
+        "price": 8.9,
+        "zoneLow": 8.82,
+        "zoneHigh": 8.96,
+        "distanceFromReferencePct": 18.6667,
+        "session": {
+          "nearbyFacts": [
+            {
+              "fact": "high_of_day",
+              "price": 7.62,
+              "distancePct": 14.382,
+              "relation": "outside_threshold",
+              "factsOnly": true
+            }
+          ],
+          "diagnostics": [
+            "no_nearby_session_fact",
+            "vwap_unavailable"
+          ]
+        },
+        "volume": {
+          "relativeVolume": 1.1,
+          "dollarVolume": 620000,
+          "volumeState": "normal",
+          "liquidityQuality": "acceptable",
+          "accelerationState": "steady",
+          "pullbackVolumeState": "normal",
+          "breakoutVolumeState": "not_applicable",
+          "diagnostics": []
+        },
+        "shelves": {
+          "nearbyShelfIds": [],
+          "overlaps": [],
+          "diagnostics": [
+            "no_nearby_volume_shelf"
+          ]
+        },
+        "diagnostics": [
+          "no_nearby_session_volume_context"
+        ],
+        "safety": {
+          "factsOnly": true,
+          "noLevelSelectionChange": true,
+          "noRankingChange": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "comparisonSummary": {
+      "outcome": "no_nearby_session_volume_context",
+      "comparedRowIds": [
+        "surfaced-resistance-1"
+      ],
+      "surfacedRowIds": [
+        "surfaced-resistance-1"
+      ],
+      "unsurfacedRowIds": [],
+      "diagnostics": [
+        "no_nearby_session_volume_context"
+      ],
+      "resistance": "no_nearby_session_volume_context"
+    },
+    "diagnostics": [
+      "no_nearby_session_fact",
+      "no_nearby_session_volume_context",
+      "no_nearby_volume_shelf",
+      "vwap_unavailable"
+    ],
+    "safety": {
+      "factsOnly": true,
+      "noLevelSelectionChange": true,
+      "noRankingChange": true,
+      "noRuntimeBehaviorChange": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "fifteenMinuteFedIntoLevelEngine": false,
+      "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+      "supportResistanceDetectionChanged": false,
+      "levelEngineScoringRankingClusteringChanged": false,
+      "surfacedLevelsChanged": false,
+      "extensionGenerationChanged": false,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "rawCandlesIncluded": false,
+      "fullSnapshotsIncluded": false
+    }
+  },
+  "expected": {
+    "comparisonOutcome": "no_nearby_session_volume_context",
+    "diagnostics": [
+      "no_nearby_session_volume_context"
+    ]
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}
