@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "level-candidate-volume-session-context-fixture/v1",
+  "fixtureName": "volume-session-context-missing-facts-inconclusive",
+  "inputSummary": {
+    "scenario": "comparison remains inconclusive when session, volume, and shelf facts are missing",
+    "rowCount": 1,
+    "rawCandlesIncluded": false,
+    "fullSnapshotsIncluded": false
+  },
+  "context": {
+    "schemaVersion": "level-candidate-volume-session-context/v1",
+    "symbol": "FIXD",
+    "provider": "ibkr",
+    "asOfTimestamp": 1780329600000,
+    "asOfIso": "2026-06-01T16:00:00.000Z",
+    "referencePrice": 0.82,
+    "contexts": [
+      {
+        "rowId": "surfaced-support-1",
+        "levelId": "FIXD-support-zone-1",
+        "side": "support",
+        "stage": "surfaced",
+        "price": 0.74,
+        "distanceFromReferencePct": 9.7561,
+        "session": {
+          "nearbyFacts": [],
+          "diagnostics": [
+            "session_facts_missing",
+            "vwap_unavailable"
+          ]
+        },
+        "volume": {
+          "diagnostics": [
+            "volume_facts_missing"
+          ]
+        },
+        "shelves": {
+          "nearbyShelfIds": [],
+          "overlaps": [],
+          "diagnostics": [
+            "volume_shelf_facts_missing"
+          ]
+        },
+        "diagnostics": [
+          "volume_session_comparison_inconclusive"
+        ],
+        "safety": {
+          "factsOnly": true,
+          "noLevelSelectionChange": true,
+          "noRankingChange": true,
+          "noRuntimeBehaviorChange": true,
+          "vwapFactsOnly": true,
+          "shelvesAreFactsOnly": true
+        }
+      }
+    ],
+    "comparisonSummary": {
+      "outcome": "missing_facts_inconclusive",
+      "support": "missing_facts_inconclusive",
+      "comparedRowIds": [
+        "surfaced-support-1"
+      ],
+      "surfacedRowIds": [
+        "surfaced-support-1"
+      ],
+      "unsurfacedRowIds": [],
+      "diagnostics": [
+        "session_facts_missing",
+        "volume_facts_missing",
+        "volume_shelf_facts_missing",
+        "volume_session_comparison_inconclusive"
+      ]
+    },
+    "diagnostics": [
+      "session_facts_missing",
+      "volume_facts_missing",
+      "volume_shelf_facts_missing",
+      "volume_session_comparison_inconclusive"
+    ],
+    "safety": {
+      "factsOnly": true,
+      "noLevelSelectionChange": true,
+      "noRankingChange": true,
+      "noRuntimeBehaviorChange": true,
+      "vwapFactsOnly": true,
+      "shelvesAreFactsOnly": true,
+      "fifteenMinuteFedIntoLevelEngine": false,
+      "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+      "supportResistanceDetectionChanged": false,
+      "levelEngineScoringRankingClusteringChanged": false,
+      "surfacedLevelsChanged": false,
+      "extensionGenerationChanged": false,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "rawCandlesIncluded": false,
+      "fullSnapshotsIncluded": false
+    }
+  },
+  "expected": {
+    "comparisonOutcome": "missing_facts_inconclusive",
+    "diagnostics": [
+      "session_facts_missing",
+      "volume_facts_missing",
+      "volume_shelf_facts_missing",
+      "volume_session_comparison_inconclusive"
+    ]
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}
