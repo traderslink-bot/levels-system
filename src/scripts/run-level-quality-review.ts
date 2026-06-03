@@ -17,13 +17,24 @@ import {
   validateLevelCandidateInventoryReviewVisibilityWrapper,
   type LevelCandidateInventoryReviewVisibilityWrapper,
 } from "../lib/levels/level-candidate-inventory-review-wiring.js";
+import {
+  buildLevelCandidateVolumeSessionContext,
+  type LevelCandidateVolumeSessionContextInputRow,
+} from "../lib/levels/level-candidate-volume-session-context-builder.js";
+import {
+  assertLevelCandidateVolumeSessionContextFactsOnly,
+  validateLevelCandidateVolumeSessionContext,
+  type LevelCandidateVolumeSessionComparisonOutcome,
+  type LevelCandidateVolumeSessionContext,
+  type LevelCandidateVolumeSessionSide,
+} from "../lib/levels/level-candidate-volume-session-context.js";
 import type { LevelQualityDensityMetric } from "../lib/levels/level-quality-density-metric.js";
 import type { LevelQualityDiagnosticDescription } from "../lib/levels/level-quality-audit-wording.js";
 import { scoreLevelZones } from "../lib/levels/level-scorer.js";
 import { buildRawLevelCandidates } from "../lib/levels/raw-level-candidate-builder.js";
 import { buildSpecialLevelCandidates } from "../lib/levels/special-level-builder.js";
 import { detectSwingPoints } from "../lib/levels/swing-detector.js";
-import type { LevelEngineOutput, RawLevelCandidate } from "../lib/levels/level-types.js";
+import type { FinalLevelZone, LevelEngineOutput, RawLevelCandidate } from "../lib/levels/level-types.js";
 import { filterCandlesByCloseAsOf } from "../lib/market-data/candle-as-of-filter.js";
 import type { Candle, CandleProviderName, CandleTimeframe } from "../lib/market-data/candle-types.js";
 
@@ -109,6 +120,17 @@ type CompactCandidateInventorySummary = {
   resistanceTruthfulMarketContextCount: number;
 };
 
+type CompactCandidateVolumeSessionContextSummary = {
+  presentCount: number;
+  validCount: number;
+  missingCount: number;
+  sessionFactsPresentCount: number;
+  volumeFactsPresentCount: number;
+  volumeShelfContextPresentCount: number;
+  comparisonOutcomeCounts: Partial<Record<LevelCandidateVolumeSessionComparisonOutcome, number>>;
+  missingFactsCount: number;
+};
+
 type CompactQualityAudit = {
   diagnostics: string[];
   diagnosticSemantics: LevelQualityDiagnosticDescription[];
@@ -180,6 +202,7 @@ export type LevelQualityReviewRunnerEntry = {
   diagnosticSemantics: CompactDiagnosticSemantics;
   fifteenMinuteContext: CompactFifteenMinuteContext;
   candidateInventoryVisibility: LevelCandidateInventoryReviewVisibilityWrapper;
+  candidateVolumeSessionContext: LevelCandidateVolumeSessionContext;
   safety: {
     noLookaheadApplied: boolean;
     levelOutputUnchanged: boolean;
@@ -236,6 +259,14 @@ export type LevelQualityReviewRunnerResult = {
     candidateInventorySupportTruthfulMarketContextCount: number;
     candidateInventoryResistanceTruthfulMarketContextCount: number;
     candidateInventoryMissingCount: number;
+    candidateVolumeSessionContextPresentCount: number;
+    candidateVolumeSessionContextValidCount: number;
+    candidateVolumeSessionContextMissingCount: number;
+    sessionFactsPresentCount: number;
+    volumeFactsPresentCount: number;
+    volumeShelfContextPresentCount: number;
+    candidateVolumeSessionComparisonOutcomeCounts: Partial<Record<LevelCandidateVolumeSessionComparisonOutcome, number>>;
+    candidateVolumeSessionMissingFactsCount: number;
     mismatchCount: number;
     prohibitedLanguageHitCount: number;
   };
@@ -804,6 +835,238 @@ function candidateInventorySummary(
   };
 }
 
+function hasAnyContextRows(context: LevelCandidateVolumeSessionContext): boolean {
+  return context.contexts.length > 0;
+}
+
+function hasMissingVolumeSessionFacts(context: LevelCandidateVolumeSessionContext): boolean {
+  return context.diagnostics.some((diagnostic) =>
+    diagnostic === "session_facts_missing" ||
+    diagnostic === "volume_facts_missing" ||
+    diagnostic === "volume_shelf_facts_missing",
+  );
+}
+
+function hasSessionFacts(context: LevelCandidateVolumeSessionContext): boolean {
+  return !context.diagnostics.includes("session_facts_missing");
+}
+
+function hasVolumeFacts(context: LevelCandidateVolumeSessionContext): boolean {
+  return !context.diagnostics.includes("volume_facts_missing");
+}
+
+function hasVolumeShelfFacts(context: LevelCandidateVolumeSessionContext): boolean {
+  return !context.diagnostics.includes("volume_shelf_facts_missing");
+}
+
+function candidateVolumeSessionContextSummary(
+  entries: LevelQualityReviewRunnerEntry[],
+): CompactCandidateVolumeSessionContextSummary {
+  const contexts = entries.map((entry) => entry.candidateVolumeSessionContext);
+  const comparisonOutcomes = contexts.map((context) => context.comparisonSummary.outcome);
+
+  return {
+    presentCount: contexts.filter(hasAnyContextRows).length,
+    validCount: contexts.filter((context) => validateLevelCandidateVolumeSessionContext(context).valid).length,
+    missingCount: contexts.filter((context) => !hasAnyContextRows(context)).length,
+    sessionFactsPresentCount: contexts.filter(hasSessionFacts).length,
+    volumeFactsPresentCount: contexts.filter(hasVolumeFacts).length,
+    volumeShelfContextPresentCount: contexts.filter(hasVolumeShelfFacts).length,
+    comparisonOutcomeCounts: countBy(comparisonOutcomes) as Partial<Record<LevelCandidateVolumeSessionComparisonOutcome, number>>,
+    missingFactsCount: contexts.filter(hasMissingVolumeSessionFacts).length,
+  };
+}
+
+function allLevelZones(snapshot: LevelAnalysisSnapshot): FinalLevelZone[] {
+  return [
+    ...snapshot.levelEngineOutput.majorSupport,
+    ...snapshot.levelEngineOutput.majorResistance,
+    ...snapshot.levelEngineOutput.intermediateSupport,
+    ...snapshot.levelEngineOutput.intermediateResistance,
+    ...snapshot.levelEngineOutput.intradaySupport,
+    ...snapshot.levelEngineOutput.intradayResistance,
+    ...snapshot.levelEngineOutput.extensionLevels.support,
+    ...snapshot.levelEngineOutput.extensionLevels.resistance,
+  ];
+}
+
+function nearestSnapshotLevel(
+  snapshot: LevelAnalysisSnapshot,
+  side: LevelCandidateVolumeSessionSide,
+): LevelAnalysisSnapshotNearestLevel | null {
+  return side === "support" ? snapshot.nearestSupport : snapshot.nearestResistance;
+}
+
+function findZoneById(
+  snapshot: LevelAnalysisSnapshot,
+  levelId: string | undefined,
+): FinalLevelZone | undefined {
+  if (levelId === undefined) {
+    return undefined;
+  }
+
+  return allLevelZones(snapshot).find((level) => level.id === levelId);
+}
+
+function findExtensionZoneByPrice(params: {
+  snapshot: LevelAnalysisSnapshot;
+  side: LevelCandidateVolumeSessionSide;
+  price: number | undefined;
+}): FinalLevelZone | undefined {
+  const price = params.price;
+  if (price === undefined) {
+    return undefined;
+  }
+
+  const levels = params.side === "support"
+    ? params.snapshot.levelEngineOutput.extensionLevels.support
+    : params.snapshot.levelEngineOutput.extensionLevels.resistance;
+
+  return levels.find((level) => round(level.representativePrice) === round(price));
+}
+
+function rowFromNearest(params: {
+  rowId: string;
+  side: LevelCandidateVolumeSessionSide;
+  stage: LevelCandidateVolumeSessionContextInputRow["stage"];
+  nearest?: {
+    price?: number;
+    distancePct?: number;
+    levelId?: string;
+  };
+  zone?: FinalLevelZone | LevelAnalysisSnapshotNearestLevel;
+}): LevelCandidateVolumeSessionContextInputRow | undefined {
+  const price = params.nearest?.price ?? params.zone?.representativePrice;
+  if (price === undefined || !Number.isFinite(price) || price <= 0) {
+    return undefined;
+  }
+
+  const row: LevelCandidateVolumeSessionContextInputRow = {
+    rowId: params.rowId,
+    side: params.side,
+    stage: params.stage,
+    price: round(price),
+  };
+  const levelId = params.nearest?.levelId ?? (
+    params.zone !== undefined && "levelId" in params.zone
+      ? params.zone.levelId
+      : params.zone?.id
+  );
+  if (levelId !== undefined) {
+    row.levelId = levelId;
+  }
+  if (params.zone?.zoneLow !== undefined) {
+    row.zoneLow = round(params.zone.zoneLow);
+  }
+  if (params.zone?.zoneHigh !== undefined) {
+    row.zoneHigh = round(params.zone.zoneHigh);
+  }
+  if (params.nearest?.distancePct !== undefined) {
+    row.distanceFromReferencePct = round(params.nearest.distancePct);
+  }
+
+  return row;
+}
+
+function candidateVolumeSessionRowsFromInventory(params: {
+  snapshot: LevelAnalysisSnapshot;
+  wrapper: LevelCandidateInventoryReviewVisibilityWrapper;
+}): LevelCandidateVolumeSessionContextInputRow[] {
+  if (!params.wrapper.present) {
+    return [];
+  }
+
+  const rows: LevelCandidateVolumeSessionContextInputRow[] = [];
+  for (const side of ["support", "resistance"] as const) {
+    const surfacedNearest = params.wrapper.visibility.nearest.surfaced[side];
+    const surfacedZone = findZoneById(params.snapshot, surfacedNearest?.levelId) ??
+      nearestSnapshotLevel(params.snapshot, side) ??
+      undefined;
+    const surfacedRow = rowFromNearest({
+      rowId: `surfaced-${side}-nearest`,
+      side,
+      stage: "surfaced",
+      nearest: surfacedNearest,
+      zone: surfacedZone,
+    });
+    if (surfacedRow) {
+      rows.push(surfacedRow);
+    }
+
+    const closer = params.wrapper.visibility.unsurfacedCloser[side];
+    const closerRow = rowFromNearest({
+      rowId: `unsurfaced-${side}-scored-nearest`,
+      side,
+      stage: "scored",
+      nearest: closer.present ? closer.nearest : undefined,
+    });
+    if (closerRow) {
+      rows.push(closerRow);
+    }
+
+    const extensionNearest = params.wrapper.visibility.nearest.extension_selected[side];
+    const extensionZone = findZoneById(params.snapshot, extensionNearest?.levelId) ??
+      findExtensionZoneByPrice({
+        snapshot: params.snapshot,
+        side,
+        price: extensionNearest?.price,
+      });
+    const extensionRow = rowFromNearest({
+      rowId: `extension-selected-${side}-nearest`,
+      side,
+      stage: "extension_selected",
+      nearest: extensionNearest,
+      zone: extensionZone,
+    });
+    if (extensionRow) {
+      rows.push(extensionRow);
+    }
+  }
+
+  return rows;
+}
+
+export function buildCandidateVolumeSessionContextForReview(params: {
+  symbol: string;
+  provider: CandleProviderName;
+  asOfTimestamp: number;
+  asOfIso?: string;
+  referencePrice?: number;
+  snapshot: LevelAnalysisSnapshot;
+  candidateInventoryVisibility: LevelCandidateInventoryReviewVisibilityWrapper;
+}): LevelCandidateVolumeSessionContext {
+  const rows = candidateVolumeSessionRowsFromInventory({
+    snapshot: params.snapshot,
+    wrapper: params.candidateInventoryVisibility,
+  });
+  const diagnostics = params.candidateInventoryVisibility.present
+    ? []
+    : [...params.candidateInventoryVisibility.diagnostics, "candidate_volume_session_rows_unavailable"];
+  const limitations = params.candidateInventoryVisibility.present
+    ? [...params.candidateInventoryVisibility.visibility.limitations]
+    : [...params.candidateInventoryVisibility.limitations];
+  const context = buildLevelCandidateVolumeSessionContext({
+    symbol: params.symbol,
+    provider: params.provider,
+    asOfTimestamp: params.asOfTimestamp,
+    ...(params.asOfIso === undefined ? {} : { asOfIso: params.asOfIso }),
+    referencePrice: params.referencePrice,
+    rows,
+    sessionFacts: params.snapshot.sessionFacts,
+    volumeFacts: params.snapshot.volumeFacts,
+    volumeShelves: params.snapshot.volumeShelves,
+    diagnostics,
+    limitations,
+  });
+  const validation = validateLevelCandidateVolumeSessionContext(context);
+  if (!validation.valid) {
+    throw new Error(`Invalid candidate volume session context: ${validation.errors.join("; ")}`);
+  }
+  assertLevelCandidateVolumeSessionContextFactsOnly(context);
+
+  return context;
+}
+
 function stable(value: unknown): string {
   return JSON.stringify(value);
 }
@@ -834,7 +1097,7 @@ export function summarizeLevelQualitySnapshot(
     snapshot: LevelAnalysisSnapshot;
     provider: CandleProviderName;
   },
-): Omit<LevelQualityReviewRunnerEntry, "candidateInventoryVisibility" | "parity" | "mismatches"> {
+): Omit<LevelQualityReviewRunnerEntry, "candidateInventoryVisibility" | "candidateVolumeSessionContext" | "parity" | "mismatches"> {
   const nearestLevels = {
     support: compactNearest(params.snapshot.nearestSupport, params.snapshot.referencePrice),
     resistance: compactNearest(params.snapshot.nearestResistance, params.snapshot.referencePrice),
@@ -876,7 +1139,7 @@ export function summarizeLevelQualitySnapshot(
 
 function buildParity(
   baselineEntry: LevelQualityReviewBaselineEntry,
-  entry: Omit<LevelQualityReviewRunnerEntry, "candidateInventoryVisibility" | "parity" | "mismatches">,
+  entry: Omit<LevelQualityReviewRunnerEntry, "candidateInventoryVisibility" | "candidateVolumeSessionContext" | "parity" | "mismatches">,
 ): LevelQualityReviewRunnerEntry["parity"] {
   return {
     nearestSupport: sameValue(baselineEntry.nearestLevels?.support ?? null, entry.nearestLevels.support),
@@ -959,6 +1222,15 @@ export function buildLevelQualityReviewEntry(
     sourceFiles: candidateInventorySourceFiles(baselineEntry.sourceFiles),
     candidatePoolDiagnostics,
   });
+  const candidateVolumeSessionContext = buildCandidateVolumeSessionContextForReview({
+    symbol: baselineEntry.symbol,
+    provider: params.provider,
+    asOfTimestamp: baselineEntry.asOfTimestamp,
+    asOfIso: new Date(baselineEntry.asOfTimestamp).toISOString(),
+    referencePrice: snapshot.referencePrice,
+    snapshot,
+    candidateInventoryVisibility,
+  });
   const compact = summarizeLevelQualitySnapshot({
     baselineEntry,
     snapshot,
@@ -969,6 +1241,7 @@ export function buildLevelQualityReviewEntry(
   return {
     ...compact,
     candidateInventoryVisibility,
+    candidateVolumeSessionContext,
     parity,
     mismatches: collectMismatches(parity),
   };
@@ -976,6 +1249,7 @@ export function buildLevelQualityReviewEntry(
 
 function summarizeEntries(entries: LevelQualityReviewRunnerEntry[]) {
   const candidateInventory = candidateInventorySummary(entries);
+  const candidateVolumeSession = candidateVolumeSessionContextSummary(entries);
 
   return {
     totalSymbols: entries.length,
@@ -1001,6 +1275,14 @@ function summarizeEntries(entries: LevelQualityReviewRunnerEntry[]) {
     candidateInventorySupportTruthfulMarketContextCount: candidateInventory.supportTruthfulMarketContextCount,
     candidateInventoryResistanceTruthfulMarketContextCount: candidateInventory.resistanceTruthfulMarketContextCount,
     candidateInventoryMissingCount: candidateInventory.missingCount,
+    candidateVolumeSessionContextPresentCount: candidateVolumeSession.presentCount,
+    candidateVolumeSessionContextValidCount: candidateVolumeSession.validCount,
+    candidateVolumeSessionContextMissingCount: candidateVolumeSession.missingCount,
+    sessionFactsPresentCount: candidateVolumeSession.sessionFactsPresentCount,
+    volumeFactsPresentCount: candidateVolumeSession.volumeFactsPresentCount,
+    volumeShelfContextPresentCount: candidateVolumeSession.volumeShelfContextPresentCount,
+    candidateVolumeSessionComparisonOutcomeCounts: candidateVolumeSession.comparisonOutcomeCounts,
+    candidateVolumeSessionMissingFactsCount: candidateVolumeSession.missingFactsCount,
     mismatchCount: entries.reduce((sum, entry) => sum + entry.mismatches.length, 0),
     prohibitedLanguageHitCount: 0,
   };
@@ -1018,6 +1300,16 @@ function renderCandidateInventoryLine(
     `gap=${wrapper.gapSummary.overall}`,
     `supportCloser=${wrapper.visibility.unsurfacedCloser.support.count}`,
     `resistanceCloser=${wrapper.visibility.unsurfacedCloser.resistance.count}`,
+  ].join("; ");
+}
+
+function renderCandidateVolumeSessionLine(
+  context: LevelCandidateVolumeSessionContext,
+): string {
+  return [
+    `volumeSessionRows=${context.contexts.length}`,
+    `volumeSessionOutcome=${context.comparisonSummary.outcome}`,
+    `volumeSessionDiagnostics=${context.diagnostics.length}`,
   ].join("; ");
 }
 
@@ -1050,6 +1342,14 @@ export function renderLevelQualityReviewText(result: Omit<LevelQualityReviewRunn
     `Candidate inventory overall truthful market-context count: ${result.summary.candidateInventoryTruthfulMarketContextCount}`,
     `Candidate inventory support truthful market-context count: ${result.summary.candidateInventorySupportTruthfulMarketContextCount}`,
     `Candidate inventory resistance truthful market-context count: ${result.summary.candidateInventoryResistanceTruthfulMarketContextCount}`,
+    `Candidate volume/session context present count: ${result.summary.candidateVolumeSessionContextPresentCount}/${result.summary.totalSymbols}`,
+    `Candidate volume/session context valid count: ${result.summary.candidateVolumeSessionContextValidCount}/${result.summary.totalSymbols}`,
+    `Candidate volume/session context missing count: ${result.summary.candidateVolumeSessionContextMissingCount}/${result.summary.totalSymbols}`,
+    `Session facts present count: ${result.summary.sessionFactsPresentCount}/${result.summary.totalSymbols}`,
+    `Volume facts present count: ${result.summary.volumeFactsPresentCount}/${result.summary.totalSymbols}`,
+    `Volume shelf context present count: ${result.summary.volumeShelfContextPresentCount}/${result.summary.totalSymbols}`,
+    `Candidate volume/session comparison outcomes: ${JSON.stringify(result.summary.candidateVolumeSessionComparisonOutcomeCounts)}`,
+    `Candidate volume/session missing-facts count: ${result.summary.candidateVolumeSessionMissingFactsCount}`,
     `Mismatch count: ${result.summary.mismatchCount}`,
     `Prohibited-language hits: ${result.summary.prohibitedLanguageHitCount}`,
     "",
@@ -1061,7 +1361,7 @@ export function renderLevelQualityReviewText(result: Omit<LevelQualityReviewRunn
       ? entry.qualityAudit.densityMetric.classification
       : "none";
     lines.push(
-      `- ${entry.symbol}: mismatches=${entry.mismatches.length === 0 ? "none" : entry.mismatches.join(",")}; density=${densityClassification}; 15mContextOnly=${entry.fifteenMinuteContext.stillContextOnly}; ${renderCandidateInventoryLine(entry.candidateInventoryVisibility)}`,
+      `- ${entry.symbol}: mismatches=${entry.mismatches.length === 0 ? "none" : entry.mismatches.join(",")}; density=${densityClassification}; 15mContextOnly=${entry.fifteenMinuteContext.stillContextOnly}; ${renderCandidateInventoryLine(entry.candidateInventoryVisibility)}; ${renderCandidateVolumeSessionLine(entry.candidateVolumeSessionContext)}`,
     );
   }
 
