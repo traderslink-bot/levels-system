@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "level-quality-review-baseline-input-drift-investigation/v1",
+  "generatedAt": "2026-06-03T02:10:00.000Z",
+  "providerFocus": "ibkr",
+  "purpose": "Investigate the pre-existing AIM baseline/input drift before locking candidate inventory volume/session context baseline.",
+  "affectedSymbol": "AIM",
+  "affectedFields": [
+    "bucketCounts",
+    "enrichmentBreakdown"
+  ],
+  "baselineArtifact": {
+    "path": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-wiring.json",
+    "generatedAt": "2026-06-02T02:49:56.718Z",
+    "aimBucketCounts": {
+      "majorSupport": 1,
+      "majorResistance": 1,
+      "intermediateSupport": 4,
+      "intermediateResistance": 3,
+      "intradaySupport": 3,
+      "intradayResistance": 2,
+      "extensionSupport": 3,
+      "extensionResistance": 0,
+      "total": 17
+    },
+    "aimHistoricalUnenrichedCount": 14,
+    "baselineOnlyLevelIds": [
+      "AIM-support-zone-2"
+    ]
+  },
+  "currentArtifact": {
+    "path": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json",
+    "generatedAt": "2026-06-03T01:45:00.000Z",
+    "aimBucketCounts": {
+      "majorSupport": 1,
+      "majorResistance": 1,
+      "intermediateSupport": 3,
+      "intermediateResistance": 3,
+      "intradaySupport": 3,
+      "intradayResistance": 2,
+      "extensionSupport": 3,
+      "extensionResistance": 0,
+      "total": 16
+    },
+    "aimHistoricalUnenrichedCount": 13,
+    "mismatches": [
+      "bucketCounts",
+      "enrichmentBreakdown"
+    ]
+  },
+  "aimSourceFiles": {
+    "5m": "ibkr/AIM/5m/100-1779976500000.json",
+    "4h": "ibkr/AIM/4h/180-1779969600000.json",
+    "daily": "ibkr/AIM/daily/520-1779926400000.json"
+  },
+  "currentLocalCacheFingerprints": {
+    "5m": {
+      "sha256": "efd8feae4a28fe244ccab1aa344e2c7632f6f426a475183abd58aaadd35ee6bc",
+      "candleCount": 72,
+      "actualBarsReturned": 72,
+      "validationIssueCount": 1
+    },
+    "4h": {
+      "sha256": "8f5038c99165487cd44022f727b537c1ee9bd1a0f4fc2c910b1db28127063c5b",
+      "candleCount": 114,
+      "actualBarsReturned": 114,
+      "validationIssueCount": 2
+    },
+    "daily": {
+      "sha256": "fd1db9eff455c8fda1c82dfe14da8c1471e508ca6f7a36cf21ac3b288e8576c2",
+      "candleCount": 502,
+      "actualBarsReturned": 502,
+      "validationIssueCount": 2
+    }
+  },
+  "reproduction": {
+    "sameInputCurrentReruns": 2,
+    "sameInputCurrentRerunsByteIdentical": true,
+    "currentRerunSha256": "fef15d67ecca0813bbc7b3a03271be658076b60b9bea3ffdad98a85b90c1da5c",
+    "pr131CodeReproducedCurrentDrift": true,
+    "pr135CodeReproducedCurrentDrift": true,
+    "runnerCompatibleBaselineUsed": true,
+    "baselineLockArtifactUsedAsDirectBaseline": false
+  },
+  "driftClassification": "baseline_artifact_current_cache_input_mismatch",
+  "rootCause": "The committed baseline artifact is no longer reproducible from the current local IBKR cache contents, and the artifact lacks cache fingerprints needed to prove which cache contents produced it.",
+  "bugFound": false,
+  "ruledOut": [
+    "nondeterminism",
+    "PR136 volume/session wiring behavior change",
+    "code behavior change between PR131 and PR135",
+    "artifact comparison shape mismatch"
+  ],
+  "unproven": [
+    "whether the old baseline was generated from different cache contents under the same relative paths",
+    "whether the current local cache changed outside git before this investigation"
+  ],
+  "impactAssessment": {
+    "isolatedToAIM": true,
+    "nearestSupportResistanceParity": "10/10",
+    "extensionCountParity": "10/10",
+    "syntheticCountAndMarkingParity": "10/10",
+    "diagnosticsParity": "10/10",
+    "diagnosticSemanticsParity": "10/10",
+    "candidateInventoryValid": "10/10",
+    "candidateVolumeSessionContextValid": "10/10",
+    "fifteenMinuteContextOnly": "10/10",
+    "prohibitedLanguageHits": 0
+  },
+  "recommendedNextGate": {
+    "name": "level_quality_review_baseline_refresh_decision",
+    "reason": "Decide whether to refresh the review baseline to the current local IBKR cache state or preserve the old baseline and treat current cache as a different input set."
+  },
+  "safety": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "alertMonitoringDiscordBehaviorChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  }
+}

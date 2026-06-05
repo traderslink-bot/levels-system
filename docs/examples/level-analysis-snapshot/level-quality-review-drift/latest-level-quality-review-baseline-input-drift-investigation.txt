@@ -1,0 +1,51 @@
+Level quality review baseline input drift investigation
+
+Affected symbol: AIM
+Affected fields: bucketCounts, enrichmentBreakdown
+
+Baseline artifact:
+docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-wiring.json
+
+Current artifact:
+docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json
+
+Finding:
+- Baseline AIM total level count: 17
+- Current local rerun AIM total level count: 16
+- Baseline AIM intermediateSupport: 4
+- Current local rerun AIM intermediateSupport: 3
+- Missing baseline-only id: AIM-support-zone-2
+
+Classification:
+baseline_artifact_current_cache_input_mismatch
+
+Evidence:
+- Two current same-input reruns were byte-identical.
+- PR #131 code reproduced the same AIM mismatch against the current local cache.
+- PR #135 code reproduced the same AIM mismatch before volume/session review wiring.
+- The baseline artifact records source paths but not cache content hashes.
+
+Root cause:
+The committed baseline artifact is no longer reproducible from the current local IBKR cache contents, and the artifact lacks cache fingerprints needed to prove which cache contents produced it.
+
+Bug found: false
+
+Impact:
+- Drift is isolated to AIM.
+- nearest support/resistance parity remains 10/10.
+- extension counts remain 10/10.
+- synthetic count and marking remain 10/10.
+- diagnostics and diagnosticSemantics remain 10/10.
+- candidate inventory remains valid 10/10.
+- candidate volume/session context remains valid 10/10.
+- 15m remains context-only 10/10.
+- prohibited-language hits remain 0.
+
+Recommended next gate:
+level_quality_review_baseline_refresh_decision
+
+Reason:
+Decide whether to refresh the review baseline to the current local IBKR cache state or preserve the old baseline and treat current cache as a different input set.
+
+Safety:
+No support/resistance detection, LevelEngine scoring/ranking/clustering, surfaced levels, extension generation, 15m LevelEngine input, volume/session scoring use, cache writes, raw cache commits, Discord/alert/monitoring behavior, journal behavior, grading/coaching/P&L/giveback/behavior scoring, or recommendation/trade advice behavior changed.
