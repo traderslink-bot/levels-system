@@ -1,0 +1,275 @@
+{
+  "schemaVersion": "level-quality-review-volume-session-fact-coverage-audit/v1",
+  "generatedAt": "2026-06-06T15:05:00.000Z",
+  "auditGate": "level_quality_review_volume_session_fact_coverage_audit",
+  "baselinePath": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json",
+  "reviewCommandGeneratedAt": "2026-06-06T15:00:00.000Z",
+  "provider": "ibkr",
+  "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles",
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "rootCoverage": {
+    "mismatchCount": 0,
+    "candidateVolumeSessionContextPresentCount": 10,
+    "candidateVolumeSessionContextValidCount": 10,
+    "candidateVolumeSessionContextMissingCount": 0,
+    "sessionFactsPresentCount": 10,
+    "volumeFactsPresentCount": 10,
+    "volumeShelfContextPresentCount": 10,
+    "candidateVolumeSessionMissingFactsCount": 0,
+    "restrictedLanguageHitCount": 0
+  },
+  "cacheFingerprintSummary": {
+    "totalFingerprints": 35,
+    "symbolCount": 10,
+    "levelEngineInputCount": 30,
+    "contextOnlyCount": 5,
+    "fifteenMinuteContextOnlyCount": 5,
+    "validationIssueCount": 45,
+    "wrapperCandleCount": 6662,
+    "actualBarsReturned": 6662
+  },
+  "rowCoverage": {
+    "totalRows": 43,
+    "stageCounts": {
+      "surfaced": 20,
+      "extension_selected": 17,
+      "scored": 6
+    },
+    "sideCounts": {
+      "support": 25,
+      "resistance": 18
+    }
+  },
+  "sessionCoverage": {
+    "rowsWithSessionFacts": 43,
+    "sessionFactProximityCount": 48,
+    "factCounts": {
+      "previous_close": 22,
+      "opening_range_high": 6,
+      "vwap": 5,
+      "opening_range_low": 4,
+      "low_of_day": 4,
+      "regular_session_open": 2,
+      "high_of_day": 2,
+      "premarket_high": 2,
+      "premarket_low": 1
+    },
+    "relationCounts": {
+      "outside_threshold": 27,
+      "overlaps": 13,
+      "near": 8
+    }
+  },
+  "volumeCoverage": {
+    "rowsWithVolumeFacts": 43,
+    "volumeStateBySymbol": {
+      "elevated": [
+        "DEVS",
+        "ENVX"
+      ],
+      "normal": [
+        "DXYZ",
+        "YMAT",
+        "AAOI",
+        "PHOE"
+      ],
+      "low": [
+        "QUBT",
+        "GME",
+        "AIM",
+        "HCWB"
+      ]
+    },
+    "liquidityQualityBySymbol": {
+      "strong": [
+        "ENVX",
+        "DXYZ",
+        "QUBT",
+        "GME",
+        "HCWB",
+        "YMAT",
+        "AAOI"
+      ],
+      "good": [
+        "DEVS",
+        "AIM"
+      ],
+      "acceptable": [
+        "PHOE"
+      ]
+    }
+  },
+  "shelfCoverage": {
+    "rowsWithShelfOverlap": 15,
+    "shelfOverlapCount": 26,
+    "rowsWithoutNearbyShelf": 28,
+    "symbolsWithNoShelfOverlapRows": [
+      "HCWB",
+      "YMAT",
+      "PHOE"
+    ]
+  },
+  "comparisonOutcomeCounts": {
+    "surfaced_has_more_session_volume_context": 6,
+    "candidate_identifier_unavailable": 4
+  },
+  "diagnosticCounts": {
+    "no_nearby_volume_shelf": 10,
+    "no_nearby_session_fact": 9,
+    "no_nearby_session_volume_context": 9,
+    "surfaced_session_volume_context_present": 9,
+    "no_regular_session_candles": 5,
+    "candidate_id_unavailable": 5,
+    "surfaced_selection_reason_not_serialized": 5,
+    "no_closed_session_candles": 4,
+    "no_premarket_candles": 4,
+    "vwap_unavailable": 4,
+    "candidate_identifier_unavailable": 4,
+    "surfaced_vwap_shelf_overlap_context_present": 2
+  },
+  "perSymbol": [
+    {
+      "symbol": "DEVS",
+      "rows": 3,
+      "outcome": "surfaced_has_more_session_volume_context",
+      "shelfOverlapRows": 2,
+      "noNearbyShelfRows": 1,
+      "sessionFactRows": 3,
+      "volumeState": "elevated",
+      "liquidityQuality": "good"
+    },
+    {
+      "symbol": "ENVX",
+      "rows": 4,
+      "outcome": "surfaced_has_more_session_volume_context",
+      "shelfOverlapRows": 3,
+      "noNearbyShelfRows": 1,
+      "sessionFactRows": 4,
+      "volumeState": "elevated",
+      "liquidityQuality": "strong"
+    },
+    {
+      "symbol": "DXYZ",
+      "rows": 4,
+      "outcome": "surfaced_has_more_session_volume_context",
+      "shelfOverlapRows": 2,
+      "noNearbyShelfRows": 2,
+      "sessionFactRows": 4,
+      "volumeState": "normal",
+      "liquidityQuality": "strong"
+    },
+    {
+      "symbol": "QUBT",
+      "rows": 5,
+      "outcome": "candidate_identifier_unavailable",
+      "shelfOverlapRows": 1,
+      "noNearbyShelfRows": 4,
+      "sessionFactRows": 5,
+      "volumeState": "low",
+      "liquidityQuality": "strong"
+    },
+    {
+      "symbol": "GME",
+      "rows": 4,
+      "outcome": "surfaced_has_more_session_volume_context",
+      "shelfOverlapRows": 2,
+      "noNearbyShelfRows": 2,
+      "sessionFactRows": 4,
+      "volumeState": "low",
+      "liquidityQuality": "strong"
+    },
+    {
+      "symbol": "AIM",
+      "rows": 3,
+      "outcome": "surfaced_has_more_session_volume_context",
+      "shelfOverlapRows": 2,
+      "noNearbyShelfRows": 1,
+      "sessionFactRows": 3,
+      "volumeState": "low",
+      "liquidityQuality": "good"
+    },
+    {
+      "symbol": "HCWB",
+      "rows": 4,
+      "outcome": "candidate_identifier_unavailable",
+      "shelfOverlapRows": 0,
+      "noNearbyShelfRows": 4,
+      "sessionFactRows": 4,
+      "volumeState": "low",
+      "liquidityQuality": "strong"
+    },
+    {
+      "symbol": "YMAT",
+      "rows": 5,
+      "outcome": "surfaced_has_more_session_volume_context",
+      "shelfOverlapRows": 0,
+      "noNearbyShelfRows": 5,
+      "sessionFactRows": 5,
+      "volumeState": "normal",
+      "liquidityQuality": "strong"
+    },
+    {
+      "symbol": "AAOI",
+      "rows": 6,
+      "outcome": "candidate_identifier_unavailable",
+      "shelfOverlapRows": 3,
+      "noNearbyShelfRows": 3,
+      "sessionFactRows": 6,
+      "volumeState": "normal",
+      "liquidityQuality": "strong"
+    },
+    {
+      "symbol": "PHOE",
+      "rows": 5,
+      "outcome": "candidate_identifier_unavailable",
+      "shelfOverlapRows": 0,
+      "noNearbyShelfRows": 5,
+      "sessionFactRows": 5,
+      "volumeState": "normal",
+      "liquidityQuality": "acceptable"
+    }
+  ],
+  "limitations": [
+    "candidate identifiers unavailable for some unsurfaced scored comparison rows",
+    "surfaced selection reasons not serialized",
+    "some symbols have no regular-session or premarket candle facts in compact context",
+    "some compact row sets have no nearby volume shelf"
+  ],
+  "bugFound": false,
+  "recommendedNextGate": "level_analysis_snapshot_journal_delivery_contract",
+  "safety": {
+    "baselineRefreshed": false,
+    "rawCandlesIncluded": false,
+    "rawCacheWrapperPayloadsIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "rawCacheFilesCommitted": false,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChangedByCode": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForSelection": false,
+    "journalAppFilesChanged": false,
+    "restrictedInterpretationAdded": false
+  }
+}

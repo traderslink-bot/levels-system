@@ -1,0 +1,61 @@
+Level quality review volume/session fact coverage audit
+
+Gate: level_quality_review_volume_session_fact_coverage_audit
+Generated: 2026-06-06T15:05:00.000Z
+
+Baseline checked:
+docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json
+
+Packaged review:
+- generatedAt: 2026-06-06T15:00:00.000Z
+- mismatch count: 0
+- candidate volume/session context present: 10/10
+- candidate volume/session context valid: 10/10
+- session facts present: 10/10
+- volume facts present: 10/10
+- volume shelf context present: 10/10
+- missing-facts count: 0
+
+Row coverage:
+- total rows: 43
+- surfaced rows: 20
+- extension_selected rows: 17
+- scored rows: 6
+- support rows: 25
+- resistance rows: 18
+- rows with session facts: 43/43
+- rows with volume facts: 43/43
+- rows with shelf overlap: 15/43
+- shelf overlaps: 26
+- rows without nearby shelf: 28/43
+
+Comparison outcomes:
+- surfaced_has_more_session_volume_context: 6
+- candidate_identifier_unavailable: 4
+
+Notable limitations:
+- candidate identifiers unavailable for some unsurfaced scored comparison rows
+- surfaced selection reasons not serialized
+- some symbols have no regular-session or premarket candle facts in compact context
+- HCWB, YMAT, and PHOE have no shelf-overlap rows
+
+Bug found: false
+
+Recommended next gate:
+level_analysis_snapshot_journal_delivery_contract
+
+Safety:
+- no baseline refresh
+- no raw candles
+- no raw cache wrapper payloads
+- no full snapshots
+- no raw cache files committed
+- no provider calls
+- no cache wrapper writes
+- no support/resistance detection behavior change
+- no LevelEngine scoring/ranking/clustering change
+- no surfaced-level behavior change
+- no extension generation change
+- no 15m LevelEngine input
+- no volume/session selection influence
+- no journal app files changed
