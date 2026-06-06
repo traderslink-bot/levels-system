@@ -1,0 +1,50 @@
+Level quality review baseline refresh decision
+
+Affected drift:
+- Symbol: AIM
+- Fields: bucketCounts, enrichmentBreakdown
+- Classification: baseline_artifact_current_cache_input_mismatch
+- Baseline total level count: 17
+- Current local rerun total level count: 16
+- Baseline-only id: AIM-support-zone-2
+- Deterministic production bug found: false
+
+Decision:
+Refresh to the current local IBKR cache state, but only after adding compact cache fingerprints to packaged review artifacts.
+
+Rationale:
+The old baseline artifact is not reproducible from current local IBKR cache contents and lacks cache hashes. Preserving it as the active baseline would keep a known AIM mismatch in current local review output. Refreshing immediately without fingerprints would remove the mismatch but preserve the same reproducibility weakness.
+
+Option summary:
+- Refresh current local IBKR cache baseline: approved after cache fingerprint contract.
+- Preserve old baseline as active: defer as primary path; keep as historical evidence.
+- Dual-baseline mode: reject for now.
+- Add cache fingerprinting before refresh: approve as immediate next step.
+
+Cache fingerprint policy:
+Future review artifacts should record relative source file path, provider, timeframe, cache wrapper SHA-256, wrapper candle count, request lookback bars, request end timestamp, actual bars returned, and validation issue count.
+
+Boundaries:
+No raw candles, raw cache wrapper payloads, full snapshots, provider calls, cache writes, or raw cache commits. 15m remains context-only unless a separate approved gate changes that.
+
+Baseline refresh requirements:
+- add compact cache fingerprint contract to npm run review:level-quality
+- validate fingerprints for all 10 reviewed symbols
+- rerun packaged 10-symbol review against current local IBKR cache
+- confirm old behavior fields are stable against current-cache expected output
+- confirm candidate inventory remains present and valid 10/10
+- confirm volume/session context remains present and valid 10/10
+- confirm 15m remains context-only 10/10
+- confirm prohibited-language hits remain 0
+- commit no raw cache files
+
+Recommended next gate:
+level_quality_review_cache_fingerprint_contract
+
+Expected follow-up:
+1. level_quality_review_cache_fingerprint_contract
+2. level_quality_review_baseline_refresh_current_cache
+3. level_quality_candidate_inventory_volume_session_context_baseline_lock
+
+Safety:
+No support/resistance detection, LevelEngine scoring/ranking/clustering, surfaced levels, extension generation, 15m LevelEngine input, volume/session scoring use, cache writes, raw cache commits, Discord/alert/monitoring behavior, journal behavior, grading/coaching/P&L/giveback/behavior scoring, or recommendation/trade advice behavior changed.

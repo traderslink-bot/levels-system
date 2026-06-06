@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "level-quality-review-baseline-refresh-decision/v1",
+  "generatedAt": "2026-06-05T00:00:00.000Z",
+  "providerFocus": "ibkr",
+  "purpose": "Decide whether to refresh the level quality review baseline to current local IBKR cache state or preserve the old baseline as a distinct input set.",
+  "evidenceReviewed": [
+    "docs/139_LEVEL_QUALITY_REVIEW_BASELINE_INPUT_DRIFT_INVESTIGATION.md",
+    "docs/examples/level-analysis-snapshot/level-quality-review-drift/latest-level-quality-review-baseline-input-drift-investigation.json",
+    "docs/examples/level-analysis-snapshot/level-quality-review-drift/latest-level-quality-review-baseline-input-drift-investigation.txt",
+    "docs/138_LEVEL_QUALITY_CANDIDATE_INVENTORY_VOLUME_SESSION_CONTEXT_REVIEW_WIRING.md",
+    "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json",
+    "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-wiring.json"
+  ],
+  "driftSummary": {
+    "affectedSymbol": "AIM",
+    "affectedFields": [
+      "bucketCounts",
+      "enrichmentBreakdown"
+    ],
+    "classification": "baseline_artifact_current_cache_input_mismatch",
+    "baselineTotalLevelCount": 17,
+    "currentLocalRerunTotalLevelCount": 16,
+    "baselineOnlyLevelIds": [
+      "AIM-support-zone-2"
+    ],
+    "bugFound": false,
+    "sameInputCurrentRerunsByteIdentical": true,
+    "pr131CodeReproducedCurrentDrift": true,
+    "pr135CodeReproducedCurrentDrift": true
+  },
+  "decisionMatrix": [
+    {
+      "option": "refresh_current_local_ibkr_cache_baseline",
+      "decision": "approve_after_cache_fingerprint_contract",
+      "benefit": "Restores expected mismatch count to zero, makes current local cache the reproducible baseline, and unblocks volume/session context baseline lock.",
+      "cost": "AIM-support-zone-2 leaves the active baseline and the refresh must be documented as input-state refresh.",
+      "risk": "low_to_medium_after_fingerprints"
+    },
+    {
+      "option": "preserve_old_baseline_as_active",
+      "decision": "defer_as_primary_path",
+      "benefit": "Keeps old artifact as historical reference.",
+      "cost": "Current local review remains mismatch count 2 and old baseline cannot be reproduced from current cache.",
+      "risk": "medium"
+    },
+    {
+      "option": "dual_baseline_mode",
+      "decision": "reject_for_now",
+      "benefit": "Preserves old and current cache artifacts separately.",
+      "cost": "Adds review complexity and comparison ambiguity.",
+      "risk": "medium_to_high_without_old_cache_reconstruction"
+    },
+    {
+      "option": "add_cache_fingerprinting_before_refresh",
+      "decision": "approve_immediate_next_step",
+      "benefit": "Future artifacts can prove exact cache inputs and distinguish input drift from behavior mismatch.",
+      "cost": "Requires a small additive review-output contract before refresh.",
+      "risk": "low"
+    }
+  ],
+  "recommendedDecision": {
+    "decision": "refresh_to_current_local_ibkr_cache_after_cache_fingerprint_contract",
+    "preserveOldBaselineAsHistoricalEvidence": true,
+    "refreshType": "input_state_baseline_refresh",
+    "behaviorChange": false,
+    "refreshNow": false
+  },
+  "cacheFingerprintPolicy": {
+    "minimumFields": [
+      "relativeSourceFilePath",
+      "provider",
+      "timeframe",
+      "cacheWrapperSha256",
+      "wrapperCandleCount",
+      "requestLookbackBars",
+      "requestEndTimestamp",
+      "actualBarsReturned",
+      "validationIssueCount"
+    ],
+    "boundaries": {
+      "rawCandlesIncluded": false,
+      "rawCacheWrapperPayloadsIncluded": false,
+      "fullSnapshotsIncluded": false,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "fifteenMinuteRemainsContextOnly": true
+    }
+  },
+  "baselineRefreshRequirements": [
+    "add compact cache fingerprint contract to npm run review:level-quality",
+    "validate fingerprints for all 10 reviewed symbols",
+    "rerun packaged 10-symbol review against current local IBKR cache",
+    "confirm old behavior fields are stable against current-cache expected output",
+    "confirm candidate inventory remains present and valid 10/10",
+    "confirm volume/session context remains present and valid 10/10",
+    "confirm 15m remains context-only 10/10",
+    "confirm prohibited-language hits remain 0",
+    "commit no raw cache files"
+  ],
+  "futureComparisonRules": [
+    "cache fingerprint parity",
+    "nearest support/resistance",
+    "bucket counts",
+    "extension counts",
+    "synthetic continuation-map count and marking",
+    "diagnostics and diagnosticSemantics",
+    "enrichment breakdown",
+    "densityMetric",
+    "candidateInventoryVisibility",
+    "candidateVolumeSessionContext",
+    "15m context-only status",
+    "prohibited-language hits"
+  ],
+  "recommendedNextGate": {
+    "name": "level_quality_review_cache_fingerprint_contract",
+    "reason": "Before refreshing the baseline, add a compact cache fingerprint contract to packaged review output so future artifacts record the exact cache wrapper hashes and counts that produced them."
+  },
+  "expectedFollowUpSequence": [
+    "level_quality_review_cache_fingerprint_contract",
+    "level_quality_review_baseline_refresh_current_cache",
+    "level_quality_candidate_inventory_volume_session_context_baseline_lock"
+  ],
+  "safety": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "alertMonitoringDiscordBehaviorChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  }
+}
