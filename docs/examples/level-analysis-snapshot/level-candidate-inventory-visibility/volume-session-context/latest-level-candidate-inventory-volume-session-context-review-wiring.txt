@@ -1,17 +1,23 @@
 Level quality review complete
-Generated: 2026-06-03T01:45:00.000Z
+Generated: 2026-06-06T13:10:00.000Z
 Provider: ibkr
-Baseline: docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-wiring.json
+Baseline: docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json
 Symbols: 10
+Cache fingerprint count: 35
+Cache fingerprint symbol count: 10
+Cache fingerprint LevelEngine input count: 30
+Cache fingerprint context-only count: 5
+Cache fingerprint 15m context-only count: 5
+Cache fingerprint validation issue count: 45
 Nearest support parity: 10/10
 Nearest resistance parity: 10/10
-Bucket count parity: 9/10
+Bucket count parity: 10/10
 Extension count parity: 10/10
 Synthetic count parity: 10/10
 Synthetic marking parity: 10/10
 Diagnostics parity: 10/10
 Diagnostic semantics parity: 10/10
-Enrichment breakdown parity: 9/10
+Enrichment breakdown parity: 10/10
 Extension warning parity: 10/10
 Cluster/density diagnostic parity: 10/10
 15m context-only count: 10/10
@@ -33,7 +39,7 @@ Volume facts present count: 10/10
 Volume shelf context present count: 10/10
 Candidate volume/session comparison outcomes: {"surfaced_has_more_session_volume_context":6,"candidate_identifier_unavailable":4}
 Candidate volume/session missing-facts count: 0
-Mismatch count: 2
+Mismatch count: 0
 Prohibited-language hits: 0
 
 Entries
@@ -42,7 +48,7 @@ Entries
 - DXYZ: mismatches=none; density=balanced; 15mContextOnly=true; candidateInventory=present:true; gap=no_gap; supportCloser=0; resistanceCloser=0; volumeSessionRows=4; volumeSessionOutcome=surfaced_has_more_session_volume_context; volumeSessionDiagnostics=8
 - QUBT: mismatches=none; density=balanced; 15mContextOnly=true; candidateInventory=present:true; gap=closer_unsurfaced_candidate; supportCloser=2; resistanceCloser=0; volumeSessionRows=5; volumeSessionOutcome=candidate_identifier_unavailable; volumeSessionDiagnostics=11
 - GME: mismatches=none; density=dense_clustered; 15mContextOnly=true; candidateInventory=present:true; gap=no_gap; supportCloser=0; resistanceCloser=0; volumeSessionRows=4; volumeSessionOutcome=surfaced_has_more_session_volume_context; volumeSessionDiagnostics=8
-- AIM: mismatches=bucketCounts,enrichmentBreakdown; density=dense_clustered; 15mContextOnly=true; candidateInventory=present:true; gap=no_gap; supportCloser=0; resistanceCloser=0; volumeSessionRows=3; volumeSessionOutcome=surfaced_has_more_session_volume_context; volumeSessionDiagnostics=3
+- AIM: mismatches=none; density=dense_clustered; 15mContextOnly=true; candidateInventory=present:true; gap=no_gap; supportCloser=0; resistanceCloser=0; volumeSessionRows=3; volumeSessionOutcome=surfaced_has_more_session_volume_context; volumeSessionDiagnostics=3
 - HCWB: mismatches=none; density=sparse; 15mContextOnly=true; candidateInventory=present:true; gap=closer_unsurfaced_candidate; supportCloser=1; resistanceCloser=0; volumeSessionRows=4; volumeSessionOutcome=candidate_identifier_unavailable; volumeSessionDiagnostics=6
 - YMAT: mismatches=none; density=dense_clustered; 15mContextOnly=true; candidateInventory=present:true; gap=closer_unsurfaced_candidate; supportCloser=1; resistanceCloser=0; volumeSessionRows=5; volumeSessionOutcome=surfaced_has_more_session_volume_context; volumeSessionDiagnostics=6
 - AAOI: mismatches=none; density=balanced; 15mContextOnly=true; candidateInventory=present:true; gap=closer_unsurfaced_candidate; supportCloser=1; resistanceCloser=1; volumeSessionRows=6; volumeSessionOutcome=candidate_identifier_unavailable; volumeSessionDiagnostics=7

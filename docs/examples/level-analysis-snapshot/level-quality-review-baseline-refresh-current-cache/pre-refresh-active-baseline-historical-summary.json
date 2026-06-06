@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "level-quality-review-baseline-refresh-historical-summary/v1",
+  "generatedAt": "2026-06-06T13:10:00.000Z",
+  "refreshGate": "level_quality_review_baseline_refresh_current_cache",
+  "historicalBaselineStatus": "historical_evidence_only",
+  "historicalBaselinePath": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json",
+  "historicalBaselineGeneratedAt": "2026-06-03T01:45:00.000Z",
+  "historicalBaselineOriginalComparisonBaseline": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/latest-level-candidate-inventory-review-wiring.json",
+  "historicalNotes": [
+    "This was the active baseline before the current-cache refresh.",
+    "It did not contain cacheFingerprintSet or cacheFingerprintSummary.",
+    "It did not prove the exact local IBKR cache wrapper contents that produced it.",
+    "It should not remain the active comparison target after this refresh gate."
+  ],
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "historicalSummary": {
+    "totalSymbols": 10,
+    "mismatchCountInHistoricalArtifact": 2,
+    "candidateInventoryPresentCount": 10,
+    "candidateInventoryValidCount": 10,
+    "candidateVolumeSessionContextPresentCount": 10,
+    "candidateVolumeSessionContextValidCount": 10,
+    "fifteenMinuteContextOnlyCount": 10,
+    "prohibitedLanguageHitCount": 0,
+    "cacheFingerprintSetPresent": false,
+    "cacheFingerprintSummaryPresent": false
+  },
+  "currentCacheBeforeRefreshComparison": {
+    "mismatchCount": 4,
+    "mismatches": [
+      {
+        "symbol": "DEVS",
+        "fields": [
+          "enrichmentBreakdown"
+        ]
+      },
+      {
+        "symbol": "AIM",
+        "fields": [
+          "bucketCounts",
+          "enrichmentBreakdown"
+        ]
+      },
+      {
+        "symbol": "YMAT",
+        "fields": [
+          "enrichmentBreakdown"
+        ]
+      }
+    ]
+  },
+  "safety": {
+    "rawCandlesIncluded": false,
+    "rawCacheWrapperPayloadsIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "rawCacheFilesCommitted": false,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChangedByCode": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForSelection": false
+  }
+}

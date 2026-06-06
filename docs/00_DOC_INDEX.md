@@ -125,5 +125,6 @@ This folder contains the full plan for the candle-based levels system, including
 - `docs/140_LEVEL_QUALITY_REVIEW_BASELINE_REFRESH_DECISION.md`
 - `docs/141_LEVEL_QUALITY_REVIEW_CACHE_FINGERPRINT_CONTRACT.md`
 - `docs/142_LEVEL_QUALITY_REVIEW_CACHE_FINGERPRINT_WIRING.md`
+- `docs/143_LEVEL_QUALITY_REVIEW_BASELINE_REFRESH_CURRENT_CACHE.md`
 - Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
 - Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`
