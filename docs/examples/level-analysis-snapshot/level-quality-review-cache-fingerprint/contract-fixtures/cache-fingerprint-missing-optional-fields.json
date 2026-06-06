@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "level-quality-review-cache-fingerprint-fixture/v1",
+  "fixtureName": "cache-fingerprint-missing-optional-fields",
+  "fingerprint": {
+    "schemaVersion": "level-quality-review-cache-fingerprint/v1",
+    "relativePath": "ibkr/PHOE/daily/520-1779926400000.json",
+    "provider": "ibkr",
+    "symbol": "PHOE",
+    "timeframe": "daily",
+    "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "wrapperCandleCount": 520,
+    "requestLookbackBars": 520,
+    "requestEndTimestamp": 1779926400000,
+    "actualBarsReturned": 520,
+    "validationIssueCount": 0,
+    "safety": {
+      "rawCandlesIncluded": false,
+      "rawCacheWrapperPayloadsIncluded": false,
+      "fullSnapshotsIncluded": false,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "fifteenMinuteFedIntoLevelEngine": false
+    }
+  },
+  "expectedValidationResult": {
+    "valid": true,
+    "errors": []
+  },
+  "expectedSummary": {
+    "totalFingerprints": 1,
+    "symbolCount": 1,
+    "symbols": [
+      "PHOE"
+    ],
+    "providerCounts": {
+      "ibkr": 1
+    },
+    "timeframeCounts": {
+      "daily": 1
+    },
+    "levelEngineInputCount": 0,
+    "contextOnlyCount": 0,
+    "fifteenMinuteContextOnlyCount": 0,
+    "validationIssueCount": 0,
+    "wrapperCandleCount": 520,
+    "actualBarsReturned": 520,
+    "hasValidationIssues": false
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

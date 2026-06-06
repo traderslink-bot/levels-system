@@ -1,0 +1,58 @@
+Level quality review cache fingerprint contract
+
+Generated: 2026-06-06T00:00:00.000Z
+Provider focus: ibkr
+
+Purpose:
+Lock a compact facts-only cache fingerprint contract before refreshing the active level quality review baseline.
+
+Contract module:
+src/lib/analysis/level-quality-review-cache-fingerprint.ts
+
+Schemas:
+- level-quality-review-cache-fingerprint/v1
+- level-quality-review-cache-fingerprint-set/v1
+
+Required fields:
+- relativePath
+- provider
+- symbol
+- timeframe
+- sha256
+- wrapperCandleCount
+- requestLookbackBars
+- requestEndTimestamp
+- actualBarsReturned
+- validationIssueCount
+- safety
+
+Optional fields:
+- firstCandleTimestamp
+- lastCandleTimestamp
+- asOfTimestamp
+- includedInLevelEngine
+- contextOnly
+
+Helpers:
+- validateLevelQualityReviewCacheFingerprint
+- validateLevelQualityReviewCacheFingerprintSet
+- assertLevelQualityReviewCacheFingerprintFactsOnly
+- summarizeLevelQualityReviewCacheFingerprints
+- isLevelQualityReviewCacheFingerprint
+- isLevelQualityReviewCacheFingerprintSet
+
+Fixture pack:
+- cache-fingerprint-single-timeframe.json
+- cache-fingerprint-multi-timeframe-symbol.json
+- cache-fingerprint-with-15m-context-only.json
+- cache-fingerprint-validation-issues.json
+- cache-fingerprint-missing-optional-fields.json
+
+15m policy:
+15m fingerprints are allowed only as context-only source fingerprints. They must not be marked as LevelEngine input.
+
+Safety:
+No raw candles, raw cache wrapper payloads, full snapshots, provider calls, or cache writes are included. The baseline was not refreshed.
+
+Recommended next gate:
+level_quality_review_cache_fingerprint_wiring

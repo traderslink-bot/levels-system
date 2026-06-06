@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "level-quality-review-cache-fingerprint-fixture/v1",
+  "fixtureName": "cache-fingerprint-single-timeframe",
+  "fingerprint": {
+    "schemaVersion": "level-quality-review-cache-fingerprint/v1",
+    "relativePath": "ibkr/DEVS/5m/100-1779976500000.json",
+    "provider": "ibkr",
+    "symbol": "DEVS",
+    "timeframe": "5m",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "wrapperCandleCount": 100,
+    "requestLookbackBars": 100,
+    "requestEndTimestamp": 1779976500000,
+    "actualBarsReturned": 100,
+    "validationIssueCount": 0,
+    "firstCandleTimestamp": 1779946500000,
+    "lastCandleTimestamp": 1779976200000,
+    "asOfTimestamp": 1779976500000,
+    "includedInLevelEngine": true,
+    "contextOnly": false,
+    "safety": {
+      "rawCandlesIncluded": false,
+      "rawCacheWrapperPayloadsIncluded": false,
+      "fullSnapshotsIncluded": false,
+      "providerCallsMade": false,
+      "cacheFilesWritten": false,
+      "fifteenMinuteFedIntoLevelEngine": false
+    }
+  },
+  "expectedValidationResult": {
+    "valid": true,
+    "errors": []
+  },
+  "expectedSummary": {
+    "totalFingerprints": 1,
+    "symbolCount": 1,
+    "symbols": [
+      "DEVS"
+    ],
+    "providerCounts": {
+      "ibkr": 1
+    },
+    "timeframeCounts": {
+      "5m": 1
+    },
+    "levelEngineInputCount": 1,
+    "contextOnlyCount": 0,
+    "fifteenMinuteContextOnlyCount": 0,
+    "validationIssueCount": 0,
+    "wrapperCandleCount": 100,
+    "actualBarsReturned": 100,
+    "hasValidationIssues": false,
+    "firstCandleTimestamp": 1779946500000,
+    "lastCandleTimestamp": 1779976200000
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

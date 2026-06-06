@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "level-quality-review-cache-fingerprint-fixture/v1",
+  "fixtureName": "cache-fingerprint-validation-issues",
+  "fingerprintSet": {
+    "schemaVersion": "level-quality-review-cache-fingerprint-set/v1",
+    "generatedAt": "2026-06-06T00:00:00.000Z",
+    "provider": "ibkr",
+    "fingerprints": [
+      {
+        "schemaVersion": "level-quality-review-cache-fingerprint/v1",
+        "relativePath": "ibkr/AAOI/5m/100-1779976500000.json",
+        "provider": "ibkr",
+        "symbol": "AAOI",
+        "timeframe": "5m",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "wrapperCandleCount": 70,
+        "requestLookbackBars": 100,
+        "requestEndTimestamp": 1779976500000,
+        "actualBarsReturned": 70,
+        "validationIssueCount": 1,
+        "firstCandleTimestamp": 1779955500000,
+        "lastCandleTimestamp": 1779976200000,
+        "asOfTimestamp": 1779976500000,
+        "includedInLevelEngine": true,
+        "contextOnly": false,
+        "safety": {
+          "rawCandlesIncluded": false,
+          "rawCacheWrapperPayloadsIncluded": false,
+          "fullSnapshotsIncluded": false,
+          "providerCallsMade": false,
+          "cacheFilesWritten": false,
+          "fifteenMinuteFedIntoLevelEngine": false
+        }
+      },
+      {
+        "schemaVersion": "level-quality-review-cache-fingerprint/v1",
+        "relativePath": "ibkr/AAOI/4h/180-1779969600000.json",
+        "provider": "ibkr",
+        "symbol": "AAOI",
+        "timeframe": "4h",
+        "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "wrapperCandleCount": 112,
+        "requestLookbackBars": 180,
+        "requestEndTimestamp": 1779969600000,
+        "actualBarsReturned": 112,
+        "validationIssueCount": 2,
+        "firstCandleTimestamp": 1763798400000,
+        "lastCandleTimestamp": 1779969600000,
+        "asOfTimestamp": 1779976500000,
+        "includedInLevelEngine": true,
+        "contextOnly": false,
+        "safety": {
+          "rawCandlesIncluded": false,
+          "rawCacheWrapperPayloadsIncluded": false,
+          "fullSnapshotsIncluded": false,
+          "providerCallsMade": false,
+          "cacheFilesWritten": false,
+          "fifteenMinuteFedIntoLevelEngine": false
+        }
+      }
+    ]
+  },
+  "expectedValidationResult": {
+    "valid": true,
+    "errors": []
+  },
+  "expectedSummary": {
+    "totalFingerprints": 2,
+    "symbolCount": 1,
+    "symbols": [
+      "AAOI"
+    ],
+    "providerCounts": {
+      "ibkr": 2
+    },
+    "timeframeCounts": {
+      "4h": 1,
+      "5m": 1
+    },
+    "levelEngineInputCount": 2,
+    "contextOnlyCount": 0,
+    "fifteenMinuteContextOnlyCount": 0,
+    "validationIssueCount": 3,
+    "wrapperCandleCount": 182,
+    "actualBarsReturned": 182,
+    "hasValidationIssues": true,
+    "firstCandleTimestamp": 1763798400000,
+    "lastCandleTimestamp": 1779976200000
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

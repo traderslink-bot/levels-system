@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "level-quality-review-cache-fingerprint-contract/v1",
+  "generatedAt": "2026-06-06T00:00:00.000Z",
+  "providerFocus": "ibkr",
+  "purpose": "Lock a compact facts-only cache fingerprint contract and deterministic fixtures before refreshing the active level quality review baseline.",
+  "sourceEvidence": [
+    "docs/140_LEVEL_QUALITY_REVIEW_BASELINE_REFRESH_DECISION.md",
+    "docs/examples/level-analysis-snapshot/level-quality-review-drift/latest-level-quality-review-baseline-refresh-decision.json",
+    "docs/139_LEVEL_QUALITY_REVIEW_BASELINE_INPUT_DRIFT_INVESTIGATION.md",
+    "src/scripts/run-level-quality-review.ts"
+  ],
+  "contract": {
+    "module": "src/lib/analysis/level-quality-review-cache-fingerprint.ts",
+    "fingerprintSchemaVersion": "level-quality-review-cache-fingerprint/v1",
+    "fingerprintSetSchemaVersion": "level-quality-review-cache-fingerprint-set/v1",
+    "requiredFields": [
+      "relativePath",
+      "provider",
+      "symbol",
+      "timeframe",
+      "sha256",
+      "wrapperCandleCount",
+      "requestLookbackBars",
+      "requestEndTimestamp",
+      "actualBarsReturned",
+      "validationIssueCount",
+      "safety"
+    ],
+    "optionalFields": [
+      "firstCandleTimestamp",
+      "lastCandleTimestamp",
+      "asOfTimestamp",
+      "includedInLevelEngine",
+      "contextOnly"
+    ],
+    "helpers": [
+      "validateLevelQualityReviewCacheFingerprint",
+      "validateLevelQualityReviewCacheFingerprintSet",
+      "assertLevelQualityReviewCacheFingerprintFactsOnly",
+      "summarizeLevelQualityReviewCacheFingerprints",
+      "isLevelQualityReviewCacheFingerprint",
+      "isLevelQualityReviewCacheFingerprintSet"
+    ]
+  },
+  "fifteenMinutePolicy": {
+    "fingerprintAllowed": true,
+    "contextOnlyRequired": true,
+    "includedInLevelEngineMustBeFalse": true,
+    "fifteenMinuteFedIntoLevelEngine": false
+  },
+  "safetyBoundaries": {
+    "rawCandlesIncluded": false,
+    "rawCacheWrapperPayloadsIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "volumeSessionFactsUsedForScoringOrSurfacedSelection": false
+  },
+  "fixtures": [
+    "docs/examples/level-analysis-snapshot/level-quality-review-cache-fingerprint/contract-fixtures/cache-fingerprint-single-timeframe.json",
+    "docs/examples/level-analysis-snapshot/level-quality-review-cache-fingerprint/contract-fixtures/cache-fingerprint-multi-timeframe-symbol.json",
+    "docs/examples/level-analysis-snapshot/level-quality-review-cache-fingerprint/contract-fixtures/cache-fingerprint-with-15m-context-only.json",
+    "docs/examples/level-analysis-snapshot/level-quality-review-cache-fingerprint/contract-fixtures/cache-fingerprint-validation-issues.json",
+    "docs/examples/level-analysis-snapshot/level-quality-review-cache-fingerprint/contract-fixtures/cache-fingerprint-missing-optional-fields.json"
+  ],
+  "validation": {
+    "focusedTest": "npx tsx --test --test-timeout=90000 src/tests/level-quality-review-cache-fingerprint-contract.test.ts",
+    "fixtureCount": 5,
+    "factualOnlyProhibitedLanguageHits": 0,
+    "rawPayloadFixturesCommitted": false
+  },
+  "wiringStatus": {
+    "wiredIntoPackagedReviewOutput": false,
+    "baselineRefreshed": false
+  },
+  "recommendedNextGate": {
+    "name": "level_quality_review_cache_fingerprint_wiring",
+    "reason": "After the contract and fixtures are locked, wire compact cache fingerprints additively into npm run review:level-quality."
+  }
+}
