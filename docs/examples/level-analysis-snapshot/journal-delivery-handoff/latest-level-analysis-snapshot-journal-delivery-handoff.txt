@@ -1,0 +1,57 @@
+LevelAnalysisSnapshot journal delivery handoff
+
+Gate: level_analysis_snapshot_journal_delivery_handoff
+Generated: 2026-06-06T16:30:00.000Z
+Producer: levels-system
+Consumer: traderlink-intelligence-journal
+Provider: ibkr
+
+Start here for journal app Codex:
+docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json
+
+Use this smaller parser fixture too:
+docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json
+
+Delivery contract:
+docs/146_LEVEL_ANALYSIS_SNAPSHOT_JOURNAL_DELIVERY_CONTRACT.md
+
+Current readiness:
+- symbols: 10
+- baseline mismatch count: 0
+- cache fingerprints: 35
+- LevelEngine input fingerprints: 30
+- context-only fingerprints: 5
+- 15m context-only fingerprints: 5
+- density metric present: 10/10
+- candidate inventory present and valid: 10/10
+- candidate volume/session context present and valid: 10/10
+- session facts present: 10/10
+- volume facts present: 10/10
+- volume shelf context present: 10/10
+- restricted-language hits: 0
+
+Journal-side first work:
+- parse the primary artifact
+- validate the current delivery package
+- preserve the raw source payload
+- derive a compact chart-context view
+- surface limitations separately
+- quarantine malformed payloads
+
+Boundaries:
+- no support/resistance generation change
+- no LevelEngine scoring/ranking/clustering change
+- no surfaced-level change
+- no extension generation change
+- no 15m LevelEngine input
+- no volume/session selection influence
+- no cache writes
+- no raw cache files
+- no raw candles
+- no full snapshots
+- no provider calls
+- no alert/monitoring/Discord changes
+- no journal app files changed in levels-system
+
+Next step:
+journal_level_analysis_delivery_ingestion
