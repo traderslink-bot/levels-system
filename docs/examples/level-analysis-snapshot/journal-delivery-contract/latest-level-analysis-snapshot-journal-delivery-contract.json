@@ -1,0 +1,177 @@
+{
+  "schemaVersion": "level-analysis-snapshot-journal-delivery-contract/v1",
+  "generatedAt": "2026-06-06T16:00:00.000Z",
+  "gate": "level_analysis_snapshot_journal_delivery_contract",
+  "producer": "levels-system",
+  "consumer": "traderlink-intelligence-journal",
+  "provider": "ibkr",
+  "purpose": "facts-only chart context delivery boundary",
+  "sourceArtifacts": {
+    "compactSnapshotFixture": "docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json",
+    "currentReviewPackage": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json",
+    "coverageAudit": "docs/examples/level-analysis-snapshot/level-quality-review-volume-session-fact-coverage-audit/latest-level-quality-review-volume-session-fact-coverage-audit.json"
+  },
+  "sourceDocs": [
+    "docs/79_JOURNAL_CONNECTOR_LEVEL_ANALYSIS_CONTRACT.md",
+    "docs/83_DOWNSTREAM_CONNECTOR_ADAPTER_BLUEPRINT.md",
+    "docs/134_LEVEL_QUALITY_CANDIDATE_INVENTORY_REVIEW_BASELINE_LOCK.md",
+    "docs/138_LEVEL_QUALITY_CANDIDATE_INVENTORY_VOLUME_SESSION_CONTEXT_REVIEW_WIRING.md",
+    "docs/143_LEVEL_QUALITY_REVIEW_BASELINE_REFRESH_CURRENT_CACHE.md",
+    "docs/144_LEVEL_QUALITY_REVIEW_POST_REFRESH_STABILITY_CHECK.md",
+    "docs/145_LEVEL_QUALITY_REVIEW_VOLUME_SESSION_FACT_COVERAGE_AUDIT.md"
+  ],
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "deliverySections": {
+    "identityFields": [
+      "schemaVersion",
+      "generatedAt",
+      "provider",
+      "reviewedSymbols",
+      "supplied15mSymbols"
+    ],
+    "perSymbolFields": [
+      "symbol",
+      "provider",
+      "asOfTimestamp",
+      "asOfIso",
+      "referencePrice",
+      "previousClose",
+      "sourceFiles",
+      "nearestLevels",
+      "bucketCounts",
+      "extensionCoverage",
+      "syntheticContinuationMap",
+      "qualityAudit",
+      "diagnosticSemantics",
+      "fifteenMinuteContext",
+      "safety"
+    ],
+    "additiveReviewFields": [
+      "cacheFingerprintSet",
+      "cacheFingerprintSummary",
+      "densityMetric",
+      "candidateInventoryVisibility",
+      "candidateVolumeSessionContext"
+    ],
+    "journalViewSections": [
+      "contract",
+      "identity",
+      "levelContext",
+      "qualityContext",
+      "candidateContext",
+      "volumeSessionContext",
+      "sourceIntegrity",
+      "safety",
+      "limitations"
+    ]
+  },
+  "currentReadinessEvidence": {
+    "totalSymbols": 10,
+    "mismatchCount": 0,
+    "cacheFingerprintCount": 35,
+    "cacheFingerprintSymbolCount": 10,
+    "levelEngineInputFingerprintCount": 30,
+    "contextOnlyFingerprintCount": 5,
+    "fifteenMinuteContextOnlyFingerprintCount": 5,
+    "densityMetricPresentCount": 10,
+    "candidateInventoryPresentCount": 10,
+    "candidateInventoryValidCount": 10,
+    "candidateVolumeSessionContextPresentCount": 10,
+    "candidateVolumeSessionContextValidCount": 10,
+    "sessionFactsPresentCount": 10,
+    "volumeFactsPresentCount": 10,
+    "volumeShelfContextPresentCount": 10,
+    "restrictedLanguageHitCount": 0
+  },
+  "coverageSummary": {
+    "volumeSessionRows": 43,
+    "surfacedRows": 20,
+    "extensionSelectedRows": 17,
+    "scoredRows": 6,
+    "supportRows": 25,
+    "resistanceRows": 18,
+    "rowsWithSessionFacts": 43,
+    "rowsWithVolumeFacts": 43,
+    "rowsWithShelfOverlap": 15,
+    "shelfOverlapCount": 26,
+    "rowsWithoutNearbyShelf": 28,
+    "candidateVolumeSessionComparisonOutcomeCounts": {
+      "surfaced_has_more_session_volume_context": 6,
+      "candidate_identifier_unavailable": 4
+    }
+  },
+  "journalConnectorValidation": {
+    "parseCurrentReviewPackage": true,
+    "validateAllTenSymbols": true,
+    "validateCacheFingerprintSet": true,
+    "validateDensityMetric": true,
+    "validateCandidateInventoryVisibility": true,
+    "validateCandidateVolumeSessionContext": true,
+    "validateFifteenMinuteContextOnly": true,
+    "preserveUnknownAdditiveFields": true,
+    "quarantineMalformedPayloads": true,
+    "surfaceLimitationsSeparately": true
+  },
+  "knownLimitations": [
+    "candidate identifiers unavailable for some unsurfaced scored comparison rows",
+    "surfaced selection reasons not serialized",
+    "some symbols have limited regular-session or premarket candle facts in compact context",
+    "some compact row sets have no nearby volume shelf"
+  ],
+  "ownership": {
+    "levelsSystemOwns": [
+      "snapshot and review artifact generation",
+      "support and resistance map output",
+      "density metric output",
+      "candidate inventory visibility output",
+      "candidate volume session context output",
+      "cache fingerprint output",
+      "facts-only safety flags"
+    ],
+    "journalAppOwns": [
+      "persistence",
+      "ingestion jobs",
+      "UI presentation",
+      "account and user workflow",
+      "record linking",
+      "user-specific interpretation layer"
+    ]
+  },
+  "safety": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "rawCandlesIncluded": false,
+    "rawCacheWrapperPayloadsIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "providerCallsMade": false,
+    "runtimeDefaultsChanged": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppFilesChanged": false,
+    "restrictedInterpretationAdded": false
+  },
+  "recommendedNextGate": "level_analysis_snapshot_journal_delivery_handoff"
+}
