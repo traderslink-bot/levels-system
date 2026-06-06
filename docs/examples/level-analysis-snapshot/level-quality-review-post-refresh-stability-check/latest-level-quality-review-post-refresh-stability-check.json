@@ -1,0 +1,167 @@
+{
+  "schemaVersion": "level-quality-review-post-refresh-stability-check/v1",
+  "generatedAt": "2026-06-06T14:05:00.000Z",
+  "baselinePath": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json",
+  "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles",
+  "provider": "ibkr",
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "runPlan": {
+    "fixedTimestamp": "2026-06-06T14:00:00.000Z",
+    "fixedRunCount": 3,
+    "timestampVariant": "2026-06-06T14:01:00.000Z"
+  },
+  "fixedTimestampDeterminism": {
+    "status": "byte_identical",
+    "runHashes": [
+      {
+        "run": "A",
+        "sha256": "d97202ebc030a4250a668fd3302918da48c38b78503beb545c4ad6d510a4ff0a"
+      },
+      {
+        "run": "B",
+        "sha256": "d97202ebc030a4250a668fd3302918da48c38b78503beb545c4ad6d510a4ff0a"
+      },
+      {
+        "run": "C",
+        "sha256": "d97202ebc030a4250a668fd3302918da48c38b78503beb545c4ad6d510a4ff0a"
+      }
+    ]
+  },
+  "timestampVariantMetadata": {
+    "status": "only_allowed_timestamp_fields_changed",
+    "variantSha256": "65cbd4393a03110de923c34fc3cef559098b5bd750c32caba6632829efbb4b39",
+    "normalizedFields": [
+      "generatedAt",
+      "cacheFingerprintSet.generatedAt",
+      "content.generatedAtLine"
+    ]
+  },
+  "runResults": [
+    {
+      "run": "A",
+      "generatedAt": "2026-06-06T14:00:00.000Z",
+      "mismatchCount": 0,
+      "cacheFingerprintCount": 35,
+      "cacheFingerprintSymbolCount": 10,
+      "cacheFingerprintLevelEngineInputCount": 30,
+      "cacheFingerprintContextOnlyCount": 5,
+      "cacheFingerprintFifteenMinuteContextOnlyCount": 5,
+      "cacheFingerprintValidationIssueCount": 45,
+      "wrapperCandleCount": 6662,
+      "actualBarsReturned": 6662
+    },
+    {
+      "run": "B",
+      "generatedAt": "2026-06-06T14:00:00.000Z",
+      "mismatchCount": 0,
+      "cacheFingerprintCount": 35,
+      "cacheFingerprintSymbolCount": 10,
+      "cacheFingerprintLevelEngineInputCount": 30,
+      "cacheFingerprintContextOnlyCount": 5,
+      "cacheFingerprintFifteenMinuteContextOnlyCount": 5,
+      "cacheFingerprintValidationIssueCount": 45,
+      "wrapperCandleCount": 6662,
+      "actualBarsReturned": 6662
+    },
+    {
+      "run": "C",
+      "generatedAt": "2026-06-06T14:00:00.000Z",
+      "mismatchCount": 0,
+      "cacheFingerprintCount": 35,
+      "cacheFingerprintSymbolCount": 10,
+      "cacheFingerprintLevelEngineInputCount": 30,
+      "cacheFingerprintContextOnlyCount": 5,
+      "cacheFingerprintFifteenMinuteContextOnlyCount": 5,
+      "cacheFingerprintValidationIssueCount": 45,
+      "wrapperCandleCount": 6662,
+      "actualBarsReturned": 6662
+    },
+    {
+      "run": "timestampVariant",
+      "generatedAt": "2026-06-06T14:01:00.000Z",
+      "mismatchCount": 0,
+      "cacheFingerprintCount": 35,
+      "cacheFingerprintSymbolCount": 10,
+      "cacheFingerprintLevelEngineInputCount": 30,
+      "cacheFingerprintContextOnlyCount": 5,
+      "cacheFingerprintFifteenMinuteContextOnlyCount": 5,
+      "cacheFingerprintValidationIssueCount": 45,
+      "wrapperCandleCount": 6662,
+      "actualBarsReturned": 6662
+    }
+  ],
+  "stableSummary": {
+    "mismatchCountPerRun": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "nearestSupportParityCount": 10,
+    "nearestResistanceParityCount": 10,
+    "bucketCountParityCount": 10,
+    "extensionCountParityCount": 10,
+    "syntheticCountParityCount": 10,
+    "syntheticMarkingParityCount": 10,
+    "diagnosticsParityCount": 10,
+    "diagnosticSemanticsParityCount": 10,
+    "enrichmentBreakdownParityCount": 10,
+    "extensionCoverageWarningParityCount": 10,
+    "clusteredDensityDiagnosticParityCount": 10,
+    "densityMetricPresentCount": 10,
+    "candidateInventoryPresentCount": 10,
+    "candidateInventoryValidCount": 10,
+    "candidateVolumeSessionContextPresentCount": 10,
+    "candidateVolumeSessionContextValidCount": 10,
+    "sessionFactsPresentCount": 10,
+    "volumeFactsPresentCount": 10,
+    "volumeShelfContextPresentCount": 10,
+    "prohibitedLanguageHitCount": 0
+  },
+  "fifteenMinutePolicy": {
+    "suppliedSymbols": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "QUBT",
+      "GME"
+    ],
+    "contextOnlyCount": 5,
+    "includedInLevelEngine": false,
+    "fedIntoLevelEngine": false
+  },
+  "recommendedNextGate": "level_quality_review_volume_session_fact_coverage_audit",
+  "safety": {
+    "baselineRefreshedAgain": false,
+    "rawCandlesIncluded": false,
+    "rawCacheWrapperPayloadsIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "rawCacheFilesCommitted": false,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChangedByCode": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForSelection": false
+  }
+}
