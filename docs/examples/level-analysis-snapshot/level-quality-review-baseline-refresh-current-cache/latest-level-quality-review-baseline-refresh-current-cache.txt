@@ -1,0 +1,60 @@
+Level quality review baseline refresh current cache
+
+Gate: level_quality_review_baseline_refresh_current_cache
+Generated: 2026-06-06T13:10:00.000Z
+Refresh type: input_state_baseline_refresh
+
+Old active baseline:
+docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json
+
+Historical summary:
+docs/examples/level-analysis-snapshot/level-quality-review-baseline-refresh-current-cache/pre-refresh-active-baseline-historical-summary.json
+
+Refreshed active baseline:
+docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json
+
+Cache fingerprint summary:
+- fingerprints: 35
+- symbols: 10
+- LevelEngine input fingerprints: 30
+- context-only fingerprints: 5
+- 15m context-only fingerprints: 5
+- validation issue count: 45
+- wrapper candle count: 6662
+- actual bars returned: 6662
+
+Before refresh:
+- mismatch count: 4
+- DEVS: enrichmentBreakdown
+- AIM: bucketCounts, enrichmentBreakdown
+- YMAT: enrichmentBreakdown
+
+After refresh:
+- mismatch count: 0
+- nearest support/resistance parity: 10/10
+- bucket count parity: 10/10
+- extension count parity: 10/10
+- synthetic parity: 10/10
+- diagnostics and diagnostic semantics parity: 10/10
+- enrichment breakdown parity: 10/10
+- density metric present: 10/10
+- candidate inventory present and valid: 10/10
+- candidate volume/session context present and valid: 10/10
+- 15m context-only: 10/10
+- prohibited-language hits: 0
+
+Recommended next gate:
+level_quality_review_post_refresh_stability_check
+
+Safety:
+- no raw candles
+- no raw cache wrapper payloads
+- no full snapshots
+- no raw cache files committed
+- no provider calls
+- no cache wrapper writes
+- no support/resistance detection behavior change
+- no LevelEngine scoring/ranking/clustering change
+- no extension generation change
+- no 15m LevelEngine input
+- no volume/session selection influence

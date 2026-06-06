@@ -1,0 +1,30 @@
+Level quality review pre-refresh active baseline historical summary
+
+Gate: level_quality_review_baseline_refresh_current_cache
+Generated: 2026-06-06T13:10:00.000Z
+
+Historical baseline path:
+docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json
+
+Historical status:
+- historical evidence only
+- pre-current-cache-refresh active baseline
+- no cacheFingerprintSet
+- no cacheFingerprintSummary
+- not the active comparison target after this gate
+
+Before-refresh current-cache comparison:
+- mismatch count: 4
+- DEVS: enrichmentBreakdown
+- AIM: bucketCounts, enrichmentBreakdown
+- YMAT: enrichmentBreakdown
+
+Safety:
+- no raw candles
+- no raw cache wrapper payloads
+- no full snapshots
+- no raw cache files
+- no provider calls
+- no cache writes
+- no LevelEngine behavior change
+- 15m remained context-only
