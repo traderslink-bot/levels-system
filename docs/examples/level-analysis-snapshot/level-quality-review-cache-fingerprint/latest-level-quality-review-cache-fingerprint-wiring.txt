@@ -1,0 +1,50 @@
+Level quality review cache fingerprint wiring
+
+Generated: 2026-06-06T12:00:00.000Z
+Provider focus: ibkr
+
+Purpose:
+Wire compact cache fingerprints additively into npm run review:level-quality.
+
+Output fields added:
+- cacheFingerprintSet
+- cacheFingerprintSummary
+
+Summary fields added:
+- cacheFingerprintCount
+- cacheFingerprintSymbolCount
+- cacheFingerprintLevelEngineInputCount
+- cacheFingerprintContextOnlyCount
+- cacheFingerprintFifteenMinuteContextOnlyCount
+- cacheFingerprintValidationIssueCount
+
+Packaged review run:
+- reviewed symbols: 10
+- cache fingerprints: 35
+- fingerprinted symbols: 10
+- LevelEngine-input fingerprints: 30
+- context-only fingerprints: 5
+- 15m context-only fingerprints: 5
+- fingerprint validation issue count: 45
+- prohibited-language hits: 0
+
+Historical-baseline comparison:
+- mismatch count observed: 4
+- DEVS: enrichmentBreakdown
+- AIM: bucketCounts, enrichmentBreakdown
+- YMAT: enrichmentBreakdown
+
+Policy:
+Fingerprints are source provenance. Fingerprint-only changes are not counted as level-quality drift in this gate.
+
+Safety:
+The active baseline was not refreshed. No raw candles, raw cache wrapper payloads, full snapshots, provider calls, cache writes, or raw cache files were included.
+
+15m:
+15m fingerprints are context-only and not LevelEngine input.
+
+Recommended next gate:
+level_quality_review_baseline_refresh_current_cache
+
+Prompt sanity note:
+The pasted prompt suggested level_quality_review_cache_fingerprint_baseline_refresh. The repo-locked name from docs/140 is level_quality_review_baseline_refresh_current_cache, so this artifact recommends the repo-locked name.
