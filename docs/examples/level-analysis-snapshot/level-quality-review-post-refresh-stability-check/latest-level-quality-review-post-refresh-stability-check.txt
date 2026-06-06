@@ -1,0 +1,65 @@
+Level quality review post-refresh stability check
+
+Gate: level_quality_review_post_refresh_stability_check
+Generated: 2026-06-06T14:05:00.000Z
+
+Baseline checked:
+docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json
+
+Fixed timestamp runs:
+- generatedAt: 2026-06-06T14:00:00.000Z
+- run count: 3
+- mismatch counts: 0, 0, 0
+- byte-identical JSON hash: d97202ebc030a4250a668fd3302918da48c38b78503beb545c4ad6d510a4ff0a
+
+Timestamp-variant run:
+- generatedAt: 2026-06-06T14:01:00.000Z
+- mismatch count: 0
+- normalized comparison: only allowed timestamp fields changed
+
+Stable fingerprint summary:
+- fingerprints: 35
+- symbols: 10
+- LevelEngine input fingerprints: 30
+- context-only fingerprints: 5
+- 15m context-only fingerprints: 5
+- validation issue count: 45
+- wrapper candle count: 6662
+- actual bars returned: 6662
+
+Stable review summary:
+- nearest support/resistance parity: 10/10
+- bucket count parity: 10/10
+- extension count parity: 10/10
+- synthetic count/marking parity: 10/10
+- diagnostics and diagnostic semantics parity: 10/10
+- enrichment breakdown parity: 10/10
+- density metric present: 10/10
+- candidate inventory present and valid: 10/10
+- candidate volume/session context present and valid: 10/10
+- session, volume, and shelf facts present: 10/10
+- prohibited-language hits: 0
+
+15m policy:
+- supplied 15m symbols: DEVS, ENVX, DXYZ, QUBT, GME
+- context-only fingerprints: 5
+- included in LevelEngine: false
+- fed into LevelEngine: false
+
+Recommended next gate:
+level_quality_review_volume_session_fact_coverage_audit
+
+Safety:
+- no baseline refresh in this gate
+- no raw candles
+- no raw cache wrapper payloads
+- no full snapshots
+- no raw cache files committed
+- no provider calls
+- no cache wrapper writes
+- no support/resistance detection behavior change
+- no LevelEngine scoring/ranking/clustering change
+- no surfaced-level behavior change
+- no extension generation change
+- no 15m LevelEngine input
+- no volume/session selection influence
