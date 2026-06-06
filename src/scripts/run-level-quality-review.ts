@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -9,6 +9,16 @@ import type {
   LevelAnalysisSnapshot,
   LevelAnalysisSnapshotNearestLevel,
 } from "../lib/analysis/level-analysis-snapshot.js";
+import {
+  buildLevelQualityReviewCacheFingerprint,
+  buildLevelQualityReviewCacheFingerprintSet,
+} from "../lib/analysis/level-quality-review-cache-fingerprint-builder.js";
+import {
+  summarizeLevelQualityReviewCacheFingerprints,
+  type LevelQualityReviewCacheFingerprint,
+  type LevelQualityReviewCacheFingerprintSet,
+  type LevelQualityReviewCacheFingerprintSummary,
+} from "../lib/analysis/level-quality-review-cache-fingerprint.js";
 import { DEFAULT_LEVEL_ENGINE_CONFIG, type LevelEngineConfig } from "../lib/levels/level-config.js";
 import { clusterRawLevelCandidates } from "../lib/levels/level-clusterer.js";
 import { buildLevelCandidatePoolDiagnostics } from "../lib/levels/level-candidate-pool-diagnostics.js";
@@ -182,6 +192,17 @@ export type LevelQualityReviewRunnerOptions = {
   provider: CandleProviderName;
 };
 
+type CacheWrapperRead = {
+  raw: string;
+  parsed: unknown;
+  candles: Candle[];
+};
+
+type LevelQualityReviewEntryBuildResult = {
+  entry: LevelQualityReviewRunnerEntry;
+  cacheFingerprints: LevelQualityReviewCacheFingerprint[];
+};
+
 export type LevelQualityReviewRunnerEntry = {
   symbol: string;
   provider: CandleProviderName;
@@ -267,9 +288,17 @@ export type LevelQualityReviewRunnerResult = {
     volumeShelfContextPresentCount: number;
     candidateVolumeSessionComparisonOutcomeCounts: Partial<Record<LevelCandidateVolumeSessionComparisonOutcome, number>>;
     candidateVolumeSessionMissingFactsCount: number;
+    cacheFingerprintCount: number;
+    cacheFingerprintSymbolCount: number;
+    cacheFingerprintLevelEngineInputCount: number;
+    cacheFingerprintContextOnlyCount: number;
+    cacheFingerprintFifteenMinuteContextOnlyCount: number;
+    cacheFingerprintValidationIssueCount: number;
     mismatchCount: number;
     prohibitedLanguageHitCount: number;
   };
+  cacheFingerprintSet: LevelQualityReviewCacheFingerprintSet;
+  cacheFingerprintSummary: LevelQualityReviewCacheFingerprintSummary;
   entries: LevelQualityReviewRunnerEntry[];
   prohibitedLanguageHits: string[];
   safety: {
@@ -452,11 +481,18 @@ function extractCandleArray(parsed: unknown, filePath: string): unknown[] {
   );
 }
 
-function readCacheCandles(filePath: string): Candle[] {
-  const parsed = JSON.parse(readFileSync(filePath, "utf8"));
-  return extractCandleArray(parsed, filePath).map((item, index) =>
+function readCacheWrapper(filePath: string): CacheWrapperRead {
+  const raw = readFileSync(filePath, "utf8");
+  const parsed = JSON.parse(raw);
+  const candles = extractCandleArray(parsed, filePath).map((item, index) =>
     normalizeCandle(item, filePath, index),
   );
+
+  return {
+    raw,
+    parsed,
+    candles,
+  };
 }
 
 function filterEngineCandles(params: {
@@ -579,6 +615,34 @@ export function loadLevelQualityReviewBaseline(filePath: string): LevelQualityRe
 
 function resolveCachePath(cacheRoot: string, sourceFile: string): string {
   return isAbsolute(sourceFile) ? sourceFile : join(cacheRoot, sourceFile);
+}
+
+function fingerprintRelativePath(cacheRoot: string, sourceFile: string, absolutePath: string): string {
+  const relativePath = isAbsolute(sourceFile) ? relative(cacheRoot, absolutePath) : sourceFile;
+  return relativePath.replaceAll("\\", "/");
+}
+
+function buildCacheFingerprintForReview(params: {
+  cacheRoot: string;
+  sourceFile: string;
+  absolutePath: string;
+  wrapper: CacheWrapperRead;
+  provider: CandleProviderName;
+  symbol: string;
+  timeframe: ReviewTimeframe;
+  asOfTimestamp: number;
+}): LevelQualityReviewCacheFingerprint {
+  return buildLevelQualityReviewCacheFingerprint({
+    relativePath: fingerprintRelativePath(params.cacheRoot, params.sourceFile, params.absolutePath),
+    rawCacheWrapper: params.wrapper.raw,
+    parsedCacheWrapper: params.wrapper.parsed,
+    provider: params.provider,
+    symbol: params.symbol,
+    timeframe: params.timeframe,
+    asOfTimestamp: params.asOfTimestamp,
+    includedInLevelEngine: params.timeframe !== "15m",
+    contextOnly: params.timeframe === "15m",
+  });
 }
 
 function requireSourceFile(
@@ -1176,24 +1240,80 @@ function buildParity(
   };
 }
 
-export function buildLevelQualityReviewEntry(
+function buildLevelQualityReviewEntryWithCacheFingerprints(
   params: {
     cacheRoot: string;
     provider: CandleProviderName;
     baselineEntry: LevelQualityReviewBaselineEntry;
   },
-): LevelQualityReviewRunnerEntry {
+): LevelQualityReviewEntryBuildResult {
   const baselineEntry = params.baselineEntry;
-  const fiveMinutePath = resolveCachePath(params.cacheRoot, requireSourceFile(baselineEntry, "5m"));
-  const fourHourPath = resolveCachePath(params.cacheRoot, requireSourceFile(baselineEntry, "4h"));
-  const dailyPath = resolveCachePath(params.cacheRoot, requireSourceFile(baselineEntry, "daily"));
+  const fiveMinuteSource = requireSourceFile(baselineEntry, "5m");
+  const fourHourSource = requireSourceFile(baselineEntry, "4h");
+  const dailySource = requireSourceFile(baselineEntry, "daily");
+  const fiveMinutePath = resolveCachePath(params.cacheRoot, fiveMinuteSource);
+  const fourHourPath = resolveCachePath(params.cacheRoot, fourHourSource);
+  const dailyPath = resolveCachePath(params.cacheRoot, dailySource);
   const fifteenMinuteSource = baselineEntry.sourceFiles["15m"];
-  const candles5m = readCacheCandles(fiveMinutePath);
-  const fourHourCandles = readCacheCandles(fourHourPath);
-  const dailyCandles = readCacheCandles(dailyPath);
-  const candles15m = fifteenMinuteSource
-    ? readCacheCandles(resolveCachePath(params.cacheRoot, fifteenMinuteSource))
+  const fiveMinuteWrapper = readCacheWrapper(fiveMinutePath);
+  const fourHourWrapper = readCacheWrapper(fourHourPath);
+  const dailyWrapper = readCacheWrapper(dailyPath);
+  const fifteenMinutePath = fifteenMinuteSource
+    ? resolveCachePath(params.cacheRoot, fifteenMinuteSource)
     : undefined;
+  const fifteenMinuteWrapper = fifteenMinutePath
+    ? readCacheWrapper(fifteenMinutePath)
+    : undefined;
+  const candles5m = fiveMinuteWrapper.candles;
+  const fourHourCandles = fourHourWrapper.candles;
+  const dailyCandles = dailyWrapper.candles;
+  const candles15m = fifteenMinuteWrapper?.candles;
+  const cacheFingerprints = [
+    buildCacheFingerprintForReview({
+      cacheRoot: params.cacheRoot,
+      sourceFile: fiveMinuteSource,
+      absolutePath: fiveMinutePath,
+      wrapper: fiveMinuteWrapper,
+      provider: params.provider,
+      symbol: baselineEntry.symbol,
+      timeframe: "5m",
+      asOfTimestamp: baselineEntry.asOfTimestamp,
+    }),
+    buildCacheFingerprintForReview({
+      cacheRoot: params.cacheRoot,
+      sourceFile: fourHourSource,
+      absolutePath: fourHourPath,
+      wrapper: fourHourWrapper,
+      provider: params.provider,
+      symbol: baselineEntry.symbol,
+      timeframe: "4h",
+      asOfTimestamp: baselineEntry.asOfTimestamp,
+    }),
+    buildCacheFingerprintForReview({
+      cacheRoot: params.cacheRoot,
+      sourceFile: dailySource,
+      absolutePath: dailyPath,
+      wrapper: dailyWrapper,
+      provider: params.provider,
+      symbol: baselineEntry.symbol,
+      timeframe: "daily",
+      asOfTimestamp: baselineEntry.asOfTimestamp,
+    }),
+    ...(fifteenMinuteSource && fifteenMinutePath && fifteenMinuteWrapper
+      ? [
+          buildCacheFingerprintForReview({
+            cacheRoot: params.cacheRoot,
+            sourceFile: fifteenMinuteSource,
+            absolutePath: fifteenMinutePath,
+            wrapper: fifteenMinuteWrapper,
+            provider: params.provider,
+            symbol: baselineEntry.symbol,
+            timeframe: "15m",
+            asOfTimestamp: baselineEntry.asOfTimestamp,
+          }),
+        ]
+      : []),
+  ];
   const snapshot = buildLevelAnalysisSnapshotFromCandles({
     symbol: baselineEntry.symbol,
     asOfTimestamp: baselineEntry.asOfTimestamp,
@@ -1239,15 +1359,31 @@ export function buildLevelQualityReviewEntry(
   const parity = buildParity(baselineEntry, compact);
 
   return {
-    ...compact,
-    candidateInventoryVisibility,
-    candidateVolumeSessionContext,
-    parity,
-    mismatches: collectMismatches(parity),
+    entry: {
+      ...compact,
+      candidateInventoryVisibility,
+      candidateVolumeSessionContext,
+      parity,
+      mismatches: collectMismatches(parity),
+    },
+    cacheFingerprints,
   };
 }
 
-function summarizeEntries(entries: LevelQualityReviewRunnerEntry[]) {
+export function buildLevelQualityReviewEntry(
+  params: {
+    cacheRoot: string;
+    provider: CandleProviderName;
+    baselineEntry: LevelQualityReviewBaselineEntry;
+  },
+): LevelQualityReviewRunnerEntry {
+  return buildLevelQualityReviewEntryWithCacheFingerprints(params).entry;
+}
+
+function summarizeEntries(
+  entries: LevelQualityReviewRunnerEntry[],
+  cacheFingerprintSummary: LevelQualityReviewCacheFingerprintSummary,
+) {
   const candidateInventory = candidateInventorySummary(entries);
   const candidateVolumeSession = candidateVolumeSessionContextSummary(entries);
 
@@ -1283,6 +1419,12 @@ function summarizeEntries(entries: LevelQualityReviewRunnerEntry[]) {
     volumeShelfContextPresentCount: candidateVolumeSession.volumeShelfContextPresentCount,
     candidateVolumeSessionComparisonOutcomeCounts: candidateVolumeSession.comparisonOutcomeCounts,
     candidateVolumeSessionMissingFactsCount: candidateVolumeSession.missingFactsCount,
+    cacheFingerprintCount: cacheFingerprintSummary.totalFingerprints,
+    cacheFingerprintSymbolCount: cacheFingerprintSummary.symbolCount,
+    cacheFingerprintLevelEngineInputCount: cacheFingerprintSummary.levelEngineInputCount,
+    cacheFingerprintContextOnlyCount: cacheFingerprintSummary.contextOnlyCount,
+    cacheFingerprintFifteenMinuteContextOnlyCount: cacheFingerprintSummary.fifteenMinuteContextOnlyCount,
+    cacheFingerprintValidationIssueCount: cacheFingerprintSummary.validationIssueCount,
     mismatchCount: entries.reduce((sum, entry) => sum + entry.mismatches.length, 0),
     prohibitedLanguageHitCount: 0,
   };
@@ -1320,6 +1462,12 @@ export function renderLevelQualityReviewText(result: Omit<LevelQualityReviewRunn
     `Provider: ${result.provider}`,
     `Baseline: ${result.baselinePath}`,
     `Symbols: ${result.summary.totalSymbols}`,
+    `Cache fingerprint count: ${result.summary.cacheFingerprintCount}`,
+    `Cache fingerprint symbol count: ${result.summary.cacheFingerprintSymbolCount}`,
+    `Cache fingerprint LevelEngine input count: ${result.summary.cacheFingerprintLevelEngineInputCount}`,
+    `Cache fingerprint context-only count: ${result.summary.cacheFingerprintContextOnlyCount}`,
+    `Cache fingerprint 15m context-only count: ${result.summary.cacheFingerprintFifteenMinuteContextOnlyCount}`,
+    `Cache fingerprint validation issue count: ${result.summary.cacheFingerprintValidationIssueCount}`,
     `Nearest support parity: ${result.summary.nearestSupportParityCount}/${result.summary.totalSymbols}`,
     `Nearest resistance parity: ${result.summary.nearestResistanceParityCount}/${result.summary.totalSymbols}`,
     `Bucket count parity: ${result.summary.bucketCountParityCount}/${result.summary.totalSymbols}`,
@@ -1377,14 +1525,21 @@ export function runLevelQualityReviewRunner(
   options: LevelQualityReviewRunnerOptions,
 ): LevelQualityReviewRunnerResult {
   const baseline = loadLevelQualityReviewBaseline(options.baselinePath);
-  const entries = baseline.entries.map((baselineEntry) =>
-    buildLevelQualityReviewEntry({
+  const builtEntries = baseline.entries.map((baselineEntry) =>
+    buildLevelQualityReviewEntryWithCacheFingerprints({
       cacheRoot: options.cacheRoot,
       provider: options.provider,
       baselineEntry,
     }),
   );
-  const summary = summarizeEntries(entries);
+  const entries = builtEntries.map((item) => item.entry);
+  const cacheFingerprintSet = buildLevelQualityReviewCacheFingerprintSet({
+    generatedAt: options.generatedAt,
+    provider: options.provider,
+    fingerprints: builtEntries.flatMap((item) => item.cacheFingerprints),
+  });
+  const cacheFingerprintSummary = summarizeLevelQualityReviewCacheFingerprints(cacheFingerprintSet);
+  const summary = summarizeEntries(entries, cacheFingerprintSummary);
   const resultWithoutContent = {
     schemaVersion: "level-quality-review-process/v1" as const,
     generatedAt: options.generatedAt,
@@ -1395,6 +1550,8 @@ export function runLevelQualityReviewRunner(
     reviewedSymbols: baseline.reviewedSymbols ?? entries.map((entry) => entry.symbol),
     supplied15mSymbols: baseline.supplied15mSymbols ?? entries.filter((entry) => entry.hasSupplied15m).map((entry) => entry.symbol),
     summary,
+    cacheFingerprintSet,
+    cacheFingerprintSummary,
     entries,
     prohibitedLanguageHits: [] as string[],
     safety: {

@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "level-quality-review-cache-fingerprint-wiring/v1",
+  "generatedAt": "2026-06-06T12:00:00.000Z",
+  "providerFocus": "ibkr",
+  "purpose": "Document additive cache fingerprint wiring into npm run review:level-quality without refreshing the active review baseline.",
+  "sourceEvidence": [
+    "docs/141_LEVEL_QUALITY_REVIEW_CACHE_FINGERPRINT_CONTRACT.md",
+    "src/lib/analysis/level-quality-review-cache-fingerprint.ts",
+    "src/lib/analysis/level-quality-review-cache-fingerprint-builder.ts",
+    "src/scripts/run-level-quality-review.ts"
+  ],
+  "wiring": {
+    "builder": "src/lib/analysis/level-quality-review-cache-fingerprint-builder.ts",
+    "runner": "src/scripts/run-level-quality-review.ts",
+    "topLevelFieldsAdded": [
+      "cacheFingerprintSet",
+      "cacheFingerprintSummary"
+    ],
+    "summaryFieldsAdded": [
+      "cacheFingerprintCount",
+      "cacheFingerprintSymbolCount",
+      "cacheFingerprintLevelEngineInputCount",
+      "cacheFingerprintContextOnlyCount",
+      "cacheFingerprintFifteenMinuteContextOnlyCount",
+      "cacheFingerprintValidationIssueCount"
+    ],
+    "existingMismatchCalculationIncludesFingerprints": false
+  },
+  "packagedReviewRun": {
+    "command": "npm run review:level-quality -- --cache-root C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles --provider ibkr --baseline docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json --out-json artifacts/level-quality-review-cache-fingerprint-wiring/latest-level-quality-review-cache-fingerprint-wiring.json --out-text artifacts/level-quality-review-cache-fingerprint-wiring/latest-level-quality-review-cache-fingerprint-wiring.txt --generated-at 2026-06-06T12:00:00.000Z",
+    "outputCommitted": false,
+    "reviewedSymbols": 10,
+    "cacheFingerprintSummary": {
+      "totalFingerprints": 35,
+      "symbolCount": 10,
+      "levelEngineInputCount": 30,
+      "contextOnlyCount": 5,
+      "fifteenMinuteContextOnlyCount": 5,
+      "validationIssueCount": 45
+    },
+    "mismatchCountAgainstHistoricalBaseline": 4,
+    "mismatchesAgainstHistoricalBaseline": [
+      {
+        "symbol": "DEVS",
+        "fields": [
+          "enrichmentBreakdown"
+        ]
+      },
+      {
+        "symbol": "AIM",
+        "fields": [
+          "bucketCounts",
+          "enrichmentBreakdown"
+        ]
+      },
+      {
+        "symbol": "YMAT",
+        "fields": [
+          "enrichmentBreakdown"
+        ]
+      }
+    ],
+    "prohibitedLanguageHits": 0
+  },
+  "baselineComparisonPolicy": {
+    "fingerprintsAreSourceProvenance": true,
+    "fingerprintOnlyChangesCountAsLevelQualityDrift": false,
+    "activeBaselineRefreshed": false,
+    "oldBaselinePreservedAsHistoricalEvidence": true
+  },
+  "fifteenMinutePolicy": {
+    "fingerprintedAsContextOnly": true,
+    "includedInLevelEngine": false,
+    "fifteenMinuteFedIntoLevelEngine": false
+  },
+  "safety": {
+    "baselineRefreshed": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "volumeSessionFactsUsedForScoringOrSurfacedSelection": false,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "rawCandleArraysIncludedInFingerprintOutput": false,
+    "rawCacheWrapperPayloadsIncludedInFingerprintOutput": false,
+    "fullSnapshotsIncludedInFingerprintOutput": false,
+    "alertMonitoringDiscordBehaviorChanged": false,
+    "journalAppFilesChanged": false,
+    "journalGradingCoachingPnlGivebackBehaviorScoringAdded": false,
+    "recommendationTradeAdviceBehaviorAdded": false
+  },
+  "recommendedNextGate": {
+    "name": "level_quality_review_baseline_refresh_current_cache",
+    "reason": "After fingerprint wiring is merged, refresh the active review baseline to the current local IBKR cache state with fingerprints included, while preserving the old baseline as historical evidence."
+  },
+  "promptSanityCheck": {
+    "promptSuggestedNextGate": "level_quality_review_cache_fingerprint_baseline_refresh",
+    "repoLockedNextGateName": "level_quality_review_baseline_refresh_current_cache",
+    "status": "name_mismatch_noted_repo_locked_name_preferred"
+  }
+}
