@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "level-quality-review-cache-fingerprint-fixture/v1",
+  "fixtureName": "cache-fingerprint-with-15m-context-only",
+  "fingerprintSet": {
+    "schemaVersion": "level-quality-review-cache-fingerprint-set/v1",
+    "generatedAt": "2026-06-06T00:00:00.000Z",
+    "provider": "ibkr",
+    "fingerprints": [
+      {
+        "schemaVersion": "level-quality-review-cache-fingerprint/v1",
+        "relativePath": "ibkr/GME/5m/100-1779976500000.json",
+        "provider": "ibkr",
+        "symbol": "GME",
+        "timeframe": "5m",
+        "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "wrapperCandleCount": 100,
+        "requestLookbackBars": 100,
+        "requestEndTimestamp": 1779976500000,
+        "actualBarsReturned": 100,
+        "validationIssueCount": 0,
+        "firstCandleTimestamp": 1779946500000,
+        "lastCandleTimestamp": 1779976200000,
+        "asOfTimestamp": 1779976500000,
+        "includedInLevelEngine": true,
+        "contextOnly": false,
+        "safety": {
+          "rawCandlesIncluded": false,
+          "rawCacheWrapperPayloadsIncluded": false,
+          "fullSnapshotsIncluded": false,
+          "providerCallsMade": false,
+          "cacheFilesWritten": false,
+          "fifteenMinuteFedIntoLevelEngine": false
+        }
+      },
+      {
+        "schemaVersion": "level-quality-review-cache-fingerprint/v1",
+        "relativePath": "ibkr/GME/15m/80-1779976500000.json",
+        "provider": "ibkr",
+        "symbol": "GME",
+        "timeframe": "15m",
+        "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "wrapperCandleCount": 80,
+        "requestLookbackBars": 80,
+        "requestEndTimestamp": 1779976500000,
+        "actualBarsReturned": 80,
+        "validationIssueCount": 0,
+        "firstCandleTimestamp": 1779951600000,
+        "lastCandleTimestamp": 1779975600000,
+        "asOfTimestamp": 1779976500000,
+        "includedInLevelEngine": false,
+        "contextOnly": true,
+        "safety": {
+          "rawCandlesIncluded": false,
+          "rawCacheWrapperPayloadsIncluded": false,
+          "fullSnapshotsIncluded": false,
+          "providerCallsMade": false,
+          "cacheFilesWritten": false,
+          "fifteenMinuteFedIntoLevelEngine": false
+        }
+      }
+    ]
+  },
+  "expectedValidationResult": {
+    "valid": true,
+    "errors": []
+  },
+  "expectedSummary": {
+    "totalFingerprints": 2,
+    "symbolCount": 1,
+    "symbols": [
+      "GME"
+    ],
+    "providerCounts": {
+      "ibkr": 2
+    },
+    "timeframeCounts": {
+      "15m": 1,
+      "5m": 1
+    },
+    "levelEngineInputCount": 1,
+    "contextOnlyCount": 1,
+    "fifteenMinuteContextOnlyCount": 1,
+    "validationIssueCount": 0,
+    "wrapperCandleCount": 180,
+    "actualBarsReturned": 180,
+    "hasValidationIssues": false,
+    "firstCandleTimestamp": 1779946500000,
+    "lastCandleTimestamp": 1779976200000
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}

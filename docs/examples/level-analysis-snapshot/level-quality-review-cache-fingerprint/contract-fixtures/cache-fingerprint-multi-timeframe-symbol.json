@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "level-quality-review-cache-fingerprint-fixture/v1",
+  "fixtureName": "cache-fingerprint-multi-timeframe-symbol",
+  "fingerprintSet": {
+    "schemaVersion": "level-quality-review-cache-fingerprint-set/v1",
+    "generatedAt": "2026-06-06T00:00:00.000Z",
+    "provider": "ibkr",
+    "fingerprints": [
+      {
+        "schemaVersion": "level-quality-review-cache-fingerprint/v1",
+        "relativePath": "ibkr/AIM/5m/100-1779976500000.json",
+        "provider": "ibkr",
+        "symbol": "AIM",
+        "timeframe": "5m",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "wrapperCandleCount": 72,
+        "requestLookbackBars": 100,
+        "requestEndTimestamp": 1779976500000,
+        "actualBarsReturned": 72,
+        "validationIssueCount": 0,
+        "firstCandleTimestamp": 1779954900000,
+        "lastCandleTimestamp": 1779976200000,
+        "asOfTimestamp": 1779976500000,
+        "includedInLevelEngine": true,
+        "contextOnly": false,
+        "safety": {
+          "rawCandlesIncluded": false,
+          "rawCacheWrapperPayloadsIncluded": false,
+          "fullSnapshotsIncluded": false,
+          "providerCallsMade": false,
+          "cacheFilesWritten": false,
+          "fifteenMinuteFedIntoLevelEngine": false
+        }
+      },
+      {
+        "schemaVersion": "level-quality-review-cache-fingerprint/v1",
+        "relativePath": "ibkr/AIM/4h/180-1779969600000.json",
+        "provider": "ibkr",
+        "symbol": "AIM",
+        "timeframe": "4h",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "wrapperCandleCount": 114,
+        "requestLookbackBars": 180,
+        "requestEndTimestamp": 1779969600000,
+        "actualBarsReturned": 114,
+        "validationIssueCount": 0,
+        "firstCandleTimestamp": 1763702400000,
+        "lastCandleTimestamp": 1779969600000,
+        "asOfTimestamp": 1779976500000,
+        "includedInLevelEngine": true,
+        "contextOnly": false,
+        "safety": {
+          "rawCandlesIncluded": false,
+          "rawCacheWrapperPayloadsIncluded": false,
+          "fullSnapshotsIncluded": false,
+          "providerCallsMade": false,
+          "cacheFilesWritten": false,
+          "fifteenMinuteFedIntoLevelEngine": false
+        }
+      },
+      {
+        "schemaVersion": "level-quality-review-cache-fingerprint/v1",
+        "relativePath": "ibkr/AIM/daily/520-1779926400000.json",
+        "provider": "ibkr",
+        "symbol": "AIM",
+        "timeframe": "daily",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "wrapperCandleCount": 502,
+        "requestLookbackBars": 520,
+        "requestEndTimestamp": 1779926400000,
+        "actualBarsReturned": 502,
+        "validationIssueCount": 0,
+        "firstCandleTimestamp": 1736553600000,
+        "lastCandleTimestamp": 1779926400000,
+        "asOfTimestamp": 1779976500000,
+        "includedInLevelEngine": true,
+        "contextOnly": false,
+        "safety": {
+          "rawCandlesIncluded": false,
+          "rawCacheWrapperPayloadsIncluded": false,
+          "fullSnapshotsIncluded": false,
+          "providerCallsMade": false,
+          "cacheFilesWritten": false,
+          "fifteenMinuteFedIntoLevelEngine": false
+        }
+      }
+    ]
+  },
+  "expectedValidationResult": {
+    "valid": true,
+    "errors": []
+  },
+  "expectedSummary": {
+    "totalFingerprints": 3,
+    "symbolCount": 1,
+    "symbols": [
+      "AIM"
+    ],
+    "providerCounts": {
+      "ibkr": 3
+    },
+    "timeframeCounts": {
+      "4h": 1,
+      "5m": 1,
+      "daily": 1
+    },
+    "levelEngineInputCount": 3,
+    "contextOnlyCount": 0,
+    "fifteenMinuteContextOnlyCount": 0,
+    "validationIssueCount": 0,
+    "wrapperCandleCount": 688,
+    "actualBarsReturned": 688,
+    "hasValidationIssues": false,
+    "firstCandleTimestamp": 1736553600000,
+    "lastCandleTimestamp": 1779976200000
+  },
+  "factualOnlyStatus": {
+    "checked": true,
+    "prohibitedLanguageHitCount": 0
+  }
+}
