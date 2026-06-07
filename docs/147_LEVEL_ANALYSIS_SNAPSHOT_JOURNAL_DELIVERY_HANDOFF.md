@@ -20,6 +20,8 @@ The levels-system side is ready to hand off a facts-only chart context package t
   request policy is now day-scoped: fetch/cache the full extended-session 5m
   day for the symbol, then rely on snapshot candle-close filtering for the
   requested trade/as-of timestamp.
+- The first producer-side collection wrapper for that policy is now available
+  as `npm run cache:collect:journal-5m-day`.
 
 ## Start Here For Journal App Codex
 
@@ -123,6 +125,16 @@ specific trade timestamp.
 
 Do not make the journal app consume later same-day candles just because they
 exist in the cache.
+
+The implemented collection wrapper is documented here:
+
+```text
+docs/149_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_COLLECTION.md
+```
+
+Use it first in dry-run mode. Write mode requires explicit provider
+configuration, and IBKR writes require
+`LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true`.
 
 ## Validation Checklist For Journal App Codex
 

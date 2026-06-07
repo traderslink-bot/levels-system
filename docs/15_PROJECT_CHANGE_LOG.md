@@ -20,6 +20,48 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-06-07 America/Toronto
 
+### Journal trade-context 5m day cache collection wrapper is implemented
+
+- Completed `levels_system_journal_trade_context_5m_day_cache_collection`.
+- Added `src/scripts/collect-journal-trade-context-5m-day-cache.ts`.
+- Added `src/tests/collect-journal-trade-context-5m-day-cache.test.ts`.
+- Added `docs/149_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_COLLECTION.md`.
+- Added npm script `cache:collect:journal-5m-day`.
+- The wrapper accepts `SYMBOL@timestamp` trade-context requests, dedupes them
+  to one reusable full extended-session 5m day request per symbol/date, and
+  writes the existing validation-cache-compatible wrapper shape under:
+  `<cacheRoot>/<provider>/<SYMBOL>/5m/<lookbackBars>-<endTimeMs>.json`.
+- Same-symbol same-day trade contexts now collapse to one fetch/write while
+  preserving all source trade-context timestamps in
+  `journalTradeContextPolicy.sourceTradeContextTimestamps`.
+- Dry-run mode does not construct a live provider.
+- IBKR write mode now has an explicit safety gate:
+  `LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true`.
+- This is still a cache collection wrapper only. It does not change snapshot
+  as-of filtering, LevelEngine eligible timeframes, support/resistance
+  generation, runtime defaults, alert/monitoring/Discord behavior, journal app
+  behavior, grading, coaching, P/L, giveback, behavior scoring,
+  recommendations, buy/sell/hold decisions, or trade advice.
+
+### Verification completed
+
+- `npx tsx --test src/tests/collect-journal-trade-context-5m-day-cache.test.ts src/tests/journal-trade-context-5m-day-policy.test.ts`
+- `npm run build`
+- `git diff --check`
+- `npm test`
+
+### Next producer-side gate
+
+- `levels_system_journal_trade_context_5m_day_cache_dry_run`
+
+Reason: the wrapper is deterministic and fake-provider tested. The next useful
+step is an operator dry-run against the intended cache root and trade-context
+symbols/timestamps before enabling real IBKR writes.
+
+---
+
+## 2026-06-07 America/Toronto
+
 ### Journal trade-context 5m day-fetch policy is documented and tested
 
 - Continued `levels_system_multi_timeframe_snapshot_hardening` with a

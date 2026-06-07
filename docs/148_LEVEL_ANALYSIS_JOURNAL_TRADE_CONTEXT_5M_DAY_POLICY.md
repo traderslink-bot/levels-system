@@ -119,3 +119,6 @@ Reason: the pure request/cache policy is now locked. The next producer-side
 step, if needed, is a small collection wrapper that uses this policy to fetch
 and store day-scoped 5m cache files while preserving the same as-of filtering
 boundary in snapshot generation.
+
+Status: completed by
+`docs/149_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_COLLECTION.md`.
