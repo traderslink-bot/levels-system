@@ -22,6 +22,9 @@ The levels-system side is ready to hand off a facts-only chart context package t
   requested trade/as-of timestamp.
 - The first producer-side collection wrapper for that policy is now available
   as `npm run cache:collect:journal-5m-day`.
+- Optional future 1m execution replay is documented separately as a narrow
+  execution-window policy. It does not replace the 5m day cache and is not live
+  provider-capable yet.
 
 ## Start Here For Journal App Codex
 
@@ -135,6 +138,16 @@ docs/149_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_COLLECTION.md
 Use it first in dry-run mode. Write mode requires explicit provider
 configuration, and IBKR writes require
 `LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true`.
+
+Optional future 1m execution replay policy:
+
+```text
+docs/150_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_1M_EXECUTION_WINDOW_POLICY.md
+```
+
+Treat `1m` as optional execution detail only. Do not use it as the primary
+trade-context timeframe and do not add live 1m fetching without a separate
+collection gate.
 
 ## Validation Checklist For Journal App Codex
 

@@ -155,3 +155,8 @@ git diff --check
 Reason: the collection wrapper is deterministic and fake-provider tested. The
 next useful producer-side step is an operator dry-run against the intended
 cache root and symbols/timestamps before enabling real IBKR writes.
+
+Short priority detour completed:
+`levels_system_journal_trade_context_1m_execution_window_policy` records the
+optional future 1m execution-detail idea without changing this 5m dry-run
+priority.

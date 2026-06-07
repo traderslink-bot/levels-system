@@ -20,6 +20,49 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-06-07 America/Toronto
 
+### Optional 1m execution-window policy is documented and tested
+
+- Completed `levels_system_journal_trade_context_1m_execution_window_policy`.
+- Added
+  `src/lib/analysis/journal-trade-context-1m-execution-window-policy.ts`.
+- Added
+  `src/tests/journal-trade-context-1m-execution-window-policy.test.ts`.
+- Added
+  `docs/150_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_1M_EXECUTION_WINDOW_POLICY.md`.
+- Updated the journal delivery handoff and doc index so future sessions know
+  the intended timeframe split:
+  - `5m` remains the primary journal trade-context candle layer
+  - `15m` remains optional broader intraday facts/context
+  - `1m` is optional execution replay detail only
+- The 1m policy builds a narrow execution-window request around actual
+  executions, defaulting to a 30-minute pre-execution and 30-minute
+  post-execution buffer.
+- The policy explicitly keeps `1m` out of current provider planning and
+  LevelEngine eligibility. It does not fetch 1m candles, write 1m cache files,
+  change support/resistance generation, change snapshot generation, change
+  journal app behavior, change runtime defaults, or add grading/coaching/P/L/
+  giveback/behavior scoring, recommendations, buy/sell/hold decisions, or
+  trade advice.
+
+### Verification completed
+
+- `npx tsx --test src/tests/journal-trade-context-1m-execution-window-policy.test.ts src/tests/journal-trade-context-5m-day-policy.test.ts`
+- `npm run build`
+- `npm test` (822 passing tests)
+- `git diff --check`
+
+### Current next producer-side gate
+
+- `levels_system_journal_trade_context_5m_day_cache_dry_run`
+
+Reason: the optional 1m idea is now safely captured for later. The near-term
+priority returns to validating the 5m day-cache collection wrapper in dry-run
+mode before any real IBKR writes.
+
+---
+
+## 2026-06-07 America/Toronto
+
 ### Journal trade-context 5m day cache collection wrapper is implemented
 
 - Completed `levels_system_journal_trade_context_5m_day_cache_collection`.
