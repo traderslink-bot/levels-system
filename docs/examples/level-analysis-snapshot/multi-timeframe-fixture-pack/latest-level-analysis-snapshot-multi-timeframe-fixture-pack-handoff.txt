@@ -1,0 +1,34 @@
+Gate: level_analysis_snapshot_multi_timeframe_fixture_pack_handoff
+Doc: docs/150_LEVEL_ANALYSIS_SNAPSHOT_MULTI_TIMEFRAME_FIXTURE_PACK_HANDOFF.md
+Base merge commit: cb72810045a0cf4f17f7d0dd6635b0aac4bc4650
+
+Locked state:
+- LevelAnalysisSnapshot remains level-analysis-snapshot/v1.
+- Input summary reserves 5m, 15m, 4h, and daily.
+- LevelEngine eligible timeframes remain daily, 4h, and 5m.
+- 15m remains optional facts-only context and is not fed into LevelEngine.
+- Active candle provider direction remains IBKR.
+
+Fixture coverage:
+- snapshot-mtf-missing-15m: optional 15m absent and stable reserved timeframe behavior.
+- snapshot-mtf-supplied-15m-limited: limited 15m facts with LevelEngine and nearest-level parity.
+- snapshot-mtf-supplied-15m-available: available 15m facts with LevelEngine and nearest-level parity.
+- snapshot-mtf-journal-replay-asof-filtering: future and still-forming candle filtering across all snapshot timeframes.
+- snapshot-mtf-sparse-higher-timeframes: missing daily/4h diagnostics with available 5m context.
+
+Safety:
+- No support/resistance detection behavior changed.
+- No LevelEngine scoring, ranking, clustering, or surfaced selection changed.
+- No surfaced support/resistance levels changed.
+- No extension generation behavior changed.
+- No volume/session facts were used for scoring or surfaced selection.
+- No cache data was collected or written.
+- No raw candles, raw cache files, provider responses, full snapshots, or journal payloads are included.
+- No journal app files changed.
+- No journal grading, coaching, P/L, giveback, behavior scoring, recommendations, or trade advice was added.
+
+Recommended next gate:
+level_quality_review_baseline_refresh_decision
+
+Reason:
+A prior review found AIM baseline/input drift before the volume-session baseline lock. Decide whether to refresh the review baseline to current local IBKR cache state or preserve the old baseline as a different input set.

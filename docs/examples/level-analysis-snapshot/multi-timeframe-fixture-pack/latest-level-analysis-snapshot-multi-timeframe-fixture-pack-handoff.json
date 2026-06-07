@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "level-analysis-snapshot-multi-timeframe-fixture-pack-handoff/v1",
+  "generatedAt": "2026-06-07T13:45:00.000Z",
+  "gate": "level_analysis_snapshot_multi_timeframe_fixture_pack_handoff",
+  "baseMergeCommit": "cb72810045a0cf4f17f7d0dd6635b0aac4bc4650",
+  "handoffDoc": "docs/150_LEVEL_ANALYSIS_SNAPSHOT_MULTI_TIMEFRAME_FIXTURE_PACK_HANDOFF.md",
+  "sourceArtifacts": [
+    "docs/examples/level-analysis-snapshot/multi-timeframe-snapshot-hardening/latest-levels-system-multi-timeframe-snapshot-hardening.json",
+    "docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/latest-level-analysis-snapshot-multi-timeframe-fixture-pack.json"
+  ],
+  "evidenceReviewed": [
+    "docs/148_LEVELS_SYSTEM_MULTI_TIMEFRAME_SNAPSHOT_HARDENING.md",
+    "docs/149_LEVEL_ANALYSIS_SNAPSHOT_MULTI_TIMEFRAME_FIXTURE_PACK.md",
+    "src/tests/levels-system-multi-timeframe-snapshot-hardening.test.ts",
+    "src/tests/level-analysis-snapshot-multi-timeframe-fixture-pack.test.ts"
+  ],
+  "fixtureDirectory": "docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/fixtures",
+  "fixtures": [
+    {
+      "fixtureName": "snapshot-mtf-missing-15m",
+      "proves": [
+        "optional_15m_absent",
+        "reserved_timeframe_keys_stable",
+        "no_15m_timeframe_facts_when_missing"
+      ]
+    },
+    {
+      "fixtureName": "snapshot-mtf-supplied-15m-limited",
+      "proves": [
+        "limited_15m_facts_built",
+        "level_engine_output_parity_with_missing_15m",
+        "nearest_level_parity_with_missing_15m"
+      ]
+    },
+    {
+      "fixtureName": "snapshot-mtf-supplied-15m-available",
+      "proves": [
+        "available_15m_facts_built",
+        "15m_range_trend_volume_structure_facts",
+        "level_engine_output_parity_with_missing_15m",
+        "nearest_level_parity_with_missing_15m"
+      ]
+    },
+    {
+      "fixtureName": "snapshot-mtf-journal-replay-asof-filtering",
+      "proves": [
+        "future_candles_filtered",
+        "partial_candles_filtered",
+        "journal_replay_as_of_safety"
+      ]
+    },
+    {
+      "fixtureName": "snapshot-mtf-sparse-higher-timeframes",
+      "proves": [
+        "daily_4h_missing_diagnostics",
+        "5m_context_remains_available",
+        "sparse_higher_timeframes_do_not_infer_levels"
+      ]
+    }
+  ],
+  "lockedState": {
+    "snapshotSchemaVersion": "level-analysis-snapshot/v1",
+    "reservedInputSummaryTimeframes": [
+      "5m",
+      "15m",
+      "4h",
+      "daily"
+    ],
+    "levelEngineEligibleTimeframes": [
+      "daily",
+      "4h",
+      "5m"
+    ],
+    "activeCandleProvider": "IBKR",
+    "fifteenMinuteFactsOnly": true,
+    "journalReplayAsOfSafetyCovered": true
+  },
+  "coverage": {
+    "fixtureCount": 5,
+    "missing15mCovered": true,
+    "supplied15mLimitedCovered": true,
+    "supplied15mAvailableCovered": true,
+    "futurePartialFilteringCovered": true,
+    "sparseHigherTimeframesCovered": true,
+    "journalReplayAsOfSafetyCovered": true,
+    "levelEngineParityCovered": true,
+    "nearestLevelParityCovered": true
+  },
+  "limitations": [
+    "deterministic local fixtures only",
+    "does not rerun the 10-symbol IBKR review",
+    "does not collect or write cache data",
+    "does not include raw candles, provider responses, cache payloads, or full snapshots",
+    "does not validate journal app rendering directly"
+  ],
+  "futureUseRules": [
+    "compare against this fixture pack before future multi-timeframe snapshot changes",
+    "preserve candle-close no-lookahead filtering",
+    "keep 15m facts-only unless a separate approved gate changes eligibility",
+    "prove LevelEngine parity when 15m is supplied but not eligible",
+    "keep volume/session facts outside scoring and surfaced selection",
+    "do not add raw cache or raw candle artifacts without explicit approval"
+  ],
+  "recommendedNextGate": "level_quality_review_baseline_refresh_decision",
+  "recommendedNextGateReason": "A prior review found AIM baseline/input drift before the volume-session baseline lock; decide whether to refresh the review baseline to current local IBKR cache state or preserve the old baseline as a different input set.",
+  "safety": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForSelection": false,
+    "cacheFilesCollected": false,
+    "cacheFilesWritten": false,
+    "rawCandlesIncluded": false,
+    "rawCacheFilesCommitted": false,
+    "runtimeModeDefaultsChanged": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppFilesChanged": false,
+    "restrictedInterpretationAdded": false
+  }
+}
