@@ -22,6 +22,10 @@ The levels-system side is ready to hand off a facts-only chart context package t
   requested trade/as-of timestamp.
 - The first producer-side collection wrapper for that policy is now available
   as `npm run cache:collect:journal-5m-day`.
+- The first operator dry-run for that wrapper is complete. It planned five
+  IBKR 5m day-cache files from six trade-context requests, deduped same-symbol
+  same-day DEVS requests, and confirmed the real validation cache was not
+  mutated.
 - Optional future 1m execution replay is documented separately as a narrow
   execution-window policy. It does not replace the 5m day cache and is not live
   provider-capable yet.
@@ -138,6 +142,12 @@ docs/149_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_COLLECTION.md
 Use it first in dry-run mode. Write mode requires explicit provider
 configuration, and IBKR writes require
 `LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true`.
+
+Completed dry-run evidence:
+
+```text
+docs/151_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_DRY_RUN.md
+```
 
 Optional future 1m execution replay policy:
 

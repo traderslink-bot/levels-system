@@ -133,5 +133,6 @@ This folder contains the full plan for the candle-based levels system, including
 - `docs/148_LEVEL_ANALYSIS_JOURNAL_TRADE_CONTEXT_5M_DAY_POLICY.md`
 - `docs/149_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_COLLECTION.md`
 - `docs/150_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_1M_EXECUTION_WINDOW_POLICY.md`
+- `docs/151_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_DRY_RUN.md`
 - Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
 - Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`

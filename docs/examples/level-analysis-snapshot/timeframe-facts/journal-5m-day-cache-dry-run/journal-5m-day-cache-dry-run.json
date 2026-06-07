@@ -1,0 +1,121 @@
+{
+  "gate": "levels_system_journal_trade_context_5m_day_cache_dry_run",
+  "generatedAt": "2026-06-07T16:00:00.000Z",
+  "mode": "dry-run",
+  "cacheRoot": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles",
+  "provider": "ibkr",
+  "timeframe": "5m",
+  "requestedTradeContexts": [
+    {
+      "symbol": "DEVS",
+      "timestamp": 1780321320000,
+      "iso": "2026-06-01T09:42:00-04:00"
+    },
+    {
+      "symbol": "DEVS",
+      "timestamp": 1780338600000,
+      "iso": "2026-06-01T14:30:00-04:00"
+    },
+    {
+      "symbol": "ENVX",
+      "timestamp": 1780323300000,
+      "iso": "2026-06-01T10:15:00-04:00"
+    },
+    {
+      "symbol": "DXYZ",
+      "timestamp": 1780327200000,
+      "iso": "2026-06-01T11:20:00-04:00"
+    },
+    {
+      "symbol": "QUBT",
+      "timestamp": 1780333500000,
+      "iso": "2026-06-01T13:05:00-04:00"
+    },
+    {
+      "symbol": "GME",
+      "timestamp": 1780342200000,
+      "iso": "2026-06-01T15:30:00-04:00"
+    }
+  ],
+  "summary": {
+    "requestedTradeContexts": 6,
+    "uniqueDayRequests": 5,
+    "planned": 5,
+    "written": 0,
+    "skippedExisting": 0,
+    "failed": 0,
+    "dedupedSameSymbolSameDayRequests": 1
+  },
+  "session": {
+    "timezone": "America/New_York",
+    "localDate": "2026-06-01",
+    "startTimestamp": 1780300800000,
+    "endTimestamp": 1780358400000,
+    "endLocalTime": "2026-06-01T20:00:00-04:00",
+    "lookbackBars": 192
+  },
+  "items": [
+    {
+      "symbol": "DEVS",
+      "localDate": "2026-06-01",
+      "status": "planned",
+      "outputPath": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\DEVS\\5m\\192-1780358400000.json",
+      "existedAfterDryRun": false,
+      "sourceTradeContextTimestamps": [
+        1780321320000,
+        1780338600000
+      ]
+    },
+    {
+      "symbol": "DXYZ",
+      "localDate": "2026-06-01",
+      "status": "planned",
+      "outputPath": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\DXYZ\\5m\\192-1780358400000.json",
+      "existedAfterDryRun": false,
+      "sourceTradeContextTimestamps": [
+        1780327200000
+      ]
+    },
+    {
+      "symbol": "ENVX",
+      "localDate": "2026-06-01",
+      "status": "planned",
+      "outputPath": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\ENVX\\5m\\192-1780358400000.json",
+      "existedAfterDryRun": false,
+      "sourceTradeContextTimestamps": [
+        1780323300000
+      ]
+    },
+    {
+      "symbol": "GME",
+      "localDate": "2026-06-01",
+      "status": "planned",
+      "outputPath": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\GME\\5m\\192-1780358400000.json",
+      "existedAfterDryRun": false,
+      "sourceTradeContextTimestamps": [
+        1780342200000
+      ]
+    },
+    {
+      "symbol": "QUBT",
+      "localDate": "2026-06-01",
+      "status": "planned",
+      "outputPath": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\QUBT\\5m\\192-1780358400000.json",
+      "existedAfterDryRun": false,
+      "sourceTradeContextTimestamps": [
+        1780333500000
+      ]
+    }
+  ],
+  "safety": {
+    "dryRunOnly": true,
+    "providerConstructed": false,
+    "providerFetches": 0,
+    "filesWritten": 0,
+    "realCacheMutated": false,
+    "snapshotStillFiltersAsOf": true,
+    "noLevelEngineBehaviorChange": true,
+    "noTradeAdvice": true
+  },
+  "recommendedNextGate": "levels_system_journal_trade_context_5m_day_cache_ibkr_write_disabled_preflight"
+}

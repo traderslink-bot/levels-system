@@ -1,0 +1,26 @@
+Journal trade-context 5m day cache collection
+Generated at: 2026-06-07T16:00:00.000Z
+Mode: dry-run
+Cache root: C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles
+Provider: ibkr
+Timeframe: 5m
+Requested trade contexts: 6
+Unique day requests: 5
+Overwrite: false
+Planned: 5
+Written: 0
+Skipped existing: 0
+Failed: 0
+Items:
+- DEVS 2026-06-01: planned -> C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DEVS\5m\192-1780358400000.json
+- DXYZ 2026-06-01: planned -> C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DXYZ\5m\192-1780358400000.json
+- ENVX 2026-06-01: planned -> C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\ENVX\5m\192-1780358400000.json
+- GME 2026-06-01: planned -> C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\GME\5m\192-1780358400000.json
+- QUBT 2026-06-01: planned -> C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\QUBT\5m\192-1780358400000.json
+
+Post dry-run planned path existence check:
+- DEVS: false
+- DXYZ: false
+- ENVX: false
+- GME: false
+- QUBT: false

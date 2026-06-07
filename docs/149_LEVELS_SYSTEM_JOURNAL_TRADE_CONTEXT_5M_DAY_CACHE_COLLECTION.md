@@ -150,11 +150,28 @@ git diff --check
 
 ## Recommended Next Gate
 
-`levels_system_journal_trade_context_5m_day_cache_dry_run`
+Completed:
 
-Reason: the collection wrapper is deterministic and fake-provider tested. The
-next useful producer-side step is an operator dry-run against the intended
-cache root and symbols/timestamps before enabling real IBKR writes.
+```text
+levels_system_journal_trade_context_5m_day_cache_dry_run
+```
+
+Evidence:
+
+```text
+docs/151_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_DRY_RUN.md
+```
+
+Current recommended next gate:
+
+```text
+levels_system_journal_trade_context_5m_day_cache_ibkr_write_disabled_preflight
+```
+
+Reason: the collection wrapper is deterministic, fake-provider tested, and now
+dry-run verified against the intended local validation-cache root. The next
+safe producer-side step is to verify write mode remains blocked unless the
+explicit IBKR write-enable environment variable is set.
 
 Short priority detour completed:
 `levels_system_journal_trade_context_1m_execution_window_policy` records the

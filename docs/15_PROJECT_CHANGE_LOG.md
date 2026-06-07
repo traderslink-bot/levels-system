@@ -20,6 +20,51 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-06-07 America/Toronto
 
+### Journal trade-context 5m day cache dry-run is complete
+
+- Completed `levels_system_journal_trade_context_5m_day_cache_dry_run`.
+- Added
+  `docs/151_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_DRY_RUN.md`.
+- Added compact dry-run evidence:
+  - `docs/examples/level-analysis-snapshot/timeframe-facts/journal-5m-day-cache-dry-run/journal-5m-day-cache-dry-run.json`
+  - `docs/examples/level-analysis-snapshot/timeframe-facts/journal-5m-day-cache-dry-run/journal-5m-day-cache-dry-run.txt`
+- Ran the journal trade-context 5m day-cache collection wrapper in dry-run
+  mode against the intended local validation-cache root:
+  `C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles`.
+- The dry-run used provider `ibkr`, requested six trade contexts across DEVS,
+  ENVX, DXYZ, QUBT, and GME, and planned five unique 5m day-cache files.
+- Same-symbol same-day DEVS requests deduped correctly from two trade-context
+  timestamps into one reusable full extended-session 5m day request.
+- The planned paths were checked after the dry run and all five remained
+  absent, confirming dry-run mode did not mutate the real validation cache.
+- This gate was report-only. It did not fetch live IBKR candles, write cache
+  files, change LevelEngine eligibility, change support/resistance generation,
+  change snapshot generation, change journal app behavior, change runtime
+  defaults, or add grading/coaching/P/L/giveback/behavior scoring,
+  recommendations, buy/sell/hold decisions, or trade advice.
+
+### Verification completed
+
+- `npm run cache:collect:journal-5m-day -- --cache-root C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles --provider ibkr --requests DEVS@2026-06-01T09:42:00-04:00,DEVS@2026-06-01T14:30:00-04:00,ENVX@2026-06-01T10:15:00-04:00,DXYZ@2026-06-01T11:20:00-04:00,QUBT@2026-06-01T13:05:00-04:00,GME@2026-06-01T15:30:00-04:00 --dry-run --generated-at 2026-06-07T12:00:00.000-04:00`
+- planned real-cache path existence check
+- JSON artifact parse check
+- `npx tsx --test src/tests/collect-journal-trade-context-5m-day-cache.test.ts src/tests/journal-trade-context-5m-day-policy.test.ts`
+- `npm run build`
+- `git diff --check`
+
+### Current next producer-side gate
+
+- `levels_system_journal_trade_context_5m_day_cache_ibkr_write_disabled_preflight`
+
+Reason: the dry-run is clean. The next safe step before any real IBKR write is
+to verify write mode remains blocked unless
+`LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true` is explicitly set, and to confirm
+that the blocked preflight writes no files.
+
+---
+
+## 2026-06-07 America/Toronto
+
 ### Optional 1m execution-window policy is documented and tested
 
 - Completed `levels_system_journal_trade_context_1m_execution_window_policy`.
