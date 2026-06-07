@@ -190,6 +190,25 @@ Suggested scope:
 - quarantine malformed payloads
 - keep user/product interpretation outside the levels-system connector boundary
 
+## Post-Handoff Resume Note
+
+As of June 7, 2026, the journal-side consumer path has progressed beyond this original handoff.
+
+Verified journal-side status:
+
+- TraderLink Intelligence journal PR #54 is merged.
+- PR #54 title: `Harden level analysis trade detail CI`.
+- Merge commit: `94bc2184a47ac6f8065daf4cd61a2167df52e585`.
+- The journal path can validate, persist, link, display, and CI-test delivered level-analysis facts.
+
+Current levels-system resume point:
+
+```text
+levels_system_multi_timeframe_snapshot_hardening
+```
+
+Reason: the journal consumer path is stable enough to return to source-quality work in `levels-system`, especially the reserved 15m and multi-timeframe snapshot path. This resume does not reopen journal ingestion and does not change LevelEngine generation behavior.
+
 ## Artifact Map
 
 Handoff artifacts:
@@ -213,3 +232,9 @@ journal_level_analysis_delivery_ingestion
 ```
 
 Reason: the levels-system delivery contract and handoff are now defined. The next work should happen in the TraderLink Intelligence journal app: build the ingestion validator and source-preserving adapter against this facts-only delivery package.
+
+Post-handoff update: after the journal-side PR #54 merge, the active levels-system next gate is:
+
+```text
+levels_system_multi_timeframe_snapshot_hardening
+```
