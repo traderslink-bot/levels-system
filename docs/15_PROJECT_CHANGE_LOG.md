@@ -18,6 +18,49 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ---
 
+## 2026-06-07 America/Toronto
+
+### Journal trade-context 5m day-fetch policy is documented and tested
+
+- Continued `levels_system_multi_timeframe_snapshot_hardening` with a
+  producer-side policy for journal trade-context 5m candle requests.
+- Added `src/lib/analysis/journal-trade-context-5m-day-policy.ts`.
+- Added `src/tests/journal-trade-context-5m-day-policy.test.ts`.
+- Added `docs/148_LEVEL_ANALYSIS_JOURNAL_TRADE_CONTEXT_5M_DAY_POLICY.md`.
+- Updated the doc index and journal delivery handoff to point future live
+  trade-context candle collection at the new policy.
+- The policy normalizes journal trade-context requests to one reusable
+  full extended-session 5m day per symbol/date:
+  - default exchange timezone: `America/New_York`
+  - default window: `04:00` through `20:00`
+  - expected 5m bars: `192`
+- The cache/fetch scope is intentionally wider than a single trade window, but
+  snapshot consumption remains narrow and no-lookahead safe:
+  `buildLevelAnalysisSnapshotFromCandles(...)` still filters supplied 5m
+  candles by candle close as of the specific trade timestamp.
+- This is a request/cache policy only. It does not call IBKR, write cache
+  files, change LevelEngine eligible timeframes, feed 15m into LevelEngine,
+  change support/resistance generation, change runtime defaults, change journal
+  app behavior, or add grading/coaching/P/L/giveback/behavior scoring,
+  recommendations, buy/sell/hold decisions, or trade advice.
+
+### Verification completed
+
+- `npm ci`
+- `npx tsx --test src/tests/journal-trade-context-5m-day-policy.test.ts`
+- `npm run build`
+- `npm test`
+
+### Next producer-side gate
+
+- `levels_system_journal_trade_context_5m_day_cache_collection`
+
+Reason: the pure day-scoped request policy is now locked. A future collection
+wrapper can use it to fetch/write reusable 5m day cache files while preserving
+the same as-of filtering boundary during snapshot generation.
+
+---
+
 ## 2026-05-27 11:36 PM America/Toronto
 
 ### Facts-only support/resistance explanation outputs are now documented

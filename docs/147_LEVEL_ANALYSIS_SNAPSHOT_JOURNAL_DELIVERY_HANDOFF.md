@@ -16,6 +16,10 @@ The levels-system side is ready to hand off a facts-only chart context package t
 - The latest volume/session fact coverage audit confirmed candidate volume/session context is present and valid for all ten reviewed symbols.
 - Existing baseline mismatch count remains `0`.
 - 15m facts remain context-only and outside LevelEngine generation.
+- For future live journal trade-context candle requests, the producer-side 5m
+  request policy is now day-scoped: fetch/cache the full extended-session 5m
+  day for the symbol, then rely on snapshot candle-close filtering for the
+  requested trade/as-of timestamp.
 
 ## Start Here For Journal App Codex
 
@@ -101,6 +105,24 @@ For first journal ingestion, prefer:
 - `entries[].mismatches`
 
 Treat the old compact `LevelAnalysisSnapshot` fixture as a base-schema compatibility fixture, not as the full current delivery package.
+
+## Future Trade-Context Candle Request Policy
+
+Use this producer-side policy before adding any new live journal candle
+collection wrapper:
+
+```text
+docs/148_LEVEL_ANALYSIS_JOURNAL_TRADE_CONTEXT_5M_DAY_POLICY.md
+```
+
+The policy defines `buildJournalTradeContextFiveMinuteDayPolicy(...)`, which
+normalizes a journal trade-context request to one reusable 5m extended-session
+day per symbol/date. This is an IBKR/cache efficiency policy only. Snapshot
+generation must still filter the supplied candles by candle close as of the
+specific trade timestamp.
+
+Do not make the journal app consume later same-day candles just because they
+exist in the cache.
 
 ## Validation Checklist For Journal App Codex
 
