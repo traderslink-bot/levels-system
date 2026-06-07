@@ -1,0 +1,65 @@
+Levels-system multi-timeframe snapshot hardening
+Gate: levels_system_multi_timeframe_snapshot_hardening
+Generated at: 2026-06-07T13:15:00.000Z
+
+Levels-system base:
+- origin/main f57e8efe9954388ba44adea8bffde180cf6e4c73
+- latest merged levels-system gate: level_analysis_snapshot_journal_delivery_handoff
+
+Journal consumer status:
+- Repo: traderslink-bot/traderslink-trader-improvement-system
+- PR #54: Harden level analysis trade detail CI
+- State: MERGED
+- Merge commit: 94bc2184a47ac6f8065daf4cd61a2167df52e585
+- Consumer path stable: true
+
+Existing unmerged branch reviewed:
+- codex/levels-system-multi-timeframe-snapshot-hardening-v2
+- Open PR found: false
+- Primary scope: journal trade-context 5m day cache collection and operator-write planning
+- Adopted in this gate: false
+- Reason: this gate locks the existing LevelAnalysisSnapshot multi-timeframe resume point and does not expand cache collection or operator-write behavior.
+
+Current snapshot status:
+- LevelAnalysisSnapshot schema: level-analysis-snapshot/v1
+- Reserved timeframes: 5m, 15m, 4h, daily
+- 15m facts schema: level-analysis-15m-facts/v1
+- Optional 15m input supported: true
+- 15m facts built when supplied: true
+- 15m fed into LevelEngine: false
+- LevelEngine eligible timeframes remain daily, 4h, and 5m
+- No-lookahead filtering required: true
+- Synthetic continuation-map rows remain synthetic context
+
+Locked evidence:
+- Supplied 15m validation selected symbols: DEVS, ENVX, DXYZ, QUBT, GME
+- 15m facts valid: 5/5
+- LevelEngine parity with supplied 15m: 5/5
+- Nearest support parity: 5/5
+- Nearest resistance parity: 5/5
+- LevelQualityAudit parity: 5/5
+- Provider metadata includes 15m as LevelEngine timeframe: false
+- Journal delivery reviewed symbols: 10
+- Baseline mismatch count: 0
+- Candidate volume/session context present and valid: 10/10
+- Session facts present: 10/10
+- Volume facts present: 10/10
+- Volume shelf context present: 10/10
+- Restricted-language hits: 0
+- 15m context-only fingerprints: 5
+
+Decision:
+- Proceed with hardening: true
+- Behavior change approved: false
+- Smallest safe gate: docs/artifact/test-only resume hardening
+
+Future requirements:
+- Preserve LevelAnalysisSnapshot v1 unless an explicit versioning gate is approved.
+- Preserve candle-close no-lookahead filtering for every timeframe.
+- Keep 15m context-only unless a separate approved gate changes that.
+- Prove LevelEngine parity when 15m is present but not eligible.
+- Add deterministic fixtures before any behavior change.
+- Commit no raw cache files or raw candle payloads.
+
+Recommended next gate:
+level_analysis_snapshot_multi_timeframe_fixture_pack

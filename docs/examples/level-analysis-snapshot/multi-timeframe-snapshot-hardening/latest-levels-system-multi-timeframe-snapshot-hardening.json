@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "levels-system-multi-timeframe-snapshot-hardening/v1",
+  "generatedAt": "2026-06-07T13:15:00.000Z",
+  "gate": "levels_system_multi_timeframe_snapshot_hardening",
+  "levelsSystemBase": {
+    "branch": "origin/main",
+    "commit": "f57e8efe9954388ba44adea8bffde180cf6e4c73",
+    "latestMergedGate": "level_analysis_snapshot_journal_delivery_handoff"
+  },
+  "journalConsumerStatus": {
+    "repo": "traderslink-bot/traderslink-trader-improvement-system",
+    "prNumber": 54,
+    "state": "MERGED",
+    "title": "Harden level analysis trade detail CI",
+    "mergeCommit": "94bc2184a47ac6f8065daf4cd61a2167df52e585",
+    "consumerPathStable": true
+  },
+  "evidenceReviewed": [
+    "docs/84_LEVEL_ANALYSIS_SNAPSHOT_V1_HANDOFF_COMPLETE.md",
+    "docs/87_LEVEL_ANALYSIS_SNAPSHOT_MULTI_TIMEFRAME_HARDENING.md",
+    "docs/92_LEVELS_SYSTEM_15M_FACT_GENERATION_DESIGN.md",
+    "docs/93_LEVELS_SYSTEM_15M_FACTS_CONTRACT.md",
+    "docs/105_LEVELS_SYSTEM_15M_FACTS_REAL_CACHE_VALIDATION_WITH_SUPPLIED_15M.md",
+    "docs/145_LEVEL_QUALITY_REVIEW_VOLUME_SESSION_FACT_COVERAGE_AUDIT.md",
+    "docs/146_LEVEL_ANALYSIS_SNAPSHOT_JOURNAL_DELIVERY_CONTRACT.md",
+    "docs/147_LEVEL_ANALYSIS_SNAPSHOT_JOURNAL_DELIVERY_HANDOFF.md",
+    "src/lib/analysis/level-analysis-snapshot.ts",
+    "src/lib/analysis/level-analysis-snapshot-from-candles.ts",
+    "src/lib/analysis/level-analysis-timeframe-facts.ts",
+    "src/lib/analysis/level-analysis-15m-facts-builder.ts",
+    "src/scripts/run-level-analysis-snapshot.ts"
+  ],
+  "existingUnmergedBranchReview": {
+    "branch": "codex/levels-system-multi-timeframe-snapshot-hardening-v2",
+    "openPrFound": false,
+    "fileCount": 25,
+    "primaryScope": "journal trade-context 5m day cache collection and operator-write planning",
+    "adoptedInThisGate": false,
+    "reasonNotAdopted": "This gate locks the existing LevelAnalysisSnapshot multi-timeframe resume point and does not expand cache collection or operator-write behavior."
+  },
+  "currentSnapshotStatus": {
+    "schemaVersion": "level-analysis-snapshot/v1",
+    "timeframesReserved": [
+      "5m",
+      "15m",
+      "4h",
+      "daily"
+    ],
+    "fifteenMinuteFactsSchemaVersion": "level-analysis-15m-facts/v1",
+    "fifteenMinuteOptionalInputSupported": true,
+    "fifteenMinuteFactsBuiltWhenSupplied": true,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "levelEngineEligibleTimeframes": [
+      "daily",
+      "4h",
+      "5m"
+    ],
+    "noLookaheadFilteringRequired": true,
+    "syntheticContinuationMapRemainsSynthetic": true
+  },
+  "lockedEvidence": {
+    "supplied15mValidation": {
+      "selectedSymbols": [
+        "DEVS",
+        "ENVX",
+        "DXYZ",
+        "QUBT",
+        "GME"
+      ],
+      "factsValidCount": 5,
+      "levelEngineParityPassedCount": 5,
+      "nearestSupportParityPassedCount": 5,
+      "nearestResistanceParityPassedCount": 5,
+      "levelQualityAuditParityPassedCount": 5,
+      "providerByTimeframeIncludes15m": false
+    },
+    "journalDeliveryEvidence": {
+      "reviewedSymbolCount": 10,
+      "baselineMismatchCount": 0,
+      "candidateVolumeSessionContextPresentCount": 10,
+      "candidateVolumeSessionContextValidCount": 10,
+      "sessionFactsPresentCount": 10,
+      "volumeFactsPresentCount": 10,
+      "volumeShelfContextPresentCount": 10,
+      "restrictedLanguageHitCount": 0,
+      "fifteenMinuteContextOnlyFingerprintCount": 5
+    }
+  },
+  "decision": {
+    "proceedWithHardening": true,
+    "behaviorChangeApproved": false,
+    "smallestSafeGate": "docs/artifact/test-only resume hardening",
+    "nextGate": "level_analysis_snapshot_multi_timeframe_fixture_pack"
+  },
+  "futureRequirements": [
+    "preserve LevelAnalysisSnapshot v1 unless an explicit versioning gate is approved",
+    "preserve candle-close no-lookahead filtering for every timeframe",
+    "keep 15m context-only unless a separate approved gate changes that",
+    "prove LevelEngine parity when 15m is present but not eligible",
+    "add deterministic fixtures before any behavior change",
+    "commit no raw cache files or raw candle payloads"
+  ],
+  "safety": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForSelection": false,
+    "cacheFilesCollected": false,
+    "cacheFilesWritten": false,
+    "rawCacheFilesCommitted": false,
+    "journalAppFilesChanged": false,
+    "restrictedInterpretationAdded": false
+  },
+  "recommendedNextGate": "level_analysis_snapshot_multi_timeframe_fixture_pack"
+}
