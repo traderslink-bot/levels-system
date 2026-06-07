@@ -166,25 +166,27 @@ Completed:
 
 ```text
 levels_system_journal_trade_context_5m_day_cache_ibkr_write_disabled_preflight
+levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write_plan
 ```
 
 Evidence:
 
 ```text
 docs/152_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_WRITE_DISABLED_PREFLIGHT.md
+docs/153_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_OPERATOR_WRITE_PLAN.md
 ```
 
 Current recommended next gate:
 
 ```text
-levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write_plan
+levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write
 ```
 
 Reason: the collection wrapper is deterministic, fake-provider tested, and now
 dry-run verified against the intended local validation-cache root. Write mode
 also fails closed unless the explicit IBKR write-enable environment variable is
-set. The next safe producer-side step is to document the exact live operator
-write plan before any real IBKR writes.
+set. The exact operator write plan is documented; the next safe producer-side
+step is the explicit operator write only when IBKR is ready.
 
 Short priority detour completed:
 `levels_system_journal_trade_context_1m_execution_window_policy` records the

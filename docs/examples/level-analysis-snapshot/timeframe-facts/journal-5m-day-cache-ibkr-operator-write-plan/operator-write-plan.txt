@@ -1,0 +1,35 @@
+Journal trade-context 5m day cache IBKR operator write plan
+Gate: levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write_plan
+Provider: ibkr
+Timeframe: 5m
+Cache root: C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles
+Required enable variable: LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true
+Source trade contexts: 6
+Unique day requests: 5
+Lookback bars: 192
+Session end timestamp: 1780358400000
+Session end local time: 2026-06-01T20:00:00-04:00
+
+Requests:
+- DEVS@2026-06-01T09:42:00-04:00
+- DEVS@2026-06-01T14:30:00-04:00
+- ENVX@2026-06-01T10:15:00-04:00
+- DXYZ@2026-06-01T11:20:00-04:00
+- QUBT@2026-06-01T13:05:00-04:00
+- GME@2026-06-01T15:30:00-04:00
+
+Expected output paths:
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DEVS\5m\192-1780358400000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DXYZ\5m\192-1780358400000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\ENVX\5m\192-1780358400000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\GME\5m\192-1780358400000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\QUBT\5m\192-1780358400000.json
+
+Dry-run command:
+npm run cache:collect:journal-5m-day -- --cache-root C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles --provider ibkr --requests DEVS@2026-06-01T09:42:00-04:00,DEVS@2026-06-01T14:30:00-04:00,ENVX@2026-06-01T10:15:00-04:00,DXYZ@2026-06-01T11:20:00-04:00,QUBT@2026-06-01T13:05:00-04:00,GME@2026-06-01T15:30:00-04:00 --dry-run
+
+Write command:
+$env:LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR="true"; npm run cache:collect:journal-5m-day -- --cache-root C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles --provider ibkr --requests DEVS@2026-06-01T09:42:00-04:00,DEVS@2026-06-01T14:30:00-04:00,ENVX@2026-06-01T10:15:00-04:00,DXYZ@2026-06-01T11:20:00-04:00,QUBT@2026-06-01T13:05:00-04:00,GME@2026-06-01T15:30:00-04:00 --write
+
+Next gate:
+levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write

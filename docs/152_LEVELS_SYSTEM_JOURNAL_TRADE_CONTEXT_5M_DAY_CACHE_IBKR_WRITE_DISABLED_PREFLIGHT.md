@@ -112,13 +112,24 @@ The collection wrapper failed closed before any IBKR fetch or cache write when
 
 ## Recommended Next Gate
 
-Recommended next gate:
+Completed follow-up gate:
 
 ```text
 levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write_plan
 ```
 
-Reason: dry-run planning and write-disabled preflight are clean. The next safe
-step before live IBKR writes is to document the exact operator write plan,
-target symbols/timestamps, cache root, environment requirements, expected paths,
-and rollback/cleanup checks.
+Evidence:
+
+```text
+docs/153_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_OPERATOR_WRITE_PLAN.md
+```
+
+Current recommended next gate:
+
+```text
+levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write
+```
+
+Reason: dry-run planning, write-disabled preflight, and the operator write plan
+are complete. The next gate can perform the explicit IBKR write only when the
+operator is ready and IBKR is connected.

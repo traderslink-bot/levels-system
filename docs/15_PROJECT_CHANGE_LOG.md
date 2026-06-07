@@ -20,6 +20,49 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-06-07 America/Toronto
 
+### Journal trade-context 5m day cache IBKR operator write plan is complete
+
+- Completed
+  `levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write_plan`.
+- Added
+  `docs/153_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_OPERATOR_WRITE_PLAN.md`.
+- Added compact operator-plan artifacts:
+  - `docs/examples/level-analysis-snapshot/timeframe-facts/journal-5m-day-cache-ibkr-operator-write-plan/operator-write-plan.json`
+  - `docs/examples/level-analysis-snapshot/timeframe-facts/journal-5m-day-cache-ibkr-operator-write-plan/operator-write-plan.txt`
+- Documented the exact dry-run and write commands for the first explicit IBKR
+  journal 5m day-cache write.
+- Locked the first target set to six trade-context requests across DEVS, ENVX,
+  DXYZ, QUBT, and GME, which dedupe to five expected day-cache files.
+- Documented required enablement with
+  `LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true`, optional IBKR host/port/client
+  id/timeout variables, expected output paths, no-overwrite rule, post-write
+  wrapper checks, rollback/cleanup, failure handling, and artifact retention.
+- This gate was plan-only. It did not run live IBKR write mode, fetch IBKR
+  candles, write cache files, change LevelEngine eligibility, change
+  support/resistance generation, change snapshot generation, change journal app
+  behavior, change runtime defaults, or add grading/coaching/P/L/giveback/
+  behavior scoring, recommendations, buy/sell/hold decisions, or trade advice.
+
+### Verification completed
+
+- JSON operator-plan artifact parse check
+- `npx tsx --test src/tests/collect-journal-trade-context-5m-day-cache.test.ts src/tests/journal-trade-context-5m-day-policy.test.ts`
+- `npm run build`
+- `git diff --check`
+
+### Current next producer-side gate
+
+- `levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write`
+
+Reason: dry-run planning, write-disabled preflight, and the operator write plan
+are complete. The next gate can perform the explicit IBKR write only when the
+operator is ready and IBKR is connected, then commit only compact write
+summaries.
+
+---
+
+## 2026-06-07 America/Toronto
+
 ### Journal trade-context 5m day cache IBKR write-disabled preflight is complete
 
 - Completed

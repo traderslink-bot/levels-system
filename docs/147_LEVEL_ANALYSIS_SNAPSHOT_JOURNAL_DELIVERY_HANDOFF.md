@@ -29,6 +29,9 @@ The levels-system side is ready to hand off a facts-only chart context package t
 - The IBKR write-disabled preflight is complete. `--write --provider ibkr`
   failed closed when `LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true` was absent,
   and the temp cache root remained uncreated.
+- The IBKR operator write plan is complete. It documents the exact write
+  command, target trade contexts, expected 5m day-cache paths, post-write
+  wrapper checks, and rollback rules without running live write mode.
 - Optional future 1m execution replay is documented separately as a narrow
   execution-window policy. It does not replace the 5m day cache and is not live
   provider-capable yet.
@@ -156,6 +159,12 @@ Completed write-disabled preflight evidence:
 
 ```text
 docs/152_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_WRITE_DISABLED_PREFLIGHT.md
+```
+
+Completed IBKR operator write plan:
+
+```text
+docs/153_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_OPERATOR_WRITE_PLAN.md
 ```
 
 Optional future 1m execution replay policy:
