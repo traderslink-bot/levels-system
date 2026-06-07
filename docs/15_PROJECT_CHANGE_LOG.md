@@ -20,6 +20,51 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-06-07 America/Toronto
 
+### Journal trade-context 5m day cache IBKR write-disabled preflight is complete
+
+- Completed
+  `levels_system_journal_trade_context_5m_day_cache_ibkr_write_disabled_preflight`.
+- Added
+  `docs/152_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_WRITE_DISABLED_PREFLIGHT.md`.
+- Added compact write-disabled preflight evidence:
+  - `docs/examples/level-analysis-snapshot/timeframe-facts/journal-5m-day-cache-ibkr-write-disabled-preflight/ibkr-write-disabled-preflight.json`
+  - `docs/examples/level-analysis-snapshot/timeframe-facts/journal-5m-day-cache-ibkr-write-disabled-preflight/ibkr-write-disabled-preflight.txt`
+- Ran the journal trade-context 5m day-cache collection wrapper in `--write`
+  mode against a temp cache root with provider `ibkr` while
+  `LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR` was absent.
+- The CLI failed closed with exit code `1` and the expected message requiring
+  `LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true`.
+- The temp cache root and planned file were absent before and after the
+  preflight, confirming the blocked write created no directories and wrote no
+  cache files.
+- This gate was report-only. It did not fetch live IBKR candles, write cache
+  files, change LevelEngine eligibility, change support/resistance generation,
+  change snapshot generation, change journal app behavior, change runtime
+  defaults, or add grading/coaching/P/L/giveback/behavior scoring,
+  recommendations, buy/sell/hold decisions, or trade advice.
+
+### Verification completed
+
+- IBKR write-disabled preflight command
+- temp root and planned file existence checks
+- JSON artifact parse check
+- `npx tsx --test src/tests/collect-journal-trade-context-5m-day-cache.test.ts src/tests/journal-trade-context-5m-day-policy.test.ts`
+- `npm run build`
+- `git diff --check`
+
+### Current next producer-side gate
+
+- `levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write_plan`
+
+Reason: dry-run planning and write-disabled preflight are clean. The next safe
+step before live IBKR writes is to document the exact operator write plan,
+target symbols/timestamps, cache root, environment requirements, expected paths,
+and rollback/cleanup checks.
+
+---
+
+## 2026-06-07 America/Toronto
+
 ### Journal trade-context 5m day cache dry-run is complete
 
 - Completed `levels_system_journal_trade_context_5m_day_cache_dry_run`.

@@ -139,13 +139,23 @@ left the real validation cache unchanged.
 
 ## Recommended Next Gate
 
-Recommended next gate:
+Completed follow-up gate:
 
 ```text
 levels_system_journal_trade_context_5m_day_cache_ibkr_write_disabled_preflight
 ```
 
-Reason: the dry-run is clean. The next safe step before any real IBKR write is
-to verify write mode remains blocked unless
-`LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true` is explicitly set, and to confirm
-that the blocked preflight writes no files.
+Evidence:
+
+```text
+docs/152_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_WRITE_DISABLED_PREFLIGHT.md
+```
+
+Current recommended next gate:
+
+```text
+levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write_plan
+```
+
+Reason: the dry-run and write-disabled preflight are clean. The next safe step
+before any real IBKR write is to document the exact operator write plan.

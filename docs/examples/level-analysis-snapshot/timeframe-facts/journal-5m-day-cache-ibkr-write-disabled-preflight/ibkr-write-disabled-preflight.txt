@@ -1,0 +1,23 @@
+Journal trade-context 5m day cache collection
+Generated at: 2026-06-07T16:15:00.000Z
+Mode: write
+Cache root: C:\Users\jerac\AppData\Local\Temp\levels-system-journal-5m-ibkr-write-disabled-preflight-20260607
+Provider: ibkr
+Timeframe: 5m
+Requested trade contexts: 1
+Unique day requests: 1
+Overwrite: false
+Planned: 0
+Written: 0
+Skipped existing: 0
+Failed: 1
+Items:
+- TEST 2026-06-01: failed -> C:\Users\jerac\AppData\Local\Temp\levels-system-journal-5m-ibkr-write-disabled-preflight-20260607\ibkr\TEST\5m\192-1780358400000.json | IBKR live journal 5m day collection requires LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true. Dry-run remains available without IBKR config.
+
+Preflight checks:
+- LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR absent: true
+- CLI exit code: 1
+- Temp root existed before preflight: false
+- Planned file existed before preflight: false
+- Temp root existed after preflight: false
+- Planned file existed after preflight: false

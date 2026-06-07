@@ -1,0 +1,59 @@
+{
+  "gate": "levels_system_journal_trade_context_5m_day_cache_ibkr_write_disabled_preflight",
+  "generatedAt": "2026-06-07T16:15:00.000Z",
+  "mode": "write",
+  "cacheRoot": "C:\\Users\\jerac\\AppData\\Local\\Temp\\levels-system-journal-5m-ibkr-write-disabled-preflight-20260607",
+  "provider": "ibkr",
+  "timeframe": "5m",
+  "enableEnvironmentVariable": "LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR",
+  "enableEnvironmentVariablePresent": false,
+  "cliExitCode": 1,
+  "requestedTradeContexts": [
+    {
+      "symbol": "TEST",
+      "timestamp": 1780321320000,
+      "iso": "2026-06-01T09:42:00-04:00"
+    }
+  ],
+  "summary": {
+    "requestedTradeContexts": 1,
+    "uniqueDayRequests": 1,
+    "planned": 0,
+    "written": 0,
+    "skippedExisting": 0,
+    "failed": 1
+  },
+  "session": {
+    "timezone": "America/New_York",
+    "localDate": "2026-06-01",
+    "endTimestamp": 1780358400000,
+    "endLocalTime": "2026-06-01T20:00:00-04:00",
+    "lookbackBars": 192
+  },
+  "items": [
+    {
+      "symbol": "TEST",
+      "localDate": "2026-06-01",
+      "status": "failed",
+      "outputPath": "C:\\Users\\jerac\\AppData\\Local\\Temp\\levels-system-journal-5m-ibkr-write-disabled-preflight-20260607\\ibkr\\TEST\\5m\\192-1780358400000.json",
+      "error": "IBKR live journal 5m day collection requires LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true. Dry-run remains available without IBKR config."
+    }
+  ],
+  "fileChecks": {
+    "tempRootExistedBefore": false,
+    "plannedFileExistedBefore": false,
+    "tempRootExistedAfter": false,
+    "plannedFileExistedAfter": false
+  },
+  "safety": {
+    "writeModeBlockedWithoutExplicitEnable": true,
+    "providerFetches": 0,
+    "filesWritten": 0,
+    "tempCacheMutated": false,
+    "realCacheMutated": false,
+    "snapshotStillFiltersAsOf": true,
+    "noLevelEngineBehaviorChange": true,
+    "noTradeAdvice": true
+  },
+  "recommendedNextGate": "levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write_plan"
+}
