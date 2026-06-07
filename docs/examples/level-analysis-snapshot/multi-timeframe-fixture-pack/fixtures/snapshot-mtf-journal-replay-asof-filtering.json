@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "level-analysis-snapshot-multi-timeframe-fixture/v1",
+  "fixtureName": "snapshot-mtf-journal-replay-asof-filtering",
+  "purpose": "Locks journal/replay as-of safety by excluding future and still-forming candles across all snapshot timeframes.",
+  "inputSummary": {
+    "symbol": "SNAP",
+    "asOfIso": "2026-05-01T14:17:00.000Z",
+    "referencePrice": 10.68,
+    "providedTimeframes": ["5m", "15m", "4h", "daily"],
+    "rawCandleCounts": {
+      "5m": 16,
+      "15m": 5,
+      "4h": 9,
+      "daily": 8
+    }
+  },
+  "expected": {
+    "timeframesPresent": ["5m", "15m", "4h", "daily"],
+    "filteredCandleCounts": {
+      "5m": 14,
+      "15m": 3,
+      "4h": 7,
+      "daily": 6
+    },
+    "excludedFutureCandleCounts": {
+      "5m": 1,
+      "15m": 1,
+      "4h": 1,
+      "daily": 1
+    },
+    "excludedPartialCandleCounts": {
+      "5m": 1,
+      "15m": 1,
+      "4h": 1,
+      "daily": 1
+    },
+    "fifteenMinuteFactsPresent": true,
+    "fifteenMinuteAvailabilityStatus": "limited",
+    "fifteenMinuteDiagnosticCodes": [
+      "15m_facts_limited",
+      "15m_future_candles_filtered",
+      "15m_partial_candles_filtered"
+    ],
+    "providerByTimeframeKeys": ["4h", "5m", "daily"],
+    "providerByTimeframeIncludes15m": false,
+    "levelEngineParityWithFilteredOnly": true,
+    "diagnosticsInclude": [
+      "5m_future_candles_filtered",
+      "5m_partial_candles_filtered",
+      "15m_future_candles_filtered",
+      "15m_partial_candles_filtered",
+      "4h_future_candles_filtered",
+      "4h_partial_candles_filtered",
+      "daily_future_candles_filtered",
+      "daily_partial_candles_filtered",
+      "candle_close_as_of_filter_applied"
+    ],
+    "noLookaheadApplied": true
+  },
+  "safety": {
+    "factsOnly": true,
+    "noLevelSelectionChange": true,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "rawCandlesIncluded": false,
+    "rawCachePayloadsIncluded": false,
+    "journalAppBehaviorChanged": false
+  }
+}

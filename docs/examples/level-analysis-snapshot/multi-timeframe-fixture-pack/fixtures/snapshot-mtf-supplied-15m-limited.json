@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "level-analysis-snapshot-multi-timeframe-fixture/v1",
+  "fixtureName": "snapshot-mtf-supplied-15m-limited",
+  "purpose": "Locks supplied but limited 15m facts while proving LevelEngine output parity against the missing-15m scenario.",
+  "inputSummary": {
+    "symbol": "SNAP",
+    "asOfIso": "2026-05-01T14:20:00.000Z",
+    "referencePrice": 10.68,
+    "providedTimeframes": ["5m", "15m", "4h", "daily"],
+    "rawCandleCounts": {
+      "5m": 15,
+      "15m": 3,
+      "4h": 7,
+      "daily": 6
+    }
+  },
+  "expected": {
+    "timeframesPresent": ["5m", "15m", "4h", "daily"],
+    "filteredCandleCounts": {
+      "5m": 15,
+      "15m": 3,
+      "4h": 7,
+      "daily": 6
+    },
+    "excludedFutureCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "excludedPartialCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "fifteenMinuteFactsPresent": true,
+    "fifteenMinuteAvailabilityStatus": "limited",
+    "fifteenMinuteDiagnosticCodes": ["15m_facts_limited"],
+    "providerByTimeframeKeys": ["4h", "5m", "daily"],
+    "providerByTimeframeIncludes15m": false,
+    "levelEngineParityWithMissing15m": true,
+    "nearestLevelParityWithMissing15m": true,
+    "diagnosticsInclude": ["15m_facts_limited", "candle_close_as_of_filter_applied"],
+    "noLookaheadApplied": true
+  },
+  "safety": {
+    "factsOnly": true,
+    "noLevelSelectionChange": true,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "rawCandlesIncluded": false,
+    "rawCachePayloadsIncluded": false,
+    "journalAppBehaviorChanged": false
+  }
+}

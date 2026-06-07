@@ -1,0 +1,40 @@
+LevelAnalysisSnapshot multi-timeframe fixture pack
+Gate: level_analysis_snapshot_multi_timeframe_fixture_pack
+Generated at: 2026-06-07T13:35:00.000Z
+Base commit: 721e7bd83d5e99a54d6dcd715e6b5d826bc23527
+
+Fixture directory:
+docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/fixtures
+
+Fixtures:
+- snapshot-mtf-missing-15m: reserved 15m absent behavior and stable timeframe keys
+- snapshot-mtf-supplied-15m-limited: limited 15m facts with LevelEngine parity
+- snapshot-mtf-supplied-15m-available: available 15m facts with LevelEngine parity
+- snapshot-mtf-journal-replay-asof-filtering: future/partial candle filtering and journal replay as-of safety
+- snapshot-mtf-sparse-higher-timeframes: missing daily/4h diagnostics while 5m remains available
+
+Coverage:
+- fixture count: 5
+- missing 15m covered: true
+- supplied limited 15m covered: true
+- supplied available 15m covered: true
+- future/partial filtering covered: true
+- sparse higher timeframes covered: true
+- journal/replay as-of safety covered: true
+- LevelEngine parity covered: true
+
+Safety:
+- support/resistance detection changed: false
+- LevelEngine scoring/ranking/clustering changed: false
+- surfaced levels changed: false
+- extension generation changed: false
+- 15m fed into LevelEngine: false
+- volume/session facts used for selection: false
+- cache files collected or written: false
+- raw candles included: false
+- raw cache files committed: false
+- journal app files changed: false
+- restricted interpretation added: false
+
+Recommended next gate:
+level_analysis_snapshot_multi_timeframe_fixture_pack_handoff
