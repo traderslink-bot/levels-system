@@ -20,6 +20,59 @@ This document tracks concrete implementation changes made to the `levels-system`
 
 ## 2026-06-07 America/Toronto
 
+### Journal trade-context 5m day cache IBKR operator write is complete
+
+- Completed
+  `levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write`.
+- Added
+  `docs/154_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_OPERATOR_WRITE.md`.
+- Added compact operator-write evidence:
+  - `docs/examples/level-analysis-snapshot/timeframe-facts/journal-5m-day-cache-ibkr-operator-write/operator-write.json`
+  - `docs/examples/level-analysis-snapshot/timeframe-facts/journal-5m-day-cache-ibkr-operator-write/operator-write.txt`
+- Re-ran the documented dry run against the intended local validation-cache
+  root and confirmed it still planned five IBKR 5m day-cache files, wrote zero
+  files, and left all expected paths absent before the live write.
+- After operator confirmation that IBKR was logged in and ready, ran the
+  explicit live write once with
+  `LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true`, provider `ibkr`, timeframe
+  `5m`, and no `--overwrite`.
+- The write created exactly the five expected wrapper files for DEVS, DXYZ,
+  ENVX, GME, and QUBT under the local `.validation-cache/candles/ibkr` root.
+- Each written wrapper reported 308 candles and passed compact wrapper checks:
+  `schemaVersion: 1`, provider `ibkr`, timeframe `5m`, lookback bars `192`,
+  end timestamp `1780358400000`, non-empty candles, and
+  `journalTradeContextPolicy.safety.snapshotStillFiltersAsOf: true`.
+- The DEVS wrapper preserved both source trade-context timestamps as epoch
+  milliseconds:
+  - `1780321320000` for `2026-06-01T09:42:00-04:00`
+  - `1780338600000` for `2026-06-01T14:30:00-04:00`
+- Raw `.validation-cache` candle files were not committed.
+- This gate did not change LevelEngine eligibility, support/resistance
+  generation, snapshot schema, journal app behavior, runtime defaults, alerts,
+  monitoring, Discord behavior, or add grading/coaching/P/L/giveback/behavior
+  scoring, recommendations, buy/sell/hold decisions, or trade advice.
+
+### Verification completed
+
+- pre-write dry-run command
+- expected path existence check
+- wrapper JSON validation script over the five expected files
+- `npx tsx --test src/tests/collect-journal-trade-context-5m-day-cache.test.ts src/tests/journal-trade-context-5m-day-policy.test.ts`
+- `npm run build`
+- `git diff --check`
+
+### Current next gate
+
+- `journal_level_analysis_delivery_ingestion`
+
+Reason: the producer-side dry-run, write-disabled preflight, operator plan, and
+explicit IBKR write are complete. The next useful work returns to the journal
+app ingestion gate described in the delivery handoff.
+
+---
+
+## 2026-06-07 America/Toronto
+
 ### Journal trade-context 5m day cache IBKR operator write plan is complete
 
 - Completed

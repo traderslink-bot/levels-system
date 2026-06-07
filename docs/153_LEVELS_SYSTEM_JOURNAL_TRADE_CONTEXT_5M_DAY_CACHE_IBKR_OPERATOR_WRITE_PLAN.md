@@ -363,12 +363,25 @@ This plan does not:
 
 ## Recommended Next Gate
 
-Recommended next gate:
+Completed follow-up gate:
 
 ```text
 levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write
 ```
 
-Reason: this operator plan defines the safe write sequence. The next gate can
-perform the explicit IBKR write only when the operator is ready and IBKR is
-connected, then verify wrapper shape and commit only compact summaries.
+Evidence:
+
+```text
+docs/154_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_OPERATOR_WRITE.md
+```
+
+Current recommended next gate:
+
+```text
+journal_level_analysis_delivery_ingestion
+```
+
+Reason: this operator plan defined the safe write sequence, and the explicit
+IBKR write has now completed with compact wrapper evidence. The next useful
+work returns to the journal app ingestion gate described in the delivery
+handoff.

@@ -1,0 +1,119 @@
+{
+  "gate": "levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write",
+  "generatedAt": "2026-06-07T04:39:26.623Z",
+  "provider": "ibkr",
+  "timeframe": "5m",
+  "mode": "write",
+  "cacheRoot": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles",
+  "requiredEnableEnvironmentVariable": "LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true",
+  "noOverwrite": true,
+  "requestedTradeContexts": 6,
+  "uniqueDayRequests": 5,
+  "plannedCount": 0,
+  "writtenCount": 5,
+  "skippedExistingCount": 0,
+  "failedCount": 0,
+  "wrapperValidation": {
+    "checkedExpectedPathExistence": true,
+    "schemaVersion": 1,
+    "provider": "ibkr",
+    "timeframe": "5m",
+    "lookbackBars": 192,
+    "endTimeMs": 1780358400000,
+    "candlesNonEmpty": true,
+    "snapshotStillFiltersAsOf": true,
+    "devsPreservesBothSourceTradeContextTimestamps": true,
+    "sourceTradeContextTimestampFormat": "epoch_ms"
+  },
+  "files": [
+    {
+      "symbol": "DEVS",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\DEVS\\5m\\192-1780358400000.json",
+      "schemaVersion": 1,
+      "provider": "ibkr",
+      "timeframe": "5m",
+      "lookbackBars": 192,
+      "endTimeMs": 1780358400000,
+      "candleCount": 308,
+      "sourceTradeContextTimestamps": [
+        1780321320000,
+        1780338600000
+      ],
+      "snapshotStillFiltersAsOf": true
+    },
+    {
+      "symbol": "DXYZ",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\DXYZ\\5m\\192-1780358400000.json",
+      "schemaVersion": 1,
+      "provider": "ibkr",
+      "timeframe": "5m",
+      "lookbackBars": 192,
+      "endTimeMs": 1780358400000,
+      "candleCount": 308,
+      "sourceTradeContextTimestamps": [
+        1780327200000
+      ],
+      "snapshotStillFiltersAsOf": true
+    },
+    {
+      "symbol": "ENVX",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\ENVX\\5m\\192-1780358400000.json",
+      "schemaVersion": 1,
+      "provider": "ibkr",
+      "timeframe": "5m",
+      "lookbackBars": 192,
+      "endTimeMs": 1780358400000,
+      "candleCount": 308,
+      "sourceTradeContextTimestamps": [
+        1780323300000
+      ],
+      "snapshotStillFiltersAsOf": true
+    },
+    {
+      "symbol": "GME",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\GME\\5m\\192-1780358400000.json",
+      "schemaVersion": 1,
+      "provider": "ibkr",
+      "timeframe": "5m",
+      "lookbackBars": 192,
+      "endTimeMs": 1780358400000,
+      "candleCount": 308,
+      "sourceTradeContextTimestamps": [
+        1780342200000
+      ],
+      "snapshotStillFiltersAsOf": true
+    },
+    {
+      "symbol": "QUBT",
+      "path": "C:\\Users\\jerac\\Documents\\TraderLink\\levels-system\\.validation-cache\\candles\\ibkr\\QUBT\\5m\\192-1780358400000.json",
+      "schemaVersion": 1,
+      "provider": "ibkr",
+      "timeframe": "5m",
+      "lookbackBars": 192,
+      "endTimeMs": 1780358400000,
+      "candleCount": 308,
+      "sourceTradeContextTimestamps": [
+        1780333500000
+      ],
+      "snapshotStillFiltersAsOf": true
+    }
+  ],
+  "safety": {
+    "rawCacheFilesCommitted": false,
+    "rawPayloadsIncluded": false,
+    "noLevelEngineBehaviorChange": true,
+    "noSupportResistanceGenerationChange": true,
+    "noSnapshotSchemaChange": true,
+    "noJournalAppChange": true,
+    "noTradeAdvice": true
+  },
+  "verificationCommands": [
+    "npm run cache:collect:journal-5m-day -- --cache-root C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles --provider ibkr --requests DEVS@2026-06-01T09:42:00-04:00,DEVS@2026-06-01T14:30:00-04:00,ENVX@2026-06-01T10:15:00-04:00,DXYZ@2026-06-01T11:20:00-04:00,QUBT@2026-06-01T13:05:00-04:00,GME@2026-06-01T15:30:00-04:00 --dry-run",
+    "$env:LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=\"true\"; npm run cache:collect:journal-5m-day -- --cache-root C:/Users/jerac/Documents/TraderLink/levels-system/.validation-cache/candles --provider ibkr --requests DEVS@2026-06-01T09:42:00-04:00,DEVS@2026-06-01T14:30:00-04:00,ENVX@2026-06-01T10:15:00-04:00,DXYZ@2026-06-01T11:20:00-04:00,QUBT@2026-06-01T13:05:00-04:00,GME@2026-06-01T15:30:00-04:00 --write",
+    "node wrapper validation script over the five expected output paths",
+    "npx tsx --test src/tests/collect-journal-trade-context-5m-day-cache.test.ts src/tests/journal-trade-context-5m-day-policy.test.ts",
+    "npm run build",
+    "git diff --check"
+  ],
+  "recommendedNextGate": "journal_level_analysis_delivery_ingestion"
+}

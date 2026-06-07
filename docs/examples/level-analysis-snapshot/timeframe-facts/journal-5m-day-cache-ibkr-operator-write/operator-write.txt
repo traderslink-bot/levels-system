@@ -1,0 +1,43 @@
+Journal trade-context 5m day cache IBKR operator write
+Gate: levels_system_journal_trade_context_5m_day_cache_ibkr_operator_write
+Generated at: 2026-06-07T04:39:26.623Z
+Provider: ibkr
+Timeframe: 5m
+Mode: write
+Cache root: C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles
+Required enable variable: LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true
+Overwrite: false
+
+Write result:
+- Requested trade contexts: 6
+- Unique day requests: 5
+- Planned: 0
+- Written: 5
+- Skipped existing: 0
+- Failed: 0
+
+Written wrapper summaries:
+- DEVS: schemaVersion=1 provider=ibkr timeframe=5m lookbackBars=192 endTimeMs=1780358400000 candles=308 sourceTradeContextTimestamps=1780321320000,1780338600000 snapshotStillFiltersAsOf=true
+- DXYZ: schemaVersion=1 provider=ibkr timeframe=5m lookbackBars=192 endTimeMs=1780358400000 candles=308 sourceTradeContextTimestamps=1780327200000 snapshotStillFiltersAsOf=true
+- ENVX: schemaVersion=1 provider=ibkr timeframe=5m lookbackBars=192 endTimeMs=1780358400000 candles=308 sourceTradeContextTimestamps=1780323300000 snapshotStillFiltersAsOf=true
+- GME: schemaVersion=1 provider=ibkr timeframe=5m lookbackBars=192 endTimeMs=1780358400000 candles=308 sourceTradeContextTimestamps=1780342200000 snapshotStillFiltersAsOf=true
+- QUBT: schemaVersion=1 provider=ibkr timeframe=5m lookbackBars=192 endTimeMs=1780358400000 candles=308 sourceTradeContextTimestamps=1780333500000 snapshotStillFiltersAsOf=true
+
+Expected output paths existed after write:
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DEVS\5m\192-1780358400000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\DXYZ\5m\192-1780358400000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\ENVX\5m\192-1780358400000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\GME\5m\192-1780358400000.json
+- C:\Users\jerac\Documents\TraderLink\levels-system\.validation-cache\candles\ibkr\QUBT\5m\192-1780358400000.json
+
+Verification:
+- pre-write dry-run planned the same five files and wrote zero files
+- live write ran once with LEVEL_JOURNAL_5M_DAY_CACHE_ENABLE_IBKR=true
+- no --overwrite flag was used
+- wrapper validation passed for all five written files
+- DEVS preserved both source trade-context timestamps as epoch milliseconds
+- raw cache candle files were not committed
+- no raw payloads are included in this artifact
+
+Next gate:
+journal_level_analysis_delivery_ingestion

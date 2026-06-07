@@ -32,6 +32,10 @@ The levels-system side is ready to hand off a facts-only chart context package t
 - The IBKR operator write plan is complete. It documents the exact write
   command, target trade contexts, expected 5m day-cache paths, post-write
   wrapper checks, and rollback rules without running live write mode.
+- The first explicit IBKR operator write is complete. It wrote the five
+  expected 5m day-cache wrapper files for DEVS, DXYZ, ENVX, GME, and QUBT,
+  verified wrapper shape and no-lookahead safety flags, and committed only
+  compact evidence/docs.
 - Optional future 1m execution replay is documented separately as a narrow
   execution-window policy. It does not replace the 5m day cache and is not live
   provider-capable yet.
@@ -165,6 +169,12 @@ Completed IBKR operator write plan:
 
 ```text
 docs/153_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_OPERATOR_WRITE_PLAN.md
+```
+
+Completed IBKR operator write evidence:
+
+```text
+docs/154_LEVELS_SYSTEM_JOURNAL_TRADE_CONTEXT_5M_DAY_CACHE_IBKR_OPERATOR_WRITE.md
 ```
 
 Optional future 1m execution replay policy:
