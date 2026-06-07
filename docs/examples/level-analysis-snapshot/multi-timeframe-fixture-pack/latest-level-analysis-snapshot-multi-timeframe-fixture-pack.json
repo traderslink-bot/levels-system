@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "level-analysis-snapshot-multi-timeframe-fixture-pack/v1",
+  "generatedAt": "2026-06-07T13:35:00.000Z",
+  "gate": "level_analysis_snapshot_multi_timeframe_fixture_pack",
+  "baseCommit": "721e7bd83d5e99a54d6dcd715e6b5d826bc23527",
+  "sourceDocs": [
+    "docs/148_LEVELS_SYSTEM_MULTI_TIMEFRAME_SNAPSHOT_HARDENING.md",
+    "docs/93_LEVELS_SYSTEM_15M_FACTS_CONTRACT.md",
+    "docs/105_LEVELS_SYSTEM_15M_FACTS_REAL_CACHE_VALIDATION_WITH_SUPPLIED_15M.md"
+  ],
+  "fixtureDirectory": "docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/fixtures",
+  "fixtures": [
+    {
+      "fixtureName": "snapshot-mtf-missing-15m",
+      "path": "docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/fixtures/snapshot-mtf-missing-15m.json",
+      "covers": ["reserved_15m_absent", "stable_timeframe_keys"]
+    },
+    {
+      "fixtureName": "snapshot-mtf-supplied-15m-limited",
+      "path": "docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/fixtures/snapshot-mtf-supplied-15m-limited.json",
+      "covers": ["limited_15m_facts", "15m_level_engine_parity"]
+    },
+    {
+      "fixtureName": "snapshot-mtf-supplied-15m-available",
+      "path": "docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/fixtures/snapshot-mtf-supplied-15m-available.json",
+      "covers": ["available_15m_facts", "15m_level_engine_parity"]
+    },
+    {
+      "fixtureName": "snapshot-mtf-journal-replay-asof-filtering",
+      "path": "docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/fixtures/snapshot-mtf-journal-replay-asof-filtering.json",
+      "covers": ["future_candle_filtering", "partial_candle_filtering", "journal_replay_as_of_safety"]
+    },
+    {
+      "fixtureName": "snapshot-mtf-sparse-higher-timeframes",
+      "path": "docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/fixtures/snapshot-mtf-sparse-higher-timeframes.json",
+      "covers": ["missing_daily_4h_diagnostics", "5m_available_context"]
+    }
+  ],
+  "coverage": {
+    "fixtureCount": 5,
+    "missing15mCovered": true,
+    "supplied15mLimitedCovered": true,
+    "supplied15mAvailableCovered": true,
+    "futurePartialFilteringCovered": true,
+    "sparseHigherTimeframesCovered": true,
+    "journalReplayAsOfSafetyCovered": true,
+    "levelEngineParityCovered": true
+  },
+  "safety": {
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChanged": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForSelection": false,
+    "cacheFilesCollected": false,
+    "cacheFilesWritten": false,
+    "rawCandlesIncluded": false,
+    "rawCacheFilesCommitted": false,
+    "journalAppFilesChanged": false,
+    "restrictedInterpretationAdded": false
+  },
+  "recommendedNextGate": "level_analysis_snapshot_multi_timeframe_fixture_pack_handoff"
+}

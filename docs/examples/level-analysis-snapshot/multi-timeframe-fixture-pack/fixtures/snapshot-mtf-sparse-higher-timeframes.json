@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "level-analysis-snapshot-multi-timeframe-fixture/v1",
+  "fixtureName": "snapshot-mtf-sparse-higher-timeframes",
+  "purpose": "Locks missing daily/4h reporting as factual diagnostics while still building from available 5m context.",
+  "inputSummary": {
+    "symbol": "SNAP",
+    "asOfIso": "2026-05-01T14:20:00.000Z",
+    "referencePrice": 10.68,
+    "providedTimeframes": ["5m", "4h", "daily"],
+    "rawCandleCounts": {
+      "5m": 15,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    }
+  },
+  "expected": {
+    "timeframesPresent": ["5m"],
+    "filteredCandleCounts": {
+      "5m": 15,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "excludedFutureCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "excludedPartialCandleCounts": {
+      "5m": 0,
+      "15m": 0,
+      "4h": 0,
+      "daily": 0
+    },
+    "fifteenMinuteFactsPresent": false,
+    "providerByTimeframeKeys": ["5m"],
+    "providerByTimeframeIncludes15m": false,
+    "dataQualityFlags": ["daily:unavailable", "4h:unavailable"],
+    "diagnosticsInclude": [
+      "daily_candles_missing",
+      "4h_candles_missing",
+      "candle_close_as_of_filter_applied"
+    ],
+    "noLookaheadApplied": true
+  },
+  "safety": {
+    "factsOnly": true,
+    "noLevelSelectionChange": true,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "rawCandlesIncluded": false,
+    "rawCachePayloadsIncluded": false,
+    "journalAppBehaviorChanged": false
+  }
+}
