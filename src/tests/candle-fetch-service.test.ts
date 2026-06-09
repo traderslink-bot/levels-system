@@ -41,6 +41,16 @@ test("CandleFetchService rejects non-positive lookbackBars", async () => {
   );
 });
 
+test("CandleFetchService passes explicit IBKR timeout through provider options", () => {
+  const service = new CandleFetchService({
+    providerName: "ibkr",
+    ib: {} as never,
+    ibkrTimeoutMs: 120_000,
+  });
+
+  assert.equal((service as any).provider.timeoutMs, 120_000);
+});
+
 test("buildCandleSessionSummary classifies 5m candles into market sessions", () => {
   const summary = buildCandleSessionSummary(
     [
