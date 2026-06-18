@@ -24,6 +24,58 @@ function buildHealthReport(
   };
 }
 
+function forwardSummary(
+  overrides: Partial<{
+    evaluated: number;
+    touched: number;
+    touchRate: number;
+    closestApproachPct: number;
+    usefulnessRate: number;
+    usefulWhenTouchedRate: number;
+    respectRate: number;
+    partialRespectRate: number;
+    breakRate: number;
+  }> = {},
+) {
+  return {
+    evaluated: 0,
+    touched: 0,
+    touchRate: 0,
+    closestApproachPct: 0,
+    usefulnessRate: 0,
+    usefulWhenTouchedRate: 0,
+    respectRate: 0,
+    partialRespectRate: 0,
+    breakRate: 0,
+    ...overrides,
+  };
+}
+
+function emptyVolumeReportFields() {
+  return {
+    byVolumeLabel: {
+      heavy: forwardSummary(),
+      elevated: forwardSummary(),
+      normal: forwardSummary(),
+      light: forwardSummary(),
+      unknown: forwardSummary(),
+    },
+    volumeEvidence: {
+      touched: 0,
+      reliable: 0,
+      unreliable: 0,
+      highVolumeTouches: 0,
+      lightVolumeTouches: 0,
+      highVolumeUsefulWhenTouchedRate: 0,
+      highVolumeRespectRate: 0,
+      highVolumeBreakRate: 0,
+      lightVolumeUsefulWhenTouchedRate: 0,
+      lightVolumeRespectRate: 0,
+      lightVolumeBreakRate: 0,
+    },
+  };
+}
+
 test("summarizeLevelValidationBatch aggregates support, resistance, and distance-band usefulness", () => {
   const summary = summarizeLevelValidationBatch([
     {
@@ -94,6 +146,7 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
           strong: { evaluated: 3, touched: 2, touchRate: 0.66, closestApproachPct: 0, usefulnessRate: 0.33, usefulWhenTouchedRate: 0.5, respectRate: 0.33, partialRespectRate: 0, breakRate: 0 },
           major: { evaluated: 2, touched: 1, touchRate: 0.5, closestApproachPct: 0, usefulnessRate: 0.5, usefulWhenTouchedRate: 1, respectRate: 0.5, partialRespectRate: 0, breakRate: 0 },
         },
+        ...emptyVolumeReportFields(),
         levelResults: [],
       },
     },
@@ -165,6 +218,7 @@ test("summarizeLevelValidationBatch aggregates support, resistance, and distance
           strong: { evaluated: 2, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
           major: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
         },
+        ...emptyVolumeReportFields(),
         levelResults: [],
       },
     },
@@ -296,6 +350,7 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
             strong: { evaluated: 1, touched: 1, touchRate: 1, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 1 },
             major: { evaluated: 1, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
           },
+          ...emptyVolumeReportFields(),
           levelResults: [],
         },
       },
@@ -350,16 +405,20 @@ test("formatLevelValidationBatchSummary produces deterministic readable lines", 
     "[LevelValidation] Distance useful when touched | near=1.0000 | intermediate=0.5000 | far=0.0000",
   );
   assert.equal(
-    lines[21],
-    "[LevelValidation] Support bucket loose matches | daily=0.0000 | 4h=0.1000 | 5m=0.2500",
+    lines[20],
+    "[LevelValidation] Volume evidence | touched=0 | reliable=0 | highVolumeTouches=0 | highVolumeUseful=0.0000 | highVolumeRespect=0.0000 | highVolumeBreak=0.0000",
   );
   assert.equal(
     lines[22],
-    "[LevelValidation] Weakest usefulness areas | far=0.0000(1) | surfacedResistance=0.2500(2) | extensionResistance=0.3000(1)",
+    "[LevelValidation] Support bucket loose matches | daily=0.0000 | 4h=0.1000 | 5m=0.2500",
   );
   assert.equal(
     lines[23],
-    "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | supportBuckets=1.0000/0.7500/0.5000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | supportBucketLoose=0.0000/0.1000/0.2500 | surfacedUseful=1.0000/0.2500 | surfacedTouchedUseful=1.0000/0.5000 | supportBucketEval=1/0/0 | supportBucketUseful=1.0000/0.0000/0.0000 | supportBucketTouch=1.0000/0.0000/0.0000 | supportBucketApproach=0.0000/0.0000/0.0000 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000 | bandTouch=0.5000/1.0000/0.0000",
+    "[LevelValidation] Weakest usefulness areas | far=0.0000(1) | surfacedResistance=0.2500(2) | extensionResistance=0.3000(1)",
+  );
+  assert.equal(
+    lines[24],
+    "[LevelValidation] Symbol AAPL | health=healthy | surfacedPersist=1.0000/0.9000 | supportBuckets=1.0000/0.7500/0.5000 | extensionPersist=1.0000/0.8000 | loose=0.1000/0.2000 | supportBucketLoose=0.0000/0.1000/0.2500 | surfacedUseful=1.0000/0.2500 | surfacedTouchedUseful=1.0000/0.5000 | supportBucketEval=1/0/0 | supportBucketUseful=1.0000/0.0000/0.0000 | supportBucketTouch=1.0000/0.0000/0.0000 | supportBucketApproach=0.0000/0.0000/0.0000 | extensionUseful=0.0000/0.3000 | bands=0.5000/0.5000/0.0000 | bandTouch=0.5000/1.0000/0.0000 | volumeReliable=0/0 | highVolumeUseful=0.0000 | highVolumeBreak=0.0000",
   );
 });
 
@@ -441,6 +500,7 @@ test("summarizeLevelValidationBatch tracks persistence and forward availability 
           strong: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
           major: { evaluated: 0, touched: 0, touchRate: 0, closestApproachPct: 0, usefulnessRate: 0, usefulWhenTouchedRate: 0, respectRate: 0, partialRespectRate: 0, breakRate: 0 },
         },
+        ...emptyVolumeReportFields(),
         levelResults: [],
       },
     },

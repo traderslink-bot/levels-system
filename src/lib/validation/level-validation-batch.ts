@@ -76,6 +76,12 @@ export type LevelValidationBatchSummary = {
   averageSurfacedResistanceRespectRate: number;
   averageExtensionSupportRespectRate: number;
   averageExtensionResistanceRespectRate: number;
+  totalVolumeTouched: number;
+  totalVolumeReliableTouched: number;
+  totalHighVolumeTouches: number;
+  averageHighVolumeUsefulWhenTouchedRate: number;
+  averageHighVolumeRespectRate: number;
+  averageHighVolumeBreakRate: number;
   byKindSource: {
     surfacedSupport: ForwardReactionSummary;
     surfacedResistance: ForwardReactionSummary;
@@ -384,6 +390,30 @@ export function summarizeLevelValidationBatch(
     averageExtensionResistanceRespectRate: average(
       forwardCompleted.map((result) => result.forwardReactionReport!.byKindSource.extensionResistance.respectRate),
     ),
+    totalVolumeTouched: Math.round(
+      forwardCompleted.reduce((sum, result) => sum + result.forwardReactionReport!.volumeEvidence.touched, 0),
+    ),
+    totalVolumeReliableTouched: Math.round(
+      forwardCompleted.reduce((sum, result) => sum + result.forwardReactionReport!.volumeEvidence.reliable, 0),
+    ),
+    totalHighVolumeTouches: Math.round(
+      forwardCompleted.reduce((sum, result) => sum + result.forwardReactionReport!.volumeEvidence.highVolumeTouches, 0),
+    ),
+    averageHighVolumeUsefulWhenTouchedRate: average(
+      forwardCompleted
+        .filter((result) => result.forwardReactionReport!.volumeEvidence.highVolumeTouches > 0)
+        .map((result) => result.forwardReactionReport!.volumeEvidence.highVolumeUsefulWhenTouchedRate),
+    ),
+    averageHighVolumeRespectRate: average(
+      forwardCompleted
+        .filter((result) => result.forwardReactionReport!.volumeEvidence.highVolumeTouches > 0)
+        .map((result) => result.forwardReactionReport!.volumeEvidence.highVolumeRespectRate),
+    ),
+    averageHighVolumeBreakRate: average(
+      forwardCompleted
+        .filter((result) => result.forwardReactionReport!.volumeEvidence.highVolumeTouches > 0)
+        .map((result) => result.forwardReactionReport!.volumeEvidence.highVolumeBreakRate),
+    ),
     byKindSource,
     byDistanceBand,
     weakestUsefulnessAreas,
@@ -415,6 +445,7 @@ export function formatLevelValidationBatchSummary(
     `[LevelValidation] Distance usefulness | near=${summary.byDistanceBand.near.usefulnessRate.toFixed(4)} | intermediate=${summary.byDistanceBand.intermediate.usefulnessRate.toFixed(4)} | far=${summary.byDistanceBand.far.usefulnessRate.toFixed(4)}`,
     `[LevelValidation] Distance touch | near=${summary.byDistanceBand.near.touchRate.toFixed(4)} | intermediate=${summary.byDistanceBand.intermediate.touchRate.toFixed(4)} | far=${summary.byDistanceBand.far.touchRate.toFixed(4)}`,
     `[LevelValidation] Distance useful when touched | near=${summary.byDistanceBand.near.usefulWhenTouchedRate.toFixed(4)} | intermediate=${summary.byDistanceBand.intermediate.usefulWhenTouchedRate.toFixed(4)} | far=${summary.byDistanceBand.far.usefulWhenTouchedRate.toFixed(4)}`,
+    `[LevelValidation] Volume evidence | touched=${summary.totalVolumeTouched} | reliable=${summary.totalVolumeReliableTouched} | highVolumeTouches=${summary.totalHighVolumeTouches} | highVolumeUseful=${summary.averageHighVolumeUsefulWhenTouchedRate.toFixed(4)} | highVolumeRespect=${summary.averageHighVolumeRespectRate.toFixed(4)} | highVolumeBreak=${summary.averageHighVolumeBreakRate.toFixed(4)}`,
     `[LevelValidation] Loose persistence matches | support=${summary.averageSupportLooseMatchRate.toFixed(4)} | resistance=${summary.averageResistanceLooseMatchRate.toFixed(4)}`,
     `[LevelValidation] Support bucket loose matches | daily=${summary.averageSupportBucketLooseMatchRate.daily.toFixed(4)} | 4h=${summary.averageSupportBucketLooseMatchRate["4h"].toFixed(4)} | 5m=${summary.averageSupportBucketLooseMatchRate["5m"].toFixed(4)}`,
     `[LevelValidation] Weakest usefulness areas | ${summary.weakestUsefulnessAreas
@@ -428,7 +459,7 @@ export function formatLevelValidationBatchSummary(
       ? `surfacedPersist=${result.persistenceReport.averageSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageResistancePersistenceRate.toFixed(4)} | supportBuckets=${result.persistenceReport.averageSupportBucketPersistenceRate.daily.toFixed(4)}/${result.persistenceReport.averageSupportBucketPersistenceRate["4h"].toFixed(4)}/${result.persistenceReport.averageSupportBucketPersistenceRate["5m"].toFixed(4)} | extensionPersist=${result.persistenceReport.averageExtensionSupportPersistenceRate.toFixed(4)}/${result.persistenceReport.averageExtensionResistancePersistenceRate.toFixed(4)} | loose=${result.persistenceReport.averageSupportLooseMatchRate.toFixed(4)}/${result.persistenceReport.averageResistanceLooseMatchRate.toFixed(4)} | supportBucketLoose=${result.persistenceReport.averageSupportBucketLooseMatchRate.daily.toFixed(4)}/${result.persistenceReport.averageSupportBucketLooseMatchRate["4h"].toFixed(4)}/${result.persistenceReport.averageSupportBucketLooseMatchRate["5m"].toFixed(4)}`
       : "persistence=unavailable";
     const forward = result.forwardReactionReport
-      ? `surfacedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulnessRate.toFixed(4)} | surfacedTouchedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulWhenTouchedRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulWhenTouchedRate.toFixed(4)} | supportBucketEval=${result.forwardReactionReport.bySurfacedSupportBucket.daily.evaluated}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].evaluated}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].evaluated} | supportBucketUseful=${result.forwardReactionReport.bySurfacedSupportBucket.daily.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].usefulnessRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].usefulnessRate.toFixed(4)} | supportBucketTouch=${result.forwardReactionReport.bySurfacedSupportBucket.daily.touchRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].touchRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].touchRate.toFixed(4)} | supportBucketApproach=${result.forwardReactionReport.bySurfacedSupportBucket.daily.closestApproachPct.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].closestApproachPct.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].closestApproachPct.toFixed(4)} | extensionUseful=${result.forwardReactionReport.byKindSource.extensionSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.extensionResistance.usefulnessRate.toFixed(4)} | bands=${result.forwardReactionReport.byDistanceBand.near.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.usefulnessRate.toFixed(4)} | bandTouch=${result.forwardReactionReport.byDistanceBand.near.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.touchRate.toFixed(4)}`
+      ? `surfacedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulnessRate.toFixed(4)} | surfacedTouchedUseful=${result.forwardReactionReport.byKindSource.surfacedSupport.usefulWhenTouchedRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.surfacedResistance.usefulWhenTouchedRate.toFixed(4)} | supportBucketEval=${result.forwardReactionReport.bySurfacedSupportBucket.daily.evaluated}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].evaluated}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].evaluated} | supportBucketUseful=${result.forwardReactionReport.bySurfacedSupportBucket.daily.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].usefulnessRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].usefulnessRate.toFixed(4)} | supportBucketTouch=${result.forwardReactionReport.bySurfacedSupportBucket.daily.touchRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].touchRate.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].touchRate.toFixed(4)} | supportBucketApproach=${result.forwardReactionReport.bySurfacedSupportBucket.daily.closestApproachPct.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["4h"].closestApproachPct.toFixed(4)}/${result.forwardReactionReport.bySurfacedSupportBucket["5m"].closestApproachPct.toFixed(4)} | extensionUseful=${result.forwardReactionReport.byKindSource.extensionSupport.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byKindSource.extensionResistance.usefulnessRate.toFixed(4)} | bands=${result.forwardReactionReport.byDistanceBand.near.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.usefulnessRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.usefulnessRate.toFixed(4)} | bandTouch=${result.forwardReactionReport.byDistanceBand.near.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.intermediate.touchRate.toFixed(4)}/${result.forwardReactionReport.byDistanceBand.far.touchRate.toFixed(4)} | volumeReliable=${result.forwardReactionReport.volumeEvidence.reliable}/${result.forwardReactionReport.volumeEvidence.touched} | highVolumeUseful=${result.forwardReactionReport.volumeEvidence.highVolumeUsefulWhenTouchedRate.toFixed(4)} | highVolumeBreak=${result.forwardReactionReport.volumeEvidence.highVolumeBreakRate.toFixed(4)}`
       : "forward=unavailable";
     const failure = result.errorMessage ? ` | error=${result.errorMessage}` : "";
 

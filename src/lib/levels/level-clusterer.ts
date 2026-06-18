@@ -29,8 +29,8 @@ function dominantTimeframe(timeframes: CandleTimeframe[]): CandleTimeframe | "mi
   return sorted[0][0];
 }
 
-function zoneFreshness(lastTimestamp: number): LevelDataFreshness {
-  const hoursAgo = (Date.now() - lastTimestamp) / (1000 * 60 * 60);
+function zoneFreshness(lastTimestamp: number, referenceTimestamp = Date.now()): LevelDataFreshness {
+  const hoursAgo = Math.max(0, referenceTimestamp - lastTimestamp) / (1000 * 60 * 60);
   if (hoursAgo <= 24) {
     return "fresh";
   }
@@ -159,6 +159,7 @@ function buildZoneFromGroup(
   kind: "support" | "resistance",
   group: RawLevelCandidate[],
   index: number,
+  referenceTimestamp: number,
 ): FinalLevelZone {
   const prices = group.map((item) => item.price);
   const sourceTypes = unique(group.map((item) => item.sourceType));
@@ -218,7 +219,7 @@ function buildZoneFromGroup(
     lastTimestamp: Math.max(...group.map((item) => item.lastTimestamp)),
     sessionDate: undefined,
     isExtension: false,
-    freshness: zoneFreshness(Math.max(...group.map((item) => item.lastTimestamp))),
+    freshness: zoneFreshness(Math.max(...group.map((item) => item.lastTimestamp)), referenceTimestamp),
     notes,
   };
 }
@@ -311,6 +312,7 @@ function secondPassMergeZones(
   kind: "support" | "resistance",
   initialZones: FinalLevelZone[],
   config: LevelEngineConfig,
+  referenceTimestamp: number,
 ): FinalLevelZone[] {
   if (initialZones.length <= 1) {
     return mergeZones(symbol, kind, initialZones);
@@ -399,7 +401,7 @@ function secondPassMergeZones(
         lastTimestamp: Math.max(current.lastTimestamp, next.lastTimestamp),
         sessionDate: current.sessionDate ?? next.sessionDate,
         isExtension: current.isExtension || next.isExtension,
-        freshness: zoneFreshness(Math.max(current.lastTimestamp, next.lastTimestamp)),
+        freshness: zoneFreshness(Math.max(current.lastTimestamp, next.lastTimestamp), referenceTimestamp),
         notes: unique([...current.notes, ...next.notes, "Merged in second clustering pass."]),
         timeframeBias: dominantTimeframe(
           unique([...current.timeframeSources, ...next.timeframeSources]),
@@ -422,12 +424,13 @@ export function clusterRawLevelCandidates(
   candidates: RawLevelCandidate[],
   tolerancePct: number,
   config: LevelEngineConfig,
+  referenceTimestamp = Date.now(),
 ): FinalLevelZone[] {
   const filtered = candidates.filter((candidate) => candidate.kind === kind);
   const firstPassGroups = firstPassCluster(filtered, tolerancePct);
   const firstPassZones = firstPassGroups.map((group, index) =>
-    buildZoneFromGroup(symbol, kind, group, index),
+    buildZoneFromGroup(symbol, kind, group, index, referenceTimestamp),
   );
 
-  return secondPassMergeZones(symbol, kind, firstPassZones, config);
+  return secondPassMergeZones(symbol, kind, firstPassZones, config, referenceTimestamp);
 }

@@ -25,6 +25,8 @@ function sortResistance(zones: FinalLevelZone[]): FinalLevelZone[] {
 }
 
 const DEFAULT_FORWARD_PLANNING_RANGE_PCT = 0.5;
+const SYNTHETIC_RESISTANCE_MIN_COVERAGE_PCT = 0.30;
+const SYNTHETIC_RESISTANCE_MIN_STEP_PCT = 0.03;
 
 function maxPracticalResistancePrice(
   referencePrice: number | undefined,
@@ -270,6 +272,7 @@ function selectContinuityAwareResistanceExtensions(params: {
   searchWindowPct: number;
   referencePrice?: number;
   forwardPlanningRangePct: number;
+  preservePracticalResistanceCoverage?: boolean;
 }): FinalLevelZone[] {
   const selected: FinalLevelZone[] = [];
   const maxPracticalPrice = maxPracticalResistancePrice(
@@ -361,6 +364,22 @@ function selectContinuityAwareResistanceExtensions(params: {
     selected.push({ ...bestInSegment, isExtension: true });
   }
 
+  if (params.preservePracticalResistanceCoverage && selected.length < params.maxCount) {
+    const selectedIds = new Set(selected.map((zone) => zone.id));
+    const coverageCandidates = params.candidates
+      .filter((candidate) => candidate.representativePrice <= maxPracticalPrice)
+      .filter((candidate) => !selectedIds.has(candidate.id))
+      .filter((candidate) => !isTooCloseToAny(candidate, params.surfaced, params.spacingPct))
+      .filter((candidate) => !isTooCloseToAny(candidate, selected, params.spacingPct));
+
+    for (const candidate of coverageCandidates) {
+      selected.push({ ...candidate, isExtension: true });
+      if (selected.length >= params.maxCount) {
+        break;
+      }
+    }
+  }
+
   return [...selected]
     .sort((a, b) => a.representativePrice - b.representativePrice)
     .slice(0, params.maxCount);
@@ -375,6 +394,7 @@ function selectSpacedExtensions(params: {
   searchWindowPct: number;
   referencePrice?: number;
   forwardPlanningRangePct?: number;
+  preservePracticalResistanceCoverage?: boolean;
 }): FinalLevelZone[] {
   const candidates = pruneDominatedForwardCandidates(
     params.candidates,
@@ -392,6 +412,7 @@ function selectSpacedExtensions(params: {
       searchWindowPct: params.searchWindowPct,
       referencePrice: params.referencePrice,
       forwardPlanningRangePct,
+      preservePracticalResistanceCoverage: params.preservePracticalResistanceCoverage,
     });
   }
 
@@ -489,6 +510,152 @@ function selectSpacedExtensions(params: {
   return selected;
 }
 
+function decimalPlacesForIncrement(increment: number): number {
+  const text = increment.toString();
+  const dotIndex = text.indexOf(".");
+  return dotIndex === -1 ? 0 : text.length - dotIndex - 1;
+}
+
+function normalizeSyntheticPrice(price: number, increment: number): number {
+  return Number(price.toFixed(Math.max(decimalPlacesForIncrement(increment), price >= 1 ? 2 : 4)));
+}
+
+function resistanceExtensionIncrement(price: number): number {
+  if (price < 0.5) return 0.025;
+  if (price < 1) return 0.05;
+  if (price < 2) return 0.1;
+  if (price < 5) return 0.25;
+  if (price < 10) return 0.5;
+  if (price < 25) return 1;
+  if (price < 50) return 2.5;
+  return 5;
+}
+
+function nextRoundedResistanceExtension(basePrice: number): number {
+  const increment = resistanceExtensionIncrement(basePrice);
+  const rounded = Math.ceil((basePrice + increment * 0.05) / increment) * increment;
+  return normalizeSyntheticPrice(rounded, increment);
+}
+
+function buildSyntheticResistanceExtension(params: {
+  symbol: string;
+  price: number;
+  referencePrice: number;
+}): FinalLevelZone {
+  const widthPct = params.price < 1 ? 0.0025 : 0.0015;
+  const halfWidth = params.price * widthPct;
+
+  return {
+    id: `${params.symbol}-synthetic-resistance-extension-${params.price}`,
+    symbol: params.symbol,
+    kind: "resistance",
+    timeframeBias: "5m",
+    zoneLow: Number((params.price - halfWidth).toFixed(6)),
+    zoneHigh: Number((params.price + halfWidth).toFixed(6)),
+    representativePrice: params.price,
+    strengthScore: 8,
+    strengthLabel: "weak",
+    touchCount: 0,
+    confluenceCount: 0,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["5m"],
+    reactionQualityScore: 0,
+    rejectionScore: 0,
+    displacementScore: 0,
+    sessionSignificanceScore: 0,
+    followThroughScore: 0,
+    sourceEvidenceCount: 0,
+    firstTimestamp: Date.now(),
+    lastTimestamp: Date.now(),
+    isExtension: true,
+    freshness: "fresh",
+    notes: [
+      `Synthetic continuation extension generated after historical resistance inventory ended above ${params.referencePrice}.`,
+    ],
+  };
+}
+
+function extendSyntheticResistanceCoverage(params: {
+  symbol: string;
+  selectedResistance: FinalLevelZone[];
+  surfacedResistance: FinalLevelZone[];
+  referencePrice?: number;
+  forwardPlanningRangePct: number;
+  maxCount: number;
+  spacingPct: number;
+}): FinalLevelZone[] {
+  const referencePrice = params.referencePrice;
+  if (
+    !referencePrice ||
+    referencePrice <= 0 ||
+    params.selectedResistance.length >= params.maxCount ||
+    (params.selectedResistance.length === 0 && params.surfacedResistance.length === 0)
+  ) {
+    return params.selectedResistance;
+  }
+
+  const maxPracticalPrice = maxPracticalResistancePrice(
+    referencePrice,
+    params.forwardPlanningRangePct,
+  );
+  const targetPrice = Math.min(
+    maxPracticalPrice,
+    referencePrice * (1 + Math.min(SYNTHETIC_RESISTANCE_MIN_COVERAGE_PCT, params.forwardPlanningRangePct)),
+  );
+  const highestExisting = Math.max(
+    referencePrice,
+    ...params.surfacedResistance.map((zone) => zone.representativePrice),
+    ...params.selectedResistance.map((zone) => zone.representativePrice),
+  );
+
+  if (highestExisting >= targetPrice) {
+    return params.selectedResistance;
+  }
+
+  const selected = [...params.selectedResistance].sort(
+    (left, right) => left.representativePrice - right.representativePrice,
+  );
+  let boundary = highestExisting;
+  const seenPrices = new Set(
+    [...params.surfacedResistance, ...selected].map((zone) =>
+      zone.representativePrice >= 1
+        ? zone.representativePrice.toFixed(2)
+        : zone.representativePrice.toFixed(4),
+    ),
+  );
+
+  while (selected.length < params.maxCount && boundary < targetPrice) {
+    let nextPrice = nextRoundedResistanceExtension(boundary);
+    while (
+      nextPrice <= boundary * (1 + Math.max(params.spacingPct, SYNTHETIC_RESISTANCE_MIN_STEP_PCT)) &&
+      nextPrice < maxPracticalPrice
+    ) {
+      nextPrice = nextRoundedResistanceExtension(nextPrice);
+    }
+
+    if (nextPrice <= boundary || nextPrice > maxPracticalPrice) {
+      break;
+    }
+
+    const key = nextPrice >= 1 ? nextPrice.toFixed(2) : nextPrice.toFixed(4);
+    boundary = nextPrice;
+    if (seenPrices.has(key)) {
+      continue;
+    }
+
+    selected.push(
+      buildSyntheticResistanceExtension({
+        symbol: params.symbol,
+        price: nextPrice,
+        referencePrice,
+      }),
+    );
+    seenPrices.add(key);
+  }
+
+  return selected.sort((left, right) => left.representativePrice - right.representativePrice);
+}
+
 export function buildLevelExtensions(params: {
   supportZones: FinalLevelZone[];
   resistanceZones: FinalLevelZone[];
@@ -499,6 +666,8 @@ export function buildLevelExtensions(params: {
   searchWindowPct?: number;
   referencePrice?: number;
   forwardPlanningRangePct?: number;
+  preservePracticalResistanceCoverage?: boolean;
+  allowSyntheticResistanceExtensions?: boolean;
 }): LevelLadderExtension {
   const maxExtensionPerSide = params.maxExtensionPerSide ?? 3;
   const spacingPct = params.spacingPct ?? 0.01;
@@ -520,8 +689,7 @@ export function buildLevelExtensions(params: {
   const maxPracticalResistance =
     maxPracticalResistancePrice(params.referencePrice, forwardPlanningRangePct);
 
-  return {
-    support: selectSpacedExtensions({
+  const support = selectSpacedExtensions({
       candidates: sortSupport(
         params.supportZones.filter((zone) => zone.representativePrice < lowestVisibleSupport),
       ),
@@ -532,8 +700,8 @@ export function buildLevelExtensions(params: {
       searchWindowPct,
       referencePrice: params.referencePrice,
       forwardPlanningRangePct,
-    }),
-    resistance: selectSpacedExtensions({
+    });
+  const selectedResistance = selectSpacedExtensions({
       candidates: sortResistance(
         params.resistanceZones.filter(
           (zone) =>
@@ -548,6 +716,22 @@ export function buildLevelExtensions(params: {
       searchWindowPct,
       referencePrice: params.referencePrice,
       forwardPlanningRangePct,
-    }),
+      preservePracticalResistanceCoverage: params.preservePracticalResistanceCoverage,
+    });
+  const resistance = params.allowSyntheticResistanceExtensions
+    ? extendSyntheticResistanceCoverage({
+        symbol: params.resistanceZones[0]?.symbol ?? params.surfacedResistance[0]?.symbol ?? "",
+        selectedResistance,
+        surfacedResistance: params.surfacedResistance,
+        referencePrice: params.referencePrice,
+        forwardPlanningRangePct,
+        maxCount: maxExtensionPerSide,
+        spacingPct,
+      })
+    : selectedResistance;
+
+  return {
+    support,
+    resistance,
   };
 }

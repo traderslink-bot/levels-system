@@ -34,6 +34,11 @@ export type LevelEngineRuntimeOptions = {
   onComparisonLog?: (entry: LevelRuntimeComparisonLogEntry) => void;
 };
 
+export type LevelEngineOutputWithCandleSeries = {
+  output: LevelEngineOutput;
+  seriesMap: Record<CandleTimeframe, CandleProviderResponse>;
+};
+
 export class LevelEngine {
   constructor(
     private readonly fetchService: CandleFetchService,
@@ -132,6 +137,7 @@ export class LevelEngine {
 
   private deriveOutputMetadata(
     seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+    referenceTimestamp: number,
   ): LevelEngineOutput["metadata"] {
     const dataQualityFlags = [
       ...new Set(
@@ -144,7 +150,7 @@ export class LevelEngine {
       dataQualityFlags.push("5m:unavailable");
     }
     const freshestTimestamp = Math.max(...Object.values(seriesMap).map((series) => series.candles.at(-1)?.timestamp ?? 0));
-    const ageHours = (Date.now() - freshestTimestamp) / (1000 * 60 * 60);
+    const ageHours = Math.max(0, referenceTimestamp - freshestTimestamp) / (1000 * 60 * 60);
     const freshness: LevelDataFreshness =
       ageHours <= 24 ? "fresh" : ageHours <= 24 * 7 ? "aging" : "stale";
     const referencePrice =
@@ -168,11 +174,26 @@ export class LevelEngine {
     };
   }
 
+  private deriveReferenceTimestamp(
+    seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+  ): number {
+    const timestamps = Object.values(seriesMap)
+      .map((series) => series.requestedEndTimestamp)
+      .filter((timestamp) => Number.isFinite(timestamp));
+
+    if (timestamps.length === 0) {
+      return Date.now();
+    }
+
+    return Math.max(...timestamps);
+  }
+
   private buildOldOutput(params: {
     symbol: string;
     metadata: LevelEngineOutput["metadata"];
     rawCandidates: RawLevelCandidate[];
     specialLevels: LevelEngineOutput["specialLevels"];
+    referenceTimestamp: number;
   }): LevelEngineOutput {
     const supportTolerance = Math.max(
       this.config.timeframeConfig.daily.clusterTolerancePct,
@@ -187,8 +208,10 @@ export class LevelEngine {
         params.rawCandidates,
         supportTolerance,
         this.config,
+        params.referenceTimestamp,
       ),
       this.config,
+      params.referenceTimestamp,
     );
 
     const resistanceZones = scoreLevelZones(
@@ -198,8 +221,10 @@ export class LevelEngine {
         params.rawCandidates,
         resistanceTolerance,
         this.config,
+        params.referenceTimestamp,
       ),
       this.config,
+      params.referenceTimestamp,
     );
 
     return rankLevelZones({
@@ -212,10 +237,13 @@ export class LevelEngine {
     });
   }
 
-  async generateLevels(request: LevelEngineRequest): Promise<LevelEngineOutput> {
-    const seriesMap = await this.loadSeries(request);
+  private buildOutputFromSeries(
+    request: LevelEngineRequest,
+    seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+  ): LevelEngineOutput {
     this.assertSeriesUsable(seriesMap);
-    const metadata = this.deriveOutputMetadata(seriesMap);
+    const referenceTimestamp = this.deriveReferenceTimestamp(seriesMap);
+    const metadata = this.deriveOutputMetadata(seriesMap, referenceTimestamp);
     const rawCandidates: RawLevelCandidate[] = [];
 
     for (const timeframe of ["daily", "4h", "5m"] as const) {
@@ -255,6 +283,7 @@ export class LevelEngine {
       metadata,
       rawCandidates,
       specialLevels: special.summary,
+      referenceTimestamp,
     });
     const runtimeMode = this.runtimeOptions.runtimeMode ?? "old";
 
@@ -298,5 +327,20 @@ export class LevelEngine {
     );
 
     return compareActivePath === "new" ? newProjection.output : oldOutput;
+  }
+
+  async generateLevelsWithCandleSeries(
+    request: LevelEngineRequest,
+  ): Promise<LevelEngineOutputWithCandleSeries> {
+    const seriesMap = await this.loadSeries(request);
+    return {
+      output: this.buildOutputFromSeries(request, seriesMap),
+      seriesMap,
+    };
+  }
+
+  async generateLevels(request: LevelEngineRequest): Promise<LevelEngineOutput> {
+    const { output } = await this.generateLevelsWithCandleSeries(request);
+    return output;
   }
 }

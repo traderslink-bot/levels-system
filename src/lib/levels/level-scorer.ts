@@ -23,8 +23,8 @@ function primaryTimeframe(zone: FinalLevelZone): "daily" | "4h" | "5m" {
   return "5m";
 }
 
-function recencyFactor(lastTimestamp: number): number {
-  const hoursAgo = (Date.now() - lastTimestamp) / (1000 * 60 * 60);
+function recencyFactor(lastTimestamp: number, referenceTimestamp = Date.now()): number {
+  const hoursAgo = Math.max(0, referenceTimestamp - lastTimestamp) / (1000 * 60 * 60);
   if (hoursAgo <= 24) {
     return 1;
   }
@@ -215,9 +215,169 @@ function recycledIntradayPenaltyMultiplier(zone: FinalLevelZone): number {
   return 1;
 }
 
+function decisiveSingleTimeframeFloorScore(
+  zone: FinalLevelZone,
+  adjustedScore: number,
+  config: LevelEngineConfig,
+): number {
+  if (adjustedScore >= config.scoreThresholds.moderate) {
+    return adjustedScore;
+  }
+
+  const primary = primaryTimeframe(zone);
+  if (primary === "5m" || zone.timeframeSources.length !== 1) {
+    return adjustedScore;
+  }
+
+  const hasDecisiveHistoricalReaction =
+    zone.touchCount >= 1 &&
+    zone.sourceEvidenceCount >= 1 &&
+    zone.followThroughScore >= 0.6 &&
+    (zone.rejectionScore >= 0.35 || zone.reactionQualityScore >= 0.3);
+
+  if (!hasDecisiveHistoricalReaction) {
+    return adjustedScore;
+  }
+
+  return Math.max(adjustedScore, config.scoreThresholds.moderate + 0.1);
+}
+
+function constructiveSingleTimeframeFloorScore(
+  zone: FinalLevelZone,
+  adjustedScore: number,
+  config: LevelEngineConfig,
+): number {
+  if (adjustedScore >= config.scoreThresholds.moderate) {
+    return adjustedScore;
+  }
+
+  const primary = primaryTimeframe(zone);
+  if (primary === "5m" || zone.timeframeSources.length !== 1) {
+    return adjustedScore;
+  }
+
+  const candidateFloor = config.scoreThresholds.moderate * 0.72;
+  if (adjustedScore < candidateFloor) {
+    return adjustedScore;
+  }
+
+  const isSwingLevel = zone.sourceTypes.some((sourceType) =>
+    sourceType === "swing_high" || sourceType === "swing_low",
+  );
+  const hasConstructiveHistoricalReaction =
+    isSwingLevel &&
+    zone.touchCount >= 1 &&
+    zone.sourceEvidenceCount >= 1 &&
+    zone.followThroughScore >= 0.55 &&
+    (
+      zone.rejectionScore >= 0.25 ||
+      zone.displacementScore >= 0.3 ||
+      zone.reactionQualityScore >= 0.22
+    );
+
+  if (!hasConstructiveHistoricalReaction) {
+    return adjustedScore;
+  }
+
+  return Math.max(adjustedScore, config.scoreThresholds.moderate + 0.05);
+}
+
+function repeatedHigherTimeframeSwingFloorScore(
+  zone: FinalLevelZone,
+  adjustedScore: number,
+  config: LevelEngineConfig,
+): number {
+  if (adjustedScore >= config.scoreThresholds.moderate) {
+    return adjustedScore;
+  }
+
+  const primary = primaryTimeframe(zone);
+  if (primary === "5m" || zone.timeframeSources.length !== 1) {
+    return adjustedScore;
+  }
+
+  const nearModerate = adjustedScore >= config.scoreThresholds.moderate * 0.88;
+  const isSwingLevel = zone.sourceTypes.some((sourceType) =>
+    sourceType === "swing_high" || sourceType === "swing_low",
+  );
+  const repeatedConstructiveReaction =
+    isSwingLevel &&
+    nearModerate &&
+    zone.touchCount >= 2 &&
+    zone.sourceEvidenceCount >= 1 &&
+    zone.followThroughScore >= 0.55 &&
+    zone.reactionQualityScore >= 0.18;
+
+  if (!repeatedConstructiveReaction) {
+    return adjustedScore;
+  }
+
+  return Math.max(adjustedScore, config.scoreThresholds.moderate + 0.03);
+}
+
+function overTestedDecisionCapScore(
+  zone: FinalLevelZone,
+  adjustedScore: number,
+  config: LevelEngineConfig,
+): number {
+  const heavilyReused = zone.touchCount >= 20 || zone.sourceEvidenceCount >= 6;
+  if (!heavilyReused) {
+    return adjustedScore;
+  }
+
+  const softRejection = zone.rejectionScore < 0.3;
+  const softFollowThrough = zone.followThroughScore < 0.5;
+  if (!softRejection && !softFollowThrough) {
+    return adjustedScore;
+  }
+
+  const exhaustedByTouches =
+    (zone.touchCount >= 30 || zone.sourceEvidenceCount >= 8) &&
+    zone.confluenceCount <= 2 &&
+    zone.rejectionScore < 0.25 &&
+    zone.followThroughScore < 0.45;
+
+  if (exhaustedByTouches) {
+    return Math.min(adjustedScore, config.scoreThresholds.strong - 0.1);
+  }
+
+  if (zone.confluenceCount <= 2) {
+    return Math.min(adjustedScore, config.scoreThresholds.major - 0.1);
+  }
+
+  return adjustedScore;
+}
+
+function lowerTimeframeSoftConfluenceCapScore(
+  zone: FinalLevelZone,
+  adjustedScore: number,
+  config: LevelEngineConfig,
+): number {
+  const lowerTimeframeConfluence =
+    !zone.timeframeSources.includes("daily") &&
+    zone.timeframeSources.includes("4h") &&
+    zone.timeframeSources.includes("5m");
+  const sessionAnchor = zone.sourceTypes.some((sourceType) =>
+    sourceType.startsWith("premarket") || sourceType.startsWith("opening_range"),
+  );
+  const softDecisionQuality =
+    zone.followThroughScore < 0.5 &&
+    zone.rejectionScore < 0.45 &&
+    zone.confluenceCount <= 2 &&
+    zone.sourceEvidenceCount <= 3;
+  const touchInflated = zone.touchCount >= 12;
+
+  if (!lowerTimeframeConfluence || !sessionAnchor || !softDecisionQuality || !touchInflated) {
+    return adjustedScore;
+  }
+
+  return Math.min(adjustedScore, config.scoreThresholds.strong - 0.1);
+}
+
 export function scoreLevelZones(
   zones: FinalLevelZone[],
   config: LevelEngineConfig,
+  referenceTimestamp = Date.now(),
 ): FinalLevelZone[] {
   return zones.map((zone) => {
     const clearanceScore = pathClearanceScore(zone, zones);
@@ -230,7 +390,7 @@ export function scoreLevelZones(
       zone.touchCount * config.touchWeight +
       timeframeWeight(zone, config) +
       confluenceContribution(zone) * config.confluenceWeight +
-      recencyFactor(zone.lastTimestamp) * config.recencyWeight +
+      recencyFactor(zone.lastTimestamp, referenceTimestamp) * config.recencyWeight +
       reactionContribution(zone, config) +
       evidenceContribution(zone, config) +
       followThroughContribution(zone, config) +
@@ -243,11 +403,16 @@ export function scoreLevelZones(
       overcrowdingPenalty *
       crowdingPenalty *
       recycledPenalty;
+    const cappedScore = overTestedDecisionCapScore(zone, adjustedScore, config);
+    const lowerTimeframeCapScore = lowerTimeframeSoftConfluenceCapScore(zone, cappedScore, config);
+    const decisiveFloorScore = decisiveSingleTimeframeFloorScore(zone, lowerTimeframeCapScore, config);
+    const constructiveFloorScore = constructiveSingleTimeframeFloorScore(zone, decisiveFloorScore, config);
+    const finalScore = repeatedHigherTimeframeSwingFloorScore(zone, constructiveFloorScore, config);
 
     return {
       ...zone,
-      strengthScore: Number(adjustedScore.toFixed(2)),
-      strengthLabel: labelForScore(adjustedScore, config),
+      strengthScore: Number(finalScore.toFixed(2)),
+      strengthLabel: labelForScore(finalScore, config),
       notes: [
         ...zone.notes,
         `freshness=${zone.freshness}`,
@@ -258,6 +423,11 @@ export function scoreLevelZones(
         `pathClearance=${clearanceScore.toFixed(4)}`,
         `crowdingPenalty=${crowdingPenalty.toFixed(4)}`,
         `recycledPenalty=${recycledPenalty.toFixed(4)}`,
+        `overTestedDecisionCap=${(cappedScore - adjustedScore).toFixed(4)}`,
+        `lowerTimeframeSoftConfluenceCap=${(lowerTimeframeCapScore - cappedScore).toFixed(4)}`,
+        `decisiveSingleTimeframeFloor=${(decisiveFloorScore - lowerTimeframeCapScore).toFixed(4)}`,
+        `constructiveSingleTimeframeFloor=${(constructiveFloorScore - decisiveFloorScore).toFixed(4)}`,
+        `repeatedHigherTimeframeSwingFloor=${(finalScore - constructiveFloorScore).toFixed(4)}`,
       ],
     };
   });

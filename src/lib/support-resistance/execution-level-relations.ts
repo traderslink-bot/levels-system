@@ -1,6 +1,8 @@
 import type { FinalLevelZone, LevelEngineOutput, LevelKind } from "../levels/level-types.js";
 import type { SharedReferenceLevels } from "./reference-levels.js";
 
+export type ExecutionLevelSourceTimeframe = FinalLevelZone["timeframeSources"][number];
+
 export type ExecutionLevelReferenceMatch = {
   label: keyof Omit<SharedReferenceLevels, "sessionDate" | "diagnostics">;
   price: number;
@@ -35,6 +37,7 @@ export type BuildExecutionLevelRelationsRequest = {
   nearLevelPct?: number;
   stackedWindowPct?: number;
   openAirPct?: number;
+  sourceTimeframes?: ExecutionLevelSourceTimeframe[];
 };
 
 function representativePrice(level: FinalLevelZone): number {
@@ -45,7 +48,19 @@ function pctDistance(from: number, to: number): number {
   return Number((Math.abs(to - from) / Math.max(Math.abs(from), 0.0001) * 100).toFixed(4));
 }
 
-function collectLevels(levels: LevelEngineOutput, kind: LevelKind): FinalLevelZone[] {
+function matchesSourceTimeframes(
+  level: FinalLevelZone,
+  sourceTimeframes: ExecutionLevelSourceTimeframe[] | undefined,
+): boolean {
+  return sourceTimeframes === undefined ||
+    level.timeframeSources.some((timeframe) => sourceTimeframes.includes(timeframe));
+}
+
+function collectLevels(
+  levels: LevelEngineOutput,
+  kind: LevelKind,
+  sourceTimeframes?: ExecutionLevelSourceTimeframe[],
+): FinalLevelZone[] {
   const source =
     kind === "support"
       ? [
@@ -62,6 +77,9 @@ function collectLevels(levels: LevelEngineOutput, kind: LevelKind): FinalLevelZo
         ];
   const byId = new Map<string, FinalLevelZone>();
   for (const level of source) {
+    if (!matchesSourceTimeframes(level, sourceTimeframes)) {
+      continue;
+    }
     byId.set(level.id, level);
   }
   return [...byId.values()].sort((left, right) => representativePrice(left) - representativePrice(right));
@@ -113,8 +131,8 @@ export function buildExecutionLevelRelations(
   const nearLevelPct = request.nearLevelPct ?? 1.5;
   const stackedWindowPct = request.stackedWindowPct ?? 8;
   const openAirPct = request.openAirPct ?? 12;
-  const supports = collectLevels(request.levels, "support");
-  const resistances = collectLevels(request.levels, "resistance");
+  const supports = collectLevels(request.levels, "support", request.sourceTimeframes);
+  const resistances = collectLevels(request.levels, "resistance", request.sourceTimeframes);
   const nearestSupportBelow = nearestBelow(supports, request.price);
   const nearestResistanceAbove = nearestAbove(resistances, request.price);
   const nearestResistanceBelow = nearestBelow(resistances, request.price);

@@ -8,8 +8,54 @@ import type { FinalLevelZone, LevelEngineOutput } from "./level-types.js";
 
 type SurfaceBucket = "daily" | "4h" | "5m";
 const SURFACED_FORWARD_PLANNING_RANGE_PCT = 0.5;
+const LOW_PRICE_FORWARD_PLANNING_RANGE_PCT = 1;
+const DEFAULT_EXTENSION_LEVELS_PER_SIDE = 3;
+const ACTIVE_TRADER_EXTENSION_LEVELS_PER_SIDE = 6;
+const LOW_PRICE_EXTENSION_LEVELS_PER_SIDE = 10;
+const LOW_PRICE_RUNNER_THRESHOLD = 2;
 const GAP_FILL_THRESHOLD_PCT = 0.18;
+const ACTIVE_TRADER_GAP_FILL_THRESHOLD_PCT = 0.04;
+const ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD = 30;
 const GAP_FILL_MAX_ADDITIONS_PER_SIDE = 6;
+const ACTIVE_TRADER_GAP_FILL_MAX_ADDITIONS_PER_SIDE = 14;
+const ACTIVE_TRADER_HIGH_CONFIDENCE_FILL_MAX_ADDITIONS_PER_SIDE = 8;
+
+function forwardPlanningRangePctForReference(referencePrice: number | undefined): number {
+  return referencePrice && referencePrice > 0 && referencePrice < LOW_PRICE_RUNNER_THRESHOLD
+    ? LOW_PRICE_FORWARD_PLANNING_RANGE_PCT
+    : SURFACED_FORWARD_PLANNING_RANGE_PCT;
+}
+
+function maxExtensionLevelsPerSideForReference(referencePrice: number | undefined): number {
+  if (!referencePrice || referencePrice <= 0) {
+    return DEFAULT_EXTENSION_LEVELS_PER_SIDE;
+  }
+  if (referencePrice < LOW_PRICE_RUNNER_THRESHOLD) {
+    return LOW_PRICE_EXTENSION_LEVELS_PER_SIDE;
+  }
+  if (referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD) {
+    return ACTIVE_TRADER_EXTENSION_LEVELS_PER_SIDE;
+  }
+  return DEFAULT_EXTENSION_LEVELS_PER_SIDE;
+}
+
+function gapFillThresholdPctForReference(referencePrice: number | undefined): number {
+  return referencePrice && referencePrice > 0 && referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD
+    ? ACTIVE_TRADER_GAP_FILL_THRESHOLD_PCT
+    : GAP_FILL_THRESHOLD_PCT;
+}
+
+function maxGapFillAdditionsForReference(referencePrice: number | undefined): number {
+  return referencePrice && referencePrice > 0 && referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD
+    ? ACTIVE_TRADER_GAP_FILL_MAX_ADDITIONS_PER_SIDE
+    : GAP_FILL_MAX_ADDITIONS_PER_SIDE;
+}
+
+function highConfidenceFillMaxAdditionsForReference(referencePrice: number | undefined): number {
+  return referencePrice && referencePrice > 0 && referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD
+    ? ACTIVE_TRADER_HIGH_CONFIDENCE_FILL_MAX_ADDITIONS_PER_SIDE
+    : 0;
+}
 
 function freshnessRank(zone: FinalLevelZone): number {
   if (zone.freshness === "fresh") {
@@ -87,7 +133,7 @@ function filterPracticalSurfacedResistanceZones(
     return zones;
   }
 
-  const maxPracticalPrice = referencePrice * (1 + SURFACED_FORWARD_PLANNING_RANGE_PCT);
+  const maxPracticalPrice = referencePrice * (1 + forwardPlanningRangePctForReference(referencePrice));
   return zones.filter(
     (zone) =>
       zone.representativePrice > referencePrice &&
@@ -276,10 +322,13 @@ function fillForwardGaps(params: {
   selectedZones: FinalLevelZone[];
   side: "support" | "resistance";
   config: LevelEngineConfig;
+  referencePrice?: number;
 }): FinalLevelZone[] {
   const additions: FinalLevelZone[] = [];
+  const gapFillThresholdPct = gapFillThresholdPctForReference(params.referencePrice);
+  const maxAdditions = maxGapFillAdditionsForReference(params.referencePrice);
 
-  for (let count = 0; count < GAP_FILL_MAX_ADDITIONS_PER_SIDE; count += 1) {
+  for (let count = 0; count < maxAdditions; count += 1) {
     const selectedWithAdditions = uniqueByDisplayPrice([...params.selectedZones, ...additions]);
     const sortedSelected = forwardSortZones(selectedWithAdditions, params.side);
     const gaps = sortedSelected
@@ -289,27 +338,74 @@ function fillForwardGaps(params: {
         right: zone,
         gapPct: gapPctBetween(sortedSelected[index]!, zone),
       }))
-      .filter((gap) => gap.gapPct >= GAP_FILL_THRESHOLD_PCT)
+      .filter((gap) => gap.gapPct >= gapFillThresholdPct)
       .sort((left, right) => right.gapPct - left.gapPct);
-    const widestGap = gaps[0];
-
-    if (!widestGap) {
+    if (gaps.length === 0) {
       break;
     }
 
-    const candidate = findBestGapFillCandidate({
-      allForwardZones: params.allForwardZones,
-      selectedZones: selectedWithAdditions,
-      left: widestGap.left,
-      right: widestGap.right,
-      config: params.config,
-    });
+    let candidate: FinalLevelZone | null = null;
+    for (const gap of gaps) {
+      candidate = findBestGapFillCandidate({
+        allForwardZones: params.allForwardZones,
+        selectedZones: selectedWithAdditions,
+        left: gap.left,
+        right: gap.right,
+        config: params.config,
+      });
+      if (candidate) {
+        break;
+      }
+    }
 
     if (!candidate) {
       break;
     }
 
     additions.push(candidate);
+  }
+
+  return additions;
+}
+
+function fillHighConfidenceForwardZones(params: {
+  allForwardZones: FinalLevelZone[];
+  selectedZones: FinalLevelZone[];
+  side: "support" | "resistance";
+  referencePrice?: number;
+  config: LevelEngineConfig;
+}): FinalLevelZone[] {
+  const maxAdditions = highConfidenceFillMaxAdditionsForReference(params.referencePrice);
+  if (maxAdditions <= 0) {
+    return [];
+  }
+
+  const selectedIds = new Set(params.selectedZones.map((zone) => zone.id));
+  const selectedWithAdditions: FinalLevelZone[] = [...params.selectedZones];
+  const highConfidenceFloor = params.config.scoreThresholds.strong;
+  const candidates = forwardSortZones(
+    params.allForwardZones
+      .filter((zone) => !selectedIds.has(zone.id))
+      .filter((zone) => zone.strengthScore >= highConfidenceFloor)
+      .filter((zone) => zone.timeframeBias === "daily" || zone.timeframeBias === "4h" || zone.timeframeBias === "mixed"),
+    params.side,
+  );
+  const additions: FinalLevelZone[] = [];
+
+  for (const candidate of candidates) {
+    if (additions.length >= maxAdditions) {
+      break;
+    }
+
+    const alreadyCovered = selectedWithAdditions.some(
+      (zone) => proximityPct(zone, candidate) <= params.config.overlapMergeTolerancePct,
+    );
+    if (alreadyCovered) {
+      continue;
+    }
+
+    additions.push(candidate);
+    selectedWithAdditions.push(candidate);
   }
 
   return additions;
@@ -472,9 +568,23 @@ export function rankLevelZones(params: {
     selectedZones: [...dailySupport, ...intermediateSupport, ...intradaySupport],
     side: "support",
     config,
+    referencePrice: metadata.referencePrice,
   });
   addZonesToOwnedBuckets({
     zones: supportGapFillers,
+    daily: dailySupport,
+    intermediate: intermediateSupport,
+    intraday: intradaySupport,
+  });
+  const supportHighConfidenceFillers = fillHighConfidenceForwardZones({
+    allForwardZones: actionableSupportZones,
+    selectedZones: [...dailySupport, ...intermediateSupport, ...intradaySupport],
+    side: "support",
+    referencePrice: metadata.referencePrice,
+    config,
+  });
+  addZonesToOwnedBuckets({
+    zones: supportHighConfidenceFillers,
     daily: dailySupport,
     intermediate: intermediateSupport,
     intraday: intradaySupport,
@@ -499,6 +609,7 @@ export function rankLevelZones(params: {
     selectedZones: [...dailyResistance, ...intermediateResistance, ...intradayResistance],
     side: "resistance",
     config,
+    referencePrice: metadata.referencePrice,
   });
   addZonesToOwnedBuckets({
     zones: resistanceGapFillers,
@@ -506,7 +617,22 @@ export function rankLevelZones(params: {
     intermediate: intermediateResistance,
     intraday: intradayResistance,
   });
+  const resistanceHighConfidenceFillers = fillHighConfidenceForwardZones({
+    allForwardZones: surfacedResistanceZones,
+    selectedZones: [...dailyResistance, ...intermediateResistance, ...intradayResistance],
+    side: "resistance",
+    referencePrice: metadata.referencePrice,
+    config,
+  });
+  addZonesToOwnedBuckets({
+    zones: resistanceHighConfidenceFillers,
+    daily: dailyResistance,
+    intermediate: intermediateResistance,
+    intraday: intradayResistance,
+  });
 
+  const forwardPlanningRangePct = forwardPlanningRangePctForReference(metadata.referencePrice);
+  const maxExtensionPerSide = maxExtensionLevelsPerSideForReference(metadata.referencePrice);
   const extensionLevels = buildLevelExtensions({
     supportZones,
     resistanceZones,
@@ -515,6 +641,10 @@ export function rankLevelZones(params: {
     spacingPct: config.extensionSpacingPct,
     searchWindowPct: config.extensionSearchWindowPct,
     referencePrice: metadata.referencePrice,
+    forwardPlanningRangePct,
+    maxExtensionPerSide,
+    preservePracticalResistanceCoverage: maxExtensionPerSide > DEFAULT_EXTENSION_LEVELS_PER_SIDE,
+    allowSyntheticResistanceExtensions: true,
   });
 
   return {
