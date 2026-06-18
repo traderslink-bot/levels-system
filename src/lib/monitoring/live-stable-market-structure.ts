@@ -94,7 +94,50 @@ function buildRuntimeContext(
     rawState: decision.rawState,
     reason: decision.reason,
     candleCount,
+    rawRunLength: decision.rawRunLength,
+    trendDirection: decision.context.trend.direction,
+    higherLowCount: decision.context.trend.higherLowCount,
+    lowerHighCount: decision.context.trend.lowerHighCount,
+    higherHighCount: decision.context.trend.higherHighCount,
+    lowerLowCount: decision.context.trend.lowerLowCount,
+    latestSwingLow: decision.context.pivots.latestSwingLow?.price,
+    latestSwingHigh: decision.context.pivots.latestSwingHigh?.price,
+    priorSwingLow: decision.context.pivots.priorSwingLow?.price,
+    priorSwingHigh: decision.context.pivots.priorSwingHigh?.price,
+    activeRangeLow: decision.context.range?.active ? decision.context.range.low : undefined,
+    activeRangeHigh: decision.context.range?.active ? decision.context.range.high : undefined,
+    activeRangeWidthPct: decision.context.range?.active ? decision.context.range.widthPct : undefined,
+    activeRangeQuality: decision.context.range?.active ? decision.context.range.quality : undefined,
+    pivotEventType: decision.context.pivotEvent?.type,
+    pivotEventTriggerPrice: decision.context.pivotEvent?.triggerPrice,
   };
+}
+
+function normalizeSeedCandles(candles: Candle[], asOfTimestamp: number, bucketMs: number): Candle[] {
+  const completedCutoff = bucketStart(asOfTimestamp, bucketMs);
+  const byTimestamp = new Map<number, Candle>();
+
+  for (const candle of candles) {
+    if (
+      !Number.isFinite(candle.timestamp) ||
+      !Number.isFinite(candle.open) ||
+      !Number.isFinite(candle.high) ||
+      !Number.isFinite(candle.low) ||
+      !Number.isFinite(candle.close) ||
+      candle.open <= 0 ||
+      candle.high <= 0 ||
+      candle.low <= 0 ||
+      candle.close <= 0 ||
+      candle.high < candle.low ||
+      candle.timestamp >= completedCutoff
+    ) {
+      continue;
+    }
+
+    byTimestamp.set(candle.timestamp, { ...candle });
+  }
+
+  return [...byTimestamp.values()].sort((left, right) => left.timestamp - right.timestamp);
 }
 
 export class LiveStableMarketStructureTracker {
@@ -115,6 +158,40 @@ export class LiveStableMarketStructureTracker {
 
   getContext(symbol: string): StableMarketStructureRuntimeContext | undefined {
     return this.states.get(symbol.toUpperCase())?.context;
+  }
+
+  seed(
+    symbolInput: string,
+    candles: Candle[],
+    asOfTimestamp: number = Date.now(),
+  ): StableMarketStructureRuntimeContext | undefined {
+    const symbol = symbolInput.toUpperCase();
+    const state = this.ensureState(symbol);
+    const completedCandles = normalizeSeedCandles(candles, asOfTimestamp, this.bucketMs)
+      .slice(-this.maxCandles);
+
+    if (completedCandles.length === 0) {
+      return state.context;
+    }
+
+    const currentBucket = bucketStart(asOfTimestamp, this.bucketMs);
+    const currentCandle =
+      state.currentCandle && state.currentCandle.timestamp >= currentBucket
+        ? state.currentCandle
+        : undefined;
+    state.completedCandles = completedCandles;
+    state.currentCandle = currentCandle;
+    state.lastCumulativeVolume = undefined;
+    const context = this.recompute(symbol, state);
+
+    if (context) {
+      state.context = {
+        ...context,
+        materialChange: false,
+      };
+    }
+
+    return state.context;
   }
 
   update(update: LivePriceUpdate): StableMarketStructureRuntimeContext | undefined {

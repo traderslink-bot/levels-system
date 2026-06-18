@@ -226,6 +226,10 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
       lastLevelPostAt: normalizeOptionalTimestamp(entry.lastLevelPostAt),
       lastExtensionPostAt: normalizeOptionalTimestamp(entry.lastExtensionPostAt),
       lastPriceUpdateAt: normalizeOptionalTimestamp(entry.lastPriceUpdateAt),
+      lastPrice:
+        typeof entry.lastPrice === "number" && Number.isFinite(entry.lastPrice) && entry.lastPrice > 0
+          ? entry.lastPrice
+          : undefined,
       lastThreadPostAt: normalizeOptionalTimestamp(entry.lastThreadPostAt),
       lastThreadPostKind: entry.lastThreadPostKind?.trim() || undefined,
       refreshPending: entry.refreshPending ?? false,

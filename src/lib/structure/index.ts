@@ -21,3 +21,20 @@ export {
   type StableMarketStructureDecision,
   type StableMarketStructureDecisionReason,
 } from "./stable-market-structure.js";
+export {
+  buildFormalMarketStructureContext,
+  type BuildFormalMarketStructureRequest,
+  type FormalBreakConfirmation,
+  type FormalMarketStructureContext,
+  type FormalMarketStructureDiagnostic,
+  type FormalMarketStructureOptions,
+  type FormalStructureBias,
+  type FormalStructureConfidenceLabel,
+  type FormalStructureEvent,
+  type FormalStructureEventType,
+  type FormalStructureSwing,
+  type FormalStructureTimeframe,
+  type FormalSwingKind,
+  type FormalSwingLabel,
+  type FormalSwingScope,
+} from "./formal-market-structure.js";

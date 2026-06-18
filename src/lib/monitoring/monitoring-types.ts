@@ -6,6 +6,12 @@ import type { ZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import type {
   CandleMarketStructureConfidence,
   CandleMarketStructureState,
+  FormalBreakConfirmation,
+  FormalStructureBias,
+  FormalStructureConfidenceLabel,
+  FormalStructureEventType,
+  FormalStructureTimeframe,
+  FormalSwingLabel,
   StableMarketStructureDecisionReason,
 } from "../structure/index.js";
 import type { VolumeActivityContext } from "./volume-activity.js";
@@ -114,6 +120,61 @@ export type StableMarketStructureRuntimeContext = {
   rawState: CandleMarketStructureState;
   reason: StableMarketStructureDecisionReason;
   candleCount: number;
+  rawRunLength?: number;
+  trendDirection?: "building" | "fading" | "uptrend" | "damaged" | "range" | "unknown";
+  higherLowCount?: number;
+  lowerHighCount?: number;
+  higherHighCount?: number;
+  lowerLowCount?: number;
+  latestSwingLow?: number;
+  latestSwingHigh?: number;
+  priorSwingLow?: number;
+  priorSwingHigh?: number;
+  activeRangeLow?: number;
+  activeRangeHigh?: number;
+  activeRangeWidthPct?: number;
+  activeRangeQuality?: "clean" | "loose" | "choppy";
+  pivotEventType?: "reclaim" | "loss" | "failed_reclaim" | "none";
+  pivotEventTriggerPrice?: number | null;
+};
+
+export type FormalMarketStructureRuntimeContext = {
+  timeframe: FormalStructureTimeframe;
+  bias: FormalStructureBias;
+  previousBias: FormalStructureBias | null;
+  eventType: FormalStructureEventType;
+  eventFreshness?: "fresh" | "prior" | "context";
+  triggerTimestamp?: string | null;
+  confirmation: FormalBreakConfirmation;
+  confidence: FormalStructureConfidenceLabel;
+  confidenceScore: number;
+  materialChange: boolean;
+  brokenSwingPrice?: number | null;
+  sweptSwingPrice?: number | null;
+  protectedHigh?: number | null;
+  protectedLow?: number | null;
+  latestHigh?: number | null;
+  latestLow?: number | null;
+  swingSequence: FormalSwingLabel[];
+  structureKey: string;
+  traderLine: string;
+  debug: {
+    candleCount: number;
+    reasons: string[];
+  };
+};
+
+export type RuntimeMarketStructureTimeframeSnapshot = {
+  stable?: StableMarketStructureRuntimeContext;
+  formal?: FormalMarketStructureRuntimeContext;
+};
+
+export type RuntimeMarketStructureByTimeframe = Partial<
+  Record<FormalStructureTimeframe, RuntimeMarketStructureTimeframeSnapshot>
+>;
+
+export type RuntimeMarketStructureSnapshot = RuntimeMarketStructureTimeframeSnapshot & {
+  timeframes?: RuntimeMarketStructureByTimeframe;
 };
 
 export type InteractionPhase =
@@ -254,6 +315,9 @@ export type SymbolMonitoringState = {
   recentEvents: MonitoringEvent[];
   intradayStructure?: IntradayPriceStructureContext;
   stableMarketStructure?: StableMarketStructureRuntimeContext;
+  formalMarketStructure?: FormalMarketStructureRuntimeContext;
+  marketStructureByTimeframe?: RuntimeMarketStructureByTimeframe;
+  runtimeMarketStructure?: RuntimeMarketStructureSnapshot;
   volumeActivity?: VolumeActivityContext;
 };
 
@@ -294,6 +358,66 @@ export type MonitoringEventContext = {
   stableMarketStructureMaterialChange?: boolean;
   stableMarketStructureConfidence?: CandleMarketStructureConfidence["label"];
   stableMarketStructureMaterialityScore?: number;
+  stableMarketStructureRawState?: CandleMarketStructureState;
+  stableMarketStructureReason?: StableMarketStructureDecisionReason;
+  stableMarketStructureCandleCount?: number;
+  stableMarketStructureRawRunLength?: number;
+  stableMarketStructureTrendDirection?: StableMarketStructureRuntimeContext["trendDirection"];
+  stableMarketStructureHigherLowCount?: number;
+  stableMarketStructureLowerHighCount?: number;
+  stableMarketStructureHigherHighCount?: number;
+  stableMarketStructureLowerLowCount?: number;
+  stableMarketStructureLatestSwingLow?: number;
+  stableMarketStructureLatestSwingHigh?: number;
+  stableMarketStructurePriorSwingLow?: number;
+  stableMarketStructurePriorSwingHigh?: number;
+  stableMarketStructureActiveRangeLow?: number;
+  stableMarketStructureActiveRangeHigh?: number;
+  stableMarketStructureActiveRangeWidthPct?: number;
+  stableMarketStructureActiveRangeQuality?: StableMarketStructureRuntimeContext["activeRangeQuality"];
+  stableMarketStructurePivotEventType?: StableMarketStructureRuntimeContext["pivotEventType"];
+  stableMarketStructurePivotEventTriggerPrice?: number | null;
+  formalStructureTimeframe?: FormalStructureTimeframe;
+  formalStructureBias?: FormalStructureBias;
+  formalStructurePreviousBias?: FormalStructureBias | null;
+  formalStructureEventType?: FormalStructureEventType;
+  formalStructureEventFreshness?: FormalMarketStructureRuntimeContext["eventFreshness"];
+  formalStructureTriggerTimestamp?: string | null;
+  formalStructureConfirmation?: FormalBreakConfirmation;
+  formalStructureConfidence?: FormalStructureConfidenceLabel;
+  formalStructureConfidenceScore?: number;
+  formalStructureMaterialChange?: boolean;
+  formalStructureBrokenSwingPrice?: number | null;
+  formalStructureSweptSwingPrice?: number | null;
+  formalStructureProtectedHigh?: number | null;
+  formalStructureProtectedLow?: number | null;
+  formalStructureLatestHigh?: number | null;
+  formalStructureLatestLow?: number | null;
+  formalStructureSwingSequence?: FormalSwingLabel[];
+  formalStructureKey?: string;
+  formalStructureTraderLine?: string;
+  formalStructureDebugReasons?: string[];
+  selectedFormalStructureTimeframe?: FormalStructureTimeframe;
+  selectedFormalStructureBias?: FormalStructureBias;
+  selectedFormalStructurePreviousBias?: FormalStructureBias | null;
+  selectedFormalStructureEventType?: FormalStructureEventType;
+  selectedFormalStructureEventFreshness?: FormalMarketStructureRuntimeContext["eventFreshness"];
+  selectedFormalStructureTriggerTimestamp?: string | null;
+  selectedFormalStructureConfirmation?: FormalBreakConfirmation;
+  selectedFormalStructureConfidence?: FormalStructureConfidenceLabel;
+  selectedFormalStructureConfidenceScore?: number;
+  selectedFormalStructureMaterialChange?: boolean;
+  selectedFormalStructureBrokenSwingPrice?: number | null;
+  selectedFormalStructureSweptSwingPrice?: number | null;
+  selectedFormalStructureProtectedHigh?: number | null;
+  selectedFormalStructureProtectedLow?: number | null;
+  selectedFormalStructureLatestHigh?: number | null;
+  selectedFormalStructureLatestLow?: number | null;
+  selectedFormalStructureSwingSequence?: FormalSwingLabel[];
+  selectedFormalStructureKey?: string;
+  selectedFormalStructureTraderLine?: string;
+  selectedFormalStructureDebugReasons?: string[];
+  runtimeMarketStructure?: RuntimeMarketStructureSnapshot;
   volumeActivity?: VolumeActivityContext;
   tradeStoryState?: TradeStoryState;
   rangeBox?: RangeBoxContext;

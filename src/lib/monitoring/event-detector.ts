@@ -6,6 +6,7 @@ import { deriveZoneTacticalRead } from "../levels/zone-tactical-read.js";
 import { getSupportApproachPct, type MonitoringConfig } from "./monitoring-config.js";
 import type {
   LivePriceUpdate,
+  FormalMarketStructureRuntimeContext,
   MonitoringDiagnosticEventType,
   MonitoringEvent,
   MonitoringEventContext,
@@ -135,6 +136,116 @@ function volumeActivityForEvent(
   };
 }
 
+function isFormalBosOrChoch(eventType: FormalMarketStructureRuntimeContext["eventType"]): boolean {
+  return (
+    eventType === "bos_bullish" ||
+    eventType === "bos_bearish" ||
+    eventType === "choch_bullish" ||
+    eventType === "choch_bearish"
+  );
+}
+
+function isFormalSweepOrFailedBreak(eventType: FormalMarketStructureRuntimeContext["eventType"]): boolean {
+  return (
+    eventType === "liquidity_sweep_high" ||
+    eventType === "liquidity_sweep_low" ||
+    eventType === "failed_break_high" ||
+    eventType === "failed_break_low"
+  );
+}
+
+function formalTimeframePriority(timeframe: FormalMarketStructureRuntimeContext["timeframe"]): number {
+  if (timeframe === "4h") return 2;
+  if (timeframe === "5m") return 1;
+  return 0;
+}
+
+function selectedFormalPriority(formal: FormalMarketStructureRuntimeContext): number {
+  const timeframePriority = formalTimeframePriority(formal.timeframe);
+  if (formal.eventFreshness === "fresh" && isFormalBosOrChoch(formal.eventType)) {
+    return 500 + timeframePriority;
+  }
+  if (formal.eventFreshness === "fresh" && isFormalSweepOrFailedBreak(formal.eventType)) {
+    return 300 + timeframePriority;
+  }
+  if (formal.timeframe === "5m") {
+    return 100;
+  }
+  return 80 + timeframePriority;
+}
+
+function selectFormalMarketStructureContext(
+  symbolState: SymbolMonitoringState,
+): FormalMarketStructureRuntimeContext | undefined {
+  const candidates = [
+    symbolState.runtimeMarketStructure?.timeframes?.["4h"]?.formal,
+    symbolState.runtimeMarketStructure?.timeframes?.["5m"]?.formal,
+    symbolState.formalMarketStructure,
+  ].filter((formal): formal is FormalMarketStructureRuntimeContext => Boolean(formal));
+
+  return candidates.sort((left, right) => selectedFormalPriority(right) - selectedFormalPriority(left))[0];
+}
+
+function formalMarketStructureEventFields(
+  symbolState: SymbolMonitoringState,
+): Partial<MonitoringEventContext> {
+  const formal = symbolState.formalMarketStructure;
+  const selected = selectFormalMarketStructureContext(symbolState);
+  const fields: Partial<MonitoringEventContext> = {};
+
+  if (formal) {
+    Object.assign(fields, {
+      formalStructureTimeframe: formal.timeframe,
+      formalStructureBias: formal.bias,
+      formalStructurePreviousBias: formal.previousBias,
+      formalStructureEventType: formal.eventType,
+      formalStructureEventFreshness: formal.eventFreshness,
+      formalStructureTriggerTimestamp: formal.triggerTimestamp,
+      formalStructureConfirmation: formal.confirmation,
+      formalStructureConfidence: formal.confidence,
+      formalStructureConfidenceScore: formal.confidenceScore,
+      formalStructureMaterialChange: formal.materialChange,
+      formalStructureBrokenSwingPrice: formal.brokenSwingPrice,
+      formalStructureSweptSwingPrice: formal.sweptSwingPrice,
+      formalStructureProtectedHigh: formal.protectedHigh,
+      formalStructureProtectedLow: formal.protectedLow,
+      formalStructureLatestHigh: formal.latestHigh,
+      formalStructureLatestLow: formal.latestLow,
+      formalStructureSwingSequence: formal.swingSequence,
+      formalStructureKey: formal.structureKey,
+      formalStructureTraderLine: formal.traderLine,
+      formalStructureDebugReasons: formal.debug.reasons,
+    });
+  }
+
+  if (selected) {
+    Object.assign(fields, {
+      selectedFormalStructureTimeframe: selected.timeframe,
+      selectedFormalStructureBias: selected.bias,
+      selectedFormalStructurePreviousBias: selected.previousBias,
+      selectedFormalStructureEventType: selected.eventType,
+      selectedFormalStructureEventFreshness: selected.eventFreshness,
+      selectedFormalStructureTriggerTimestamp: selected.triggerTimestamp,
+      selectedFormalStructureConfirmation: selected.confirmation,
+      selectedFormalStructureConfidence: selected.confidence,
+      selectedFormalStructureConfidenceScore: selected.confidenceScore,
+      selectedFormalStructureMaterialChange: selected.materialChange,
+      selectedFormalStructureBrokenSwingPrice: selected.brokenSwingPrice,
+      selectedFormalStructureSweptSwingPrice: selected.sweptSwingPrice,
+      selectedFormalStructureProtectedHigh: selected.protectedHigh,
+      selectedFormalStructureProtectedLow: selected.protectedLow,
+      selectedFormalStructureLatestHigh: selected.latestHigh,
+      selectedFormalStructureLatestLow: selected.latestLow,
+      selectedFormalStructureSwingSequence: selected.swingSequence,
+      selectedFormalStructureKey: selected.structureKey,
+      selectedFormalStructureTraderLine: selected.traderLine,
+      selectedFormalStructureDebugReasons: selected.debug.reasons,
+    });
+  }
+
+  return fields;
+}
+
 function buildMonitoringEventContext(
   zone: FinalLevelZone,
   symbolState: SymbolMonitoringState,
@@ -192,6 +303,8 @@ function buildMonitoringEventContext(
   });
   const volumeActivity = volumeActivityForEvent(symbolState, eventType, zone.id);
   const stableMarketStructure = symbolState.stableMarketStructure;
+  const runtimeMarketStructure = symbolState.runtimeMarketStructure;
+  const formalMarketStructureFields = formalMarketStructureEventFields(symbolState);
   const tradeStory = buildTradeStoryIntelligenceContext({
     symbolState,
     zone,
@@ -240,6 +353,27 @@ function buildMonitoringEventContext(
       stableMarketStructureMaterialChange: stableMarketStructure?.materialChange,
       stableMarketStructureConfidence: stableMarketStructure?.confidence,
       stableMarketStructureMaterialityScore: stableMarketStructure?.materialityScore,
+      stableMarketStructureRawState: stableMarketStructure?.rawState,
+      stableMarketStructureReason: stableMarketStructure?.reason,
+      stableMarketStructureCandleCount: stableMarketStructure?.candleCount,
+      stableMarketStructureRawRunLength: stableMarketStructure?.rawRunLength,
+      stableMarketStructureTrendDirection: stableMarketStructure?.trendDirection,
+      stableMarketStructureHigherLowCount: stableMarketStructure?.higherLowCount,
+      stableMarketStructureLowerHighCount: stableMarketStructure?.lowerHighCount,
+      stableMarketStructureHigherHighCount: stableMarketStructure?.higherHighCount,
+      stableMarketStructureLowerLowCount: stableMarketStructure?.lowerLowCount,
+      stableMarketStructureLatestSwingLow: stableMarketStructure?.latestSwingLow,
+      stableMarketStructureLatestSwingHigh: stableMarketStructure?.latestSwingHigh,
+      stableMarketStructurePriorSwingLow: stableMarketStructure?.priorSwingLow,
+      stableMarketStructurePriorSwingHigh: stableMarketStructure?.priorSwingHigh,
+      stableMarketStructureActiveRangeLow: stableMarketStructure?.activeRangeLow,
+      stableMarketStructureActiveRangeHigh: stableMarketStructure?.activeRangeHigh,
+      stableMarketStructureActiveRangeWidthPct: stableMarketStructure?.activeRangeWidthPct,
+      stableMarketStructureActiveRangeQuality: stableMarketStructure?.activeRangeQuality,
+      stableMarketStructurePivotEventType: stableMarketStructure?.pivotEventType,
+      stableMarketStructurePivotEventTriggerPrice: stableMarketStructure?.pivotEventTriggerPrice,
+      ...formalMarketStructureFields,
+      runtimeMarketStructure,
       volumeActivity,
       tradeStoryState: tradeStory.storyState,
       rangeBox: tradeStory.rangeBox,
@@ -288,6 +422,27 @@ function buildMonitoringEventContext(
     stableMarketStructureMaterialChange: stableMarketStructure?.materialChange,
     stableMarketStructureConfidence: stableMarketStructure?.confidence,
     stableMarketStructureMaterialityScore: stableMarketStructure?.materialityScore,
+    stableMarketStructureRawState: stableMarketStructure?.rawState,
+    stableMarketStructureReason: stableMarketStructure?.reason,
+    stableMarketStructureCandleCount: stableMarketStructure?.candleCount,
+    stableMarketStructureRawRunLength: stableMarketStructure?.rawRunLength,
+    stableMarketStructureTrendDirection: stableMarketStructure?.trendDirection,
+    stableMarketStructureHigherLowCount: stableMarketStructure?.higherLowCount,
+    stableMarketStructureLowerHighCount: stableMarketStructure?.lowerHighCount,
+    stableMarketStructureHigherHighCount: stableMarketStructure?.higherHighCount,
+    stableMarketStructureLowerLowCount: stableMarketStructure?.lowerLowCount,
+    stableMarketStructureLatestSwingLow: stableMarketStructure?.latestSwingLow,
+    stableMarketStructureLatestSwingHigh: stableMarketStructure?.latestSwingHigh,
+    stableMarketStructurePriorSwingLow: stableMarketStructure?.priorSwingLow,
+    stableMarketStructurePriorSwingHigh: stableMarketStructure?.priorSwingHigh,
+    stableMarketStructureActiveRangeLow: stableMarketStructure?.activeRangeLow,
+    stableMarketStructureActiveRangeHigh: stableMarketStructure?.activeRangeHigh,
+    stableMarketStructureActiveRangeWidthPct: stableMarketStructure?.activeRangeWidthPct,
+    stableMarketStructureActiveRangeQuality: stableMarketStructure?.activeRangeQuality,
+    stableMarketStructurePivotEventType: stableMarketStructure?.pivotEventType,
+    stableMarketStructurePivotEventTriggerPrice: stableMarketStructure?.pivotEventTriggerPrice,
+    ...formalMarketStructureFields,
+    runtimeMarketStructure,
     volumeActivity,
     tradeStoryState: tradeStory.storyState,
     rangeBox: tradeStory.rangeBox,

@@ -20,6 +20,10 @@ export class WatchlistStore {
     const lastLevelPostAt = normalizeFiniteTimestamp(entry.lastLevelPostAt);
     const lastExtensionPostAt = normalizeFiniteTimestamp(entry.lastExtensionPostAt);
     const lastPriceUpdateAt = normalizeFiniteTimestamp(entry.lastPriceUpdateAt);
+    const lastPrice =
+      typeof entry.lastPrice === "number" && Number.isFinite(entry.lastPrice) && entry.lastPrice > 0
+        ? entry.lastPrice
+        : undefined;
     const lastThreadPostAt = normalizeFiniteTimestamp(entry.lastThreadPostAt);
     const lastError = entry.lastError?.trim() || undefined;
     const operationStatus = entry.operationStatus?.trim() || undefined;
@@ -38,6 +42,7 @@ export class WatchlistStore {
       ...(lastLevelPostAt !== undefined ? { lastLevelPostAt } : {}),
       ...(lastExtensionPostAt !== undefined ? { lastExtensionPostAt } : {}),
       ...(lastPriceUpdateAt !== undefined ? { lastPriceUpdateAt } : {}),
+      ...(lastPrice !== undefined ? { lastPrice } : {}),
       ...(lastThreadPostAt !== undefined ? { lastThreadPostAt } : {}),
       ...(lastThreadPostKind !== undefined ? { lastThreadPostKind } : {}),
       ...(lastError !== undefined ? { lastError } : {}),
@@ -83,6 +88,7 @@ export class WatchlistStore {
     lastLevelPostAt?: number;
     lastExtensionPostAt?: number;
     lastPriceUpdateAt?: number;
+    lastPrice?: number;
     lastThreadPostAt?: number;
     lastThreadPostKind?: string | null;
     refreshPending?: boolean;
@@ -116,6 +122,10 @@ export class WatchlistStore {
         normalizeFiniteTimestamp(input.lastExtensionPostAt) ?? existing?.lastExtensionPostAt,
       lastPriceUpdateAt:
         normalizeFiniteTimestamp(input.lastPriceUpdateAt) ?? existing?.lastPriceUpdateAt,
+      lastPrice:
+        typeof input.lastPrice === "number" && Number.isFinite(input.lastPrice) && input.lastPrice > 0
+          ? input.lastPrice
+          : existing?.lastPrice,
       lastThreadPostAt:
         normalizeFiniteTimestamp(input.lastThreadPostAt) ?? existing?.lastThreadPostAt,
       lastThreadPostKind:

@@ -164,6 +164,79 @@ test("material stable 5m damage can override stale practical range wording", () 
   assertTraderLine(context.line);
 });
 
+test("material formal BOS/CHOCH structure overrides stale practical wording", () => {
+  const context = withMarketStructureLiveDiscord(() =>
+    deriveTraderMarketStructureContext(
+      eventWithContext({
+        tradeStructure: {
+          state: "range_bound",
+          structureKey: "range_bound|2.30-2.50",
+          practicalZoneKey: "2.30-2.50",
+          traderLine:
+            "market structure: TEST is still range-bound between 2.30 and 2.50; small moves inside that band are lower-quality noise",
+          reason: "same practical range",
+          isMaterialStateChange: false,
+        },
+        formalStructureTimeframe: "5m",
+        formalStructureBias: "bullish",
+        formalStructurePreviousBias: "bullish",
+        formalStructureEventType: "bos_bullish",
+        formalStructureConfirmation: "displacement_confirmed",
+        formalStructureConfidence: "high",
+        formalStructureConfidenceScore: 0.88,
+        formalStructureMaterialChange: true,
+        formalStructureBrokenSwingPrice: 2.36,
+        formalStructureProtectedLow: 2.08,
+        formalStructureTraderLine:
+          "5m structure printed bullish BOS above 2.36; 2.08 is the protected structure low.",
+      }),
+      resistanceZone,
+    ),
+  );
+
+  assert.ok(context);
+  assert.equal(context.label, "bullish_building");
+  assert.match(context.line, /market structure: 5m structure printed bullish BOS/);
+  assert.doesNotMatch(context.line, /range-bound between 2\.30 and 2\.50/);
+  assertTraderLine(context.line);
+});
+
+test("deduped formal structure does not keep replacing the practical structure line", () => {
+  const context = withMarketStructureLiveDiscord(() =>
+    deriveTraderMarketStructureContext(
+      eventWithContext({
+        tradeStructure: {
+          state: "range_bound",
+          structureKey: "range_bound|2.30-2.50",
+          practicalZoneKey: "2.30-2.50",
+          traderLine:
+            "market structure: TEST is still range-bound between 2.30 and 2.50; small moves inside that band are lower-quality noise",
+          reason: "same practical range",
+          isMaterialStateChange: false,
+        },
+        formalStructureTimeframe: "5m",
+        formalStructureBias: "bullish",
+        formalStructurePreviousBias: "bullish",
+        formalStructureEventType: "bos_bullish",
+        formalStructureConfirmation: "displacement_confirmed",
+        formalStructureConfidence: "high",
+        formalStructureConfidenceScore: 0.88,
+        formalStructureMaterialChange: false,
+        formalStructureBrokenSwingPrice: 2.36,
+        formalStructureProtectedLow: 2.08,
+        formalStructureTraderLine:
+          "5m structure printed bullish BOS above 2.36; 2.08 is the protected structure low.",
+      }),
+      resistanceZone,
+    ),
+  );
+
+  assert.ok(context);
+  assert.equal(context.label, "compression");
+  assert.match(context.line, /still range-bound between 2\.30 and 2\.50/);
+  assertTraderLine(context.line);
+});
+
 test("unchanged stable 5m structure keeps the practical trade structure line", () => {
   const context = withMarketStructureLiveDiscord(() =>
     deriveTraderMarketStructureContext(

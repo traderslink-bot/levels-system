@@ -75,6 +75,17 @@ function buildLevelOutput(symbol: string, overrides: Partial<LevelEngineOutput> 
   };
 }
 
+test("WatchlistMonitor omits empty higher-timeframe market-structure buckets", () => {
+  const monitor = new WatchlistMonitor(new LevelStore(), new FakeLivePriceProvider());
+  const snapshot = (monitor as unknown as {
+    buildMarketStructureSnapshot: (symbol: string, seededTimeframes?: Record<string, unknown>) => unknown;
+  }).buildMarketStructureSnapshot("ALBT", {
+    "4h": {},
+  });
+
+  assert.equal(snapshot, null);
+});
+
 test("WatchlistMonitor reconciles refreshed levels and emits events for the new active zone set", async () => {
   const levelStore = new LevelStore();
   const liveProvider = new FakeLivePriceProvider();
@@ -575,6 +586,89 @@ test("WatchlistMonitor attaches stable 5m structure metadata after enough live b
     typeof eventWithStructure.eventContext.stableMarketStructureMaterialityScore,
     "number",
   );
+  assert.equal(typeof eventWithStructure.eventContext.stableMarketStructureRawState, "string");
+  assert.equal(typeof eventWithStructure.eventContext.stableMarketStructureReason, "string");
+  assert.equal(typeof eventWithStructure.eventContext.stableMarketStructureCandleCount, "number");
+  assert.equal(typeof eventWithStructure.eventContext.stableMarketStructureTrendDirection, "string");
+  assert.equal(typeof eventWithStructure.eventContext.stableMarketStructureHigherLowCount, "number");
+  assert.equal(typeof eventWithStructure.eventContext.stableMarketStructureHigherHighCount, "number");
+});
+
+test("WatchlistMonitor attaches formal BOS/CHOCH structure metadata after enough completed 5m buckets", async () => {
+  const levelStore = new LevelStore();
+  const liveProvider = new FakeLivePriceProvider();
+  const events: MonitoringEvent[] = [];
+  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+  const fiveMinutes = 5 * 60 * 1000;
+
+  levelStore.setLevels(buildLevelOutput("FMS", {
+    intradayResistance: [
+      buildZone({
+        id: "R1",
+        symbol: "FMS",
+        kind: "resistance",
+        zoneLow: 2.50,
+        zoneHigh: 2.55,
+        representativePrice: 2.525,
+        strengthLabel: "major",
+        strengthScore: 42,
+      }),
+    ],
+  }));
+
+  await monitor.start(
+    [{ symbol: "FMS", active: true, priority: 1, tags: ["manual"] }],
+    (event) => events.push(event),
+  );
+
+  [
+    2.00,
+    2.18,
+    2.00,
+    2.30,
+    2.10,
+    2.34,
+    2.22,
+    2.28,
+    2.16,
+    2.35,
+    2.24,
+    2.31,
+    2.18,
+    2.36,
+    2.26,
+    2.32,
+    2.20,
+    2.37,
+    2.28,
+    2.33,
+    2.22,
+    2.38,
+    2.30,
+    2.52,
+    2.57,
+  ].forEach((price, index) => {
+    liveProvider.listener?.({
+      symbol: "FMS",
+      timestamp: index * fiveMinutes,
+      lastPrice: price,
+      volume: 1000 + index * 100,
+    });
+  });
+
+  const eventWithFormalStructure = events.find(
+    (event) => event.eventContext.formalStructureEventType === "bos_bullish",
+  );
+  assert.ok(eventWithFormalStructure);
+  assert.equal(eventWithFormalStructure.eventContext.formalStructureTimeframe, "5m");
+  assert.equal(eventWithFormalStructure.eventContext.formalStructureBias, "bullish");
+  assert.equal(eventWithFormalStructure.eventContext.formalStructureMaterialChange, true);
+  assert.equal(eventWithFormalStructure.eventContext.formalStructureConfidence, "medium");
+  assert.equal(typeof eventWithFormalStructure.eventContext.formalStructureConfidenceScore, "number");
+  assert.equal(typeof eventWithFormalStructure.eventContext.formalStructureBrokenSwingPrice, "number");
+  assert.equal(typeof eventWithFormalStructure.eventContext.formalStructureProtectedLow, "number");
+  assert.match(eventWithFormalStructure.eventContext.formalStructureTraderLine ?? "", /bullish BOS/);
+  assert.ok(eventWithFormalStructure.eventContext.formalStructureDebugReasons?.includes("trend_continuation"));
 });
 
 test("WatchlistMonitor treats recently cleared resistance below price as a nearby hold area", async () => {
