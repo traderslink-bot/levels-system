@@ -113,14 +113,25 @@ npm run candles:audit -- data/candles
 npm run candles:calibrate -- <session-folder-or-discord-delivery-audit.jsonl>
 npm run candles:calibrate -- --all-sessions
 npm run candles:import-readiness -- <session-folder-or-discord-delivery-audit.jsonl>
+npm run candles:import-safety -- <session-folder-or-discord-delivery-audit.jsonl>
+npm run candles:import-safety -- --all-sessions
 npm run candles:backfill -- <session-folder-or-discord-delivery-audit.jsonl> --max-tasks 8
+npm run candles:dynamic-calibrate -- <session-folder-or-discord-delivery-audit.jsonl>
+npm run candles:dynamic-calibrate -- --all-sessions
+npm run audit:why-no-post -- <session-folder-or-discord-delivery-audit.jsonl>
 ```
 
 `npm run candles:calibrate` is operator-only evidence for the shared engine. It reviews saved Discord posts against cached daily / `4h` / `5m` candles and marks `referenceLevels`, `gapStructure`, and `executionRelations` as trusted, watch, experimental, or broken. This helps decide which shared facts are ready for consumer-facing use.
 
 `npm run candles:import-readiness` is the first warehouse-readiness report for future bulk trade imports. It builds saved-session trade proxies, compares them against `data/candles`, and reports which provider/symbol/session/timeframe ranges are already covered versus missing. It does not fetch candles by itself; it tells the caller what the shared warehouse would need before a large import can reuse candle data safely.
 
+`npm run candles:import-safety` is the provider-pressure report. It wraps readiness with naive provider task counts, deduped provider tasks, avoided requests, missing tasks, provider batches, largest task estimates, and a verdict. This is the report `trader-intelligence-v2` should care about before any future months-of-trades import leans on `levels-system` for candle fetching/backfill.
+
 `npm run candles:backfill` is the provider-safe bridge from missing ranges to stored candles. It defaults to dry-run. Execution requires `--execute` or `--mode execute`, and provider protection is controlled here with `--max-tasks`, `--concurrency`, and `--throttle-ms`. `trader-intelligence-v2` should not implement IBKR throttling or provider retry behavior; it should consume readiness/freshness state from this shared engine.
+
+`npm run candles:dynamic-calibrate` now writes both a calibration report and a generated trust gate for opening-range, VWAP, EMA9, and EMA20 evidence. Treat those facts as shared/operator facts until the gate says the saved-data evidence is trusted enough for the intended consumer surface.
+
+`npm run audit:why-no-post` is still Discord-app oriented, but it matters to shared-engine development because it proves whether quieter behavior was supported by candles or blocked by missing candle evidence. For single sessions it also shows current replay suppression evidence.
 
 Shared context fetch summaries now include `freshnessStatus`:
 
@@ -403,12 +414,6 @@ IBKR mapping:
 1m -> barSizeSetting "1 min"
 ```
 
-Twelve Data mapping:
-
-```text
-1m -> interval "1min"
-```
-
 The shared API also exposes:
 
 ```ts
@@ -661,7 +666,6 @@ src/lib/market-data/candle-fetch-service.ts
 src/lib/market-data/candle-session-classifier.ts
 src/lib/market-data/candle-validation.ts
 src/lib/market-data/ibkr-historical-candle-provider.ts
-src/lib/market-data/providers/twelve-data-historical-candle-provider.ts
 src/lib/validation/validation-candle-cache.ts
 src/lib/validation/validation-lookback-config.ts
 src/tests/support-resistance-shared-api.test.ts
@@ -1990,3 +1994,75 @@ No new integration blocker was found for `trader-intelligence-v2`. The intended 
 - `levels-system` owns provider access, warehouse reuse, candle prep, support/resistance, VWAP/EMA, market structure, volume/activity facts, and generic execution-to-level relations.
 - `trader-intelligence-v2` consumes the public package boundary and keeps app-specific trade-review language/scoring on its side.
 - Provider comparison and bulk import throttling should stay in `levels-system`, not be reimplemented in `trader-intelligence-v2`.
+
+## Levels-System Phase 5-9 Candle Intelligence Follow-Up - 2026-05-03
+
+`levels-system` added another shared-engine audit pass that matters to future `trader-intelligence-v2` integration even though it does not require consumer-side code changes yet.
+
+New/expanded commands:
+
+```powershell
+npm run structure:calibrate -- --max-files-per-symbol 2 --audit-limit all
+npm run candles:advanced-context -- --max-symbols 25
+npm run candles:provider-compare -- --primary ibkr --comparison twelve_data
+npm run startup:cache-readiness
+npm run audit:first-snapshots -- <session-folder-or-discord-delivery-audit.jsonl>
+```
+
+Integration meaning:
+
+- `structure:calibrate` joins market-structure replay with saved Discord alignment so the structure module can be trusted as suppression/materiality evidence only when saved candles support it.
+- `candles:advanced-context` summarizes operator-only candle facts from cached candles: reference levels, gaps, VWAP/EMA availability, market structure, candle reaction, move extension, opening range, halt awareness, level quality, data quality, data-quality proof, missing facts, trade idea, and first-post-plan lines.
+- `candles:provider-compare` now includes average-volume drift and 5m market-structure drift in addition to coverage, latest-close drift, VWAP/EMA drift, and support/resistance drift.
+- `startup:cache-readiness` proves whether active watchlist symbols have enough cached daily/4h/5m candles for fast restart restore; Discord snapshots still wait for fresh candle refresh.
+- `audit:first-snapshots` now exposes explicit first-map checks, which can later inspire trade-review presentation checks in `trader-intelligence-v2`, but no direct wording contract is forced on that app.
+
+Boundary remains unchanged:
+
+- `levels-system` keeps owning candle/provider/warehouse/structure facts.
+- `trader-intelligence-v2` should consume the shared package facts and decide its own user-facing trade-review language.
+
+## Levels-System Checklist / Verdict Integration Follow-Up - 2026-05-03
+
+`levels-system` now has stronger closed-market review plumbing around the shared engine. This does not require `trader-intelligence-v2` to change imports, but it does mean future shared-engine changes are easier to validate before the consumer app trusts them.
+
+New behavior:
+
+- `npm run replay:monday` now runs first-snapshot audit, end-of-day verdicts, market-structure calibration, advanced candle context, and provider comparison readiness.
+- `npm run replay:monday` now also includes startup cache readiness plus both exploratory and strict candle-intelligence regression gates.
+- `audit:eod-verdict` now includes first-map checklist failures, market-structure calibration verdicts, advanced-context status/missing facts, and provider-readiness warnings per symbol.
+- `candles:regression-gate` now tracks:
+  - `first_snapshot_map_failure`
+  - `market_structure_chop_watch`
+  - `advanced_context_missing`
+  - `provider_readiness_watch`
+- `candles:provider-compare` now explains missing/stale provider behavior by timeframe instead of only reporting drift numbers.
+- Live Discord post policy now uses unchanged stable 5m structure as one more reason to suppress repeated non-accepted range flicker, while preserving accepted/critical directional changes.
+
+Meaning for `trader-intelligence-v2`:
+
+- The public shared-engine API remains the integration path.
+- Provider-readiness and candle-context trust should continue to be proven in `levels-system`.
+- Consumer-side trade review should treat unavailable/degraded shared facts as diagnostic context, not invent its own candle facts.
+
+## Levels-System Runtime Practicality Follow-Up - 2026-05-03
+
+`levels-system` also added another runtime/audit safety pass around the same shared candle facts. This matters to `trader-intelligence-v2` because the shared engine is being treated as a durable market-fact service, not only as Discord formatting code.
+
+New behavior:
+
+- Startup-cache health is now exposed by the manual runtime:
+  - restored symbols from disk cache
+  - warming symbols still waiting on fresh candles
+  - cached Discord snapshots blocked until fresh candle refresh
+  - `fresh_candles_required` as the explicit Discord snapshot policy
+- First support/resistance snapshots now include a clearer `Main trade area` line, and support-only maps avoid implying that no higher resistance exists.
+- If live price clears the highest surfaced resistance and no extension level is available, `levels-system` can force a fresh higher-resistance candle refresh and retry the extension post.
+- Live post policy now has `practical_area_flip_chop`, which suppresses repeated non-accepted flicker inside the same practical trade box while preserving accepted/critical expansion.
+- End-of-day symbol verdicts now include `reviewQuestions`, including whether advanced context is trusted and whether cache/provider work remains.
+
+Meaning for `trader-intelligence-v2`:
+
+- The shared engine is getting stronger at separating usable market facts from missing/stale/uncertain candle evidence.
+- Consumer apps should continue to read diagnostics rather than treating missing higher resistance, stale cache, or weak advanced context as clean facts.
+- Nothing in this pass requires a new consumer import path.

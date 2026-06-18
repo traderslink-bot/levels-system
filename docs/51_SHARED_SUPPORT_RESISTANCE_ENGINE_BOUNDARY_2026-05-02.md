@@ -426,6 +426,24 @@ The market-structure module detects:
 
 Single-timeframe `1m` context aggregates candles into `5m` before building market structure and adds a `derived_from_1m` diagnostic. The module is shared context only for now; it does not create standalone Discord market-structure posts.
 
+## Operator Calibration Reports
+
+The shared boundary is supported by operator reports that prove the candle facts before another app or Discord wording relies on them:
+
+```powershell
+npm run structure:calibrate -- --max-files-per-symbol 2 --audit-limit all
+npm run candles:advanced-context -- --max-symbols 25
+npm run candles:provider-compare -- --primary ibkr --comparison twelve_data
+npm run startup:cache-readiness
+```
+
+- `structure:calibrate` joins 5m replay evidence with saved Discord alignment evidence and tells whether market structure is trusted for suppression/materiality, still operator-only, or needs chop review.
+- `candles:advanced-context` summarizes reference levels, gaps, VWAP/EMA availability, market structure, candle reaction, opening range, halt awareness, level/data quality, first-post-plan lines, data-quality reasons, primary weak-data cause, and missing facts from cached candles.
+- `candles:provider-compare` compares cached providers for coverage, latest-close drift, average-volume drift, VWAP/EMA drift, market-structure drift, and support/resistance drift.
+- `startup:cache-readiness` checks active watchlist symbols for cached daily/4h/5m restart coverage. It is operator proof only; Discord snapshots still wait for fresh candle refresh.
+
+These reports are not consumer APIs; they are calibration proof for maintaining the shared engine safely.
+
 ## Local Dependency Usage
 
 For another local VS Code project:

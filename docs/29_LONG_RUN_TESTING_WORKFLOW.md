@@ -41,10 +41,23 @@ npm run candles:calibrate -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
 npm run candles:calibrate -- --all-sessions
 npm run candles:bulk-sim
 npm run candles:import-readiness -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run candles:import-safety -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run candles:import-safety -- --all-sessions
+npm run candles:backfill-priority -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run candles:backfill-priority -- --all-sessions
+npm run candles:backfill-manifest -- --priority-report artifacts\candle-backfill-priority\candle-backfill-priority.json --stage 1
+npm run candles:backfill -- --priority-report artifacts\candle-backfill-priority\candle-backfill-priority.json --priority-stage 1 --warehouse data\candles
 npm run candles:backfill -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS --max-tasks 8
+npm run levels:calibrate -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run levels:calibrate -- --all-sessions
 npm run audit:execution-relations -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
 npm run candles:provider-compare -- --primary ibkr --comparison twelve_data
 npm run candles:regression-pack -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run candles:regression-gate -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run candles:dynamic-calibrate -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run candles:dynamic-calibrate -- --all-sessions
+npm run audit:why-no-post -- artifacts\long-run\YYYY-MM-DD_HH-MM-SS
+npm run audit:why-no-post -- --all-sessions
 npm run replay:monday -- --skip-slow
 ```
 
@@ -63,7 +76,7 @@ The simulator uses deterministic small-cap paths for:
 
 It runs those paths through the real monitor, alert intelligence engine, trader formatter, and live-thread post policy. Use it to prove that calmer posting rules suppress repeated same-zone noise without hiding real breakout, support-loss, or reclaim changes.
 
-`npm run replay:monday -- --skip-slow` is the one-command closed-market checklist for the next market-open prep pass. It runs the core build, broad saved-data replay, small-cap scenarios, saved-data regression, latest-session audit reports, post-quality grading, trader-usefulness replay scoring, daily trader review, missed meaningful move audit, session behavior/readiness audit, post-reason audit, known-bad pattern scan, and volume replay when a latest session is available. Use the full command without `--skip-slow` when you also want the slower structure replay and stable-structure / Discord alignment checks.
+`npm run replay:monday -- --skip-slow` is the one-command closed-market checklist for the next market-open prep pass. It runs the core build, broad saved-data replay, small-cap scenarios, saved-data regression, latest-session audit reports, post-quality grading, trader-usefulness replay scoring, daily trader review, missed meaningful move audit, why-no-post proof, candle regression gate, dynamic/reference calibration, candle import safety, session behavior/readiness audit, post-reason audit, known-bad pattern scan, and volume replay when a latest session is available. Use the full command without `--skip-slow` when you also want the slower structure replay and stable-structure / Discord alignment checks.
 
 `npm run engine:capabilities` writes `shared-engine-capabilities.json` / `.md` under `artifacts/shared-engine-capabilities`. Use it after shared candle-engine changes to confirm the public boundary, scripts, data dependencies, implemented capabilities, partial capabilities, and planned capabilities are visible in one place.
 
@@ -75,7 +88,17 @@ It runs those paths through the real monitor, alert intelligence engine, trader 
 
 `npm run candles:bulk-sim` writes `bulk-candle-import-simulation.json` / `.md`. Use it to model months-style imported trade pressure and verify that repeated same-symbol/session/timeframe requests are deduped before any provider fetch.
 
-`npm run candles:import-readiness -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-import-readiness.json` / `.md`. Use it to estimate how much candle data the durable warehouse can already reuse for a saved session and what provider/symbol/session/timeframe ranges still need backfill.
+The bulk simulation and planner now also show provider batches, coalesced trade-request counts, estimated candle counts, avoided task counts, avoided task percent, and largest task size. Use those fields to judge provider pressure before using IBKR or a future provider for bulk trade imports.
+
+`npm run candles:import-readiness -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-import-readiness.json` / `.md`. Use it to estimate how much candle data the durable warehouse can already reuse for a saved session and what provider/symbol/session/timeframe ranges still need backfill. The report includes `Symbol / Session Coverage`, which is the practical checklist for whether a ticker/session is covered, partial, or missing before a replay conclusion is trusted.
+
+`npm run candles:import-safety -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-import-safety.json` / `.md`. Use it before bulk/backfill work to see naive provider tasks, deduped provider tasks, avoided requests, missing tasks, provider batches, largest task estimates, symbol/session coverage, and the safety verdict. Use `--all-sessions` when reviewing broad provider pressure across saved data.
+
+`npm run candles:backfill-priority -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-backfill-priority.json` / `.md`. Use it after import safety when the question is what to fetch first. It ranks missing candle ranges as `fetch_first`, `fetch_next`, or `fetch_later` using quiet-risk evidence, noisy-symbol pressure, unproven candle coverage, timeframe importance, and provider-safe stage limits. Use `--all-sessions` before broad warehouse work so the first staged provider fetches target the gaps most likely to affect trader-facing conclusions.
+
+`npm run candles:backfill-manifest -- --priority-report <candle-backfill-priority.json> --stage 1` writes `candle-backfill-stage-manifest.json` / `.md`. Use it to turn the priority report into a concrete Stage 1 handoff with the exact safe dry-run command and the explicit `--execute` command for later. The manifest is operator-only and does not call the provider.
+
+`npm run candles:backfill -- --priority-report <candle-backfill-priority.json> --priority-stage 1` consumes the selected priority stage, recalculates current warehouse gaps, and stays dry-run by default. Add `--execute` only when provider access is intentional. This is safer than manually copying symbols because already-covered ranges are skipped after the fresh warehouse check.
 
 `npm run candles:backfill -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-warehouse-backfill.json` / `.md`. It defaults to dry-run and should be used first with `--max-tasks`. Add `--execute` only when you intentionally want provider calls and durable warehouse writes. Use `--concurrency` and `--throttle-ms` to keep IBKR or future providers protected.
 
@@ -83,15 +106,29 @@ It runs those paths through the real monitor, alert intelligence engine, trader 
 
 `npm run candles:provider-compare -- --primary ibkr --comparison twelve_data` writes `provider-comparison-readiness.json` / `.md`. Use it before changing data providers to compare cached coverage, latest close drift, VWAP/EMA drift, and basic support/resistance count drift.
 
-`npm run candles:regression-pack -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-intelligence-regression-pack.json` / `.md`. Use it to turn weak first snapshots, useful/hidden volume examples, missing relation evidence, and missing-forward-resistance candidates into reusable cases for future code changes.
+`npm run candles:regression-pack -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-intelligence-regression-pack.json` / `.md`. Use it to turn weak first snapshots, useful/hidden volume examples, missing relation evidence, missing-forward-resistance candidates, concrete quiet-may-hide examples, and post-budget noisy-symbol cases into reusable cases for future code changes.
+
+`npm run candles:regression-gate -- <session-folder-or-discord-delivery-audit.jsonl>` writes `candle-intelligence-regression-gate.json` / `.md`. Use it after the regression pack when a change should be judged as pass/review/fail instead of only producing examples. It can fail on major candidates, weak first snapshots, missing forward resistance, quiet periods that may hide candle-backed moves, or too much missing candle evidence depending on thresholds, and it can review remaining post-budget noisy-symbol cases. Presets are available: `--preset strict` for release-style zero tolerance, `--preset review` for bounded operator-watch cases, and `--preset exploratory` for broad saved-data evidence gathering.
+
+`npm run candles:dynamic-calibrate -- <session-folder-or-discord-delivery-audit.jsonl>` writes `dynamic-reference-calibration-report.json` / `.md` plus `dynamic-reference-calibration-report-gate.json` / `.md`. Use it before trusting opening-range, VWAP, EMA9, or EMA20 facts in trader-visible wording or shared app output. Use `--all-sessions` when the question is broad saved-data trust rather than one session.
+
+`npm run levels:calibrate -- <session-folder-or-discord-delivery-audit.jsonl>` writes `support-resistance-calibration.json` / `.md` plus `support-resistance-calibration-gate.json` / `.md`. Use it when the core question is whether support/resistance levels were useful, complete, and well-ranked. The report rebuilds levels at the saved post timestamp, validates future 5-minute candle reactions, audits nearest/next support and resistance, flags no-forward and wide-gap ladders, adds ranking proof and market-structure alignment, and separates missing candle coverage from bad level logic. Use `--all-sessions` for the broad saved-data pass.
+
+When `levels:calibrate` shows unproven symbols, read the coverage gaps/backfill hints before changing level logic. Those gaps also feed `candles:backfill-priority`, so provider work can start with the candle ranges needed to prove level quality.
+
+When reviewing small-cap level flicker, check the trader-context evidence before calling a move meaningful. Candle reaction context now records body/range/level-distance evidence plus `materialityLabel`, and level-quality context records forward gaps plus tight cluster counts. Tiny probes inside a crowded practical zone should usually show as minor/indecisive unless the candle clears the small-cap meaningful-move floor.
 
 `npm run discord:preflight` is the non-destructive Discord permission check. Run it before a live session when permissions were changed, old threads were deleted, or a 403/50001/50013 appeared. Use `npm run discord:preflight -- --post-test` only when you want the bot to send and delete one temporary channel message to prove write permissions.
 
 `npm run startup:preflight` is the operator-only startup artifact checklist. Run it after a restart or before a live session to see whether the latest long-run review artifacts exist, which audit files are missing, and what should be regenerated before trusting the next review pass.
 
+`npm run startup:cache-readiness` is the operator-only startup candle-cache checklist. Run it before or after a restart to see which active watchlist symbols have enough cached daily, 4h, and 5m candles to warm level restore quickly. The report is not a permission to post cached Discord snapshots; startup snapshots still wait for fresh candle refresh.
+
 `npm run stress:all-symbols` is the wider saved-data check. It scans every saved long-run Discord audit stream, dedupes identical audit files, aggregates all symbols, replays the current balanced post policy, and ranks overposting, tight-range chop, fast-runner cascades, missed-event candidates, and trader-language boundary issues. Use it when the question is broad behavior across the whole evidence set, not one named ticker.
 
 The all-symbol stress report also shows quiet-profile simulated totals. Review `Quiet-Mode Replay Attention` when a symbol is still too noisy under `balanced`; if it is also too noisy under `quiet`, the issue is usually story interpretation or level-flicker handling, not simply a profile threshold.
+
+The replay simulator now infers practical zone, range-box, acceptance, and behavior-budget context for older saved Discord rows that do not yet contain current audit metadata. This matters when reviewing legacy CYCU/PBM/FATN-style churn: old rows can now exercise current `alert_range_box_chop`, `alert_same_story_not_material`, and related same-area suppression paths instead of being counted as totally fresh stories.
 
 `npm run quality:posts -- <session-folder-or-discord-delivery-audit.jsonl>` is the trader post quality grader. It scans saved Discord-visible output for system/operator wording, direct or borderline advice, over-certain phrasing, tiny small-cap risk language, missing-level claims, and repeated story overlap. Run it whenever a thread “feels wrong” even if the replay post count looks acceptable.
 
@@ -109,7 +146,15 @@ The all-symbol stress report also shows quiet-profile simulated totals. Review `
 
 `npm run audit:eod-verdict -- <session-folder-or-discord-delivery-audit.jsonl>` builds `end-of-day-symbol-verdict.json` / `.md`, which gives one practical verdict per symbol: whether the first post gave a usable trade map, whether post volume was reasonable, whether candle-backed missed-move review is still needed, whether levels looked complete enough, and whether trader-facing wording stayed clean.
 
+The end-of-day verdict now folds in the first-snapshot audit, execution-relation replay, warehouse volume replay, and missed-move audit when cache is available. It also includes representative evidence examples, which makes it a stronger single-symbol answer after a trading day rather than only a checklist of reports to run.
+
+The end-of-day verdict also prints practical `reviewQuestions` per symbol. Use these as the final operator check after a session: did the first post map the trade, did the thread post too much, did it miss a meaningful move, were levels complete enough, was trader wording clear, does cache/provider work remain, and is advanced context trusted.
+
 `npm run audit:missed-moves -- <session-folder-or-discord-delivery-audit.jsonl>` builds `missed-meaningful-move-audit.json` / `.md`, which compares cached 5-minute candles against saved Discord posts. Use it after post-noise tuning to make sure calmer rules did not hide meaningful breakouts, support losses, or large candle moves.
+
+`npm run audit:why-no-post -- <session-folder-or-discord-delivery-audit.jsonl>` builds `why-no-post-replay-proof.json` / `.md`. Use it when a quieter thread looked suspicious: it classifies whether the lack of posts was supported by candles, whether meaningful moves were still covered, whether quiet behavior may have hidden a move, or whether missing candles make the verdict unproven. The `Concrete Move Examples` section shows the candle timestamp, move type, OHLC/range evidence, nearest saved posts, and why the candidate matters. Single-session reports also include balanced replay suppression evidence; `--all-sessions` aggregates candle proof across saved long-run sessions.
+
+Treat all-session why-no-post `may_hide` and `unproven` findings carefully. When a symbol has no overlapping cached 5m candles for the saved Discord window, the report is telling you the proof layer is incomplete, not that the live policy definitely hid a real event. The next action is usually warehouse/backfill coverage or a targeted single-session candle audit before tightening live Discord rules.
 
 `npm run audit:session-behavior -- <session-folder-or-discord-delivery-audit.jsonl>` builds `session-behavior-audit.json` / `.md`, which combines candle freshness/readiness, first-post trade-map scoring, thread balance, candle/post timeline samples, current-session behavior profiles, and runtime marker coverage. Use it when deciding whether a thread is too noisy, too quiet, balanced, or impossible to judge because candle evidence is stale.
 
@@ -126,6 +171,8 @@ The visual replay now includes a symbol index and issue flags for weak probes, l
 After changing post-noise policy, compare the new all-symbol scorecard against the previous scorecard. The current practical small-cap tuning target is not just a higher reduction percentage; it should also reduce `still noisy after current policy`, max posts per session, and max 5-minute bursts while keeping missed-event candidates from increasing. Start the manual review with the `Noisy-Symbol Regression Pack` section because it lists the worst saved symbols, why they were selected, and the exact sessions that should be replayed after each policy change.
 
 The current post-noise policy includes thread story phase control. When reviewing a replay, look for `phase_same_phase_repeat` suppressions. Those mean the current code would keep a repeated same-area, same-phase post out of Discord while preserving the underlying support/resistance level in the ladder and audit metadata.
+
+The current post-noise policy also includes `practical_area_flip_chop` and `stable_structure_repeat`. These are expected suppressions when price is still flickering inside the same practical small-cap support/resistance box without accepted expansion. Accepted breaks, critical changes, and true structure expansion should still appear in saved replay output.
 
 The all-symbol stress report also includes post-budget labels:
 
@@ -832,6 +879,21 @@ npm run validation:levels:quality -- <SYMBOL> [output-json-path]
 ```
 
 The audit checks the generated ladder for missing forward levels, wide first gaps, thin forward ladders, and extension-only forward ladders. It is meant to catch ATER-style "did we miss older daily resistance?" questions before changing level-engine tuning by feel.
+
+## Bounded Broad Candle Reports
+
+Use `--max-sessions` before rerunning broad all-session candle reports on a resource-constrained machine. It caps the saved session audit files before rows, replay evidence, and candle context are loaded.
+
+Examples:
+
+```powershell
+npm run levels:calibrate -- --all-sessions --max-sessions 5 --max-symbols 25 --warehouse data\candles --output artifacts\support-resistance-calibration-batch-01
+npm run candles:import-readiness -- --all-sessions --max-sessions 5 --max-trades 50 --warehouse data\candles --out-dir artifacts\candle-import-readiness-batch-01
+npm run audit:why-no-post -- --all-sessions --max-sessions 5 --warehouse data\candles --out-dir artifacts\why-no-post-batch-01
+npm run candles:backfill-priority -- --all-sessions --max-sessions 5 --max-trades 50 --warehouse data\candles --out-dir artifacts\candle-backfill-priority-batch-01 --max-tasks-per-stage 10 --max-candles-per-stage 5000
+```
+
+Do not rerun old unbounded `--all-sessions` backfill-priority, import-readiness, or why-no-post commands just to "see if they finish." Increase `--max-sessions` gradually and keep output directories batch-specific.
 
 If the manual watchlist app is still running, set a validation-only IBKR client id before running fresh candle checks:
 

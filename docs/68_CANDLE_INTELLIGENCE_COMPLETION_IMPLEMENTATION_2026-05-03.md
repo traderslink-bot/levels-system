@@ -6,6 +6,18 @@ This file records the first implementation pass from the big-picture candle inte
 
 ## Implemented In This Pass
 
+### Latest Evidence-Gate Additions
+
+Added after the first implementation pass:
+
+- `npm run candles:regression-gate`
+- `npm run candles:dynamic-calibrate`
+- `npm run audit:why-no-post`
+
+The regression gate turns generated saved-data cases into a pass/review/fail result. The dynamic calibration report proves opening-range and VWAP/EMA evidence from cached candles around saved posts. The why-no-post proof checks quieter behavior against candle-backed missed-move evidence so suppression can be judged without relying only on post counts.
+
+`npm run audit:eod-verdict` now also folds in first-snapshot, execution-relation, volume, and missed-move evidence. Bulk backfill plans now include provider batches, estimated candles, coalesced trade-request counts, avoided task counts, and largest-task sizing.
+
 ### Shared Engine Capability Report
 
 Added:

@@ -70,6 +70,29 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Strengthened `npm run volume:warehouse` with interaction buckets such as expanding into resistance, activity pickup on reclaim, fading while retesting, thin activity chop, and stale/unreliable context.
 - Added `npm run candles:provider-compare` so cached provider coverage and drift can be reviewed before switching away from IBKR or trusting another provider.
 - Added `npm run candles:regression-pack` so weak first snapshots, volume-context examples, execution relation gaps, and missing-forward-level candidates become reusable saved-data cases.
+- Added `npm run candles:regression-gate` so saved-data regression packs can be enforced as pass/review/fail with thresholds for major cases, weak first maps, missing forward resistance, and missing candle evidence. The gate now supports `--preset strict`, `--preset review`, and `--preset exploratory` so release gating and evidence gathering do not need the same tolerance.
+- Added `stable_structure_repeat` in the live post policy so unchanged stable 5m structure can keep same-range flicker quieter without hiding accepted directional changes or real structure expansion.
+- Added `practical_area_flip_chop` in the live post policy so repeated non-accepted breakout/reclaim/breakdown chatter inside the same practical trade box can stay out of Discord after the area has already been explained.
+- Added small-cap materiality gating for fragile/high-risk wording so one-cent weak probes inside active range boxes do not sound like major trade failures.
+- Added small-cap materiality gating inside candle reaction context itself. Support losses, reclaims, clean resistance clears, and failed breakouts now need enough candle evidence relative to the small-cap meaningful-move floor before they become material reactions.
+- Added level-quality cluster evidence with first forward gaps and tight nearby cluster counts. Crowded nearby penny levels are now flagged as practical zones for trader context while the full support/resistance ladder remains intact.
+- Updated first snapshot level context so clustered nearby levels are described as practical zones where reaction quality matters more than exact pennies.
+- Added `npm run levels:calibrate` so support/resistance quality can be tested directly from saved data. It rebuilds levels at saved post time, validates future 5-minute reactions, flags no-forward, wide-gap, and crowded-ladder cases as level-engine evidence, writes a gate artifact, and now includes ranking proof, market-structure alignment, and coverage/backfill hints.
+- Support/resistance calibration findings now feed both `candles:regression-pack` and `candles:backfill-priority`, so watch/broken/unproven level cases become regression evidence and provider work is prioritized by candle proof value.
+- Added `npm run startup:cache-readiness` so restart acceleration can be audited from disk cache coverage while preserving the rule that Discord snapshots wait for fresh candles.
+- Runtime provider health now exposes startup-cache warming/restored/blocked snapshot state, which makes cache acceleration auditable from the UI/API instead of hidden in logs.
+- Added `npm run candles:dynamic-calibrate` so opening-range, VWAP, EMA9, and EMA20 evidence can be proven against cached candles around saved posts before becoming trader-facing.
+- Added a generated dynamic/reference trust gate so VWAP/EMA/opening-range facts are classified as trusted, watch, unproven, or broken before trader-facing use is allowed.
+- Added `npm run audit:why-no-post` so quieter behavior can be proved with candle-backed missed-move evidence instead of only comparing post counts.
+- Upgraded `npm run audit:why-no-post` with balanced replay suppression evidence and all-session support, making quiet-period proof stronger across both one live session and the full saved-data root.
+- Upgraded `npm run audit:why-no-post` again with concrete candle-backed move examples, nearest saved posts, and OHLC/range evidence so `quiet_may_hide_move` findings can be audited directly instead of described only as counts.
+- Upgraded `npm run audit:eod-verdict` to include first-snapshot, execution-relation, missed-move, and volume evidence in one per-symbol verdict, including inline evidence examples.
+- Strengthened bulk candle backfill planning with provider batches, estimated candle counts, coalesced trade-request counts, avoided task counts, and largest-task sizing so future imports protect IBKR or replacement providers.
+- Added `npm run candles:import-safety` so provider-pressure risk is explicit before backfills or bulk trade imports run. Import readiness/safety reports now include symbol/session coverage so missing warehouse proof is visible before a saved-data conclusion is trusted.
+- Added `npm run candles:backfill-priority` so missing candle ranges are ranked into `fetch_first`, `fetch_next`, and `fetch_later` stages using quiet-risk, post-noise, missing-candle proof, timeframe importance, and provider-safe stage limits before broad provider work begins.
+- Added `npm run candles:backfill-manifest` and priority-stage filtering in `npm run candles:backfill`, so Stage 1 provider work can be handed off as an exact dry-run command and then recalculated against the current warehouse before any explicit `--execute` fetch.
+- Expanded candle regression packs and gates with `quiet_may_hide_move` and `post_noise_budget_watch` cases so quiet-risk and remaining noisy-symbol pressure become enforceable audit categories.
+- Wired the evidence reports into `npm run replay:monday` so closed-market review now includes why-no-post proof, candle regression gate, dynamic/reference calibration, and import safety by default.
 
 ### 2026-05-02
 
@@ -107,6 +130,8 @@ This should be updated whenever a meaningful signal-quality or trader-output imp
 - Added a `Monday Live Review` panel to the manual UI with recent critical/optional post counts, post-budget status, and checklist guidance for the next market-open run.
 - Added per-symbol post-budget rows to the manual UI's Monday review panel, so live review can quickly show which symbols are calm, busy, or optional-heavy without reading raw JSON.
 - Added `npm run replay:monday` as a one-command closed-market readiness checklist covering build, broad saved-data replay, small-cap scenario replay, saved-data regression, latest-session report regeneration, post-quality grading, post-reason audit, known-bad wording scan, and volume replay.
+- Hardened the saved-data replay simulator so older Discord rows without current practical-zone metadata infer range-box, acceptance, and behavior-budget context from saved text. This makes legacy chop sessions test the same calmer story policy used by current runtime metadata.
+- Latest broad saved-data replay after that hardening showed `5075 -> 1949` simulated posts, `61.6%` reduction, and still-noisy symbols down to `7`. Remaining all-session quiet-proof warnings are mostly candle-coverage work, because many older sessions still lack overlapping cached 5m candles.
 - Added `npm run audit:post-reasons` plus `post-reason-audit.json` / `.md` so audits can explain `whyPosted`, post-budget style, missing post-reason rows, and no-next-level cases from saved audit data.
 - Added `npm run audit:known-bad-posts` plus `known-bad-post-patterns.json` / `.md` so confusing historical trader-facing phrases are tracked as a regression pack instead of depending on memory.
 - Strengthened first-post snapshot wording with a plain `Main decision` line that names the upside decision area and the support area that needs to keep holding.

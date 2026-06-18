@@ -4,6 +4,302 @@
 
 This document tracks concrete implementation changes made to the `levels-system` project over time so the current state of the codebase is easy to review.
 
+## 2026-05-06 Trader Intelligence Basis Metadata And Level-Quality Event-Regime Diagnostics
+
+- Added provider/warehouse candle metadata needed by `trader-intelligence-v2`
+  so stored/replayed candles can preserve requested/resolved symbol identity,
+  IBKR contract details, fetch settings, adjustment mode, alias/PINK metadata,
+  and basis validation status.
+- Added the initial basis validation status model and exposed
+  `trade_window_basis_validation_status` through the trade-analysis diagnostic
+  path without adding price adjustment logic or broad corporate-action handling.
+- Kept the real provider path constrained to IBKR plus `data/candles`; no
+  broad delisted-symbol discovery or silent stub fallback was introduced.
+- Polished stale partial `1m` trade-window fallback diagnostics so stale replay
+  windows explain the newest available `1m` candle timestamp and requested
+  window end before falling back to `5m`.
+- Added report-only level-quality clean-break diagnostic buckets for
+  volume-quality, off-hours, source-shape, local-cluster, and event-regime cases.
+  These do not change support/resistance scoring thresholds or trader-facing
+  Discord wording.
+- Confirmed `SKLZ` 2026-04-23 was an extreme event-regime runner from saved
+  IBKR 5m candles, moved the `3.42` support row into
+  `event_regime_change_watch`, and reran the expanded 5h/2h/8h level-quality
+  reports with `0` remaining `possible_overstated_strength` rows.
+- Added the new future-self handoff:
+  `docs/79_FUTURE_SELF_HANDOFF_2026-05-06.md`.
+
+## 2026-05-03 Runtime Practicality, Cache Safety, And EOD Verdict Hardening
+
+- Tightened staged candle backfill execute safety:
+  - expanded the public `levels-system-phase1/support-resistance-engine` trade-analysis API for the `trader-intelligence-v2` consumer:
+    - `buildTradeAnalysisCandleContext(...)` remains the stable entry point
+    - default/warehouse-backed trade analysis can fetch arbitrary historical `1m` or `5m` trade-window candles for imported completed trades
+    - `1m` remains preferred, with explicit `5m` fallback diagnostics when 1m data is unavailable
+    - fetched trade-window candles are written through to the durable candle warehouse when the default/warehouse-backed path is used
+    - repeat historical trade-window requests reuse cached `1m` candles instead of refetching that window
+    - returned facts stay neutral: candle availability, timeframe/fallback, VWAP/EMA values, execution level/dynamic relations, max favorable/adverse window facts, and post-exit continuation/relief facts
+    - no trader coaching, grading, or behavioral judgment is returned; `trader-intelligence-v2` owns those interpretations
+    - focused public API tests prove historical 1m fetch, 5m fallback, cache reuse, and `asOfTimestamp` no-future-leak bounds
+  - `candles:backfill --execute --provider ibkr` now builds a validation IBKR client and waits for a real socket connection before execution
+  - real IBKR execute mode now fails before provider work if IBKR Gateway/TWS is unavailable instead of silently falling back to stub candles
+  - `writeCandleWarehouseBackfillReport(...)` accepts an injected fetch client, and focused tests prove execute mode uses that client
+  - provider-backed backfill scripts now disconnect the validation IBKR client after writing artifacts so successful commands exit cleanly
+  - `CandleFetchService` now forwards `ibkrTimeoutMs` into the IBKR historical provider; focused tests prove non-default historical timeouts are honored
+  - support/resistance calibration now accepts `--warehouse data\candles` and merges durable warehouse candles with validation-cache candles
+  - candle backfill priority now passes its warehouse path into support/resistance calibration so priority scoring uses the same candle source as provider planning
+  - added `npm run candles:ibkr-diagnose` for one-symbol IBKR historical diagnostics with raw request/event evidence
+  - diagnosed the latest timeout issue as an IBKR client-id/session collision: default client id requests timed out, while client id `202` returned bars quickly for `CUE` and `AIOS`
+  - provider-backed backfill now defaults to a dedicated backfill client id `202`, overridable with `LEVEL_BACKFILL_IBKR_CLIENT_ID`
+  - fixed a timestamp comparison bug in candle import/backfill planning where numeric `asOfTimestamp` values were compared with `Date.parse(String(number))`, causing the first saved post in a symbol session to win instead of the latest post
+  - added regression coverage proving candle import readiness keeps the latest saved post timestamp for a symbol/session
+  - after the fix, backfill priority ranges now target true after-post proof windows instead of stopping at the first Discord snapshot
+  - `missed-meaningful-move` and `why-no-post` audits now read durable warehouse candles from `data/candles` in addition to `.validation-cache/candles`
+  - `audit:why-no-post --warehouse data\candles` now uses the same disk-backed candle source as support/resistance calibration and staged backfill priority scoring
+- Ran the latest staged backfill / support-resistance calibration pass:
+  - latest-session priority planning found 72 missing tasks across 8 provider-safe stages
+  - Stage 1 dry-run planned 20 `fetch_first` tasks with 6,300 estimated candles and made 0 provider calls
+  - attempted real IBKR execute failed safely with `ECONNREFUSED 127.0.0.1:7497`, so no stub or stale provider data was written
+  - after IBKR was started, the all-session Stage 1 execute fetched 20/20 tasks and stored 5,889 IBKR candles in `data/candles`
+  - latest-session Stage 1 execute then attempted 10 high-priority tasks and surfaced 10 provider-risk timeouts; a 60-second two-task retry still timed out for `AIOS` and `AKAN`
+  - latest-session Stage 1 was rerun with client id `202` and fetched 10/10 tasks with 0 failures
+  - latest-session support/resistance calibration improved from 2 no-forward-resistance cases to 0 after the client-id-safe backfill
+  - latest support/resistance calibration now shows 18 unproven symbols, 0 no-forward-resistance cases, and 20 coverage gaps
+  - after correcting the timestamp range bug and backfilling true after-post windows, latest-session support/resistance calibration improved to 12 trusted, 4 watch, 0 broken, 2 unproven, 0 no-forward-resistance cases, and 6 coverage gaps
+  - latest-session why-no-post proof improved from all symbols unproven to 6 quiet-supported, 8 quiet-preserved-meaningful-move, 4 quiet-may-hide watch cases, and 0 unproven symbols when using `--warehouse data\candles`
+  - missed-move audit materiality was tightened so strong directional candles are no longer mislabeled as support/resistance breaks unless they actually close materially through the rolling level
+  - PBM-style normal small-cap wiggles are no longer promoted into quiet-may-hide candidates, while material rolling support/resistance breaks are still preserved
+  - after regenerating warehouse-backed why-no-post proof with the stricter audit, latest-session quiet-may-hide watch cases dropped from 4 to 2, with 0 major missed candidates
+  - why-no-post proof now classifies missed-candle root causes as policy suppression, nearby non-matching runtime activity, runtime/feed silence, candle-context watch, or weak nearby coverage
+  - the remaining May 1 SOBR item is now classified as runtime/feed silence rather than proven post-policy suppression
+  - the remaining May 1 AKAN item is now classified as candle-context watch rather than a missed resistance clear
+  - after root-cause classification, latest-session why-no-post proof reports 0 quiet-may-hide symbols, 1 runtime/feed-silence symbol, 0 actionable missed candidates, and 0 major missed candidates
+  - candle backfill priority now tracks runtime/feed silence symbols separately from quiet-may-hide symbols
+  - candle regression packs and gates now also track `runtime_feed_silence` cases so runtime/feed gaps are reviewed separately from post-policy suppression
+  - `candles:regression-pack --warehouse data\candles` and `candles:regression-gate --warehouse data\candles` now pass the durable JSONL warehouse path separately from the validation cache path instead of treating both stores as the same file format
+  - latest warehouse-backed regression pack now shows 80 saved-data cases with 0 quiet-may-hide cases and 1 runtime/feed-silence case
+  - latest exploratory regression gate passes with 0 major cases, 0 quiet-may-hide cases, 1 runtime/feed-silence case, 6 post-noise watch cases, and 4 support/resistance watch cases
+  - verification for the runtime/feed-silence pass: focused replay tests passed, `npm run build` passed, full `npm test` passed with 649 tests, and `git diff --check` was clean
+  - fixed durable warehouse JSONL reader gaps in volume, dynamic/reference, market-structure, advanced context, execution-relation, provider-comparison, regression-pack, and session-behavior audit paths
+  - `structure:calibrate`, `candles:advanced-context`, and `audit:session-behavior` now accept `--warehouse data\candles` in the same operator style as the other candle reports
+  - dynamic/reference calibration now treats opening range as context that may be unavailable on early, premarket, or after-hours posts instead of requiring it on every saved post
+  - market-structure calibration now trusts stable structure suppression when it clearly reduces immaterial raw flips and same-structure repeats, instead of treating high raw immaterial churn as a defect by itself
+  - latest full warehouse-backed calibration now shows market structure at 17 trusted / 3 watch, dynamic/reference at 8 trusted / 10 watch / 0 unproven / 0 broken, and volume replay matching all 511 alert rows
+  - ran a provider-backed priority backfill stage with IBKR: 10 planned, 10 fetched, 0 failed, and 2,910 candles stored
+  - after the warehouse-reader fixes, latest regression pack shows 64 saved-data cases with 0 quiet-may-hide, 1 runtime/feed-silence, and 10 execution-missing cases; exploratory regression gate passes with 0 major cases
+  - verification for the full calibration pass: targeted calibration tests passed, `npm run build` passed, and full `npm test` passed with 649 tests
+  - candle backfill planning now separates likely no-bar/off-hours gaps from actionable missing provider work:
+    - `1m` and `5m` gaps outside 04:00-20:00 ET are classified as likely no-bar/off-hours gaps
+    - sparse intraday gaps inside an already-covered candle span are treated as likely no-trade gaps instead of repeated IBKR refetch targets
+    - daily weekend/pre-history gaps and `4h` non-session/pre-history gaps are no longer ranked as urgent provider failures
+    - `candle-backfill-priority.json` and `.md` now show likely no-bar missing candle estimates separately from actionable missing candle estimates
+  - market-structure calibration now trusts stable suppression with one bounded low-confidence case when same-structure repeat or raw-chop evidence proves the stable layer is reducing noisy flips
+  - reran May 1 warehouse-backed priority after the no-bar fix:
+    - missing tasks dropped from 72 before the refinement to 24
+    - fetch-first tasks dropped to 0
+    - likely no-bar/history-unavailable gaps are now visible separately from actionable/optional coverage gaps
+    - two bounded IBKR stages completed after the refinement: 2/2 fetched with 636 candles stored, then 10/10 fetched with 0 failures
+    - current May 1 priority queue is 0 fetch-first, 6 fetch-next, 18 fetch-later
+    - current market-structure calibration is 18 trusted-for-suppression, 2 watch, 0 operator-only, 0 insufficient-evidence
+    - verification for the no-bar/backfill refinement: targeted warehouse/backfill tests passed, `npm run build` passed, full `npm test` passed with 653 tests, and `git diff --check` was clean
+    - the remaining May 1 `fetch_next` 1m trade-window stage was executed: 6 planned, 6 fetched, 0 failed
+    - after that fetch, May 1 backfill priority dropped to 18 missing tasks, 0 fetch-first, 0 fetch-next, and 18 fetch-later
+    - May 1 now has no blocking candle coverage work before the next support/resistance quality calibration pass
+    - broad all-session support/resistance and market-structure calibrations completed, but broad all-session backfill-priority/import-readiness/why-no-post scans timed out on local resources and need bounded/optimized report paths before rerun
+    - created `docs/72_CANDLE_INTELLIGENCE_HANDOFF_FOR_NEW_CHAT_2026-05-03.md` so the next chat can resume without repeating expensive work
+    - added `--max-sessions` bounded all-session support to `levels:calibrate`, `candles:import-readiness`, `audit:why-no-post`, and `candles:backfill-priority`
+    - fixed the composed `candles:backfill-priority` path so the session cap is passed into import readiness, why-no-post proof, all-symbol stress, and support/resistance calibration instead of silently running unbounded subreports
+    - bounded smoke runs now complete for support/resistance calibration, import readiness, why-no-post proof, and backfill priority; the bounded priority smoke reported 8 missing tasks, 8 fetch-first tasks, and 3 provider stages
+    - verification for the bounded broad-report pass: 24 focused report tests passed, `npm run build` passed, an accidental full `npm test` passed with 656 tests, and `git diff --check` was clean
+  - bounded all-session calibration found 9 trusted, 3 watch, 0 broken, 13 unproven, and 36 coverage gaps
+  - inspected no-forward and watch cases; current evidence points to missing candle coverage / practical-zone review, not a confirmed level-engine defect
+- Added small-cap-aware candle reaction materiality:
+  - candle reaction context now records range percent, distance from the reference level, and `materialityLabel`
+  - the shared trader context uses the small-cap meaningful-move floor before labeling a candle as support loss, reclaim, failed breakout, or clean close through resistance
+  - tiny one-cent probes can stay `indecision` with operator evidence instead of becoming a trader-facing structure event too quickly
+- Expanded level-quality calibration:
+  - reports first forward support/resistance gaps
+  - reports tight nearby support/resistance cluster counts
+  - adds a `crowded_nearby_levels` label and trader line so crowded penny-level areas can be treated as practical zones without removing levels from the full ladder
+- Updated first snapshot context wording:
+  - clustered nearby levels now print as practical zones in the snapshot context line
+  - first-post plan level quality wording now stays observational and avoids instruction-like phrasing
+- Added support/resistance calibration reporting:
+  - `npm run levels:calibrate` writes `support-resistance-calibration.json` / `.md`
+  - the report rebuilds support/resistance context at saved post time from cached daily / `4h` / `5m` candles
+  - it runs future 5-minute candle reactions through the existing forward-reaction validator
+  - it audits nearest/next support and resistance, first forward gaps, no-forward-level cases, and crowded forward clusters
+  - missing candle coverage is reported as unproven instead of being confused with bad level logic
+  - it now also writes `support-resistance-calibration-gate.json` / `.md`
+  - it reports coverage gaps/backfill hints, ranking proof buckets, and 5m market-structure alignment
+  - support/resistance watch, broken, and unproven-coverage findings now feed candle regression packs
+  - candle backfill priority now boosts provider work when support/resistance calibration needs missing candle proof
+- Hardened saved-data replay for older Discord audit rows:
+  - replay now infers practical zone, range-box, acceptance, and behavior-budget context from legacy post text when newer audit metadata is missing
+  - old CYCU-style same-area touch/break/reclaim loops now exercise the current `alert_range_box_chop` and `alert_same_story_not_material` suppression paths instead of being treated as unrelated stories
+  - all-symbol stress improved from `5075 -> 2030` simulated posts to `5075 -> 1949`, with reduction improving from `60.0%` to `61.6%` and still-noisy symbols dropping from `9` to `7`
+  - the remaining all-session why-no-post risk is now understood as candle-proof coverage work first: many old sessions still lack overlapping cached 5m candles, so quiet-period proof remains `unproven` or `may_hide` until the warehouse/backfill layer fills those gaps
+- Strengthened candle-proof and regression-gate evidence for the next audit cycle:
+  - why-no-post reports now include concrete candle-backed move examples, nearest saved posts, candle OHLC/range data, and explicit reasons for every top `quiet_may_hide_move` symbol
+  - candle import readiness and safety reports now include symbol/session coverage rows, covered/missing timeframes, stored candle counts, and estimated missing candles
+  - candle regression packs and gates now track `quiet_may_hide_move` and `post_noise_budget_watch` cases so quiet-risk and remaining noisy-symbol pressure become enforceable regression evidence instead of manual notes
+  - latest broad saved-data run showed import safety `warehouse_gap` with 105 trade proxies, 420 planned/missing tasks, 0 fully covered tasks, 143,220 estimated missing candles, and 9 provider batches; this confirms the next real provider work should be staged backfill rather than repeated ad hoc fetches
+- Added candle backfill priority planning:
+  - `npm run candles:backfill-priority` writes `candle-backfill-priority.json` / `.md`
+  - missing ranges are ranked as `fetch_first`, `fetch_next`, or `fetch_later` using quiet-risk proof, post-noise pressure, unproven candle coverage, timeframe importance, and provider-safe stage sizing
+  - the all-session priority pass found 420 missing tasks, 212 `fetch_first` tasks, 177 `fetch_next` tasks, 31 `fetch_later` tasks, 143,220 estimated missing candles, and 23 provider-safe stages
+  - focused coverage was added in `src/tests/candle-backfill-priority-report.test.ts`
+- Added priority-to-backfill handoff:
+  - `npm run candles:backfill-manifest` turns a priority report stage into `candle-backfill-stage-manifest.json` / `.md`
+  - the manifest includes the exact safe dry-run command and a clearly separated explicit `--execute` command
+  - `npm run candles:backfill` now accepts `--priority-report`, `--priority-stage`, and `--priority` so a selected priority stage can be dry-run or executed after recalculating current warehouse gaps
+  - the first Stage 1 manifest generated 20 `fetch_first` tasks with 6,300 estimated candles, and the matching dry-run planned those 20 tasks with 0 provider attempts
+- Tightened warehouse/cache proof:
+  - default shared symbol builders now have test proof that generated candles are stored into the durable warehouse for future reuse
+  - startup cache readiness now exposes `freshRefreshRequiredBeforeDiscordSnapshot: true`, making the UI-warm versus Discord-post boundary explicit in JSON and Markdown
+- Added startup-cache runtime health:
+  - warming symbols restored from disk cache
+  - restored-symbol timestamps and cache age
+  - cached startup snapshots blocked until fresh candles
+  - explicit `fresh_candles_required` Discord snapshot policy
+- Improved higher-resistance refresh behavior after runners clear the top surfaced resistance:
+  - top-resistance clears can now trigger a fresh force reseed when extension levels are unavailable
+  - runtime status shows `refreshing candles for higher resistance`
+  - extension posting is retried after fresh seeding instead of implying the ladder has no higher resistance
+- Tightened live post noise control:
+  - added `practical_area_flip_chop`
+  - preserved `stable_structure_repeat`
+  - repeated non-accepted flip chatter inside the same practical trade box can be suppressed while accepted/critical expansion still posts
+- Improved first snapshot trader maps:
+  - added a `Main trade area` line before the current structure read
+  - support-only snapshots now say higher resistance needs a fresh level check before treating the path as open
+- Made small-cap risk wording less silly:
+  - high-risk fragile wording is withheld for tiny low-priced weak probes inside active/boring range boxes
+  - true fragile setup wording remains available outside that narrow small-cap chop case
+- Hardened end-of-day verdicts:
+  - added per-symbol `reviewQuestions`
+  - markdown now prints practical answers for first-map quality, post volume, missed moves, level completeness, wording clarity, cache/provider work, and advanced-context trust
+- Added/expanded focused coverage in:
+  - `src/tests/manual-watchlist-runtime-manager.test.ts`
+  - `src/tests/live-thread-post-policy.test.ts`
+  - `src/tests/alert-router.test.ts`
+  - `src/tests/end-of-day-symbol-verdict.test.ts`
+
+## 2026-05-03 Candle Intelligence Checklist And Verdict Integration
+
+- Wired newer candle-intelligence reports into `npm run replay:monday`:
+  - first-snapshot trade-map audit
+  - end-of-day symbol verdict
+  - market-structure calibration
+  - advanced candle context
+  - provider comparison readiness
+- Expanded end-of-day verdict evidence:
+  - first-snapshot full trader-map checks
+  - first-snapshot map failure reasons
+  - market-structure calibration verdict and same-structure repeat count
+  - advanced candle-context status and missing facts
+  - provider readiness warnings
+- Expanded candle-intelligence regression packs with new case types:
+  - `first_snapshot_map_failure`
+  - `market_structure_chop_watch`
+  - `advanced_context_missing`
+  - `provider_readiness_watch`
+- Expanded the regression gate with thresholds for the new case types.
+- Improved provider comparison readiness reporting:
+  - latest timestamp drift
+  - missing provider/timeframe behavior
+  - missing latest candle data
+  - missing volume baselines
+  - provider missing/stale behavior totals
+- Ran broad saved-data audits:
+  - all-session candle regression gate
+  - all-session market-structure calibration
+  - broad advanced candle context
+  - broad provider comparison readiness
+- Added/expanded focused tests:
+  - `src/tests/provider-comparison-readiness-report.test.ts`
+  - `src/tests/candle-intelligence-regression-pack.test.ts`
+  - `src/tests/end-of-day-symbol-verdict.test.ts`
+
+## 2026-05-03 Candle Intelligence Phase 5-9 Expansion
+
+- Added combined market-structure calibration tooling:
+  - `src/lib/review/market-structure-calibration-report.ts`
+  - `src/scripts/run-market-structure-calibration-report.ts`
+  - `npm run structure:calibrate`
+- The calibration report joins saved 5m replay evidence with Discord alignment evidence and classifies each symbol as `trusted_for_suppression`, `watch_structure_chop`, `operator_only`, or `insufficient_evidence`.
+- Strengthened first-snapshot trade-map auditing:
+  - per-symbol map checks now track current price, current read, closest levels, line-by-line formatting, support/resistance strength labels, practical support/resistance context, room/range context, advisory language, penny-risk wording, and unsupported no-resistance wording.
+  - first-post scoring now penalizes missing current-read and room/range context so ladder-only snapshots no longer pass as high-quality trader maps.
+- Added advanced candle-context operator reporting:
+  - `src/lib/review/advanced-candle-context-report.ts`
+  - `src/scripts/run-advanced-candle-context-report.ts`
+  - `npm run candles:advanced-context`
+- The advanced context report summarizes cached candle facts for support/resistance counts, reference levels, nearest gaps, VWAP/EMA availability, market structure, session gap, candle reaction, move extension, opening range, halt awareness, level quality, data quality, trade idea, and first-post-plan lines without adding Discord noise.
+- Strengthened provider comparison readiness:
+  - average-volume drift is now reported per timeframe.
+  - cached 5m market-structure state/confidence drift is now reported per symbol.
+  - totals now include high volume drift and market-structure drift watch counts.
+- Added a months-scale bulk-import fixture to prove repeated multi-symbol/multi-session trade imports dedupe into provider-safe symbol/session/timeframe tasks.
+- Added focused coverage:
+  - `src/tests/market-structure-calibration-report.test.ts`
+  - `src/tests/advanced-candle-context-report.test.ts`
+  - expanded `src/tests/first-snapshot-trade-map-audit.test.ts`
+  - expanded `src/tests/provider-comparison-readiness-report.test.ts`
+  - expanded `src/tests/shared-candle-intelligence-foundation.test.ts`
+- Updated docs:
+  - `README.md`
+  - `docs/69_CANDLE_INTELLIGENCE_PHASED_COMPLETION_PLAN_2026-05-03.md`
+
+## 2026-05-03 Candle Intelligence Replay Checklist, Trust Gates, And Provider Safety
+
+- Wired the newer candle-intelligence reports into `npm run replay:monday`, including why-no-post proof, candle regression gate, dynamic/reference calibration, and candle import safety.
+- Added all-session support for dynamic/reference calibration and why-no-post proof so broad saved-data review can scan the full `artifacts/long-run` evidence root.
+- Strengthened dynamic/reference calibration with explicit trust labels and a generated gate:
+  - `trusted`
+  - `watch`
+  - `unproven`
+  - `broken`
+  - `dynamic-reference-calibration-report-gate.json`
+  - `dynamic-reference-calibration-report-gate.md`
+- Strengthened why-no-post proof with balanced replay suppression evidence for single-session reviews, including replay suppressed counts, thread-story suppressions, suppression reasons, and sample suppressed posts.
+- Added candle import safety tooling:
+  - `src/lib/review/candle-import-safety-report.ts`
+  - `src/scripts/run-candle-import-safety-report.ts`
+  - `npm run candles:import-safety`
+- The import-safety report makes provider pressure explicit with naive tasks, deduped tasks, avoided provider requests, missing tasks, provider batches, largest task estimates, and safety verdicts.
+- Upgraded end-of-day symbol verdicts with representative evidence examples from first-snapshot scoring, execution-relation replay, missed-move audit, and warehouse volume reports.
+- Added focused tests:
+  - `src/tests/candle-import-safety-report.test.ts`
+  - expanded `src/tests/dynamic-reference-calibration-report.test.ts`
+  - expanded `src/tests/why-no-post-replay-proof.test.ts`
+  - expanded `src/tests/end-of-day-symbol-verdict.test.ts`
+
+## 2026-05-03 Candle Intelligence Evidence Gate And Quiet-Proof Audit
+
+- Added an enforceable candle-intelligence regression gate:
+  - `src/scripts/run-candle-intelligence-regression-gate.ts`
+  - `npm run candles:regression-gate`
+- The gate evaluates saved-data regression packs as `pass`, `review`, or `fail` with thresholds for major cases, weak first snapshots, missing forward resistance, and missing candle evidence.
+- Added dynamic/reference calibration tooling:
+  - `src/lib/review/dynamic-reference-calibration-report.ts`
+  - `src/scripts/run-dynamic-reference-calibration-report.ts`
+  - `npm run candles:dynamic-calibrate`
+- The dynamic calibration report proves whether cached candles support opening-range, VWAP, EMA9, and EMA20 facts around saved Discord posts before those facts become trader-facing.
+- Upgraded end-of-day symbol verdicts so `npm run audit:eod-verdict` folds in first-snapshot score, execution-relation replay, missed-move evidence, missing-forward-resistance counts, and warehouse volume may-help/hide counts.
+- Strengthened bulk backfill planning with provider batches, coalesced trade-request counts, estimated candle counts, avoided task counts, avoided task percent, and largest task size.
+- Added why-no-post replay proof:
+  - `src/lib/review/why-no-post-replay-proof.ts`
+  - `src/scripts/run-why-no-post-replay-proof.ts`
+  - `npm run audit:why-no-post`
+- The why-no-post report classifies each symbol as quiet-supported, quiet-preserved-meaningful-moves, quiet-may-hide-move, or unproven due to missing candles.
+- Added focused tests:
+  - `src/tests/dynamic-reference-calibration-report.test.ts`
+  - `src/tests/why-no-post-replay-proof.test.ts`
+  - expanded `src/tests/candle-intelligence-regression-pack.test.ts`
+  - expanded `src/tests/end-of-day-symbol-verdict.test.ts`
+  - expanded `src/tests/shared-candle-intelligence-foundation.test.ts`
+
 ## 2026-05-03 Candle Intelligence Bulk Audit And Provider Readiness
 
 - Added bulk candle import simulation tooling:
@@ -760,7 +1056,6 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `src/lib/market-data/candle-session-classifier.ts`
   - `src/lib/market-data/candle-validation.ts`
   - `src/lib/market-data/ibkr-historical-candle-provider.ts`
-  - `src/lib/market-data/providers/twelve-data-historical-candle-provider.ts`
   - `src/lib/validation/validation-candle-cache.ts`
   - `src/lib/validation/validation-lookback-config.ts`
   - `src/lib/support-resistance/single-timeframe-context.ts`
@@ -772,7 +1067,7 @@ This document tracks concrete implementation changes made to the `levels-system`
   - `docs/51_SHARED_SUPPORT_RESISTANCE_ENGINE_BOUNDARY_2026-05-02.md`
 - What changed:
   - added `1m` as a shared fetch timeframe for the market-data/provider layer without making it a full level-engine structural timeframe
-  - mapped IBKR `1m` requests to `barSizeSetting: "1 min"` and Twelve Data requests to `interval=1min`
+  - mapped IBKR `1m` requests to `barSizeSetting: "1 min"`
   - added session classification and validation support for `1m` intraday candles
   - added `aggregateCandlesToFiveMinutes`
   - added `buildSupportResistanceContextFromSingleTimeframeCandles`, which accepts supplied `1m` or `5m` candles and returns partial dynamic context
@@ -4652,7 +4947,7 @@ This document tracks concrete implementation changes made to the `levels-system`
 - Rebuilt the candle data foundation into a provider-aware, validation-aware, session-aware contract instead of the previous thin candle array response shape.
 - Replaced IBKR broad duration guessing with deliberate timeframe-aware fetch planning that derives provider request windows from timeframe and requested lookback depth.
 - Added structured candle validation, staleness detection, completeness status, session summaries, and diagnostics formatting for runtime and manual review.
-- Added an explicit provider factory and a non-IBKR provider path in code (`twelve_data`) while preserving IBKR and stub support.
+- Added an explicit provider factory while preserving IBKR and stub support.
 - Made the level engine reject clearly invalid candle inputs before level generation and rebuilt special intraday levels around classified session windows instead of arbitrary recent bars.
 
 ### Files added
@@ -4664,7 +4959,6 @@ This document tracks concrete implementation changes made to the `levels-system`
 - `src/lib/market-data/provider-factory.ts`
 - `src/lib/market-data/provider-priority.ts`
 - `src/lib/market-data/provider-types.ts`
-- `src/lib/market-data/providers/twelve-data-historical-candle-provider.ts`
 - `src/tests/provider-factory.test.ts`
 
 ### Files updated
@@ -5836,6 +6130,29 @@ This document tracks concrete implementation changes made to the `levels-system`
   - clutter review now has better guidance when downstream delivery pressure is distorting the live thread
 - Added focused coverage in:
   - `src/tests/manual-watchlist-runtime-manager.test.ts`
+
+## 2026-05-03 America/Toronto
+
+### Tightened candle-intelligence suppression, startup-cache proof, and regression gates
+
+- Updated `src/lib/monitoring/live-thread-post-policy.ts`:
+  - added `stable_structure_repeat` so unchanged stable 5m range/base/pullback structure can suppress repeated non-accepted flicker inside the same practical zone
+  - accepted directional changes, critical changes, score/severity escalation, and real structure expansion still post
+- Updated `src/lib/alerts/alert-router.ts`:
+  - first support/resistance snapshots now include a clearer `Main trade area` line before the current structure read
+- Updated candle-intelligence gates:
+  - `npm run candles:regression-gate` now supports `--preset strict`, `--preset review`, and `--preset exploratory`
+  - `npm run replay:monday` now runs an exploratory evidence gate plus a non-required strict gate
+- Added `src/lib/review/startup-cache-readiness-report.ts` and `src/scripts/run-startup-cache-readiness-report.ts`:
+  - new `npm run startup:cache-readiness` operator report checks active watchlist cache coverage/freshness
+  - the report keeps the Discord rule explicit: cached levels can warm restart state, but snapshots wait for fresh candles
+- Improved `src/lib/review/advanced-candle-context-report.ts`:
+  - advanced context now shows data-quality score, reasons, primary cause, and missing facts per symbol
+- Added focused coverage in:
+  - `src/tests/startup-cache-readiness-report.test.ts`
+  - expanded `src/tests/live-thread-post-policy.test.ts`
+  - expanded `src/tests/alert-router.test.ts`
+  - expanded `src/tests/advanced-candle-context-report.test.ts`
 
 ## 2026-04-23 12:45 PM America/Toronto
 
