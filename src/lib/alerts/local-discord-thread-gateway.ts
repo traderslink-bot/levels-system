@@ -9,7 +9,7 @@ import type {
   LevelSnapshotPayload,
 } from "./alert-types.js";
 import type { DiscordThreadGateway } from "./alert-router.js";
-import { formatLevelExtensionMessage, formatLevelSnapshotMessage } from "./alert-router.js";
+import { formatLevelExtensionMessage, formatLevelLadderMessage, formatLevelSnapshotMessage } from "./alert-router.js";
 
 type PersistedDiscordMessage = {
   type: DiscordThreadMessageType;
@@ -244,6 +244,29 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
       type: "level_snapshot",
       title: `${payload.symbol} support and resistance`,
       body: formatLevelSnapshotMessage(payload),
+      symbol: payload.symbol,
+      timestamp: payload.timestamp,
+    });
+    this.saveState(state);
+  }
+
+  async sendLevelLadder(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
+    const body = formatLevelLadderMessage(payload);
+    if (!body) {
+      return;
+    }
+
+    const state = this.loadState();
+    const thread = state.threads[threadId];
+
+    if (!thread) {
+      throw new Error(`Discord thread ${threadId} was not found.`);
+    }
+
+    thread.messages.push({
+      type: "level_snapshot",
+      title: `${payload.symbol} full level ladder`,
+      body,
       symbol: payload.symbol,
       timestamp: payload.timestamp,
     });

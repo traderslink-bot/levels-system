@@ -23,6 +23,7 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
     },
     async sendMessage() {},
     async sendLevelSnapshot() {},
+    async sendLevelLadder() {},
     async sendLevelExtension() {},
   };
 
@@ -70,6 +71,38 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       targetSide: "resistance",
       targetPrice: 2.5,
       targetDistancePct: 0.024,
+      formalStructureTimeframe: "5m",
+      formalStructureEventType: "bos_bullish",
+      formalStructureEventFreshness: "fresh",
+      formalStructureConfirmation: "close_confirmed",
+      formalStructureConfidence: "medium",
+      formalStructureMaterialChange: true,
+      marketStructureStoryVisible: true,
+      formalStructureBrokenSwingPrice: 2.36,
+      formalStructureProtectedLow: 2.08,
+      selectedFormalStructureTimeframe: "4h",
+      selectedFormalStructureEventType: "choch_bullish",
+      selectedFormalStructureEventFreshness: "prior",
+      selectedFormalStructureMaterialChange: false,
+      runtimeMarketStructure: {
+        timeframes: {
+          "5m": {
+            stable: {
+              state: "breakout_holding",
+              previousState: "pressing_range_high",
+              structureKey: "breakout_holding|low:2.08|high:2.36",
+              materialChange: true,
+              confidence: "high",
+              materialityScore: 0.82,
+              rawState: "breakout_holding",
+              reason: "high_materiality_change",
+              candleCount: 32,
+              latestSwingLow: 2.08,
+              latestSwingHigh: 2.36,
+            },
+          },
+        },
+      },
       whyPosted: "event passed breakout policy",
       postBudgetSymbolType: "small_cap",
       noLevelReason: "higher resistance not available in active snapshot or extension cache",
@@ -152,16 +185,24 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
       ],
     },
   });
+  await audited.sendLevelLadder("thread-1", {
+    symbol: "ALBT",
+    currentPrice: 2.51,
+    supportZones: [{ representativePrice: 2.4 }],
+    resistanceZones: [{ representativePrice: 2.6 }],
+    timestamp: 2,
+  });
 
   const lines = readFileSync(auditFilePath, "utf8")
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line));
 
-  assert.equal(lines.length, 3);
+  assert.equal(lines.length, 4);
   assert.equal(lines[0]?.operation, "create_thread");
   assert.equal(lines[1]?.operation, "post_alert");
   assert.equal(lines[2]?.operation, "post_level_snapshot");
+  assert.equal(lines[3]?.operation, "post_level_ladder");
   assert.equal(lines[1]?.status, "posted");
   assert.equal(lines[1]?.symbol, "ALBT");
   assert.equal(lines[1]?.sourceTimestamp, 1);
@@ -191,6 +232,12 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   assert.equal(lines[1]?.targetSide, "resistance");
   assert.equal(lines[1]?.targetPrice, 2.5);
   assert.equal(lines[1]?.targetDistancePct, 0.024);
+  assert.equal(lines[1]?.formalStructureEventType, "bos_bullish");
+  assert.equal(lines[1]?.formalStructureEventFreshness, "fresh");
+  assert.equal(lines[1]?.marketStructureStoryVisible, true);
+  assert.equal(lines[1]?.selectedFormalStructureTimeframe, "4h");
+  assert.equal(lines[1]?.selectedFormalStructureEventType, "choch_bullish");
+  assert.equal(lines[1]?.marketStructure?.timeframes?.["5m"]?.stable?.state, "breakout_holding");
   assert.equal(lines[1]?.whyPosted, "event passed breakout policy");
   assert.equal(lines[1]?.postBudgetSymbolType, "small_cap");
   assert.equal(lines[1]?.noLevelReason, "higher resistance not available in active snapshot or extension cache");
@@ -206,7 +253,9 @@ test("DiscordAuditedThreadGateway records successful downstream deliveries", asy
   );
   assert.match(lines[2]?.body, /ALBT support and resistance/);
   assert.equal(lines[2]?.title, "ALBT support and resistance");
-  assert.equal(capturedEntries.length, 3);
+  assert.match(lines[3]?.body, /ALBT full level ladder/);
+  assert.equal(lines[3]?.title, "ALBT full level ladder");
+  assert.equal(capturedEntries.length, 4);
 });
 
 test("DiscordAuditedThreadGateway records failed downstream deliveries before rethrowing", async () => {

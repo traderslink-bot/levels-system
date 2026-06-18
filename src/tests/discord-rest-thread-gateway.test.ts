@@ -164,8 +164,44 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
       "Support:",
       "2.40 (-4.4%)",
       "2.25 (-10.4%)",
+    ].join("\n"),
+  );
+});
+
+test("DiscordRestThreadGateway can post a separate full level ladder into the target thread", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return jsonResponse({ body: { id: "message-1" } });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+  });
+
+  await gateway.sendLevelLadder("thread-albt", {
+    symbol: "ALBT",
+    currentPrice: 2.51,
+    supportZones: [
+      { representativePrice: 2.4 },
+      { representativePrice: 2.25, lowPrice: 2.2, highPrice: 2.28 },
+    ],
+    resistanceZones: [
+      { representativePrice: 2.6, lowPrice: 2.58, highPrice: 2.62 },
+      { representativePrice: 2.75 },
+    ],
+    timestamp: 1,
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(
+    JSON.parse(String(calls[0]?.init?.body)).content,
+    [
+      "ALBT full level ladder",
+      "Price: 2.51",
       "",
-      "More support and resistance:",
       "Resistance:",
       "2.60 (+3.6%)",
       "2.75 (+9.6%)",
@@ -175,6 +211,72 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
       "2.25 (-10.4%)",
     ].join("\n"),
   );
+});
+
+test("DiscordRestThreadGateway keeps VWAP and EMA out of crowded level snapshots before posting", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return jsonResponse({ body: { id: "message-1" } });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+  });
+
+  await gateway.sendLevelSnapshot("thread-rlyb", {
+    symbol: "RLYB",
+    currentPrice: 1.25,
+    supportZones: Array.from({ length: 35 }, (_, index) => ({
+      representativePrice: 1.2 - index * 0.01,
+      strengthLabel: index % 2 === 0 ? "major" : "moderate",
+      sourceLabel: "daily confluence",
+    })),
+    resistanceZones: Array.from({ length: 35 }, (_, index) => ({
+      representativePrice: 1.3 + index * 0.01,
+      strengthLabel: index % 2 === 0 ? "major" : "moderate",
+      sourceLabel: "4h structure",
+    })),
+    timestamp: 1,
+  });
+
+  const content = JSON.parse(String(calls[0]?.init?.body)).content;
+  assert.doesNotMatch(content, /\[trimmed: Discord message length limit\]/);
+  assert.doesNotMatch(content, /More support and resistance/);
+  assert.doesNotMatch(content, /\b(?:VWAP|EMA(?:9|20)?|EMA\s*\d*)\b/i);
+});
+
+test("DiscordRestThreadGateway removes VWAP and EMA lines from Discord-facing posts", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return jsonResponse({ body: { id: "message-1" } });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+  });
+
+  await gateway.sendMessage("thread-rlyb", {
+    title: "RLYB context",
+    body: [
+      "Support: 1.20 remains the main lower level.",
+      "VWAP: price is above VWAP.",
+      "EMA9: price is below EMA9.",
+      "Resistance: 1.35 is the next upper level.",
+    ].join("\n"),
+    symbol: "RLYB",
+    timestamp: 1,
+  });
+
+  const content = JSON.parse(String(calls[0]?.init?.body)).content;
+  assert.match(content, /Support: 1\.20/);
+  assert.match(content, /Resistance: 1\.35/);
+  assert.doesNotMatch(content, /\b(?:VWAP|EMA(?:9|20)?|EMA\s*\d*)\b/i);
 });
 
 test("DiscordRestThreadGateway can suppress embeds for plain-text link messages", async () => {
@@ -209,6 +311,40 @@ test("DiscordRestThreadGateway can suppress embeds for plain-text link messages"
   const requestBody = JSON.parse(String(calls[0]?.init?.body));
   assert.equal(requestBody.content, "COMPANY: Example Corp\nWEBSITE: https://example.com/");
   assert.equal(requestBody.flags, 4);
+});
+
+test("DiscordRestThreadGateway splits posts that exceed Discord's 2000 character limit", async () => {
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return jsonResponse({ body: { id: `message-${calls.length}` } });
+  };
+
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+  });
+
+  await gateway.sendMessage("thread-albt", {
+    title: "ALBT snapshot",
+    body: Array.from(
+      { length: 80 },
+      (_, index) => `line ${index + 1}: support/resistance and market structure detail stays visible for review`,
+    ).join("\n"),
+    symbol: "ALBT",
+    timestamp: 1,
+  });
+
+  assert.ok(calls.length > 1);
+  assert.ok(
+    calls.every((call) => {
+      const body = JSON.parse(String(call.init?.body));
+      return typeof body.content === "string" && body.content.length <= 2000;
+    }),
+  );
+  assert.match(JSON.parse(String(calls[0]?.init?.body)).content, /ALBT snapshot/);
+  assert.match(JSON.parse(String(calls.at(-1)?.init?.body)).content, /line 80/);
 });
 
 test("DiscordRestThreadGateway retries transient message delivery failures", async () => {

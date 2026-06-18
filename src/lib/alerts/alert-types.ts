@@ -10,9 +10,19 @@ import type {
   MarketStructureType,
   PathQualityLabel,
   PracticalTradeStructureState,
+  RuntimeMarketStructureSnapshot,
   ZoneExhaustionLabel,
 } from "../monitoring/monitoring-types.js";
-import type { CandleMarketStructureConfidence, CandleMarketStructureState } from "../structure/index.js";
+import type {
+  CandleMarketStructureConfidence,
+  CandleMarketStructureState,
+  FormalBreakConfirmation,
+  FormalStructureBias,
+  FormalStructureConfidenceLabel,
+  FormalStructureEventType,
+  FormalStructureTimeframe,
+  FormalSwingLabel,
+} from "../structure/index.js";
 import type { VolumeActivityContext } from "../monitoring/volume-activity.js";
 import type { SignalCategoryKey } from "../signals/signal-category-config.js";
 import type { FirstPostTradePlanContext } from "../trader-context/index.js";
@@ -188,7 +198,8 @@ export type AlertPayload = {
       | "follow_through_state_update"
       | "continuity_update"
       | "symbol_recap"
-      | "ai_signal_commentary";
+      | "ai_signal_commentary"
+      | "market_structure_update";
     severity?: AlertSeverity;
     confidence?: AlertConfidence;
     score?: number;
@@ -203,6 +214,8 @@ export type AlertPayload = {
     nextBarrierSide?: "support" | "resistance";
     nextBarrierDistancePct?: number;
     nextBarrierRoleFlipFromSide?: "support" | "resistance";
+    continuationBarrierSide?: "support" | "resistance";
+    continuationBarrierDistancePct?: number;
     tacticalRead?: TraderZoneTacticalRead;
     movementLabel?: TraderMovementLabel;
     movementPct?: number;
@@ -218,6 +231,10 @@ export type AlertPayload = {
     marketStructureLabel?: TraderMarketStructureLabel;
     marketStructureType?: MarketStructureType;
     marketStructureStrength?: number;
+    marketStructureStoryVisible?: boolean;
+    marketStructureStoryReason?: string;
+    marketStructureStoryKeys?: string[];
+    marketStructureStorySource?: string;
     practicalStructureState?: PracticalTradeStructureState;
     practicalStructureKey?: string;
     practicalZoneKey?: string;
@@ -228,6 +245,66 @@ export type AlertPayload = {
     stableMarketStructureMaterialChange?: boolean;
     stableMarketStructureConfidence?: CandleMarketStructureConfidence["label"];
     stableMarketStructureMaterialityScore?: number;
+    stableMarketStructureRawState?: CandleMarketStructureState;
+    stableMarketStructureReason?: string;
+    stableMarketStructureCandleCount?: number;
+    stableMarketStructureRawRunLength?: number;
+    stableMarketStructureTrendDirection?: string;
+    stableMarketStructureHigherLowCount?: number;
+    stableMarketStructureLowerHighCount?: number;
+    stableMarketStructureHigherHighCount?: number;
+    stableMarketStructureLowerLowCount?: number;
+    stableMarketStructureLatestSwingLow?: number;
+    stableMarketStructureLatestSwingHigh?: number;
+    stableMarketStructurePriorSwingLow?: number;
+    stableMarketStructurePriorSwingHigh?: number;
+    stableMarketStructureActiveRangeLow?: number;
+    stableMarketStructureActiveRangeHigh?: number;
+    stableMarketStructureActiveRangeWidthPct?: number;
+    stableMarketStructureActiveRangeQuality?: string;
+    stableMarketStructurePivotEventType?: string;
+    stableMarketStructurePivotEventTriggerPrice?: number | null;
+    formalStructureTimeframe?: FormalStructureTimeframe;
+    formalStructureBias?: FormalStructureBias;
+    formalStructurePreviousBias?: FormalStructureBias | null;
+    formalStructureEventType?: FormalStructureEventType;
+    formalStructureEventFreshness?: MonitoringEvent["eventContext"]["formalStructureEventFreshness"];
+    formalStructureTriggerTimestamp?: string | null;
+    formalStructureConfirmation?: FormalBreakConfirmation;
+    formalStructureConfidence?: FormalStructureConfidenceLabel;
+    formalStructureConfidenceScore?: number;
+    formalStructureMaterialChange?: boolean;
+    formalStructureBrokenSwingPrice?: number | null;
+    formalStructureSweptSwingPrice?: number | null;
+    formalStructureProtectedHigh?: number | null;
+    formalStructureProtectedLow?: number | null;
+    formalStructureLatestHigh?: number | null;
+    formalStructureLatestLow?: number | null;
+    formalStructureSwingSequence?: FormalSwingLabel[];
+    formalStructureKey?: string;
+    formalStructureTraderLine?: string;
+    formalStructureDebugReasons?: string[];
+    selectedFormalStructureTimeframe?: FormalStructureTimeframe;
+    selectedFormalStructureBias?: FormalStructureBias;
+    selectedFormalStructurePreviousBias?: FormalStructureBias | null;
+    selectedFormalStructureEventType?: FormalStructureEventType;
+    selectedFormalStructureEventFreshness?: MonitoringEvent["eventContext"]["selectedFormalStructureEventFreshness"];
+    selectedFormalStructureTriggerTimestamp?: string | null;
+    selectedFormalStructureConfirmation?: FormalBreakConfirmation;
+    selectedFormalStructureConfidence?: FormalStructureConfidenceLabel;
+    selectedFormalStructureConfidenceScore?: number;
+    selectedFormalStructureMaterialChange?: boolean;
+    selectedFormalStructureBrokenSwingPrice?: number | null;
+    selectedFormalStructureSweptSwingPrice?: number | null;
+    selectedFormalStructureProtectedHigh?: number | null;
+    selectedFormalStructureProtectedLow?: number | null;
+    selectedFormalStructureLatestHigh?: number | null;
+    selectedFormalStructureLatestLow?: number | null;
+    selectedFormalStructureSwingSequence?: FormalSwingLabel[];
+    selectedFormalStructureKey?: string;
+    selectedFormalStructureTraderLine?: string;
+    selectedFormalStructureDebugReasons?: string[];
+    runtimeMarketStructure?: RuntimeMarketStructureSnapshot | null;
     volumeActivityLabel?: VolumeActivityContext["label"];
     volumeActivityReliability?: VolumeActivityContext["reliability"];
     volumeActivityRatio?: number | null;
@@ -280,6 +357,11 @@ export type TraderNextBarrierContext = {
   price: number;
   distancePct: number;
   strengthLabel?: FinalLevelZone["strengthLabel"];
+  planningLevels?: Array<{
+    price: number;
+    distancePct: number;
+    strengthLabel?: FinalLevelZone["strengthLabel"];
+  }>;
   roleFlipFromSide?: "support" | "resistance";
   clearanceLabel?: BarrierClearanceLabel;
   clutterLabel?: BarrierClutterLabel;
@@ -344,6 +426,9 @@ export type LevelSnapshotAuditZone = {
 
 export type LevelSnapshotAudit = {
   referencePrice: number;
+  referencePriceSource?: "override" | "live_price" | "level_metadata";
+  livePriceAgeMs?: number;
+  metadataReferencePrice?: number;
   displayTolerance: number;
   forwardResistanceLimit: number;
   displayedSupportIds: string[];
@@ -359,9 +444,12 @@ export type LevelSnapshotPayload = {
   currentPrice: number;
   supportZones: LevelSnapshotDisplayZone[];
   resistanceZones: LevelSnapshotDisplayZone[];
+  ladderSupportZones?: LevelSnapshotDisplayZone[];
+  ladderResistanceZones?: LevelSnapshotDisplayZone[];
   timestamp: number;
   audit?: LevelSnapshotAudit;
   tradePlan?: FirstPostTradePlanContext;
+  marketStructure?: RuntimeMarketStructureSnapshot | null;
 };
 
 export type LevelExtensionPayload = {
@@ -385,6 +473,7 @@ export type IntelligentAlert = {
   event: MonitoringEvent;
   zone?: FinalLevelZone;
   nextBarrier?: TraderNextBarrierContext | null;
+  continuationBarrier?: TraderNextBarrierContext | null;
   tacticalRead?: TraderZoneTacticalRead;
   movement?: TraderMovementContext | null;
   pressure?: TraderPressureContext | null;

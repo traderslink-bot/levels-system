@@ -10,6 +10,7 @@ import type {
 } from "./alert-types.js";
 import {
   formatLevelExtensionMessage,
+  formatLevelLadderMessage,
   formatLevelSnapshotMessage,
   type DiscordThreadGateway,
 } from "./alert-router.js";
@@ -19,6 +20,7 @@ export type DiscordDeliveryAuditOperation =
   | "create_thread"
   | "post_alert"
   | "post_level_snapshot"
+  | "post_level_ladder"
   | "post_level_extension";
 
 export type DiscordDeliveryAuditStatus = "posted" | "failed";
@@ -75,6 +77,50 @@ export type DiscordDeliveryAuditEntry = {
   stableMarketStructureMaterialChange?: boolean;
   stableMarketStructureConfidence?: string;
   stableMarketStructureMaterialityScore?: number;
+  marketStructureStoryVisible?: boolean;
+  marketStructureStoryReason?: string;
+  marketStructureStoryKeys?: string[];
+  marketStructureStorySource?: string;
+  formalStructureTimeframe?: string;
+  formalStructureBias?: string;
+  formalStructurePreviousBias?: string | null;
+  formalStructureEventType?: string;
+  formalStructureEventFreshness?: string;
+  formalStructureTriggerTimestamp?: string | null;
+  formalStructureConfirmation?: string;
+  formalStructureConfidence?: string;
+  formalStructureConfidenceScore?: number;
+  formalStructureMaterialChange?: boolean;
+  formalStructureBrokenSwingPrice?: number | null;
+  formalStructureSweptSwingPrice?: number | null;
+  formalStructureProtectedHigh?: number | null;
+  formalStructureProtectedLow?: number | null;
+  formalStructureLatestHigh?: number | null;
+  formalStructureLatestLow?: number | null;
+  formalStructureSwingSequence?: string[];
+  formalStructureKey?: string;
+  formalStructureTraderLine?: string;
+  formalStructureDebugReasons?: string[];
+  selectedFormalStructureTimeframe?: string;
+  selectedFormalStructureBias?: string;
+  selectedFormalStructurePreviousBias?: string | null;
+  selectedFormalStructureEventType?: string;
+  selectedFormalStructureEventFreshness?: string;
+  selectedFormalStructureTriggerTimestamp?: string | null;
+  selectedFormalStructureConfirmation?: string;
+  selectedFormalStructureConfidence?: string;
+  selectedFormalStructureConfidenceScore?: number;
+  selectedFormalStructureMaterialChange?: boolean;
+  selectedFormalStructureBrokenSwingPrice?: number | null;
+  selectedFormalStructureSweptSwingPrice?: number | null;
+  selectedFormalStructureProtectedHigh?: number | null;
+  selectedFormalStructureProtectedLow?: number | null;
+  selectedFormalStructureLatestHigh?: number | null;
+  selectedFormalStructureLatestLow?: number | null;
+  selectedFormalStructureSwingSequence?: string[];
+  selectedFormalStructureKey?: string;
+  selectedFormalStructureTraderLine?: string;
+  selectedFormalStructureDebugReasons?: string[];
   volumeActivityLabel?: string;
   volumeActivityReliability?: string;
   volumeActivityRatio?: number | null;
@@ -130,6 +176,7 @@ export type DiscordDeliveryAuditEntry = {
     omittedSupportLevels: LevelSnapshotAuditZone[];
     omittedResistanceLevels: LevelSnapshotAuditZone[];
   };
+  marketStructure?: LevelSnapshotPayload["marketStructure"];
   side?: string;
   levelCount?: number;
   retryAttempt?: number;
@@ -329,6 +376,51 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       stableMarketStructureMaterialChange: payload.metadata?.stableMarketStructureMaterialChange,
       stableMarketStructureConfidence: payload.metadata?.stableMarketStructureConfidence,
       stableMarketStructureMaterialityScore: payload.metadata?.stableMarketStructureMaterialityScore,
+      marketStructureStoryVisible: payload.metadata?.marketStructureStoryVisible,
+      marketStructureStoryReason: payload.metadata?.marketStructureStoryReason,
+      marketStructureStoryKeys: payload.metadata?.marketStructureStoryKeys,
+      marketStructureStorySource: payload.metadata?.marketStructureStorySource,
+      formalStructureTimeframe: payload.metadata?.formalStructureTimeframe,
+      formalStructureBias: payload.metadata?.formalStructureBias,
+      formalStructurePreviousBias: payload.metadata?.formalStructurePreviousBias,
+      formalStructureEventType: payload.metadata?.formalStructureEventType,
+      formalStructureEventFreshness: payload.metadata?.formalStructureEventFreshness,
+      formalStructureTriggerTimestamp: payload.metadata?.formalStructureTriggerTimestamp,
+      formalStructureConfirmation: payload.metadata?.formalStructureConfirmation,
+      formalStructureConfidence: payload.metadata?.formalStructureConfidence,
+      formalStructureConfidenceScore: payload.metadata?.formalStructureConfidenceScore,
+      formalStructureMaterialChange: payload.metadata?.formalStructureMaterialChange,
+      formalStructureBrokenSwingPrice: payload.metadata?.formalStructureBrokenSwingPrice,
+      formalStructureSweptSwingPrice: payload.metadata?.formalStructureSweptSwingPrice,
+      formalStructureProtectedHigh: payload.metadata?.formalStructureProtectedHigh,
+      formalStructureProtectedLow: payload.metadata?.formalStructureProtectedLow,
+      formalStructureLatestHigh: payload.metadata?.formalStructureLatestHigh,
+      formalStructureLatestLow: payload.metadata?.formalStructureLatestLow,
+      formalStructureSwingSequence: payload.metadata?.formalStructureSwingSequence,
+      formalStructureKey: payload.metadata?.formalStructureKey,
+      formalStructureTraderLine: payload.metadata?.formalStructureTraderLine,
+      formalStructureDebugReasons: payload.metadata?.formalStructureDebugReasons,
+      selectedFormalStructureTimeframe: payload.metadata?.selectedFormalStructureTimeframe,
+      selectedFormalStructureBias: payload.metadata?.selectedFormalStructureBias,
+      selectedFormalStructurePreviousBias: payload.metadata?.selectedFormalStructurePreviousBias,
+      selectedFormalStructureEventType: payload.metadata?.selectedFormalStructureEventType,
+      selectedFormalStructureEventFreshness: payload.metadata?.selectedFormalStructureEventFreshness,
+      selectedFormalStructureTriggerTimestamp: payload.metadata?.selectedFormalStructureTriggerTimestamp,
+      selectedFormalStructureConfirmation: payload.metadata?.selectedFormalStructureConfirmation,
+      selectedFormalStructureConfidence: payload.metadata?.selectedFormalStructureConfidence,
+      selectedFormalStructureConfidenceScore: payload.metadata?.selectedFormalStructureConfidenceScore,
+      selectedFormalStructureMaterialChange: payload.metadata?.selectedFormalStructureMaterialChange,
+      selectedFormalStructureBrokenSwingPrice: payload.metadata?.selectedFormalStructureBrokenSwingPrice,
+      selectedFormalStructureSweptSwingPrice: payload.metadata?.selectedFormalStructureSweptSwingPrice,
+      selectedFormalStructureProtectedHigh: payload.metadata?.selectedFormalStructureProtectedHigh,
+      selectedFormalStructureProtectedLow: payload.metadata?.selectedFormalStructureProtectedLow,
+      selectedFormalStructureLatestHigh: payload.metadata?.selectedFormalStructureLatestHigh,
+      selectedFormalStructureLatestLow: payload.metadata?.selectedFormalStructureLatestLow,
+      selectedFormalStructureSwingSequence: payload.metadata?.selectedFormalStructureSwingSequence,
+      selectedFormalStructureKey: payload.metadata?.selectedFormalStructureKey,
+      selectedFormalStructureTraderLine: payload.metadata?.selectedFormalStructureTraderLine,
+      selectedFormalStructureDebugReasons: payload.metadata?.selectedFormalStructureDebugReasons,
+      marketStructure: payload.metadata?.runtimeMarketStructure,
       volumeActivityLabel: payload.metadata?.volumeActivityLabel,
       volumeActivityReliability: payload.metadata?.volumeActivityReliability,
       volumeActivityRatio: payload.metadata?.volumeActivityRatio,
@@ -479,6 +571,7 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         supportCount: payload.supportZones.length,
         resistanceCount: payload.resistanceZones.length,
         snapshotAudit,
+        marketStructure: payload.marketStructure,
       }, {
         sendStartedAt,
         sendDurationMs: Date.now() - sendStartedAt,
@@ -493,6 +586,58 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
         bodyPreview,
         supportCount: payload.supportZones.length,
         resistanceCount: payload.resistanceZones.length,
+        snapshotAudit,
+        marketStructure: payload.marketStructure,
+      }, {
+        sendStartedAt,
+        sendDurationMs: Date.now() - sendStartedAt,
+      });
+    }
+  }
+
+  async sendLevelLadder(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
+    const body = formatLevelLadderMessage(payload);
+    if (!body) {
+      return;
+    }
+
+    const ladderSupportCount = payload.ladderSupportZones?.length ?? payload.supportZones.length;
+    const ladderResistanceCount = payload.ladderResistanceZones?.length ?? payload.resistanceZones.length;
+    const bodyPreview =
+      `price ${payload.currentPrice}; support ${ladderSupportCount}; ` +
+      `resistance ${ladderResistanceCount}`;
+    const snapshotAudit = buildSnapshotAuditPreview(payload.audit);
+    const sendStartedAt = Date.now();
+
+    try {
+      if (!this.inner.sendLevelLadder) {
+        return;
+      }
+      await this.inner.sendLevelLadder(threadId, payload);
+      this.recordPosted("post_level_ladder", {
+        threadId,
+        symbol: payload.symbol,
+        title: `${payload.symbol} full level ladder`,
+        sourceTimestamp: payload.timestamp,
+        body,
+        bodyPreview,
+        supportCount: ladderSupportCount,
+        resistanceCount: ladderResistanceCount,
+        snapshotAudit,
+      }, {
+        sendStartedAt,
+        sendDurationMs: Date.now() - sendStartedAt,
+      });
+    } catch (error) {
+      this.recordFailed("post_level_ladder", error, {
+        threadId,
+        symbol: payload.symbol,
+        title: `${payload.symbol} full level ladder`,
+        sourceTimestamp: payload.timestamp,
+        body,
+        bodyPreview,
+        supportCount: ladderSupportCount,
+        resistanceCount: ladderResistanceCount,
         snapshotAudit,
       }, {
         sendStartedAt,

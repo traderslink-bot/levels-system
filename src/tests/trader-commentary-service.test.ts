@@ -188,6 +188,7 @@ test("OpenAITraderCommentaryService sends long-only rules for signal explanation
     symbol: "ALBT",
     title: "ALBT breakout",
     deterministicBody: "breakout through resistance",
+    operatorNote: "Needs clean volume before I trust the move.",
   });
 
   assert.match(result?.text ?? "", /Buyers need acceptance/);
@@ -210,6 +211,14 @@ test("OpenAITraderCommentaryService sends long-only rules for signal explanation
   assert.match(
     requestBody?.input?.[0]?.content?.[0]?.text ?? "",
     /support reaction area/i,
+  );
+  assert.match(
+    requestBody?.input?.[0]?.content?.[0]?.text ?? "",
+    /If operatorNote is present/i,
+  );
+  assert.equal(
+    JSON.parse(requestBody?.input?.[1]?.content?.[0]?.text ?? "{}").operatorNote,
+    "Needs clean volume before I trust the move.",
   );
 });
 

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { LevelEngineOutput } from "../lib/levels/level-types.js";
+import type { FinalLevelZone, LevelEngineOutput } from "../lib/levels/level-types.js";
 import type { MonitoringEvent } from "../lib/monitoring/monitoring-types.js";
 import { AlertIntelligenceEngine } from "../lib/alerts/alert-intelligence-engine.js";
 
@@ -109,6 +109,76 @@ const levels: LevelEngineOutput = {
   },
   specialLevels: {},
 };
+
+function buildPlanningZone(
+  id: string,
+  price: number,
+  kind: "support" | "resistance" = "resistance",
+): FinalLevelZone {
+  return {
+    id,
+    symbol: "ALBT",
+    kind,
+    timeframeBias: "daily",
+    zoneLow: price,
+    zoneHigh: price,
+    representativePrice: price,
+    strengthScore: 40,
+    strengthLabel: "moderate",
+    touchCount: 3,
+    confluenceCount: 1,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["daily"],
+    reactionQualityScore: 0.6,
+    rejectionScore: 0.5,
+    displacementScore: 0.5,
+    sessionSignificanceScore: 0.5,
+    followThroughScore: 0.5,
+    gapContinuationScore: 0,
+    sourceEvidenceCount: 1,
+    firstTimestamp: 1,
+    lastTimestamp: 2,
+    isExtension: false,
+    freshness: "fresh",
+    notes: [],
+  };
+}
+
+function buildPlanningEvent(overrides: Partial<MonitoringEvent> = {}): MonitoringEvent {
+  return {
+    id: "evt-planning-map",
+    episodeId: "evt-planning-map-episode",
+    symbol: "ALBT",
+    type: "breakout",
+    eventType: "breakout",
+    zoneId: "trigger-resistance",
+    zoneKind: "resistance",
+    level: 1,
+    triggerPrice: 1,
+    strength: 0.9,
+    confidence: 0.88,
+    priority: 92,
+    bias: "bullish",
+    pressureScore: 0.74,
+    eventContext: {
+      monitoredZoneId: "trigger-resistance",
+      canonicalZoneId: "trigger-resistance",
+      zoneFreshness: "fresh",
+      zoneOrigin: "canonical",
+      remapStatus: "new",
+      remappedFromZoneIds: [],
+      dataQualityDegraded: false,
+      recentlyRefreshed: false,
+      recentlyPromotedExtension: false,
+      ladderPosition: "outermost",
+      zoneStrengthLabel: "major",
+      sourceGeneratedAt: 1,
+    },
+    timestamp: 10,
+    notes: ["Planning map event."],
+    ...overrides,
+  };
+}
 
 test("AlertIntelligenceEngine formats strong alerts that pass filtering", () => {
   const engine = new AlertIntelligenceEngine();
@@ -867,4 +937,114 @@ test("AlertIntelligenceEngine preserves materially new remap state instead of su
   assert.ok(secondResult.formatted);
   assert.equal(secondResult.delivery.reason, "posted");
   assert.ok(secondResult.formatted?.meta.context.includes("remap:replaced"));
+});
+
+test("AlertIntelligenceEngine can add one extra planning level to reach the normal small-cap map range", () => {
+  const engine = new AlertIntelligenceEngine();
+  const planningLevels: LevelEngineOutput = {
+    ...levels,
+    majorResistance: [buildPlanningZone("trigger-resistance", 1)],
+    intermediateResistance: [1.03, 1.07, 1.14, 1.2, 1.27, 1.33].map((price, index) =>
+      buildPlanningZone(`planning-resistance-${index}`, price),
+    ),
+    extensionLevels: {
+      support: [],
+      resistance: [],
+    },
+  };
+
+  const result = engine.processEvent(buildPlanningEvent(), planningLevels);
+
+  assert.equal(result.rawAlert.nextBarrier?.planningLevels?.length, 6);
+  assert.equal(result.rawAlert.nextBarrier?.planningLevels?.at(-1)?.price, 1.33);
+});
+
+test("AlertIntelligenceEngine keeps active runner planning maps tighter", () => {
+  const engine = new AlertIntelligenceEngine();
+  const planningLevels: LevelEngineOutput = {
+    ...levels,
+    majorResistance: [buildPlanningZone("trigger-resistance", 1)],
+    intermediateResistance: [1.03, 1.07, 1.14, 1.2, 1.27, 1.33].map((price, index) =>
+      buildPlanningZone(`planning-active-resistance-${index}`, price),
+    ),
+    extensionLevels: {
+      support: [],
+      resistance: [],
+    },
+  };
+
+  const result = engine.processEvent(
+    buildPlanningEvent({
+      eventContext: {
+        ...buildPlanningEvent().eventContext,
+        behaviorBudget: {
+          label: "active_runner",
+          maxUsefulPostsPerDay: 16,
+          maxRangePosts: 4,
+          reasons: ["test active runner"],
+        },
+      },
+    }),
+    planningLevels,
+  );
+
+  assert.equal(result.rawAlert.nextBarrier?.planningLevels?.length, 5);
+  assert.equal(result.rawAlert.nextBarrier?.planningLevels?.at(-1)?.price, 1.27);
+});
+
+test("AlertIntelligenceEngine adds weak extension map levels when upside inventory is exhausted", () => {
+  const engine = new AlertIntelligenceEngine();
+  const planningLevels: LevelEngineOutput = {
+    ...levels,
+    majorResistance: [buildPlanningZone("trigger-resistance", 12.25)],
+    intermediateResistance: [],
+    intradayResistance: [],
+    extensionLevels: {
+      support: [],
+      resistance: [],
+    },
+  };
+
+  const result = engine.processEvent(
+    buildPlanningEvent({
+      triggerPrice: 12.13,
+      level: 12.25,
+    }),
+    planningLevels,
+  );
+
+  const map = result.rawAlert.nextBarrier?.planningLevels ?? [];
+  assert.ok(map.some((level) => level.price === 12.25));
+  assert.ok(map.some((level) => level.price >= 16 && level.strengthLabel === "weak"));
+  assert.ok((map.at(-1)?.distancePct ?? 0) >= 0.30);
+});
+
+test("AlertIntelligenceEngine keeps upside resistance maps on resistance-touch stories", () => {
+  const engine = new AlertIntelligenceEngine();
+  const planningLevels: LevelEngineOutput = {
+    ...levels,
+    majorSupport: [buildPlanningZone("planning-support", 0.92, "support")],
+    majorResistance: [buildPlanningZone("trigger-resistance", 1)],
+    intermediateResistance: [1.05, 1.14, 1.23, 1.32].map((price, index) =>
+      buildPlanningZone(`planning-touch-resistance-${index}`, price),
+    ),
+    extensionLevels: {
+      support: [],
+      resistance: [],
+    },
+  };
+
+  const result = engine.processEvent(
+    buildPlanningEvent({
+      type: "level_touch",
+      eventType: "level_touch",
+      zoneKind: "resistance",
+      triggerPrice: 1,
+    }),
+    planningLevels,
+  );
+
+  assert.equal(result.rawAlert.nextBarrier?.side, "support");
+  assert.equal(result.rawAlert.continuationBarrier?.side, "resistance");
+  assert.equal(result.rawAlert.continuationBarrier?.planningLevels?.at(-1)?.price, 1.32);
 });

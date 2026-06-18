@@ -8,6 +8,7 @@ export type TraderCommentaryResult = {
 export type SymbolRecapCommentaryInput = {
   symbol: string;
   deterministicRecap: string;
+  operatorNote?: string;
   topOpportunity?: Record<string, unknown> | null;
   latestProgress?: Record<string, unknown> | null;
   latestEvaluation?: Record<string, unknown> | null;
@@ -21,12 +22,14 @@ export type SignalCommentaryInput = {
   severity?: string;
   confidence?: string;
   score?: number;
+  operatorNote?: string;
   metadata?: Record<string, unknown> | null;
 };
 
 export type ThreadCommentaryInput = {
   symbol: string;
   deterministicRecap: string;
+  operatorNote?: string;
   threadSummary?: Record<string, unknown> | null;
   topOpportunity?: Record<string, unknown> | null;
   latestProgress?: Record<string, unknown> | null;
@@ -137,6 +140,7 @@ export function validateTraderCommentaryText(text: string): string | null {
 
 const LIVE_TRADER_COMMENTARY_RULES =
   "This product is for long-only traders. Never suggest shorting, short entries, downside targets, or bearish trade ideas. " +
+  "If operatorNote is present, use it only as optional context and do not quote it verbatim unless it directly clarifies the setup. " +
   "Do not use the words downside, target, objective, first support, next support, buy now, sell now, wait for, wait to open, open new longs, best entry, safe entry, safe if, can buy, good place to add, should add, should trim, should exit, take profit, or stop out. " +
   "Do not write 'longs should...' or 'traders should...'; rewrite that as an observation about the setup needing reclaim, acceptance, or stabilization. " +
   "For weak or bearish conditions, say the setup is not clean for longs yet and name the reclaim or confirmation level. " +

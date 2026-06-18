@@ -132,6 +132,17 @@ export function routeMessageKindToSignalCategory(params: {
           "no_post_explainer",
         ],
       };
+    case "market_structure_update":
+      return {
+        primaryCategory: "market_structure",
+        supportingCategories: [
+          "support_resistance",
+          "volume_activity",
+          "data_quality",
+          "story_memory",
+          "no_post_explainer",
+        ],
+      };
     case "continuity_update":
     case "symbol_recap":
     case "ai_signal_commentary":
@@ -225,6 +236,7 @@ function isAlertPayloadMessageKind(
     value === "follow_through_state_update" ||
     value === "continuity_update" ||
     value === "symbol_recap" ||
-    value === "ai_signal_commentary"
+    value === "ai_signal_commentary" ||
+    value === "market_structure_update"
   );
 }

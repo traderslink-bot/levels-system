@@ -27,6 +27,10 @@ function formatLevel(level: number): string {
   return level >= 1 ? level.toFixed(2) : level.toFixed(4);
 }
 
+function lowercaseFirst(value: string): string {
+  return value.length > 0 ? `${value[0]?.toLowerCase()}${value.slice(1)}` : value;
+}
+
 export function describeZoneStrength(
   strengthLabel: FinalLevelZone["strengthLabel"],
 ): "light" | "moderate" | "heavy" | "major" {
@@ -474,6 +478,54 @@ function deriveStableCandleMarketStructureContext(
     : null;
 }
 
+function formalStructureLabel(
+  eventType: MonitoringEvent["eventContext"]["formalStructureEventType"],
+): TraderMarketStructureContext["label"] | null {
+  switch (eventType) {
+    case "bos_bullish":
+      return "bullish_building";
+    case "choch_bullish":
+      return "repaired";
+    case "bos_bearish":
+    case "choch_bearish":
+      return "damaged";
+    case "liquidity_sweep_high":
+    case "failed_break_high":
+      return "weakening";
+    case "liquidity_sweep_low":
+    case "failed_break_low":
+      return "repaired";
+    default:
+      return null;
+  }
+}
+
+function deriveFormalMarketStructureContext(event: MonitoringEvent): TraderMarketStructureContext | null {
+  const eventType = event.eventContext.formalStructureEventType;
+  const label = formalStructureLabel(eventType);
+  const line = event.eventContext.formalStructureTraderLine;
+  if (!eventType || eventType === "none" || !label || !line) {
+    return null;
+  }
+
+  if (event.eventContext.formalStructureConfidence === "low") {
+    return null;
+  }
+
+  if (event.eventContext.formalStructureMaterialChange !== true) {
+    return null;
+  }
+
+  return {
+    label,
+    structureType: event.eventContext.marketStructureType,
+    strength: event.eventContext.marketStructureStrength,
+    line: line.toLowerCase().startsWith("market structure:")
+      ? line
+      : `market structure: ${lowercaseFirst(line)}`,
+  };
+}
+
 export function deriveTraderMarketStructureContext(
   event: MonitoringEvent,
   zone?: FinalLevelZone,
@@ -488,6 +540,11 @@ export function deriveTraderMarketStructureContext(
   const strength = event.eventContext.marketStructureStrength;
   const practicalStructure = event.eventContext.tradeStructure;
   const stableCandleStructure = deriveStableCandleMarketStructureContext(event, zone);
+  const formalStructure = deriveFormalMarketStructureContext(event);
+
+  if (formalStructure) {
+    return formalStructure;
+  }
 
   if (stableCandleStructure && event.eventContext.stableMarketStructureMaterialChange === true) {
     return stableCandleStructure;

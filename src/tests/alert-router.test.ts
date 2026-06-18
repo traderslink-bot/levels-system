@@ -8,7 +8,9 @@ import {
   formatFollowThroughUpdateAsPayload,
   formatIntelligentAlertAsPayload,
   formatLevelExtensionMessage,
+  formatLevelLadderMessage,
   formatLevelSnapshotMessage,
+  formatMarketStructureUpdateAsPayload,
   formatSymbolRecapAsPayload,
 } from "../lib/alerts/alert-router.js";
 import type {
@@ -17,11 +19,13 @@ import type {
   LevelExtensionPayload,
   LevelSnapshotPayload,
 } from "../lib/alerts/alert-types.js";
+import type { MonitoringEvent } from "../lib/monitoring/monitoring-types.js";
 
 class FakeDiscordThreadGateway {
   public readonly threads = new Map<string, DiscordThread>();
   public readonly sentMessages: Array<{ threadId: string; payload: AlertPayload }> = [];
   public readonly levelSnapshots: Array<{ threadId: string; payload: LevelSnapshotPayload }> = [];
+  public readonly levelLadders: Array<{ threadId: string; payload: LevelSnapshotPayload }> = [];
   public readonly levelExtensions: Array<{ threadId: string; payload: LevelExtensionPayload }> = [];
 
   async getThreadById(threadId: string): Promise<DiscordThread | null> {
@@ -47,6 +51,10 @@ class FakeDiscordThreadGateway {
 
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
     this.levelSnapshots.push({ threadId, payload });
+  }
+
+  async sendLevelLadder(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
+    this.levelLadders.push({ threadId, payload });
   }
 
   async sendLevelExtension(threadId: string, payload: LevelExtensionPayload): Promise<void> {
@@ -100,6 +108,59 @@ function assertTraderFacingDiscordText(payload: AlertPayload): void {
   const visibleText = `${payload.title}\n${payload.body}`;
   assert.doesNotMatch(visibleText, DISCORD_SYSTEM_LANGUAGE_PATTERN);
   assert.doesNotMatch(visibleText, DISCORD_DIRECT_ADVICE_PATTERN);
+}
+
+function mixedBiyaMarketStructure(): NonNullable<LevelSnapshotPayload["marketStructure"]> {
+  return {
+    timeframes: {
+      "4h": {
+        formal: {
+          timeframe: "4h",
+          bias: "range",
+          previousBias: "range",
+          eventType: "failed_break_low",
+          eventFreshness: "prior",
+          confirmation: "failed",
+          confidence: "medium",
+          confidenceScore: 0.55,
+          materialChange: false,
+          brokenSwingPrice: null,
+          sweptSwingPrice: 0.785,
+          protectedHigh: 0.8999,
+          protectedLow: 0.785,
+          latestHigh: 0.8999,
+          latestLow: 0.785,
+          swingSequence: ["LH", "LL"],
+          structureKey: "4h|failed_break_low|range|none|BIYA:4h:external:low|0.7850",
+          traderLine: "4h structure failed to hold below 0.7850.",
+          debug: { candleCount: 116, reasons: ["failed_break"] },
+        },
+      },
+      "5m": {
+        formal: {
+          timeframe: "5m",
+          bias: "bullish_transition",
+          previousBias: "range",
+          eventType: "bos_bullish",
+          eventFreshness: "fresh",
+          confirmation: "displacement_confirmed",
+          confidence: "medium",
+          confidenceScore: 0.71,
+          materialChange: true,
+          brokenSwingPrice: 1.24,
+          sweptSwingPrice: null,
+          protectedHigh: 1.17,
+          protectedLow: 1.11,
+          latestHigh: 1.17,
+          latestLow: 1.11,
+          swingSequence: ["HL", "HH"],
+          structureKey: "5m|bos_bullish|bullish_transition|BIYA:5m:external:high|1.240",
+          traderLine: "5m structure printed bullish BOS above 1.24.",
+          debug: { candleCount: 60, reasons: ["displacement_confirmed"] },
+        },
+      },
+    },
+  };
 }
 
 test("DiscordAlertRouter reuses an existing stored thread id when available", async () => {
@@ -288,7 +349,129 @@ test("formatIntelligentAlertAsPayload adds delivery-ready trader context", () =>
   assert.equal(payload.metadata?.targetDistancePct, 0.036);
 });
 
-test("formatIntelligentAlertAsPayload can include quiet market structure context", () => {
+test("formatIntelligentAlertAsPayload shows the sixth planning level when needed for the story map", () => {
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-planning-six",
+    symbol: "ALBT",
+    title: "ALBT breakout",
+    body: [
+      "bullish breakout through strong resistance 2.40",
+      "movement: price is pushing farther above the zone high and follow-through is building (1.0%)",
+      "why now: price pushed through resistance instead of stalling under the zone",
+      "room: limited overhead into next resistance 2.50 (+3.7%)",
+      "watch: hold above 2.40; invalidates back below 2.40",
+    ].join("\n"),
+    severity: "high",
+    confidence: "high",
+    score: 80,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: samplePayload.event!,
+    zone: undefined,
+    nextBarrier: {
+      side: "resistance",
+      price: 2.5,
+      distancePct: 0.037,
+      planningLevels: [
+        { price: 2.5, distancePct: 0.037 },
+        { price: 2.62, distancePct: 0.087 },
+        { price: 2.75, distancePct: 0.141 },
+        { price: 2.91, distancePct: 0.207 },
+        { price: 3.06, distancePct: 0.27 },
+        { price: 3.17, distancePct: 0.315 },
+      ],
+    },
+    movement: null,
+    pressure: null,
+    triggerQuality: null,
+    pathQuality: null,
+    dipBuyQuality: null,
+    exhaustion: null,
+    setupState: null,
+    failureRisk: null,
+    target: null,
+    tradeMap: null,
+  });
+
+  assert.match(payload.body, /Resistance map: 2\.50 \(\+3\.7%\) -> .* -> 3\.17 \(\+31\.5%\)/);
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload adds upside resistance map to resistance-touch stories", () => {
+  const touchEvent: MonitoringEvent = {
+    ...samplePayload.event!,
+    id: "evt-resistance-touch-map",
+    episodeId: "ep-resistance-touch-map",
+    type: "level_touch",
+    eventType: "level_touch",
+    zoneKind: "resistance",
+    level: 2.4,
+    triggerPrice: 2.41,
+  };
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-resistance-touch-map",
+    symbol: "ALBT",
+    title: "ALBT level touch",
+    body: [
+      "price testing strong resistance 2.40",
+      "why now: price is back at resistance; buyers need acceptance above the zone",
+      "room: limited lower support into support near 2.25 (-6.6%)",
+      "watch: buyers need acceptance above 2.40 before breakout pressure builds",
+    ].join("\n"),
+    severity: "medium",
+    confidence: "medium",
+    score: 48,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: touchEvent,
+    zone: {
+      zoneLow: 2.38,
+      zoneHigh: 2.42,
+      representativePrice: 2.4,
+      strengthLabel: "strong",
+      kind: "resistance",
+    } as any,
+    nextBarrier: {
+      side: "support",
+      price: 2.25,
+      distancePct: 0.066,
+      planningLevels: [
+        { price: 2.25, distancePct: 0.066 },
+        { price: 2.08, distancePct: 0.137 },
+        { price: 1.95, distancePct: 0.191 },
+      ],
+    },
+    continuationBarrier: {
+      side: "resistance",
+      price: 2.55,
+      distancePct: 0.058,
+      planningLevels: [
+        { price: 2.55, distancePct: 0.058 },
+        { price: 2.75, distancePct: 0.141 },
+        { price: 2.98, distancePct: 0.237 },
+        { price: 3.17, distancePct: 0.315 },
+      ],
+    },
+    movement: null,
+    pressure: null,
+    triggerQuality: null,
+    pathQuality: null,
+    dipBuyQuality: null,
+    exhaustion: null,
+    setupState: null,
+    failureRisk: null,
+    target: null,
+    tradeMap: null,
+  });
+
+  assert.match(payload.body, /Key levels:\n- Testing resistance: 2\.38-2\.42\n- Nearby support: 2\.25\n- Resistance map: 2\.55 \(\+5\.8%\).*3\.17 \(\+31\.5%\)\n- Support map: 2\.25 \(-6\.6%\)/);
+  assert.equal(payload.metadata?.continuationBarrierSide, "resistance");
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload keeps quiet market structure in metadata without repeating the story", () => {
   const payload = formatIntelligentAlertAsPayload({
     id: "int-structure",
     symbol: "ALBT",
@@ -361,11 +544,409 @@ test("formatIntelligentAlertAsPayload can include quiet market structure context
     },
   });
 
-  assert.match(payload.body, /resistance is trying to become support; holding above 2\.50 keeps the structure improving/);
+  assert.doesNotMatch(payload.body, /resistance is trying to become support; holding above 2\.50 keeps the structure improving/);
   assert.equal(payload.metadata?.marketStructureLabel, "bullish_building");
   assert.equal(payload.metadata?.marketStructureType, "breakout_setup");
   assert.equal(payload.metadata?.marketStructureStrength, 0.86);
+  assert.equal(payload.metadata?.marketStructureStoryVisible, false);
   assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload keeps market structure visible when summary bullets are full", () => {
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-structure-full-summary",
+    symbol: "ALBT",
+    title: "ALBT breakout",
+    body: [
+      "bullish breakout through heavy resistance 2.40-2.50",
+      "why now: price cleared resistance instead of stalling underneath it",
+      "movement: price is pushing farther above the zone high and follow-through is building (1.1%)",
+      "room: open room into next resistance 2.82 (+12.0%)",
+      "market structure: 5m structure is trying to hold above the prior range; staying above 2.50 keeps the breakout attempt cleaner",
+      "watch: hold above 2.50; invalidates back below 2.40",
+    ].join("\n"),
+    severity: "high",
+    confidence: "high",
+    score: 78,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: {
+      ...samplePayload.event!,
+      eventContext: {
+        ...samplePayload.event!.eventContext,
+        stableMarketStructureState: "breakout_holding",
+        stableMarketStructurePreviousState: "pressing_range_high",
+        stableMarketStructureMaterialChange: true,
+        stableMarketStructureConfidence: "high",
+        stableMarketStructureMaterialityScore: 0.82,
+      },
+    },
+    nextBarrier: {
+      side: "resistance",
+      price: 2.82,
+      distancePct: 0.12,
+      clearanceLabel: "open",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+    movement: {
+      label: "building",
+      movementPct: 0.011,
+      line: "movement: price is pushing farther above the zone high and follow-through is building (1.1%)",
+    },
+    pressure: {
+      label: "strong",
+      pressureScore: 0.74,
+      line: "pressure: buyers still have strong control, backing the move",
+    },
+    marketStructure: {
+      label: "bullish_building",
+      line: "market structure: 5m structure is trying to hold above the prior range; staying above 2.50 keeps the breakout attempt cleaner",
+    },
+  });
+
+  assert.match(
+    payload.body,
+    /Structure:\n- 5m structure is trying to hold above the prior range; staying above 2\.50 keeps the breakout attempt cleaner/,
+  );
+  assert.equal(payload.metadata?.stableMarketStructureState, "breakout_holding");
+  assert.equal(payload.metadata?.stableMarketStructureMaterialChange, true);
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload shows structure section from event metadata even without trader marketStructure text", () => {
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-structure-metadata-visible",
+    symbol: "ALBT",
+    title: "ALBT breakout",
+    body: [
+      "bullish breakout through heavy resistance 2.40-2.50",
+      "movement: price is pushing farther above the zone high and follow-through is building (1.1%)",
+      "why now: price cleared resistance instead of stalling underneath it",
+      "room: open room into next resistance 2.82 (+12.0%)",
+    ].join("\n"),
+    severity: "high",
+    confidence: "high",
+    score: 78,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: {
+      ...samplePayload.event!,
+      eventContext: {
+        ...samplePayload.event!.eventContext,
+        formalStructureTimeframe: "5m",
+        formalStructureBias: "bullish",
+        formalStructurePreviousBias: "bullish",
+        formalStructureEventType: "bos_bullish",
+        formalStructureConfirmation: "close_confirmed",
+        formalStructureConfidence: "medium",
+        formalStructureConfidenceScore: 0.65,
+        formalStructureMaterialChange: true,
+        formalStructureBrokenSwingPrice: 2.37,
+        formalStructureProtectedLow: 2.22,
+        stableMarketStructureState: "breakout_holding",
+        stableMarketStructurePreviousState: "pressing_range_high",
+        stableMarketStructureMaterialChange: true,
+        stableMarketStructureConfidence: "high",
+        stableMarketStructureLatestSwingLow: 2.22,
+        stableMarketStructureLatestSwingHigh: 2.37,
+      },
+    },
+    nextBarrier: {
+      side: "resistance",
+      price: 2.82,
+      distancePct: 0.12,
+      clearanceLabel: "open",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+    movement: {
+      label: "building",
+      movementPct: 0.011,
+      line: "movement: price is pushing farther above the zone high and follow-through is building (1.1%)",
+    },
+  });
+
+  assert.match(payload.body, /Structure:/);
+  assert.match(payload.body, /formal 5m: bos bullish \(medium, close confirmed\); bias bullish; broken 2\.37, protected low 2\.22/);
+  assert.match(payload.body, /stable 5m: breakout holding \(high\); previous pressing range high; material yes; latest low 2\.22, latest high 2\.37/);
+  assert.equal(payload.metadata?.marketStructureStoryVisible, true);
+  assert.equal(payload.metadata?.formalStructureEventType, "bos_bullish");
+  assert.equal(payload.metadata?.stableMarketStructureState, "breakout_holding");
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload shows explicit HTF gap when only tactical structure is available", () => {
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-structure-tactical-only",
+    symbol: "ALBT",
+    title: "ALBT breakout",
+    body: [
+      "bullish breakout through heavy resistance 2.40-2.50",
+      "movement: price is pushing farther above the zone high and follow-through is building (1.1%)",
+      "why now: price cleared resistance instead of stalling underneath it",
+    ].join("\n"),
+    severity: "high",
+    confidence: "high",
+    score: 78,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: {
+      ...samplePayload.event!,
+      eventContext: {
+        ...samplePayload.event!.eventContext,
+        runtimeMarketStructure: {
+          stable: {
+            state: "breakout_holding",
+            previousState: "pressing_range_high",
+            structureKey: "breakout_holding|low:2.22|high:2.37",
+            materialChange: true,
+            confidence: "high",
+            materialityScore: 0.82,
+            rawState: "breakout_holding",
+            reason: "high_materiality_change",
+            candleCount: 32,
+            latestSwingLow: 2.22,
+            latestSwingHigh: 2.37,
+          },
+          timeframes: {
+            "5m": {
+              stable: {
+                state: "breakout_holding",
+                previousState: "pressing_range_high",
+                structureKey: "breakout_holding|low:2.22|high:2.37",
+                materialChange: true,
+                confidence: "high",
+                materialityScore: 0.82,
+                rawState: "breakout_holding",
+                reason: "high_materiality_change",
+                candleCount: 32,
+                latestSwingLow: 2.22,
+                latestSwingHigh: 2.37,
+              },
+            },
+          },
+        },
+      },
+    },
+    nextBarrier: {
+      side: "resistance",
+      price: 2.82,
+      distancePct: 0.12,
+      clearanceLabel: "open",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+  });
+
+  assert.match(payload.body, /HTF 4h: waiting for seeded\/historical candles/);
+  assert.match(payload.body, /Tactical 5m: stable breakout holding \(high\); latest low 2\.22, latest high 2\.37/);
+  assert.equal(payload.metadata?.marketStructureStoryVisible, true);
+  assert.equal(payload.metadata?.runtimeMarketStructure?.timeframes?.["5m"]?.stable?.state, "breakout_holding");
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload scopes visible runtime structure to story keys", () => {
+  const storyKeys = ["5m|formal|5m|bos_bullish|bullish_transition|BIYA:5m:external:high|1.240"];
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-structure-scoped-story",
+    symbol: "BIYA",
+    title: "BIYA breakout",
+    body: [
+      "bullish breakout through resistance near 1.24",
+      "movement: price cleared the nearby resistance and is trying to hold above it",
+      "why now: fresh 5m structure confirmed the break",
+    ].join("\n"),
+    severity: "high",
+    confidence: "high",
+    score: 80,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: {
+      ...samplePayload.event!,
+      symbol: "BIYA",
+      triggerPrice: 1.25,
+      eventContext: {
+        ...samplePayload.event!.eventContext,
+        runtimeMarketStructure: mixedBiyaMarketStructure(),
+      },
+    },
+    nextBarrier: {
+      side: "resistance",
+      price: 1.32,
+      distancePct: 0.056,
+      clearanceLabel: "open",
+      clutterLabel: "clear",
+      nearbyBarrierCount: 1,
+    },
+  }, {
+    marketStructureStoryVisibility: "always",
+    marketStructureStoryKeys: storyKeys,
+  });
+
+  assert.doesNotMatch(payload.body, /HTF 4h:/);
+  assert.doesNotMatch(payload.body, /0\.7850/);
+  assert.match(payload.body, /Tactical 5m: fresh bullish BOS \(medium, displacement confirmed\)/);
+  assert.match(payload.body, /broken 1\.24, protected low 1\.11/);
+  assert.deepEqual(payload.metadata?.marketStructureStoryKeys, storyKeys);
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload can expose full market structure debug details when enabled", () => {
+  const previous = process.env.MARKET_STRUCTURE_DISCORD_DEBUG;
+  process.env.MARKET_STRUCTURE_DISCORD_DEBUG = "1";
+  try {
+    const payload = formatIntelligentAlertAsPayload({
+      id: "int-structure-debug",
+      symbol: "ALBT",
+      title: "ALBT breakout",
+      body: [
+        "bullish breakout through heavy resistance 2.40-2.50",
+        "market structure: 5m structure is trying to hold above the prior range; staying above 2.50 keeps the breakout attempt cleaner",
+      ].join("\n"),
+      severity: "high",
+      confidence: "high",
+      score: 78,
+      shouldNotify: true,
+      tags: [],
+      scoreComponents: {},
+      event: {
+        ...samplePayload.event!,
+        eventContext: {
+          ...samplePayload.event!.eventContext,
+          stableMarketStructureState: "breakout_holding",
+          stableMarketStructureRawState: "breakout_attempt",
+          stableMarketStructurePreviousState: "pressing_range_high",
+          stableMarketStructureMaterialChange: true,
+          stableMarketStructureConfidence: "high",
+          stableMarketStructureMaterialityScore: 0.82,
+          stableMarketStructureReason: "high_materiality_change",
+          stableMarketStructureCandleCount: 32,
+          stableMarketStructureRawRunLength: 2,
+          stableMarketStructureTrendDirection: "uptrend",
+          stableMarketStructureHigherLowCount: 3,
+          stableMarketStructureHigherHighCount: 2,
+          stableMarketStructureLowerHighCount: 0,
+          stableMarketStructureLowerLowCount: 0,
+          stableMarketStructureLatestSwingLow: 2.31,
+          stableMarketStructureLatestSwingHigh: 2.48,
+          stableMarketStructurePriorSwingLow: 2.18,
+          stableMarketStructurePriorSwingHigh: 2.4,
+          stableMarketStructureActiveRangeLow: 2.18,
+          stableMarketStructureActiveRangeHigh: 2.5,
+          stableMarketStructureActiveRangeWidthPct: 0.1468,
+          stableMarketStructureActiveRangeQuality: "clean",
+          stableMarketStructurePivotEventType: "reclaim",
+          stableMarketStructurePivotEventTriggerPrice: 2.5,
+          stableMarketStructureKey: "breakout_holding|range:2.18-2.50",
+        },
+      },
+      marketStructure: {
+        label: "bullish_building",
+        line: "market structure: 5m structure is trying to hold above the prior range; staying above 2.50 keeps the breakout attempt cleaner",
+      },
+    });
+
+    assert.match(payload.body, /Structure details:/);
+    assert.match(payload.body, /state=breakout_holding; raw=breakout_attempt; previous=pressing_range_high; material=yes/);
+    assert.match(payload.body, /trend=uptrend; HL=3; HH=2; LH=0; LL=0/);
+    assert.match(payload.body, /pivots=latest low 2\.31, high 2\.48; prior low 2\.18, high 2\.40/);
+    assert.match(payload.body, /range=2\.18-2\.50; width=14\.7%; quality=clean/);
+    assert.match(payload.body, /pivot_event=reclaim; trigger=2\.50/);
+    assert.equal(payload.metadata?.stableMarketStructureTrendDirection, "uptrend");
+    assert.equal(payload.metadata?.stableMarketStructureLatestSwingLow, 2.31);
+    assertTraderFacingDiscordText(payload);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.MARKET_STRUCTURE_DISCORD_DEBUG;
+    } else {
+      process.env.MARKET_STRUCTURE_DISCORD_DEBUG = previous;
+    }
+  }
+});
+
+test("formatIntelligentAlertAsPayload includes formal BOS/CHOCH metadata and debug details", () => {
+  const previous = process.env.MARKET_STRUCTURE_DISCORD_DEBUG;
+  process.env.MARKET_STRUCTURE_DISCORD_DEBUG = "1";
+  try {
+    const payload = formatIntelligentAlertAsPayload({
+      id: "int-formal-structure-debug",
+      symbol: "ALBT",
+      title: "ALBT breakout",
+      body: [
+        "bullish breakout through heavy resistance 2.40-2.50",
+        "market structure: 5m structure printed bullish BOS above 2.36; 2.08 is the protected structure low.",
+      ].join("\n"),
+      severity: "high",
+      confidence: "high",
+      score: 82,
+      shouldNotify: true,
+      tags: [],
+      scoreComponents: {},
+      event: {
+        ...samplePayload.event!,
+        eventContext: {
+          ...samplePayload.event!.eventContext,
+          formalStructureTimeframe: "5m",
+          formalStructureBias: "bullish",
+          formalStructurePreviousBias: "bullish",
+          formalStructureEventType: "bos_bullish",
+          formalStructureConfirmation: "displacement_confirmed",
+          formalStructureConfidence: "high",
+          formalStructureConfidenceScore: 0.88,
+          formalStructureMaterialChange: true,
+          formalStructureBrokenSwingPrice: 2.36,
+          formalStructureProtectedHigh: 2.36,
+          formalStructureProtectedLow: 2.08,
+          formalStructureLatestHigh: 2.36,
+          formalStructureLatestLow: 2.18,
+          formalStructureSwingSequence: ["H", "L", "HH", "HL", "HH"],
+          formalStructureKey: "5m|bos_bullish|bullish|bullish|event",
+          formalStructureDebugReasons: ["trend_continuation", "displacement_confirmed"],
+          selectedFormalStructureTimeframe: "5m",
+          selectedFormalStructureBias: "bullish",
+          selectedFormalStructurePreviousBias: "bullish",
+          selectedFormalStructureEventType: "bos_bullish",
+          selectedFormalStructureConfirmation: "displacement_confirmed",
+          selectedFormalStructureConfidence: "high",
+          selectedFormalStructureConfidenceScore: 0.88,
+          selectedFormalStructureMaterialChange: true,
+          selectedFormalStructureBrokenSwingPrice: 2.36,
+          selectedFormalStructureProtectedLow: 2.08,
+          selectedFormalStructureKey: "5m|bos_bullish|bullish|bullish|event",
+        },
+      },
+      marketStructure: {
+        label: "bullish_building",
+        line: "market structure: 5m structure printed bullish BOS above 2.36; 2.08 is the protected structure low.",
+      },
+    });
+
+    assert.match(payload.body, /Structure details:/);
+    assert.match(payload.body, /formal=5m bos_bullish; bias=bullish->bullish; material=yes/);
+    assert.match(payload.body, /formal_confidence=high; score=0\.880; confirmation=displacement_confirmed/);
+    assert.match(payload.body, /formal_levels=broken 2\.36, swept n\/a; protected high 2\.36, low 2\.08; latest high 2\.36, low 2\.18/);
+    assert.match(payload.body, /formal_swings=H -> L -> HH -> HL -> HH/);
+    assert.match(payload.body, /formal_reasons=trend_continuation,displacement_confirmed/);
+    assert.equal(payload.metadata?.formalStructureEventType, "bos_bullish");
+    assert.equal(payload.metadata?.formalStructureMaterialChange, true);
+    assert.equal(payload.metadata?.formalStructureBrokenSwingPrice, 2.36);
+    assert.equal(payload.metadata?.selectedFormalStructureEventType, "bos_bullish");
+    assert.equal(payload.metadata?.selectedFormalStructureTimeframe, "5m");
+    assert.equal(payload.metadata?.selectedFormalStructureBrokenSwingPrice, 2.36);
+    assert.match(payload.metadata?.whyPosted ?? "", /formal 5m bos_bullish event/);
+    assertTraderFacingDiscordText(payload);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.MARKET_STRUCTURE_DISCORD_DEBUG;
+    } else {
+      process.env.MARKET_STRUCTURE_DISCORD_DEBUG = previous;
+    }
+  }
 });
 
 test("formatIntelligentAlertAsPayload can include gated volume activity context", () => {
@@ -557,6 +1138,65 @@ test("formatIntelligentAlertAsPayload describes high failure risk as fragile set
 
   assert.match(payload.body, /setup is fragile here: crowded trigger, tight room, dense nearby barriers, degraded data, inner setup/);
   assert.doesNotMatch(payload.body, /risk is high:/);
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatIntelligentAlertAsPayload does not overstate high risk for tiny small-cap probes inside a box", () => {
+  const breakdownEvent: MonitoringEvent = {
+    ...samplePayload.event!,
+    id: "evt-small-probe-risk",
+    episodeId: "ep-small-probe-risk",
+    type: "breakdown" as const,
+    eventType: "breakdown" as const,
+    zoneKind: "support" as const,
+    level: 1.02,
+    triggerPrice: 1,
+    bias: "bearish" as const,
+    eventContext: {
+      ...samplePayload.event!.eventContext,
+      acceptance: { label: "weak_probe", beyondZonePct: 0.5, reasons: [] },
+      rangeBox: { label: "active", low: 0.98, high: 1.06, widthPct: 8, recentInsidePostCount: 4 },
+      behaviorBudget: { label: "boring_range", maxUsefulPostsPerDay: 6, maxRangePosts: 2, reasons: [] },
+    },
+  };
+  const payload = formatIntelligentAlertAsPayload({
+    id: "int-small-probe-risk",
+    symbol: "CYCU",
+    title: "CYCU breakdown",
+    body: "support lost at major support 1.01-1.02",
+    severity: "high",
+    confidence: "medium",
+    score: 54,
+    shouldNotify: true,
+    tags: [],
+    scoreComponents: {},
+    event: breakdownEvent,
+    zone: {
+      zoneLow: 1.01,
+      zoneHigh: 1.02,
+      representativePrice: 1.02,
+      strengthLabel: "major",
+      kind: "support",
+    } as any,
+    movement: {
+      label: "early",
+      movementPct: 0.005,
+      line: "movement: price is only slightly below support, so the support loss still needs proof",
+    },
+    failureRisk: {
+      label: "high",
+      reasons: ["crowded trigger", "tight room", "dense nearby barriers", "degraded data", "inner setup"],
+      line: "failure risk: high because crowded trigger, tight room, dense nearby barriers, degraded data, inner setup",
+    },
+    tradeMap: {
+      label: "tight_risk",
+      riskPct: 0.01,
+      roomToRiskRatio: 1,
+      line: "trade map: tight risk",
+    } as any,
+  });
+
+  assert.doesNotMatch(payload.body, /setup is fragile here/);
   assertTraderFacingDiscordText(payload);
 });
 
@@ -1050,6 +1690,73 @@ test("formatFollowThroughUpdateAsPayload adds trader-readable follow-through con
   assertTraderFacingDiscordText(payload);
 });
 
+test("formatFollowThroughUpdateAsPayload keeps non-material structure in metadata only", () => {
+  const payload = formatFollowThroughUpdateAsPayload({
+    symbol: "ALBT",
+    timestamp: 9,
+    entryPrice: 2.41,
+    outcomePrice: 2.48,
+    followThrough: {
+      label: "working",
+      eventType: "breakout",
+      directionalReturnPct: 2.9,
+      rawReturnPct: 2.9,
+      line: "follow-through: breakout is still working",
+    },
+    marketStructure: {
+      timeframes: {
+        "5m": {
+          stable: {
+            state: "breakout_holding",
+            previousState: "breakout_holding",
+            structureKey: "breakout_holding|low:2.22|high:2.37",
+            materialChange: false,
+            confidence: "medium",
+            materialityScore: 0.42,
+            rawState: "breakout_holding",
+            reason: "same_state",
+            candleCount: 32,
+            latestSwingLow: 2.22,
+            latestSwingHigh: 2.37,
+          },
+        },
+      },
+    },
+  });
+
+  assert.doesNotMatch(payload.body, /Market structure:/);
+  assert.equal(payload.metadata?.marketStructureStoryVisible, false);
+  assert.equal(payload.metadata?.runtimeMarketStructure?.timeframes?.["5m"]?.stable?.state, "breakout_holding");
+  assertTraderFacingDiscordText(payload);
+});
+
+test("formatFollowThroughUpdateAsPayload scopes visible market structure to story keys", () => {
+  const storyKeys = ["5m|formal|5m|bos_bullish|bullish_transition|BIYA:5m:external:high|1.240"];
+  const payload = formatFollowThroughUpdateAsPayload({
+    symbol: "BIYA",
+    timestamp: 9,
+    entryPrice: 1.24,
+    outcomePrice: 1.29,
+    followThrough: {
+      label: "working",
+      eventType: "breakout",
+      directionalReturnPct: 4.03,
+      rawReturnPct: 4.03,
+      line: "follow-through: breakout is still working",
+    },
+    marketStructure: mixedBiyaMarketStructure(),
+    includeMarketStructureStory: true,
+    marketStructureStoryKeys: storyKeys,
+  });
+
+  assert.doesNotMatch(payload.body, /HTF 4h:/);
+  assert.doesNotMatch(payload.body, /0\.7850/);
+  assert.match(payload.body, /Tactical 5m: fresh bullish BOS \(medium, displacement confirmed\)/);
+  assert.match(payload.body, /broken 1\.24, protected low 1\.11/);
+  assert.deepEqual(payload.metadata?.marketStructureStoryKeys, storyKeys);
+  assertTraderFacingDiscordText(payload);
+});
+
 test("formatFollowThroughUpdateAsPayload marks repeated outcome updates as existing setup updates", () => {
   const payload = formatFollowThroughUpdateAsPayload({
     symbol: "ALBT",
@@ -1157,8 +1864,445 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       "Support:",
       "2.40 (-4.4%, heavy, daily structure)",
       "2.25 (-10.4%, light, fresh intraday)",
+    ].join("\n"),
+  );
+});
+
+test("formatLevelSnapshotMessage shows seeded market structure when available", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "ALBT",
+    currentPrice: 2.51,
+    supportZones: [
+      { representativePrice: 2.4, strengthLabel: "strong", sourceLabel: "daily structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 2.6, strengthLabel: "major", sourceLabel: "4h confluence" },
+    ],
+    timestamp: 1,
+    marketStructure: {
+      formal: {
+        timeframe: "5m",
+        bias: "bullish",
+        previousBias: "range",
+        eventType: "bos_bullish",
+        confirmation: "close_confirmed",
+        confidence: "high",
+        confidenceScore: 0.81,
+        materialChange: false,
+        brokenSwingPrice: 2.5,
+        sweptSwingPrice: null,
+        protectedHigh: 2.6,
+        protectedLow: 2.31,
+        latestHigh: 2.6,
+        latestLow: 2.31,
+        swingSequence: ["HL", "HH"],
+        structureKey: "5m|bos_bullish|bullish|2.50",
+        traderLine: "5m structure printed bullish BOS above 2.50.",
+        debug: {
+          candleCount: 34,
+          reasons: ["trend_continuation"],
+        },
+      },
+      stable: {
+        state: "breakout_holding",
+        previousState: "pressing_range_high",
+        structureKey: "breakout_holding|low:2.31|high:2.60",
+        materialChange: false,
+        confidence: "high",
+        materialityScore: 0.72,
+        rawState: "breakout_holding",
+        reason: "initial_state",
+        candleCount: 34,
+        trendDirection: "uptrend",
+        latestSwingLow: 2.31,
+        latestSwingHigh: 2.6,
+      },
+    },
+  });
+
+  assert.match(message, /Market structure:/);
+  assert.match(message, /Formal 5m: prior bullish BOS \(high, close confirmed\); bias range -> bullish; broken 2\.50, protected low 2\.31/);
+  assert.match(message, /Stable 5m: breakout holding \(high\); trend uptrend; latest low 2\.31, latest high 2\.60/);
+});
+
+test("formatLevelSnapshotMessage separates 4h structure from tactical 5m structure", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "ALBT",
+    currentPrice: 2.51,
+    supportZones: [
+      { representativePrice: 2.4, strengthLabel: "strong", sourceLabel: "daily structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 2.6, strengthLabel: "major", sourceLabel: "4h confluence" },
+    ],
+    timestamp: 1,
+    marketStructure: {
+      formal: {
+        timeframe: "5m",
+        bias: "bullish_transition",
+        previousBias: "range",
+        eventType: "bos_bullish",
+        confirmation: "close_confirmed",
+        confidence: "medium",
+        confidenceScore: 0.68,
+        materialChange: false,
+        brokenSwingPrice: 2.5,
+        sweptSwingPrice: null,
+        protectedHigh: 2.6,
+        protectedLow: 2.31,
+        latestHigh: 2.6,
+        latestLow: 2.31,
+        swingSequence: ["HL", "HH"],
+        structureKey: "5m|bos_bullish|bullish|2.50",
+        traderLine: "5m structure printed bullish BOS above 2.50.",
+        debug: {
+          candleCount: 34,
+          reasons: ["trend_continuation"],
+        },
+      },
+      stable: {
+        state: "breakout_holding",
+        previousState: "pressing_range_high",
+        structureKey: "breakout_holding|low:2.31|high:2.60",
+        materialChange: false,
+        confidence: "high",
+        materialityScore: 0.72,
+        rawState: "breakout_holding",
+        reason: "initial_state",
+        candleCount: 34,
+        trendDirection: "uptrend",
+        latestSwingLow: 2.31,
+        latestSwingHigh: 2.6,
+      },
+      timeframes: {
+        "4h": {
+          formal: {
+            timeframe: "4h",
+            bias: "range",
+            previousBias: "range",
+            eventType: "none",
+            confirmation: "none",
+            confidence: "low",
+            confidenceScore: 0.2,
+            materialChange: false,
+            protectedHigh: 3,
+            protectedLow: 2.1,
+            latestHigh: 3,
+            latestLow: 2.1,
+            swingSequence: ["HL", "LH"],
+            structureKey: "4h|range",
+            traderLine: "4h structure is range-bound.",
+            debug: {
+              candleCount: 80,
+              reasons: [],
+            },
+          },
+          stable: {
+            state: "range_bound",
+            previousState: "range_bound",
+            structureKey: "range_bound|range:2.10-3.00",
+            materialChange: false,
+            confidence: "high",
+            materialityScore: 0.78,
+            rawState: "range_bound",
+            reason: "same_state",
+            candleCount: 80,
+            trendDirection: "range",
+            activeRangeLow: 2.1,
+            activeRangeHigh: 3,
+            latestSwingLow: 2.1,
+            latestSwingHigh: 3,
+          },
+        },
+        "5m": {
+          formal: {
+            timeframe: "5m",
+            bias: "bullish_transition",
+            previousBias: "range",
+            eventType: "bos_bullish",
+            confirmation: "close_confirmed",
+            confidence: "medium",
+            confidenceScore: 0.68,
+            materialChange: false,
+            brokenSwingPrice: 2.5,
+            sweptSwingPrice: null,
+            protectedHigh: 2.6,
+            protectedLow: 2.31,
+            latestHigh: 2.6,
+            latestLow: 2.31,
+            swingSequence: ["HL", "HH"],
+            structureKey: "5m|bos_bullish|bullish|2.50",
+            traderLine: "5m structure printed bullish BOS above 2.50.",
+            debug: {
+              candleCount: 34,
+              reasons: ["trend_continuation"],
+            },
+          },
+          stable: {
+            state: "breakout_holding",
+            previousState: "pressing_range_high",
+            structureKey: "breakout_holding|low:2.31|high:2.60",
+            materialChange: false,
+            confidence: "high",
+            materialityScore: 0.72,
+            rawState: "breakout_holding",
+            reason: "initial_state",
+            candleCount: 34,
+            trendDirection: "uptrend",
+            latestSwingLow: 2.31,
+            latestSwingHigh: 2.6,
+          },
+        },
+      },
+    },
+  });
+
+  assert.match(message, /HTF 4h: no confirmed BOS\/CHOCH; protected high 3\.00, protected low 2\.10; bias range/);
+  assert.doesNotMatch(message, /HTF 4h: .*stable range bound/);
+  assert.match(message, /Tactical 5m: prior bullish BOS \(medium, close confirmed\); bias range -> bullish transition; broken 2\.50, protected low 2\.31; stable breakout holding \(high\); trend uptrend/);
+});
+
+test("formatLevelSnapshotMessage keeps fresh 4h structure detailed", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "ALBT",
+    currentPrice: 2.51,
+    supportZones: [
+      { representativePrice: 2.4, strengthLabel: "strong", sourceLabel: "daily structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 2.6, strengthLabel: "major", sourceLabel: "4h confluence" },
+    ],
+    timestamp: 1,
+    marketStructure: {
+      timeframes: {
+        "4h": {
+          formal: {
+            timeframe: "4h",
+            bias: "bullish",
+            previousBias: "range",
+            eventType: "bos_bullish",
+            eventFreshness: "fresh",
+            confirmation: "close_confirmed",
+            confidence: "medium",
+            confidenceScore: 0.68,
+            materialChange: true,
+            brokenSwingPrice: 2.5,
+            sweptSwingPrice: null,
+            protectedHigh: 2.6,
+            protectedLow: 2.1,
+            latestHigh: 2.6,
+            latestLow: 2.1,
+            swingSequence: ["HL", "HH"],
+            structureKey: "4h|bos_bullish|bullish|2.50",
+            traderLine: "4h structure printed bullish BOS above 2.50.",
+            debug: {
+              candleCount: 80,
+              reasons: ["trend_continuation"],
+            },
+          },
+          stable: {
+            state: "breakout_holding",
+            previousState: "range_bound",
+            structureKey: "breakout_holding|low:2.10|high:2.60",
+            materialChange: true,
+            confidence: "high",
+            materialityScore: 0.78,
+            rawState: "breakout_holding",
+            reason: "same_state",
+            candleCount: 80,
+            trendDirection: "uptrend",
+            latestSwingLow: 2.1,
+            latestSwingHigh: 2.6,
+          },
+        },
+      },
+    },
+  });
+
+  assert.match(message, /HTF 4h: fresh bullish BOS \(medium, close confirmed\); bias range -> bullish; broken 2\.50, protected low 2\.10; stable breakout holding \(high\); trend uptrend/);
+});
+
+test("formatMarketStructureUpdateAsPayload posts fresh BOS/CHOCH with audit metadata", () => {
+  const payload = formatMarketStructureUpdateAsPayload({
+    symbol: "ALBT",
+    timestamp: 1,
+    storyReason: "pending_fresh_structure",
+    storyKeys: ["4h|formal|4h|bos_bullish|bullish|2.50"],
+    storySource: "standalone_structure_update",
+    marketStructure: {
+      timeframes: {
+        "4h": {
+          formal: {
+            timeframe: "4h",
+            bias: "bullish",
+            previousBias: "range",
+            eventType: "bos_bullish",
+            eventFreshness: "fresh",
+            confirmation: "close_confirmed",
+            confidence: "medium",
+            confidenceScore: 0.68,
+            materialChange: true,
+            brokenSwingPrice: 2.5,
+            sweptSwingPrice: null,
+            protectedHigh: 2.6,
+            protectedLow: 2.1,
+            latestHigh: 2.6,
+            latestLow: 2.1,
+            swingSequence: ["HL", "HH"],
+            structureKey: "4h|bos_bullish|bullish|2.50",
+            traderLine: "4h structure printed bullish BOS above 2.50.",
+            debug: {
+              candleCount: 80,
+              reasons: ["trend_continuation"],
+            },
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(payload.metadata?.messageKind, "market_structure_update");
+  assert.equal(payload.metadata?.signalCategory, "market_structure");
+  assert.equal(payload.metadata?.marketStructureStoryVisible, true);
+  assert.equal(payload.metadata?.marketStructureStoryReason, "pending_fresh_structure");
+  assert.deepEqual(payload.metadata?.marketStructureStoryKeys, [
+    "4h|formal|4h|bos_bullish|bullish|2.50",
+  ]);
+  assert.match(payload.body, /Fresh BOS\/CHOCH structure detected/);
+  assert.match(payload.body, /HTF 4h: fresh bullish BOS/);
+});
+
+test("formatMarketStructureUpdateAsPayload focuses standalone BOS/CHOCH posts on the triggering timeframe", () => {
+  const payload = formatMarketStructureUpdateAsPayload({
+    symbol: "BIYA",
+    timestamp: 1,
+    storyReason: "pending_fresh_structure",
+    storyKeys: ["5m|formal|5m|bos_bullish|bullish_transition|BIYA:5m:external:high|1.240"],
+    storySource: "standalone_structure_update",
+    marketStructure: {
+      timeframes: {
+        "4h": {
+          formal: {
+            timeframe: "4h",
+            bias: "range",
+            previousBias: "range",
+            eventType: "failed_break_low",
+            eventFreshness: "prior",
+            confirmation: "failed",
+            confidence: "medium",
+            confidenceScore: 0.55,
+            materialChange: false,
+            brokenSwingPrice: null,
+            sweptSwingPrice: 0.785,
+            protectedHigh: 0.8999,
+            protectedLow: 0.785,
+            latestHigh: 0.8999,
+            latestLow: 0.785,
+            swingSequence: ["LH", "LL"],
+            structureKey: "4h|failed_break_low|range|none|BIYA:4h:external:low|0.7850",
+            traderLine: "4h structure failed to hold below 0.7850.",
+            debug: { candleCount: 116, reasons: ["failed_break"] },
+          },
+        },
+        "5m": {
+          formal: {
+            timeframe: "5m",
+            bias: "bullish_transition",
+            previousBias: "range",
+            eventType: "bos_bullish",
+            eventFreshness: "fresh",
+            confirmation: "displacement_confirmed",
+            confidence: "medium",
+            confidenceScore: 0.71,
+            materialChange: true,
+            brokenSwingPrice: 1.24,
+            sweptSwingPrice: null,
+            protectedHigh: 1.17,
+            protectedLow: 1.11,
+            latestHigh: 1.17,
+            latestLow: 1.11,
+            swingSequence: ["HL", "HH"],
+            structureKey: "5m|bos_bullish|bullish_transition|BIYA:5m:external:high|1.240",
+            traderLine: "5m structure printed bullish BOS above 1.24.",
+            debug: { candleCount: 60, reasons: ["displacement_confirmed"] },
+          },
+        },
+      },
+    },
+  });
+
+  assert.doesNotMatch(payload.body, /HTF 4h:/);
+  assert.doesNotMatch(payload.body, /0\.7850/);
+  assert.match(payload.body, /Tactical 5m: fresh bullish BOS \(medium, displacement confirmed\)/);
+  assert.match(payload.body, /broken 1\.24, protected low 1\.11/);
+});
+
+test("formatLevelSnapshotMessage condenses prior 4h BOS to the useful protected side", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "ALBT",
+    currentPrice: 2.51,
+    supportZones: [
+      { representativePrice: 2.4, strengthLabel: "strong", sourceLabel: "daily structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 2.6, strengthLabel: "major", sourceLabel: "4h confluence" },
+    ],
+    timestamp: 1,
+    marketStructure: {
+      timeframes: {
+        "4h": {
+          formal: {
+            timeframe: "4h",
+            bias: "bullish",
+            previousBias: "range",
+            eventType: "bos_bullish",
+            eventFreshness: "prior",
+            confirmation: "close_confirmed",
+            confidence: "medium",
+            confidenceScore: 0.68,
+            materialChange: false,
+            brokenSwingPrice: 2.5,
+            sweptSwingPrice: null,
+            protectedHigh: 2.6,
+            protectedLow: 2.1,
+            latestHigh: 2.6,
+            latestLow: 2.1,
+            swingSequence: ["HL", "HH"],
+            structureKey: "4h|bos_bullish|bullish|2.50",
+            traderLine: "4h structure printed bullish BOS above 2.50.",
+            debug: {
+              candleCount: 80,
+              reasons: ["trend_continuation"],
+            },
+          },
+        },
+      },
+    },
+  });
+
+  assert.match(message, /HTF 4h: prior bullish BOS above 2\.50; protected low 2\.10; bias range -> bullish/);
+  assert.doesNotMatch(message, /HTF 4h: .*protected high 2\.60/);
+});
+
+test("formatLevelLadderMessage keeps the full support and resistance ladder list-only", () => {
+  assert.equal(
+    formatLevelLadderMessage({
+      symbol: "ALBT",
+      currentPrice: 2.51,
+      supportZones: [
+        { representativePrice: 2.4, strengthLabel: "strong", sourceLabel: "daily structure" },
+        { representativePrice: 2.25, lowPrice: 2.2, highPrice: 2.28, strengthLabel: "weak", sourceLabel: "fresh intraday" },
+      ],
+      resistanceZones: [
+        { representativePrice: 2.6, lowPrice: 2.58, highPrice: 2.62, strengthLabel: "major", sourceLabel: "4h confluence" },
+        { representativePrice: 2.75, strengthLabel: "moderate", isExtension: true },
+      ],
+      timestamp: 1,
+    }),
+    [
+      "ALBT full level ladder",
+      "Price: 2.51",
       "",
-      "More support and resistance:",
       "Resistance:",
       "2.60 (+3.6%, major, 4h confluence)",
       "2.75 (+9.6%, moderate, extension)",
@@ -1168,6 +2312,105 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       "2.25 (-10.4%, light, fresh intraday)",
     ].join("\n"),
   );
+});
+
+test("formatLevelLadderMessage does not compact close resistance shelves in the full ladder", () => {
+  const message = formatLevelLadderMessage({
+    symbol: "GV",
+    currentPrice: 0.2075,
+    supportZones: [
+      { representativePrice: 0.2, strengthLabel: "major", sourceLabel: "daily confluence" },
+    ],
+    resistanceZones: [
+      { representativePrice: 0.2098, lowPrice: 0.2098, highPrice: 0.21, strengthLabel: "major", sourceLabel: "daily confluence" },
+      { representativePrice: 0.2161, strengthLabel: "major", sourceLabel: "4h confluence" },
+      { representativePrice: 0.2225, lowPrice: 0.2208, highPrice: 0.2225, strengthLabel: "strong", sourceLabel: "4h confluence" },
+      { representativePrice: 0.2287, strengthLabel: "strong", sourceLabel: "daily confluence" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message ?? "", /Resistance:\n0\.2098/);
+  assert.match(message ?? "", /0\.2161 \(\+4\.1%, major, 4h confluence\)/);
+  assert.match(message ?? "", /0\.2225/);
+  assert.match(message ?? "", /0\.2287/);
+  assert.doesNotMatch(message ?? "", /0\.2098-0\.2287 zone/);
+});
+
+test("formatLevelLadderMessage prefers dedicated full-ladder zones over compact snapshot zones", () => {
+  const message = formatLevelLadderMessage({
+    symbol: "GNS",
+    currentPrice: 0.2972,
+    supportZones: [
+      { representativePrice: 0.285, strengthLabel: "major", sourceLabel: "daily confluence" },
+    ],
+    resistanceZones: [
+      { representativePrice: 0.31, strengthLabel: "major", sourceLabel: "daily confluence" },
+      { representativePrice: 0.347, strengthLabel: "major", sourceLabel: "daily confluence" },
+    ],
+    ladderResistanceZones: [
+      { representativePrice: 0.305, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 0.31, strengthLabel: "major", sourceLabel: "daily confluence" },
+      { representativePrice: 0.319, strengthLabel: "strong", sourceLabel: "daily confluence" },
+      { representativePrice: 0.34, strengthLabel: "moderate", sourceLabel: "4h structure" },
+      { representativePrice: 0.347, strengthLabel: "major", sourceLabel: "daily confluence" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message ?? "", /Resistance:\n0\.3050/);
+  assert.match(message ?? "", /0\.3190/);
+  assert.match(message ?? "", /0\.3400/);
+});
+
+test("formatLevelLadderMessage calls out open overhead range when no more resistance is available", () => {
+  const message = formatLevelLadderMessage({
+    symbol: "AUUD",
+    currentPrice: 1.8698,
+    supportZones: [
+      { representativePrice: 1.85, strengthLabel: "strong", sourceLabel: "fresh intraday" },
+    ],
+    resistanceZones: [
+      { representativePrice: 1.9, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 1.92, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 1.95, strengthLabel: "weak", isExtension: true },
+    ],
+    timestamp: 1,
+    audit: {
+      referencePrice: 1.8698,
+      displayTolerance: 0.0018698,
+      forwardResistanceLimit: 3.7396,
+      displayedSupportIds: ["s1"],
+      displayedResistanceIds: ["r1", "r2", "r3"],
+      supportCandidates: [],
+      resistanceCandidates: [
+        {
+          id: "r2-compacted",
+          side: "resistance",
+          bucket: "surfaced",
+          representativePrice: 1.92,
+          zoneLow: 1.92,
+          zoneHigh: 1.92,
+          strengthLabel: "moderate",
+          strengthScore: 18,
+          confluenceCount: 1,
+          sourceEvidenceCount: 1,
+          timeframeBias: "5m",
+          timeframeSources: ["5m"],
+          sourceTypes: ["swing_high"],
+          sourceLabel: "fresh intraday",
+          freshness: "fresh",
+          isExtension: false,
+          displayed: false,
+          omittedReason: "compacted",
+        },
+      ],
+      omittedSupportCount: 0,
+      omittedResistanceCount: 1,
+    },
+  });
+
+  assert.match(message ?? "", /No additional resistance found below 3\.74 \(\+100\.0%\)\./);
 });
 
 test("formatLevelSnapshotMessage can include a first-post trade plan without changing level formatting", () => {
@@ -1213,10 +2456,170 @@ test("formatLevelSnapshotMessage collapses crowded trader-facing levels into zon
     timestamp: 1,
   });
 
+  const closestSection = message.split("\n\nMore support and resistance:")[0] ?? message;
   assert.match(message, /2\.39-2\.47 zone \(\+0\.8% to \+4\.2%, major, clustered levels\)/);
-  assert.doesNotMatch(message, /2\.39 \(\+0\.8%/);
-  assert.doesNotMatch(message, /2\.43 \(\+2\.5%/);
-  assert.doesNotMatch(message, /2\.47 \(\+4\.2%/);
+  assert.match(message, /SAGT is range-bound between major support 2\.16 and major resistance 2\.39-2\.47 area/);
+  assert.doesNotMatch(closestSection, /2\.39 \(\+0\.8%/);
+  assert.doesNotMatch(closestSection, /2\.43 \(\+2\.5%/);
+  assert.doesNotMatch(closestSection, /2\.47 \(\+4\.2%/);
+});
+
+test("formatLevelSnapshotMessage treats low-priced dense overhead as one practical zone", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "ATLN",
+    currentPrice: 1.3599,
+    supportZones: [
+      { representativePrice: 1.34, strengthLabel: "moderate", sourceLabel: "daily confluence" },
+      { representativePrice: 1.32, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 1.28, strengthLabel: "moderate", sourceLabel: "daily structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 1.3692, strengthLabel: "strong", sourceLabel: "4h confluence" },
+      { representativePrice: 1.4, strengthLabel: "strong", sourceLabel: "fresh intraday" },
+      { representativePrice: 1.42, strengthLabel: "strong", sourceLabel: "daily confluence" },
+      { representativePrice: 1.46, strengthLabel: "moderate", sourceLabel: "4h structure" },
+    ],
+    timestamp: 1,
+  });
+
+  const closestSection = message.split("\n\nMore support and resistance:")[0] ?? message;
+  assert.match(message, /1\.37-1\.42 zone \(\+0\.7% to \+4\.4%, heavy, clustered levels\)/);
+  assert.match(message, /ATLN is range-bound between moderate support 1\.32-1\.34 area and heavy resistance 1\.37-1\.42 area/);
+  assert.doesNotMatch(message, /1\.36 \(\+0\.0%/);
+  assert.doesNotMatch(closestSection, /1\.40 \(\+2\.9%/);
+});
+
+test("formatLevelSnapshotMessage keeps resistance visible until at least thirty percent overhead", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "ATXI",
+    currentPrice: 0.608,
+    supportZones: [
+      { representativePrice: 0.56, strengthLabel: "strong", sourceLabel: "daily confluence" },
+    ],
+    resistanceZones: [
+      { representativePrice: 0.62, strengthLabel: "moderate", sourceLabel: "daily structure" },
+      { representativePrice: 0.64, strengthLabel: "strong", sourceLabel: "daily confluence" },
+      { representativePrice: 0.65, strengthLabel: "strong", sourceLabel: "daily confluence" },
+      { representativePrice: 0.6683, strengthLabel: "strong", sourceLabel: "daily confluence" },
+      { representativePrice: 0.68, strengthLabel: "moderate", sourceLabel: "daily confluence" },
+      { representativePrice: 0.7, strengthLabel: "moderate", sourceLabel: "daily structure" },
+      { representativePrice: 0.75, strengthLabel: "moderate", sourceLabel: "daily structure" },
+      { representativePrice: 0.79, strengthLabel: "moderate", sourceLabel: "daily structure" },
+      { representativePrice: 0.8, strengthLabel: "moderate", sourceLabel: "daily structure" },
+      { representativePrice: 0.8428, strengthLabel: "moderate", sourceLabel: "daily structure" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message, /Resistance:\n0\.6200/);
+  assert.match(message, /0\.7900 \(\+29\.9%, moderate, daily structure\)/);
+  assert.match(message, /0\.8000 \(\+31\.6%, moderate, daily structure\)/);
+  assert.doesNotMatch(message.split("\n\nMore support and resistance:")[0] ?? message, /0\.8428/);
+});
+
+test("formatLevelSnapshotMessage does not stop just below thirty percent when another resistance is available", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "IKT",
+    currentPrice: 1.925,
+    supportZones: [
+      { representativePrice: 1.9, strengthLabel: "major", sourceLabel: "daily confluence" },
+    ],
+    resistanceZones: [
+      1.94,
+      1.97,
+      2.05,
+      2.09,
+      2.16,
+      2.22,
+      2.29,
+      2.37,
+      2.43,
+      2.5,
+      2.58,
+      2.65,
+    ].map((representativePrice) => ({
+      representativePrice,
+      strengthLabel: "moderate" as const,
+      sourceLabel: "daily structure",
+    })),
+    timestamp: 1,
+  });
+
+  assert.match(message, /2\.50 \(\+29\.9%, moderate, daily structure\)/);
+  assert.match(message, /2\.58 \(\+34\.0%, moderate, daily structure\)/);
+  assert.doesNotMatch(message.split("\n\nMore support and resistance:")[0] ?? message, /2\.65/);
+});
+
+test("formatLevelSnapshotMessage keeps a meaningful two-level structural zone inside a wide resistance gap", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "PMAX",
+    currentPrice: 4.6591,
+    supportZones: [
+      { representativePrice: 4.25, strengthLabel: "strong", sourceLabel: "4h structure" },
+      { representativePrice: 4.17, strengthLabel: "strong", sourceLabel: "fresh intraday" },
+      { representativePrice: 3.95, strengthLabel: "strong", sourceLabel: "4h structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 4.81, strengthLabel: "moderate", sourceLabel: "4h structure" },
+      { representativePrice: 4.97, strengthLabel: "moderate", sourceLabel: "daily structure" },
+      { representativePrice: 5.4, strengthLabel: "moderate", sourceLabel: "4h structure" },
+      { representativePrice: 5.691, strengthLabel: "moderate", sourceLabel: "daily structure" },
+      { representativePrice: 5.93, strengthLabel: "moderate", sourceLabel: "4h structure" },
+      { representativePrice: 6.14, strengthLabel: "moderate", sourceLabel: "daily structure" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message, /5\.69-5\.93 zone \(\+22\.1% to \+27\.3%, moderate, clustered levels\)/);
+  assert.match(message, /6\.14 \(\+31\.8%, moderate, daily structure\)/);
+});
+
+test("formatLevelSnapshotMessage keeps continuation map checkpoints before a far historical resistance anchor", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "AUUD",
+    currentPrice: 1.9402,
+    supportZones: [
+      { representativePrice: 1.92, strengthLabel: "strong", sourceLabel: "4h structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 1.95, strengthLabel: "moderate", sourceLabel: "daily confluence" },
+      { representativePrice: 2.04, strengthLabel: "weak", sourceLabel: "fresh intraday" },
+      { representativePrice: 2.10, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 2.25, strengthLabel: "weak", sourceLabel: "continuation map" },
+      { representativePrice: 2.50, strengthLabel: "weak", sourceLabel: "continuation map" },
+      { representativePrice: 2.75, strengthLabel: "weak", sourceLabel: "continuation map" },
+      { representativePrice: 3.00, strengthLabel: "weak", sourceLabel: "continuation map" },
+      { representativePrice: 3.59, strengthLabel: "moderate", sourceLabel: "daily structure" },
+      { representativePrice: 3.68, strengthLabel: "moderate", sourceLabel: "daily structure" },
+      { representativePrice: 3.75, strengthLabel: "moderate", sourceLabel: "daily structure" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message, /2\.25 \(\+16\.0%, light, continuation map\)/);
+  assert.match(message, /2\.50 \(\+28\.9%, light, continuation map\)/);
+  assert.match(message, /2\.75 \(\+41\.7%, light, continuation map\)/);
+  assert.match(message, /3\.00 \(\+54\.6%, light, continuation map\)/);
+  assert.match(message, /3\.59-3\.75 zone \(\+85\.0% to \+93\.3%, moderate, clustered levels\)/);
+});
+
+test("formatLevelSnapshotMessage does not cluster two noisy intraday resistance levels", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "NOISE",
+    currentPrice: 4.66,
+    supportZones: [
+      { representativePrice: 4.25, strengthLabel: "strong", sourceLabel: "4h structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 5.69, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 5.93, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 6.14, strengthLabel: "moderate", sourceLabel: "daily structure" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.doesNotMatch(message, /5\.69-5\.93 zone/);
+  assert.match(message, /5\.69 \(\+22\.1%, moderate, fresh intraday\)/);
 });
 
 test("formatLevelSnapshotMessage uses practical small-cap zones instead of penny-by-penny risk wording", () => {
@@ -1265,7 +2668,8 @@ test("formatLevelSnapshotMessage treats close small-cap support levels as one pr
     /Support that matters: major support 1\.00-1\.02 area \(-4\.8% to -2\.9%\) is the first practical area buyers need to keep defending\./,
   );
   assert.match(message, /Broader support: a clean loss of major support 1\.00-1\.02 area as a whole area would shift attention toward moderate support 0\.9400/);
-  assert.match(message, /More support and resistance:[\s\S]*Support:\n1\.02 .*\n1\.00 .*\n0\.9400/);
+  assert.match(message, /Closest levels to watch:[\s\S]*Support:\n1\.02 .*\n1\.00 .*\n0\.9400/);
+  assert.doesNotMatch(message, /More support and resistance/);
   assert.doesNotMatch(message, /risk opens toward 1\.00|If 1\.02 fails/i);
 });
 
@@ -1319,6 +2723,36 @@ test("DiscordAlertRouter routes level snapshots separately from alerts", async (
       },
     },
   ]);
+  assert.deepEqual(gateway.levelLadders, []);
+});
+
+test("DiscordAlertRouter can post full level ladders when operator flag is enabled", async () => {
+  const previous = process.env.LEVEL_DISCORD_POST_FULL_LADDER;
+  process.env.LEVEL_DISCORD_POST_FULL_LADDER = "1";
+  try {
+    const gateway = new FakeDiscordThreadGateway();
+    const router = new DiscordAlertRouter(gateway);
+    const payload = {
+      symbol: "IMMP",
+      currentPrice: 3.31,
+      supportZones: [{ representativePrice: 3.15 }],
+      resistanceZones: [
+        { representativePrice: 3.42 },
+        { representativePrice: 3.55 },
+      ],
+      timestamp: 10,
+    };
+
+    await router.routeLevelSnapshot("thread-3", payload);
+
+    assert.deepEqual(gateway.levelLadders, [{ threadId: "thread-3", payload }]);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.LEVEL_DISCORD_POST_FULL_LADDER;
+    } else {
+      process.env.LEVEL_DISCORD_POST_FULL_LADDER = previous;
+    }
+  }
 });
 
 test("formatLevelExtensionMessage uses deterministic formatting", () => {

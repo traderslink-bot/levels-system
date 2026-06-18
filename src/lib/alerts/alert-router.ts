@@ -1,7 +1,10 @@
 // 2026-04-14 09:28 PM America/Toronto
 // Alert formatting plus deterministic Discord thread routing.
 
-import type { MonitoringEvent } from "../monitoring/monitoring-types.js";
+import type {
+  MonitoringEvent,
+  RuntimeMarketStructureTimeframeSnapshot,
+} from "../monitoring/monitoring-types.js";
 import type { OpportunityInterpretation } from "../monitoring/opportunity-interpretation.js";
 import {
   isAlertPrimaryCategoryLiveEnabled,
@@ -23,6 +26,13 @@ import type {
 } from "./alert-types.js";
 import { describeZoneStrength } from "./trader-message-language.js";
 import { assessFinalLevelImportance, assessSnapshotDisplayLevelImportance } from "../monitoring/level-importance.js";
+
+type FormalMarketStructureSnapshot = NonNullable<LevelSnapshotPayload["marketStructure"]>["formal"];
+type MarketStructureStoryVisibility = "auto" | "always" | "material_only" | "metadata_only";
+type MarketStructureStoryFormatOptions = {
+  marketStructureStoryVisibility?: MarketStructureStoryVisibility;
+  marketStructureStoryKeys?: string[];
+};
 
 export function formatMonitoringEventAsAlert(event: MonitoringEvent): AlertPayload {
   return {
@@ -87,8 +97,14 @@ function classifyPostBudgetSymbolType(price: number | undefined): string {
 }
 
 function whyIntelligentAlertPosted(alert: IntelligentAlert): string {
-  const structure = alert.event.eventContext.tradeStructure?.state;
-  if (alert.event.eventContext.stableMarketStructureMaterialChange) {
+  const context = alert.event.eventContext;
+  const structure = context.tradeStructure?.state;
+  const formalStructureMaterialChange =
+    context.selectedFormalStructureMaterialChange ?? context.formalStructureMaterialChange;
+  if (formalStructureMaterialChange) {
+    return `formal ${context.selectedFormalStructureTimeframe ?? context.formalStructureTimeframe ?? "5m"} ${context.selectedFormalStructureEventType ?? context.formalStructureEventType ?? "structure"} event`;
+  }
+  if (context.stableMarketStructureMaterialChange) {
     return "material 5m structure change";
   }
   if (structure) {
@@ -167,6 +183,36 @@ function formatBarrierKeyLevelLabel(barrier: TraderNextBarrierContext | null | u
   }
 
   return "Nearby";
+}
+
+function formatBarrierDistance(side: "support" | "resistance", distancePct: number): string {
+  const sign = side === "support" ? "-" : "+";
+  return `${sign}${(distancePct * 100).toFixed(1)}%`;
+}
+
+function formatBarrierPlanningMap(
+  barrier: TraderNextBarrierContext | null | undefined,
+  labelOverride?: string,
+): string | null {
+  const levels = barrier?.planningLevels;
+  if (!barrier || !levels || levels.length < 2) {
+    return null;
+  }
+
+  const label = labelOverride ?? (barrier.side === "support" ? "Support map" : "Resistance map");
+  const text = levels
+    .slice(0, 6)
+    .map((level) => {
+      const price = formatAlertLevel(level.price);
+      if (!price) {
+        return null;
+      }
+      return `${price} (${formatBarrierDistance(barrier.side, level.distancePct)})`;
+    })
+    .filter((value): value is string => Boolean(value))
+    .join(" -> ");
+
+  return text ? `${label}: ${text}` : null;
 }
 
 function formatLostSupportAsResistance(alert: IntelligentAlert): string | null {
@@ -250,13 +296,568 @@ function buildSupportTouchPrimaryRead(alert: IntelligentAlert): string | null {
   return "price is testing support after the pullback; buyers need stabilization here";
 }
 
-function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
+function buildStructureSectionLine(marketStructure: string | null): string | null {
+  if (!marketStructure) {
+    return null;
+  }
+
+  return simplifyTraderRead(lowercaseFirst(stripLinePrefix(marketStructure)));
+}
+
+function formatStructureToken(value: string | undefined | null): string {
+  return value ? value.replaceAll("_", " ") : "n/a";
+}
+
+function buildFormalStructureSectionLine(alert: IntelligentAlert): string | null {
+  const context = alert.event.eventContext;
+  const eventType = context.formalStructureEventType;
+  if (!eventType) {
+    return null;
+  }
+
+  const timeframe = context.formalStructureTimeframe ?? "5m";
+  const confidence = context.formalStructureConfidence ?? "n/a";
+  const confirmation = context.formalStructureConfirmation && context.formalStructureConfirmation !== "none"
+    ? `, ${formatStructureToken(context.formalStructureConfirmation)}`
+    : "";
+  const biasText = context.formalStructurePreviousBias && context.formalStructureBias
+    ? context.formalStructurePreviousBias === context.formalStructureBias
+      ? `bias ${formatStructureToken(context.formalStructureBias)}`
+      : `bias ${formatStructureToken(context.formalStructurePreviousBias)} -> ${formatStructureToken(context.formalStructureBias)}`
+    : context.formalStructureBias
+      ? `bias ${formatStructureToken(context.formalStructureBias)}`
+      : null;
+
+  const levelParts = [
+    context.formalStructureBrokenSwingPrice !== undefined && context.formalStructureBrokenSwingPrice !== null
+      ? `broken ${formatDebugPrice(context.formalStructureBrokenSwingPrice)}`
+      : null,
+    context.formalStructureSweptSwingPrice !== undefined && context.formalStructureSweptSwingPrice !== null
+      ? `swept ${formatDebugPrice(context.formalStructureSweptSwingPrice)}`
+      : null,
+    context.formalStructureProtectedHigh !== undefined && context.formalStructureProtectedHigh !== null
+      ? `protected high ${formatDebugPrice(context.formalStructureProtectedHigh)}`
+      : null,
+    context.formalStructureProtectedLow !== undefined && context.formalStructureProtectedLow !== null
+      ? `protected low ${formatDebugPrice(context.formalStructureProtectedLow)}`
+      : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const eventText =
+    eventType === "none"
+      ? `no confirmed BOS/CHOCH`
+      : formatStructureToken(eventType);
+  const parts = [
+    `formal ${timeframe}: ${eventText} (${confidence}${confirmation})`,
+    biasText,
+    levelParts.length > 0 ? levelParts.join(", ") : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.join("; ");
+}
+
+function buildStableStructureSectionLine(alert: IntelligentAlert): string | null {
+  const context = alert.event.eventContext;
+  const state = context.stableMarketStructureState;
+  if (!state) {
+    return null;
+  }
+
+  const pivotParts = [
+    context.stableMarketStructureLatestSwingLow !== undefined
+      ? `latest low ${formatDebugPrice(context.stableMarketStructureLatestSwingLow)}`
+      : null,
+    context.stableMarketStructureLatestSwingHigh !== undefined
+      ? `latest high ${formatDebugPrice(context.stableMarketStructureLatestSwingHigh)}`
+      : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const parts = [
+    `stable 5m: ${formatStructureToken(state)} (${context.stableMarketStructureConfidence ?? "n/a"})`,
+    context.stableMarketStructurePreviousState
+      ? `previous ${formatStructureToken(context.stableMarketStructurePreviousState)}`
+      : null,
+    `material ${context.stableMarketStructureMaterialChange === true ? "yes" : "no"}`,
+    pivotParts.length > 0 ? pivotParts.join(", ") : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.join("; ");
+}
+
+function formatFormalEventName(eventType: string | undefined | null): string {
+  switch (eventType) {
+    case "bos_bullish":
+      return "bullish BOS";
+    case "bos_bearish":
+      return "bearish BOS";
+    case "choch_bullish":
+      return "bullish CHOCH";
+    case "choch_bearish":
+      return "bearish CHOCH";
+    case "liquidity_sweep_high":
+      return "liquidity sweep high";
+    case "liquidity_sweep_low":
+      return "liquidity sweep low";
+    case "failed_break_high":
+      return "failed break high";
+    case "failed_break_low":
+      return "failed break low";
+    case "none":
+      return "no confirmed BOS/CHOCH";
+    default:
+      return eventType ? formatStructureToken(eventType) : "no confirmed BOS/CHOCH";
+  }
+}
+
+export function buildMarketStructureDiscordLines(
+  marketStructure: LevelSnapshotPayload["marketStructure"],
+): string[] {
+  const formal = marketStructure?.formal;
+  const stable = marketStructure?.stable;
+  const timeframes = marketStructure?.timeframes;
+  const hasTimeframeMap = Boolean(timeframes && Object.values(timeframes).some((value) => value?.formal || value?.stable));
+
+  if (hasTimeframeMap) {
+    const orderedTimeframes = ["4h", "5m"] as const;
+    return orderedTimeframes
+      .map((timeframe) => {
+        const context = timeframes?.[timeframe] ?? (timeframe === "5m" ? { formal, stable } : undefined);
+        return buildTimeframeMarketStructureDiscordLine(timeframe, context);
+      })
+      .filter((value): value is string => Boolean(value));
+  }
+
+  const lines: string[] = [];
+
+  if (formal) {
+    lines.push(`Formal ${formal.timeframe}: ${formatFormalStructureSummary(formal)}`);
+  }
+
+  if (stable) {
+    lines.push(`Stable 5m: ${formatStableStructureSummary(stable)}`);
+  }
+
+  return lines;
+}
+
+export function buildVisibleMarketStructureDiscordLines(
+  marketStructure: LevelSnapshotPayload["marketStructure"],
+  options: { includeWaitingPlaceholders?: boolean; storyKeys?: string[] } = {},
+): string[] {
+  const lines = buildMarketStructureDiscordLines(marketStructure);
+  const storyKeys = options.storyKeys?.filter((key) => key.trim().length > 0) ?? [];
+  const scopedLines = storyKeys.length > 0
+    ? lines.filter((line) => {
+        const timeframe = line.startsWith("HTF 4h:")
+          ? "4h"
+          : line.startsWith("Tactical 5m:") || line.startsWith("Formal 5m:") || line.startsWith("Stable 5m:")
+            ? "5m"
+            : null;
+        return timeframe ? storyKeys.some((key) => key.startsWith(`${timeframe}|`)) : true;
+      })
+    : lines;
+
+  const includeWaitingPlaceholders =
+    options.includeWaitingPlaceholders === true && storyKeys.length === 0;
+  if (!includeWaitingPlaceholders) {
+    return scopedLines;
+  }
+
+  const visibleLines = [...scopedLines];
+  const hasHigherTimeframe = visibleLines.some((line) => line.startsWith("HTF 4h:"));
+  const hasTacticalTimeframe = visibleLines.some((line) =>
+    line.startsWith("Tactical 5m:") ||
+    line.startsWith("Formal 5m:") ||
+    line.startsWith("Stable 5m:"),
+  );
+
+  if (!hasHigherTimeframe) {
+    visibleLines.unshift(
+      "HTF 4h: waiting for seeded/historical candles before higher-timeframe BOS/CHOCH can be confirmed.",
+    );
+  }
+
+  if (!hasTacticalTimeframe) {
+    visibleLines.push(
+      "Tactical 5m: waiting for seeded/historical candles before intraday BOS/CHOCH can be confirmed.",
+    );
+  }
+
+  return visibleLines;
+}
+
+function formatFormalStructureSummary(formal: FormalMarketStructureSnapshot): string {
+  if (!formal) {
+    return "waiting for confirmed BOS/CHOCH";
+  }
+
+  const confirmation = formal.confirmation && formal.confirmation !== "none"
+    ? `, ${formatStructureToken(formal.confirmation)}`
+    : "";
+  const bias = formal.previousBias && formal.previousBias !== formal.bias
+    ? `bias ${formatStructureToken(formal.previousBias)} -> ${formatStructureToken(formal.bias)}`
+    : `bias ${formatStructureToken(formal.bias)}`;
+  const eventFreshness =
+    formal.eventType && formal.eventType !== "none"
+      ? formal.eventFreshness === "fresh"
+        ? "fresh "
+        : "prior "
+      : "";
+  const showProtectedHigh =
+    formal.eventType === "bos_bearish" ||
+    formal.eventType === "choch_bullish" ||
+    formal.eventType === "failed_break_high" ||
+    formal.eventType === "liquidity_sweep_high" ||
+    formal.eventType === "none";
+  const showProtectedLow =
+    formal.eventType === "bos_bullish" ||
+    formal.eventType === "choch_bearish" ||
+    formal.eventType === "failed_break_low" ||
+    formal.eventType === "liquidity_sweep_low" ||
+    formal.eventType === "none";
+  const levels = [
+    formal.brokenSwingPrice !== undefined && formal.brokenSwingPrice !== null
+      ? `broken ${formatDebugPrice(formal.brokenSwingPrice)}`
+      : null,
+    formal.sweptSwingPrice !== undefined && formal.sweptSwingPrice !== null
+      ? `swept ${formatDebugPrice(formal.sweptSwingPrice)}`
+      : null,
+    showProtectedHigh && formal.protectedHigh !== undefined && formal.protectedHigh !== null
+      ? `protected high ${formatDebugPrice(formal.protectedHigh)}`
+      : null,
+    showProtectedLow && formal.protectedLow !== undefined && formal.protectedLow !== null
+      ? `protected low ${formatDebugPrice(formal.protectedLow)}`
+      : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return [
+    `${eventFreshness}${formatFormalEventName(formal.eventType)} (${formal.confidence}${confirmation})`,
+    bias,
+    levels.length > 0 ? levels.join(", ") : null,
+  ].filter((value): value is string => Boolean(value)).join("; ");
+}
+
+function formatCondensedFormalStructureSummary(formal: FormalMarketStructureSnapshot): string {
+  if (!formal) {
+    return "waiting for confirmed BOS/CHOCH";
+  }
+
+  const isBullishBreak =
+    formal.eventType === "bos_bullish" ||
+    formal.eventType === "choch_bullish";
+  const isBearishBreak =
+    formal.eventType === "bos_bearish" ||
+    formal.eventType === "choch_bearish";
+  const eventFreshness =
+    formal.eventType && formal.eventType !== "none"
+      ? formal.eventFreshness === "fresh"
+        ? "fresh "
+        : "prior "
+      : "";
+  const breakLevel = formatDebugPrice(formal.brokenSwingPrice);
+  const sweptLevel = formatDebugPrice(formal.sweptSwingPrice);
+  const eventLevel =
+    breakLevel && isBullishBreak
+      ? ` above ${breakLevel}`
+      : breakLevel && isBearishBreak
+        ? ` below ${breakLevel}`
+        : sweptLevel
+          ? ` at ${sweptLevel}`
+          : "";
+  const showProtectedHigh =
+    formal.eventType === "bos_bearish" ||
+    formal.eventType === "choch_bullish" ||
+    formal.eventType === "failed_break_high" ||
+    formal.eventType === "liquidity_sweep_high" ||
+    formal.eventType === "none";
+  const showProtectedLow =
+    formal.eventType === "bos_bullish" ||
+    formal.eventType === "choch_bearish" ||
+    formal.eventType === "failed_break_low" ||
+    formal.eventType === "liquidity_sweep_low" ||
+    formal.eventType === "none";
+  const protectedLevels = [
+    showProtectedHigh && formal.protectedHigh !== undefined && formal.protectedHigh !== null
+      ? `protected high ${formatDebugPrice(formal.protectedHigh)}`
+      : null,
+    showProtectedLow && formal.protectedLow !== undefined && formal.protectedLow !== null
+      ? `protected low ${formatDebugPrice(formal.protectedLow)}`
+      : null,
+  ].filter((value): value is string => Boolean(value));
+  const bias = formal.previousBias && formal.previousBias !== formal.bias
+    ? `bias ${formatStructureToken(formal.previousBias)} -> ${formatStructureToken(formal.bias)}`
+    : `bias ${formatStructureToken(formal.bias)}`;
+
+  return [
+    `${eventFreshness}${formatFormalEventName(formal.eventType)}${eventLevel}`,
+    protectedLevels.length > 0 ? protectedLevels.join(", ") : null,
+    bias,
+  ].filter((value): value is string => Boolean(value)).join("; ");
+}
+
+function formatStableStructureSummary(
+  stable: NonNullable<LevelSnapshotPayload["marketStructure"]>["stable"],
+): string {
+  if (!stable) {
+    return "waiting for confirmed pivot structure";
+  }
+
+  const pivots = [
+    stable.latestSwingLow !== undefined ? `latest low ${formatDebugPrice(stable.latestSwingLow)}` : null,
+    stable.latestSwingHigh !== undefined ? `latest high ${formatDebugPrice(stable.latestSwingHigh)}` : null,
+  ].filter((value): value is string => Boolean(value));
+  const range =
+    stable.activeRangeLow !== undefined || stable.activeRangeHigh !== undefined
+      ? `range ${formatDebugPrice(stable.activeRangeLow) ?? "n/a"}-${formatDebugPrice(stable.activeRangeHigh) ?? "n/a"}`
+      : null;
+
+  return [
+    `${formatStructureToken(stable.state)} (${stable.confidence})`,
+    stable.trendDirection ? `trend ${formatStructureToken(stable.trendDirection)}` : null,
+    range,
+    pivots.length > 0 ? pivots.join(", ") : null,
+  ].filter((value): value is string => Boolean(value)).join("; ");
+}
+
+function buildTimeframeMarketStructureDiscordLine(
+  timeframe: "4h" | "5m",
+  context: RuntimeMarketStructureTimeframeSnapshot | undefined,
+): string | null {
+  if (!context?.formal && !context?.stable) {
+    return null;
+  }
+
+  const label = timeframe === "4h" ? "HTF 4h" : "Tactical 5m";
+  if (
+    timeframe === "4h" &&
+    context.formal &&
+    context.formal.eventFreshness !== "fresh" &&
+    !shouldShowMarketStructureDebug()
+  ) {
+    return `${label}: ${formatCondensedFormalStructureSummary(context.formal)}`;
+  }
+
+  const parts = [
+    context.formal ? formatFormalStructureSummary(context.formal) : null,
+    context.stable ? `stable ${formatStableStructureSummary(context.stable)}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return `${label}: ${parts.join("; ")}`;
+}
+
+function buildStructureSectionLines(
+  marketStructure: string | null,
+  alert: IntelligentAlert,
+  options: { storyKeys?: string[] } = {},
+): string[] {
+  const hasRuntimeMarketStructureField = Object.prototype.hasOwnProperty.call(
+    alert.event.eventContext,
+    "runtimeMarketStructure",
+  );
+  const runtimeMarketStructureLines = buildVisibleMarketStructureDiscordLines(
+    alert.event.eventContext.runtimeMarketStructure,
+    {
+      includeWaitingPlaceholders: hasRuntimeMarketStructureField,
+      storyKeys: options.storyKeys,
+    },
+  );
+  if (runtimeMarketStructureLines.length > 0) {
+    return [
+      buildStructureSectionLine(marketStructure),
+      ...runtimeMarketStructureLines,
+    ].filter((value): value is string => Boolean(value));
+  }
+
+  const lines = [
+    buildStructureSectionLine(marketStructure),
+    buildFormalStructureSectionLine(alert),
+    buildStableStructureSectionLine(alert),
+  ].filter((value): value is string => Boolean(value));
+
+  return [...new Set(lines)];
+}
+
+function isMeaningfulFormalStructureEvent(eventType: string | undefined | null): boolean {
+  return Boolean(eventType && eventType !== "none");
+}
+
+function runtimeMarketStructureHasMaterialStory(
+  marketStructure: LevelSnapshotPayload["marketStructure"],
+): boolean {
+  if (!marketStructure) {
+    return false;
+  }
+
+  const timeframes = [
+    marketStructure.timeframes?.["4h"],
+    marketStructure.timeframes?.["5m"],
+    {
+      formal: marketStructure.formal,
+      stable: marketStructure.stable,
+    },
+  ];
+
+  return timeframes.some((timeframe) => {
+    const formal = timeframe?.formal;
+    const stable = timeframe?.stable;
+    return (
+      (
+        formal?.materialChange === true &&
+        formal.eventFreshness === "fresh" &&
+        isMeaningfulFormalStructureEvent(formal.eventType)
+      ) ||
+      stable?.materialChange === true
+    );
+  });
+}
+
+function shouldShowMarketStructureStory(
+  alert: IntelligentAlert,
+  visibility: MarketStructureStoryVisibility,
+): boolean {
+  if (visibility === "always") {
+    return true;
+  }
+  if (visibility === "metadata_only") {
+    return false;
+  }
+
+  const context = alert.event.eventContext;
+  const formalStructureEventType = context.selectedFormalStructureEventType ?? context.formalStructureEventType;
+  const formalStructureMaterialChange =
+    context.selectedFormalStructureMaterialChange ?? context.formalStructureMaterialChange;
+
+  return (
+    context.tradeStructure?.isMaterialStateChange === true ||
+    context.stableMarketStructureMaterialChange === true ||
+    (
+      formalStructureMaterialChange === true &&
+      isMeaningfulFormalStructureEvent(formalStructureEventType)
+    ) ||
+    runtimeMarketStructureHasMaterialStory(context.runtimeMarketStructure)
+  );
+}
+
+function shouldShowMarketStructureDebug(): boolean {
+  const raw = process.env.MARKET_STRUCTURE_DISCORD_DEBUG?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+function formatDebugPrice(value: number | undefined | null): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return formatAlertLevel(value);
+}
+
+function formatDebugPct(value: number | undefined | null): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function buildMarketStructureDebugLines(alert: IntelligentAlert): string[] {
+  if (!shouldShowMarketStructureDebug()) {
+    return [];
+  }
+
+  const context = alert.event.eventContext;
+  if (!context.stableMarketStructureState && !context.formalStructureEventType) {
+    return [];
+  }
+
+  const lines: string[] = [];
+
+  if (context.formalStructureEventType) {
+    lines.push(
+      `formal=${context.formalStructureTimeframe ?? "5m"} ${context.formalStructureEventType}; bias=${context.formalStructurePreviousBias ?? "none"}->${context.formalStructureBias ?? "n/a"}; material=${context.formalStructureMaterialChange === true ? "yes" : "no"}`,
+      `formal_confidence=${context.formalStructureConfidence ?? "n/a"}; score=${context.formalStructureConfidenceScore?.toFixed(3) ?? "n/a"}; confirmation=${context.formalStructureConfirmation ?? "n/a"}`,
+    );
+
+    const broken = formatDebugPrice(context.formalStructureBrokenSwingPrice);
+    const swept = formatDebugPrice(context.formalStructureSweptSwingPrice);
+    const protectedHigh = formatDebugPrice(context.formalStructureProtectedHigh);
+    const protectedLow = formatDebugPrice(context.formalStructureProtectedLow);
+    const latestHigh = formatDebugPrice(context.formalStructureLatestHigh);
+    const latestLow = formatDebugPrice(context.formalStructureLatestLow);
+    if (broken || swept || protectedHigh || protectedLow || latestHigh || latestLow) {
+      lines.push(
+        `formal_levels=broken ${broken ?? "n/a"}, swept ${swept ?? "n/a"}; protected high ${protectedHigh ?? "n/a"}, low ${protectedLow ?? "n/a"}; latest high ${latestHigh ?? "n/a"}, low ${latestLow ?? "n/a"}`,
+      );
+    }
+
+    if (context.formalStructureSwingSequence?.length) {
+      lines.push(`formal_swings=${context.formalStructureSwingSequence.join(" -> ")}`);
+    }
+    if (context.formalStructureDebugReasons?.length) {
+      lines.push(`formal_reasons=${context.formalStructureDebugReasons.join(",")}`);
+    }
+    lines.push(`formal_key=${context.formalStructureKey ?? "n/a"}`);
+  }
+
+  if (
+    context.selectedFormalStructureEventType &&
+    context.selectedFormalStructureKey !== context.formalStructureKey
+  ) {
+    lines.push(
+      `selected_formal=${context.selectedFormalStructureTimeframe ?? "n/a"} ${context.selectedFormalStructureEventType}; freshness=${context.selectedFormalStructureEventFreshness ?? "n/a"}; material=${context.selectedFormalStructureMaterialChange === true ? "yes" : "no"}`,
+      `selected_formal_key=${context.selectedFormalStructureKey ?? "n/a"}`,
+    );
+  }
+
+  if (context.stableMarketStructureState) {
+    lines.push(
+      `state=${context.stableMarketStructureState}; raw=${context.stableMarketStructureRawState ?? "n/a"}; previous=${context.stableMarketStructurePreviousState ?? "none"}; material=${context.stableMarketStructureMaterialChange === true ? "yes" : "no"}`,
+      `confidence=${context.stableMarketStructureConfidence ?? "n/a"}; score=${context.stableMarketStructureMaterialityScore?.toFixed(3) ?? "n/a"}; reason=${context.stableMarketStructureReason ?? "n/a"}; candles=${context.stableMarketStructureCandleCount ?? "n/a"}; run=${context.stableMarketStructureRawRunLength ?? "n/a"}`,
+      `trend=${context.stableMarketStructureTrendDirection ?? "n/a"}; HL=${context.stableMarketStructureHigherLowCount ?? 0}; HH=${context.stableMarketStructureHigherHighCount ?? 0}; LH=${context.stableMarketStructureLowerHighCount ?? 0}; LL=${context.stableMarketStructureLowerLowCount ?? 0}`,
+    );
+
+    const latestLow = formatDebugPrice(context.stableMarketStructureLatestSwingLow);
+    const latestHigh = formatDebugPrice(context.stableMarketStructureLatestSwingHigh);
+    const priorLow = formatDebugPrice(context.stableMarketStructurePriorSwingLow);
+    const priorHigh = formatDebugPrice(context.stableMarketStructurePriorSwingHigh);
+    if (latestLow || latestHigh || priorLow || priorHigh) {
+      lines.push(
+        `pivots=latest low ${latestLow ?? "n/a"}, high ${latestHigh ?? "n/a"}; prior low ${priorLow ?? "n/a"}, high ${priorHigh ?? "n/a"}`,
+      );
+    }
+
+    const rangeLow = formatDebugPrice(context.stableMarketStructureActiveRangeLow);
+    const rangeHigh = formatDebugPrice(context.stableMarketStructureActiveRangeHigh);
+    if (rangeLow || rangeHigh) {
+      lines.push(
+        `range=${rangeLow ?? "n/a"}-${rangeHigh ?? "n/a"}; width=${formatDebugPct(context.stableMarketStructureActiveRangeWidthPct) ?? "n/a"}; quality=${context.stableMarketStructureActiveRangeQuality ?? "n/a"}`,
+      );
+    }
+
+    if (context.stableMarketStructurePivotEventType) {
+      lines.push(
+        `pivot_event=${context.stableMarketStructurePivotEventType}; trigger=${formatDebugPrice(context.stableMarketStructurePivotEventTriggerPrice) ?? "n/a"}`,
+      );
+    }
+
+    lines.push(`key=${context.stableMarketStructureKey ?? "n/a"}`);
+  }
+
+  return lines;
+}
+
+function buildReadableIntelligentAlertBody(
+  alert: IntelligentAlert,
+  options: MarketStructureStoryFormatOptions = {},
+): string {
   const lines = alert.body.split("\n").map((line) => line.trim()).filter(Boolean);
   const lead = lines[0] ?? alert.title;
   const whyNow = pickBodyLine(lines, "why now:");
   const movement = pickLine(lines, "movement:", alert.movement);
   const pressure = pickLine(lines, "pressure:", alert.pressure);
-  const marketStructure = pickLine(lines, "market structure:", alert.marketStructure);
+  const visibleMarketStructureStory =
+    shouldShowMarketStructureDebug() ||
+    shouldShowMarketStructureStory(alert, options.marketStructureStoryVisibility ?? "auto");
+  const marketStructure = visibleMarketStructureStory
+    ? pickLine(lines, "market structure:", alert.marketStructure)
+    : null;
   const volumeActivity = pickBodyLine(lines, "activity:") ?? alert.volumeActivity?.traderLine ?? null;
   const room = pickBodyLine(lines, "room:");
   const watch = pickBodyLine(lines, "watch:");
@@ -265,10 +866,18 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   const barrierLevel = formatAlertLevel(alert.nextBarrier?.price);
   const barrierText = formatBarrierWithStrength(alert.nextBarrier);
   const barrierKeyLevelLabel = formatBarrierKeyLevelLabel(alert.nextBarrier);
+  const barrierPlanningMap = formatBarrierPlanningMap(alert.nextBarrier);
+  const continuationPlanningMap = formatBarrierPlanningMap(alert.continuationBarrier);
   const eventType = alert.event.eventType;
   const watchParts = splitWatchLine(watch);
   const supportReactionLine = buildSupportReactionLine(alert, barrierText);
   const holdFailureMapLine = buildHoldFailureMapLine(alert, barrierText);
+  const structureSectionLines = visibleMarketStructureStory
+    ? buildStructureSectionLines(marketStructure, alert, {
+        storyKeys: options.marketStructureStoryKeys,
+      })
+    : [];
+  const structureDebugLines = buildMarketStructureDebugLines(alert);
   const readLines: string[] = [];
 
   if (eventType === "breakout") {
@@ -344,7 +953,7 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
     }
   }
 
-  if (readLines.length < 3 && failureRisk && alert.failureRisk?.label === "high") {
+  if (readLines.length < 3 && failureRisk && shouldIncludeFragileSetupLine(alert)) {
     readLines.push(`setup is fragile here: ${stripLinePrefix(failureRisk).replace(/^high because /, "")}`);
   }
 
@@ -381,6 +990,12 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
       alert.nextBarrier?.roleFlipFromSide ? "" : alert.nextBarrier?.side ?? "",
       barrierLevel,
     );
+    if (continuationPlanningMap && alert.event.zoneKind === "resistance") {
+      nearbyLevels.push(continuationPlanningMap);
+    }
+    if (barrierPlanningMap) {
+      nearbyLevels.push(barrierPlanningMap);
+    }
   } else {
     pushNearbyLevel("First", alert.target?.side ?? "", targetLevel);
     pushNearbyLevel(
@@ -388,12 +1003,24 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
       alert.nextBarrier?.roleFlipFromSide ? "" : alert.nextBarrier?.side ?? "",
       barrierLevel,
     );
+    if (barrierPlanningMap) {
+      nearbyLevels.push(barrierPlanningMap);
+    }
   }
 
   const output = [lead];
   output.push("", buildCurrentReadLine(alert));
   if (readLines.length > 0) {
     output.push("", "What it means:", ...readLines.slice(0, 3).map((line) => `- ${line}`));
+  }
+  const visibleStructureLines = structureSectionLines.filter(
+    (line) => !readLines.slice(0, 3).includes(line),
+  );
+  if (visibleStructureLines.length > 0) {
+    output.push("", "Structure:", ...visibleStructureLines.map((line) => `- ${line}`));
+  }
+  if (structureDebugLines.length > 0) {
+    output.push("", "Structure details:", ...structureDebugLines.map((line) => `- ${line}`));
   }
   if (watchParts.confirm || watchParts.invalidation || supportReactionLine) {
     output.push("", "What to watch:");
@@ -420,7 +1047,32 @@ function buildReadableIntelligentAlertBody(alert: IntelligentAlert): string {
   return output.join("\n");
 }
 
-export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertPayload {
+function shouldIncludeFragileSetupLine(alert: IntelligentAlert): boolean {
+  if (alert.failureRisk?.label !== "high") {
+    return false;
+  }
+
+  const acceptanceLabel = alert.event.eventContext.acceptance?.label;
+  const rangeBoxLabel = alert.event.eventContext.rangeBox?.label;
+  const behaviorBudgetLabel = alert.event.eventContext.behaviorBudget?.label;
+  const price = alert.event.triggerPrice;
+  const riskPct = alert.tradeMap?.riskPct ?? null;
+  const weakSmallCapProbe =
+    price < 2 &&
+    (acceptanceLabel === "weak_probe" || acceptanceLabel === "testing") &&
+    (
+      rangeBoxLabel === "active" ||
+      behaviorBudgetLabel === "boring_range" ||
+      (typeof riskPct === "number" && riskPct < 0.035)
+    );
+
+  return !weakSmallCapProbe;
+}
+
+export function formatIntelligentAlertAsPayload(
+  alert: IntelligentAlert,
+  options: MarketStructureStoryFormatOptions = {},
+): AlertPayload {
   const signalCategory = resolvePrimarySignalCategoryForAlert(alert);
   const levelImportance = alert.zone
     ? assessFinalLevelImportance({
@@ -428,9 +1080,12 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
         price: alert.event.triggerPrice,
       })
     : null;
+  const marketStructureStoryVisible =
+    shouldShowMarketStructureDebug() ||
+    shouldShowMarketStructureStory(alert, options.marketStructureStoryVisibility ?? "auto");
   return {
     title: alert.title,
-    body: buildReadableIntelligentAlertBody(alert),
+    body: buildReadableIntelligentAlertBody(alert, options),
     event: alert.event,
     symbol: alert.event.symbol,
     timestamp: alert.event.timestamp,
@@ -449,6 +1104,8 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       nextBarrierSide: alert.nextBarrier?.side,
       nextBarrierDistancePct: alert.nextBarrier?.distancePct,
       nextBarrierRoleFlipFromSide: alert.nextBarrier?.roleFlipFromSide,
+      continuationBarrierSide: alert.continuationBarrier?.side,
+      continuationBarrierDistancePct: alert.continuationBarrier?.distancePct,
       tacticalRead: alert.tacticalRead,
       movementLabel: alert.movement?.label,
       movementPct: alert.movement?.movementPct,
@@ -464,6 +1121,8 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       marketStructureLabel: alert.marketStructure?.label,
       marketStructureType: alert.marketStructure?.structureType,
       marketStructureStrength: alert.marketStructure?.strength,
+      marketStructureStoryVisible,
+      marketStructureStoryKeys: options.marketStructureStoryKeys,
       practicalStructureState: alert.event.eventContext.tradeStructure?.state,
       practicalStructureKey: alert.event.eventContext.tradeStructure?.structureKey,
       practicalZoneKey: alert.event.eventContext.tradeStructure?.practicalZoneKey,
@@ -474,6 +1133,66 @@ export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertP
       stableMarketStructureMaterialChange: alert.event.eventContext.stableMarketStructureMaterialChange,
       stableMarketStructureConfidence: alert.event.eventContext.stableMarketStructureConfidence,
       stableMarketStructureMaterialityScore: alert.event.eventContext.stableMarketStructureMaterialityScore,
+      stableMarketStructureRawState: alert.event.eventContext.stableMarketStructureRawState,
+      stableMarketStructureReason: alert.event.eventContext.stableMarketStructureReason,
+      stableMarketStructureCandleCount: alert.event.eventContext.stableMarketStructureCandleCount,
+      stableMarketStructureRawRunLength: alert.event.eventContext.stableMarketStructureRawRunLength,
+      stableMarketStructureTrendDirection: alert.event.eventContext.stableMarketStructureTrendDirection,
+      stableMarketStructureHigherLowCount: alert.event.eventContext.stableMarketStructureHigherLowCount,
+      stableMarketStructureLowerHighCount: alert.event.eventContext.stableMarketStructureLowerHighCount,
+      stableMarketStructureHigherHighCount: alert.event.eventContext.stableMarketStructureHigherHighCount,
+      stableMarketStructureLowerLowCount: alert.event.eventContext.stableMarketStructureLowerLowCount,
+      stableMarketStructureLatestSwingLow: alert.event.eventContext.stableMarketStructureLatestSwingLow,
+      stableMarketStructureLatestSwingHigh: alert.event.eventContext.stableMarketStructureLatestSwingHigh,
+      stableMarketStructurePriorSwingLow: alert.event.eventContext.stableMarketStructurePriorSwingLow,
+      stableMarketStructurePriorSwingHigh: alert.event.eventContext.stableMarketStructurePriorSwingHigh,
+      stableMarketStructureActiveRangeLow: alert.event.eventContext.stableMarketStructureActiveRangeLow,
+      stableMarketStructureActiveRangeHigh: alert.event.eventContext.stableMarketStructureActiveRangeHigh,
+      stableMarketStructureActiveRangeWidthPct: alert.event.eventContext.stableMarketStructureActiveRangeWidthPct,
+      stableMarketStructureActiveRangeQuality: alert.event.eventContext.stableMarketStructureActiveRangeQuality,
+      stableMarketStructurePivotEventType: alert.event.eventContext.stableMarketStructurePivotEventType,
+      stableMarketStructurePivotEventTriggerPrice: alert.event.eventContext.stableMarketStructurePivotEventTriggerPrice,
+      formalStructureTimeframe: alert.event.eventContext.formalStructureTimeframe,
+      formalStructureBias: alert.event.eventContext.formalStructureBias,
+      formalStructurePreviousBias: alert.event.eventContext.formalStructurePreviousBias,
+      formalStructureEventType: alert.event.eventContext.formalStructureEventType,
+      formalStructureEventFreshness: alert.event.eventContext.formalStructureEventFreshness,
+      formalStructureTriggerTimestamp: alert.event.eventContext.formalStructureTriggerTimestamp,
+      formalStructureConfirmation: alert.event.eventContext.formalStructureConfirmation,
+      formalStructureConfidence: alert.event.eventContext.formalStructureConfidence,
+      formalStructureConfidenceScore: alert.event.eventContext.formalStructureConfidenceScore,
+      formalStructureMaterialChange: alert.event.eventContext.formalStructureMaterialChange,
+      formalStructureBrokenSwingPrice: alert.event.eventContext.formalStructureBrokenSwingPrice,
+      formalStructureSweptSwingPrice: alert.event.eventContext.formalStructureSweptSwingPrice,
+      formalStructureProtectedHigh: alert.event.eventContext.formalStructureProtectedHigh,
+      formalStructureProtectedLow: alert.event.eventContext.formalStructureProtectedLow,
+      formalStructureLatestHigh: alert.event.eventContext.formalStructureLatestHigh,
+      formalStructureLatestLow: alert.event.eventContext.formalStructureLatestLow,
+      formalStructureSwingSequence: alert.event.eventContext.formalStructureSwingSequence,
+      formalStructureKey: alert.event.eventContext.formalStructureKey,
+      formalStructureTraderLine: alert.event.eventContext.formalStructureTraderLine,
+      formalStructureDebugReasons: alert.event.eventContext.formalStructureDebugReasons,
+      selectedFormalStructureTimeframe: alert.event.eventContext.selectedFormalStructureTimeframe,
+      selectedFormalStructureBias: alert.event.eventContext.selectedFormalStructureBias,
+      selectedFormalStructurePreviousBias: alert.event.eventContext.selectedFormalStructurePreviousBias,
+      selectedFormalStructureEventType: alert.event.eventContext.selectedFormalStructureEventType,
+      selectedFormalStructureEventFreshness: alert.event.eventContext.selectedFormalStructureEventFreshness,
+      selectedFormalStructureTriggerTimestamp: alert.event.eventContext.selectedFormalStructureTriggerTimestamp,
+      selectedFormalStructureConfirmation: alert.event.eventContext.selectedFormalStructureConfirmation,
+      selectedFormalStructureConfidence: alert.event.eventContext.selectedFormalStructureConfidence,
+      selectedFormalStructureConfidenceScore: alert.event.eventContext.selectedFormalStructureConfidenceScore,
+      selectedFormalStructureMaterialChange: alert.event.eventContext.selectedFormalStructureMaterialChange,
+      selectedFormalStructureBrokenSwingPrice: alert.event.eventContext.selectedFormalStructureBrokenSwingPrice,
+      selectedFormalStructureSweptSwingPrice: alert.event.eventContext.selectedFormalStructureSweptSwingPrice,
+      selectedFormalStructureProtectedHigh: alert.event.eventContext.selectedFormalStructureProtectedHigh,
+      selectedFormalStructureProtectedLow: alert.event.eventContext.selectedFormalStructureProtectedLow,
+      selectedFormalStructureLatestHigh: alert.event.eventContext.selectedFormalStructureLatestHigh,
+      selectedFormalStructureLatestLow: alert.event.eventContext.selectedFormalStructureLatestLow,
+      selectedFormalStructureSwingSequence: alert.event.eventContext.selectedFormalStructureSwingSequence,
+      selectedFormalStructureKey: alert.event.eventContext.selectedFormalStructureKey,
+      selectedFormalStructureTraderLine: alert.event.eventContext.selectedFormalStructureTraderLine,
+      selectedFormalStructureDebugReasons: alert.event.eventContext.selectedFormalStructureDebugReasons,
+      runtimeMarketStructure: alert.event.eventContext.runtimeMarketStructure,
       volumeActivityLabel: alert.event.eventContext.volumeActivity?.label,
       volumeActivityReliability: alert.event.eventContext.volumeActivity?.reliability,
       volumeActivityRatio: alert.event.eventContext.volumeActivity?.relativeVolumeRatio,
@@ -653,6 +1372,9 @@ export function formatFollowThroughUpdateAsPayload(params: {
   entryPrice: number;
   outcomePrice: number;
   repeatedOutcomeUpdate?: boolean;
+  marketStructure?: LevelSnapshotPayload["marketStructure"];
+  includeMarketStructureStory?: boolean;
+  marketStructureStoryKeys?: string[];
 }): AlertPayload {
   const { symbol, timestamp, followThrough, entryPrice, outcomePrice } = params;
   const directionalText =
@@ -674,6 +1396,15 @@ export function formatFollowThroughUpdateAsPayload(params: {
     messageKind: "follow_through_update",
     eventType: followThrough.eventType as MonitoringEvent["eventType"],
   }).primaryCategory;
+  const hasMarketStructureField = Object.prototype.hasOwnProperty.call(params, "marketStructure");
+  const includeMarketStructureStory =
+    params.includeMarketStructureStory ?? runtimeMarketStructureHasMaterialStory(params.marketStructure);
+  const marketStructureLines = includeMarketStructureStory
+    ? buildVisibleMarketStructureDiscordLines(params.marketStructure, {
+        includeWaitingPlaceholders: hasMarketStructureField,
+        storyKeys: params.marketStructureStoryKeys,
+      })
+    : [];
   return {
     title: `${symbol} ${eventType} follow-through`,
     body: [
@@ -689,6 +1420,13 @@ export function formatFollowThroughUpdateAsPayload(params: {
         label: followThrough.label,
         entryPrice,
       })}`,
+      ...(marketStructureLines.length > 0
+        ? [
+            "",
+            "Market structure:",
+            ...marketStructureLines.map((line) => `- ${line}`),
+          ]
+        : []),
       "",
       "Path:",
       `- ${entryText} -> ${outcomeText} (${rawText} price move)`,
@@ -705,6 +1443,9 @@ export function formatFollowThroughUpdateAsPayload(params: {
       directionalReturnPct: followThrough.directionalReturnPct,
       rawReturnPct: followThrough.rawReturnPct,
       repeatedOutcomeUpdate: params.repeatedOutcomeUpdate ?? false,
+      marketStructureStoryVisible: includeMarketStructureStory && marketStructureLines.length > 0,
+      marketStructureStoryKeys: params.marketStructureStoryKeys,
+      runtimeMarketStructure: params.marketStructure,
       whyPosted: params.repeatedOutcomeUpdate
         ? "material follow-through update after prior outcome"
         : "new follow-through outcome",
@@ -721,6 +1462,9 @@ export function formatFollowThroughStateUpdateAsPayload(params: {
   directionalReturnPct: number | null;
   entryPrice: number;
   currentPrice: number;
+  marketStructure?: LevelSnapshotPayload["marketStructure"];
+  includeMarketStructureStory?: boolean;
+  marketStructureStoryKeys?: string[];
 }): AlertPayload {
   const { symbol, timestamp, eventType, progressLabel, directionalReturnPct, entryPrice, currentPrice } = params;
   const eventLabel = followThroughEventLabel(eventType);
@@ -739,6 +1483,15 @@ export function formatFollowThroughStateUpdateAsPayload(params: {
     messageKind: "follow_through_state_update",
     eventType: eventType as MonitoringEvent["eventType"],
   }).primaryCategory;
+  const hasMarketStructureField = Object.prototype.hasOwnProperty.call(params, "marketStructure");
+  const includeMarketStructureStory =
+    params.includeMarketStructureStory ?? runtimeMarketStructureHasMaterialStory(params.marketStructure);
+  const marketStructureLines = includeMarketStructureStory
+    ? buildVisibleMarketStructureDiscordLines(params.marketStructure, {
+        includeWaitingPlaceholders: hasMarketStructureField,
+        storyKeys: params.marketStructureStoryKeys,
+      })
+    : [];
 
   return {
     title: `${symbol} ${eventLabel} progress check`,
@@ -748,6 +1501,13 @@ export function formatFollowThroughStateUpdateAsPayload(params: {
       "What it means:",
       `- ${line}`,
       `- price change from trigger: ${directionalText}`,
+      ...(marketStructureLines.length > 0
+        ? [
+            "",
+            "Market structure:",
+            ...marketStructureLines.map((item) => `- ${item}`),
+          ]
+        : []),
       "",
       "Path:",
       `- ${entryPrice >= 1 ? entryPrice.toFixed(2) : entryPrice.toFixed(4)} -> ${currentPrice >= 1 ? currentPrice.toFixed(2) : currentPrice.toFixed(4)}`,
@@ -761,8 +1521,57 @@ export function formatFollowThroughStateUpdateAsPayload(params: {
       signalCategoryLiveEnabled: isSignalCategoryLiveEnabled(signalCategory),
       progressLabel,
       directionalReturnPct,
+      marketStructureStoryVisible: includeMarketStructureStory && marketStructureLines.length > 0,
+      marketStructureStoryKeys: params.marketStructureStoryKeys,
+      runtimeMarketStructure: params.marketStructure,
       whyPosted: `${progressLabel} follow-through progress`,
       postBudgetSymbolType: classifyPostBudgetSymbolType(entryPrice),
+    },
+  };
+}
+
+export function formatMarketStructureUpdateAsPayload(params: {
+  symbol: string;
+  timestamp: number;
+  marketStructure: LevelSnapshotPayload["marketStructure"];
+  storyReason?: string;
+  storyKeys?: string[];
+  storySource?: string;
+}): AlertPayload {
+  const signalCategory = routeMessageKindToSignalCategory({
+    messageKind: "market_structure_update",
+  }).primaryCategory;
+  const marketStructureLines = buildVisibleMarketStructureDiscordLines(params.marketStructure, {
+    storyKeys: params.storyKeys,
+  });
+
+  return {
+    title: `${params.symbol} market structure update`,
+    body: [
+      "Fresh BOS/CHOCH structure detected.",
+      ...(marketStructureLines.length > 0
+        ? [
+            "",
+            "Market structure:",
+            ...marketStructureLines.map((line) => `- ${line}`),
+          ]
+        : []),
+      "",
+      "How to use it:",
+      "- Treat this as chart context for the next level reaction, not an entry by itself.",
+    ].join("\n"),
+    symbol: params.symbol,
+    timestamp: params.timestamp,
+    metadata: {
+      messageKind: "market_structure_update",
+      signalCategory,
+      signalCategoryLiveEnabled: isSignalCategoryLiveEnabled(signalCategory),
+      marketStructureStoryVisible: marketStructureLines.length > 0,
+      marketStructureStoryReason: params.storyReason,
+      marketStructureStoryKeys: params.storyKeys,
+      marketStructureStorySource: params.storySource ?? "standalone_structure_update",
+      runtimeMarketStructure: params.marketStructure,
+      whyPosted: "fresh formal BOS/CHOCH structure event",
     },
   };
 }
@@ -852,7 +1661,13 @@ export interface DiscordThreadGateway {
   createThread(name: string): Promise<DiscordThread>;
   sendMessage(threadId: string, payload: AlertPayload): Promise<void>;
   sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void>;
+  sendLevelLadder?(threadId: string, payload: LevelSnapshotPayload): Promise<void>;
   sendLevelExtension(threadId: string, payload: LevelExtensionPayload): Promise<void>;
+}
+
+function shouldPostFullLevelLadderToDiscord(): boolean {
+  const raw = process.env.LEVEL_DISCORD_POST_FULL_LADDER?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
 }
 
 function formatLevel(level: number): string {
@@ -867,6 +1682,40 @@ function formatDistancePctFromPrice(level: number, currentPrice: number): string
   const distancePct = (level - currentPrice) / currentPrice;
   const sign = distancePct >= 0 ? "+" : "-";
   return `${sign}${(Math.abs(distancePct) * 100).toFixed(1)}%`;
+}
+
+function formatOpenResistanceRangeLine(
+  payload: LevelSnapshotPayload,
+  ladderResistanceZones: LevelSnapshotDisplayZone[],
+): string | null {
+  const audit = payload.audit;
+  if (
+    !audit ||
+    !Number.isFinite(audit.forwardResistanceLimit) ||
+    !Number.isFinite(payload.currentPrice) ||
+    payload.currentPrice <= 0 ||
+    audit.forwardResistanceLimit <= payload.currentPrice ||
+    audit.resistanceCandidates.some(
+      (candidate) => !candidate.displayed && candidate.omittedReason !== "compacted",
+    )
+  ) {
+    return null;
+  }
+
+  const highestResistance =
+    ladderResistanceZones.length > 0
+      ? Math.max(...ladderResistanceZones.map((zone) => zone.representativePrice))
+      : payload.currentPrice;
+  const uncoveredForwardRangePct =
+    (audit.forwardResistanceLimit - highestResistance) / payload.currentPrice;
+
+  if (uncoveredForwardRangePct < 0.08) {
+    return null;
+  }
+
+  const distance = formatDistancePctFromPrice(audit.forwardResistanceLimit, payload.currentPrice);
+  const suffix = distance ? ` (${distance})` : "";
+  return `No additional resistance found below ${formatLevel(audit.forwardResistanceLimit)}${suffix}.`;
 }
 
 function formatSnapshotDisplayZone(
@@ -919,9 +1768,61 @@ function pickClusterStrength(zones: LevelSnapshotDisplayZone[]): LevelSnapshotDi
   return [...zones].sort((left, right) => strengthRank(right.strengthLabel) - strengthRank(left.strengthLabel))[0]?.strengthLabel;
 }
 
+function snapshotDisplayClusterWidthPctLimit(
+  lowPrice: number,
+  side: "support" | "resistance",
+): number {
+  return side === "resistance" ? 0.05 : 0.04;
+}
+
+function isStructuralSnapshotZone(zone: LevelSnapshotDisplayZone): boolean {
+  return /daily|4h|confluence|structure/i.test(zone.sourceLabel ?? "");
+}
+
+function isContinuationMapSnapshotZone(zone: LevelSnapshotDisplayZone): boolean {
+  return /continuation map/i.test(zone.sourceLabel ?? "");
+}
+
+function snapshotEntryHasContinuationMap(entry: SnapshotDisplayEntry): boolean {
+  return entry.type === "single"
+    ? isContinuationMapSnapshotZone(entry.zone)
+    : entry.zones.some(isContinuationMapSnapshotZone);
+}
+
+function shouldShowTwoLevelSnapshotCluster(
+  group: LevelSnapshotDisplayZone[],
+  lowPrice: number,
+  highPrice: number,
+  side: "support" | "resistance",
+  currentPrice?: number,
+  previousZone?: LevelSnapshotDisplayZone,
+  nextZone?: LevelSnapshotDisplayZone,
+): boolean {
+  if (side !== "resistance" || group.length !== 2 || currentPrice === undefined) {
+    return false;
+  }
+
+  const widthPct = (highPrice - lowPrice) / Math.max(lowPrice, 0.0001);
+  const nearCurrentOpeningZone =
+    !previousZone &&
+    Boolean(nextZone) &&
+    (lowPrice - currentPrice) / Math.max(currentPrice, 0.0001) <= 0.08;
+  const surroundingGapPct = previousZone && nextZone
+    ? (nextZone.representativePrice - previousZone.representativePrice) /
+      Math.max(currentPrice, 0.0001)
+    : 0;
+  return (
+    (nearCurrentOpeningZone || surroundingGapPct >= 0.12) &&
+    widthPct >= 0.035 &&
+    widthPct <= snapshotDisplayClusterWidthPctLimit(lowPrice, side) &&
+    group.every(isStructuralSnapshotZone)
+  );
+}
+
 function compactSnapshotDisplayEntries(
   zones: LevelSnapshotDisplayZone[],
   side: "support" | "resistance",
+  currentPrice?: number,
 ): SnapshotDisplayEntry[] {
   const sorted = [...zones].sort((left, right) =>
     side === "support"
@@ -941,17 +1842,28 @@ function compactSnapshotDisplayEntries(
       const lowPrice = Math.min(...prices);
       const highPrice = Math.max(...prices);
       const widthPct = (highPrice - lowPrice) / Math.max(lowPrice, 0.0001);
-      if (widthPct > 0.04) {
+      if (widthPct > snapshotDisplayClusterWidthPctLimit(lowPrice, side)) {
         break;
       }
       group.push(candidate);
       cursor += 1;
     }
 
-    if (group.length >= 3) {
-      const prices = group.map((zone) => zone.representativePrice);
-      const lowPrice = Math.min(...prices);
-      const highPrice = Math.max(...prices);
+    const prices = group.map((zone) => zone.representativePrice);
+    const lowPrice = Math.min(...prices);
+    const highPrice = Math.max(...prices);
+    if (
+      group.length >= 3 ||
+      shouldShowTwoLevelSnapshotCluster(
+        group,
+        lowPrice,
+        highPrice,
+        side,
+        currentPrice,
+        sorted[index - 1],
+        sorted[cursor],
+      )
+    ) {
       entries.push({
         type: "cluster",
         zones: group,
@@ -1464,9 +2376,18 @@ function formatSnapshotLevelBlock(
   zones: LevelSnapshotDisplayZone[],
   currentPrice: number,
   limit?: number,
+  options: { compact?: boolean } = {},
 ): string[] {
   const side = label === "Resistance" ? "resistance" : "support";
-  const entries = compactSnapshotDisplayEntries(zones, side);
+  const entries = options.compact === false
+    ? [...zones]
+        .sort((left, right) =>
+          side === "support"
+            ? right.representativePrice - left.representativePrice
+            : left.representativePrice - right.representativePrice,
+        )
+        .map((zone): SnapshotDisplayEntry => ({ type: "single", zone }))
+    : compactSnapshotDisplayEntries(zones, side, currentPrice);
   const selected = limit === undefined ? entries : entries.slice(0, limit);
   if (selected.length === 0) {
     return [`${label}:`, "none"];
@@ -1474,6 +2395,44 @@ function formatSnapshotLevelBlock(
 
   return [
     `${label}:`,
+    ...selected.map((entry) => formatSnapshotDisplayEntry(entry, currentPrice)),
+  ];
+}
+
+function formatSnapshotResistanceBlock(
+  zones: LevelSnapshotDisplayZone[],
+  currentPrice: number,
+): string[] {
+  const entries = compactSnapshotDisplayEntries(zones, "resistance", currentPrice);
+  if (entries.length === 0) {
+    return ["Resistance:", "none"];
+  }
+
+  const minForwardCoveragePct = 0.3;
+  const selected: SnapshotDisplayEntry[] = [];
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index]!;
+    selected.push(entry);
+
+    const entryForwardPct =
+      (snapshotEntryRepresentative(entry, "resistance") - currentPrice) /
+      Math.max(currentPrice, 0.0001);
+    if (
+      selected.length >= 3 &&
+      entryForwardPct >= minForwardCoveragePct
+    ) {
+      const nextEntry = entries[index + 1];
+      const selectedHasContinuationMap = selected.some(snapshotEntryHasContinuationMap);
+      if (selectedHasContinuationMap && snapshotEntryHasContinuationMap(entry) && nextEntry) {
+        continue;
+      }
+      break;
+    }
+  }
+
+  return [
+    "Resistance:",
     ...selected.map((entry) => formatSnapshotDisplayEntry(entry, currentPrice)),
   ];
 }
@@ -1494,12 +2453,15 @@ function formatLevelContextLine(payload: LevelSnapshotPayload): string {
 }
 
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
-  const keyResistanceLines = formatSnapshotLevelBlock("Resistance", payload.resistanceZones, payload.currentPrice, 3);
+  const keyResistanceLines = formatSnapshotResistanceBlock(payload.resistanceZones, payload.currentPrice);
   const keySupportLines = formatSnapshotLevelBlock("Support", payload.supportZones, payload.currentPrice, 3);
-  const fullResistanceLines = formatSnapshotLevelBlock("Resistance", payload.resistanceZones, payload.currentPrice);
-  const fullSupportLines = formatSnapshotLevelBlock("Support", payload.supportZones, payload.currentPrice);
   const tradeMapLines = buildSnapshotTradeMapLines(payload);
   const tradePlanLines = payload.tradePlan?.lines.filter((line) => line.trim().length > 0) ?? [];
+  const hasMarketStructureField = Object.prototype.hasOwnProperty.call(payload, "marketStructure");
+  const marketStructureLines = buildVisibleMarketStructureDiscordLines(payload.marketStructure, {
+    includeWaitingPlaceholders: hasMarketStructureField,
+  });
+  const visibleMarketStructureLines = marketStructureLines;
 
   return [
     `${payload.symbol} support and resistance`,
@@ -1513,6 +2475,13 @@ export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): strin
           "",
         ]
       : []),
+    ...(visibleMarketStructureLines.length > 0
+      ? [
+          "Market structure:",
+          ...visibleMarketStructureLines.map((line) => `- ${line}`),
+          "",
+        ]
+      : []),
     "Trade map:",
     ...tradeMapLines,
     "",
@@ -1520,9 +2489,41 @@ export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): strin
     ...keyResistanceLines,
     "",
     ...keySupportLines,
+  ].join("\n");
+}
+
+export function formatLevelLadderMessage(payload: LevelSnapshotPayload): string | null {
+  const ladderResistanceZones = payload.ladderResistanceZones ?? payload.resistanceZones;
+  const ladderSupportZones = payload.ladderSupportZones ?? payload.supportZones;
+
+  if (ladderResistanceZones.length === 0 && ladderSupportZones.length === 0) {
+    return null;
+  }
+
+  const fullResistanceLines = formatSnapshotLevelBlock(
+    "Resistance",
+    ladderResistanceZones,
+    payload.currentPrice,
+    undefined,
+    { compact: false },
+  );
+  const openResistanceRangeLine = formatOpenResistanceRangeLine(payload, ladderResistanceZones);
+  const resistanceLines = openResistanceRangeLine
+    ? [...fullResistanceLines, openResistanceRangeLine]
+    : fullResistanceLines;
+  const fullSupportLines = formatSnapshotLevelBlock(
+    "Support",
+    ladderSupportZones,
+    payload.currentPrice,
+    undefined,
+    { compact: false },
+  );
+
+  return [
+    `${payload.symbol} full level ladder`,
+    `Price: ${formatLevel(payload.currentPrice)}`,
     "",
-    "More support and resistance:",
-    ...fullResistanceLines,
+    ...resistanceLines,
     "",
     ...fullSupportLines,
   ].join("\n");
@@ -1598,6 +2599,9 @@ export class DiscordAlertRouter {
 
   async routeLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
     await this.gateway.sendLevelSnapshot(threadId, payload);
+    if (shouldPostFullLevelLadderToDiscord()) {
+      await this.gateway.sendLevelLadder?.(threadId, payload);
+    }
   }
 
   async routeLevelExtension(threadId: string, payload: LevelExtensionPayload): Promise<void> {

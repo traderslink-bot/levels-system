@@ -5,7 +5,7 @@ import type {
   LevelSnapshotPayload,
 } from "./alert-types.js";
 import type { DiscordThreadGateway } from "./alert-router.js";
-import { formatLevelExtensionMessage, formatLevelSnapshotMessage } from "./alert-router.js";
+import { formatLevelExtensionMessage, formatLevelLadderMessage, formatLevelSnapshotMessage } from "./alert-router.js";
 
 type DiscordSnowflake = string;
 
@@ -63,6 +63,7 @@ const DEFAULT_TRANSIENT_RETRY_ATTEMPTS = 1;
 const DEFAULT_TRANSIENT_RETRY_DELAY_MS = 750;
 const DEFAULT_MAX_TRANSIENT_RETRY_DELAY_MS = 10_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const DISCORD_MESSAGE_MAX_LENGTH = 2000;
 
 function normalizeNonEmpty(value: string | undefined, label: string): string {
   const normalized = value?.trim();
@@ -75,6 +76,63 @@ function normalizeNonEmpty(value: string | undefined, label: string): string {
 function buildAlertMessageContent(payload: AlertPayload): string {
   const title = payload.title.trim();
   return title ? `${title}\n${payload.body}` : payload.body;
+}
+
+function removeDynamicIndicatorLines(content: string): string {
+  return content
+    .split("\n")
+    .filter((line) => !/\b(?:vwap|ema(?:9|20)?|ema\s*\d*)\b/i.test(line))
+    .join("\n")
+    .trimEnd();
+}
+
+function prepareDiscordContent(content: string): string {
+  return removeDynamicIndicatorLines(content);
+}
+
+function splitLongLine(line: string, maxLength: number): string[] {
+  const chunks: string[] = [];
+  for (let index = 0; index < line.length; index += maxLength) {
+    chunks.push(line.slice(index, index + maxLength));
+  }
+  return chunks;
+}
+
+function splitDiscordContent(content: string): string[] {
+  const prepared = prepareDiscordContent(content).trimEnd();
+  if (prepared.length <= DISCORD_MESSAGE_MAX_LENGTH) {
+    return [prepared.length > 0 ? prepared : " "];
+  }
+
+  const chunks: string[] = [];
+  let current = "";
+
+  const flushCurrent = (): void => {
+    if (current.length > 0) {
+      chunks.push(current);
+      current = "";
+    }
+  };
+
+  for (const line of prepared.split("\n")) {
+    const candidate = current.length > 0 ? `${current}\n${line}` : line;
+    if (candidate.length <= DISCORD_MESSAGE_MAX_LENGTH) {
+      current = candidate;
+      continue;
+    }
+
+    flushCurrent();
+
+    if (line.length <= DISCORD_MESSAGE_MAX_LENGTH) {
+      current = line;
+      continue;
+    }
+
+    chunks.push(...splitLongLine(line, DISCORD_MESSAGE_MAX_LENGTH));
+  }
+
+  flushCurrent();
+  return chunks.length > 0 ? chunks : [" "];
 }
 
 async function parseDiscordJson<T>(response: Response): Promise<T | null> {
@@ -198,11 +256,31 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     throw lastError ?? new Error(`Discord API request failed for ${path}.`);
   }
 
-  private async postMessage(channelId: string, content: string): Promise<DiscordMessageResponse> {
+  private async postSingleMessage(
+    channelId: string,
+    content: string,
+    flags?: number,
+  ): Promise<DiscordMessageResponse> {
     return this.request<DiscordMessageResponse>(`/channels/${channelId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(flags === undefined ? { content } : { content, flags }),
     });
+  }
+
+  private async postMessage(
+    channelId: string,
+    content: string,
+    flags?: number,
+  ): Promise<DiscordMessageResponse> {
+    const chunks = splitDiscordContent(content);
+    const [firstChunk, ...remainingChunks] = chunks;
+    const firstResponse = await this.postSingleMessage(channelId, firstChunk ?? " ", flags);
+
+    for (const chunk of remainingChunks) {
+      await this.postSingleMessage(channelId, chunk, flags);
+    }
+
+    return firstResponse;
   }
 
   private async deleteMessage(channelId: string, messageId: string): Promise<void> {
@@ -380,16 +458,19 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   }
 
   async sendMessage(threadId: string, payload: AlertPayload): Promise<void> {
-    const content = buildAlertMessageContent(payload);
     const flags = payload.metadata?.suppressEmbeds ? DISCORD_FLAG_SUPPRESS_EMBEDS : undefined;
-    await this.request<DiscordMessageResponse>(`/channels/${threadId}/messages`, {
-      method: "POST",
-      body: JSON.stringify(flags === undefined ? { content } : { content, flags }),
-    });
+    await this.postMessage(threadId, buildAlertMessageContent(payload), flags);
   }
 
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
     await this.postMessage(threadId, formatLevelSnapshotMessage(payload));
+  }
+
+  async sendLevelLadder(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
+    const ladder = formatLevelLadderMessage(payload);
+    if (ladder) {
+      await this.postMessage(threadId, ladder);
+    }
   }
 
   async sendLevelExtension(threadId: string, payload: LevelExtensionPayload): Promise<void> {
