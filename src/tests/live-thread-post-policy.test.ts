@@ -215,6 +215,139 @@ test("intelligent alert policy suppresses same-zone chatter", () => {
   });
 });
 
+test("intelligent alert policy lets fresh formal BOS/CHOCH break same-story cooldown", () => {
+  const record = buildIntelligentAlertStoryRecord({
+    timestamp: 1000,
+    eventType: "breakout",
+    level: 2.5,
+    triggerPrice: 2.52,
+    severity: "medium",
+    score: 55,
+    formalStructureEventType: "none",
+    formalStructureKey: "5m|range|2.40-2.60",
+  });
+
+  assert.deepEqual(decideIntelligentAlertPost({
+    records: [record],
+    timestamp: 2 * 60 * 1000,
+    eventType: "breakout",
+    level: 2.5,
+    triggerPrice: 2.53,
+    severity: "medium",
+    score: 56,
+    formalStructureEventType: "bos_bullish",
+    formalStructureKey: "5m|bos_bullish|bullish|2.50",
+    formalStructureMaterialChange: true,
+  }), {
+    shouldPost: true,
+    reason: "material_escalation",
+    storyKey: "breakout|2.48",
+    zoneKey: "2.48",
+  });
+});
+
+test("intelligent alert policy uses selected higher-timeframe BOS/CHOCH for material dedupe", () => {
+  const record = buildIntelligentAlertStoryRecord({
+    timestamp: 1000,
+    eventType: "breakout",
+    level: 2.5,
+    triggerPrice: 2.52,
+    severity: "medium",
+    score: 55,
+    formalStructureEventType: "none",
+    formalStructureKey: "5m|range|2.40-2.60",
+    formalStructureMaterialChange: false,
+    selectedFormalStructureEventType: "none",
+    selectedFormalStructureKey: "5m|range|2.40-2.60",
+    selectedFormalStructureMaterialChange: false,
+  });
+
+  assert.deepEqual(decideIntelligentAlertPost({
+    records: [record],
+    timestamp: 2 * 60 * 1000,
+    eventType: "breakout",
+    level: 2.5,
+    triggerPrice: 2.53,
+    severity: "medium",
+    score: 56,
+    formalStructureEventType: "none",
+    formalStructureKey: "5m|range|2.40-2.60",
+    formalStructureMaterialChange: false,
+    selectedFormalStructureEventType: "bos_bullish",
+    selectedFormalStructureKey: "4h|bos_bullish|bullish|2.50",
+    selectedFormalStructureMaterialChange: true,
+  }), {
+    shouldPost: true,
+    reason: "material_escalation",
+    storyKey: "breakout|2.48",
+    zoneKey: "2.48",
+  });
+});
+
+test("intelligent alert policy ignores score-only escalation without real price progress", () => {
+  const record = buildIntelligentAlertStoryRecord({
+    timestamp: 1000,
+    eventType: "breakout",
+    level: 1.46,
+    triggerPrice: 1.47,
+    severity: "high",
+    score: 66,
+  });
+
+  assert.deepEqual(decideIntelligentAlertPost({
+    records: [record],
+    timestamp: 90 * 1000,
+    eventType: "breakout",
+    level: 1.46,
+    triggerPrice: 1.475,
+    severity: "high",
+    score: 89,
+  }), {
+    shouldPost: false,
+    reason: "same_story_cooldown",
+    storyKey: "breakout|1.48",
+    zoneKey: "1.48",
+  });
+});
+
+test("intelligent alert policy suppresses rapid ladder-step clear updates in the same direction", () => {
+  const record = buildIntelligentAlertStoryRecord({
+    timestamp: 1000,
+    eventType: "breakout",
+    level: 5,
+    triggerPrice: 5.15,
+    severity: "high",
+    score: 60,
+  });
+
+  assert.deepEqual(decideIntelligentAlertPost({
+    records: [record],
+    timestamp: 70 * 1000,
+    eventType: "breakout",
+    level: 5.25,
+    triggerPrice: 5.37,
+    severity: "high",
+    score: 62,
+    ladderStepUpdate: true,
+  }), {
+    shouldPost: false,
+    reason: "ladder_step_cooldown",
+    storyKey: "breakout|5.28",
+    zoneKey: "5.28",
+  });
+
+  assert.equal(decideIntelligentAlertPost({
+    records: [record],
+    timestamp: 70 * 1000,
+    eventType: "breakout",
+    level: 5.63,
+    triggerPrice: 5.65,
+    severity: "high",
+    score: 62,
+    ladderStepUpdate: true,
+  }).shouldPost, true);
+});
+
 test("intelligent alert policy suppresses range-bound chop after repeated same-band posts", () => {
   const records = [
     buildIntelligentAlertStoryRecord({
@@ -363,6 +496,85 @@ test("intelligent alert policy keeps a locked main trade area quiet across the s
     primaryTradeAreaLocked: true,
     primaryTradeAreaEscapeSide: "up",
     primaryTradeAreaEscapeConfidence: "accepted",
+  }).shouldPost, true);
+});
+
+test("intelligent alert policy suppresses repeated weak support-failure probes in the same practical area", () => {
+  const practicalZoneKey = "support:0.8900-0.9200|resistance:0.9400-0.9500";
+  const record = buildIntelligentAlertStoryRecord({
+    timestamp: 0,
+    eventType: "breakdown",
+    level: 0.9131,
+    triggerPrice: 0.9061,
+    severity: "medium",
+    score: 42,
+    practicalStructureState: "support_failing",
+    practicalZoneKey,
+    rangeBoxLabel: "active",
+    acceptanceLabel: "weak_probe",
+    behaviorBudgetLabel: "boring_range",
+    failedLevelOutcome: "probe_only",
+    levelImportanceLabel: "major_decision",
+  });
+
+  assert.deepEqual(decideIntelligentAlertPost({
+    records: [record],
+    timestamp: 4 * 60 * 1000,
+    eventType: "breakdown",
+    level: 0.9131,
+    triggerPrice: 0.9103,
+    severity: "critical",
+    score: 73,
+    practicalStructureState: "support_failing",
+    practicalZoneKey,
+    practicalStructureMaterialChange: true,
+    rangeBoxLabel: "active",
+    acceptanceLabel: "weak_probe",
+    behaviorBudgetLabel: "boring_range",
+    failedLevelOutcome: "probe_only",
+    levelImportanceLabel: "major_decision",
+  }), {
+    shouldPost: false,
+    reason: "same_story_not_material",
+    storyKey: "breakdown|0.9131",
+    zoneKey: "0.9131",
+  });
+});
+
+test("intelligent alert policy still posts a weak support-failure repeat after real downside expansion", () => {
+  const practicalZoneKey = "support:0.8900-0.9200|resistance:0.9400-0.9500";
+  const record = buildIntelligentAlertStoryRecord({
+    timestamp: 0,
+    eventType: "breakdown",
+    level: 0.9131,
+    triggerPrice: 0.9061,
+    severity: "medium",
+    score: 42,
+    practicalStructureState: "support_failing",
+    practicalZoneKey,
+    rangeBoxLabel: "active",
+    acceptanceLabel: "weak_probe",
+    behaviorBudgetLabel: "boring_range",
+    failedLevelOutcome: "probe_only",
+    levelImportanceLabel: "major_decision",
+  });
+
+  assert.equal(decideIntelligentAlertPost({
+    records: [record],
+    timestamp: 4 * 60 * 1000,
+    eventType: "breakdown",
+    level: 0.9131,
+    triggerPrice: 0.80,
+    severity: "critical",
+    score: 73,
+    practicalStructureState: "support_failing",
+    practicalZoneKey,
+    practicalStructureMaterialChange: true,
+    rangeBoxLabel: "active",
+    acceptanceLabel: "weak_probe",
+    behaviorBudgetLabel: "boring_range",
+    failedLevelOutcome: "probe_only",
+    levelImportanceLabel: "major_decision",
   }).shouldPost, true);
 });
 
@@ -515,7 +727,7 @@ test("intelligent alert policy uses stable 5m structure to suppress unchanged ra
     stableMarketStructureKey: "range_bound|0.99-1.06",
   }), {
     shouldPost: false,
-    reason: "structure_budget",
+    reason: "stable_structure_repeat",
     storyKey: "compression|1.00",
     zoneKey: "1.00",
   });
@@ -661,6 +873,58 @@ test("intelligent alert policy compresses repeated breakout and reclaim cycling 
     reason: "new_story",
     storyKey: "breakout|1.20",
     zoneKey: "1.20",
+  });
+});
+
+test("intelligent alert policy suppresses non-accepted flip chatter in an active practical box", () => {
+  const practicalZoneKey = "support:0.98-1.02|resistance:1.05-1.06";
+  const records = [
+    buildIntelligentAlertStoryRecord({
+      timestamp: 0,
+      eventType: "breakout",
+      level: 1.06,
+      triggerPrice: 1.065,
+      severity: "high",
+      score: 56,
+      practicalStructureState: "breakout_attempt",
+      practicalZoneKey,
+      rangeBoxLabel: "active",
+      acceptanceLabel: "weak_probe",
+      behaviorBudgetLabel: "boring_range",
+    }),
+    buildIntelligentAlertStoryRecord({
+      timestamp: 10 * 60 * 1000,
+      eventType: "reclaim",
+      level: 1.02,
+      triggerPrice: 1.025,
+      severity: "high",
+      score: 57,
+      practicalStructureState: "reclaim_attempt",
+      practicalZoneKey,
+      rangeBoxLabel: "active",
+      acceptanceLabel: "testing",
+      behaviorBudgetLabel: "boring_range",
+    }),
+  ];
+
+  assert.deepEqual(decideIntelligentAlertPost({
+    records,
+    timestamp: 25 * 60 * 1000,
+    eventType: "breakout",
+    level: 1.06,
+    triggerPrice: 1.068,
+    severity: "high",
+    score: 58,
+    practicalStructureState: "breakout_attempt",
+    practicalZoneKey,
+    rangeBoxLabel: "active",
+    acceptanceLabel: "weak_probe",
+    behaviorBudgetLabel: "boring_range",
+  }), {
+    shouldPost: false,
+    reason: "practical_area_flip_chop",
+    storyKey: "breakout|1.05",
+    zoneKey: "1.05",
   });
 });
 
@@ -898,6 +1162,48 @@ test("critical live post policy blocks bursts while allowing major changes", () 
   );
 });
 
+test("critical live post policy coalesces immediate follow-through after a triggering alert", () => {
+  assert.deepEqual(
+    decideCriticalLivePost({
+      criticalPosts: [
+        {
+          kind: "intelligent_alert",
+          timestamp: 1000,
+          eventType: "breakdown",
+        },
+      ],
+      timestamp: 90 * 1000,
+      kind: "follow_through",
+      eventType: "breakdown",
+      majorChange: true,
+    }),
+    {
+      shouldPost: false,
+      reason: "critical_kind_burst",
+    },
+  );
+
+  assert.deepEqual(
+    decideCriticalLivePost({
+      criticalPosts: [
+        {
+          kind: "intelligent_alert",
+          timestamp: 1000,
+          eventType: "breakdown",
+        },
+      ],
+      timestamp: 4 * 60 * 1000,
+      kind: "follow_through",
+      eventType: "breakdown",
+      majorChange: true,
+    }),
+    {
+      shouldPost: true,
+      reason: "allowed",
+    },
+  );
+});
+
 test("thread story phase policy suppresses repeated same-phase posts in the same area", () => {
   const record = buildThreadStoryPhaseRecord({
     timestamp: 0,
@@ -918,6 +1224,44 @@ test("thread story phase policy suppresses repeated same-phase posts in the same
     shouldPost: false,
     reason: "same_phase_repeat",
     phaseKey: "pressing_resistance|support:0.9898-1.02|resistance:1.06-1.06",
+  });
+});
+
+test("thread story phase policy requires real expansion for same-area repeats even when marked major", () => {
+  const record = buildThreadStoryPhaseRecord({
+    timestamp: 0,
+    phase: "support_area_lost",
+    areaKey: "support:6.90-7.20",
+    triggerPrice: 7.05,
+    eventType: "breakdown",
+  });
+
+  assert.deepEqual(decideThreadStoryPhasePost({
+    records: [record],
+    timestamp: 3 * 60 * 1000,
+    phase: "support_area_lost",
+    areaKey: "support:6.90-7.20",
+    triggerPrice: 6.95,
+    eventType: "breakdown",
+    majorChange: true,
+  }), {
+    shouldPost: false,
+    reason: "same_phase_repeat",
+    phaseKey: "support_area_lost|support:6.90-7.20",
+  });
+
+  assert.deepEqual(decideThreadStoryPhasePost({
+    records: [record],
+    timestamp: 3 * 60 * 1000,
+    phase: "support_area_lost",
+    areaKey: "support:6.90-7.20",
+    triggerPrice: 6.3,
+    eventType: "breakdown",
+    majorChange: true,
+  }), {
+    shouldPost: true,
+    reason: "phase_expansion",
+    phaseKey: "support_area_lost|support:6.90-7.20",
   });
 });
 
@@ -1110,6 +1454,34 @@ test("optional live post policy blocks reactive same-event overlap and stale opt
   );
 });
 
+test("optional live post policy keeps recaps and context quiet during dense critical bursts", () => {
+  assert.deepEqual(
+    decideOptionalLivePost({
+      criticalPosts: [
+        { kind: "intelligent_alert", timestamp: 1000, eventType: "breakout" },
+        { kind: "level_clear_update", timestamp: 30 * 1000, eventType: "breakout" },
+        { kind: "intelligent_alert", timestamp: 60 * 1000, eventType: "breakout" },
+      ],
+      optionalPosts: [],
+      narrationAttempts: [],
+      timestamp: 75 * 1000,
+      kind: "recap",
+      majorChange: false,
+      eventType: "breakout",
+      deliveryBackoffActive: false,
+      optionalDensityLimit: 2,
+      optionalKindLimit: 1,
+      continuityCooldownMs: 5 * 60 * 1000,
+      continuityMajorTransitionCooldownMs: 12 * 60 * 1000,
+      narrationBurstWindowMs: 90 * 1000,
+    }),
+    {
+      shouldPost: false,
+      reason: "optional_density",
+    },
+  );
+});
+
 test("optional live post policy suppresses minor follow-through state chatter", () => {
   assert.deepEqual(
     decideOptionalLivePost({
@@ -1240,6 +1612,76 @@ test("intelligent alert policy suppresses weak probes inside an already-posted r
 
   assert.equal(decision.shouldPost, false);
   assert.equal(decision.reason, "range_box_chop");
+});
+
+test("intelligent alert policy uses stable 5m structure to suppress repeated range flicker", () => {
+  const records = [
+    buildIntelligentAlertStoryRecord({
+      timestamp: 1,
+      eventType: "level_touch",
+      level: 1.06,
+      triggerPrice: 1.05,
+      practicalZoneKey: "support:1.00-1.02|resistance:1.06-1.08",
+      stableMarketStructureState: "range_bound",
+      stableMarketStructureKey: "range_bound|1.00-1.08",
+      rangeBoxLabel: "active",
+      acceptanceLabel: "testing",
+      behaviorBudgetLabel: "boring_range",
+    }),
+  ];
+
+  const decision = decideIntelligentAlertPost({
+    records,
+    timestamp: 2,
+    eventType: "breakdown",
+    level: 1.02,
+    triggerPrice: 1.01,
+    practicalZoneKey: "support:1.00-1.02|resistance:1.06-1.08",
+    stableMarketStructureState: "range_bound",
+    stableMarketStructureKey: "range_bound|1.00-1.08",
+    stableMarketStructureMaterialChange: false,
+    acceptanceLabel: "testing",
+    levelImportanceLabel: "useful_reference",
+  });
+
+  assert.equal(decision.shouldPost, false);
+  assert.equal(decision.reason, "stable_structure_repeat");
+});
+
+test("intelligent alert policy still allows accepted directional changes through stable structure suppression", () => {
+  const records = [
+    buildIntelligentAlertStoryRecord({
+      timestamp: 1,
+      eventType: "level_touch",
+      level: 1.06,
+      triggerPrice: 1.05,
+      practicalZoneKey: "support:1.00-1.02|resistance:1.06-1.08",
+      stableMarketStructureState: "range_bound",
+      stableMarketStructureKey: "range_bound|1.00-1.08",
+      rangeBoxLabel: "active",
+      acceptanceLabel: "testing",
+      behaviorBudgetLabel: "boring_range",
+    }),
+  ];
+
+  const decision = decideIntelligentAlertPost({
+    records,
+    timestamp: 2,
+    eventType: "breakout",
+    level: 1.08,
+    triggerPrice: 1.11,
+    practicalZoneKey: "support:1.00-1.02|resistance:1.06-1.08",
+    stableMarketStructureState: "range_bound",
+    stableMarketStructureKey: "range_bound|1.00-1.08",
+    stableMarketStructureMaterialChange: false,
+    rangeBoxLabel: "active",
+    acceptanceLabel: "accepted",
+    behaviorBudgetLabel: "boring_range",
+    levelImportanceLabel: "major_decision",
+    severity: "critical",
+  });
+
+  assert.equal(decision.shouldPost, true);
 });
 
 test("intelligent alert policy allows accepted breaks even when boring-range budget is tight", () => {

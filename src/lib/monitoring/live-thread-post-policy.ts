@@ -1,5 +1,5 @@
 import type { AlertPayload } from "../alerts/alert-types.js";
-import type { CandleMarketStructureState } from "../structure/index.js";
+import type { CandleMarketStructureState, FormalStructureEventType } from "../structure/index.js";
 import type { EvaluatedOpportunity } from "./opportunity-evaluator.js";
 import { isPracticalStructureExpansion } from "./practical-trade-structure.js";
 import type { PracticalTradeStructureState } from "./monitoring-types.js";
@@ -64,6 +64,12 @@ export type IntelligentAlertStoryRecord = {
   practicalZoneKey?: string;
   stableMarketStructureState?: CandleMarketStructureState;
   stableMarketStructureKey?: string;
+  formalStructureEventType?: FormalStructureEventType;
+  formalStructureKey?: string;
+  formalStructureMaterialChange?: boolean;
+  selectedFormalStructureEventType?: FormalStructureEventType;
+  selectedFormalStructureKey?: string;
+  selectedFormalStructureMaterialChange?: boolean;
   tradeStoryState?: TradeStoryState;
   rangeBoxLabel?: RangeBoxLabel;
   acceptanceLabel?: AcceptanceLabel;
@@ -79,12 +85,15 @@ export type IntelligentAlertStoryRecord = {
 export type LiveThreadRuntimePostKind =
   | "snapshot"
   | "extension"
+  | "stock_context"
   | "intelligent_alert"
+  | "level_clear_update"
   | "follow_through"
   | "continuity"
   | "follow_through_state"
   | "recap"
-  | "ai_signal_commentary";
+  | "ai_signal_commentary"
+  | "market_structure_update";
 
 export type OptionalLivePostKind = "continuity" | "follow_through_state" | "recap";
 
@@ -127,6 +136,9 @@ export type IntelligentAlertPostDecision = {
     | "range_box_chop"
     | "primary_area_lock"
     | "weak_probe_memory"
+    | "practical_area_flip_chop"
+    | "ladder_step_cooldown"
+    | "stable_structure_repeat"
     | "behavior_budget"
     | "structure_budget"
     | "material_escalation";
@@ -198,6 +210,8 @@ export type LiveThreadPostingPolicySettings = {
   intelligentAlertStructureBudgetPostLimit: number;
   intelligentAlertStructureBudgetRangePct: number;
   intelligentAlertStructureExpansionPct: number;
+  intelligentAlertLadderStepCooldownMs: number;
+  intelligentAlertLadderStepMovePct: number;
   threadStoryPhaseWindowMs: number;
   threadStoryPhaseExpansionPct: number;
   aiSignalStoryWindowMs: number;
@@ -233,6 +247,8 @@ const INTELLIGENT_ALERT_STRUCTURE_BUDGET_WINDOW_MS = 4 * 60 * 60 * 1000;
 const INTELLIGENT_ALERT_STRUCTURE_BUDGET_POST_LIMIT = 2;
 const INTELLIGENT_ALERT_STRUCTURE_BUDGET_RANGE_PCT = 0.18;
 const INTELLIGENT_ALERT_STRUCTURE_EXPANSION_PCT = 0.08;
+const INTELLIGENT_ALERT_LADDER_STEP_COOLDOWN_MS = 8 * 60 * 1000;
+const INTELLIGENT_ALERT_LADDER_STEP_MOVE_PCT = 0.08;
 const THREAD_STORY_PHASE_WINDOW_MS = 3 * 60 * 60 * 1000;
 const THREAD_STORY_PHASE_EXPANSION_PCT = 0.08;
 const AI_SIGNAL_STORY_WINDOW_MS = 45 * 60 * 1000;
@@ -268,6 +284,8 @@ const BASE_POSTING_POLICY_SETTINGS: LiveThreadPostingPolicySettings = {
   intelligentAlertStructureBudgetPostLimit: INTELLIGENT_ALERT_STRUCTURE_BUDGET_POST_LIMIT,
   intelligentAlertStructureBudgetRangePct: INTELLIGENT_ALERT_STRUCTURE_BUDGET_RANGE_PCT,
   intelligentAlertStructureExpansionPct: INTELLIGENT_ALERT_STRUCTURE_EXPANSION_PCT,
+  intelligentAlertLadderStepCooldownMs: INTELLIGENT_ALERT_LADDER_STEP_COOLDOWN_MS,
+  intelligentAlertLadderStepMovePct: INTELLIGENT_ALERT_LADDER_STEP_MOVE_PCT,
   threadStoryPhaseWindowMs: THREAD_STORY_PHASE_WINDOW_MS,
   threadStoryPhaseExpansionPct: THREAD_STORY_PHASE_EXPANSION_PCT,
   aiSignalStoryWindowMs: AI_SIGNAL_STORY_WINDOW_MS,
@@ -318,6 +336,8 @@ export function getLiveThreadPostingPolicySettings(
       intelligentAlertStructureBudgetPostLimit: 2,
       intelligentAlertStructureBudgetRangePct: 0.2,
       intelligentAlertStructureExpansionPct: 0.1,
+      intelligentAlertLadderStepCooldownMs: 10 * 60 * 1000,
+      intelligentAlertLadderStepMovePct: 0.1,
       threadStoryPhaseWindowMs: 4 * 60 * 60 * 1000,
       threadStoryPhaseExpansionPct: 0.1,
       materialAlertScoreEscalation: 20,
@@ -349,6 +369,8 @@ export function getLiveThreadPostingPolicySettings(
       intelligentAlertStructureBudgetPostLimit: 4,
       intelligentAlertStructureBudgetRangePct: 0.15,
       intelligentAlertStructureExpansionPct: 0.06,
+      intelligentAlertLadderStepCooldownMs: 5 * 60 * 1000,
+      intelligentAlertLadderStepMovePct: 0.06,
       threadStoryPhaseWindowMs: 90 * 60 * 1000,
       threadStoryPhaseExpansionPct: 0.05,
       materialAlertScoreEscalation: 10,
@@ -382,6 +404,7 @@ export function classifyLiveThreadMessage(kind: LiveThreadMessageKind | undefine
     case "follow_through_state_update":
     case "symbol_recap":
     case "ai_signal_commentary":
+    case "market_structure_update":
       return "trader_helpful_optional";
     default:
       return "operator_only";
@@ -671,7 +694,7 @@ export function decideThreadStoryPhasePost(params: {
     };
   }
 
-  if (params.materialChange || params.majorChange) {
+  if (params.materialChange) {
     return { shouldPost: true, reason: "phase_changed", phaseKey };
   }
 
@@ -1039,6 +1062,24 @@ function stableMarketStructureBudgetPostLimit(
   }
 }
 
+function isStableStructureChopState(state: CandleMarketStructureState | undefined): boolean {
+  return (
+    state === "range_bound" ||
+    state === "base_building" ||
+    state === "pullback_to_structure"
+  );
+}
+
+function stableStructureRepeatPostLimit(
+  state: CandleMarketStructureState | undefined,
+  settings: LiveThreadPostingPolicySettings,
+): number {
+  if (state === "range_bound") {
+    return Math.max(1, settings.intelligentAlertStructureBudgetPostLimit - 1);
+  }
+  return Math.max(1, settings.intelligentAlertStructureBudgetPostLimit);
+}
+
 function isNearLevel(left: number, right: number, tolerancePct: number): boolean {
   const baseline = Math.max(Math.abs(left), Math.abs(right), 0.0001);
   return Math.abs(left - right) / baseline <= tolerancePct;
@@ -1167,6 +1208,25 @@ function hasMaterialStableMarketStructureTransition(params: {
   );
 }
 
+function hasMaterialFormalStructureTransition(params: {
+  previousKeys: Array<string | undefined>;
+  nextKey?: string;
+  eventType?: FormalStructureEventType;
+  materialChange?: boolean;
+}): boolean {
+  if (params.materialChange === true) {
+    return true;
+  }
+  if (!params.nextKey || !params.eventType || params.eventType === "none") {
+    return false;
+  }
+  return !params.previousKeys.includes(params.nextKey);
+}
+
+function recordFormalStructureKey(record: IntelligentAlertStoryRecord): string | undefined {
+  return record.selectedFormalStructureKey ?? record.formalStructureKey;
+}
+
 function effectiveStructureBudget(params: {
   practicalState?: PracticalTradeStructureState;
   stableState?: CandleMarketStructureState;
@@ -1204,6 +1264,12 @@ export function decideIntelligentAlertPost(params: {
   stableMarketStructureState?: CandleMarketStructureState;
   stableMarketStructureKey?: string;
   stableMarketStructureMaterialChange?: boolean;
+  formalStructureEventType?: FormalStructureEventType;
+  formalStructureKey?: string;
+  formalStructureMaterialChange?: boolean;
+  selectedFormalStructureEventType?: FormalStructureEventType;
+  selectedFormalStructureKey?: string;
+  selectedFormalStructureMaterialChange?: boolean;
   tradeStoryState?: TradeStoryState;
   rangeBoxLabel?: RangeBoxLabel;
   acceptanceLabel?: AcceptanceLabel;
@@ -1213,11 +1279,16 @@ export function decideIntelligentAlertPost(params: {
   primaryTradeAreaEscapeConfidence?: "none" | "testing" | "accepted";
   failedLevelOutcome?: FailedLevelMemoryOutcome;
   levelImportanceLabel?: LevelImportanceLabel;
+  ladderStepUpdate?: boolean;
   settings?: LiveThreadPostingPolicySettings;
 }): IntelligentAlertPostDecision {
   const settings = params.settings ?? getLiveThreadPostingPolicySettings();
   const storyKey = buildIntelligentAlertStoryKey(params);
   const zoneKey = buildIntelligentAlertZoneKey(params);
+  const formalStructureEventType = params.selectedFormalStructureEventType ?? params.formalStructureEventType;
+  const formalStructureKey = params.selectedFormalStructureKey ?? params.formalStructureKey;
+  const formalStructureMaterialChange =
+    params.selectedFormalStructureMaterialChange ?? params.formalStructureMaterialChange;
   const matchingStory = params.records
     .filter(
       (record) =>
@@ -1226,17 +1297,146 @@ export function decideIntelligentAlertPost(params: {
     )
     .sort((left, right) => right.postedAt - left.postedAt)[0];
 
+  if (
+    params.eventType === "breakdown" &&
+    params.practicalStructureState === "support_failing" &&
+    params.practicalZoneKey !== undefined &&
+    params.acceptanceLabel !== "accepted" &&
+    (
+      params.acceptanceLabel === "weak_probe" ||
+      params.acceptanceLabel === "testing" ||
+      params.failedLevelOutcome === "probe_only" ||
+      params.failedLevelOutcome === "testing" ||
+      params.rangeBoxLabel === "active" ||
+      params.behaviorBudgetLabel === "boring_range"
+    )
+  ) {
+    const latestWeakSupportFailure = params.records
+      .filter(
+        (record) =>
+          record.eventType === "breakdown" &&
+          record.practicalStructureState === "support_failing" &&
+          record.practicalZoneKey === params.practicalZoneKey &&
+          record.acceptanceLabel !== "accepted" &&
+          params.timestamp - record.postedAt >= 0 &&
+          params.timestamp - record.postedAt <= settings.intelligentAlertSameStoryCooldownMs,
+      )
+      .sort((left, right) => right.postedAt - left.postedAt)[0];
+
+    if (latestWeakSupportFailure) {
+      const materialMovePct = materialZoneReversalMovePctForPrice(
+        Math.max(Math.abs(params.triggerPrice), Math.abs(latestWeakSupportFailure.triggerPrice), 0.0001),
+        settings,
+      ) / 100;
+      const expandedLower =
+        params.triggerPrice <
+        latestWeakSupportFailure.triggerPrice * (1 - materialMovePct);
+
+      if (expandedLower) {
+        return { shouldPost: true, reason: "material_escalation", storyKey, zoneKey };
+      }
+
+      if (
+        params.stableMarketStructureMaterialChange !== true &&
+        formalStructureMaterialChange !== true
+      ) {
+        return { shouldPost: false, reason: "same_story_not_material", storyKey, zoneKey };
+      }
+    }
+  }
+
   if (matchingStory && params.timestamp - matchingStory.postedAt <= settings.intelligentAlertSameStoryCooldownMs) {
     const scoreEscalated =
       typeof params.score === "number" &&
       typeof matchingStory.score === "number" &&
       params.score - matchingStory.score >= settings.materialAlertScoreEscalation;
     const severityEscalated = severityRank(params.severity) > severityRank(matchingStory.severity);
-    if (scoreEscalated || severityEscalated) {
+    const triggerMovePct = Math.abs((params.triggerPrice - matchingStory.triggerPrice) / Math.max(Math.abs(matchingStory.triggerPrice), 0.0001));
+    const materialMovePct = materialZoneReversalMovePctForPrice(
+      Math.max(Math.abs(params.triggerPrice), Math.abs(matchingStory.triggerPrice), 0.0001),
+      settings,
+    ) / 100;
+    const materialEscalation =
+      formalStructureMaterialChange === true ||
+      (scoreEscalated || severityEscalated) &&
+      (
+        triggerMovePct >= materialMovePct ||
+        params.practicalStructureMaterialChange === true ||
+        params.stableMarketStructureMaterialChange === true ||
+        (
+          params.acceptanceLabel === "accepted" &&
+          matchingStory.acceptanceLabel !== "accepted"
+        )
+      );
+    if (materialEscalation) {
       return { shouldPost: true, reason: "material_escalation", storyKey, zoneKey };
     }
 
     return { shouldPost: false, reason: "same_story_cooldown", storyKey, zoneKey };
+  }
+
+  if (
+    params.ladderStepUpdate === true &&
+    params.acceptanceLabel !== "accepted" &&
+    params.levelImportanceLabel !== "major_decision" &&
+    !params.practicalStructureMaterialChange &&
+    !params.stableMarketStructureMaterialChange &&
+    !formalStructureMaterialChange
+  ) {
+    const latestSameDirection = params.records
+      .filter(
+        (record) =>
+          record.eventType === params.eventType &&
+          params.timestamp - record.postedAt >= 0 &&
+          params.timestamp - record.postedAt <= settings.intelligentAlertLadderStepCooldownMs,
+      )
+      .sort((left, right) => right.postedAt - left.postedAt)[0];
+    if (latestSameDirection) {
+      const movePct = Math.abs(
+        (params.triggerPrice - latestSameDirection.triggerPrice) /
+          Math.max(Math.abs(latestSameDirection.triggerPrice), 0.0001),
+      );
+      if (movePct < settings.intelligentAlertLadderStepMovePct) {
+        return { shouldPost: false, reason: "ladder_step_cooldown", storyKey, zoneKey };
+      }
+    }
+  }
+
+  if (
+    params.practicalZoneKey !== undefined &&
+    params.acceptanceLabel !== "accepted" &&
+    params.levelImportanceLabel !== "major_decision" &&
+    !params.practicalStructureMaterialChange &&
+    !params.stableMarketStructureMaterialChange &&
+    (
+      params.rangeBoxLabel === "active" ||
+      params.behaviorBudgetLabel === "boring_range" ||
+      isStableStructureChopState(params.stableMarketStructureState)
+    )
+  ) {
+    const recentSamePracticalArea = params.records.filter(
+      (record) =>
+        record.practicalZoneKey === params.practicalZoneKey &&
+        record.acceptanceLabel !== "accepted" &&
+        record.levelImportanceLabel !== "major_decision" &&
+        params.timestamp - record.postedAt >= 0 &&
+        params.timestamp - record.postedAt <= settings.intelligentAlertStructureBudgetWindowMs,
+    );
+    const hasOppositeStory = recentSamePracticalArea.some((record) => record.eventType !== params.eventType);
+    const hasSameEventExplained = recentSamePracticalArea.some((record) => record.eventType === params.eventType);
+    const practicalAreaExpanded = hasExpandedOutsidePriorRange(
+      recentSamePracticalArea,
+      params.triggerPrice,
+      settings.intelligentAlertStructureExpansionPct,
+    );
+    if (
+      recentSamePracticalArea.length >= 2 &&
+      hasOppositeStory &&
+      hasSameEventExplained &&
+      !practicalAreaExpanded
+    ) {
+      return { shouldPost: false, reason: "practical_area_flip_chop", storyKey, zoneKey };
+    }
   }
 
   if (matchingStory) {
@@ -1248,6 +1448,12 @@ export function decideIntelligentAlertPost(params: {
     const structureChanged =
       params.practicalStructureMaterialChange === true ||
       params.stableMarketStructureMaterialChange === true ||
+      formalStructureMaterialChange === true ||
+      hasMaterialFormalStructureTransition({
+        previousKeys: [recordFormalStructureKey(matchingStory)],
+        nextKey: formalStructureKey,
+        eventType: formalStructureEventType,
+      }) ||
       (
         params.practicalStructureState !== undefined &&
         matchingStory.practicalStructureState !== undefined &&
@@ -1322,6 +1528,11 @@ export function decideIntelligentAlertPost(params: {
       previousStates: recentRange.map((record) => record.stableMarketStructureState),
       nextState: params.stableMarketStructureState,
       materialChange: params.stableMarketStructureMaterialChange,
+    }) || hasMaterialFormalStructureTransition({
+      previousKeys: recentRange.map(recordFormalStructureKey),
+      nextKey: formalStructureKey,
+      eventType: formalStructureEventType,
+      materialChange: formalStructureMaterialChange,
     });
     if (
       recentRange.length >= rangeChopPostLimit &&
@@ -1341,7 +1552,8 @@ export function decideIntelligentAlertPost(params: {
     params.rangeBoxLabel === "active" &&
     (params.acceptanceLabel === "weak_probe" || params.acceptanceLabel === "testing") &&
     !params.practicalStructureMaterialChange &&
-    !params.stableMarketStructureMaterialChange
+    !params.stableMarketStructureMaterialChange &&
+    !formalStructureMaterialChange
   ) {
     const recentBox = params.records.filter(
       (record) =>
@@ -1362,7 +1574,8 @@ export function decideIntelligentAlertPost(params: {
     params.primaryTradeAreaLocked === true &&
     (params.acceptanceLabel === "weak_probe" || params.acceptanceLabel === "testing") &&
     !params.practicalStructureMaterialChange &&
-    !params.stableMarketStructureMaterialChange
+    !params.stableMarketStructureMaterialChange &&
+    !formalStructureMaterialChange
   ) {
     const recentLockedArea = params.records.filter(
       (record) =>
@@ -1385,7 +1598,8 @@ export function decideIntelligentAlertPost(params: {
     params.acceptanceLabel !== "accepted" &&
     params.levelImportanceLabel !== "major_decision" &&
     !params.practicalStructureMaterialChange &&
-    !params.stableMarketStructureMaterialChange
+    !params.stableMarketStructureMaterialChange &&
+    !formalStructureMaterialChange
   ) {
     const recentSameArea = params.records.filter(
       (record) =>
@@ -1417,7 +1631,8 @@ export function decideIntelligentAlertPost(params: {
     params.acceptanceLabel !== "accepted" &&
     params.levelImportanceLabel !== "major_decision" &&
     !params.practicalStructureMaterialChange &&
-    !params.stableMarketStructureMaterialChange
+    !params.stableMarketStructureMaterialChange &&
+    !formalStructureMaterialChange
   ) {
     const recentProbe = params.records.filter(
       (record) =>
@@ -1429,6 +1644,59 @@ export function decideIntelligentAlertPost(params: {
     );
     if (recentProbe.length >= 1) {
       return { shouldPost: false, reason: "weak_probe_memory", storyKey, zoneKey };
+    }
+  }
+
+  if (
+    isStableStructureChopState(params.stableMarketStructureState) &&
+    params.stableMarketStructureKey !== undefined &&
+    params.stableMarketStructureMaterialChange !== true &&
+    formalStructureMaterialChange !== true &&
+    params.acceptanceLabel !== "accepted"
+  ) {
+    const recentStableSameStructure = params.records.filter(
+      (record) =>
+        record.stableMarketStructureState === params.stableMarketStructureState &&
+        record.stableMarketStructureKey === params.stableMarketStructureKey &&
+        params.timestamp - record.postedAt >= 0 &&
+        params.timestamp - record.postedAt <= settings.intelligentAlertStructureBudgetWindowMs &&
+        (
+          params.practicalZoneKey !== undefined && record.practicalZoneKey !== undefined
+            ? params.practicalZoneKey === record.practicalZoneKey
+            : true
+        ),
+    );
+    const stableLimit = stableStructureRepeatPostLimit(params.stableMarketStructureState, settings);
+    const latestStable = [...recentStableSameStructure].sort((left, right) => right.postedAt - left.postedAt)[0];
+    const stableStructureExpanded =
+      recentStableSameStructure.length > 0 &&
+      hasExpandedOutsidePriorRange(
+        recentStableSameStructure,
+        params.triggerPrice,
+        settings.intelligentAlertStructureExpansionPct,
+      );
+    const scoreEscalated =
+      latestStable !== undefined &&
+      typeof params.score === "number" &&
+      typeof latestStable.score === "number" &&
+      params.score - latestStable.score >= settings.materialAlertScoreEscalation;
+    const severityEscalated =
+      latestStable !== undefined &&
+      severityRank(params.severity) > severityRank(latestStable.severity);
+    const isMajorDecision = params.levelImportanceLabel === "major_decision";
+    const isHighConvictionDirectional =
+      (params.eventType === "breakout" || params.eventType === "breakdown" || params.eventType === "reclaim") &&
+      severityRank(params.severity) >= severityRank("critical");
+
+    if (
+      recentStableSameStructure.length >= stableLimit &&
+      !stableStructureExpanded &&
+      !scoreEscalated &&
+      !severityEscalated &&
+      !isHighConvictionDirectional &&
+      (!isMajorDecision || params.behaviorBudgetLabel === "boring_range" || params.rangeBoxLabel === "active")
+    ) {
+      return { shouldPost: false, reason: "stable_structure_repeat", storyKey, zoneKey };
     }
   }
 
@@ -1469,6 +1737,11 @@ export function decideIntelligentAlertPost(params: {
       previousStates: recentStructure.map((record) => record.stableMarketStructureState),
       nextState: params.stableMarketStructureState,
       materialChange: params.stableMarketStructureMaterialChange,
+    }) || hasMaterialFormalStructureTransition({
+      previousKeys: recentStructure.map(recordFormalStructureKey),
+      nextKey: formalStructureKey,
+      eventType: formalStructureEventType,
+      materialChange: formalStructureMaterialChange,
     });
 
     if (
@@ -1490,7 +1763,8 @@ export function decideIntelligentAlertPost(params: {
     const hasAcceptedChange =
       params.acceptanceLabel === "accepted" ||
       params.practicalStructureMaterialChange === true ||
-      params.stableMarketStructureMaterialChange === true;
+      params.stableMarketStructureMaterialChange === true ||
+      formalStructureMaterialChange === true;
     if (recentBoringRange.length >= 3 && !hasAcceptedChange) {
       return { shouldPost: false, reason: "behavior_budget", storyKey, zoneKey };
     }
@@ -1521,6 +1795,11 @@ export function decideIntelligentAlertPost(params: {
       previousStates: recentPracticalArea.map((record) => record.stableMarketStructureState),
       nextState: params.stableMarketStructureState,
       materialChange: params.stableMarketStructureMaterialChange,
+    }) || hasMaterialFormalStructureTransition({
+      previousKeys: recentPracticalArea.map(recordFormalStructureKey),
+      nextKey: formalStructureKey,
+      eventType: formalStructureEventType,
+      materialChange: formalStructureMaterialChange,
     });
     const latestPracticalArea = [...recentPracticalArea].sort((left, right) => right.postedAt - left.postedAt)[0];
     const materialMovePct = latestPracticalArea
@@ -1558,6 +1837,12 @@ export function buildIntelligentAlertStoryRecord(params: {
   practicalZoneKey?: string;
   stableMarketStructureState?: CandleMarketStructureState;
   stableMarketStructureKey?: string;
+  formalStructureEventType?: FormalStructureEventType;
+  formalStructureKey?: string;
+  formalStructureMaterialChange?: boolean;
+  selectedFormalStructureEventType?: FormalStructureEventType;
+  selectedFormalStructureKey?: string;
+  selectedFormalStructureMaterialChange?: boolean;
   tradeStoryState?: TradeStoryState;
   rangeBoxLabel?: RangeBoxLabel;
   acceptanceLabel?: AcceptanceLabel;
@@ -1580,6 +1865,12 @@ export function buildIntelligentAlertStoryRecord(params: {
     practicalZoneKey: params.practicalZoneKey,
     stableMarketStructureState: params.stableMarketStructureState,
     stableMarketStructureKey: params.stableMarketStructureKey,
+    formalStructureEventType: params.formalStructureEventType,
+    formalStructureKey: params.formalStructureKey,
+    formalStructureMaterialChange: params.formalStructureMaterialChange,
+    selectedFormalStructureEventType: params.selectedFormalStructureEventType,
+    selectedFormalStructureKey: params.selectedFormalStructureKey,
+    selectedFormalStructureMaterialChange: params.selectedFormalStructureMaterialChange,
     tradeStoryState: params.tradeStoryState,
     rangeBoxLabel: params.rangeBoxLabel,
     acceptanceLabel: params.acceptanceLabel,
@@ -1613,6 +1904,21 @@ export function decideCriticalLivePost(params: {
 
   if (recentCritical.length >= settings.criticalBurstLimit || extendedCritical.length >= settings.criticalExtendedBurstLimit) {
     return { shouldPost: false, reason: "critical_burst" };
+  }
+
+  if (params.kind === "follow_through") {
+    const recentTriggeringAlert = recentCritical.find(
+      (entry) =>
+        (entry.kind === "intelligent_alert" || entry.kind === "level_clear_update") &&
+        (params.eventType === null ||
+          params.eventType === undefined ||
+          entry.eventType === null ||
+          entry.eventType === params.eventType) &&
+        params.timestamp - entry.timestamp <= 2 * 60 * 1000,
+    );
+    if (recentTriggeringAlert) {
+      return { shouldPost: false, reason: "critical_kind_burst" };
+    }
   }
 
   if (params.majorChange) {
@@ -1822,6 +2128,14 @@ export function decideOptionalLivePost(params: {
 
   if (params.deliveryBackoffActive) {
     return { shouldPost: false, reason: "delivery_backoff" };
+  }
+
+  if (
+    recentCritical >= 3 &&
+    !params.majorChange &&
+    (params.kind === "recap" || params.kind === "continuity" || params.kind === "follow_through_state")
+  ) {
+    return { shouldPost: false, reason: "optional_density" };
   }
 
   if (params.kind === "continuity" && !params.majorChange && !settings.allowMinorContinuity) {
