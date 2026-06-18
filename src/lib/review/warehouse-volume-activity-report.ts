@@ -215,12 +215,47 @@ function walkJsonFiles(directoryPath: string): string[] {
   return output;
 }
 
+function walkJsonlFiles(directoryPath: string): string[] {
+  if (!existsSync(directoryPath)) {
+    return [];
+  }
+  const output: string[] = [];
+  for (const entry of readdirSync(directoryPath, { withFileTypes: true })) {
+    const path = join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      output.push(...walkJsonlFiles(path));
+    } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+      output.push(path);
+    }
+  }
+  return output;
+}
+
 function parseCacheEntry(path: string): CachedCandleEntry | null {
   try {
     return JSON.parse(readFileSync(path, "utf8")) as CachedCandleEntry;
   } catch {
     return null;
   }
+}
+
+function readWarehouseCandles(path: string): Candle[] {
+  return readFileSync(path, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line) as Candle];
+      } catch {
+        return [];
+      }
+    })
+    .filter((candle) =>
+      [candle.timestamp, candle.open, candle.high, candle.low, candle.close, candle.volume].every(
+        (value) => typeof value === "number" && Number.isFinite(value),
+      ),
+    );
 }
 
 function extractCandles(entry: CachedCandleEntry | null): Candle[] {
@@ -241,6 +276,11 @@ function loadFiveMinuteCandles(params: {
   const byTimestamp = new Map<number, Candle>();
   for (const path of walkJsonFiles(directoryPath)) {
     for (const candle of extractCandles(parseCacheEntry(path))) {
+      byTimestamp.set(candle.timestamp, candle);
+    }
+  }
+  for (const path of walkJsonlFiles(directoryPath)) {
+    for (const candle of readWarehouseCandles(path)) {
       byTimestamp.set(candle.timestamp, candle);
     }
   }

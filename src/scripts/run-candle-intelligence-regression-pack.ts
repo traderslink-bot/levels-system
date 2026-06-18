@@ -11,7 +11,7 @@ function argValue(flag: string): string | undefined {
 
 function positionalArgs(): string[] {
   const values: string[] = [];
-  const flagsWithValues = new Set(["--out-dir", "--cache", "--provider", "--max-cases-per-type"]);
+  const flagsWithValues = new Set(["--out-dir", "--cache", "--warehouse", "--provider", "--max-cases-per-type"]);
   for (let index = 2; index < process.argv.length; index += 1) {
     const arg = process.argv[index];
     if (arg.startsWith("--")) {
@@ -52,6 +52,7 @@ const outDir = argValue("--out-dir") ?? (
 const pack = await writeCandleIntelligenceRegressionPack({
   auditPath: allSessions ? "artifacts/long-run" : input,
   cacheDirectoryPath: argValue("--cache") ?? ".validation-cache/candles",
+  warehouseDirectoryPath: argValue("--warehouse"),
   provider: (argValue("--provider") ?? "ibkr") as CandleProviderName,
   maxCasesPerType: numberArg("--max-cases-per-type"),
   jsonPath: join(outDir, "candle-intelligence-regression-pack.json"),
@@ -59,5 +60,5 @@ const pack = await writeCandleIntelligenceRegressionPack({
 });
 
 console.log(
-  `Candle intelligence regression pack: cases=${pack.totals.cases}, weakSnapshots=${pack.totals.weakFirstSnapshot}, volumeHide=${pack.totals.volumeShouldHide}, executionMissing=${pack.totals.executionRelationMissingEvidence}.`,
+  `Candle intelligence regression pack: cases=${pack.totals.cases}, weakSnapshots=${pack.totals.weakFirstSnapshot}, volumeHide=${pack.totals.volumeShouldHide}, quietMayHide=${pack.totals.quietMayHideMove}, runtimeFeedSilence=${pack.totals.runtimeFeedSilence}, executionMissing=${pack.totals.executionRelationMissingEvidence}.`,
 );

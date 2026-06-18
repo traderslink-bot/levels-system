@@ -6,6 +6,7 @@ import {
   StubHistoricalCandleProvider,
 } from "../lib/market-data/candle-fetch-service.js";
 import { buildCandleSessionSummary } from "../lib/market-data/candle-session-classifier.js";
+import { createValidationIbkrClient } from "../scripts/shared/ibkr-runtime.js";
 
 test("CandleFetchService returns the requested number of stub candles", async () => {
   const service = new CandleFetchService(new StubHistoricalCandleProvider());
@@ -56,6 +57,18 @@ test("CandleFetchService rejects non-positive lookbackBars", async () => {
       }),
     /lookbackBars must be greater than zero\./,
   );
+});
+
+test("CandleFetchService passes IBKR historical timeout through provider options", () => {
+  const ib = createValidationIbkrClient();
+  const service = new CandleFetchService({
+    providerName: "ibkr",
+    ib,
+    ibkrTimeoutMs: 60_000,
+  });
+
+  assert.equal((service as any).provider.timeoutMs, 60_000);
+  ib.disconnect();
 });
 
 test("buildCandleSessionSummary classifies intraday candles into market sessions", () => {

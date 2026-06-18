@@ -1,4 +1,8 @@
-import { CandleFetchService, type CandleFetchServiceOptions } from "../market-data/candle-fetch-service.js";
+import {
+  CandleFetchService,
+  StubHistoricalCandleProvider,
+  type CandleFetchServiceOptions,
+} from "../market-data/candle-fetch-service.js";
 import type { HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import {
   DurableCandleWarehouse,
@@ -24,16 +28,40 @@ export type WarehouseBackedSharedContextOptions = {
   preferredProvider?: HistoricalFetchRequest["preferredProvider"];
 };
 
+function hasExplicitProvider(options: WarehouseBackedSharedContextOptions): boolean {
+  return Boolean(
+    options.fetchServiceOptions?.provider ||
+      options.fetchServiceOptions?.ib,
+  );
+}
+
+function defaultProvider(options: WarehouseBackedSharedContextOptions): HistoricalFetchRequest["preferredProvider"] {
+  return hasExplicitProvider(options)
+    ? options.preferredProvider
+    : options.preferredProvider ?? "ibkr";
+}
+
+function defaultMode(options: WarehouseBackedSharedContextOptions): DurableCandleWarehouseFetchServiceOptions["mode"] {
+  if (options.mode) {
+    return options.mode;
+  }
+  return hasExplicitProvider(options) ? "read_write" : "replay";
+}
+
 function buildWarehouseFetchService(options: WarehouseBackedSharedContextOptions = {}): DurableCandleWarehouseFetchService {
   const warehouse = options.warehouse ?? new DurableCandleWarehouse(options.warehouseDirectoryPath ?? "data/candles");
-  const delegate = new CandleFetchService({
-    ...options.fetchServiceOptions,
-    providerName: options.preferredProvider ?? options.fetchServiceOptions?.providerName,
-  });
+  const provider = defaultProvider(options);
+  const mode = defaultMode(options);
+  const delegate = hasExplicitProvider(options)
+    ? new CandleFetchService({
+        ...options.fetchServiceOptions,
+        providerName: provider ?? options.fetchServiceOptions?.providerName,
+      })
+    : new CandleFetchService(new StubHistoricalCandleProvider());
   return new DurableCandleWarehouseFetchService({
     warehouse,
     delegate,
-    mode: options.mode ?? "read_write",
+    mode,
   });
 }
 
@@ -45,7 +73,7 @@ export async function buildWarehouseBackedSupportResistanceContextForSymbol(
   return buildSupportResistanceContextForSymbol({
     ...request,
     fetchService,
-    preferredProvider: request.preferredProvider,
+    preferredProvider: defaultProvider(request),
   });
 }
 
@@ -54,7 +82,6 @@ export async function buildDefaultSupportResistanceContextForSymbol(
     WarehouseBackedSharedContextOptions,
 ): Promise<SupportResistanceSymbolContext> {
   return buildWarehouseBackedSupportResistanceContextForSymbol({
-    mode: "read_write",
     warehouseDirectoryPath: "data/candles",
     ...request,
   });
@@ -68,7 +95,7 @@ export async function buildWarehouseBackedTradeAnalysisCandleContext(
   return buildTradeAnalysisCandleContext({
     ...request,
     fetchService,
-    preferredProvider: request.preferredProvider,
+    preferredProvider: defaultProvider(request),
   });
 }
 
@@ -77,7 +104,6 @@ export async function buildDefaultTradeAnalysisCandleContext(
     WarehouseBackedSharedContextOptions,
 ): Promise<TradeAnalysisCandleContext> {
   return buildWarehouseBackedTradeAnalysisCandleContext({
-    mode: "read_write",
     warehouseDirectoryPath: "data/candles",
     ...request,
   });

@@ -11,7 +11,7 @@ function argValue(flag: string): string | undefined {
 
 function positionalArgs(): string[] {
   const values: string[] = [];
-  const flagsWithValues = new Set(["--out-dir", "--cache", "--provider", "--max-drift-minutes"]);
+  const flagsWithValues = new Set(["--out-dir", "--cache", "--warehouse", "--provider", "--max-drift-minutes"]);
   for (let index = 2; index < process.argv.length; index += 1) {
     const arg = process.argv[index];
     if (arg.startsWith("--")) {
@@ -48,7 +48,7 @@ const input = positionalArgs()[0] ?? latestLongRunSession();
 const outDir = argValue("--out-dir") ?? (input.endsWith(".jsonl") ? "artifacts/warehouse-volume-activity" : input);
 const report = writeWarehouseVolumeActivityReport({
   auditPath: process.argv.includes("--all-sessions") ? "artifacts/long-run" : input,
-  cacheDirectoryPath: argValue("--cache") ?? ".validation-cache/candles",
+  cacheDirectoryPath: argValue("--warehouse") ?? argValue("--cache") ?? ".validation-cache/candles",
   provider: (argValue("--provider") ?? "ibkr") as CandleProviderName,
   maxTimestampDriftMinutes: numberArg("--max-drift-minutes"),
   jsonPath: join(outDir, "warehouse-volume-activity-report.json"),

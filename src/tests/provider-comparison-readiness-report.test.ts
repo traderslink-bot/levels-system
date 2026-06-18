@@ -51,7 +51,7 @@ function writeCache(params: {
 
 test("provider comparison readiness compares cached provider candle drift", async () => {
   const root = mkdtempSync(join(tmpdir(), "provider-compare-"));
-  for (const provider of ["ibkr", "twelve_data"] as CandleProviderName[]) {
+  for (const provider of ["ibkr", "stub"] as CandleProviderName[]) {
     const offset = provider === "ibkr" ? 0 : 0.02;
     writeCache({
       root,
@@ -79,7 +79,7 @@ test("provider comparison readiness compares cached provider candle drift", asyn
   const report = await generateProviderComparisonReadinessReport({
     cacheDirectoryPath: root,
     primaryProvider: "ibkr",
-    comparisonProvider: "twelve_data",
+    comparisonProvider: "stub",
     symbols: ["PCMP"],
     timeframes: ["daily", "4h", "5m"],
   });
@@ -87,7 +87,10 @@ test("provider comparison readiness compares cached provider candle drift", asyn
   assert.equal(report.totals.symbolsCompared, 1);
   assert.equal(report.totals.bothAvailable, 3);
   assert.equal(report.symbols[0]?.levelComparison.status, "compared");
+  assert.equal(report.symbols[0]?.structureComparison.status, "compared");
   assert.ok((report.symbols[0]?.timeframeComparisons.find((comparison) => comparison.timeframe === "5m")?.latestCloseDriftPct ?? 0) > 0);
+  assert.equal(typeof report.symbols[0]?.timeframeComparisons.find((comparison) => comparison.timeframe === "5m")?.averageVolumeDriftPct, "number");
+  assert.equal(typeof report.symbols[0]?.timeframeComparisons.find((comparison) => comparison.timeframe === "5m")?.latestTimestampDriftMinutes, "number");
 });
 
 test("provider comparison readiness writer creates JSON and markdown reports", async () => {
@@ -103,13 +106,17 @@ test("provider comparison readiness writer creates JSON and markdown reports", a
   const report = await writeProviderComparisonReadinessReport({
     cacheDirectoryPath: root,
     primaryProvider: "ibkr",
-    comparisonProvider: "twelve_data",
+    comparisonProvider: "stub",
     timeframes: ["5m"],
     jsonPath: join(root, "out", "report.json"),
     markdownPath: join(root, "out", "report.md"),
   });
 
   assert.equal(report.totals.primaryOnly, 1);
+  assert.ok(report.totals.providerMissingBehaviorCount > 0);
+  assert.ok(report.symbols[0]?.timeframeComparisons[0]?.missingBehavior.some((reason) => /missing 5m candles/i.test(reason)));
   assert.ok(existsSync(join(root, "out", "report.json")));
   assert.match(readFileSync(join(root, "out", "report.md"), "utf8"), /Provider Comparison Readiness/);
+  assert.match(readFileSync(join(root, "out", "report.md"), "utf8"), /Market Structure Comparison/);
+  assert.match(readFileSync(join(root, "out", "report.md"), "utf8"), /Missing \/ Stale Provider Behavior/);
 });

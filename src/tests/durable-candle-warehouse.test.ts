@@ -14,6 +14,7 @@ import {
   planWarehouseMissingCandleBackfill,
   StubHistoricalCandleProvider,
   type Candle,
+  type CandleProviderResponse,
 } from "../lib/support-resistance/index.js";
 
 function candle(timestamp: number, close = 1): Candle {
@@ -126,6 +127,208 @@ test("DurableCandleWarehouseFetchService writes through and replays stored candl
   assert.equal(cached.actualBarsReturned, 12);
   assert.equal(cached.providerMetadata?.durableWarehouse, "read");
   assert.equal(cached.providerMetadata?.cacheStatus, "hit");
+  assert.equal(cached.providerMetadata?.warehouseAdjustmentMode, "raw");
+  assert.equal(cached.providerMetadata?.warehouseBasisValidationStatus, "basis_unchecked");
+});
+
+test("DurableCandleWarehouseFetchService reuses short but usable provider history in read_write mode", async () => {
+  const warehouse = new DurableCandleWarehouse(mkdtempSync(join(tmpdir(), "durable-candles-partial-history-")));
+  const endTimeMs = Date.UTC(2026, 4, 1, 16, 0, 0);
+  const start = endTimeMs - 3 * 24 * 60 * 60_000;
+  let fetchCount = 0;
+  const partialResponse: CandleProviderResponse = {
+    provider: "ibkr",
+    symbol: "YOUNG",
+    timeframe: "daily",
+    requestedLookbackBars: 10,
+    candles: [
+      candle(start, 1.2),
+      candle(start + 24 * 60 * 60_000, 1.25),
+      candle(start + 2 * 24 * 60 * 60_000, 1.3),
+    ],
+    fetchStartTimestamp: endTimeMs + 1000,
+    fetchEndTimestamp: endTimeMs + 2000,
+    requestedStartTimestamp: endTimeMs - 10 * 24 * 60 * 60_000,
+    requestedEndTimestamp: endTimeMs,
+    actualBarsReturned: 3,
+    completenessStatus: "partial",
+    stale: false,
+    validationIssues: [
+      {
+        code: "insufficient_bars",
+        severity: "warning",
+        message: "Requested 10 bars but received 3.",
+      },
+    ],
+    sessionSummary: null,
+    sessionMetadataAvailable: false,
+    providerMetadata: {
+      whatToShow: "TRADES",
+      useRTH: false,
+      providerAdjustmentMode: "raw",
+    },
+  };
+  const service = new DurableCandleWarehouseFetchService({
+    warehouse,
+    delegate: {
+      getProviderName: () => "ibkr",
+      fetchCandles: async () => {
+        fetchCount += 1;
+        if (fetchCount > 1) {
+          throw new Error("read_write should reuse short but usable provider history");
+        }
+        return partialResponse;
+      },
+    },
+    mode: "read_write",
+  });
+
+  const first = await service.fetchCandles({
+    symbol: "YOUNG",
+    timeframe: "daily",
+    lookbackBars: 10,
+    endTimeMs,
+    preferredProvider: "ibkr",
+  });
+  const cached = await service.fetchCandles({
+    symbol: "YOUNG",
+    timeframe: "daily",
+    lookbackBars: 10,
+    endTimeMs,
+    preferredProvider: "ibkr",
+  });
+
+  assert.equal(first.providerMetadata?.durableWarehouse, "write_through");
+  assert.equal(cached.actualBarsReturned, 3);
+  assert.equal(cached.providerMetadata?.durableWarehouse, "read");
+  assert.equal(cached.providerMetadata?.cacheStatus, "provider_partial_hit");
+  assert.equal(cached.providerMetadata?.warehouseCompletenessStatus, "partial");
+  assert.equal(cached.providerMetadata?.warehouseValidationIssueCodes, "insufficient_bars");
+  assert.equal(fetchCount, 1);
+});
+
+test("DurableCandleWarehouseFetchService preserves provider candle basis metadata on replay", async () => {
+  const warehouse = new DurableCandleWarehouse(mkdtempSync(join(tmpdir(), "durable-candles-basis-metadata-")));
+  const endTimeMs = Date.UTC(2026, 4, 1, 16, 0, 0);
+  const start = endTimeMs - 2 * 5 * 60_000;
+  const delegate = {
+    getProviderName: () => "ibkr" as const,
+    fetchCandles: async () => ({
+      provider: "ibkr" as const,
+      symbol: "BASIS",
+      timeframe: "5m" as const,
+      requestedLookbackBars: 3,
+      candles: [
+        candle(start, 1.2),
+        candle(start + 5 * 60_000, 1.25),
+        candle(endTimeMs, 1.3),
+      ],
+      fetchStartTimestamp: endTimeMs + 1000,
+      fetchEndTimestamp: endTimeMs + 2000,
+      requestedStartTimestamp: start,
+      requestedEndTimestamp: endTimeMs,
+      actualBarsReturned: 3,
+      completenessStatus: "complete" as const,
+      stale: false,
+      validationIssues: [],
+      sessionSummary: null,
+      sessionMetadataAvailable: true,
+      providerMetadata: {
+        ibkrRequestedSymbol: "BASIS",
+        ibkrResolvedSymbol: "BASIS",
+        ibkrResolvedConId: 123456,
+        ibkrResolvedExchange: "SMART",
+        ibkrResolvedPrimaryExchange: "NASDAQ",
+        ibkrContractAliasUsed: false,
+        ibkrHistoricalAliasReason: null,
+        whatToShow: "TRADES",
+        useRTH: false,
+        providerAdjustmentMode: "raw",
+      },
+    }),
+  };
+
+  const writer = new DurableCandleWarehouseFetchService({
+    warehouse,
+    delegate,
+    mode: "refresh",
+  });
+  await writer.fetchCandles({
+    symbol: "BASIS",
+    timeframe: "5m",
+    lookbackBars: 3,
+    endTimeMs,
+    preferredProvider: "ibkr",
+  });
+
+  const replay = new DurableCandleWarehouseFetchService({
+    warehouse,
+    delegate: {
+      getProviderName: () => "ibkr",
+      fetchCandles: async () => {
+        throw new Error("replay should not fetch");
+      },
+    },
+    mode: "replay",
+  });
+  const cached = await replay.fetchCandles({
+    symbol: "BASIS",
+    timeframe: "5m",
+    lookbackBars: 3,
+    endTimeMs,
+    preferredProvider: "ibkr",
+  });
+
+  assert.equal(cached.providerMetadata?.warehouseRequestedSymbol, "BASIS");
+  assert.equal(cached.providerMetadata?.warehouseResolvedConId, 123456);
+  assert.equal(cached.providerMetadata?.warehouseResolvedPrimaryExchange, "NASDAQ");
+  assert.equal(cached.providerMetadata?.warehouseWhatToShow, "TRADES");
+  assert.equal(cached.providerMetadata?.warehouseUseRTH, false);
+  assert.equal(cached.providerMetadata?.warehouseProviderAdjustmentMode, "raw");
+  assert.equal(cached.providerMetadata?.warehouseAdjustmentMode, "raw");
+  assert.equal(cached.providerMetadata?.warehouseBasisValidationStatus, "basis_unchecked");
+});
+
+test("DurableCandleWarehouseFetchService preserves known IBKR alias metadata on replay", async () => {
+  const warehouse = new DurableCandleWarehouse(mkdtempSync(join(tmpdir(), "durable-candles-ibkr-alias-")));
+  const endTimeMs = Date.UTC(2026, 4, 1, 16, 0, 0);
+  const start = endTimeMs - 2 * 5 * 60_000;
+
+  await warehouse.upsertCandles({
+    provider: "ibkr",
+    symbol: "MAXN",
+    timeframe: "5m",
+    candles: [
+      candle(start, 1.2),
+      candle(start + 5 * 60_000, 1.25),
+      candle(endTimeMs, 1.3),
+    ],
+  });
+
+  const replay = new DurableCandleWarehouseFetchService({
+    warehouse,
+    delegate: {
+      getProviderName: () => "ibkr",
+      fetchCandles: async () => {
+        throw new Error("replay should not fetch");
+      },
+    },
+    mode: "replay",
+  });
+
+  const cached = await replay.fetchCandles({
+    symbol: "MAXN",
+    timeframe: "5m",
+    lookbackBars: 3,
+    endTimeMs,
+    preferredProvider: "ibkr",
+  });
+
+  assert.equal(cached.providerMetadata?.durableWarehouse, "read");
+  assert.equal(cached.providerMetadata?.ibkrRequestedSymbol, "MAXN");
+  assert.equal(cached.providerMetadata?.ibkrResolvedSymbol, "MAXNQ");
+  assert.equal(cached.providerMetadata?.ibkrResolvedPrimaryExchange, "PINK");
+  assert.equal(cached.providerMetadata?.ibkrContractAliasUsed, true);
 });
 
 test("DurableCandleWarehouse exports symbols by provider", async () => {
@@ -160,8 +363,6 @@ test("warehouse missing backfill planner only returns ranges absent from durable
     candles: [
       candle(startTimestamp, 1),
       candle(startTimestamp + 60_000, 1.01),
-      candle(startTimestamp + 3 * 60_000, 1.03),
-      candle(asOfTimestamp, 1.04),
     ],
   });
 
@@ -189,10 +390,140 @@ test("warehouse missing backfill planner only returns ranges absent from durable
   assert.equal(plan.plannedTaskCount, 1);
   assert.equal(plan.missingTaskCount, 1);
   assert.equal(plan.fullyCoveredTaskCount, 0);
-  assert.equal(plan.missingCandleCountEstimate, 1);
+  assert.equal(plan.missingCandleCountEstimate, 3);
   assert.deepEqual(plan.tasks[0]?.missingRanges, [
-    { startTimestamp: startTimestamp + 2 * 60_000, endTimestamp: startTimestamp + 2 * 60_000 },
+    { startTimestamp: startTimestamp + 2 * 60_000, endTimestamp: asOfTimestamp },
   ]);
+});
+
+test("warehouse missing backfill planner treats internal sparse intraday gaps as no-trade gaps once coverage exists", async () => {
+  const warehouse = new DurableCandleWarehouse(mkdtempSync(join(tmpdir(), "durable-candles-sparse-")));
+  const asOfTimestamp = Date.UTC(2026, 4, 1, 14, 0, 0);
+  const lookbackBars = 4;
+  const startTimestamp = asOfTimestamp - lookbackBars * 60_000;
+
+  await warehouse.upsertCandles({
+    provider: "stub",
+    symbol: "SPARSE",
+    timeframe: "1m",
+    candles: [
+      candle(startTimestamp, 1),
+      candle(startTimestamp + 2 * 60_000, 1.02),
+      candle(asOfTimestamp, 1.04),
+    ],
+  });
+
+  const plan = await planWarehouseMissingCandleBackfill({
+    warehouse,
+    provider: "stub",
+    trades: [
+      {
+        symbol: "SPARSE",
+        sessionDate: "2026-05-01",
+        asOfTimestamp,
+      },
+    ],
+    timeframes: ["1m"],
+    lookbackBars: {
+      "1m": lookbackBars,
+    },
+  });
+
+  assert.equal(plan.missingTaskCount, 0);
+  assert.equal(plan.missingCandleCountEstimate, 0);
+  assert.equal(plan.likelyNoBarMissingTaskCount, 1);
+  assert.equal(plan.likelyNoBarMissingCandleCountEstimate, 2);
+});
+
+test("warehouse missing backfill planner ignores intraday gaps outside extended trading hours", async () => {
+  const warehouse = new DurableCandleWarehouse(mkdtempSync(join(tmpdir(), "durable-candles-offhours-")));
+  const asOfTimestamp = Date.parse("2026-05-01T06:30:00.000Z"); // 02:30 ET, before premarket.
+
+  const plan = await planWarehouseMissingCandleBackfill({
+    warehouse,
+    provider: "stub",
+    trades: [
+      {
+        symbol: "NOBAR",
+        sessionDate: "2026-05-01",
+        asOfTimestamp,
+      },
+    ],
+    timeframes: ["1m"],
+    lookbackBars: {
+      "1m": 3,
+    },
+  });
+
+  assert.equal(plan.missingTaskCount, 0);
+  assert.equal(plan.fullyCoveredTaskCount, 1);
+  assert.equal(plan.missingCandleCountEstimate, 0);
+  assert.equal(plan.likelyNoBarMissingTaskCount, 1);
+  assert.equal(plan.likelyNoBarMissingCandleCountEstimate, 4);
+});
+
+test("warehouse missing backfill planner keeps only actionable intraday gaps inside extended hours", async () => {
+  const warehouse = new DurableCandleWarehouse(mkdtempSync(join(tmpdir(), "durable-candles-mixed-hours-")));
+  const asOfTimestamp = Date.parse("2026-05-01T08:02:00.000Z"); // 04:02 ET, after premarket begins.
+
+  const plan = await planWarehouseMissingCandleBackfill({
+    warehouse,
+    provider: "stub",
+    trades: [
+      {
+        symbol: "MIXED",
+        sessionDate: "2026-05-01",
+        asOfTimestamp,
+      },
+    ],
+    timeframes: ["1m"],
+    lookbackBars: {
+      "1m": 4,
+    },
+  });
+
+  assert.equal(plan.missingTaskCount, 1);
+  assert.equal(plan.missingCandleCountEstimate, 3);
+  assert.equal(plan.likelyNoBarMissingTaskCount, 1);
+  assert.equal(plan.likelyNoBarMissingCandleCountEstimate, 2);
+  assert.deepEqual(plan.tasks[0]?.missingRanges, [
+    { startTimestamp: Date.parse("2026-05-01T08:00:00.000Z"), endTimestamp: Date.parse("2026-05-01T08:02:00.000Z") },
+  ]);
+});
+
+test("warehouse missing backfill planner treats older daily gaps before available history as no-bar coverage", async () => {
+  const warehouse = new DurableCandleWarehouse(mkdtempSync(join(tmpdir(), "durable-candles-daily-history-")));
+  const asOfTimestamp = Date.parse("2026-05-04T00:00:00.000Z");
+
+  await warehouse.upsertCandles({
+    provider: "stub",
+    symbol: "NEWIPO",
+    timeframe: "daily",
+    candles: [
+      candle(Date.parse("2026-05-01T00:00:00.000Z"), 1),
+      candle(Date.parse("2026-05-04T00:00:00.000Z"), 1.1),
+    ],
+  });
+
+  const plan = await planWarehouseMissingCandleBackfill({
+    warehouse,
+    provider: "stub",
+    trades: [
+      {
+        symbol: "NEWIPO",
+        sessionDate: "2026-05-04",
+        asOfTimestamp,
+      },
+    ],
+    timeframes: ["daily"],
+    lookbackBars: {
+      daily: 7,
+    },
+  });
+
+  assert.equal(plan.missingTaskCount, 0);
+  assert.equal(plan.missingCandleCountEstimate, 0);
+  assert.ok(plan.likelyNoBarMissingCandleCountEstimate >= 3);
 });
 
 test("candle warehouse backfill dry-run plans work without fetching provider data", async () => {
@@ -272,6 +603,9 @@ test("default shared symbol builder uses the durable warehouse path", async () =
     symbol: "DFLT",
     warehouseDirectoryPath,
     preferredProvider: "stub",
+    fetchServiceOptions: {
+      provider: new StubHistoricalCandleProvider(),
+    },
     asOfTimestamp,
   });
 
@@ -288,6 +622,43 @@ test("default shared symbol builder uses the durable warehouse path", async () =
     endTimestamp: asOfTimestamp,
   });
   assert.ok(coverage.candleCount >= 100);
+});
+
+test("default shared symbol builder stores reusable warehouse rows for future runs", async () => {
+  const warehouseDirectoryPath = mkdtempSync(join(tmpdir(), "durable-candles-default-replay-"));
+  const asOfTimestamp = Date.UTC(2026, 4, 1, 16, 0, 0);
+
+  const context = await buildDefaultSupportResistanceContextForSymbol({
+    symbol: "RPLY",
+    warehouseDirectoryPath,
+    preferredProvider: "stub",
+    fetchServiceOptions: {
+      provider: new StubHistoricalCandleProvider(),
+    },
+    asOfTimestamp,
+    lookbackBars: { daily: 12, "4h": 12, "5m": 12 },
+  });
+
+  const warehouse = new DurableCandleWarehouse(warehouseDirectoryPath);
+  const dailyCoverage = await warehouse.getCoverage({
+    provider: "stub",
+    symbol: "RPLY",
+    timeframe: "daily",
+    startTimestamp: context.fetches.find((fetch) => fetch.timeframe === "daily")!.requestedStartTimestamp,
+    endTimestamp: context.fetches.find((fetch) => fetch.timeframe === "daily")!.requestedEndTimestamp,
+  });
+  const fiveMinuteCoverage = await warehouse.getCoverage({
+    provider: "stub",
+    symbol: "RPLY",
+    timeframe: "5m",
+    startTimestamp: context.fetches.find((fetch) => fetch.timeframe === "5m")!.requestedStartTimestamp,
+    endTimestamp: context.fetches.find((fetch) => fetch.timeframe === "5m")!.requestedEndTimestamp,
+  });
+
+  assert.equal(context.symbol, "RPLY");
+  assert.equal(context.candleFetchingOwnedBy, "levels-system");
+  assert.ok(dailyCoverage.candleCount > 0);
+  assert.ok(fiveMinuteCoverage.candleCount > 0);
 });
 
 test("warehouse storage policy defines JSONL to database threshold", () => {

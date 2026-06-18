@@ -13,7 +13,7 @@ function argValue(flag: string): string | undefined {
 
 function positionalArgs(): string[] {
   const values: string[] = [];
-  const flagsWithValues = new Set(["--out-dir", "--warehouse", "--max-trades", "--timeframes"]);
+  const flagsWithValues = new Set(["--out-dir", "--warehouse", "--max-trades", "--timeframes", "--max-sessions"]);
   for (let index = 2; index < process.argv.length; index += 1) {
     const arg = process.argv[index];
     if (arg.startsWith("--")) {
@@ -57,11 +57,14 @@ const outDir = argValue("--out-dir") ?? (
 );
 const maxTradesArg = argValue("--max-trades");
 const maxTrades = maxTradesArg ? Number(maxTradesArg) : undefined;
+const maxSessionsArg = argValue("--max-sessions");
+const maxSessions = maxSessionsArg ? Number(maxSessionsArg) : undefined;
 const report = await writeCandleImportReadinessReport({
   auditPath: process.argv.includes("--all-sessions") ? "artifacts/long-run" : input,
   warehouseDirectoryPath: argValue("--warehouse") ?? "data/candles",
   timeframes: parseTimeframes(argValue("--timeframes")),
   maxTrades: Number.isFinite(maxTrades) ? maxTrades : undefined,
+  maxAuditFiles: Number.isFinite(maxSessions) ? maxSessions : undefined,
   jsonPath: join(outDir, "candle-import-readiness.json"),
   markdownPath: join(outDir, "candle-import-readiness.md"),
 });

@@ -12,6 +12,7 @@ import {
   buildSupportResistanceContextFromCandles,
   buildWarehouseBackedSupportResistanceContextForSymbol,
   DurableCandleWarehouse,
+  groupBackfillTasksIntoProviderBatches,
   planBulkCandleBackfill,
   StubHistoricalCandleProvider,
   type Candle,
@@ -115,6 +116,10 @@ test("bulk candle backfill planner dedupes repeated trade requests", () => {
   assert.equal(plan.symbolCount, 1);
   assert.equal(plan.sessionCount, 1);
   assert.equal(plan.dedupedTaskCount, 3);
+  assert.equal(plan.naiveTaskCount, 6);
+  assert.equal(plan.avoidedTaskCount, 3);
+  assert.equal(plan.tasks[0]?.tradeRequestCount, 2);
+  assert.ok((plan.providerBatches?.length ?? 0) >= 1);
 });
 
 test("bulk candle backfill planner coalesces same symbol sessions across execution timestamps", () => {
@@ -133,6 +138,70 @@ test("bulk candle backfill planner coalesces same symbol sessions across executi
   assert.equal(plan.tasks[0]?.symbol, "ABC");
   assert.equal(plan.tasks[0]?.endTimestamp, Date.parse("2026-05-01T19:45:00.000Z"));
   assert.ok((plan.tasks[0]?.lookbackBars ?? 0) > 120);
+  assert.equal(plan.tasks[0]?.tradeRequestCount, 3);
+  assert.ok((plan.tasks[0]?.estimatedCandleCount ?? 0) > 120);
+});
+
+test("bulk candle backfill planner groups provider batches by task and candle budgets", () => {
+  const plan = planBulkCandleBackfill({
+    provider: "ibkr",
+    trades: [
+      { symbol: "AAA", sessionDate: "2026-05-01", asOfTimestamp: "2026-05-01T14:00:00.000Z" },
+      { symbol: "BBB", sessionDate: "2026-05-01", asOfTimestamp: "2026-05-01T14:00:00.000Z" },
+      { symbol: "CCC", sessionDate: "2026-05-01", asOfTimestamp: "2026-05-01T14:00:00.000Z" },
+    ],
+    timeframes: ["1m"],
+    batching: { maxTasksPerBatch: 2, maxEstimatedCandlesPerBatch: 10_000 },
+  });
+
+  const batches = groupBackfillTasksIntoProviderBatches(plan.tasks, { maxTasksPerBatch: 2 });
+
+  assert.equal(plan.providerBatches?.length, 2);
+  assert.equal(batches.length, 2);
+  assert.equal(batches[0]?.taskCount, 2);
+  assert.ok((batches[0]?.estimatedCandleCount ?? 0) > 0);
+});
+
+test("bulk candle backfill planner handles months-scale trade imports without duplicate provider work", () => {
+  const symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG", "HHH"];
+  const trades = Array.from({ length: 45 }, (_, dayIndex) => {
+    const sessionDate = new Date(Date.UTC(2026, 0, 2 + dayIndex)).toISOString().slice(0, 10);
+    return symbols.flatMap((symbol) => [
+      {
+        symbol,
+        sessionDate,
+        asOfTimestamp: `${sessionDate}T15:00:00.000Z`,
+      },
+      {
+        symbol: symbol.toLowerCase(),
+        sessionDate,
+        asOfTimestamp: `${sessionDate}T19:45:00.000Z`,
+      },
+      {
+        symbol,
+        sessionDate,
+        asOfTimestamp: `${sessionDate}T20:00:00.000Z`,
+      },
+    ]);
+  }).flat();
+
+  const plan = planBulkCandleBackfill({
+    provider: "ibkr",
+    trades,
+    timeframes: ["daily", "4h", "5m", "1m"],
+    batching: {
+      maxTasksPerBatch: 40,
+      maxEstimatedCandlesPerBatch: 40_000,
+    },
+  });
+
+  assert.equal(plan.symbolCount, symbols.length);
+  assert.equal(plan.sessionCount, 45);
+  assert.equal(plan.naiveTaskCount, trades.length * 4);
+  assert.equal(plan.dedupedTaskCount, symbols.length * 45 * 4);
+  assert.ok((plan.avoidedTaskCount ?? 0) > plan.dedupedTaskCount);
+  assert.ok((plan.providerBatches?.length ?? 0) > 1);
+  assert.ok(plan.providerBatches?.every((batch) => batch.taskCount <= 40));
 });
 
 test("warehouse-backed symbol context reads through the durable warehouse service", async () => {
@@ -165,5 +234,8 @@ test("shared engine capability report lists public package boundary and implemen
   assert.equal(report.packageName, "levels-system-phase1");
   assert.equal(report.publicSubpath, "./support-resistance-engine");
   assert.ok(report.publicExports.includes("buildSupportResistanceContextForSymbol"));
+  assert.ok(report.publicExports.includes("buildTradeAnalysisCandleContext"));
+  assert.ok(report.publicExports.includes("buildDefaultTradeAnalysisCandleContext"));
   assert.ok(report.implementedCapabilities.some((capability) => capability.includes("support/resistance")));
+  assert.ok(report.implementedCapabilities.some((capability) => capability.includes("historical 1m/5m trade-window")));
 });

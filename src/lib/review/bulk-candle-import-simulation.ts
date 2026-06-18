@@ -47,6 +47,8 @@ export type BulkCandleImportSimulationReport = {
     fullyCoveredWarehouseTasks: number;
     missingWarehouseTasks: number;
     missingCandleCountEstimate: number;
+    providerBatchCount: number;
+    maxTaskEstimatedCandles: number;
   };
   plan: WarehouseMissingCandleBackfillPlan;
   sampleTrades: BulkCandleBackfillTradeInput[];
@@ -163,6 +165,8 @@ export async function buildBulkCandleImportSimulationReport(
       fullyCoveredWarehouseTasks: plan.fullyCoveredTaskCount,
       missingWarehouseTasks: plan.missingTaskCount,
       missingCandleCountEstimate: plan.missingCandleCountEstimate,
+      providerBatchCount: plan.providerBatches?.length ?? 0,
+      maxTaskEstimatedCandles: plan.maxTaskEstimatedCandles ?? 0,
     },
     plan,
     sampleTrades: trades.slice(0, 20),
@@ -198,20 +202,40 @@ export function formatBulkCandleImportSimulationReport(report: BulkCandleImportS
     `- fully covered warehouse tasks: ${report.totals.fullyCoveredWarehouseTasks}`,
     `- missing warehouse tasks: ${report.totals.missingWarehouseTasks}`,
     `- estimated missing candles: ${report.totals.missingCandleCountEstimate}`,
+    `- provider batches: ${report.totals.providerBatchCount}`,
+    `- largest missing task estimate: ${report.totals.maxTaskEstimatedCandles} candles`,
+    "",
+    "## Provider Batches",
+    "",
+    "| Batch | Tasks | Est. Candles | Symbols | Timeframes |",
+    "| ---: | ---: | ---: | ---: | --- |",
+  ];
+
+  const providerBatches = report.plan.providerBatches ?? [];
+  for (const batch of providerBatches.slice(0, 20)) {
+    lines.push(
+      `| ${batch.batchIndex} | ${batch.taskCount} | ${batch.estimatedCandleCount} | ${batch.symbols.length} | ${batch.timeframes.join(", ")} |`,
+    );
+  }
+  if (providerBatches.length > 20) {
+    lines.push(`| ... | ... | ... | ... | ${providerBatches.length - 20} additional batches omitted |`);
+  }
+
+  lines.push(
     "",
     "## Sample Missing Tasks",
     "",
-    "| Symbol | Session | Timeframe | Stored | Missing Ranges | Missing Candles Est. |",
-    "| --- | --- | --- | ---: | ---: | ---: |",
-  ];
+    "| Symbol | Session | Timeframe | Trade Requests | Est. Candles | Stored | Missing Ranges | Missing Candles Est. |",
+    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+  );
 
   for (const task of report.plan.tasks.slice(0, 60)) {
     lines.push(
-      `| ${task.symbol} | ${task.sessionDate} | ${task.timeframe} | ${task.coverage.candleCount} | ${task.missingRanges.length} | ${task.missingCandleCountEstimate} |`,
+      `| ${task.symbol} | ${task.sessionDate} | ${task.timeframe} | ${task.tradeRequestCount ?? "n/a"} | ${task.estimatedCandleCount ?? "n/a"} | ${task.coverage.candleCount} | ${task.missingRanges.length} | ${task.missingCandleCountEstimate} |`,
     );
   }
   if (report.plan.tasks.length > 60) {
-    lines.push(`| ... | ... | ... | ... | ... | ${report.plan.tasks.length - 60} additional missing tasks omitted |`);
+    lines.push(`| ... | ... | ... | ... | ... | ... | ... | ${report.plan.tasks.length - 60} additional missing tasks omitted |`);
   }
 
   lines.push("", "## Sample Trade Rows", "");

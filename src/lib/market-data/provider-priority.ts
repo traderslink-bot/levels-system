@@ -1,7 +1,6 @@
 import type { CandleProviderName } from "./candle-types.js";
 
 export const DEFAULT_PROVIDER_PRIORITY: CandleProviderName[] = [
-  "twelve_data",
   "ibkr",
   "stub",
 ];

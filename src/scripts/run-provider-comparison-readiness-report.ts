@@ -23,7 +23,7 @@ const outDir = argValue("--out-dir") ?? "artifacts/provider-comparison-readiness
 const report = await writeProviderComparisonReadinessReport({
   cacheDirectoryPath: argValue("--cache") ?? ".validation-cache/candles",
   primaryProvider: (argValue("--primary") ?? "ibkr") as CandleProviderName,
-  comparisonProvider: (argValue("--comparison") ?? "twelve_data") as CandleProviderName,
+  comparisonProvider: (argValue("--comparison") ?? "stub") as CandleProviderName,
   timeframes: listArg("--timeframes") as CandleFetchTimeframe[] | undefined,
   symbols: listArg("--symbols"),
   maxSymbols: numberArg("--max-symbols"),
@@ -32,5 +32,5 @@ const report = await writeProviderComparisonReadinessReport({
 });
 
 console.log(
-  `Provider comparison readiness: symbols=${report.totals.symbolsCompared}, bothAvailable=${report.totals.bothAvailable}, highCloseDrift=${report.totals.highCloseDriftCount}, levelDriftWatch=${report.totals.levelDriftWatchCount}.`,
+  `Provider comparison readiness: symbols=${report.totals.symbolsCompared}, bothAvailable=${report.totals.bothAvailable}, highCloseDrift=${report.totals.highCloseDriftCount}, highVolumeDrift=${report.totals.highVolumeDriftCount}, structureDrift=${report.totals.marketStructureDriftWatchCount}, missingBehavior=${report.totals.providerMissingBehaviorCount}, levelDriftWatch=${report.totals.levelDriftWatchCount}.`,
 );

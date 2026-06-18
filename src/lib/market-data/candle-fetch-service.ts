@@ -122,7 +122,7 @@ export class CandleFetchService {
       createHistoricalCandleProvider({
         provider: providerOrOptions.providerName,
         ib: providerOrOptions.ib,
-        twelveDataApiKey: providerOrOptions.twelveDataApiKey,
+        ibkrTimeoutMs: providerOrOptions.ibkrTimeoutMs,
       });
   }
 

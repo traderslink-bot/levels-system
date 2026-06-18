@@ -5,6 +5,7 @@ import type {
 } from "../market-data/candle-types.js";
 import type { HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import {
+  groupBackfillTasksIntoProviderBatches,
   planWarehouseMissingCandleBackfill,
   type PlanWarehouseMissingCandleBackfillRequest,
   type WarehouseMissingCandleBackfillPlan,
@@ -42,6 +43,13 @@ export type CandleWarehouseBackfillTaskResult = {
   error: string | null;
 };
 
+export type CandleWarehouseBackfillTaskKey = {
+  provider?: CandleProviderName;
+  symbol: string;
+  sessionDate: string;
+  timeframe: CandleFetchTimeframe;
+};
+
 export type CandleWarehouseBackfillResult = {
   generatedAt: string;
   mode: CandleWarehouseBackfillMode;
@@ -66,6 +74,7 @@ export type ExecuteCandleWarehouseBackfillRequest = Omit<PlanWarehouseMissingCan
   concurrency?: number;
   throttleMs?: number;
   maxTasks?: number;
+  taskFilterKeys?: CandleWarehouseBackfillTaskKey[];
 };
 
 function sleep(ms: number): Promise<void> {
@@ -96,6 +105,43 @@ function plannedResult(task: WarehouseMissingCandleBackfillTask): CandleWarehous
   };
 }
 
+function normalizeTaskKey(key: CandleWarehouseBackfillTaskKey): string {
+  return `${key.provider ?? "*"}:${key.symbol.trim().toUpperCase()}:${key.sessionDate}:${key.timeframe}`;
+}
+
+function taskMatchesKey(task: WarehouseMissingCandleBackfillTask, keys: Set<string>): boolean {
+  return keys.has(normalizeTaskKey(task)) ||
+    keys.has(normalizeTaskKey({
+      symbol: task.symbol,
+      sessionDate: task.sessionDate,
+      timeframe: task.timeframe,
+    }));
+}
+
+function filterPlanByKeys(
+  plan: WarehouseMissingCandleBackfillPlan,
+  keys: CandleWarehouseBackfillTaskKey[] | undefined,
+  request: ExecuteCandleWarehouseBackfillRequest,
+): WarehouseMissingCandleBackfillPlan {
+  if (!keys || keys.length === 0) {
+    return plan;
+  }
+
+  const keySet = new Set(keys.map(normalizeTaskKey));
+  const tasks = plan.tasks.filter((task) => taskMatchesKey(task, keySet));
+  return {
+    ...plan,
+    tasks,
+    providerBatches: groupBackfillTasksIntoProviderBatches(tasks, request.batching),
+    estimatedCandleCount: tasks.reduce((sum, task) => sum + (task.estimatedCandleCount ?? 0), 0),
+    maxTaskEstimatedCandles: tasks.reduce((max, task) => Math.max(max, task.estimatedCandleCount ?? 0), 0),
+    plannedTaskCount: tasks.length,
+    missingTaskCount: tasks.length,
+    fullyCoveredTaskCount: 0,
+    missingCandleCountEstimate: tasks.reduce((sum, task) => sum + task.missingCandleCountEstimate, 0),
+  };
+}
+
 async function runTask(params: {
   task: WarehouseMissingCandleBackfillTask;
   request: ExecuteCandleWarehouseBackfillRequest;
@@ -115,6 +161,38 @@ async function runTask(params: {
       timeframe: response.timeframe,
       candles: response.candles,
       sourceFetchedAt: response.fetchEndTimestamp,
+      sourceMetadata: {
+        sourceFetchedAt: response.fetchEndTimestamp,
+        provider: response.provider,
+        requestedSymbol: String(response.providerMetadata?.ibkrRequestedSymbol ?? response.symbol),
+        resolvedSymbol: String(response.providerMetadata?.ibkrResolvedSymbol ?? response.symbol),
+        resolvedConId: typeof response.providerMetadata?.ibkrResolvedConId === "number"
+          ? response.providerMetadata.ibkrResolvedConId
+          : null,
+        resolvedExchange: typeof response.providerMetadata?.ibkrResolvedExchange === "string"
+          ? response.providerMetadata.ibkrResolvedExchange
+          : null,
+        resolvedPrimaryExchange: typeof response.providerMetadata?.ibkrResolvedPrimaryExchange === "string"
+          ? response.providerMetadata.ibkrResolvedPrimaryExchange
+          : null,
+        whatToShow: typeof response.providerMetadata?.whatToShow === "string"
+          ? response.providerMetadata.whatToShow
+          : null,
+        useRTH: typeof response.providerMetadata?.useRTH === "boolean"
+          ? response.providerMetadata.useRTH
+          : null,
+        providerAdjustmentMode: response.providerMetadata?.providerAdjustmentMode === "raw" ||
+          response.providerMetadata?.providerAdjustmentMode === "split_adjusted" ||
+          response.providerMetadata?.providerAdjustmentMode === "unknown"
+          ? response.providerMetadata.providerAdjustmentMode
+          : "raw",
+        warehouseAdjustmentMode: "raw",
+        aliasUsed: response.providerMetadata?.ibkrContractAliasUsed === true,
+        aliasReason: typeof response.providerMetadata?.ibkrHistoricalAliasReason === "string"
+          ? response.providerMetadata.ibkrHistoricalAliasReason
+          : null,
+        basisValidationStatus: "basis_unchecked",
+      },
     });
     return {
       ...plannedResult(params.task),
@@ -153,11 +231,12 @@ export async function executeCandleWarehouseBackfill(
 ): Promise<CandleWarehouseBackfillResult> {
   const mode = request.mode ?? "dry_run";
   const provider = request.provider ?? request.fetchClient.getProviderName();
-  const plan = await planWarehouseMissingCandleBackfill({
+  const fullPlan = await planWarehouseMissingCandleBackfill({
     ...request,
     provider,
     warehouse: request.warehouse,
   });
+  const plan = filterPlanByKeys(fullPlan, request.taskFilterKeys, request);
   const selectedTasks = typeof request.maxTasks === "number" && Number.isFinite(request.maxTasks)
     ? plan.tasks.slice(0, request.maxTasks)
     : plan.tasks;

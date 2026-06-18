@@ -34,6 +34,17 @@ export type CandleImportReadinessReport = {
     sessionDate: string;
     asOfTimestamp: number;
   }>;
+  coverageBySymbolSession: Array<{
+    symbol: string;
+    sessionDate: string;
+    asOfTimestamp: number;
+    status: "covered" | "partial" | "missing";
+    coveredTimeframes: CandleFetchTimeframe[];
+    missingTimeframes: CandleFetchTimeframe[];
+    missingTaskCount: number;
+    storedCandles: number;
+    estimatedMissingCandles: number;
+  }>;
 };
 
 export type BuildCandleImportReadinessReportOptions = {
@@ -42,6 +53,7 @@ export type BuildCandleImportReadinessReportOptions = {
   provider?: CandleProviderName;
   timeframes?: CandleFetchTimeframe[];
   maxTrades?: number;
+  maxAuditFiles?: number;
 };
 
 export type WriteCandleImportReadinessReportOptions = BuildCandleImportReadinessReportOptions & {
@@ -58,7 +70,14 @@ const newYorkDateFormatter = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
-function resolveAuditPaths(pathOrDirectory: string): string[] {
+function limitAuditPaths(paths: string[], maxAuditFiles?: number): string[] {
+  if (typeof maxAuditFiles !== "number" || !Number.isFinite(maxAuditFiles) || maxAuditFiles <= 0) {
+    return paths;
+  }
+  return paths.slice(0, Math.floor(maxAuditFiles));
+}
+
+function resolveAuditPaths(pathOrDirectory: string, maxAuditFiles?: number): string[] {
   const path = resolve(pathOrDirectory);
   if (path.endsWith(".jsonl")) {
     return [path];
@@ -70,11 +89,11 @@ function resolveAuditPaths(pathOrDirectory: string): string[] {
   if (!existsSync(path)) {
     return [direct];
   }
-  return readdirSync(path, { withFileTypes: true })
+  return limitAuditPaths(readdirSync(path, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => join(path, entry.name, "discord-delivery-audit.jsonl"))
     .filter((candidate) => existsSync(candidate))
-    .sort();
+    .sort(), maxAuditFiles);
 }
 
 function readRows(path: string): AuditRow[] {
@@ -94,6 +113,16 @@ function readRows(path: string): AuditRow[] {
 function rowTimestamp(row: AuditRow): number | null {
   const timestamp = row.sourceTimestamp ?? row.timestamp;
   return typeof timestamp === "number" && Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function inputTimestamp(value: BulkCandleBackfillTradeInput["asOfTimestamp"]): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : Number.NaN;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  return Date.parse(String(value));
 }
 
 function sessionDate(timestamp: number): string {
@@ -122,7 +151,7 @@ function buildTradeInputs(rows: AuditRow[], maxTrades?: number): BulkCandleBackf
     const date = sessionDate(timestamp);
     const key = `${symbol}:${date}`;
     const existing = byKey.get(key);
-    if (!existing || Date.parse(String(existing.asOfTimestamp)) < timestamp) {
+    if (!existing || inputTimestamp(existing.asOfTimestamp) < timestamp) {
       byKey.set(key, {
         symbol,
         sessionDate: date,
@@ -140,7 +169,7 @@ function buildTradeInputs(rows: AuditRow[], maxTrades?: number): BulkCandleBackf
 export async function buildCandleImportReadinessReport(
   options: BuildCandleImportReadinessReportOptions,
 ): Promise<CandleImportReadinessReport> {
-  const sourceAuditPaths = resolveAuditPaths(options.auditPath);
+  const sourceAuditPaths = resolveAuditPaths(options.auditPath, options.maxAuditFiles);
   const rows = sourceAuditPaths.flatMap((path) => readRows(path));
   const trades = buildTradeInputs(rows, options.maxTrades);
   const provider = options.provider ?? "ibkr";
@@ -152,6 +181,34 @@ export async function buildCandleImportReadinessReport(
     trades,
     timeframes,
     warehouse,
+  });
+  const missingBySymbolSession = new Map<string, typeof plan.tasks>();
+  for (const task of plan.tasks) {
+    const key = `${task.symbol}:${task.sessionDate}`;
+    missingBySymbolSession.set(key, [...(missingBySymbolSession.get(key) ?? []), task]);
+  }
+  const coverageBySymbolSession = trades.map((trade) => {
+    const symbol = trade.symbol.trim().toUpperCase();
+    const key = `${symbol}:${trade.sessionDate}`;
+    const missingTasks = missingBySymbolSession.get(key) ?? [];
+    const missingTimeframes = [...new Set(missingTasks.map((task) => task.timeframe))].sort() as CandleFetchTimeframe[];
+    const coveredTimeframes = timeframes.filter((timeframe) => !missingTimeframes.includes(timeframe));
+    return {
+      symbol,
+      sessionDate: trade.sessionDate,
+      asOfTimestamp: typeof trade.asOfTimestamp === "number" ? trade.asOfTimestamp : Date.parse(String(trade.asOfTimestamp)),
+      status: missingTimeframes.length === 0 ? "covered" as const : coveredTimeframes.length === 0 ? "missing" as const : "partial" as const,
+      coveredTimeframes,
+      missingTimeframes,
+      missingTaskCount: missingTasks.length,
+      storedCandles: missingTasks.reduce((sum, task) => sum + task.coverage.candleCount, 0),
+      estimatedMissingCandles: missingTasks.reduce((sum, task) => sum + task.missingCandleCountEstimate, 0),
+    };
+  }).sort((left, right) => {
+    const rank = { missing: 0, partial: 1, covered: 2 } as const;
+    return rank[left.status] - rank[right.status] ||
+      right.estimatedMissingCandles - left.estimatedMissingCandles ||
+      left.symbol.localeCompare(right.symbol);
   });
 
   return {
@@ -172,6 +229,7 @@ export async function buildCandleImportReadinessReport(
       sessionDate: trade.sessionDate,
       asOfTimestamp: typeof trade.asOfTimestamp === "number" ? trade.asOfTimestamp : Date.parse(String(trade.asOfTimestamp)),
     })),
+    coverageBySymbolSession,
   };
 }
 
@@ -199,6 +257,7 @@ export function formatCandleImportReadinessReport(report: CandleImportReadinessR
     `- fully covered tasks: ${report.plan.fullyCoveredTaskCount}`,
     `- missing tasks: ${report.plan.missingTaskCount}`,
     `- estimated missing candles: ${report.plan.missingCandleCountEstimate}`,
+    `- likely no-bar/history-unavailable candles ignored: ${report.plan.likelyNoBarMissingCandleCountEstimate}`,
     "",
     "## Missing Range Evidence",
     "",
@@ -213,6 +272,18 @@ export function formatCandleImportReadinessReport(report: CandleImportReadinessR
   }
   if (report.plan.tasks.length > 100) {
     lines.push(`| ... | ... | ... | ... | ${report.plan.tasks.length - 100} additional missing tasks omitted from markdown table | ... |`);
+  }
+
+  lines.push("", "## Symbol / Session Coverage", "");
+  lines.push("| Symbol | Session | Status | Covered Timeframes | Missing Timeframes | Stored In Missing Tasks | Missing Candles Est. |");
+  lines.push("| --- | --- | --- | --- | --- | ---: | ---: |");
+  for (const item of report.coverageBySymbolSession.slice(0, 120)) {
+    lines.push(
+      `| ${item.symbol} | ${item.sessionDate} | ${item.status} | ${item.coveredTimeframes.join(", ") || "none"} | ${item.missingTimeframes.join(", ") || "none"} | ${item.storedCandles} | ${item.estimatedMissingCandles} |`,
+    );
+  }
+  if (report.coverageBySymbolSession.length > 120) {
+    lines.push(`| ... | ... | ... | ... | ... | ... | ${report.coverageBySymbolSession.length - 120} additional symbol/session rows omitted |`);
   }
 
   lines.push("", "## Sample Trade Proxies", "");

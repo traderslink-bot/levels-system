@@ -4,15 +4,6 @@ import test from "node:test";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
 import { createHistoricalCandleProvider } from "../lib/market-data/provider-factory.js";
 
-test("createHistoricalCandleProvider selects Twelve Data when explicitly requested and configured", () => {
-  const provider = createHistoricalCandleProvider({
-    provider: "twelve_data",
-    twelveDataApiKey: "demo-key",
-  });
-
-  assert.equal(provider.providerName, "twelve_data");
-});
-
 test("createHistoricalCandleProvider falls back to stub when no runtime provider is available", () => {
   const provider = createHistoricalCandleProvider();
   assert.equal(provider.providerName, "stub");
