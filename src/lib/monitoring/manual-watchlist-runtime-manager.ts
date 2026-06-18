@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
 import { CandleFetchService } from "../market-data/candle-fetch-service.js";
 import { LevelEngine } from "../levels/level-engine.js";
 import { resolveLevelRuntimeSettings } from "../levels/level-runtime-mode.js";
@@ -6,15 +9,21 @@ import { decideLevelRefresh } from "../levels/level-refresh-policy.js";
 import { assessFinalLevelImportance } from "./level-importance.js";
 import { AlertIntelligenceEngine } from "../alerts/alert-intelligence-engine.js";
 import {
+  buildVisibleMarketStructureDiscordLines,
+  formatLevelLadderMessage,
   formatContinuityUpdateAsPayload,
   formatFollowThroughStateUpdateAsPayload,
   formatFollowThroughUpdateAsPayload,
   formatIntelligentAlertAsPayload,
+  formatMarketStructureUpdateAsPayload,
   formatSymbolRecapAsPayload,
   type DiscordAlertRouter,
 } from "../alerts/alert-router.js";
 import type { TraderCommentaryService } from "../ai/trader-commentary-service.js";
-import { buildFinnhubThreadPreviewPayload } from "../stock-context/finnhub-thread-preview.js";
+import {
+  buildFinnhubThreadPreviewPayload,
+  resolveStockContextCurrentPrice,
+} from "../stock-context/finnhub-thread-preview.js";
 import {
   isSignalCategoryLiveEnabled,
   resolvePrimarySignalCategoryForAlert,
@@ -38,6 +47,7 @@ import type {
   LivePriceUpdate,
   MonitoringEvent,
   PracticalTradeStructureState,
+  RuntimeMarketStructureSnapshot,
   WatchlistEntry,
   WatchlistLifecycleState,
 } from "./monitoring-types.js";
@@ -48,6 +58,13 @@ import type { EvaluatedOpportunity, OpportunityProgressUpdate } from "./opportun
 import { WatchlistMonitor } from "./watchlist-monitor.js";
 import { WatchlistStatePersistence } from "./watchlist-state-persistence.js";
 import { WatchlistStore } from "./watchlist-store.js";
+import {
+  getFreshFormalBosChochMarketStructureStoryKeys,
+  getMaterialMarketStructureStoryKeys,
+  MarketStructureStoryMemory,
+  type MarketStructureStoryMemorySnapshot,
+  type MarketStructureStoryDecision,
+} from "./market-structure-story-memory.js";
 import type {
   ManualWatchlistLifecycleEvent,
   ManualWatchlistLifecycleEventName,
@@ -87,6 +104,21 @@ import {
   type ThreadStoryPhaseRecord,
 } from "./live-thread-post-policy.js";
 
+export type MarketStructureStandalonePostMode = "off" | "normal" | "testing";
+
+export function resolveMarketStructureStandalonePostMode(
+  value: MarketStructureStandalonePostMode | string | null | undefined,
+): MarketStructureStandalonePostMode {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "off" || normalized === "0" || normalized === "false") {
+    return "off";
+  }
+  if (normalized === "testing" || normalized === "test" || normalized === "diagnostic") {
+    return "testing";
+  }
+  return "normal";
+}
+
 export type ManualWatchlistRuntimeManagerOptions = {
   candleFetchService: CandleFetchService;
   startupCachedCandleFetchService?: CandleFetchService | null;
@@ -113,6 +145,20 @@ export type ManualWatchlistRuntimeManagerOptions = {
   stockContextProvider?: {
     getThreadPreview(symbolInput: string): Promise<StockContextPreview>;
   } | null;
+  marketStructureStoryMemoryPath?: string | null;
+  marketStructureStandalonePostMode?: MarketStructureStandalonePostMode | string | null;
+  autoCleanReadGenerator?: ((input: ManualWatchlistAutoCleanReadInput) => Promise<{
+    id?: string;
+    text?: string;
+    model?: string;
+  } | void>) | null;
+};
+
+export type ManualWatchlistAutoCleanReadInput = {
+  symbol: string;
+  currentPrice: string;
+  ladderText: string;
+  aiPromptNotes?: string;
 };
 
 export type ManualWatchlistHistoricalLookbacks = {
@@ -188,8 +234,24 @@ export type ManualWatchlistProviderHealth = {
   pendingActivationCount: number;
   stuckActivationCount: number;
   seedStats: ManualWatchlistLevelSeedStats;
+  startupCache: ManualWatchlistStartupCacheHealth;
   restartReadiness: ManualWatchlistRestartReadiness[];
   notes: string[];
+};
+
+export type ManualWatchlistStartupCacheHealth = {
+  enabled: boolean;
+  warmingSymbols: string[];
+  restoredSymbols: Array<{
+    symbol: string;
+    restoredAt: number;
+    ageMs: number;
+  }>;
+  blockedSnapshotSymbols: Array<{
+    symbol: string;
+    reason: string;
+  }>;
+  discordSnapshotPolicy: "fresh_candles_required";
 };
 
 export type ManualWatchlistLevelSeedStats = {
@@ -231,6 +293,14 @@ function normalizeSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
 }
 
+function isAbortLikeError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return error.name === "AbortError" || /aborted/i.test(error.message);
+}
+
 function isEpochTimestamp(timestamp: number): boolean {
   return Number.isFinite(timestamp) && timestamp > 1_000_000_000_000;
 }
@@ -261,6 +331,13 @@ const SNAPSHOT_PRICE_TOLERANCE_ABSOLUTE = 0.001;
 const SNAPSHOT_DISPLAY_COMPACTION_PCT = 0.0075;
 const SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE = 0.01;
 const SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 0.5;
+const LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 1;
+const SNAPSHOT_CONTINUATION_MAP_MIN_GAP_PCT = 0.18;
+const SNAPSHOT_CONTINUATION_MAP_TARGET_PCT = 0.55;
+const SNAPSHOT_CONTINUATION_MAP_MIN_STEP_PCT = 0.03;
+const SNAPSHOT_CONTINUATION_MAP_MAX_LEVELS = 4;
+const SNAPSHOT_LIVE_REFERENCE_MAX_AGE_MS = 30 * 60 * 1000;
+const EXTENSION_LIVE_REFERENCE_MAX_AGE_MS = 30 * 60 * 1000;
 const SYMBOL_RECAP_COOLDOWN_MS = 60 * 60 * 1000;
 const AI_SIGNAL_COMMENTARY_COOLDOWN_MS = 10 * 60 * 1000;
 const AI_SIGNAL_COMMENTARY_MAX_DELIVERY_LAG_MS = 8 * 1000;
@@ -277,6 +354,11 @@ const NARRATION_RECAP_BURST_WINDOW_MS = 75 * 1000;
 const DELIVERY_FAILURE_BACKOFF_MS = 2 * 60 * 1000;
 const OPTIONAL_POST_SETTLE_DELAY_MS = 250;
 const OPTIONAL_POST_CRITICAL_PREEMPT_WINDOW_MS = 1500;
+const MARKET_STRUCTURE_STANDALONE_POST_DELAY_MS = 2500;
+const MARKET_STRUCTURE_STANDALONE_TESTING_POST_DELAY_MS = 500;
+const MARKET_STRUCTURE_STANDALONE_RETRY_DELAY_MS = 10 * 1000;
+const MARKET_STRUCTURE_STANDALONE_REPEAT_COOLDOWN_MS = 30 * 60 * 1000;
+const MARKET_STRUCTURE_STANDALONE_TESTING_REPEAT_COOLDOWN_MS = 5 * 60 * 1000;
 const LEVEL_SEED_TIMEOUT_MS = 90 * 1000;
 const QUEUED_ACTIVATION_SEED_GRACE_TIMEOUT_MS = 3 * 60 * 1000;
 const ACTIVATION_AUTO_RETRY_DELAY_MS = 90 * 1000;
@@ -284,11 +366,14 @@ const ACTIVATION_MAX_AUTO_RETRIES = 1;
 const ACTIVATION_STUCK_WARNING_MS = 2 * 60 * 1000;
 const ACTIVATION_WATCHDOG_INTERVAL_MS = 15 * 1000;
 const MAX_ACTIVITY_ENTRIES = 80;
+const PRICE_UPDATE_PERSIST_INTERVAL_MS = 5 * 1000;
 const LEVEL_TOUCH_SUPERSEDE_DELAY_MS = 1200;
 const FAST_LEVEL_CLEAR_CONFIRM_PCT = 0.0025;
 const FAST_LEVEL_CLUSTER_MAX_SPAN_PCT = 0.035;
 const FAST_LEVEL_CLEAR_COALESCE_MS = 0;
 const FOLLOW_THROUGH_MAJOR_MOVE_PCT = 2;
+const AUTO_CLEAN_READ_MAX_ATTEMPTS = 2;
+const AUTO_CLEAN_READ_RETRY_DELAY_MS = 1000;
 export const DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS: ManualWatchlistHistoricalLookbacks = {
   daily: 520,
   "4h": 180,
@@ -298,6 +383,24 @@ const SAME_LEVEL_STORY_WINDOW_MS = 10 * 60 * 1000;
 const SAME_LEVEL_PRICE_TOLERANCE_PCT = 0.006;
 const SAME_LEVEL_PRICE_TOLERANCE_ABSOLUTE = 0.02;
 const MIN_DIRECTIONAL_STATE_UPDATE_PCT = 0.2;
+
+function appendMarketStructureSection(
+  body: string,
+  marketStructure: LevelSnapshotPayload["marketStructure"],
+  storyKeys?: string[],
+): string {
+  const lines = buildVisibleMarketStructureDiscordLines(marketStructure, { storyKeys });
+  if (lines.length === 0) {
+    return body;
+  }
+
+  return [
+    body,
+    "",
+    "Market structure:",
+    ...lines.map((line) => `- ${line}`),
+  ].join("\n");
+}
 
 type SymbolRecapState = {
   lastSignature: string | null;
@@ -349,6 +452,13 @@ type SymbolDeliveryPressureState = {
   lastFailureMessage: string | null;
 };
 
+type SnapshotReferencePrice = {
+  price: number;
+  source: "override" | "live_price" | "level_metadata";
+  livePriceAgeMs?: number;
+  metadataReferencePrice?: number;
+};
+
 function uniqueSortedLevels(levels: number[], direction: "asc" | "desc"): number[] {
   const unique = [...new Set(levels.filter((level) => Number.isFinite(level) && level > 0))];
   unique.sort((a, b) => (direction === "asc" ? a - b : b - a));
@@ -367,10 +477,55 @@ function formatSnapshotLevel(level: number): string {
   return level >= 1 ? level.toFixed(2) : level.toFixed(4);
 }
 
+function snapshotForwardResistanceRangePct(currentPrice: number): number {
+  return currentPrice < 2
+    ? LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT
+    : SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT;
+}
+
+function decimalPlacesForIncrement(increment: number): number {
+  const text = increment.toString();
+  const dotIndex = text.indexOf(".");
+  return dotIndex === -1 ? 0 : text.length - dotIndex - 1;
+}
+
+function normalizeSnapshotContinuationPrice(price: number, increment: number): number {
+  return Number(price.toFixed(Math.max(decimalPlacesForIncrement(increment), price >= 1 ? 2 : 4)));
+}
+
+function snapshotResistancePlanningIncrement(price: number): number {
+  if (price < 0.5) return 0.025;
+  if (price < 1) return 0.05;
+  if (price < 2) return 0.1;
+  if (price < 5) return 0.25;
+  if (price < 10) return 0.5;
+  if (price < 25) return 1;
+  if (price < 50) return 2.5;
+  return 5;
+}
+
+function nextSnapshotContinuationResistance(basePrice: number): number {
+  const increment = snapshotResistancePlanningIncrement(basePrice);
+  const rounded = Math.ceil((basePrice + increment * 0.05) / increment) * increment;
+  return normalizeSnapshotContinuationPrice(rounded, increment);
+}
+
 type FastLevelReference = {
   representativePrice: number;
+  lowPrice?: number;
+  highPrice?: number;
+  zoneLow?: number;
+  zoneHigh?: number;
   strengthLabel?: FinalLevelZone["strengthLabel"];
 };
+
+function fastLevelLow(zone: FastLevelReference): number {
+  return zone.zoneLow ?? zone.lowPrice ?? zone.representativePrice;
+}
+
+function fastLevelHigh(zone: FastLevelReference): number {
+  return zone.zoneHigh ?? zone.highPrice ?? zone.representativePrice;
+}
 
 function formatFastLevelZone(zone: FastLevelReference | null, side: "support" | "resistance"): string | null {
   if (!zone) {
@@ -430,6 +585,10 @@ function formatFastLevelRange(levels: number[]): string {
 }
 
 function deriveSnapshotLevelSourceLabel(zone: FinalLevelZone): string {
+  if (zone.notes.includes("snapshot_continuation_map")) {
+    return "continuation map";
+  }
+
   if (zone.isExtension) {
     return "extension";
   }
@@ -480,6 +639,18 @@ function isBetterSnapshotRepresentative(
   currentPrice: number,
   side: "support" | "resistance",
 ): boolean {
+  const challengerDistance = Math.abs(challenger.representativePrice - currentPrice);
+  const incumbentDistance = Math.abs(incumbent.representativePrice - currentPrice);
+  const nearPriceDistance = Math.max(currentPrice, 0.0001) * 0.03;
+  if (
+    side === "resistance" &&
+    currentPrice < 1 &&
+    (challengerDistance <= nearPriceDistance || incumbentDistance <= nearPriceDistance) &&
+    challengerDistance !== incumbentDistance
+  ) {
+    return challengerDistance < incumbentDistance;
+  }
+
   if (challenger.strengthScore !== incumbent.strengthScore) {
     return challenger.strengthScore > incumbent.strengthScore;
   }
@@ -500,8 +671,6 @@ function isBetterSnapshotRepresentative(
     return freshnessRank(challenger.freshness) > freshnessRank(incumbent.freshness);
   }
 
-  const challengerDistance = Math.abs(challenger.representativePrice - currentPrice);
-  const incumbentDistance = Math.abs(incumbent.representativePrice - currentPrice);
   if (challengerDistance !== incumbentDistance) {
     return challengerDistance < incumbentDistance;
   }
@@ -570,8 +739,248 @@ function buildSnapshotDisplayZones(
   }));
 }
 
+function flipWrongSideSnapshotZone(
+  zone: FinalLevelZone,
+  side: "support" | "resistance",
+): FinalLevelZone {
+  return {
+    ...zone,
+    id: `${zone.id}-as-${side}`,
+    kind: side,
+    notes: [...zone.notes, `snapshot_role_flip:${zone.kind}_as_${side}`],
+  };
+}
+
+function buildSnapshotSideZones(params: {
+  primaryZones: FinalLevelZone[];
+  oppositeZones: FinalLevelZone[];
+  currentPrice: number;
+  tolerance: number;
+  side: "support" | "resistance";
+  maxForwardResistancePrice: number;
+}): FinalLevelZone[] {
+  const maxFlipDistancePct = params.side === "support" ? 0.12 : 0.08;
+  const roleFlippedZones = params.oppositeZones
+    .map((zone) => flipWrongSideSnapshotZone(zone, params.side))
+    .filter((zone) =>
+      isSnapshotZoneDisplayableForSide(
+        zone,
+        params.currentPrice,
+        params.tolerance,
+        params.side,
+      ),
+    )
+    .filter((zone) =>
+      params.side === "resistance"
+        ? zone.zoneLow <= params.maxForwardResistancePrice
+        : true,
+    )
+    .filter((zone) =>
+      params.side === "resistance"
+        ? zone.representativePrice > params.currentPrice + params.tolerance ||
+            isImportantAtPriceDecisionZone(zone, params.currentPrice, params.tolerance, params.side)
+        : zone.representativePrice < params.currentPrice - params.tolerance ||
+            isImportantAtPriceDecisionZone(zone, params.currentPrice, params.tolerance, params.side),
+    )
+    .filter((zone) => {
+      const distancePct =
+        Math.abs(zone.representativePrice - params.currentPrice) /
+        Math.max(params.currentPrice, 0.0001);
+      return distancePct <= maxFlipDistancePct;
+    })
+    .sort((left, right) =>
+      params.side === "support"
+        ? right.representativePrice - left.representativePrice
+        : left.representativePrice - right.representativePrice,
+    )
+    .slice(0, 2);
+
+  return params.side === "support"
+    ? [...params.primaryZones, ...roleFlippedZones]
+    : [...params.primaryZones, ...roleFlippedZones];
+}
+
+function hasNearbySnapshotZone(zones: FinalLevelZone[], price: number): boolean {
+  return zones.some((zone) => {
+    if (formatSnapshotLevel(zone.representativePrice) === formatSnapshotLevel(price)) {
+      return true;
+    }
+
+    const distancePct =
+      Math.abs(zone.representativePrice - price) /
+      Math.max(Math.max(zone.representativePrice, price), 0.0001);
+    return distancePct <= SNAPSHOT_CONTINUATION_MAP_MIN_STEP_PCT;
+  });
+}
+
+function buildSnapshotContinuationMapZone(params: {
+  symbol: string;
+  price: number;
+  currentPrice: number;
+  timestamp: number;
+}): FinalLevelZone {
+  return {
+    id: `${params.symbol}-snapshot-continuation-resistance-${formatSnapshotLevel(params.price)}`,
+    symbol: params.symbol,
+    kind: "resistance",
+    timeframeBias: "5m",
+    zoneLow: params.price,
+    zoneHigh: params.price,
+    representativePrice: params.price,
+    strengthScore: 0,
+    strengthLabel: "weak",
+    touchCount: 0,
+    confluenceCount: 0,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["5m"],
+    reactionQualityScore: 0,
+    rejectionScore: 0,
+    displacementScore: 0,
+    sessionSignificanceScore: 0,
+    followThroughScore: 0,
+    gapContinuationScore: 0,
+    sourceEvidenceCount: 0,
+    firstTimestamp: params.timestamp,
+    lastTimestamp: params.timestamp,
+    isExtension: false,
+    freshness: "fresh",
+    notes: [
+      "snapshot_continuation_map",
+      `snapshotContinuationFrom=${formatSnapshotLevel(params.currentPrice)}`,
+    ],
+  };
+}
+
+function addSnapshotContinuationResistanceMap(params: {
+  zones: FinalLevelZone[];
+  currentPrice: number;
+  maxForwardResistancePrice: number;
+  symbol: string;
+  timestamp: number;
+}): FinalLevelZone[] {
+  if (
+    !Number.isFinite(params.currentPrice) ||
+    params.currentPrice <= 0 ||
+    params.currentPrice >= 30
+  ) {
+    return params.zones;
+  }
+
+  const sorted = sortSnapshotZones(params.zones, "resistance").filter(
+    (zone) =>
+      Number.isFinite(zone.representativePrice) &&
+      zone.representativePrice > params.currentPrice &&
+      zone.zoneLow <= params.maxForwardResistancePrice,
+  );
+  const additions: FinalLevelZone[] = [];
+
+  for (
+    let index = 0;
+    index < sorted.length - 1 && additions.length < SNAPSHOT_CONTINUATION_MAP_MAX_LEVELS;
+    index += 1
+  ) {
+    const left = sorted[index]!;
+    const right = sorted[index + 1]!;
+    const gapPct =
+      (right.representativePrice - left.representativePrice) /
+      Math.max(params.currentPrice, 0.0001);
+
+    if (gapPct < SNAPSHOT_CONTINUATION_MAP_MIN_GAP_PCT) {
+      continue;
+    }
+
+    const ceiling = Math.min(
+      right.representativePrice * 0.999,
+      params.maxForwardResistancePrice,
+      params.currentPrice * (1 + SNAPSHOT_CONTINUATION_MAP_TARGET_PCT),
+    );
+    let basePrice = left.representativePrice;
+
+    for (
+      let guard = 0;
+      guard < 24 && additions.length < SNAPSHOT_CONTINUATION_MAP_MAX_LEVELS;
+      guard += 1
+    ) {
+      const nextPrice = nextSnapshotContinuationResistance(basePrice);
+      if (!Number.isFinite(nextPrice) || nextPrice <= basePrice || nextPrice >= ceiling) {
+        break;
+      }
+
+      basePrice = nextPrice;
+      if (hasNearbySnapshotZone([...sorted, ...additions], nextPrice)) {
+        continue;
+      }
+
+      additions.push(
+        buildSnapshotContinuationMapZone({
+          symbol: params.symbol,
+          price: nextPrice,
+          currentPrice: params.currentPrice,
+          timestamp: params.timestamp,
+        }),
+      );
+    }
+  }
+
+  return additions.length > 0
+    ? sortSnapshotZones([...params.zones, ...additions], "resistance")
+    : params.zones;
+}
+
 function snapshotCandidateKey(zone: FinalLevelZone): string {
   return zone.id;
+}
+
+function isImportantAtPriceDecisionZone(
+  zone: FinalLevelZone,
+  currentPrice: number,
+  tolerance: number,
+  side: "support" | "resistance",
+): boolean {
+  const important =
+    zone.strengthLabel === "major" ||
+    zone.strengthLabel === "strong" ||
+    zone.strengthScore >= 25 ||
+    zone.confluenceCount >= 2 ||
+    zone.sourceEvidenceCount >= 3;
+  const lowPricedStructuralShelf =
+    currentPrice < 1 &&
+    zone.strengthLabel === "moderate" &&
+    zone.strengthScore >= 15 &&
+    zone.timeframeSources.some((timeframe) => timeframe === "daily" || timeframe === "4h");
+  if (!important && !lowPricedStructuralShelf) {
+    return false;
+  }
+
+  const nearDecisionTolerance = Math.max(tolerance, currentPrice * 0.006);
+  if (side === "support") {
+    if (zone.zoneLow <= currentPrice && zone.zoneHigh >= currentPrice) {
+      return true;
+    }
+    return zone.zoneHigh <= currentPrice && currentPrice - zone.zoneHigh <= nearDecisionTolerance;
+  }
+
+  if (zone.zoneLow <= currentPrice && zone.zoneHigh >= currentPrice) {
+    return true;
+  }
+  return zone.zoneLow >= currentPrice && zone.zoneLow - currentPrice <= nearDecisionTolerance;
+}
+
+function isSnapshotZoneDisplayableForSide(
+  zone: FinalLevelZone,
+  currentPrice: number,
+  tolerance: number,
+  side: "support" | "resistance",
+): boolean {
+  const zoneWidth = Math.abs(zone.zoneHigh - zone.zoneLow);
+  const wideEnoughToMatterAtPrice = zoneWidth >= tolerance * 2;
+  return side === "support"
+    ? zone.representativePrice < currentPrice - tolerance ||
+        (zone.zoneLow < currentPrice && wideEnoughToMatterAtPrice) ||
+        isImportantAtPriceDecisionZone(zone, currentPrice, tolerance, side)
+    : zone.representativePrice > currentPrice + tolerance ||
+        (zone.zoneHigh > currentPrice && wideEnoughToMatterAtPrice) ||
+        isImportantAtPriceDecisionZone(zone, currentPrice, tolerance, side);
 }
 
 function buildSnapshotAuditZones(params: {
@@ -588,12 +997,15 @@ function buildSnapshotAuditZones(params: {
   return sorted.map((zone) => {
     const displayed = params.displayedZoneIds.has(snapshotCandidateKey(zone));
     const wrongSide =
-      params.side === "support"
-        ? zone.representativePrice >= params.currentPrice - params.tolerance
-        : zone.representativePrice <= params.currentPrice + params.tolerance;
+      !isSnapshotZoneDisplayableForSide(
+        zone,
+        params.currentPrice,
+        params.tolerance,
+        params.side,
+      );
     const outsideForwardRange =
       params.side === "resistance" &&
-      zone.representativePrice > params.maxForwardResistancePrice;
+      zone.zoneLow > params.maxForwardResistancePrice;
 
     return {
       id: zone.id,
@@ -628,6 +1040,9 @@ function buildSnapshotAudit(params: {
   currentPrice: number;
   tolerance: number;
   maxForwardResistancePrice: number;
+  referencePriceSource?: LevelSnapshotAudit["referencePriceSource"];
+  livePriceAgeMs?: number;
+  metadataReferencePrice?: number;
   surfacedSupportZones: FinalLevelZone[];
   surfacedResistanceZones: FinalLevelZone[];
   extensionResistanceZones: FinalLevelZone[];
@@ -636,8 +1051,18 @@ function buildSnapshotAudit(params: {
 }): LevelSnapshotAudit {
   const displayedSupportIds = params.displayedSupportZones.map(snapshotCandidateKey);
   const displayedResistanceIds = params.displayedResistanceZones.map(snapshotCandidateKey);
-  const displayedSupportIdSet = new Set(displayedSupportIds);
-  const displayedResistanceIdSet = new Set(displayedResistanceIds);
+  const displayedSupportIdSet = new Set([
+    ...displayedSupportIds,
+    ...displayedResistanceIds
+      .filter((id) => id.endsWith("-as-resistance"))
+      .map((id) => id.slice(0, -"-as-resistance".length)),
+  ]);
+  const displayedResistanceIdSet = new Set([
+    ...displayedResistanceIds,
+    ...displayedSupportIds
+      .filter((id) => id.endsWith("-as-support"))
+      .map((id) => id.slice(0, -"-as-support".length)),
+  ]);
   const supportCandidates = buildSnapshotAuditZones({
     zones: params.surfacedSupportZones,
     displayedZoneIds: displayedSupportIdSet,
@@ -670,6 +1095,9 @@ function buildSnapshotAudit(params: {
 
   return {
     referencePrice: params.currentPrice,
+    referencePriceSource: params.referencePriceSource,
+    livePriceAgeMs: params.livePriceAgeMs,
+    metadataReferencePrice: params.metadataReferencePrice,
     displayTolerance: params.tolerance,
     forwardResistanceLimit: params.maxForwardResistancePrice,
     displayedSupportIds,
@@ -743,7 +1171,14 @@ export class ManualWatchlistRuntimeManager {
   private readonly narrationBurstState = new Map<string, SymbolNarrationBurstState>();
   private readonly storyCriticalState = new Map<string, SymbolStoryCriticalState>();
   private readonly deliveryPressureState = new Map<string, SymbolDeliveryPressureState>();
+  private readonly marketStructureStoryMemory = new MarketStructureStoryMemory();
+  private readonly marketStructureCarrierInFlightKeys = new Map<string, Set<string>>();
+  private readonly pendingMarketStructureStandalonePosts = new Map<string, NodeJS.Timeout>();
+  private readonly marketStructureStoryMemoryPath: string | null;
+  private readonly marketStructureStandalonePostMode: MarketStructureStandalonePostMode;
   private readonly startupCacheWarmingSymbols = new Set<string>();
+  private readonly startupCacheRestoredAt = new Map<string, number>();
+  private readonly startupCacheFreshRefreshFailures = new Map<string, string>();
   private readonly levelSeedStats = {
     attempts: 0,
     successes: 0,
@@ -779,6 +1214,7 @@ export class ManualWatchlistRuntimeManager {
   }>();
   private lastPriceUpdateAt: number | null = null;
   private lastPriceUpdateSymbol: string | null = null;
+  private lastPriceUpdatePersistAt: number | null = null;
   private lastThreadPostAt: number | null = null;
   private lastThreadPostSymbol: string | null = null;
   private lastThreadPostKind: LiveThreadPostKind | null = null;
@@ -797,6 +1233,12 @@ export class ManualWatchlistRuntimeManager {
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
+    this.marketStructureStoryMemoryPath = options.marketStructureStoryMemoryPath?.trim() || null;
+    this.marketStructureStandalonePostMode = resolveMarketStructureStandalonePostMode(
+      options.marketStructureStandalonePostMode,
+    );
+    this.loadMarketStructureStoryMemory();
+
     const runtimeSettings = resolveLevelRuntimeSettings();
     this.levelEngine = new LevelEngine(options.candleFetchService, undefined, {
       runtimeMode: runtimeSettings.mode,
@@ -986,6 +1428,40 @@ export class ManualWatchlistRuntimeManager {
     this.watchlistStatePersistence.save(this.watchlistStore.getEntries());
   }
 
+  private loadMarketStructureStoryMemory(): void {
+    if (!this.marketStructureStoryMemoryPath || !existsSync(this.marketStructureStoryMemoryPath)) {
+      return;
+    }
+
+    try {
+      const snapshot = JSON.parse(
+        readFileSync(this.marketStructureStoryMemoryPath, "utf8"),
+      ) as MarketStructureStoryMemorySnapshot;
+      this.marketStructureStoryMemory.hydrate(snapshot);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ManualWatchlistRuntimeManager] Failed to load market structure story memory: ${message}`);
+    }
+  }
+
+  private persistMarketStructureStoryMemory(): void {
+    if (!this.marketStructureStoryMemoryPath) {
+      return;
+    }
+
+    try {
+      mkdirSync(dirname(this.marketStructureStoryMemoryPath), { recursive: true });
+      writeFileSync(
+        this.marketStructureStoryMemoryPath,
+        `${JSON.stringify(this.marketStructureStoryMemory.toSnapshot(), null, 2)}\n`,
+        "utf8",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ManualWatchlistRuntimeManager] Failed to persist market structure story memory: ${message}`);
+    }
+  }
+
   private setEntryOperation(symbol: string, operationStatus: string | null): void {
     this.watchlistStore.patchEntry(symbol, {
       operationStatus: operationStatus ?? undefined,
@@ -1045,46 +1521,139 @@ export class ManualWatchlistRuntimeManager {
     }
   }
 
+  private resolveSnapshotReferencePrice(
+    symbol: string,
+    timestamp: number,
+    referencePriceOverride?: number,
+  ): SnapshotReferencePrice {
+    const levels = this.options.levelStore.getLevels(symbol);
+    const metadataReferencePrice = levels?.metadata.referencePrice;
+
+    if (
+      typeof referencePriceOverride === "number" &&
+      Number.isFinite(referencePriceOverride) &&
+      referencePriceOverride > 0
+    ) {
+      return {
+        price: referencePriceOverride,
+        source: "override",
+        metadataReferencePrice,
+      };
+    }
+
+    const entry = this.watchlistStore.getEntry(symbol);
+    if (
+      typeof entry?.lastPrice === "number" &&
+      Number.isFinite(entry.lastPrice) &&
+      entry.lastPrice > 0 &&
+      typeof entry.lastPriceUpdateAt === "number" &&
+      Number.isFinite(entry.lastPriceUpdateAt)
+    ) {
+      const livePriceAgeMs = Math.max(0, timestamp - entry.lastPriceUpdateAt);
+      if (livePriceAgeMs <= SNAPSHOT_LIVE_REFERENCE_MAX_AGE_MS) {
+        return {
+          price: entry.lastPrice,
+          source: "live_price",
+          livePriceAgeMs,
+          metadataReferencePrice,
+        };
+      }
+    }
+
+    return {
+      price: metadataReferencePrice ?? 0,
+      source: "level_metadata",
+      metadataReferencePrice,
+    };
+  }
+
   private buildLevelSnapshotPayload(
     symbol: string,
     timestamp: number,
     referencePriceOverride?: number,
   ): LevelSnapshotPayload {
-    const levels = this.options.levelStore.getLevels(symbol);
-    const currentPrice =
-      (typeof referencePriceOverride === "number" && Number.isFinite(referencePriceOverride)
-        ? referencePriceOverride
-        : levels?.metadata.referencePrice) ?? 0;
+    const referencePrice = this.resolveSnapshotReferencePrice(
+      symbol,
+      timestamp,
+      referencePriceOverride,
+    );
+    const currentPrice = referencePrice.price;
     const normalizedPrice = Math.max(currentPrice, 0);
     const tolerance = snapshotPriceTolerance(Math.max(normalizedPrice, 0.0001));
     const levelsOutput = this.options.levelStore.getLevels(symbol);
+    const forwardResistanceRangePct = snapshotForwardResistanceRangePct(normalizedPrice);
     const maxForwardResistancePrice =
-      normalizedPrice * (1 + SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT);
+      normalizedPrice * (1 + forwardResistanceRangePct);
     const surfacedSupportZones = this.options.levelStore.getSupportZones(symbol);
     const surfacedResistanceZones = this.options.levelStore.getResistanceZones(symbol);
     const extensionResistanceCandidates = levelsOutput?.extensionLevels.resistance ?? [];
     const extensionResistanceZones = extensionResistanceCandidates.filter(
       (zone) =>
-        zone.representativePrice > normalizedPrice + tolerance &&
-        zone.representativePrice <= maxForwardResistancePrice,
+        isSnapshotZoneDisplayableForSide(zone, normalizedPrice, tolerance, "resistance") &&
+        zone.zoneLow <= maxForwardResistancePrice,
     );
+    const displayableSupportBase = surfacedSupportZones.filter((zone) =>
+      isSnapshotZoneDisplayableForSide(zone, normalizedPrice, tolerance, "support"),
+    );
+    const displayableResistanceBase = [...surfacedResistanceZones, ...extensionResistanceZones].filter(
+      (zone) =>
+        isSnapshotZoneDisplayableForSide(zone, normalizedPrice, tolerance, "resistance") &&
+        zone.zoneLow <= maxForwardResistancePrice,
+    );
+    const supportCandidatesForDisplay = buildSnapshotSideZones({
+      primaryZones: displayableSupportBase,
+      oppositeZones: surfacedResistanceZones,
+      currentPrice: normalizedPrice,
+      tolerance,
+      side: "support",
+      maxForwardResistancePrice,
+    });
+    const resistanceCandidatesForDisplay = buildSnapshotSideZones({
+      primaryZones: displayableResistanceBase,
+      oppositeZones: surfacedSupportZones,
+      currentPrice: normalizedPrice,
+      tolerance,
+      side: "resistance",
+      maxForwardResistancePrice,
+    });
+    const resistanceCandidatesWithContinuationMap = addSnapshotContinuationResistanceMap({
+      zones: resistanceCandidatesForDisplay,
+      currentPrice: normalizedPrice,
+      maxForwardResistancePrice,
+      symbol,
+      timestamp,
+    });
     const supportZones = compactSnapshotZones(
-      surfacedSupportZones.filter((zone) => zone.representativePrice < normalizedPrice - tolerance),
+      supportCandidatesForDisplay,
       normalizedPrice,
       "support",
     );
+    const ladderSupportZones = sortSnapshotZones(
+      supportCandidatesForDisplay,
+      "support",
+    );
     const resistanceZones = compactSnapshotZones(
-      [...surfacedResistanceZones, ...extensionResistanceZones].filter(
-        (zone) =>
-          zone.representativePrice > normalizedPrice + tolerance &&
-          zone.representativePrice <= maxForwardResistancePrice,
-      ),
+      resistanceCandidatesWithContinuationMap,
       normalizedPrice,
+      "resistance",
+    );
+    const ladderResistanceZones = sortSnapshotZones(
+      resistanceCandidatesWithContinuationMap,
       "resistance",
     );
     const supportDisplayZones = buildSnapshotDisplayZones(supportZones, normalizedPrice, "support");
     const resistanceDisplayZones = buildSnapshotDisplayZones(
       resistanceZones,
+      normalizedPrice,
+      "resistance",
+    );
+    const ladderSupportDisplayZones = buildSnapshotDisplayZones(
+      ladderSupportZones,
+      normalizedPrice,
+      "support",
+    );
+    const ladderResistanceDisplayZones = buildSnapshotDisplayZones(
+      ladderResistanceZones,
       normalizedPrice,
       "resistance",
     );
@@ -1094,17 +1663,23 @@ export class ManualWatchlistRuntimeManager {
       currentPrice: normalizedPrice,
       supportZones: supportDisplayZones,
       resistanceZones: resistanceDisplayZones,
+      ladderSupportZones: ladderSupportDisplayZones,
+      ladderResistanceZones: ladderResistanceDisplayZones,
       timestamp,
       audit: buildSnapshotAudit({
         currentPrice: normalizedPrice,
         tolerance,
         maxForwardResistancePrice,
+        referencePriceSource: referencePrice.source,
+        livePriceAgeMs: referencePrice.livePriceAgeMs,
+        metadataReferencePrice: referencePrice.metadataReferencePrice,
         surfacedSupportZones,
         surfacedResistanceZones,
         extensionResistanceZones: extensionResistanceCandidates,
         displayedSupportZones: supportZones,
         displayedResistanceZones: resistanceZones,
       }),
+      marketStructure: this.getMarketStructureSnapshot(symbol),
     };
   }
 
@@ -1113,10 +1688,59 @@ export class ManualWatchlistRuntimeManager {
     side: LevelExtensionSide,
     timestamp: number,
   ): LevelExtensionPayload | null {
-    const zones =
+    const rawZones =
       side === "resistance"
         ? this.options.levelStore.getExtensionResistanceZones(symbol)
         : this.options.levelStore.getExtensionSupportZones(symbol);
+    const snapshotState = this.activeSnapshotState.get(symbol);
+    const levelsOutput = this.options.levelStore.getLevels(symbol);
+    const referencePrice =
+      snapshotState?.referencePrice ?? levelsOutput?.metadata.referencePrice ?? null;
+    const entry = this.watchlistStore.getEntry(symbol);
+    const livePrice =
+      typeof entry?.lastPrice === "number" &&
+      Number.isFinite(entry.lastPrice) &&
+      entry.lastPrice > 0 &&
+      typeof entry.lastPriceUpdateAt === "number" &&
+      Number.isFinite(entry.lastPriceUpdateAt) &&
+      Math.max(0, timestamp - entry.lastPriceUpdateAt) <= EXTENSION_LIVE_REFERENCE_MAX_AGE_MS
+        ? entry.lastPrice
+        : null;
+    const referenceTolerance =
+      typeof referencePrice === "number" && Number.isFinite(referencePrice) && referencePrice > 0
+        ? snapshotPriceTolerance(referencePrice)
+        : 0;
+    const referenceFilteredZones =
+      typeof referencePrice === "number" && Number.isFinite(referencePrice) && referencePrice > 0
+        ? rawZones.filter((zone) =>
+            side === "resistance"
+              ? zone.zoneHigh > referencePrice + referenceTolerance
+              : zone.zoneLow < referencePrice - referenceTolerance,
+          )
+        : rawZones;
+    const clearedLevel =
+      side === "resistance"
+        ? snapshotState?.lastClearedResistance ?? null
+        : snapshotState?.lastClearedSupport ?? null;
+    const clearedFilteredZones =
+      typeof clearedLevel === "number" && Number.isFinite(clearedLevel) && clearedLevel > 0
+        ? referenceFilteredZones.filter((zone) => {
+            const tolerance = snapshotPriceTolerance(clearedLevel);
+            return side === "resistance"
+              ? zone.zoneHigh > clearedLevel + tolerance
+              : zone.zoneLow < clearedLevel - tolerance;
+          })
+        : referenceFilteredZones;
+    const liveFilteredZones =
+      livePrice !== null
+        ? clearedFilteredZones.filter((zone) => {
+            const tolerance = snapshotPriceTolerance(livePrice);
+            return side === "resistance"
+              ? zone.zoneHigh > livePrice + tolerance
+              : zone.zoneLow < livePrice - tolerance;
+          })
+        : [];
+    const zones = liveFilteredZones.length > 0 ? liveFilteredZones : clearedFilteredZones;
     const levels = uniqueSortedLevels(
       zones.map((zone) => zone.representativePrice),
       side === "resistance" ? "asc" : "desc",
@@ -1139,9 +1763,9 @@ export class ManualWatchlistRuntimeManager {
     threadId: string,
     timestamp: number,
     referencePriceOverride?: number,
-  ): Promise<void> {
+  ): Promise<LevelSnapshotPayload | null> {
     if (!this.isEntryActive(symbol)) {
-      return;
+      return null;
     }
 
     this.setEntryOperation(symbol, "posting level snapshot");
@@ -1152,10 +1776,51 @@ export class ManualWatchlistRuntimeManager {
       resistanceZones: payload.resistanceZones,
     });
     const existingState = this.activeSnapshotState.get(symbol);
+    const candidateLevelCount =
+      (payload.audit?.supportCandidates.length ?? 0) +
+      (payload.audit?.resistanceCandidates.length ?? 0);
+    const hasDisplayedLevels =
+      payload.supportZones.length > 0 || payload.resistanceZones.length > 0;
+
+    if (!hasDisplayedLevels && candidateLevelCount > 0) {
+      this.activeSnapshotState.set(symbol, {
+        lastSnapshot: snapshotKey,
+        highestResistance: null,
+        lowestSupport: null,
+        referencePrice: payload.currentPrice,
+        displayedSupportZones: payload.supportZones,
+        displayedResistanceZones: payload.resistanceZones,
+        lastRefreshTriggerResistance: null,
+        lastRefreshTriggerSupport: null,
+        lastRefreshTimestamp: timestamp,
+        lastExtensionPostKey: null,
+        lastExtensionPostTimestamp: null,
+        extensionPostInFlightKey: null,
+      });
+      this.watchlistStore.patchEntry(symbol, {
+        lifecycle: "active",
+        refreshPending: false,
+        lastError: null,
+        operationStatus: "monitoring live price",
+      });
+      this.emitLifecycle("alert_suppressed", {
+        symbol,
+        threadId,
+        details: {
+          eventType: "level_snapshot",
+          reason: "snapshot_no_actionable_levels",
+          supportCount: payload.supportZones.length,
+          resistanceCount: payload.resistanceZones.length,
+          candidateLevelCount,
+          currentPrice: payload.currentPrice,
+        },
+      });
+      return null;
+    }
 
     if (existingState?.lastSnapshot === snapshotKey) {
       if (!this.isEntryActive(symbol)) {
-        return;
+        return null;
       }
       this.activeSnapshotState.set(symbol, {
         ...existingState,
@@ -1172,12 +1837,12 @@ export class ManualWatchlistRuntimeManager {
         lastError: null,
         operationStatus: "monitoring live price",
       });
-      return;
+      return payload;
     }
 
     await this.options.discordAlertRouter.routeLevelSnapshot(threadId, payload);
     if (!this.isEntryActive(symbol)) {
-      return;
+      return null;
     }
     this.recordLiveThreadPost({
       symbol,
@@ -1187,6 +1852,14 @@ export class ManualWatchlistRuntimeManager {
       eventType: null,
       whyPosted: "level snapshot posted after candle seeding",
     });
+    const postedMarketStructureKeys = this.marketStructureStoryMemory.markPosted(
+      symbol,
+      timestamp,
+      payload.marketStructure,
+    );
+    if (postedMarketStructureKeys.length > 0) {
+      this.persistMarketStructureStoryMemory();
+    }
     this.emitLifecycle("snapshot_posted", {
       symbol,
       threadId,
@@ -1194,6 +1867,8 @@ export class ManualWatchlistRuntimeManager {
         supportCount: payload.supportZones.length,
         resistanceCount: payload.resistanceZones.length,
         currentPrice: payload.currentPrice,
+        referencePriceSource: payload.audit?.referencePriceSource ?? null,
+        metadataReferencePrice: payload.audit?.metadataReferencePrice ?? null,
       },
     });
     this.activeSnapshotState.set(symbol, {
@@ -1216,6 +1891,102 @@ export class ManualWatchlistRuntimeManager {
       refreshPending: false,
       operationStatus: "monitoring live price",
     });
+    return payload;
+  }
+
+  private triggerAutoCleanRead(params: {
+    symbol: string;
+    threadId: string;
+    payload: LevelSnapshotPayload | null;
+  }): void {
+    const autoCleanReadGenerator = this.options.autoCleanReadGenerator;
+    if (!autoCleanReadGenerator || !params.payload) {
+      return;
+    }
+
+    const ladderText = formatLevelLadderMessage(params.payload);
+    if (!ladderText) {
+      return;
+    }
+
+    const entry = this.watchlistStore.getEntry(params.symbol);
+    this.emitLifecycle("ai_clean_read_requested", {
+      symbol: params.symbol,
+      threadId: params.threadId,
+      details: {
+        currentPrice: params.payload.currentPrice,
+        hasPromptNotes: Boolean(entry?.note),
+      },
+    });
+
+    const input = {
+      symbol: params.symbol,
+      currentPrice: formatSnapshotLevel(params.payload.currentPrice),
+      ladderText,
+      aiPromptNotes: entry?.note,
+    };
+
+    void (async () => {
+      let lastError: unknown = null;
+      for (let attempt = 1; attempt <= AUTO_CLEAN_READ_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          if (attempt > 1) {
+            this.emitLifecycle("ai_clean_read_retrying", {
+              symbol: params.symbol,
+              threadId: params.threadId,
+              details: {
+                attempt,
+                maxAttempts: AUTO_CLEAN_READ_MAX_ATTEMPTS,
+              },
+            });
+          }
+
+          const result = await autoCleanReadGenerator(input);
+          if (attempt > 1) {
+            this.emitLifecycle("ai_clean_read_retry_succeeded", {
+              symbol: params.symbol,
+              threadId: params.threadId,
+              details: {
+                attempt,
+                recordId: result?.id ?? null,
+                model: result?.model ?? null,
+              },
+            });
+          }
+          return result;
+        } catch (error) {
+          lastError = error;
+          if (attempt < AUTO_CLEAN_READ_MAX_ATTEMPTS && isAbortLikeError(error)) {
+            await delay(AUTO_CLEAN_READ_RETRY_DELAY_MS);
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      throw lastError;
+    })()
+      .then((result) => {
+        this.emitLifecycle("ai_clean_read_generated", {
+          symbol: params.symbol,
+          threadId: params.threadId,
+          details: {
+            recordId: result?.id ?? null,
+            model: result?.model ?? null,
+          },
+        });
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.emitLifecycle("ai_clean_read_failed", {
+          symbol: params.symbol,
+          threadId: params.threadId,
+          details: {
+            error: message,
+          },
+        });
+        console.error(`[ManualWatchlistRuntimeManager] Failed to generate AI clean read for ${params.symbol}: ${message}`);
+      });
   }
 
   private async maybePostStockContext(
@@ -1231,12 +2002,20 @@ export class ManualWatchlistRuntimeManager {
     try {
       const preview = await stockContextProvider.getThreadPreview(symbol);
       const payload = buildFinnhubThreadPreviewPayload(preview);
+      const currentPrice = resolveStockContextCurrentPrice(preview);
+      if (currentPrice) {
+        this.watchlistStore.patchEntry(symbol, {
+          lastPrice: currentPrice.price,
+          lastPriceUpdateAt: currentPrice.timestamp ?? timestamp,
+        });
+      }
       await this.options.discordAlertRouter.routeAlert(threadId, payload);
       this.recordLiveThreadPost({
         symbol,
         timestamp,
-        kind: "intelligent_alert",
-        critical: true,
+        kind: "stock_context",
+        critical: false,
+        budgeted: false,
         eventType: null,
         whyPosted: payload.metadata?.whyPosted ?? "stock context posted after activation",
       });
@@ -1250,6 +2029,9 @@ export class ManualWatchlistRuntimeManager {
           marketCap: preview.profile.marketCapitalization ?? null,
           yahooMarketCap: preview.yahoo?.summary?.marketCap ?? preview.yahoo?.quote?.marketCap ?? null,
           yahooFloatShares: preview.yahoo?.summary?.floatShares ?? null,
+          currentPrice: currentPrice?.price ?? null,
+          currentPriceSource: currentPrice?.source ?? null,
+          currentPriceTimestamp: currentPrice?.timestamp ?? null,
         },
       });
     } catch (error) {
@@ -1332,14 +2114,28 @@ export class ManualWatchlistRuntimeManager {
           levelCount: payload.levels.length,
         },
       });
-      this.options.levelStore.activateExtensionLevels(symbol, side);
+      const activatedZones = this.options.levelStore.activateExtensionLevels(symbol, side);
+      const nextDisplayedResistanceZones =
+        side === "resistance"
+          ? buildSnapshotDisplayZones(activatedZones, existingState?.referencePrice ?? payload.levels[0] ?? 0, "resistance")
+          : existingState?.displayedResistanceZones;
+      const nextDisplayedSupportZones =
+        side === "support"
+          ? buildSnapshotDisplayZones(activatedZones, existingState?.referencePrice ?? payload.levels[0] ?? 0, "support")
+          : existingState?.displayedSupportZones;
       this.activeSnapshotState.set(symbol, {
         lastSnapshot: existingState?.lastSnapshot ?? "",
-        highestResistance: existingState?.highestResistance ?? null,
-        lowestSupport: existingState?.lowestSupport ?? null,
+        highestResistance:
+          side === "resistance"
+            ? activatedZones.at(-1)?.representativePrice ?? existingState?.highestResistance ?? null
+            : existingState?.highestResistance ?? null,
+        lowestSupport:
+          side === "support"
+            ? activatedZones.at(-1)?.representativePrice ?? existingState?.lowestSupport ?? null
+            : existingState?.lowestSupport ?? null,
         referencePrice: existingState?.referencePrice ?? null,
-        displayedSupportZones: existingState?.displayedSupportZones,
-        displayedResistanceZones: existingState?.displayedResistanceZones,
+        displayedSupportZones: nextDisplayedSupportZones,
+        displayedResistanceZones: nextDisplayedResistanceZones,
         lastRefreshTriggerResistance: existingState?.lastRefreshTriggerResistance ?? null,
         lastRefreshTriggerSupport: existingState?.lastRefreshTriggerSupport ?? null,
         lastRefreshTimestamp: existingState?.lastRefreshTimestamp ?? null,
@@ -1414,24 +2210,26 @@ export class ManualWatchlistRuntimeManager {
     update: LivePriceUpdate,
     snapshotState: ActiveLevelSnapshotState,
   ): boolean {
-    if (!snapshotState.highestResistance) {
+    const refreshBoundary = this.resistanceMapRefreshBoundary(snapshotState);
+    if (!refreshBoundary) {
       return false;
     }
 
-    if (update.lastPrice > snapshotState.highestResistance) {
-      return false;
-    }
+    const crossedAbove =
+      update.lastPrice > refreshBoundary * (1 + FAST_LEVEL_CLEAR_CONFIRM_PCT);
+    const distancePct = crossedAbove
+      ? (update.lastPrice - refreshBoundary) / Math.max(refreshBoundary, 0.0001)
+      : (refreshBoundary - update.lastPrice) / Math.max(refreshBoundary, 0.0001);
 
-    const distancePct =
-      (snapshotState.highestResistance - update.lastPrice) /
-      Math.max(snapshotState.highestResistance, 0.0001);
-
-    if (distancePct < 0 || distancePct > LEVEL_REFRESH_THRESHOLD_PCT) {
+    if (
+      distancePct < 0 ||
+      (!crossedAbove && distancePct > LEVEL_REFRESH_THRESHOLD_PCT)
+    ) {
       return false;
     }
 
     if (
-      snapshotState.lastRefreshTriggerResistance === snapshotState.highestResistance &&
+      snapshotState.lastRefreshTriggerResistance === refreshBoundary &&
       snapshotState.lastRefreshTimestamp !== null &&
       update.timestamp - snapshotState.lastRefreshTimestamp < LEVEL_REFRESH_COOLDOWN_MS
     ) {
@@ -1441,28 +2239,39 @@ export class ManualWatchlistRuntimeManager {
     return true;
   }
 
+  private resistanceMapRefreshBoundary(snapshotState: ActiveLevelSnapshotState): number | null {
+    const zones = (snapshotState.displayedResistanceZones ?? [])
+      .map((zone) => zone.representativePrice)
+      .filter((price) => Number.isFinite(price))
+      .sort((left, right) => left - right);
+    if (zones.length >= 2) {
+      return zones[zones.length - 2] ?? null;
+    }
+    return snapshotState.highestResistance;
+  }
+
   private shouldTriggerSupportRefresh(
     update: LivePriceUpdate,
     snapshotState: ActiveLevelSnapshotState,
   ): boolean {
-    if (!snapshotState.lowestSupport) {
+    const refreshBoundary = this.supportMapRefreshBoundary(snapshotState);
+    if (!refreshBoundary) {
       return false;
     }
 
-    if (update.lastPrice < snapshotState.lowestSupport) {
-      return false;
-    }
+    const crossedBelow =
+      update.lastPrice < refreshBoundary * (1 - FAST_LEVEL_CLEAR_CONFIRM_PCT);
 
-    const distancePct =
-      (update.lastPrice - snapshotState.lowestSupport) /
-      Math.max(snapshotState.lowestSupport, 0.0001);
+    const distancePct = crossedBelow
+      ? (refreshBoundary - update.lastPrice) / Math.max(refreshBoundary, 0.0001)
+      : (update.lastPrice - refreshBoundary) / Math.max(refreshBoundary, 0.0001);
 
-    if (distancePct < 0 || distancePct > LEVEL_REFRESH_THRESHOLD_PCT) {
+    if (distancePct < 0 || (!crossedBelow && distancePct > LEVEL_REFRESH_THRESHOLD_PCT)) {
       return false;
     }
 
     if (
-      snapshotState.lastRefreshTriggerSupport === snapshotState.lowestSupport &&
+      snapshotState.lastRefreshTriggerSupport === refreshBoundary &&
       snapshotState.lastRefreshTimestamp !== null &&
       update.timestamp - snapshotState.lastRefreshTimestamp < LEVEL_REFRESH_COOLDOWN_MS
     ) {
@@ -1470,6 +2279,17 @@ export class ManualWatchlistRuntimeManager {
     }
 
     return true;
+  }
+
+  private supportMapRefreshBoundary(snapshotState: ActiveLevelSnapshotState): number | null {
+    const zones = (snapshotState.displayedSupportZones ?? [])
+      .map((zone) => zone.representativePrice)
+      .filter((price) => Number.isFinite(price))
+      .sort((left, right) => right - left);
+    if (zones.length >= 2) {
+      return zones[zones.length - 2] ?? null;
+    }
+    return snapshotState.lowestSupport;
   }
 
   private hasRecentCriticalPost(symbol: string, timestamp: number, eventType: string): boolean {
@@ -1547,8 +2367,8 @@ export class ManualWatchlistRuntimeManager {
       .sort((left, right) => right.representativePrice - left.representativePrice)[0] ?? null;
   }
 
-  private findTightLevelCluster(zones: FinalLevelZone[]): FinalLevelZone[] {
-    const cluster: FinalLevelZone[] = [];
+  private findTightLevelCluster(zones: FastLevelReference[]): FastLevelReference[] {
+    const cluster: FastLevelReference[] = [];
     for (const zone of zones) {
       const levels = [...cluster, zone].map((candidate) => candidate.representativePrice);
       if (cluster.length > 0 && relativeLevelSpan(levels) > FAST_LEVEL_CLUSTER_MAX_SPAN_PCT) {
@@ -1563,14 +2383,14 @@ export class ManualWatchlistRuntimeManager {
     symbol: string,
     snapshotState: ActiveLevelSnapshotState,
     lastPrice: number,
-  ): FinalLevelZone[] {
-    const zones = this.options.levelStore
-      .getResistanceZones(symbol)
+    timestamp: number,
+  ): FastLevelReference[] {
+    const zones = this.getFastResistanceReferences(symbol, snapshotState)
       .sort((left, right) => left.representativePrice - right.representativePrice);
-    const lastCleared = snapshotState.lastClearedResistance ?? null;
+    const lastCleared = this.highestRecentlyPostedResistanceClear(symbol, timestamp, snapshotState);
     const candidates = zones.filter((zone) => {
       const level = zone.representativePrice;
-      const clearLine = Math.max(zone.zoneHigh, zone.representativePrice);
+      const clearLine = Math.max(fastLevelHigh(zone), zone.representativePrice);
       if (
         lastCleared !== null &&
         level <= lastCleared + snapshotPriceTolerance(lastCleared)
@@ -1587,14 +2407,14 @@ export class ManualWatchlistRuntimeManager {
     symbol: string,
     snapshotState: ActiveLevelSnapshotState,
     lastPrice: number,
-  ): FinalLevelZone[] {
-    const zones = this.options.levelStore
-      .getSupportZones(symbol)
+    timestamp: number,
+  ): FastLevelReference[] {
+    const zones = this.getFastSupportReferences(symbol, snapshotState)
       .sort((left, right) => right.representativePrice - left.representativePrice);
-    const lastCleared = snapshotState.lastClearedSupport ?? null;
+    const lastCleared = this.lowestRecentlyPostedSupportClear(symbol, timestamp, snapshotState);
     const candidates = zones.filter((zone) => {
       const level = zone.representativePrice;
-      const clearLine = Math.min(zone.zoneLow, zone.representativePrice);
+      const clearLine = Math.min(fastLevelLow(zone), zone.representativePrice);
       if (
         lastCleared !== null &&
         level >= lastCleared - snapshotPriceTolerance(lastCleared)
@@ -1616,14 +2436,19 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    const resistanceCluster = this.findFastClearedResistanceCluster(symbol, snapshotState, update.lastPrice);
+    const resistanceCluster = this.findFastClearedResistanceCluster(
+      symbol,
+      snapshotState,
+      update.lastPrice,
+      update.timestamp,
+    );
     const resistanceZone = resistanceCluster[resistanceCluster.length - 1] ?? null;
     const resistanceLevels = resistanceCluster.map((zone) => zone.representativePrice);
     const isResistanceCluster = resistanceLevels.length > 1;
     const resistance = resistanceZone?.representativePrice ?? null;
     const resistanceBreakLine =
       resistanceCluster.length > 0
-        ? Math.max(...resistanceCluster.map((zone) => Math.max(zone.zoneHigh, zone.representativePrice)))
+        ? Math.max(...resistanceCluster.map((zone) => Math.max(fastLevelHigh(zone), zone.representativePrice)))
         : null;
     const lastClearedResistance = snapshotState.lastClearedResistance ?? null;
     const suppressRepeatedResistance =
@@ -1699,7 +2524,7 @@ export class ManualWatchlistRuntimeManager {
       const title = isResistanceCluster
         ? `${symbol} resistance cluster crossed`
         : `${symbol} resistance crossed`;
-      const body = isResistanceCluster ? [
+      const bodyBase = isResistanceCluster ? [
         `price pushed through nearby resistance cluster ${resistanceRange}${nextResistanceText ? `; nearby resistance above is ${nextResistanceText}` : ""}`,
         "",
         "Old resistance is being tested as support.",
@@ -1750,6 +2575,18 @@ export class ManualWatchlistRuntimeManager {
           ? `- Resistance above: ${nextResistanceText}`
           : "- Resistance above: needs fresh level check",
       ].join("\n");
+      const marketStructureStoryDecision = this.resolveMarketStructureStoryDecision(
+        symbol,
+        update.timestamp,
+      );
+      const body = marketStructureStoryDecision.includeStory
+        ? appendMarketStructureSection(
+            bodyBase,
+            marketStructureStoryDecision.snapshot,
+            marketStructureStoryDecision.keys,
+          )
+        : bodyBase;
+      const marketStructureStoryVisible = body !== bodyBase;
       if (this.cancelPendingLevelTouchAlert(symbol)) {
         this.emitLifecycle("alert_suppressed", {
           symbol,
@@ -1765,7 +2602,7 @@ export class ManualWatchlistRuntimeManager {
         lastClearedResistance: resistance,
         lastLevelClearTimestamp: update.timestamp,
       });
-      await this.options.discordAlertRouter.routeAlert(entry.discordThreadId, {
+      const payload: AlertPayload = {
         title,
         body,
         symbol,
@@ -1785,8 +2622,30 @@ export class ManualWatchlistRuntimeManager {
           postBudgetSymbolType: classifyRuntimePostBudgetSymbolType(update.lastPrice),
           noLevelReason: nextResistance ? undefined : "higher resistance not available in active snapshot or extension cache",
           needsFreshLevelCheck: nextResistance ? undefined : true,
+          marketStructureStoryVisible,
+          runtimeMarketStructure: marketStructureStoryDecision.snapshot,
         },
-      });
+      };
+      this.annotateMarketStructureStoryPayload(
+        payload,
+        marketStructureStoryDecision,
+        "level_clear",
+      );
+      const releaseMarketStructureCarrier = this.reserveMarketStructureStoryCarrier(
+        symbol,
+        payload.metadata?.marketStructureStoryKeys,
+      );
+      try {
+        await this.options.discordAlertRouter.routeAlert(entry.discordThreadId, payload);
+        this.markMarketStructureStoryPosted(
+          symbol,
+          update.timestamp,
+          payload,
+          marketStructureStoryDecision,
+        );
+      } finally {
+        releaseMarketStructureCarrier();
+      }
       this.recordLevelClearUpdate({
         symbol,
         timestamp: update.timestamp,
@@ -1798,7 +2657,7 @@ export class ManualWatchlistRuntimeManager {
       this.recordLiveThreadPost({
         symbol,
         timestamp: update.timestamp,
-        kind: "intelligent_alert",
+        kind: "level_clear_update",
         critical: true,
         eventType: "breakout",
         whyPosted: isResistanceCluster ? "nearby resistance cluster crossed" : "new resistance level crossed",
@@ -1813,7 +2672,12 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    const supportCluster = this.findFastLostSupportCluster(symbol, snapshotState, update.lastPrice);
+    const supportCluster = this.findFastLostSupportCluster(
+      symbol,
+      snapshotState,
+      update.lastPrice,
+      update.timestamp,
+    );
     const supportZone = supportCluster[supportCluster.length - 1] ?? null;
     const supportLevels = supportCluster.map((zone) => zone.representativePrice);
     const isSupportCluster = supportLevels.length > 1;
@@ -1890,7 +2754,7 @@ export class ManualWatchlistRuntimeManager {
       const title = isSupportCluster
         ? `${symbol} support cluster crossed lower`
         : `${symbol} support crossed lower`;
-      const body = isSupportCluster ? [
+      const bodyBase = isSupportCluster ? [
         `price slipped through nearby support cluster ${supportRange}${nextSupportText ? `; nearby support below is ${nextSupportText}` : ""}`,
         "",
         "Old support is now overhead.",
@@ -1933,6 +2797,18 @@ export class ManualWatchlistRuntimeManager {
             : `- below ${formatSnapshotLevel(support)}, the next broader support area is ${nextSupportLevel}`
           : `- below ${formatSnapshotLevel(support)}, risk stays elevated until a new support forms`,
       ].join("\n");
+      const marketStructureStoryDecision = this.resolveMarketStructureStoryDecision(
+        symbol,
+        update.timestamp,
+      );
+      const body = marketStructureStoryDecision.includeStory
+        ? appendMarketStructureSection(
+            bodyBase,
+            marketStructureStoryDecision.snapshot,
+            marketStructureStoryDecision.keys,
+          )
+        : bodyBase;
+      const marketStructureStoryVisible = body !== bodyBase;
       if (this.cancelPendingLevelTouchAlert(symbol)) {
         this.emitLifecycle("alert_suppressed", {
           symbol,
@@ -1948,7 +2824,7 @@ export class ManualWatchlistRuntimeManager {
         lastClearedSupport: support,
         lastLevelClearTimestamp: update.timestamp,
       });
-      await this.options.discordAlertRouter.routeAlert(entry.discordThreadId, {
+      const payload: AlertPayload = {
         title,
         body,
         symbol,
@@ -1968,8 +2844,30 @@ export class ManualWatchlistRuntimeManager {
           postBudgetSymbolType: classifyRuntimePostBudgetSymbolType(update.lastPrice),
           noLevelReason: nextSupport ? undefined : "lower support not available in active snapshot or extension cache",
           needsFreshLevelCheck: nextSupport ? undefined : true,
+          marketStructureStoryVisible,
+          runtimeMarketStructure: marketStructureStoryDecision.snapshot,
         },
-      });
+      };
+      this.annotateMarketStructureStoryPayload(
+        payload,
+        marketStructureStoryDecision,
+        "level_clear",
+      );
+      const releaseMarketStructureCarrier = this.reserveMarketStructureStoryCarrier(
+        symbol,
+        payload.metadata?.marketStructureStoryKeys,
+      );
+      try {
+        await this.options.discordAlertRouter.routeAlert(entry.discordThreadId, payload);
+        this.markMarketStructureStoryPosted(
+          symbol,
+          update.timestamp,
+          payload,
+          marketStructureStoryDecision,
+        );
+      } finally {
+        releaseMarketStructureCarrier();
+      }
       this.recordLevelClearUpdate({
         symbol,
         timestamp: update.timestamp,
@@ -1981,7 +2879,7 @@ export class ManualWatchlistRuntimeManager {
       this.recordLiveThreadPost({
         symbol,
         timestamp: update.timestamp,
-        kind: "intelligent_alert",
+        kind: "level_clear_update",
         critical: true,
         eventType: "breakdown",
         whyPosted: isSupportCluster ? "nearby support cluster crossed lower" : "new support level crossed lower",
@@ -2049,7 +2947,9 @@ export class ManualWatchlistRuntimeManager {
 
     const side: LevelExtensionSide = triggeredResistance ? "resistance" : "support";
     const boundary =
-      side === "resistance" ? snapshotState.highestResistance : snapshotState.lowestSupport;
+      side === "resistance"
+        ? this.resistanceMapRefreshBoundary(snapshotState)
+        : this.supportMapRefreshBoundary(snapshotState);
 
     this.extensionRefreshInFlight.add(symbol);
     try {
@@ -2057,6 +2957,30 @@ export class ManualWatchlistRuntimeManager {
         lifecycle: "extension_pending",
         operationStatus: `checking next ${side} levels`,
       });
+
+      const consumingOuterResistanceMap =
+        side === "resistance" &&
+        boundary !== null &&
+        update.lastPrice > boundary * (1 + FAST_LEVEL_CLEAR_CONFIRM_PCT);
+      const consumingOuterSupportMap =
+        side === "support" &&
+        boundary !== null &&
+        update.lastPrice < boundary * (1 - FAST_LEVEL_CLEAR_CONFIRM_PCT);
+      const shouldRefreshCandlesBeforeExtension =
+        consumingOuterResistanceMap || consumingOuterSupportMap;
+
+      if (shouldRefreshCandlesBeforeExtension) {
+        this.watchlistStore.patchEntry(symbol, {
+          lifecycle: "extension_pending",
+          operationStatus: consumingOuterResistanceMap
+            ? "refreshing candles for higher resistance"
+            : "refreshing candles for lower support",
+        });
+        await this.seedLevelsForSymbol(symbol, {
+          force: true,
+          graceOnTimeout: true,
+        });
+      }
 
       let extensionResult = await this.postLevelExtension(
         symbol,
@@ -2066,8 +2990,13 @@ export class ManualWatchlistRuntimeManager {
       );
 
       if (extensionResult === "unavailable" && !this.options.levelStore.getLevels(symbol)) {
-        await this.seedLevelsForSymbol(symbol);
-        await this.postLevelSnapshot(symbol, entry.discordThreadId, update.timestamp, update.lastPrice);
+        this.watchlistStore.patchEntry(symbol, {
+          lifecycle: "extension_pending",
+          operationStatus: `refreshing ${side} levels`,
+        });
+        await this.seedLevelsForSymbol(symbol, {
+          graceOnTimeout: true,
+        });
         extensionResult = await this.postLevelExtension(
           symbol,
           entry.discordThreadId,
@@ -2187,7 +3116,7 @@ export class ManualWatchlistRuntimeManager {
           return;
         }
 
-        const output = await this.levelEngine.generateLevels({
+        const { output, seriesMap } = await this.levelEngine.generateLevelsWithCandleSeries({
           symbol,
           historicalRequests: {
             daily: { symbol, timeframe: "daily", lookbackBars: this.historicalLookbackBars.daily },
@@ -2197,6 +3126,7 @@ export class ManualWatchlistRuntimeManager {
         });
 
         this.options.levelStore.setLevels(output);
+        this.options.monitor.seedMarketStructure(symbol, seriesMap);
         this.markSeededLevelsReady(symbol);
         this.emitLifecycle("levels_seeded", {
           symbol,
@@ -2269,7 +3199,7 @@ export class ManualWatchlistRuntimeManager {
     }
 
     try {
-      const output = await this.startupCachedLevelEngine.generateLevels({
+      const { output, seriesMap } = await this.startupCachedLevelEngine.generateLevelsWithCandleSeries({
         symbol,
         historicalRequests: {
           daily: { symbol, timeframe: "daily", lookbackBars: this.historicalLookbackBars.daily },
@@ -2278,8 +3208,11 @@ export class ManualWatchlistRuntimeManager {
         },
       });
       this.options.levelStore.setLevels(output);
+      this.options.monitor.seedMarketStructure(symbol, seriesMap);
       this.markSeededLevelsReady(symbol);
       this.startupCacheWarmingSymbols.add(symbol);
+      this.startupCacheRestoredAt.set(symbol, Date.now());
+      this.startupCacheFreshRefreshFailures.delete(symbol);
       this.watchlistStore.patchEntry(symbol, {
         lifecycle: "refresh_pending",
         refreshPending: true,
@@ -2375,18 +3308,21 @@ export class ManualWatchlistRuntimeManager {
     timestamp: number;
     kind: LiveThreadPostKind;
     critical: boolean;
+    budgeted?: boolean;
     eventType?: string | null;
     whyPosted?: string | null;
     tradeStoryState?: string | null;
     triggerPrice?: number | null;
   }): void {
     const state = this.pruneLiveThreadPosts(params.symbol, params.timestamp);
-    const target = params.critical ? state.critical : state.optional;
-    target.push({
-      kind: params.kind,
-      timestamp: params.timestamp,
-      eventType: params.eventType ?? null,
-    });
+    if (params.budgeted !== false) {
+      const target = params.critical ? state.critical : state.optional;
+      target.push({
+        kind: params.kind,
+        timestamp: params.timestamp,
+        eventType: params.eventType ?? null,
+      });
+    }
     this.lastThreadPostAt = params.timestamp;
     this.lastThreadPostSymbol = params.symbol;
     this.lastThreadPostKind = params.kind;
@@ -2719,6 +3655,44 @@ export class ManualWatchlistRuntimeManager {
     );
   }
 
+  private highestRecentlyPostedResistanceClear(
+    symbol: string,
+    timestamp: number,
+    snapshotState: ActiveLevelSnapshotState,
+  ): number | null {
+    const recentPosted = this.pruneDominantLevelStories(symbol, timestamp)
+      .filter((story) =>
+        (story.eventType === "breakout" || story.eventType === "reclaim") &&
+        story.timestamp <= timestamp &&
+        Number.isFinite(story.level),
+      )
+      .map((story) => story.level);
+    const levels = [
+      ...(typeof snapshotState.lastClearedResistance === "number" ? [snapshotState.lastClearedResistance] : []),
+      ...recentPosted,
+    ];
+    return levels.length > 0 ? Math.max(...levels) : null;
+  }
+
+  private lowestRecentlyPostedSupportClear(
+    symbol: string,
+    timestamp: number,
+    snapshotState: ActiveLevelSnapshotState,
+  ): number | null {
+    const recentPosted = this.pruneDominantLevelStories(symbol, timestamp)
+      .filter((story) =>
+        story.eventType === "breakdown" &&
+        story.timestamp <= timestamp &&
+        Number.isFinite(story.level),
+      )
+      .map((story) => story.level);
+    const levels = [
+      ...(typeof snapshotState.lastClearedSupport === "number" ? [snapshotState.lastClearedSupport] : []),
+      ...recentPosted,
+    ];
+    return levels.length > 0 ? Math.min(...levels) : null;
+  }
+
   private cancelPendingFastLevelClearIfSameStory(params: {
     symbol: string;
     eventType: string;
@@ -2737,6 +3711,7 @@ export class ManualWatchlistRuntimeManager {
         normalizedSymbol,
         snapshotState,
         pending.update.lastPrice,
+        pending.update.timestamp,
       );
       pendingLevel = cluster.at(-1)?.representativePrice ?? null;
     } else if (params.eventType === "breakdown") {
@@ -2744,6 +3719,7 @@ export class ManualWatchlistRuntimeManager {
         normalizedSymbol,
         snapshotState,
         pending.update.lastPrice,
+        pending.update.timestamp,
       );
       pendingLevel = cluster.at(-1)?.representativePrice ?? null;
     }
@@ -2930,6 +3906,12 @@ export class ManualWatchlistRuntimeManager {
         practicalZoneKey: alert.event.eventContext.tradeStructure?.practicalZoneKey,
         stableMarketStructureState: alert.event.eventContext.stableMarketStructureState,
         stableMarketStructureKey: alert.event.eventContext.stableMarketStructureKey,
+        formalStructureEventType: alert.event.eventContext.formalStructureEventType,
+        formalStructureKey: alert.event.eventContext.formalStructureKey,
+        formalStructureMaterialChange: alert.event.eventContext.formalStructureMaterialChange,
+        selectedFormalStructureEventType: alert.event.eventContext.selectedFormalStructureEventType,
+        selectedFormalStructureKey: alert.event.eventContext.selectedFormalStructureKey,
+        selectedFormalStructureMaterialChange: alert.event.eventContext.selectedFormalStructureMaterialChange,
         tradeStoryState: alert.event.eventContext.tradeStoryState,
         rangeBoxLabel: alert.event.eventContext.rangeBox?.label,
         acceptanceLabel: alert.event.eventContext.acceptance?.label,
@@ -3037,6 +4019,12 @@ export class ManualWatchlistRuntimeManager {
       stableMarketStructureState: alert.event.eventContext.stableMarketStructureState,
       stableMarketStructureKey: alert.event.eventContext.stableMarketStructureKey,
       stableMarketStructureMaterialChange: alert.event.eventContext.stableMarketStructureMaterialChange,
+      formalStructureEventType: alert.event.eventContext.formalStructureEventType,
+      formalStructureKey: alert.event.eventContext.formalStructureKey,
+      formalStructureMaterialChange: alert.event.eventContext.formalStructureMaterialChange,
+      selectedFormalStructureEventType: alert.event.eventContext.selectedFormalStructureEventType,
+      selectedFormalStructureKey: alert.event.eventContext.selectedFormalStructureKey,
+      selectedFormalStructureMaterialChange: alert.event.eventContext.selectedFormalStructureMaterialChange,
       tradeStoryState: alert.event.eventContext.tradeStoryState,
       rangeBoxLabel: alert.event.eventContext.rangeBox?.label,
       acceptanceLabel: alert.event.eventContext.acceptance?.label,
@@ -3060,7 +4048,6 @@ export class ManualWatchlistRuntimeManager {
       triggerPrice: alert.event.triggerPrice,
       practicalStructureState: alert.event.eventContext.tradeStructure?.state,
       practicalZoneKey: alert.event.eventContext.tradeStructure?.practicalZoneKey,
-      practicalStructureMaterialChange: alert.event.eventContext.tradeStructure?.isMaterialStateChange,
       zoneKind: alert.event.zoneKind,
       majorChange:
         alert.event.eventType === "breakout" ||
@@ -3090,6 +4077,8 @@ export class ManualWatchlistRuntimeManager {
       eventType: params.eventType,
       level: params.level,
       triggerPrice: params.triggerPrice,
+      ladderStepUpdate: true,
+      practicalStructureMaterialChange: params.majorChange === true,
       settings: this.postingPolicySettings,
     });
     if (!decision.shouldPost) {
@@ -3784,6 +4773,10 @@ export class ManualWatchlistRuntimeManager {
       eventType: progressUpdate.eventType,
     });
 
+    const marketStructureStoryDecision = this.resolveMarketStructureStoryDecision(
+      progressUpdate.symbol,
+      progressUpdate.timestamp,
+    );
     const payload = formatFollowThroughStateUpdateAsPayload({
       symbol: progressUpdate.symbol,
       timestamp: progressUpdate.timestamp,
@@ -3792,7 +4785,19 @@ export class ManualWatchlistRuntimeManager {
       directionalReturnPct: progressUpdate.directionalReturnPct,
       entryPrice: progressUpdate.entryPrice,
       currentPrice: progressUpdate.currentPrice,
+      marketStructure: marketStructureStoryDecision.snapshot,
+      includeMarketStructureStory: marketStructureStoryDecision.includeStory,
+      marketStructureStoryKeys: marketStructureStoryDecision.keys,
     });
+    this.annotateMarketStructureStoryPayload(
+      payload,
+      marketStructureStoryDecision,
+      "follow_through_state",
+    );
+    const releaseMarketStructureCarrier = this.reserveMarketStructureStoryCarrier(
+      progressUpdate.symbol,
+      payload.metadata?.marketStructureStoryKeys,
+    );
 
     void (async (): Promise<boolean> => {
       if (this.optionalPostSettleDelayMs > 0) {
@@ -3823,6 +4828,12 @@ export class ManualWatchlistRuntimeManager {
           eventType: progressUpdate.eventType,
           whyPosted: payload.metadata?.whyPosted ?? null,
         });
+        this.markMarketStructureStoryPosted(
+          progressUpdate.symbol,
+          progressUpdate.timestamp,
+          payload,
+          marketStructureStoryDecision,
+        );
         this.clearDeliveryFailure(progressUpdate.symbol, progressUpdate.timestamp);
         this.followThroughStatePosts.set(progressUpdate.symbol, {
           lastLabel: progressUpdate.progressLabel,
@@ -3851,7 +4862,8 @@ export class ManualWatchlistRuntimeManager {
         });
         this.recordDeliveryFailure(progressUpdate.symbol, progressUpdate.timestamp, message);
         console.error(`[ManualWatchlistRuntimeManager] Failed to route follow-through state update: ${message}`);
-      });
+      })
+      .finally(releaseMarketStructureCarrier);
 
     return true;
   }
@@ -4166,6 +5178,7 @@ export class ManualWatchlistRuntimeManager {
     });
 
     try {
+      const operatorNote = this.watchlistStore.getEntry(params.alert.symbol)?.note;
       const commentary = await aiCommentaryService.explainSignal({
         symbol: params.alert.symbol,
         title: params.deterministicPayload.title,
@@ -4174,6 +5187,7 @@ export class ManualWatchlistRuntimeManager {
         severity: params.alert.severity,
         confidence: params.alert.confidence,
         score: params.alert.score,
+        operatorNote,
         metadata: this.buildAiSignalCommentaryMetadata(params.deterministicPayload),
       });
 
@@ -4292,9 +5306,11 @@ export class ManualWatchlistRuntimeManager {
     }
 
     try {
+      const operatorNote = this.watchlistStore.getEntry(params.symbol)?.note;
       const commentary = await aiCommentaryService.summarizeSymbolThread({
         symbol: params.symbol,
         deterministicRecap: params.deterministicBody,
+        operatorNote,
         topOpportunity: (params.snapshot.top ?? []).find((opportunity) => opportunity.symbol === params.symbol) ?? null,
         latestProgress: params.progressUpdate ?? null,
         latestEvaluation: params.evaluation ?? null,
@@ -4577,11 +5593,370 @@ export class ManualWatchlistRuntimeManager {
     return startableEntries;
   }
 
+  private marketStructureSnapshotCoverageScore(snapshot: RuntimeMarketStructureSnapshot | null | undefined): number {
+    if (!snapshot) {
+      return 0;
+    }
+
+    let score = 0;
+    if (snapshot.timeframes?.["4h"]?.formal) score += 40;
+    if (snapshot.timeframes?.["4h"]?.stable) score += 20;
+    if (snapshot.timeframes?.["5m"]?.formal) score += 12;
+    if (snapshot.timeframes?.["5m"]?.stable) score += 8;
+    if (snapshot.formal) score += 4;
+    if (snapshot.stable) score += 2;
+    return score;
+  }
+
+  private getMarketStructureSnapshot(symbol: string): RuntimeMarketStructureSnapshot | null {
+    const monitor = this.options.monitor as WatchlistMonitor & {
+      getMarketStructureSnapshot?: (symbolInput: string) => RuntimeMarketStructureSnapshot | null;
+    };
+
+    if (typeof monitor.getMarketStructureSnapshot !== "function") {
+      return null;
+    }
+
+    return monitor.getMarketStructureSnapshot(symbol);
+  }
+
+  private resolveMarketStructureStoryDecision(
+    symbol: string,
+    timestamp: number,
+  ): MarketStructureStoryDecision {
+    this.recordExpiredMarketStructureStories(symbol, timestamp);
+    return this.marketStructureStoryMemory.decide(
+      symbol,
+      timestamp,
+      this.getMarketStructureSnapshot(symbol),
+    );
+  }
+
+  private captureFreshMarketStructureStory(symbol: string, timestamp: number): string[] {
+    this.recordExpiredMarketStructureStories(symbol, timestamp);
+    const snapshot = this.getMarketStructureSnapshot(symbol);
+    const capturedKeys = this.marketStructureStoryMemory.capture(
+      symbol,
+      timestamp,
+      snapshot,
+    );
+    if (capturedKeys.length > 0) {
+      this.persistMarketStructureStoryMemory();
+    }
+    const freshBosChochKeys = getFreshFormalBosChochMarketStructureStoryKeys(snapshot);
+    return capturedKeys.filter((key) => freshBosChochKeys.includes(key));
+  }
+
+  private recordExpiredMarketStructureStories(symbol: string, timestamp: number): void {
+    const expired = this.marketStructureStoryMemory.consumeExpired(symbol, timestamp);
+    if (expired.length > 0) {
+      this.persistMarketStructureStoryMemory();
+    }
+    for (const story of expired) {
+      this.emitLifecycle("market_structure_story_expired", {
+        symbol,
+        details: {
+          storyKey: story.key,
+          capturedAt: story.capturedAt,
+          expiresAt: story.expiresAt,
+          expiredAt: story.expiredAt,
+        },
+      });
+    }
+  }
+
+  private marketStructureStoryKeysForPayload(
+    payload: AlertPayload,
+    decision?: MarketStructureStoryDecision,
+  ): string[] {
+    if (
+      payload.metadata?.marketStructureStoryVisible !== true &&
+      decision?.includeStory !== true
+    ) {
+      return [];
+    }
+
+    const snapshotKeys = getMaterialMarketStructureStoryKeys(
+      payload.metadata?.runtimeMarketStructure ?? decision?.snapshot ?? null,
+    );
+    if (decision?.keys && decision.keys.length > 0) {
+      const selectedKeys = snapshotKeys.filter((key) => decision.keys.includes(key));
+      return selectedKeys.length > 0 ? selectedKeys : decision.keys;
+    }
+
+    return snapshotKeys;
+  }
+
+  private annotateMarketStructureStoryPayload(
+    payload: AlertPayload,
+    decision: MarketStructureStoryDecision,
+    source: string,
+  ): void {
+    payload.metadata = {
+      ...payload.metadata,
+      marketStructureStoryReason: decision.reason,
+      marketStructureStoryKeys: this.marketStructureStoryKeysForPayload(payload, decision),
+      marketStructureStorySource: source,
+    };
+  }
+
+  private markMarketStructureStoryPosted(
+    symbol: string,
+    timestamp: number,
+    payload: AlertPayload,
+    decision?: MarketStructureStoryDecision,
+  ): void {
+    if (payload.metadata?.marketStructureStoryVisible !== true) {
+      return;
+    }
+
+    const postedKeys = this.marketStructureStoryMemory.markPosted(
+      symbol,
+      timestamp,
+      payload.metadata.runtimeMarketStructure ?? decision?.snapshot ?? null,
+      payload.metadata.marketStructureStoryKeys,
+    );
+    if (postedKeys.length > 0) {
+      this.persistMarketStructureStoryMemory();
+    }
+  }
+
+  private reserveMarketStructureStoryCarrier(symbolInput: string, keysInput: string[] | undefined): () => void {
+    const keys = keysInput?.filter((key) => key.trim().length > 0) ?? [];
+    if (keys.length === 0) {
+      return () => undefined;
+    }
+
+    const symbol = normalizeSymbol(symbolInput);
+    const inFlight = this.marketStructureCarrierInFlightKeys.get(symbol) ?? new Set<string>();
+    keys.forEach((key) => inFlight.add(key));
+    this.marketStructureCarrierInFlightKeys.set(symbol, inFlight);
+
+    return () => {
+      const current = this.marketStructureCarrierInFlightKeys.get(symbol);
+      if (!current) {
+        return;
+      }
+
+      keys.forEach((key) => current.delete(key));
+      if (current.size === 0) {
+        this.marketStructureCarrierInFlightKeys.delete(symbol);
+      }
+    };
+  }
+
+  private hasMarketStructureCarrierInFlight(symbolInput: string, keys: string[]): boolean {
+    const inFlight = this.marketStructureCarrierInFlightKeys.get(normalizeSymbol(symbolInput));
+    if (!inFlight) {
+      return false;
+    }
+
+    return keys.some((key) => inFlight.has(key));
+  }
+
+  private clearPendingMarketStructureStandalonePost(symbolInput: string): void {
+    const symbol = normalizeSymbol(symbolInput);
+    const pending = this.pendingMarketStructureStandalonePosts.get(symbol);
+    if (!pending) {
+      return;
+    }
+
+    clearTimeout(pending);
+    this.pendingMarketStructureStandalonePosts.delete(symbol);
+  }
+
+  private marketStructureStandalonePostDelayMs(): number {
+    return this.marketStructureStandalonePostMode === "testing"
+      ? MARKET_STRUCTURE_STANDALONE_TESTING_POST_DELAY_MS
+      : MARKET_STRUCTURE_STANDALONE_POST_DELAY_MS;
+  }
+
+  private marketStructureStandaloneRepeatCooldownMs(): number {
+    return this.marketStructureStandalonePostMode === "testing"
+      ? MARKET_STRUCTURE_STANDALONE_TESTING_REPEAT_COOLDOWN_MS
+      : MARKET_STRUCTURE_STANDALONE_REPEAT_COOLDOWN_MS;
+  }
+
+  private scheduleStandaloneMarketStructurePost(
+    symbolInput: string,
+    timestamp: number,
+    delayMs?: number,
+  ): void {
+    if (this.marketStructureStandalonePostMode === "off") {
+      return;
+    }
+
+    const symbol = normalizeSymbol(symbolInput);
+    if (this.pendingMarketStructureStandalonePosts.has(symbol)) {
+      return;
+    }
+
+    const effectiveDelayMs = Math.max(0, delayMs ?? this.marketStructureStandalonePostDelayMs());
+    const timer = setTimeout(() => {
+      this.pendingMarketStructureStandalonePosts.delete(symbol);
+      void this.maybePostStandaloneMarketStructureUpdate(symbol, timestamp);
+    }, effectiveDelayMs);
+    timer.unref();
+    this.pendingMarketStructureStandalonePosts.set(symbol, timer);
+  }
+
+  private maybePostStandaloneMarketStructureUpdate = async (
+    symbol: string,
+    timestamp: number,
+  ): Promise<void> => {
+    const entry = this.watchlistStore.getEntry(symbol);
+    if (!entry?.active || !entry.discordThreadId) {
+      return;
+    }
+
+    if (this.marketStructureStandalonePostMode === "off") {
+      this.emitLifecycle("market_structure_post_suppressed", {
+        symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          reason: "standalone_mode_off",
+        },
+      });
+      return;
+    }
+
+    const decision = this.resolveMarketStructureStoryDecision(symbol, timestamp);
+    if (!decision.includeStory || !decision.snapshot) {
+      return;
+    }
+
+    const freshBosChochKeys = getFreshFormalBosChochMarketStructureStoryKeys(decision.snapshot)
+      .filter((key) => decision.keys.length === 0 || decision.keys.includes(key));
+    if (freshBosChochKeys.length === 0) {
+      return;
+    }
+
+    if (this.hasMarketStructureCarrierInFlight(symbol, freshBosChochKeys)) {
+      this.scheduleStandaloneMarketStructurePost(
+        symbol,
+        timestamp,
+        MARKET_STRUCTURE_STANDALONE_RETRY_DELAY_MS,
+      );
+      return;
+    }
+
+    if (
+      this.shouldYieldOptionalPostToFreshCritical({
+        symbol,
+        timestamp,
+      })
+    ) {
+      this.scheduleStandaloneMarketStructurePost(
+        symbol,
+        timestamp,
+        MARKET_STRUCTURE_STANDALONE_RETRY_DELAY_MS,
+      );
+      return;
+    }
+
+    if (
+      this.hasRecentLiveThreadPost({
+        symbol,
+        timestamp,
+        kinds: ["market_structure_update"],
+        critical: false,
+        withinMs: this.marketStructureStandaloneRepeatCooldownMs(),
+      })
+    ) {
+      this.emitLifecycle("market_structure_post_suppressed", {
+        symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          reason: "standalone_repeat_cooldown",
+          storyKeys: freshBosChochKeys.join(","),
+          mode: this.marketStructureStandalonePostMode,
+        },
+      });
+      return;
+    }
+
+    const payload = formatMarketStructureUpdateAsPayload({
+      symbol,
+      timestamp,
+      marketStructure: decision.snapshot,
+      storyReason: decision.reason,
+      storyKeys: freshBosChochKeys,
+      storySource: "standalone_structure_update",
+    });
+    if (payload.metadata?.signalCategoryLiveEnabled === false) {
+      this.emitLifecycle("market_structure_post_suppressed", {
+        symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          reason: "signal_category_not_live",
+          signalCategory: payload.metadata.signalCategory ?? null,
+        },
+      });
+      return;
+    }
+
+    const releaseCarrier = this.reserveMarketStructureStoryCarrier(symbol, freshBosChochKeys);
+    try {
+      await this.options.discordAlertRouter.routeAlert(entry.discordThreadId, payload);
+      this.recordLiveThreadPost({
+        symbol,
+        timestamp,
+        kind: "market_structure_update",
+        critical: false,
+        eventType: null,
+        whyPosted: payload.metadata?.whyPosted ?? null,
+      });
+      this.markMarketStructureStoryPosted(symbol, timestamp, payload, decision);
+      this.clearDeliveryFailure(symbol, timestamp);
+      this.emitLifecycle("market_structure_posted", {
+        symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          reason: decision.reason,
+          storyKeys: freshBosChochKeys.join(","),
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.emitLifecycle("market_structure_post_failed", {
+        symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          error: message,
+          storyKeys: freshBosChochKeys.join(","),
+        },
+      });
+      this.recordDeliveryFailure(symbol, timestamp, message);
+      console.error(`[ManualWatchlistRuntimeManager] Failed to route market structure update: ${message}`);
+    } finally {
+      releaseCarrier();
+    }
+  };
+
+  private hydrateEventRuntimeMarketStructure(event: MonitoringEvent): void {
+    const storyDecision = this.resolveMarketStructureStoryDecision(event.symbol, event.timestamp);
+    const currentSnapshot = storyDecision.snapshot;
+    if (!currentSnapshot) {
+      return;
+    }
+
+    const existingSnapshot = event.eventContext.runtimeMarketStructure;
+    if (
+      storyDecision.includeStory ||
+      this.marketStructureSnapshotCoverageScore(currentSnapshot) >
+      this.marketStructureSnapshotCoverageScore(existingSnapshot)
+    ) {
+      event.eventContext.runtimeMarketStructure = currentSnapshot;
+    }
+  }
+
   private handleMonitoringEvent = (event: MonitoringEvent): void => {
     const entry = this.watchlistStore.getEntry(event.symbol);
     if (!entry?.active || !entry.discordThreadId) {
       return;
     }
+
+    this.hydrateEventRuntimeMarketStructure(event);
 
     const supersedesLevelTouch =
       event.eventType === "breakout" ||
@@ -4604,12 +5979,30 @@ export class ManualWatchlistRuntimeManager {
     const levels = this.options.levelStore.getLevels(event.symbol);
     const alertResult = this.alertIntelligenceEngine.processEvent(event, levels);
     if (alertResult.formatted) {
-      const alert = formatIntelligentAlertAsPayload(alertResult.rawAlert);
+      const marketStructureStoryDecision = this.resolveMarketStructureStoryDecision(
+        event.symbol,
+        event.timestamp,
+      );
+      if (marketStructureStoryDecision.snapshot) {
+        alertResult.rawAlert.event.eventContext.runtimeMarketStructure =
+          marketStructureStoryDecision.snapshot;
+      }
+      const alert = formatIntelligentAlertAsPayload(alertResult.rawAlert, {
+        marketStructureStoryVisibility: marketStructureStoryDecision.includeStory
+          ? "always"
+          : "metadata_only",
+        marketStructureStoryKeys: marketStructureStoryDecision.keys,
+      });
       alert.metadata = {
         ...alert.metadata,
         postingFamily: alertResult.delivery.family,
         postingDecisionReason: alertResult.delivery.reason,
       };
+      this.annotateMarketStructureStoryPayload(
+        alert,
+        marketStructureStoryDecision,
+        "intelligent_alert",
+      );
       const postAlert = (): void => {
         const alertPostDecision = this.shouldPostIntelligentAlert(alertResult.rawAlert);
         if (!alertPostDecision.shouldPost) {
@@ -4723,6 +6116,10 @@ export class ManualWatchlistRuntimeManager {
           timestamp: event.timestamp,
           kind: "intelligent_alert",
         });
+        const releaseMarketStructureCarrier = this.reserveMarketStructureStoryCarrier(
+          event.symbol,
+          alert.metadata?.marketStructureStoryKeys,
+        );
         void this.options.discordAlertRouter
           .routeAlert(entry.discordThreadId!, alert)
           .then(() => {
@@ -4758,6 +6155,12 @@ export class ManualWatchlistRuntimeManager {
               tradeStoryState: alertResult.rawAlert.event.eventContext.tradeStoryState,
               triggerPrice: alertResult.rawAlert.event.triggerPrice,
             });
+            this.markMarketStructureStoryPosted(
+              event.symbol,
+              event.timestamp,
+              alert,
+              marketStructureStoryDecision,
+            );
             this.clearDeliveryFailure(event.symbol, event.timestamp);
             this.emitLifecycle("alert_posted", {
               symbol: event.symbol,
@@ -4802,7 +6205,8 @@ export class ManualWatchlistRuntimeManager {
             });
             this.recordDeliveryFailure(event.symbol, event.timestamp, message);
             console.error(`[ManualWatchlistRuntimeManager] Failed to route Discord alert: ${message}`);
-          });
+          })
+          .finally(releaseMarketStructureCarrier);
       };
 
       if (event.eventType === "level_touch") {
@@ -4938,6 +6342,7 @@ export class ManualWatchlistRuntimeManager {
       level: evaluation.entryPrice,
       triggerPrice: evaluation.outcomePrice,
       followThroughLabel: evaluation.followThroughLabel,
+      practicalStructureMaterialChange: followThroughDecision.reason === "materially_new",
       zoneKind: evaluation.eventType === "breakdown" ? "support" : "resistance",
       majorChange: followThroughMajorChange,
     });
@@ -5016,6 +6421,10 @@ export class ManualWatchlistRuntimeManager {
       directionalReturnPct: evaluation.directionalReturnPct,
       followThroughLabel: evaluation.followThroughLabel,
     });
+    const marketStructureStoryDecision = this.resolveMarketStructureStoryDecision(
+      evaluation.symbol,
+      evaluation.evaluatedAt,
+    );
     const payload = formatFollowThroughUpdateAsPayload({
       symbol: evaluation.symbol,
       timestamp: evaluation.evaluatedAt,
@@ -5023,8 +6432,35 @@ export class ManualWatchlistRuntimeManager {
       entryPrice: evaluation.entryPrice,
       outcomePrice: evaluation.outcomePrice,
       repeatedOutcomeUpdate: followThroughDecision.reason === "materially_new",
+      marketStructure: marketStructureStoryDecision.snapshot,
+      includeMarketStructureStory: marketStructureStoryDecision.includeStory,
+      marketStructureStoryKeys: marketStructureStoryDecision.keys,
     });
+    this.annotateMarketStructureStoryPayload(
+      payload,
+      marketStructureStoryDecision,
+      "follow_through",
+    );
+    if (payload.metadata?.signalCategoryLiveEnabled === false) {
+      this.followThroughPostState.set(evaluation.symbol, previousFollowThroughPostState);
+      this.threadStoryPhaseState.set(evaluation.symbol, previousThreadStoryPhaseState);
+      this.emitLifecycle("alert_suppressed", {
+        symbol: evaluation.symbol,
+        threadId: entry.discordThreadId,
+        details: {
+          eventType: evaluation.eventType,
+          followThroughLabel: evaluation.followThroughLabel,
+          reason: "signal_category_not_live",
+          signalCategory: payload.metadata.signalCategory ?? null,
+        },
+      });
+      return false;
+    }
 
+    const releaseMarketStructureCarrier = this.reserveMarketStructureStoryCarrier(
+      evaluation.symbol,
+      payload.metadata?.marketStructureStoryKeys,
+    );
     void this.options.discordAlertRouter
       .routeAlert(entry.discordThreadId, payload)
       .then(() => {
@@ -5036,6 +6472,12 @@ export class ManualWatchlistRuntimeManager {
           eventType: evaluation.eventType,
           whyPosted: payload.metadata?.whyPosted ?? null,
         });
+        this.markMarketStructureStoryPosted(
+          evaluation.symbol,
+          evaluation.evaluatedAt,
+          payload,
+          marketStructureStoryDecision,
+        );
         this.clearDeliveryFailure(evaluation.symbol, evaluation.evaluatedAt);
         this.emitLifecycle("follow_through_posted", {
           symbol: evaluation.symbol,
@@ -5062,7 +6504,8 @@ export class ManualWatchlistRuntimeManager {
         });
         this.recordDeliveryFailure(evaluation.symbol, evaluation.evaluatedAt, message);
         console.error(`[ManualWatchlistRuntimeManager] Failed to route follow-through update: ${message}`);
-      });
+      })
+      .finally(releaseMarketStructureCarrier);
 
     return true;
   }
@@ -5070,11 +6513,22 @@ export class ManualWatchlistRuntimeManager {
   private handlePriceUpdate = (update: LivePriceUpdate): void => {
     this.lastPriceUpdateAt = update.timestamp;
     this.lastPriceUpdateSymbol = update.symbol;
+    const freshStructureKeys = this.captureFreshMarketStructureStory(update.symbol, update.timestamp);
+    if (freshStructureKeys.length > 0) {
+      this.scheduleStandaloneMarketStructurePost(update.symbol, update.timestamp);
+    }
     this.watchlistStore.patchEntry(update.symbol, {
       lastPriceUpdateAt: update.timestamp,
       lastPrice: update.lastPrice,
       operationStatus: "monitoring live price",
     });
+    if (
+      this.lastPriceUpdatePersistAt === null ||
+      update.timestamp - this.lastPriceUpdatePersistAt >= PRICE_UPDATE_PERSIST_INTERVAL_MS
+    ) {
+      this.persistWatchlist();
+      this.lastPriceUpdatePersistAt = update.timestamp;
+    }
 
     this.scheduleFastLevelClear(update);
 
@@ -5333,6 +6787,7 @@ export class ManualWatchlistRuntimeManager {
           const restoredFromCache = this.startupCacheWarmingSymbols.has(entry.symbol);
           if (restoredFromCache && refreshedLevels) {
             this.startupCacheWarmingSymbols.delete(entry.symbol);
+            this.startupCacheFreshRefreshFailures.delete(entry.symbol);
           }
           if (
             !this.options.levelStore.getLevels(entry.symbol) ||
@@ -5343,6 +6798,7 @@ export class ManualWatchlistRuntimeManager {
               force: restoredFromCache,
             });
             this.startupCacheWarmingSymbols.delete(entry.symbol);
+            this.startupCacheFreshRefreshFailures.delete(entry.symbol);
           }
           if (!this.isEntryActive(entry.symbol)) {
             continue;
@@ -5369,6 +6825,9 @@ export class ManualWatchlistRuntimeManager {
             });
             await this.restartMonitoringWithReadyEntriesOnly();
           } else {
+            if (restoredFromCache) {
+              this.startupCacheFreshRefreshFailures.set(entry.symbol, message);
+            }
             this.watchlistStore.patchEntry(entry.symbol, {
               lifecycle: "refresh_pending",
               refreshPending: true,
@@ -5414,6 +6873,11 @@ export class ManualWatchlistRuntimeManager {
       clearTimeout(pending.timer);
     }
     this.pendingFastLevelClearAlerts.clear();
+    for (const pending of this.pendingMarketStructureStandalonePosts.values()) {
+      clearTimeout(pending);
+    }
+    this.pendingMarketStructureStandalonePosts.clear();
+    this.persistMarketStructureStoryMemory();
     await this.options.monitor.stop();
     this.isStarted = false;
   }
@@ -5527,6 +6991,17 @@ export class ManualWatchlistRuntimeManager {
     } else if (historicalDataStatus === "waiting") {
       notes.push(`${pendingActivationCount} activation${pendingActivationCount === 1 ? "" : "s"} still seeding`);
     }
+    const startupCache = this.buildStartupCacheHealth(now);
+    if (startupCache.warmingSymbols.length > 0) {
+      notes.push(
+        `${startupCache.warmingSymbols.length} symbol${startupCache.warmingSymbols.length === 1 ? "" : "s"} restored from cache and warming fresh candles`,
+      );
+    }
+    if (startupCache.blockedSnapshotSymbols.length > 0) {
+      notes.push(
+        `${startupCache.blockedSnapshotSymbols.length} cached startup snapshot${startupCache.blockedSnapshotSymbols.length === 1 ? "" : "s"} blocked until fresh candles`,
+      );
+    }
 
     return {
       priceFeedStatus,
@@ -5538,8 +7013,27 @@ export class ManualWatchlistRuntimeManager {
       pendingActivationCount,
       stuckActivationCount,
       seedStats: this.getLevelSeedStats(),
+      startupCache,
       restartReadiness: this.buildRestartReadiness(now),
       notes,
+    };
+  }
+
+  private buildStartupCacheHealth(now: number): ManualWatchlistStartupCacheHealth {
+    return {
+      enabled: this.startupCachedLevelEngine !== null,
+      warmingSymbols: [...this.startupCacheWarmingSymbols].sort(),
+      restoredSymbols: [...this.startupCacheRestoredAt.entries()]
+        .map(([symbol, restoredAt]) => ({
+          symbol,
+          restoredAt,
+          ageMs: Math.max(0, now - restoredAt),
+        }))
+        .sort((left, right) => left.symbol.localeCompare(right.symbol)),
+      blockedSnapshotSymbols: [...this.startupCacheFreshRefreshFailures.entries()]
+        .map(([symbol, reason]) => ({ symbol, reason }))
+        .sort((left, right) => left.symbol.localeCompare(right.symbol)),
+      discordSnapshotPolicy: "fresh_candles_required",
     };
   }
 
@@ -5708,16 +7202,22 @@ export class ManualWatchlistRuntimeManager {
         operationStatus: "posting level snapshot",
       });
 
+      let snapshotPayload: LevelSnapshotPayload | null = null;
       try {
-        await this.postLevelSnapshot(symbol, threadId, Date.now());
+        snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now());
       } catch (error) {
         if (preparedThread) {
           throw error;
         }
 
         await delay(INITIAL_SNAPSHOT_RETRY_DELAY_MS);
-        await this.postLevelSnapshot(symbol, threadId, Date.now());
+        snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now());
       }
+      this.triggerAutoCleanRead({
+        symbol,
+        threadId,
+        payload: snapshotPayload,
+      });
       this.assertActivationCurrent(symbol, activationEpoch);
       this.persistWatchlist();
       await this.restartMonitoring();
@@ -6018,6 +7518,10 @@ export class ManualWatchlistRuntimeManager {
     this.narrationBurstState.delete(normalizedSymbol);
     this.storyCriticalState.delete(normalizedSymbol);
     this.deliveryPressureState.delete(normalizedSymbol);
+    this.marketStructureStoryMemory.clear(normalizedSymbol);
+    this.persistMarketStructureStoryMemory();
+    this.marketStructureCarrierInFlightKeys.delete(normalizedSymbol);
+    this.clearPendingMarketStructureStandalonePost(normalizedSymbol);
     this.persistWatchlist();
     await this.restartMonitoring();
     this.emitLifecycle("deactivated", {
@@ -6025,5 +7529,98 @@ export class ManualWatchlistRuntimeManager {
       threadId: entry.discordThreadId ?? null,
     });
     return entry;
+  }
+
+  async resetDiscordThreadState(): Promise<{
+    entryCount: number;
+    clearedThreadIds: number;
+    clearedPostMarkers: number;
+  }> {
+    for (const entry of this.watchlistStore.getActiveEntries()) {
+      this.nextActivationEpoch(entry.symbol);
+      this.pendingActivations.delete(entry.symbol);
+    }
+
+    let clearedThreadIds = 0;
+    let clearedPostMarkers = 0;
+    const entries = this.watchlistStore.getEntries().map((entry) => {
+      if (entry.discordThreadId) {
+        clearedThreadIds += 1;
+      }
+      if (entry.lastLevelPostAt !== undefined) {
+        clearedPostMarkers += 1;
+      }
+      if (entry.lastThreadPostAt !== undefined) {
+        clearedPostMarkers += 1;
+      }
+      if (entry.lastThreadPostKind !== undefined) {
+        clearedPostMarkers += 1;
+      }
+
+      return {
+        ...entry,
+        active: false,
+        lifecycle: "inactive" as const,
+        discordThreadId: null,
+        lastLevelPostAt: undefined,
+        lastThreadPostAt: undefined,
+        lastThreadPostKind: undefined,
+        refreshPending: false,
+        operationStatus: undefined,
+      };
+    });
+
+    this.watchlistStore.setEntries(entries);
+    this.activeSnapshotState.clear();
+    for (const pending of this.pendingFastLevelClearAlerts.values()) {
+      clearTimeout(pending.timer);
+    }
+    this.pendingFastLevelClearAlerts.clear();
+    for (const pending of this.pendingLevelTouchAlerts.values()) {
+      clearTimeout(pending);
+    }
+    this.pendingLevelTouchAlerts.clear();
+    this.extensionRefreshInFlight.clear();
+    this.recapState.clear();
+    this.continuityState.clear();
+    this.followThroughStatePosts.clear();
+    this.followThroughPostState.clear();
+    this.intelligentAlertPostState.clear();
+    this.threadStoryPhaseState.clear();
+    this.aiSignalStoryState.clear();
+    this.dominantLevelStories.clear();
+    this.liveThreadPostState.clear();
+    this.narrationBurstState.clear();
+    this.storyCriticalState.clear();
+    this.deliveryPressureState.clear();
+    this.marketStructureStoryMemory.clearAll();
+    this.persistMarketStructureStoryMemory();
+    this.marketStructureCarrierInFlightKeys.clear();
+    for (const pending of this.pendingMarketStructureStandalonePosts.values()) {
+      clearTimeout(pending);
+    }
+    this.pendingMarketStructureStandalonePosts.clear();
+    this.lastThreadPostAt = null;
+    this.lastThreadPostSymbol = null;
+    this.lastThreadPostKind = null;
+    this.lastThreadPostReason = null;
+    this.lastDeliveryFailureAt = null;
+    this.lastDeliveryFailureSymbol = null;
+    this.lastDeliveryFailureMessage = null;
+    this.persistWatchlist();
+    await this.restartMonitoring();
+    this.emitLifecycle("deactivated", {
+      details: {
+        reason: "discord channel cleared",
+        entryCount: entries.length,
+        clearedThreadIds,
+      },
+    });
+
+    return {
+      entryCount: entries.length,
+      clearedThreadIds,
+      clearedPostMarkers,
+    };
   }
 }

@@ -248,6 +248,105 @@ test("live post replay simulator exposes thread-story churn suppression evidence
   assert.match(formatLivePostReplaySimulationMarkdown(report), /thread-story suppressions: 1/);
 });
 
+test("live post replay simulator infers practical chop context from older saved rows", () => {
+  const auditPath = writeAudit([
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 1000,
+      symbol: "CYCU",
+      messageKind: "intelligent_alert",
+      eventType: "level_touch",
+      title: "CYCU level touch",
+      body: "price testing major support 1.01-1.02\nKey levels:\nNearby resistance: 1.06\nTriggered near: 1.01",
+      score: 42,
+      severity: "medium",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 8 * 60 * 1000,
+      symbol: "CYCU",
+      messageKind: "intelligent_alert",
+      eventType: "breakout",
+      title: "CYCU breakout",
+      body: "bullish breakout through moderate resistance 1.06\nprice is still just above the zone high\nTriggered near: 1.07",
+      score: 46,
+      severity: "medium",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 24 * 60 * 1000,
+      symbol: "CYCU",
+      messageKind: "intelligent_alert",
+      eventType: "level_touch",
+      title: "CYCU level touch",
+      body: "price testing major support 1.01-1.02\nKey levels:\nNearby resistance: 1.06\nTriggered near: 1.02",
+      score: 44,
+      severity: "medium",
+    },
+  ]);
+
+  const report = buildLivePostReplaySimulationReport(auditPath);
+  assert.equal(report.totals.originalPosted, 3);
+  assert.equal(report.totals.simulatedPosted, 1);
+  assert.equal(report.perSymbol[0]?.suppressedByReason.alert_range_box_chop, 1);
+  assert.equal(report.perSymbol[0]?.suppressedByReason.alert_same_story_not_material, 1);
+});
+
+test("live post replay simulator suppresses rapid same-direction ladder clear updates", () => {
+  const auditPath = writeAudit([
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 1000,
+      symbol: "ERNA",
+      messageKind: "level_clear_update",
+      eventType: "breakout",
+      title: "ERNA resistance cluster crossed",
+      body: "price pushed through nearby resistance cluster 4.94-5.00; nearby resistance above is moderate resistance 5.15\nTriggered near: 5.15",
+      targetPrice: 5,
+      severity: "high",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 70 * 1000,
+      symbol: "ERNA",
+      messageKind: "level_clear_update",
+      eventType: "breakout",
+      title: "ERNA resistance cluster crossed",
+      body: "price pushed through nearby resistance cluster 5.15-5.25; nearby resistance above is moderate resistance 5.37\nTriggered near: 5.37",
+      targetPrice: 5.25,
+      severity: "high",
+    },
+    {
+      type: "discord_delivery_audit",
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 3 * 60 * 1000,
+      symbol: "ERNA",
+      messageKind: "intelligent_alert",
+      eventType: "breakout",
+      title: "ERNA breakout",
+      body: "bullish breakout through moderate resistance 5.63\nTriggered near: 5.93",
+      targetPrice: 5.63,
+      severity: "high",
+    },
+  ]);
+
+  const report = buildLivePostReplaySimulationReport(auditPath);
+  assert.equal(report.totals.originalPosted, 3);
+  assert.equal(report.totals.simulatedPosted, 2);
+  assert.equal(report.perSymbol[0]?.suppressedByReason.alert_ladder_step_cooldown, 1);
+});
+
 test("runner story report classifies noisy posts and flags candidate missed clears", () => {
   const auditPath = writeAudit([
     {

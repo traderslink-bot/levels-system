@@ -30,6 +30,12 @@ import {
 } from "../monitoring/live-thread-post-policy.js";
 import type { EvaluatedOpportunity } from "../monitoring/opportunity-evaluator.js";
 import type { PracticalTradeStructureState } from "../monitoring/monitoring-types.js";
+import type { LevelImportanceLabel } from "../monitoring/level-importance.js";
+import type {
+  AcceptanceLabel,
+  BehaviorBudgetLabel,
+  RangeBoxLabel,
+} from "../monitoring/trade-story-intelligence.js";
 import type { CandleMarketStructureState } from "../structure/index.js";
 
 type ReplayAuditEntry = {
@@ -58,6 +64,10 @@ type ReplayAuditEntry = {
   practicalStructureState?: PracticalTradeStructureState;
   practicalZoneKey?: string;
   practicalStructureMaterialChange?: boolean;
+  rangeBoxLabel?: RangeBoxLabel;
+  acceptanceLabel?: AcceptanceLabel;
+  behaviorBudgetLabel?: BehaviorBudgetLabel;
+  levelImportanceLabel?: LevelImportanceLabel;
   stableMarketStructureState?: CandleMarketStructureState;
   stableMarketStructureKey?: string;
   stableMarketStructureMaterialChange?: boolean;
@@ -219,6 +229,18 @@ const NARRATION_BURST_WINDOW_MS = 90 * 1000;
 const NARRATION_RECAP_BURST_WINDOW_MS = 75 * 1000;
 const FOLLOW_THROUGH_MAJOR_MOVE_PCT = 2;
 
+type ReplayAlertContext = {
+  practicalStructureState?: PracticalTradeStructureState;
+  practicalZoneKey?: string;
+  rangeBoxLabel?: RangeBoxLabel;
+  acceptanceLabel?: AcceptanceLabel;
+  behaviorBudgetLabel?: BehaviorBudgetLabel;
+  levelImportanceLabel?: LevelImportanceLabel;
+  stableMarketStructureState?: CandleMarketStructureState;
+  stableMarketStructureKey?: string;
+  inferredLegacyContext: boolean;
+};
+
 function readJsonLines(path: string): ReplayAuditEntry[] {
   return readFileSync(path, "utf8")
     .split(/\r?\n/)
@@ -270,6 +292,8 @@ function runtimeKindOf(messageKind: string): LiveThreadRuntimePostKind | null {
       return "recap";
     case "ai_signal_commentary":
       return "ai_signal_commentary";
+    case "market_structure_update":
+      return "market_structure_update";
     case "stock_context":
       return "recap";
     default:
@@ -546,6 +570,177 @@ function parseAlertLevel(entry: ReplayAuditEntry): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+function fullEntryText(entry: ReplayAuditEntry): string {
+  return [entry.title, entry.body, entry.bodyPreview].filter(Boolean).join("\n");
+}
+
+function legacyReplayBucketSize(referencePrice: number): number {
+  const price = Math.abs(referencePrice);
+  if (price < 2) {
+    return 0.1;
+  }
+  if (price < 5) {
+    return 0.25;
+  }
+  if (price < 10) {
+    return 0.5;
+  }
+  if (price < 25) {
+    return 1;
+  }
+  if (price < 75) {
+    return 2.5;
+  }
+  return 5;
+}
+
+function legacyReplayRangePct(referencePrice: number): number {
+  const price = Math.abs(referencePrice);
+  if (price < 2) {
+    return 0.14;
+  }
+  if (price < 5) {
+    return 0.12;
+  }
+  if (price < 10) {
+    return 0.1;
+  }
+  if (price < 25) {
+    return 0.08;
+  }
+  return 0.07;
+}
+
+function formatLegacyReplayLevel(value: number): string {
+  return value >= 10 ? value.toFixed(2) : value >= 1 ? value.toFixed(2) : value.toFixed(4);
+}
+
+function parseLegacyPriceMentions(entry: ReplayAuditEntry, referencePrice: number): number[] {
+  const text = fullEntryText(entry);
+  const prices = new Set<number>();
+  const rangePct = legacyReplayRangePct(referencePrice);
+  const matcher = /(?<![\w.])(\d+(?:\.\d+)?)(?!\s*%|\w)/g;
+  for (const match of text.matchAll(matcher)) {
+    const value = Number(match[1]);
+    if (
+      Number.isFinite(value) &&
+      value > 0 &&
+      Math.abs(value - referencePrice) / Math.max(referencePrice, 0.0001) <= rangePct
+    ) {
+      prices.add(value);
+    }
+  }
+  prices.add(referencePrice);
+  return [...prices].sort((left, right) => left - right);
+}
+
+function buildLegacyPracticalZoneKey(entry: ReplayAuditEntry, referencePrice: number): string {
+  const prices = parseLegacyPriceMentions(entry, referencePrice);
+  const bucketSize = legacyReplayBucketSize(referencePrice);
+  const low = Math.floor(Math.min(...prices) / bucketSize) * bucketSize;
+  const high = Math.ceil(Math.max(...prices) / bucketSize) * bucketSize;
+  const safeHigh = high > low ? high : low + bucketSize;
+  return `legacy:${formatLegacyReplayLevel(low)}-${formatLegacyReplayLevel(safeHigh)}`;
+}
+
+function inferLegacyAcceptance(entry: ReplayAuditEntry): AcceptanceLabel {
+  const text = fullEntryText(entry).toLowerCase();
+  if (/\b(?:accepted|acceptance held|clean expansion|strong close|pushing farther|moving farther|follow-through is building)\b/.test(text)) {
+    return "accepted";
+  }
+  if (/\b(?:weak probe|probe only|still just|briefly|barely|being tested|needs proof|needs a reclaim|testing from below|testing from above)\b/.test(text)) {
+    return "weak_probe";
+  }
+  return "testing";
+}
+
+function inferLegacyPracticalState(
+  entry: ReplayAuditEntry,
+  acceptanceLabel: AcceptanceLabel,
+): PracticalTradeStructureState | undefined {
+  if (acceptanceLabel === "accepted") {
+    if (entry.eventType === "breakout") {
+      return "breakout_holding";
+    }
+    if (entry.eventType === "reclaim" || entry.eventType === "fake_breakdown") {
+      return "reclaim_holding";
+    }
+    if (entry.eventType === "breakdown") {
+      return "structure_broken";
+    }
+  }
+
+  switch (entry.eventType) {
+    case "breakout":
+      return "breakout_attempt";
+    case "breakdown":
+      return "support_failing";
+    case "reclaim":
+    case "fake_breakdown":
+      return "reclaim_attempt";
+    case "compression":
+      return "building_base";
+    case "level_touch":
+      return /resistance/i.test(fullEntryText(entry)) ? "pressing_resistance" : "pullback_to_support";
+    default:
+      return undefined;
+  }
+}
+
+function inferReplayAlertContext(
+  entry: ReplayAuditEntry,
+  level: number,
+  triggerPrice: number,
+): ReplayAlertContext {
+  const referencePrice = Number.isFinite(triggerPrice) && triggerPrice > 0 ? triggerPrice : level;
+  const hasCurrentContext =
+    entry.practicalZoneKey !== undefined ||
+    entry.rangeBoxLabel !== undefined ||
+    entry.acceptanceLabel !== undefined ||
+    entry.behaviorBudgetLabel !== undefined ||
+    entry.stableMarketStructureState !== undefined;
+  if (hasCurrentContext) {
+    return {
+      practicalStructureState: entry.practicalStructureState,
+      practicalZoneKey: entry.practicalZoneKey,
+      rangeBoxLabel: entry.rangeBoxLabel,
+      acceptanceLabel: entry.acceptanceLabel,
+      behaviorBudgetLabel: entry.behaviorBudgetLabel,
+      levelImportanceLabel: entry.levelImportanceLabel,
+      stableMarketStructureState: entry.stableMarketStructureState,
+      stableMarketStructureKey: entry.stableMarketStructureKey,
+      inferredLegacyContext: false,
+    };
+  }
+
+  const prices = parseLegacyPriceMentions(entry, referencePrice);
+  const rangePct =
+    prices.length >= 2
+      ? (Math.max(...prices) - Math.min(...prices)) / Math.max(referencePrice, 0.0001)
+      : 0;
+  const acceptanceLabel = inferLegacyAcceptance(entry);
+  const rangeBoxLabel: RangeBoxLabel | undefined =
+    rangePct <= legacyReplayRangePct(referencePrice) && acceptanceLabel !== "accepted"
+      ? "active"
+      : undefined;
+  const practicalZoneKey = rangeBoxLabel ? buildLegacyPracticalZoneKey(entry, referencePrice) : undefined;
+  const behaviorBudgetLabel: BehaviorBudgetLabel | undefined =
+    rangeBoxLabel === "active" ? "boring_range" : undefined;
+  const practicalStructureState = inferLegacyPracticalState(entry, acceptanceLabel);
+
+  return {
+    practicalStructureState,
+    practicalZoneKey,
+    rangeBoxLabel,
+    acceptanceLabel,
+    behaviorBudgetLabel,
+    levelImportanceLabel: "useful_reference",
+    stableMarketStructureState: rangeBoxLabel === "active" ? "range_bound" : undefined,
+    stableMarketStructureKey: practicalZoneKey ? `legacy_range|${practicalZoneKey}` : undefined,
+    inferredLegacyContext: true,
+  };
+}
+
 function parseProgressLabel(value: string | undefined): "improving" | "stalling" | "degrading" | null {
   return value === "improving" || value === "stalling" || value === "degrading" ? value : null;
 }
@@ -599,6 +794,7 @@ function simulateEntry(
         level: evaluation.entryPrice,
         triggerPrice: evaluation.outcomePrice,
         followThroughLabel: evaluation.followThroughLabel,
+        materialChange: decision.reason === "materially_new",
         majorChange,
         settings,
       });
@@ -642,10 +838,11 @@ function simulateEntry(
     const level = parseAlertLevel(entry);
     if (entry.eventType && level !== null) {
       const triggerPrice = parseFirstPathPrice(entry) ?? level;
-      const practicalStructureState = entry.practicalStructureState;
-      const practicalZoneKey = entry.practicalZoneKey;
-      const stableMarketStructureState = entry.stableMarketStructureState;
-      const stableMarketStructureKey = entry.stableMarketStructureKey;
+      const replayContext = inferReplayAlertContext(entry, level, triggerPrice);
+      const practicalStructureState = replayContext.practicalStructureState;
+      const practicalZoneKey = replayContext.practicalZoneKey;
+      const stableMarketStructureState = replayContext.stableMarketStructureState;
+      const stableMarketStructureKey = replayContext.stableMarketStructureKey;
       const alertDecision = decideIntelligentAlertPost({
         records: state.intelligentAlertRecords,
         timestamp,
@@ -660,6 +857,10 @@ function simulateEntry(
         stableMarketStructureState,
         stableMarketStructureKey,
         stableMarketStructureMaterialChange: entry.stableMarketStructureMaterialChange,
+        rangeBoxLabel: replayContext.rangeBoxLabel,
+        acceptanceLabel: replayContext.acceptanceLabel,
+        behaviorBudgetLabel: replayContext.behaviorBudgetLabel,
+        levelImportanceLabel: replayContext.levelImportanceLabel,
         settings,
       });
       if (!alertDecision.shouldPost) {
@@ -675,8 +876,7 @@ function simulateEntry(
         level,
         triggerPrice,
         practicalStructureState,
-        practicalZoneKey: entry.practicalZoneKey,
-        materialChange: entry.practicalStructureMaterialChange,
+        practicalZoneKey,
         majorChange: shouldTreatAlertAsMajor(entry),
         settings,
       });
@@ -697,6 +897,10 @@ function simulateEntry(
         practicalZoneKey,
         stableMarketStructureState,
         stableMarketStructureKey,
+        rangeBoxLabel: replayContext.rangeBoxLabel,
+        acceptanceLabel: replayContext.acceptanceLabel,
+        behaviorBudgetLabel: replayContext.behaviorBudgetLabel,
+        levelImportanceLabel: replayContext.levelImportanceLabel,
       }));
     }
 
@@ -715,11 +919,12 @@ function simulateEntry(
   } else if (messageKind === "level_clear_update") {
     const level = parseAlertLevel(entry);
     if (level !== null) {
-      const practicalStructureState = entry.practicalStructureState;
-      const practicalZoneKey = entry.practicalZoneKey;
-      const stableMarketStructureState = entry.stableMarketStructureState;
-      const stableMarketStructureKey = entry.stableMarketStructureKey;
       const triggerPrice = parseFirstPathPrice(entry) ?? level;
+      const replayContext = inferReplayAlertContext(entry, level, triggerPrice);
+      const practicalStructureState = replayContext.practicalStructureState;
+      const practicalZoneKey = replayContext.practicalZoneKey;
+      const stableMarketStructureState = replayContext.stableMarketStructureState;
+      const stableMarketStructureKey = replayContext.stableMarketStructureKey;
       const alertDecision = decideIntelligentAlertPost({
         records: state.intelligentAlertRecords,
         timestamp,
@@ -734,6 +939,11 @@ function simulateEntry(
         stableMarketStructureState,
         stableMarketStructureKey,
         stableMarketStructureMaterialChange: entry.stableMarketStructureMaterialChange,
+        rangeBoxLabel: replayContext.rangeBoxLabel,
+        acceptanceLabel: replayContext.acceptanceLabel,
+        behaviorBudgetLabel: replayContext.behaviorBudgetLabel,
+        levelImportanceLabel: replayContext.levelImportanceLabel,
+        ladderStepUpdate: true,
         settings,
       });
       if (!alertDecision.shouldPost) {
@@ -749,7 +959,7 @@ function simulateEntry(
         level,
         triggerPrice,
         practicalStructureState,
-        practicalZoneKey: entry.practicalZoneKey,
+        practicalZoneKey,
         majorChange: Boolean(entry.clusteredLevelClear),
         settings,
       });
@@ -769,6 +979,10 @@ function simulateEntry(
         practicalZoneKey,
         stableMarketStructureState,
         stableMarketStructureKey,
+        rangeBoxLabel: replayContext.rangeBoxLabel,
+        acceptanceLabel: replayContext.acceptanceLabel,
+        behaviorBudgetLabel: replayContext.behaviorBudgetLabel,
+        levelImportanceLabel: replayContext.levelImportanceLabel,
       }));
     }
 
