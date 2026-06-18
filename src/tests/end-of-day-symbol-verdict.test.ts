@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   buildEndOfDaySymbolVerdictReport,
+  buildEndOfDaySymbolVerdictReportWithEvidence,
   formatEndOfDaySymbolVerdictMarkdown,
 } from "../lib/review/end-of-day-symbol-verdict.js";
 
@@ -57,8 +58,50 @@ test("end-of-day symbol verdict answers the practical review questions", () => {
   assert.equal(report.symbols[0]?.postVolume.verdict, "good");
   assert.equal(report.symbols[0]?.levelCompleteness.verdict, "good");
   assert.equal(report.symbols[0]?.missedMeaningfulMove.verdict, "needs_candle_audit");
+  assert.equal(report.symbols[0]?.reviewQuestions.firstPostGaveGoodMap, true);
+  assert.equal(report.symbols[0]?.reviewQuestions.postedTooMuch, false);
+  assert.equal(report.symbols[0]?.reviewQuestions.missedMeaningfulMove, null);
 
   const markdown = formatEndOfDaySymbolVerdictMarkdown(report);
   assert.match(markdown, /first post trade map: good/);
+  assert.match(markdown, /practical answers:/);
   assert.match(markdown, /Run candle-backed missed meaningful move audit/);
+});
+
+test("end-of-day symbol verdict with evidence folds candle-backed audit counts into action items", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "eod-symbol-verdict-evidence-"));
+  const auditPath = join(tempDir, "discord-delivery-audit.jsonl");
+  writeFileSync(auditPath, [
+    {
+      operation: "post_alert",
+      status: "posted",
+      timestamp: Date.parse("2026-05-01T14:00:00.000Z"),
+      sourceTimestamp: Date.parse("2026-05-01T14:00:00.000Z"),
+      symbol: "MISS",
+      title: "MISS breakout",
+      body: "Triggered near: 1.20",
+      triggerPrice: 1.2,
+      messageKind: "intelligent_alert",
+      eventType: "breakout",
+    },
+  ].map((row) => JSON.stringify(row)).join("\n"));
+
+  const report = await buildEndOfDaySymbolVerdictReportWithEvidence({
+    auditPath,
+    cacheDirectoryPath: join(tempDir, "cache"),
+  });
+
+  assert.equal(report.totals.symbols, 1);
+  assert.equal(report.symbols[0]?.candleEvidence?.executionRelationMissingEvidence, 1);
+  assert.equal(report.symbols[0]?.candleEvidence?.firstSnapshotFullTraderMap, false);
+  assert.ok((report.symbols[0]?.candleEvidence?.advancedContextMissingFacts.length ?? 0) > 0);
+  assert.ok((report.symbols[0]?.candleEvidence?.providerReadinessWarnings.length ?? 0) > 0);
+  assert.ok((report.symbols[0]?.evidenceExamples?.length ?? 0) > 0);
+  assert.equal(report.symbols[0]?.reviewQuestions.needsCacheOrProviderWork, true);
+  assert.equal(report.symbols[0]?.reviewQuestions.advancedContextTrusted, false);
+  assert.ok(report.symbols[0]?.actionItems.some((item) => /Backfill missing candles/i.test(item)));
+  const markdown = formatEndOfDaySymbolVerdictMarkdown(report);
+  assert.match(markdown, /candle evidence:/);
+  assert.match(markdown, /map\/structure\/context evidence:/);
+  assert.match(markdown, /evidence examples:/);
 });

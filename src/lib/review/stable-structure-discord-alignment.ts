@@ -36,6 +36,7 @@ type CacheFile = {
   symbol: string;
   lookbackBars: number;
   endTimeMs: number;
+  format: "validation_json" | "warehouse_jsonl";
 };
 
 type ParsedCacheFile = CacheFile & {
@@ -149,6 +150,7 @@ const DEFAULT_CACHE_DIRECTORY = join(process.cwd(), ".validation-cache", "candle
 const DEFAULT_MIN_CANDLES = 12;
 const DEFAULT_MAX_CACHE_LAG_MINUTES = 90;
 const DEFAULT_REPEAT_WINDOW_MINUTES = 30;
+const STRUCTURE_STORY_OPERATIONS = new Set(["post_alert", "post_level_snapshot", "post_level_extension"]);
 
 function normalizeSymbols(symbols: string[] | undefined): Set<string> | null {
   const normalized = (symbols ?? [])
@@ -184,6 +186,19 @@ function discoverAuditFiles(root: string, limit: number | null): string[] {
 }
 
 function parseCacheFile(path: string, symbol: string, filename: string): CacheFile | null {
+  if (filename.endsWith(".jsonl")) {
+    const date = filename.slice(0, -".jsonl".length);
+    const endTimeMs = Date.parse(`${date}T23:59:59.999Z`);
+    return Number.isFinite(endTimeMs)
+      ? {
+        path: join(path, filename),
+        symbol,
+        lookbackBars: 0,
+        endTimeMs,
+        format: "warehouse_jsonl",
+      }
+      : null;
+  }
   if (!filename.endsWith(".json")) {
     return null;
   }
@@ -201,6 +216,7 @@ function parseCacheFile(path: string, symbol: string, filename: string): CacheFi
     symbol,
     lookbackBars,
     endTimeMs,
+    format: "validation_json",
   };
 }
 
@@ -247,6 +263,8 @@ function readAuditRows(auditPath: string, symbolFilter: Set<string> | null): Dis
     .map((line) => JSON.parse(line) as DiscordAuditRow)
     .filter((row) => row.type === "discord_delivery_audit")
     .filter((row) => row.status === "posted")
+    .filter((row) => STRUCTURE_STORY_OPERATIONS.has(String(row.operation)))
+    .filter((row) => row.messageKind !== "stock_context")
     .filter((row) => typeof row.timestamp === "number" && Number.isFinite(row.timestamp))
     .filter((row) => typeof row.symbol === "string" && row.symbol.trim().length > 0)
     .filter((row) => !symbolFilter || symbolFilter.has(row.symbol!.trim().toUpperCase()))
@@ -278,8 +296,23 @@ function sessionName(auditPath: string): string {
 }
 
 function readCache(file: CacheFile): ParsedCacheFile {
-  const entry = JSON.parse(readFileSync(file.path, "utf8")) as ValidationCacheEntry;
-  const candles = [...(entry.response?.candles ?? [])]
+  const rawCandles = file.format === "warehouse_jsonl"
+    ? readFileSync(file.path, "utf8")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .flatMap((line) => {
+        try {
+          return [JSON.parse(line) as Candle];
+        } catch {
+          return [];
+        }
+      })
+    : (() => {
+      const entry = JSON.parse(readFileSync(file.path, "utf8")) as ValidationCacheEntry;
+      return entry.response?.candles ?? [];
+    })();
+  const candles = [...rawCandles]
     .filter((candle) =>
       Number.isFinite(candle.timestamp) &&
       Number.isFinite(candle.open) &&

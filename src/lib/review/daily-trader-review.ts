@@ -96,6 +96,7 @@ function symbolOf(row: AuditRow): string {
 
 function isPosted(row: AuditRow): boolean {
   return (
+    row.messageKind !== "stock_context" &&
     (row.status === "posted" || row.status === "success") &&
     ["post_alert", "post_level_snapshot", "post_level_extension"].includes(String(row.operation))
   );
@@ -216,6 +217,14 @@ function noPostCoverage(rows: AuditRow[]): DailyTraderReviewSymbol["noPostEviden
   return "missing";
 }
 
+function isLateTraderStoryPost(row: AuditRow): boolean {
+  return (
+    row.messageKind !== "stock_context" &&
+    typeof row.deliveryLagMs === "number" &&
+    row.deliveryLagMs > 90_000
+  );
+}
+
 function buildExamples(rows: AuditRow[], best: boolean): Array<{ title: string; reason: string; excerpt: string }> {
   const scored = rows.map((row) => {
     let score = 0;
@@ -235,7 +244,7 @@ function buildExamples(rows: AuditRow[], best: boolean): Array<{ title: string; 
       score -= 2;
       reasons.push("weak probe/testing post");
     }
-    if (typeof row.deliveryLagMs === "number" && row.deliveryLagMs > 90_000) {
+    if (isLateTraderStoryPost(row)) {
       score -= 3;
       reasons.push("late delivery");
     }
@@ -320,7 +329,7 @@ export function buildDailyTraderReviewReport(auditPath: string): DailyTraderRevi
     const expectedPostBudgetMax = budgetMax(expectedBudgetStyle);
     const weakProbeCount = rows.filter((row) => row.acceptanceLabel === "weak_probe" || row.failedLevelOutcome === "probe_only" || row.acceptanceLabel === "testing").length;
     const noLevelCount = rows.filter((row) => row.noLevelReason || /none currently surfaced|no higher resistance|no lower support/i.test(text(row))).length;
-    const latePostCount = rows.filter((row) => typeof row.deliveryLagMs === "number" && row.deliveryLagMs > 90_000).length;
+    const latePostCount = rows.filter(isLateTraderStoryPost).length;
     const burstCount = sameMinuteBurstCount(rows);
     const status = budgetStatus(rows.length, expectedPostBudgetMax);
     const symbolReport: DailyTraderReviewSymbol = {

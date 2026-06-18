@@ -53,10 +53,46 @@ test("first snapshot trade-map audit scores strong and weak first posts with evi
   const markdown = formatFirstSnapshotTradeMapAudit(report);
 
   assert.equal(report.totals.symbols, 2);
+  assert.equal(report.totals.fullTraderMapCount, 1);
+  assert.equal(report.totals.lineByLineLevelCount, 1);
+  assert.equal(report.totals.advisoryRiskCount, 1);
   assert.equal(report.symbols.find((symbol) => symbol.symbol === "GOOD")?.score.label, "strong");
+  assert.equal(report.symbols.find((symbol) => symbol.symbol === "GOOD")?.mapChecks.hasSupportStrength, true);
   assert.equal(report.symbols.find((symbol) => symbol.symbol === "BAD")?.score.label, "weak");
+  assert.equal(report.symbols.find((symbol) => symbol.symbol === "BAD")?.mapChecks.hasAdvisoryLanguage, true);
   assert.match(markdown, /BAD - weak/);
   assert.match(markdown, /too advisory/);
+  assert.match(markdown, /map checks:/);
+});
+
+test("first snapshot audit flags ladder-only snapshots that lack a practical trader map", () => {
+  const root = mkdtempSync(join(tmpdir(), "first-snapshot-ladder-only-"));
+  const auditPath = writeAuditRows(root, [
+    {
+      operation: "post_level_snapshot",
+      status: "posted",
+      sourceTimestamp: Date.UTC(2026, 4, 1, 13, 30, 0),
+      symbol: "LADR",
+      title: "LADR support and resistance",
+      body: [
+        "Price: 1.20",
+        "Closest levels to watch:",
+        "Resistance:\n1.25 (+4.2%, heavy resistance, daily confluence)",
+        "Support:\n1.10 (-8.3%, light support, fresh intraday)",
+        "More support and resistance:",
+        "Resistance:\n1.25\n1.40",
+        "Support:\n1.10\n1.00",
+      ].join("\n"),
+    },
+  ]);
+
+  const report = generateFirstSnapshotTradeMapAudit({ auditPath });
+  const symbol = report.symbols[0]!;
+
+  assert.equal(symbol.symbol, "LADR");
+  assert.notEqual(symbol.score.label, "strong");
+  assert.equal(symbol.mapChecks.hasRoomOrRangeContext, false);
+  assert.ok(symbol.score.issues.includes("missing: practical trade-map lines beyond the raw ladder"));
 });
 
 test("first snapshot trade-map writer creates JSON and markdown artifacts", () => {

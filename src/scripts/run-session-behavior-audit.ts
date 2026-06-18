@@ -14,7 +14,7 @@ function readFlag(name: string): string | undefined {
 
 const input = process.argv[2];
 if (!input) {
-  console.error("Usage: npm run audit:session-behavior -- <session-folder-or-discord-delivery-audit.jsonl> [--cache .validation-cache/candles] [--provider ibkr]");
+  console.error("Usage: npm run audit:session-behavior -- <session-folder-or-discord-delivery-audit.jsonl> [--cache .validation-cache/candles] [--warehouse data/candles] [--provider ibkr]");
   process.exit(1);
 }
 
@@ -23,7 +23,7 @@ const outputDirectory = input.endsWith(".jsonl")
   ? join(process.cwd(), "artifacts", "session-behavior-audit")
   : input;
 const provider = (readFlag("--provider") ?? "ibkr") as CandleProviderName;
-const cacheDirectoryPath = readFlag("--cache") ?? join(process.cwd(), ".validation-cache", "candles");
+const cacheDirectoryPath = readFlag("--warehouse") ?? readFlag("--cache") ?? join(process.cwd(), ".validation-cache", "candles");
 
 const report = writeSessionBehaviorAudit({
   auditPath,

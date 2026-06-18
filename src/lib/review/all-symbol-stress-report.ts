@@ -747,9 +747,23 @@ export function buildAllSymbolStressReportFromAuditFiles(
   };
 }
 
-export async function buildAllSymbolStressReport(sourceRoot: string): Promise<AllSymbolStressReport> {
+export type BuildAllSymbolStressReportOptions = {
+  maxAuditFiles?: number;
+};
+
+function limitAuditFiles(auditFiles: string[], maxAuditFiles?: number): string[] {
+  if (typeof maxAuditFiles !== "number" || !Number.isFinite(maxAuditFiles) || maxAuditFiles <= 0) {
+    return auditFiles;
+  }
+  return auditFiles.slice(0, Math.floor(maxAuditFiles));
+}
+
+export async function buildAllSymbolStressReport(
+  sourceRoot: string,
+  options: BuildAllSymbolStressReportOptions = {},
+): Promise<AllSymbolStressReport> {
   const auditFiles = await discoverDiscordAuditFiles(sourceRoot);
-  return buildAllSymbolStressReportFromAuditFiles(auditFiles, sourceRoot);
+  return buildAllSymbolStressReportFromAuditFiles(limitAuditFiles(auditFiles, options.maxAuditFiles), sourceRoot);
 }
 
 function formatPct(value: number | null): string {

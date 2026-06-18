@@ -26,6 +26,7 @@ type CacheFile = {
   symbol: string;
   lookbackBars: number;
   endTimeMs: number;
+  format: "validation_json" | "warehouse_jsonl";
 };
 
 export type MarketStructureReplayFinding = {
@@ -144,6 +145,19 @@ function normalizeSymbols(symbols: string[] | undefined): Set<string> | null {
 }
 
 function parseCacheFileName(path: string, symbol: string, filename: string): CacheFile | null {
+  if (filename.endsWith(".jsonl")) {
+    const date = filename.slice(0, -".jsonl".length);
+    const endTimeMs = Date.parse(`${date}T23:59:59.999Z`);
+    return Number.isFinite(endTimeMs)
+      ? {
+        path: join(path, filename),
+        symbol,
+        lookbackBars: 0,
+        endTimeMs,
+        format: "warehouse_jsonl",
+      }
+      : null;
+  }
   if (!filename.endsWith(".json")) {
     return null;
   }
@@ -161,6 +175,7 @@ function parseCacheFileName(path: string, symbol: string, filename: string): Cac
     symbol,
     lookbackBars,
     endTimeMs,
+    format: "validation_json",
   };
 }
 
@@ -197,6 +212,27 @@ function discoverCacheFiles(cacheDirectory: string, symbols: Set<string> | null,
 }
 
 function readCandles(file: CacheFile): Candle[] {
+  if (file.format === "warehouse_jsonl") {
+    return readFileSync(file.path, "utf8")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .flatMap((line) => {
+        try {
+          return [JSON.parse(line) as Candle];
+        } catch {
+          return [];
+        }
+      })
+      .filter((candle) =>
+        Number.isFinite(candle.timestamp) &&
+        Number.isFinite(candle.open) &&
+        Number.isFinite(candle.high) &&
+        Number.isFinite(candle.low) &&
+        Number.isFinite(candle.close),
+      )
+      .sort((left, right) => left.timestamp - right.timestamp);
+  }
   const entry = JSON.parse(readFileSync(file.path, "utf8")) as ValidationCacheEntry;
   const candles = entry.response?.candles ?? [];
   return [...candles]

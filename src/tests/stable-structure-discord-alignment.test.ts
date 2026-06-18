@@ -161,3 +161,76 @@ test("stable structure Discord alignment reports cache coverage gaps", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("stable structure Discord alignment ignores non-story Discord rows", () => {
+  const root = mkdtempSync(join(tmpdir(), "stable-structure-align-"));
+  try {
+    const auditRoot = join(root, "artifacts");
+    const cacheRoot = join(root, "cache");
+    writeCacheFile({
+      root: cacheRoot,
+      symbol: "TEST",
+      candles: candlesFromCloses([
+        1.00, 1.04, 1.01, 1.05, 1.00,
+        1.04, 1.01, 1.05, 1.00, 1.04,
+        1.01, 1.05, 1.00, 1.04, 1.01,
+        1.05, 1.02, 1.04, 1.01, 1.03,
+      ]),
+    });
+    writeAuditFile({
+      root: auditRoot,
+      rows: [
+        {
+          type: "discord_delivery_audit",
+          operation: "create_thread",
+          status: "posted",
+          timestamp: START + 15 * FIVE_MINUTES,
+          symbol: "TEST",
+          title: "thread_created",
+        },
+        {
+          type: "discord_delivery_audit",
+          operation: "post_alert",
+          status: "posted",
+          timestamp: START + 16 * FIVE_MINUTES,
+          symbol: "TEST",
+          title: "TEST context",
+          body: "company context",
+          messageKind: "stock_context",
+        },
+        {
+          type: "discord_delivery_audit",
+          operation: "post_level_ladder",
+          status: "posted",
+          timestamp: START + 16 * FIVE_MINUTES + 30_000,
+          symbol: "TEST",
+          title: "TEST full level ladder",
+        },
+        {
+          type: "discord_delivery_audit",
+          operation: "post_alert",
+          status: "posted",
+          timestamp: START + 16 * FIVE_MINUTES + 60_000,
+          symbol: "TEST",
+          title: "TEST breakout",
+          body: "price accepted above resistance",
+          messageKind: "alert",
+        },
+      ],
+    });
+
+    const report = buildStableStructureDiscordAlignmentReport({
+      auditRoot,
+      cacheDirectory: cacheRoot,
+      auditLimit: null,
+    });
+
+    assert.equal(report.summary.postedRows, 1);
+    assert.equal(report.summary.alignedRows, 1);
+    assert.equal(report.summary.sameStructureRepeats, 0);
+    assert.equal(report.posts[0]?.title, "TEST breakout");
+    assert.equal(report.posts[0]?.classification, "aligned_context");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

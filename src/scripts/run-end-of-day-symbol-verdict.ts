@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import { writeEndOfDaySymbolVerdict } from "../lib/review/end-of-day-symbol-verdict.js";
+import { writeEndOfDaySymbolVerdictWithEvidence } from "../lib/review/end-of-day-symbol-verdict.js";
+import type { CandleProviderName } from "../lib/support-resistance/index.js";
 
 function resolveAuditPath(raw: string | undefined): string {
   const input = raw?.trim();
@@ -19,7 +20,20 @@ const auditPath = resolveAuditPath(process.argv[2]);
 const outputDir = dirname(auditPath);
 const jsonPath = resolve(outputDir, "end-of-day-symbol-verdict.json");
 const markdownPath = resolve(outputDir, "end-of-day-symbol-verdict.md");
-const report = writeEndOfDaySymbolVerdict({ auditPath, jsonPath, markdownPath });
+
+function argValue(flag: string): string | undefined {
+  const index = process.argv.indexOf(flag);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+const report = await writeEndOfDaySymbolVerdictWithEvidence({
+  auditPath,
+  cacheDirectoryPath: argValue("--cache") ?? ".validation-cache/candles",
+  provider: (argValue("--provider") ?? "ibkr") as CandleProviderName,
+  comparisonProvider: (argValue("--comparison-provider") ?? "stub") as CandleProviderName,
+  jsonPath,
+  markdownPath,
+});
 
 console.log(`End-of-day symbol verdict wrote ${markdownPath}`);
 console.log(`Symbols: ${report.totals.symbols}`);

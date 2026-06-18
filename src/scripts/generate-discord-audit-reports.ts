@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import {
   buildSnapshotAuditReport,
@@ -36,6 +36,14 @@ import {
   buildKnownBadPostPatternReport,
   writeKnownBadPostPatternReport,
 } from "../lib/review/known-bad-post-patterns.js";
+import {
+  buildMarketStructureDeliveryAuditReportFromPaths,
+  writeMarketStructureDeliveryAuditReport,
+} from "../lib/review/market-structure-delivery-audit.js";
+import {
+  buildMarketStructureOutcomeCalibrationReport,
+  writeMarketStructureOutcomeCalibrationReport,
+} from "../lib/review/market-structure-outcome-calibration.js";
 
 function printUsage(): never {
   console.error("Usage: npm run longrun:audit:reports -- <session-folder-or-discord-audit.jsonl>");
@@ -49,6 +57,7 @@ if (!input) {
 
 const resolvedInput = resolve(input);
 const isAuditFile = resolvedInput.toLowerCase().endsWith("discord-delivery-audit.jsonl");
+const reportDirectory = isAuditFile ? dirname(resolvedInput) : resolvedInput;
 const paths = isAuditFile
   ? {
       auditPath: resolvedInput,
@@ -72,8 +81,18 @@ const paths = isAuditFile
       postReasonAuditMarkdownPath: resolve(resolvedInput, "..", "post-reason-audit.md"),
       knownBadPostPatternsJsonPath: resolve(resolvedInput, "..", "known-bad-post-patterns.json"),
       knownBadPostPatternsMarkdownPath: resolve(resolvedInput, "..", "known-bad-post-patterns.md"),
+      marketStructureDeliveryJsonPath: resolve(resolvedInput, "..", "market-structure-delivery-audit.json"),
+      marketStructureDeliveryMarkdownPath: resolve(resolvedInput, "..", "market-structure-delivery-audit.md"),
+      marketStructureOutcomeJsonPath: resolve(resolvedInput, "..", "market-structure-outcome-calibration.json"),
+      marketStructureOutcomeMarkdownPath: resolve(resolvedInput, "..", "market-structure-outcome-calibration.md"),
     }
-  : defaultReportPaths(resolvedInput);
+  : {
+      ...defaultReportPaths(resolvedInput),
+      marketStructureDeliveryJsonPath: join(resolvedInput, "market-structure-delivery-audit.json"),
+      marketStructureDeliveryMarkdownPath: join(resolvedInput, "market-structure-delivery-audit.md"),
+      marketStructureOutcomeJsonPath: join(resolvedInput, "market-structure-outcome-calibration.json"),
+      marketStructureOutcomeMarkdownPath: join(resolvedInput, "market-structure-outcome-calibration.md"),
+    };
 
 if (!existsSync(paths.auditPath)) {
   console.error(`Discord audit file not found: ${paths.auditPath}`);
@@ -125,6 +144,21 @@ writeKnownBadPostPatternReport({
   markdownPath: paths.knownBadPostPatternsMarkdownPath,
   report: buildKnownBadPostPatternReport(paths.auditPath),
 });
+writeMarketStructureDeliveryAuditReport({
+  jsonPath: paths.marketStructureDeliveryJsonPath,
+  markdownPath: paths.marketStructureDeliveryMarkdownPath,
+  report: buildMarketStructureDeliveryAuditReportFromPaths([
+    paths.auditPath,
+    join(reportDirectory, "market-structure-lifecycle.jsonl"),
+  ].filter((path) => existsSync(path))),
+});
+writeMarketStructureOutcomeCalibrationReport({
+  jsonPath: paths.marketStructureOutcomeJsonPath,
+  markdownPath: paths.marketStructureOutcomeMarkdownPath,
+  report: buildMarketStructureOutcomeCalibrationReport({
+    auditPath: paths.auditPath,
+  }),
+});
 
 console.log(`Wrote ${paths.policyReportPath}`);
 console.log(`Wrote ${paths.snapshotReportPath}`);
@@ -146,3 +180,7 @@ console.log(`Wrote ${paths.postReasonAuditJsonPath}`);
 console.log(`Wrote ${paths.postReasonAuditMarkdownPath}`);
 console.log(`Wrote ${paths.knownBadPostPatternsJsonPath}`);
 console.log(`Wrote ${paths.knownBadPostPatternsMarkdownPath}`);
+console.log(`Wrote ${paths.marketStructureDeliveryJsonPath}`);
+console.log(`Wrote ${paths.marketStructureDeliveryMarkdownPath}`);
+console.log(`Wrote ${paths.marketStructureOutcomeJsonPath}`);
+console.log(`Wrote ${paths.marketStructureOutcomeMarkdownPath}`);

@@ -241,6 +241,22 @@ function walkJsonFiles(directoryPath: string): string[] {
   return output;
 }
 
+function walkJsonlFiles(directoryPath: string): string[] {
+  if (!existsSync(directoryPath)) {
+    return [];
+  }
+  const output: string[] = [];
+  for (const entry of readdirSync(directoryPath, { withFileTypes: true })) {
+    const path = join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      output.push(...walkJsonlFiles(path));
+    } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+      output.push(path);
+    }
+  }
+  return output;
+}
+
 function extractCandles(entry: CachedCandleEntry | null): Candle[] {
   const candles = entry?.response?.candles ?? entry?.candles ?? [];
   return candles.filter((candle) =>
@@ -248,6 +264,25 @@ function extractCandles(entry: CachedCandleEntry | null): Candle[] {
       (value) => typeof value === "number" && Number.isFinite(value),
     ),
   );
+}
+
+function readWarehouseCandles(path: string): Candle[] {
+  return readFileSync(path, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line) as Candle];
+      } catch {
+        return [];
+      }
+    })
+    .filter((candle) =>
+      [candle.timestamp, candle.open, candle.high, candle.low, candle.close, candle.volume].every(
+        (value) => typeof value === "number" && Number.isFinite(value),
+      ),
+    );
 }
 
 function parseCacheEntry(path: string): CachedCandleEntry | null {
@@ -269,6 +304,13 @@ function loadCandles(params: {
   const byTimestamp = new Map<number, Candle>();
   for (const file of walkJsonFiles(directory)) {
     for (const candle of extractCandles(parseCacheEntry(file))) {
+      if (candle.timestamp <= params.asOfTimestamp) {
+        byTimestamp.set(candle.timestamp, candle);
+      }
+    }
+  }
+  for (const file of walkJsonlFiles(directory)) {
+    for (const candle of readWarehouseCandles(file)) {
       if (candle.timestamp <= params.asOfTimestamp) {
         byTimestamp.set(candle.timestamp, candle);
       }

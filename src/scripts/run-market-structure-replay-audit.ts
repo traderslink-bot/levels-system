@@ -23,7 +23,11 @@ function parsePositiveInteger(value: string | undefined): number | undefined {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-const cacheDirectory = resolve(readFlag("--cache") ?? join(".validation-cache", "candles", "ibkr"));
+const provider = readFlag("--provider") ?? "ibkr";
+const warehouseDirectory = readFlag("--warehouse");
+const candleDirectory = resolve(
+  warehouseDirectory ? join(warehouseDirectory, provider) : readFlag("--cache") ?? join(".validation-cache", "candles", "ibkr"),
+);
 const outputDirectory = resolve(readFlag("--output") ?? join("artifacts", "market-structure-replay"));
 const symbols = readFlag("--symbols")
   ?.split(",")
@@ -33,7 +37,7 @@ const maxFilesPerSymbol = parsePositiveInteger(readFlag("--max-files-per-symbol"
 const rollingStepBars = parsePositiveInteger(readFlag("--rolling-step-bars"));
 
 const report = buildMarketStructureReplayAuditReport({
-  cacheDirectory,
+  cacheDirectory: candleDirectory,
   symbols,
   maxFilesPerSymbol,
   rollingStepBars,

@@ -25,7 +25,24 @@ export type FirstSnapshotTradeMapAuditSymbol = {
   timestampIso: string | null;
   operation?: string;
   score: FirstPostTradeMapScore;
+  mapChecks: FirstSnapshotTradeMapChecks;
   suggestedImprovements: string[];
+};
+
+export type FirstSnapshotTradeMapChecks = {
+  hasCurrentPrice: boolean;
+  hasCurrentRead: boolean;
+  hasClosestLevels: boolean;
+  hasFullLadder: boolean;
+  hasLineByLineLevels: boolean;
+  hasSupportStrength: boolean;
+  hasResistanceStrength: boolean;
+  hasPracticalSupport: boolean;
+  hasPracticalResistance: boolean;
+  hasRoomOrRangeContext: boolean;
+  hasAdvisoryLanguage: boolean;
+  hasPennyRiskLanguage: boolean;
+  hasUnsupportedNoResistanceLanguage: boolean;
 };
 
 export type FirstSnapshotTradeMapAuditReport = {
@@ -39,6 +56,11 @@ export type FirstSnapshotTradeMapAuditReport = {
     weak: number;
     missing: number;
     averageScore: number;
+    fullTraderMapCount: number;
+    advisoryRiskCount: number;
+    pennyRiskCount: number;
+    unsupportedNoResistanceCount: number;
+    lineByLineLevelCount: number;
   };
   symbols: FirstSnapshotTradeMapAuditSymbol[];
 };
@@ -119,8 +141,42 @@ function improvementsFor(score: FirstPostTradeMapScore): string[] {
   return improvements;
 }
 
+function analyzeFirstSnapshotTradeMapText(body: string): FirstSnapshotTradeMapChecks {
+  return {
+    hasCurrentPrice: /Price:/i.test(body),
+    hasCurrentRead: /What price is doing now|Trade map|Current read/i.test(body),
+    hasClosestLevels: /Closest levels to watch/i.test(body),
+    hasFullLadder: /More support and resistance|Full ladder/i.test(body),
+    hasLineByLineLevels: /Resistance:\s*\n[\s\S]*Support:\s*\n/i.test(body),
+    hasSupportStrength: /light support|moderate support|heavy support|major support/i.test(body),
+    hasResistanceStrength: /light resistance|moderate resistance|heavy resistance|major resistance/i.test(body),
+    hasPracticalSupport: /main support|support that matters|holding above|needs to hold|support reaction|support area|Support:\s*\n/i.test(body),
+    hasPracticalResistance: /cleaner above|clears|above .* resistance|resistance above|breakout area|Resistance:\s*\n/i.test(body),
+    hasRoomOrRangeContext: /room|range-bound|range bound|runner|chop|extended|building|pressing|between .*support.*resistance/i.test(body),
+    hasAdvisoryLanguage: /best entry|can buy|should buy|should sell|should exit|short/i.test(body),
+    hasPennyRiskLanguage: /risk opens toward\s+\d+(?:\.\d+)?/i.test(body) && /\b0?\.\d{2,4}\b/.test(body),
+    hasUnsupportedNoResistanceLanguage: /no (higher|nearby)?\s*resistance|Resistance above: none/i.test(body),
+  };
+}
+
 function labelCount(symbols: FirstSnapshotTradeMapAuditSymbol[], label: FirstPostScoreLabel): number {
   return symbols.filter((symbol) => symbol.score.label === label).length;
+}
+
+function hasFullTraderMap(symbol: FirstSnapshotTradeMapAuditSymbol): boolean {
+  const checks = symbol.mapChecks;
+  return checks.hasCurrentPrice &&
+    checks.hasCurrentRead &&
+    checks.hasClosestLevels &&
+    checks.hasLineByLineLevels &&
+    checks.hasSupportStrength &&
+    checks.hasResistanceStrength &&
+    checks.hasPracticalSupport &&
+    checks.hasPracticalResistance &&
+    checks.hasRoomOrRangeContext &&
+    !checks.hasAdvisoryLanguage &&
+    !checks.hasPennyRiskLanguage &&
+    !checks.hasUnsupportedNoResistanceLanguage;
 }
 
 export function generateFirstSnapshotTradeMapAudit(
@@ -148,6 +204,7 @@ export function generateFirstSnapshotTradeMapAudit(
           timestamp,
         })
       : scoreFirstPostTradeMapText(null);
+    const body = first ? [first.title, first.body, first.bodyPreview].filter(Boolean).join("\n") : "";
     return {
       symbol,
       title: first?.title,
@@ -155,6 +212,7 @@ export function generateFirstSnapshotTradeMapAudit(
       timestampIso: timestamp === null ? null : new Date(timestamp).toISOString(),
       operation: first?.operation,
       score,
+      mapChecks: analyzeFirstSnapshotTradeMapText(body),
       suggestedImprovements: improvementsFor(score),
     };
   }).sort((left, right) => left.score.score - right.score.score || left.symbol.localeCompare(right.symbol));
@@ -176,6 +234,11 @@ export function generateFirstSnapshotTradeMapAudit(
         scored.length > 0
           ? Number((scored.reduce((sum, symbol) => sum + symbol.score.score, 0) / scored.length).toFixed(1))
           : 0,
+      fullTraderMapCount: symbols.filter(hasFullTraderMap).length,
+      advisoryRiskCount: symbols.filter((symbol) => symbol.mapChecks.hasAdvisoryLanguage).length,
+      pennyRiskCount: symbols.filter((symbol) => symbol.mapChecks.hasPennyRiskLanguage).length,
+      unsupportedNoResistanceCount: symbols.filter((symbol) => symbol.mapChecks.hasUnsupportedNoResistanceLanguage).length,
+      lineByLineLevelCount: symbols.filter((symbol) => symbol.mapChecks.hasLineByLineLevels).length,
     },
     symbols,
   };
@@ -197,6 +260,11 @@ export function formatFirstSnapshotTradeMapAudit(report: FirstSnapshotTradeMapAu
     `- weak: ${report.totals.weak}`,
     `- missing: ${report.totals.missing}`,
     `- average score: ${report.totals.averageScore}/100`,
+    `- full trader-map snapshots: ${report.totals.fullTraderMapCount}`,
+    `- line-by-line level snapshots: ${report.totals.lineByLineLevelCount}`,
+    `- advisory-language risks: ${report.totals.advisoryRiskCount}`,
+    `- penny-risk wording risks: ${report.totals.pennyRiskCount}`,
+    `- unsupported no-resistance wording risks: ${report.totals.unsupportedNoResistanceCount}`,
     "",
     "## Symbols Needing Review",
     "",
@@ -215,6 +283,7 @@ export function formatFirstSnapshotTradeMapAudit(report: FirstSnapshotTradeMapAu
         `- operation: ${symbol.operation ?? "n/a"}`,
         `- strengths: ${symbol.score.strengths.join("; ") || "none"}`,
         `- issues: ${symbol.score.issues.join("; ") || "none"}`,
+        `- map checks: price=${symbol.mapChecks.hasCurrentPrice}; read=${symbol.mapChecks.hasCurrentRead}; closest=${symbol.mapChecks.hasClosestLevels}; line-by-line=${symbol.mapChecks.hasLineByLineLevels}; support-strength=${symbol.mapChecks.hasSupportStrength}; resistance-strength=${symbol.mapChecks.hasResistanceStrength}; practical-support=${symbol.mapChecks.hasPracticalSupport}; practical-resistance=${symbol.mapChecks.hasPracticalResistance}; room/range=${symbol.mapChecks.hasRoomOrRangeContext}`,
         `- suggested improvements: ${symbol.suggestedImprovements.join("; ") || "none"}`,
         symbol.score.excerpt ? `- excerpt: ${symbol.score.excerpt}` : "- excerpt: n/a",
         "",

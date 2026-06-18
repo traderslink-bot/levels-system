@@ -94,7 +94,9 @@ export type MissedMeaningfulMoveSymbolReport = {
 export type MissedMeaningfulMoveAuditReport = {
   generatedAt: string;
   sourceAuditPath: string;
+  sourceAuditPaths: string[];
   cacheDirectoryPath: string;
+  warehouseDirectoryPath: string | null;
   provider: CandleProviderName;
   timeframe: CandleFetchTimeframe;
   auditWindow: {
@@ -121,10 +123,12 @@ export type MissedMeaningfulMoveAuditReport = {
 export type GenerateMissedMeaningfulMoveAuditOptions = {
   auditPath: string;
   cacheDirectoryPath?: string;
+  warehouseDirectoryPath?: string;
   provider?: CandleProviderName;
   timeframe?: CandleFetchTimeframe;
   coverageWindowMs?: number;
   auditWindowPaddingMs?: number;
+  maxAuditFiles?: number;
 };
 
 export type WriteMissedMeaningfulMoveAuditOptions = GenerateMissedMeaningfulMoveAuditOptions & {
@@ -186,6 +190,10 @@ function formatPct(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
+function formatDistancePct(value: number): string {
+  return `${Math.abs(value).toFixed(1)}%`;
+}
+
 function formatPrice(value: number): string {
   return value >= 1 ? value.toFixed(2) : value.toFixed(4);
 }
@@ -214,6 +222,48 @@ function walkJsonFiles(directoryPath: string): string[] {
   return output;
 }
 
+function walkJsonlFiles(directoryPath: string): string[] {
+  if (!existsSync(directoryPath)) {
+    return [];
+  }
+  const output: string[] = [];
+  for (const entry of readdirSync(directoryPath, { withFileTypes: true })) {
+    const path = join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      output.push(...walkJsonlFiles(path));
+    } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+      output.push(path);
+    }
+  }
+  return output;
+}
+
+function limitAuditPaths(paths: string[], maxAuditFiles?: number): string[] {
+  if (typeof maxAuditFiles !== "number" || !Number.isFinite(maxAuditFiles) || maxAuditFiles <= 0) {
+    return paths;
+  }
+  return paths.slice(0, Math.floor(maxAuditFiles));
+}
+
+function resolveAuditPaths(pathOrDirectory: string, maxAuditFiles?: number): string[] {
+  const path = resolve(pathOrDirectory);
+  if (path.endsWith(".jsonl")) {
+    return [path];
+  }
+  const direct = join(path, "discord-delivery-audit.jsonl");
+  if (existsSync(direct)) {
+    return [direct];
+  }
+  if (!existsSync(path)) {
+    return [direct];
+  }
+  return limitAuditPaths(readdirSync(path, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(path, entry.name, "discord-delivery-audit.jsonl"))
+    .filter((candidate) => existsSync(candidate))
+    .sort(), maxAuditFiles);
+}
+
 function extractCandles(entry: CachedCandleEntry | null): Candle[] {
   const candles = entry?.response?.candles ?? entry?.candles ?? [];
   return candles.filter((candle) =>
@@ -225,20 +275,48 @@ function extractCandles(entry: CachedCandleEntry | null): Candle[] {
 
 function loadCandlesForSymbol(params: {
   cacheDirectoryPath: string;
+  warehouseDirectoryPath?: string;
   provider: CandleProviderName;
   timeframe: CandleFetchTimeframe;
   symbol: string;
 }): Candle[] {
-  const symbolDirectory = join(
+  const byTimestamp = new Map<number, Candle>();
+  const cacheSymbolDirectory = join(
     params.cacheDirectoryPath,
     params.provider,
     params.symbol,
     params.timeframe,
   );
-  const byTimestamp = new Map<number, Candle>();
-  for (const file of walkJsonFiles(symbolDirectory)) {
+  for (const file of walkJsonFiles(cacheSymbolDirectory)) {
     for (const candle of extractCandles(parseCacheEntry(file))) {
       byTimestamp.set(candle.timestamp, candle);
+    }
+  }
+
+  if (params.warehouseDirectoryPath) {
+    const warehouseSymbolDirectory = join(
+      params.warehouseDirectoryPath,
+      params.provider,
+      params.symbol,
+      params.timeframe,
+    );
+    for (const file of walkJsonlFiles(warehouseSymbolDirectory)) {
+      for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+        try {
+          const candle = JSON.parse(trimmed) as Candle;
+          if ([candle.timestamp, candle.open, candle.high, candle.low, candle.close].every(
+            (value) => typeof value === "number" && Number.isFinite(value),
+          )) {
+            byTimestamp.set(candle.timestamp, candle);
+          }
+        } catch {
+          // Ignore corrupt warehouse lines here; warehouse audits own row-quality reporting.
+        }
+      }
     }
   }
   return [...byTimestamp.values()].sort((left, right) => left.timestamp - right.timestamp);
@@ -252,6 +330,16 @@ function candidateThresholdPct(price: number): number {
     return 4.5;
   }
   return 4;
+}
+
+function rollingBreakThresholdPct(price: number): number {
+  if (price < 2) {
+    return 3;
+  }
+  if (price < 10) {
+    return 2.5;
+  }
+  return 2;
 }
 
 function movesInAuditWindow(params: {
@@ -311,11 +399,14 @@ function classifyCandidates(params: {
     const closeMovePct = pctChange(candle.close, previous.close);
     const rangePct = pctChange(candle.high, candle.low);
     const threshold = candidateThresholdPct(previous.close);
+    const rollingBreakThreshold = rollingBreakThresholdPct(previous.close);
 
     const aboveRollingHigh =
       rollingHigh !== null && candle.close > rollingHigh ? pctChange(candle.close, rollingHigh) : null;
     const belowRollingLow =
       rollingLow !== null && candle.close < rollingLow ? pctChange(rollingLow, candle.close) : null;
+    const materialAboveRollingHigh = (aboveRollingHigh ?? 0) >= rollingBreakThreshold;
+    const materialBelowRollingLow = (belowRollingLow ?? 0) >= rollingBreakThreshold;
 
     const base = {
       symbol: params.symbol,
@@ -332,7 +423,7 @@ function classifyCandidates(params: {
       rollingLow,
     };
 
-    if (closeMovePct >= threshold || (aboveRollingHigh ?? 0) >= 1.8) {
+    if (closeMovePct >= threshold && materialAboveRollingHigh) {
       candidates.push({
         ...base,
         kind: "upside_break",
@@ -342,12 +433,51 @@ function classifyCandidates(params: {
       continue;
     }
 
-    if (closeMovePct <= -threshold || (belowRollingLow ?? 0) >= 1.8) {
+    if (closeMovePct <= -threshold && materialBelowRollingLow) {
       candidates.push({
         ...base,
         kind: "downside_loss",
         breakDistancePct: belowRollingLow,
         reason: `5m close moved ${formatPct(closeMovePct)} and pressed below recent support near ${formatPrice(rollingLow ?? candle.low)}`,
+      });
+      continue;
+    }
+
+    if (materialAboveRollingHigh) {
+      candidates.push({
+        ...base,
+        kind: "upside_break",
+        breakDistancePct: aboveRollingHigh,
+        reason: `5m close pressed ${formatDistancePct(aboveRollingHigh ?? 0)} above recent resistance near ${formatPrice(rollingHigh ?? candle.high)}, enough to review whether a trader-facing update was warranted`,
+      });
+      continue;
+    }
+
+    if (materialBelowRollingLow) {
+      candidates.push({
+        ...base,
+        kind: "downside_loss",
+        breakDistancePct: belowRollingLow,
+        reason: `5m close pressed ${formatDistancePct(belowRollingLow ?? 0)} below recent support near ${formatPrice(rollingLow ?? candle.low)}, enough to review whether a trader-facing update was warranted`,
+      });
+      continue;
+    }
+
+    if (Math.abs(closeMovePct) >= threshold) {
+      const nearbyLevelText = closeMovePct > 0 && rollingHigh !== null
+        ? aboveRollingHigh !== null
+          ? ` while only ${formatDistancePct(aboveRollingHigh)} above recent resistance near ${formatPrice(rollingHigh)}`
+          : ` without closing above recent resistance near ${formatPrice(rollingHigh)}`
+        : closeMovePct < 0 && rollingLow !== null
+          ? belowRollingLow !== null
+            ? ` while only ${formatDistancePct(belowRollingLow)} below recent support near ${formatPrice(rollingLow)}`
+            : ` without closing below recent support near ${formatPrice(rollingLow)}`
+          : "";
+      candidates.push({
+        ...base,
+        kind: "large_range",
+        breakDistancePct: closeMovePct > 0 ? aboveRollingHigh : belowRollingLow,
+        reason: `5m close moved ${formatPct(closeMovePct)}${nearbyLevelText}, enough to review whether context was needed`,
       });
       continue;
     }
@@ -441,16 +571,19 @@ function severityFor(
 export function generateMissedMeaningfulMoveAudit(
   options: GenerateMissedMeaningfulMoveAuditOptions,
 ): MissedMeaningfulMoveAuditReport {
-  const auditPath = resolve(options.auditPath);
+  const sourceAuditPaths = resolveAuditPaths(options.auditPath, options.maxAuditFiles);
   const cacheDirectoryPath = resolve(
     options.cacheDirectoryPath ?? join(process.cwd(), ".validation-cache", "candles"),
   );
+  const warehouseDirectoryPath = options.warehouseDirectoryPath
+    ? resolve(options.warehouseDirectoryPath)
+    : undefined;
   const provider = options.provider ?? "ibkr";
   const timeframe = options.timeframe ?? "5m";
   const coverageWindowMs = options.coverageWindowMs ?? DEFAULT_COVERAGE_WINDOW_MS;
   const auditWindowPaddingMs = options.auditWindowPaddingMs ?? DEFAULT_AUDIT_WINDOW_PADDING_MS;
 
-  const rows = readRows(auditPath).filter(isPosted);
+  const rows = sourceAuditPaths.flatMap((path) => readRows(path)).filter(isPosted);
   const rowsBySymbol = new Map<string, AuditRow[]>();
   for (const row of rows) {
     const symbol = symbolOf(row);
@@ -472,6 +605,7 @@ export function generateMissedMeaningfulMoveAudit(
     const symbolAuditEnd = symbolTimestamps.length ? Math.max(...symbolTimestamps) : auditEnd;
     const candles = loadCandlesForSymbol({
       cacheDirectoryPath,
+      warehouseDirectoryPath,
       provider,
       timeframe,
       symbol,
@@ -561,8 +695,12 @@ export function generateMissedMeaningfulMoveAudit(
 
   return {
     generatedAt: new Date().toISOString(),
-    sourceAuditPath: auditPath,
+    sourceAuditPath: sourceAuditPaths.length === 1
+      ? sourceAuditPaths[0]!
+      : `${sourceAuditPaths.length} audit files from ${resolve(options.auditPath)}`,
+    sourceAuditPaths,
     cacheDirectoryPath,
+    warehouseDirectoryPath: warehouseDirectoryPath ?? null,
     provider,
     timeframe,
     auditWindow: {
@@ -607,7 +745,9 @@ export function renderMissedMeaningfulMoveAuditMarkdown(report: MissedMeaningful
     "",
     `Generated: ${report.generatedAt}`,
     `Audit source: ${report.sourceAuditPath}`,
+    `Audit files: ${report.sourceAuditPaths.length}`,
     `Candle cache: ${report.cacheDirectoryPath}`,
+    `Warehouse: ${report.warehouseDirectoryPath ?? "none"}`,
     `Provider/timeframe: ${report.provider} ${report.timeframe}`,
     "",
     "## Totals",

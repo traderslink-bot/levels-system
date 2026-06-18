@@ -34,7 +34,11 @@ function parseAuditLimit(value: string | undefined): number | null | undefined {
 }
 
 const auditRoot = resolve(readFlag("--audit-root") ?? "artifacts");
-const cacheDirectory = resolve(readFlag("--cache") ?? join(".validation-cache", "candles", "ibkr"));
+const provider = readFlag("--provider") ?? "ibkr";
+const warehouseDirectory = readFlag("--warehouse");
+const cacheDirectory = resolve(
+  warehouseDirectory ? join(warehouseDirectory, provider) : readFlag("--cache") ?? join(".validation-cache", "candles", "ibkr"),
+);
 const outputDirectory = resolve(readFlag("--output") ?? join("artifacts", "stable-structure-discord-alignment"));
 const symbols = readFlag("--symbols")
   ?.split(",")

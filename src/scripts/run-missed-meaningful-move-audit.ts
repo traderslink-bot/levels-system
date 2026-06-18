@@ -14,7 +14,7 @@ function readFlag(name: string): string | undefined {
 
 const input = process.argv[2];
 if (!input) {
-  console.error("Usage: npm run audit:missed-moves -- <session-folder-or-discord-delivery-audit.jsonl> [--cache .validation-cache/candles] [--provider ibkr] [--timeframe 5m]");
+  console.error("Usage: npm run audit:missed-moves -- <session-folder-or-discord-delivery-audit.jsonl> [--cache .validation-cache/candles] [--warehouse data/candles] [--provider ibkr] [--timeframe 5m]");
   process.exit(1);
 }
 
@@ -25,10 +25,12 @@ const outputDirectory = input.endsWith(".jsonl")
 const provider = (readFlag("--provider") ?? "ibkr") as CandleProviderName;
 const timeframe = (readFlag("--timeframe") ?? "5m") as CandleFetchTimeframe;
 const cacheDirectoryPath = readFlag("--cache") ?? join(process.cwd(), ".validation-cache", "candles");
+const warehouseDirectoryPath = readFlag("--warehouse");
 
 const report = writeMissedMeaningfulMoveAudit({
   auditPath,
   cacheDirectoryPath,
+  warehouseDirectoryPath,
   provider,
   timeframe,
   jsonPath: join(outputDirectory, "missed-meaningful-move-audit.json"),

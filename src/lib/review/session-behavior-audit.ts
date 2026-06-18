@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import type { Candle, CandleFetchTimeframe, CandleProviderName } from "../market-data/candle-types.js";
@@ -236,12 +236,47 @@ function walkJsonFiles(directoryPath: string): string[] {
   return output;
 }
 
+function walkJsonlFiles(directoryPath: string): string[] {
+  if (!existsSync(directoryPath)) {
+    return [];
+  }
+  const output: string[] = [];
+  for (const entry of readdirSync(directoryPath, { withFileTypes: true })) {
+    const path = join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      output.push(...walkJsonlFiles(path));
+    } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+      output.push(path);
+    }
+  }
+  return output;
+}
+
 function parseCacheEntry(path: string): CachedCandleEntry | null {
   try {
     return JSON.parse(readFileSync(path, "utf8")) as CachedCandleEntry;
   } catch {
     return null;
   }
+}
+
+function readWarehouseCandles(path: string): Candle[] {
+  return readFileSync(path, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line) as Candle];
+      } catch {
+        return [];
+      }
+    })
+    .filter((candle) =>
+      [candle.timestamp, candle.open, candle.high, candle.low, candle.close].every(
+        (value) => typeof value === "number" && Number.isFinite(value),
+      ),
+    );
 }
 
 function extractCandles(entry: CachedCandleEntry | null): Candle[] {
@@ -278,6 +313,13 @@ function loadCandles(params: {
       latestCacheAt = Math.max(latestCacheAt ?? entry.cachedAt, entry.cachedAt);
     }
     for (const candle of extractCandles(entry)) {
+      byTimestamp.set(candle.timestamp, candle);
+    }
+  }
+  const directoryPath = join(params.cacheDirectoryPath, params.provider, params.symbol, params.timeframe);
+  for (const file of walkJsonlFiles(directoryPath)) {
+    latestCacheAt = Math.max(latestCacheAt ?? statSync(file).mtimeMs, statSync(file).mtimeMs);
+    for (const candle of readWarehouseCandles(file)) {
       byTimestamp.set(candle.timestamp, candle);
     }
   }
@@ -379,6 +421,14 @@ export function scoreFirstPostTradeMapText(input: ScoreFirstPostTradeMapTextInpu
     score -= 20;
     issues.push("contains wording that is too advisory, defensive, or short-framed");
   }
+  if (!/What price is doing now|Trade map|Current read/i.test(body)) {
+    score -= 12;
+    issues.push("missing: trader-readable current read section");
+  }
+  if (!/room|range-bound|range bound|runner|chop|extended|building|pressing|between .*support.*resistance/i.test(body)) {
+    score -= 12;
+    issues.push("missing: room, range, or behavior context");
+  }
   if (/risk opens toward\s+\d+(?:\.\d+)?/i.test(body) && /\b0?\.\d{2,4}\b/.test(body)) {
     score -= 10;
     issues.push("may make penny-level risk sound too precise");
@@ -386,6 +436,10 @@ export function scoreFirstPostTradeMapText(input: ScoreFirstPostTradeMapTextInpu
   if (/risk opens toward/i.test(body) && !/major support|heavy support|structure low|range low/i.test(body)) {
     score -= 12;
     issues.push("risk language is not anchored to a meaningful support or structure level");
+  }
+  if (!/main support|support that matters|main decision|cleaner above|room above|room below|upside room|downside room|current structure|range-bound|range bound/i.test(body)) {
+    score -= 8;
+    issues.push("missing: practical trade-map lines beyond the raw ladder");
   }
   if (/no (higher|nearby)?\s*resistance|Resistance above: none/i.test(body)) {
     score -= 12;

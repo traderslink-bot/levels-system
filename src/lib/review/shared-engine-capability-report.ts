@@ -58,7 +58,7 @@ export async function buildSharedEngineCapabilityReport(params: {
     implementedCapabilities: [
       "support/resistance level engine",
       "symbol-level candle-owned context",
-      "trade-analysis candle package",
+      "trade-analysis candle package with historical 1m/5m trade-window fetch, fallback diagnostics, and neutral execution facts",
       "durable JSONL candle warehouse foundation",
       "session VWAP and EMA utilities",
       "5m candle market structure",

@@ -91,3 +91,62 @@ test("daily trader review writes markdown and html gallery", () => {
   assert.match(readFileSync(htmlPath, "utf8"), /Daily Trader Review/);
   assert.match(readFileSync(jsonPath, "utf8"), /expectedBudgetStyle/);
 });
+
+test("daily trader review ignores delayed stock context as story late delivery", () => {
+  const report = buildDailyTraderReviewReport(writeAudit([
+    {
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 1000,
+      symbol: "AIIO",
+      title: "Current price: 0.7543 (postmarket)",
+      messageKind: "stock_context",
+      deliveryLagMs: 240_000,
+      body: "Company: Robo.ai Inc Levels are loading.",
+    },
+    {
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 2000,
+      symbol: "AIIO",
+      title: "AIIO breakout",
+      messageKind: "intelligent_alert",
+      eventType: "breakout",
+      acceptanceLabel: "accepted",
+      deliveryLagMs: 10_000,
+      body: "price is above resistance and next resistance is 0.86",
+    },
+  ]));
+
+  assert.equal(report.totals.latePosts, 0);
+  assert.equal(report.symbols.find((symbol) => symbol.symbol === "AIIO")?.latePostCount, 0);
+});
+
+test("daily trader review excludes stock context from trader-story post budget", () => {
+  const report = buildDailyTraderReviewReport(writeAudit([
+    {
+      operation: "post_alert",
+      status: "posted",
+      timestamp: 1000,
+      symbol: "SEGG",
+      title: "Current price: 1.40",
+      messageKind: "stock_context",
+      body: "Company context. Levels are loading.",
+    },
+    {
+      operation: "post_level_snapshot",
+      status: "posted",
+      timestamp: 2000,
+      symbol: "SEGG",
+      title: "SEGG support and resistance",
+      messageKind: "level_snapshot",
+      triggerPrice: 1.4,
+      body: "Price: 1.40 Resistance: 1.46 Support: 1.34",
+    },
+  ]));
+
+  const symbol = report.symbols.find((item) => item.symbol === "SEGG");
+  assert.equal(report.totals.posts, 1);
+  assert.equal(symbol?.postCount, 1);
+  assert.equal(symbol?.firstTitle, "SEGG support and resistance");
+});
