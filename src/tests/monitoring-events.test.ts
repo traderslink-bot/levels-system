@@ -361,6 +361,40 @@ test("breakout still emits for a forceful confirmation move without prior intera
   assert.equal(events.some((event) => event.eventType === "breakout"), true);
 });
 
+test("accepted breakout failure emits fake breakout when former resistance is lost", () => {
+  const symbolState = createSymbolState();
+  const previousState = {
+    ...createInitialInteractionState("AAPL", resistanceZone),
+    phase: "confirmed" as const,
+    firstTouchedAt: 1,
+    lastTouchedAt: 2,
+    breakAttemptAt: 2,
+    lastBreakPrice: 101.5,
+    updatesNearZone: 3,
+  };
+  const update = makeUpdate(DEFAULT_MONITORING_CONFIG.fakeoutWindowMs + 10_000, 99.7);
+
+  const currentState = updateInteractionState({
+    previousState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 100.2,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  const events = detectMonitoringEvents({
+    previousState,
+    currentState,
+    zone: resistanceZone,
+    update,
+    previousPrice: 100.2,
+    symbolState,
+    config: DEFAULT_MONITORING_CONFIG,
+  });
+
+  assert.equal(events.some((event) => event.eventType === "fake_breakout"), true);
+});
+
 test("full support reclaim emits reclaim instead of fake breakdown when a recent break attempt exists", () => {
   const symbolState = createSupportSymbolState();
   let previousState = createInitialInteractionState("AAPL", supportZone);

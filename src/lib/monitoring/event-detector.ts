@@ -672,24 +672,32 @@ export function detectMonitoringEvents(params: {
     const returnedInsideResistance = inside;
     const failureReturnFromResistance =
       (zone.zoneHigh - update.lastPrice) / Math.max(zone.zoneHigh, 0.0001);
+    const acceptedBreakoutFailure =
+      previousState.phase === "confirmed" &&
+      below &&
+      previousPrice !== undefined &&
+      !isBelowZone(previousPrice, zone) &&
+      failureReturnFromResistance >= config.failureReturnPct;
     const fakeBreakout =
-      hasRecentBreakAttempt &&
-      (returnedInsideResistance ||
-        failureReturnFromResistance >= config.failureReturnPct);
+      (hasRecentBreakAttempt &&
+        (returnedInsideResistance ||
+          failureReturnFromResistance >= config.failureReturnPct)) ||
+      acceptedBreakoutFailure;
+    const canEmitFakeBreakout = previousState.phase === "breaking" || acceptedBreakoutFailure;
 
     const fakeBreakoutReasons: string[] = [];
-    if (!hasRecentBreakAttempt) {
+    if (!hasRecentBreakAttempt && !acceptedBreakoutFailure) {
       fakeBreakoutReasons.push("no_recent_break_attempt");
     }
-    if (!returnedInsideResistance && failureReturnFromResistance < config.failureReturnPct) {
+    if (!returnedInsideResistance && failureReturnFromResistance < config.failureReturnPct && !acceptedBreakoutFailure) {
       fakeBreakoutReasons.push("did_not_fail_back_into_resistance");
     }
-    if (previousState.phase !== "breaking") {
+    if (previousState.phase !== "breaking" && !acceptedBreakoutFailure) {
       fakeBreakoutReasons.push("zone_not_in_breaking_phase");
     }
 
     let fakeBreakoutEmitted = false;
-    if (previousState.phase === "breaking" && fakeBreakout) {
+    if (canEmitFakeBreakout && fakeBreakout) {
       fakeBreakoutEmitted = pushEventIfRelevant(events, {
         symbol: zone.symbol,
         eventType: "fake_breakout",
@@ -700,11 +708,13 @@ export function detectMonitoringEvents(params: {
         symbolState,
         config,
         notes: [
-          "Price attempted breakout but failed back into or below resistance.",
+          acceptedBreakoutFailure
+            ? "Accepted breakout lost the former resistance zone."
+            : "Price attempted breakout but failed back into or below resistance.",
         ],
       });
     }
-    if (!fakeBreakoutEmitted && previousState.phase === "breaking" && fakeBreakout) {
+    if (!fakeBreakoutEmitted && canEmitFakeBreakout && fakeBreakout) {
       fakeBreakoutReasons.push("filtered_by_event_relevance_rules");
     }
     emitMonitoringEventDiagnostic(diagnosticListener, {
@@ -719,7 +729,9 @@ export function detectMonitoringEvents(params: {
       metrics: {
         inside,
         above,
+        below,
         hasRecentBreakAttempt,
+        acceptedBreakoutFailure,
         failureReturnFromResistance,
       },
     });
