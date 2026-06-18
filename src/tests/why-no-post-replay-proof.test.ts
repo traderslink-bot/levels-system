@@ -169,6 +169,51 @@ test("why-no-post proof separates runtime silence from policy suppression", () =
   assert.equal(report.symbols[0]?.candidateExamples[0]?.quietRiskCause, "runtime_or_feed_silence");
 });
 
+test("why-no-post proof treats pre-activation moves as runtime coverage gaps", () => {
+  const root = mkdtempSync(join(tmpdir(), "why-no-post-pre-activation-"));
+  const symbol = "LATE";
+  const start = Date.parse("2026-05-01T13:30:00.000Z");
+  writeCache(root, symbol, [
+    candle(start, 1),
+    candle(start + FIVE_MINUTES, 1.01),
+    candle(start + 2 * FIVE_MINUTES, 1.02),
+    candle(start + 3 * FIVE_MINUTES, 1.2),
+    candle(start + 4 * FIVE_MINUTES, 1.21),
+    candle(start + 7 * FIVE_MINUTES, 1.22),
+  ]);
+  const auditPath = writeAudit(root, [
+    {
+      operation: "create_thread",
+      status: "posted",
+      timestamp: start + 5 * FIVE_MINUTES,
+      symbol,
+      title: "thread_created",
+    },
+    {
+      operation: "post_level_snapshot",
+      type: "discord_delivery_audit",
+      status: "posted",
+      timestamp: start + 7 * FIVE_MINUTES,
+      symbol,
+      title: "LATE support and resistance",
+      body: "Price: 1.22",
+    },
+  ]);
+
+  const report = generateWhyNoPostReplayProof({
+    auditPath,
+    cacheDirectoryPath: join(root, "cache"),
+    coverageWindowMs: FIVE_MINUTES,
+    auditWindowPaddingMs: 20 * 60_000,
+    timeframe: "5m",
+  });
+
+  assert.equal(report.symbols[0]?.verdict, "unproven_runtime_silence");
+  assert.equal(report.totals.actionableMissedCandidates, 0);
+  assert.equal(report.symbols[0]?.candidateExamples[0]?.quietRiskCause, "runtime_or_feed_silence");
+  assert.match(report.symbols[0]?.candidateExamples[0]?.quietRiskReason ?? "", /first saved symbol runtime\/thread activity started/);
+});
+
 test("why-no-post proof can aggregate all session folders", () => {
   const root = mkdtempSync(join(tmpdir(), "why-no-post-all-sessions-"));
   const sessionA = join(root, "2026-05-01");

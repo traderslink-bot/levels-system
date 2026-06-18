@@ -105,6 +105,8 @@ export type GenerateWhyNoPostReplayProofOptions = {
   warehouseDirectoryPath?: string;
   provider?: CandleProviderName;
   timeframe?: CandleFetchTimeframe;
+  coverageWindowMs?: number;
+  auditWindowPaddingMs?: number;
   includeReplayEvidence?: boolean;
   replayProfile?: "quiet" | "balanced" | "active";
   maxAuditFiles?: number;
@@ -127,6 +129,7 @@ type ReplaySymbolEvidence = NonNullable<WhyNoPostReplayProofSymbol["replayEviden
 type RuntimeEvidenceRow = {
   symbol: string;
   timestamp: number;
+  observedTimestamp?: number;
   source: string;
   type?: string;
   operation?: string;
@@ -145,6 +148,11 @@ const QUIET_RISK_WINDOW_MS = 12 * 60 * 1000;
 function timestampOf(row: Record<string, unknown>): number | null {
   const value = row.sourceTimestamp ?? row.timestamp;
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function observedTimestampOf(row: Record<string, unknown>): number | undefined {
+  const value = row.timestamp;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function symbolOf(row: Record<string, unknown>): string | null {
@@ -187,6 +195,7 @@ function loadRuntimeEvidence(sourceAuditPaths: string[]): RuntimeEvidence {
       addEvidenceRow(bySymbol, {
         symbol,
         timestamp,
+        observedTimestamp: observedTimestampOf(row),
         source: "discord_delivery_audit",
         type: typeof row.type === "string" ? row.type : undefined,
         operation: typeof row.operation === "string" ? row.operation : undefined,
@@ -214,6 +223,7 @@ function loadRuntimeEvidence(sourceAuditPaths: string[]): RuntimeEvidence {
         addEvidenceRow(bySymbol, {
           symbol,
           timestamp,
+          observedTimestamp: observedTimestampOf(row),
           source: fileName,
           type: typeof row.type === "string" ? row.type : undefined,
           operation: typeof row.operation === "string" ? row.operation : undefined,
@@ -238,6 +248,17 @@ function nearbyEvidence(
     .sort((left, right) =>
       Math.abs(left.timestamp - candidate.timestamp) - Math.abs(right.timestamp - candidate.timestamp)
     );
+}
+
+function firstObservedEvidenceAt(runtimeEvidence: RuntimeEvidence, symbol: string): number | null {
+  const timestamps = (runtimeEvidence.bySymbol.get(symbol) ?? [])
+    .map((row) => row.observedTimestamp ?? row.timestamp)
+    .filter((value) => Number.isFinite(value));
+  return timestamps.length ? Math.min(...timestamps) : null;
+}
+
+function formatMinutes(value: number): string {
+  return `${(Math.round(value * 10) / 10).toFixed(1)}m`;
 }
 
 function classifyQuietRiskCause(
@@ -277,6 +298,13 @@ function classifyQuietRiskCause(
   }
 
   if (nearby.length > 0) {
+    const firstObserved = firstObservedEvidenceAt(runtimeEvidence, candidate.symbol);
+    if (firstObserved !== null && firstObserved - candidate.timestamp > 2 * 60 * 1000) {
+      return {
+        quietRiskCause: "runtime_or_feed_silence",
+        quietRiskReason: `first saved symbol runtime/thread activity started ${formatMinutes((firstObserved - candidate.timestamp) / 60_000)} after the candle, so this looks like activation or feed coverage rather than live post suppression`,
+      };
+    }
     return {
       quietRiskCause: "nearby_non_matching_activity",
       quietRiskReason: "runtime activity existed nearby, but no matching trader-facing post covered this candle move",
