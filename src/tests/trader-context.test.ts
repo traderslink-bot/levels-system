@@ -123,6 +123,34 @@ test("candle reaction context identifies clean breaks, wick rejection, and suppo
   assert.equal(supportDefense.label, "support_defense");
 });
 
+test("candle reaction context treats tiny small-cap level wiggles as minor until the move is material", () => {
+  const start = Date.UTC(2026, 4, 1, 13, 30);
+  const minorSupportSlip = buildCandleReactionContext({
+    candles: [
+      candle(start, 1.03, 1.04, 1.02, 1.025),
+      candle(start + 5 * 60_000, 1.021, 1.024, 1.009, 1.01),
+    ],
+    referenceLevel: { side: "support", price: 1.02 },
+    meaningfulMovePct: 2.25,
+  });
+
+  assert.equal(minorSupportSlip.label, "indecision");
+  assert.equal(minorSupportSlip.materialityLabel, "minor");
+  assert.ok(minorSupportSlip.reasons.some((reason) => /small-cap noise floor/.test(reason)));
+
+  const materialSupportLoss = buildCandleReactionContext({
+    candles: [
+      candle(start, 1.03, 1.04, 1.02, 1.025),
+      candle(start + 5 * 60_000, 1.02, 1.021, 0.98, 0.985),
+    ],
+    referenceLevel: { side: "support", price: 1.02 },
+    meaningfulMovePct: 2.25,
+  });
+
+  assert.equal(materialSupportLoss.label, "support_loss");
+  assert.equal(materialSupportLoss.materialityLabel, "material");
+});
+
 test("move extension context labels stretched moves using low, VWAP, EMA, and green streak", () => {
   const start = Date.UTC(2026, 4, 1, 13, 30);
   const candles = Array.from({ length: 8 }, (_, index) =>
@@ -216,6 +244,47 @@ test("level calibration flags thin forward ladders and wide first gaps without i
 
   assert.equal(context.label, "wide_first_gap");
   assert.equal(context.resistanceCount, 1);
+  assert.equal(context.forwardResistanceGapPct, null);
+});
+
+test("level calibration exposes crowded nearby zones as audit evidence", () => {
+  const level = (id: string, side: "support" | "resistance", representativePrice: number, strengthLabel = "moderate") =>
+    ({ id, side, kind: side, representativePrice, strengthLabel } as never);
+  const context = buildLevelQualityCalibrationContext({
+    currentPrice: 1.03,
+    levels: {
+      symbol: "CROWD",
+      generatedAt: 1,
+      majorSupport: [
+        level("s1", "support", 1.02, "major"),
+        level("s2", "support", 1),
+        level("s3", "support", 0.9898),
+        level("s4", "support", 0.95),
+      ],
+      majorResistance: [
+        level("r1", "resistance", 1.06),
+        level("r2", "resistance", 1.08),
+        level("r3", "resistance", 1.1),
+        level("r4", "resistance", 1.24),
+      ],
+      intermediateSupport: [],
+      intermediateResistance: [],
+      intradaySupport: [],
+      intradayResistance: [],
+      extensionLevels: { support: [], resistance: [] },
+      metadata: {
+        freshness: "fresh",
+        dataQualityFlags: [],
+        providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      },
+      specialLevels: {},
+    },
+  });
+
+  assert.equal(context.label, "crowded_nearby_levels");
+  assert.ok(context.tightSupportClusterCount >= 3);
+  assert.ok(context.tightResistanceClusterCount >= 3);
+  assert.match(context.traderLine ?? "", /practical zone matters/);
 });
 
 test("data quality gate degrades weak inputs and first-post plan stays non-advisory", () => {

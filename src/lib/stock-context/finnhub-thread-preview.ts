@@ -2,6 +2,13 @@ import type { FinnhubThreadPreview } from "./finnhub-client.js";
 import type { StockContextPreview } from "./stock-context-types.js";
 import type { AlertPayload } from "../alerts/alert-types.js";
 
+export type ResolvedStockContextCurrentPrice = {
+  price: number;
+  label: "postmarket" | "premarket" | "regular" | "finnhub";
+  timestamp: number | null;
+  source: "Yahoo" | "Finnhub";
+};
+
 function formatMarketCap(value: number | undefined): string | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return null;
@@ -35,15 +42,66 @@ function optionalFormattedLine(label: string, value: string | null): string | nu
   return value && value !== "n/a" ? `${label}: ${value}` : null;
 }
 
-function currentPriceLabel(preview: StockContextPreview): string | null {
-  const yahooPrice = latestYahooPriceLabel(preview);
-  if (yahooPrice !== "n/a") {
+function normalizeQuoteTimestampMs(value: number | undefined): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return value > 1_000_000_000_000 ? Math.round(value) : Math.round(value * 1000);
+}
+
+export function resolveStockContextCurrentPrice(
+  preview: StockContextPreview,
+): ResolvedStockContextCurrentPrice | null {
+  const quote = preview.yahoo?.quote;
+  const yahooCandidates: ResolvedStockContextCurrentPrice[] = quote
+    ? ([
+        {
+          label: "postmarket" as const,
+          price: quote.postMarketPrice,
+          timestamp: normalizeQuoteTimestampMs(quote.postMarketTime),
+        },
+        {
+          label: "premarket" as const,
+          price: quote.preMarketPrice,
+          timestamp: normalizeQuoteTimestampMs(quote.preMarketTime),
+        },
+        {
+          label: "regular" as const,
+          price: quote.regularMarketPrice,
+          timestamp: normalizeQuoteTimestampMs(quote.regularMarketTime),
+        },
+      ] as Array<{
+        label: "postmarket" | "premarket" | "regular";
+        price?: number;
+        timestamp: number | null;
+      }>).flatMap((candidate): ResolvedStockContextCurrentPrice[] =>
+        typeof candidate.price === "number" &&
+        Number.isFinite(candidate.price) &&
+        candidate.price > 0
+          ? [{ ...candidate, price: candidate.price, source: "Yahoo" }]
+          : [],
+      )
+    : [];
+
+  yahooCandidates.sort((left, right) => (right.timestamp ?? 0) - (left.timestamp ?? 0));
+  const yahooPrice = yahooCandidates[0];
+  if (yahooPrice) {
     return yahooPrice;
   }
 
   const finnhubQuote = preview.quote;
-  if (typeof finnhubQuote.c === "number" && Number.isFinite(finnhubQuote.c) && finnhubQuote.c > 0) {
-    return formatPrice(finnhubQuote.c);
+  if (
+    typeof finnhubQuote.c === "number" &&
+    Number.isFinite(finnhubQuote.c) &&
+    finnhubQuote.c > 0
+  ) {
+    return {
+      price: finnhubQuote.c,
+      label: "finnhub",
+      timestamp: normalizeQuoteTimestampMs(finnhubQuote.t),
+      source: "Finnhub",
+    };
   }
 
   return null;
@@ -89,21 +147,14 @@ function formatExchange(value: string | undefined): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function latestYahooPriceLabel(preview: StockContextPreview): string {
-  const quote = preview.yahoo?.quote;
-  if (!quote) {
-    return "n/a";
+function currentPriceLabel(preview: StockContextPreview): string | null {
+  const currentPrice = resolveStockContextCurrentPrice(preview);
+  if (!currentPrice) {
+    return null;
   }
 
-  const candidates = [
-    { label: "postmarket", price: quote.postMarketPrice, time: quote.postMarketTime },
-    { label: "premarket", price: quote.preMarketPrice, time: quote.preMarketTime },
-    { label: "regular", price: quote.regularMarketPrice, time: quote.regularMarketTime },
-  ].filter((candidate) => typeof candidate.price === "number" && Number.isFinite(candidate.price));
-
-  candidates.sort((left, right) => (right.time ?? 0) - (left.time ?? 0));
-  const latest = candidates[0];
-  return latest ? `${formatPrice(latest.price)} (${latest.label})` : "n/a";
+  const suffix = currentPrice.source === "Yahoo" ? ` (${currentPrice.label})` : "";
+  return `${formatPrice(currentPrice.price)}${suffix}`;
 }
 
 export function buildFinnhubThreadPreviewPayload(preview: FinnhubThreadPreview | StockContextPreview): AlertPayload {

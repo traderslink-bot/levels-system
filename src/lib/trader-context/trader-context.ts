@@ -64,9 +64,12 @@ export type CandleReactionContext = {
   label: CandleReactionLabel;
   reliability: ContextReliability;
   bodyPct: number | null;
+  rangePct: number | null;
   upperWickPct: number | null;
   lowerWickPct: number | null;
   closeLocation: number | null;
+  levelDistancePct: number | null;
+  materialityLabel: "material" | "minor" | "unknown";
   levelPrice: number | null;
   levelSide: "support" | "resistance" | null;
   reasons: string[];
@@ -132,6 +135,7 @@ export type LevelQualityCalibrationLabel =
   | "healthy"
   | "thin_ladder"
   | "wide_first_gap"
+  | "crowded_nearby_levels"
   | "no_forward_levels"
   | "unknown";
 export type LevelQualityCalibrationContext = {
@@ -139,9 +143,14 @@ export type LevelQualityCalibrationContext = {
   reliability: ContextReliability;
   nearestSupportDistancePct: number | null;
   nearestResistanceDistancePct: number | null;
+  forwardSupportGapPct: number | null;
+  forwardResistanceGapPct: number | null;
+  tightSupportClusterCount: number;
+  tightResistanceClusterCount: number;
   supportCount: number;
   resistanceCount: number;
   reasons: string[];
+  traderLine?: string;
 };
 
 export type DataQualityGateLabel = "trusted" | "watch" | "degraded" | "unusable";
@@ -570,6 +579,7 @@ export function buildSessionGapContext(params: {
 export function buildCandleReactionContext(params: {
   candles?: Candle[];
   referenceLevel?: ReferenceLevelForReaction;
+  meaningfulMovePct?: number | null;
 }): CandleReactionContext {
   const candles = sortedCandles(params.candles);
   const latest = candles.at(-1);
@@ -579,9 +589,12 @@ export function buildCandleReactionContext(params: {
       label: "unknown",
       reliability: "unreliable",
       bodyPct: null,
+      rangePct: null,
       upperWickPct: null,
       lowerWickPct: null,
       closeLocation: null,
+      levelDistancePct: null,
+      materialityLabel: "unknown",
       levelPrice: params.referenceLevel?.price ?? null,
       levelSide: params.referenceLevel?.side ?? null,
       reasons: ["missing candle data"],
@@ -594,33 +607,48 @@ export function buildCandleReactionContext(params: {
   const lowerWick = Math.min(latest.open, latest.close) - latest.low;
   const closeLocation = range > 0 ? (latest.close - latest.low) / range : null;
   const bodyPct = pctChange(latest.open, latest.close);
+  const rangePct = pctChange(latest.low, latest.high);
   const upperWickPct = range > 0 ? (upperWick / range) * 100 : null;
   const lowerWickPct = range > 0 ? (lowerWick / range) * 100 : null;
   const level = params.referenceLevel;
+  const levelDistancePct = level ? pctChange(level.price, latest.close) : null;
+  const meaningfulMovePct = finite(params.meaningfulMovePct)
+    ? Math.max(0.5, Math.min(params.meaningfulMovePct * 0.6, 2.5))
+    : 0.75;
+  const materialBody = bodyPct !== null && Math.abs(bodyPct) >= meaningfulMovePct;
+  const materialRange = rangePct !== null && Math.abs(rangePct) >= meaningfulMovePct * 1.25;
+  const materialLevelClear = levelDistancePct !== null && Math.abs(levelDistancePct) >= meaningfulMovePct;
+  const materialReaction = materialBody || materialRange || materialLevelClear;
   const reasons: string[] = [
     `body ${round(bodyPct)}%`,
+    `range ${round(rangePct)}%`,
     `upper wick ${round(upperWickPct)}%`,
     `lower wick ${round(lowerWickPct)}%`,
+    level ? `level distance ${round(levelDistancePct)}%` : "no reference level",
+    `material floor ${round(meaningfulMovePct)}%`,
   ];
+  if (!materialReaction) {
+    reasons.push("inside small-cap noise floor");
+  }
 
   let label: CandleReactionLabel = "indecision";
   if (level?.side === "resistance") {
-    if (latest.close > level.price && (closeLocation ?? 0) >= 0.65 && latest.close > latest.open) {
+    if (latest.close > level.price && (closeLocation ?? 0) >= 0.65 && latest.close > latest.open && materialReaction) {
       label = "strong_close_through";
-    } else if (latest.high > level.price && latest.close <= level.price && upperWick > Math.max(body, range * 0.2)) {
+    } else if (latest.high > level.price && latest.close <= level.price && upperWick > Math.max(body, range * 0.2) && materialReaction) {
       label = prior && prior.close > level.price ? "failed_breakout" : "wick_rejection";
-    } else if (prior && prior.close <= level.price && latest.close > level.price) {
+    } else if (prior && prior.close <= level.price && latest.close > level.price && materialReaction) {
       label = "reclaim";
     }
   } else if (level?.side === "support") {
-    if (latest.low < level.price && latest.close >= level.price && lowerWick > Math.max(body, range * 0.2)) {
+    if (latest.low < level.price && latest.close >= level.price && lowerWick > Math.max(body, range * 0.2) && materialReaction) {
       label = "support_defense";
-    } else if (latest.close < level.price && (closeLocation ?? 1) <= 0.35) {
+    } else if (latest.close < level.price && (closeLocation ?? 1) <= 0.35 && materialReaction) {
       label = "support_loss";
-    } else if (prior && prior.close < level.price && latest.close >= level.price) {
+    } else if (prior && prior.close < level.price && latest.close >= level.price && materialReaction) {
       label = "reclaim";
     }
-  } else if (range > 0 && body / range > 0.65) {
+  } else if (range > 0 && body / range > 0.65 && materialReaction) {
     label = latest.close > latest.open ? "strong_close_through" : "support_loss";
   }
 
@@ -628,9 +656,12 @@ export function buildCandleReactionContext(params: {
     label,
     reliability: candles.length >= 2 ? "reliable" : "watch",
     bodyPct: round(bodyPct),
+    rangePct: round(rangePct),
     upperWickPct: round(upperWickPct),
     lowerWickPct: round(lowerWickPct),
     closeLocation: closeLocation === null ? null : round(closeLocation, 3),
+    levelDistancePct: round(levelDistancePct),
+    materialityLabel: materialReaction ? "material" : "minor",
     levelPrice: level?.price ?? null,
     levelSide: level?.side ?? null,
     reasons,
@@ -964,6 +995,77 @@ function nearestDistancePct(levels: FinalLevelZone[], currentPrice: number | nul
   return nearest ? round(Math.abs(((nearest.representativePrice - currentPrice) / currentPrice) * 100)) : null;
 }
 
+function forwardLevelCandidates(
+  levels: FinalLevelZone[],
+  currentPrice: number | null | undefined,
+  side: "support" | "resistance",
+): FinalLevelZone[] {
+  if (!finite(currentPrice)) {
+    return [];
+  }
+
+  return levels
+    .filter((level) =>
+      side === "support"
+        ? level.representativePrice < currentPrice
+        : level.representativePrice > currentPrice,
+    )
+    .sort((left, right) =>
+      side === "support"
+        ? right.representativePrice - left.representativePrice
+        : left.representativePrice - right.representativePrice,
+    );
+}
+
+function firstForwardGapPct(
+  levels: FinalLevelZone[],
+  currentPrice: number | null | undefined,
+  side: "support" | "resistance",
+): number | null {
+  if (!finite(currentPrice)) {
+    return null;
+  }
+  const candidates = forwardLevelCandidates(levels, currentPrice, side);
+  const first = candidates[0];
+  const second = candidates[1];
+  if (!first || !second) {
+    return null;
+  }
+  return round(Math.abs(((second.representativePrice - first.representativePrice) / currentPrice) * 100));
+}
+
+function tightClusterCount(
+  levels: FinalLevelZone[],
+  currentPrice: number | null | undefined,
+  side: "support" | "resistance",
+): number {
+  if (!finite(currentPrice)) {
+    return 0;
+  }
+  const nearby = forwardLevelCandidates(levels, currentPrice, side)
+    .filter((level) => Math.abs(((level.representativePrice - currentPrice) / currentPrice) * 100) <= 12)
+    .slice(0, 6);
+  if (nearby.length < 2) {
+    return nearby.length;
+  }
+
+  let longest = 1;
+  let current = 1;
+  for (let index = 1; index < nearby.length; index += 1) {
+    const previous = nearby[index - 1]!;
+    const next = nearby[index]!;
+    const gapPct = Math.abs(((next.representativePrice - previous.representativePrice) / currentPrice) * 100);
+    if (gapPct <= 2.5) {
+      current += 1;
+      longest = Math.max(longest, current);
+    } else {
+      current = 1;
+    }
+  }
+
+  return longest >= 2 ? longest : 0;
+}
+
 export function buildLevelQualityCalibrationContext(params: {
   levels?: LevelEngineOutput;
   currentPrice?: number;
@@ -972,30 +1074,56 @@ export function buildLevelQualityCalibrationContext(params: {
   const resistance = allLevelZones(params.levels, "resistance");
   const nearestSupportDistancePct = nearestDistancePct(support, params.currentPrice, "support");
   const nearestResistanceDistancePct = nearestDistancePct(resistance, params.currentPrice, "resistance");
+  const forwardSupportGapPct = firstForwardGapPct(support, params.currentPrice, "support");
+  const forwardResistanceGapPct = firstForwardGapPct(resistance, params.currentPrice, "resistance");
+  const tightSupportClusterCount = tightClusterCount(support, params.currentPrice, "support");
+  const tightResistanceClusterCount = tightClusterCount(resistance, params.currentPrice, "resistance");
   const reasons: string[] = [
     `support count ${support.length}`,
     `resistance count ${resistance.length}`,
     `nearest support ${nearestSupportDistancePct ?? "n/a"}%`,
     `nearest resistance ${nearestResistanceDistancePct ?? "n/a"}%`,
+    `forward support gap ${forwardSupportGapPct ?? "n/a"}%`,
+    `forward resistance gap ${forwardResistanceGapPct ?? "n/a"}%`,
+    `tight support cluster ${tightSupportClusterCount}`,
+    `tight resistance cluster ${tightResistanceClusterCount}`,
   ];
   const noForward = support.length === 0 || resistance.length === 0;
   const wideFirstGap =
     (nearestSupportDistancePct !== null && nearestSupportDistancePct > 15) ||
     (nearestResistanceDistancePct !== null && nearestResistanceDistancePct > 15);
   const thinLadder = support.length < 3 || resistance.length < 3;
+  const crowdedNearby = tightSupportClusterCount >= 3 || tightResistanceClusterCount >= 3;
   const label: LevelQualityCalibrationLabel =
     noForward ? "no_forward_levels" :
     wideFirstGap ? "wide_first_gap" :
     thinLadder ? "thin_ladder" :
+    crowdedNearby ? "crowded_nearby_levels" :
     "healthy";
   return {
     label,
     reliability: params.levels ? "reliable" : "unreliable",
     nearestSupportDistancePct,
     nearestResistanceDistancePct,
+    forwardSupportGapPct,
+    forwardResistanceGapPct,
+    tightSupportClusterCount,
+    tightResistanceClusterCount,
     supportCount: support.length,
     resistanceCount: resistance.length,
     reasons,
+    traderLine:
+      label === "healthy"
+        ? "nearby support and resistance are defined enough for a clean level read"
+        : label === "crowded_nearby_levels"
+          ? "nearby levels are crowded, so the practical zone matters more than each exact print"
+          : label === "wide_first_gap"
+            ? "the first useful level gap is wide, so fresh reactions need extra proof"
+            : label === "thin_ladder"
+              ? "the ladder is thin, so the strongest areas carry the cleaner read"
+              : label === "no_forward_levels"
+                ? "one side of the ladder is missing, so higher-timeframe data needs review"
+                : undefined,
   };
 }
 
@@ -1177,8 +1305,10 @@ export function buildFirstPostTradePlanContext(params: {
   if (params.openingRange.traderLine) {
     lines.push(`Opening range: ${params.openingRange.traderLine}.`);
   }
-  if (params.levelQuality.label !== "healthy") {
-    lines.push(`Level quality: ${params.levelQuality.label.replace(/_/g, " ")}; use the closest levels first.`);
+  if (params.levelQuality.traderLine) {
+    lines.push(`Level quality: ${params.levelQuality.traderLine}.`);
+  } else if (params.levelQuality.label !== "healthy") {
+    lines.push(`Level quality: ${params.levelQuality.label.replace(/_/g, " ")}; closest levels carry the cleaner read.`);
   }
   return {
     title: `${params.symbol} trade plan context`,
@@ -1308,19 +1438,20 @@ export function buildTraderIntelligenceContext(
     intradayCandles: intraday,
     currentPrice: currentPrice ?? undefined,
   });
+  const volatility = buildSmallCapVolatilityContext({
+    candles: intraday,
+    currentPrice: currentPrice ?? undefined,
+    spreadPct: liquidity.spreadPct,
+  });
   const candleReaction = buildCandleReactionContext({
     candles: intraday,
     referenceLevel: request.referenceLevel,
+    meaningfulMovePct: volatility.meaningfulMovePct,
   });
   const moveExtension = buildMoveExtensionContext({
     candles: intraday,
     currentPrice: currentPrice ?? undefined,
     dynamicLevels: request.dynamicLevels,
-  });
-  const volatility = buildSmallCapVolatilityContext({
-    candles: intraday,
-    currentPrice: currentPrice ?? undefined,
-    spreadPct: liquidity.spreadPct,
   });
   const openingRange = buildOpeningRangeContext({
     candles: intraday,

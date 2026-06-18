@@ -9,7 +9,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     main { max-width: 920px; margin: 0 auto; }
     form, section { background: #fff; border: 1px solid #d7dee8; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
     label { display: block; font-size: 14px; margin-bottom: 6px; }
-    input { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
+    input, textarea { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
+    textarea { min-height: 84px; resize: vertical; font-family: Arial, sans-serif; line-height: 1.35; }
     button { min-width: 94px; padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; background: #1d4ed8; color: #fff; white-space: nowrap; }
     button:disabled { cursor: wait; opacity: 0.62; }
     ul { list-style: none; padding: 0; margin: 0; }
@@ -18,6 +19,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     h1, h2 { margin-top: 0; }
     .meta { color: #4b5563; font-size: 13px; }
     .entry-main { min-width: 0; }
+    .top-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
     .entry-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 4px; }
     .entry-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
     .entry-state { margin-top: 6px; color: #334155; font-size: 13px; overflow-wrap: anywhere; }
@@ -59,12 +61,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
   <main>
     <form id="watchlist-form">
       <h1>Manual Watchlist</h1>
+      <div class="top-actions">
+        <button class="secondary" id="ai-clean-read-button" type="button">Open AI Clean Read</button>
+        <button class="secondary" id="trade-plan-review-button" type="button">Open Trade Plan Review</button>
+        <button class="danger" id="clear-discord-button" type="button">Clear Discord Posts</button>
+      </div>
       <div class="status" id="status"></div>
       <label for="symbol">npm run watchlist:manual</label>
       <label for="symbol">Symbol</label>
       <input id="symbol" name="symbol" maxlength="10" required />
-      <label for="note">Note (optional)</label>
-      <input id="note" name="note" maxlength="200" />
+      <label for="note">Notes to send to OpenAI (optional)</label>
+      <textarea id="note" name="note" maxlength="1200"></textarea>
       <button type="submit">Add / Activate</button>
     </form>
 
@@ -122,6 +129,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const aiNoticeEl = document.getElementById("ai-notice");
     const activityListEl = document.getElementById("activity-list");
     const formEl = document.getElementById("watchlist-form");
+    const clearDiscordButtonEl = document.getElementById("clear-discord-button");
+    const aiCleanReadButtonEl = document.getElementById("ai-clean-read-button");
+    const tradePlanReviewButtonEl = document.getElementById("trade-plan-review-button");
     const symbolEl = document.getElementById("symbol");
     const noteEl = document.getElementById("note");
 
@@ -215,7 +225,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       appendMetaValue(details, "story", lastStoryText);
       appendMetaValue(details, "trigger", formatNumber(entry.lastTriggerPrice));
       appendMetaValue(details, "levels age", levelFreshness);
-      appendMetaValue(details, "note", entry.note);
+      appendMetaValue(details, "OpenAI notes", entry.note);
 
       meta.appendChild(header);
       meta.appendChild(details);
@@ -314,6 +324,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Review Log", "manual-watchlist-operational.log"],
         ["Diagnostic Log", "manual-watchlist-diagnostics.log"],
         ["Discord Audit", "discord-delivery-audit.jsonl"],
+        ["Structure Posts", status.runtimeConfig?.marketStructureStandalonePostMode],
+        ["Structure Lifecycle", "market-structure-lifecycle.jsonl"],
+        ["Structure Memory", "market-structure-story-memory.json"],
+        ["Structure Delivery Audit", "market-structure-delivery-audit.md"],
+        ["Structure Outcome Audit", "market-structure-outcome-calibration.md"],
         ["Thread Summary", "thread-summaries.json"],
       ];
 
@@ -494,12 +509,18 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Runtime Candle Cache", config.runtimeCandleCacheMode],
         ["Startup Cache", config.startupCandleCacheEnabled ? "enabled" : "disabled"],
         ["Candle Cache Dir", config.candleCacheDirectoryPath],
+        ["Structure Posts", config.marketStructureStandalonePostMode],
+        ["Structure Lifecycle Log", config.marketStructureLifecyclePath],
+        ["Structure Memory", config.marketStructureStoryMemoryPath],
         ["Diagnostics Requested", config.monitoringDiagnosticsRequested ? "yes" : "no"],
         ["AI Requested", config.aiCommentaryRequested ? "yes" : "no"],
         ["AI Service", config.aiCommentaryServiceAvailable ? "available" : "unavailable"],
         ["OpenAI Key", config.openAiApiKeyPresent ? "present" : "missing"],
         ["AI Model", config.aiCommentaryModel],
         ["AI Route", config.aiCommentaryRoute],
+        ["Clean Read Model", config.aiCleanReadModel],
+        ["Clean Read Reasoning", config.aiCleanReadReasoningEffort],
+        ["Clean Read Route", config.aiCleanReadRoute],
         ["AI Generated", String(ai.generatedCount || 0)],
         ["AI Failed", String(ai.failedCount || 0)],
         ["Last AI Generated", lastAiGenerated],
@@ -770,6 +791,45 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderReviewArtifacts(payload);
     }
 
+    async function clearDiscordPosts() {
+      const confirmed = window.confirm(
+        "Delete all posts and threads in the watchlist Discord channel and reset local thread memory?"
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      clearDiscordButtonEl.disabled = true;
+      setStatus("Clearing Discord posts and resetting local thread memory...");
+      try {
+        const response = await fetch("/api/discord/clear-watchlist-channel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmation: "DELETE_DISCORD_WATCHLIST" }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "Discord cleanup failed", true);
+          return;
+        }
+
+        setStatus(
+          "Cleared " +
+            payload.discordCleanup.threadDeleteCount +
+            " Discord threads and " +
+            payload.discordCleanup.parentMessageDeleteCount +
+            " channel posts. Local thread memory reset."
+        );
+        await loadEntries();
+        await loadRuntimeStatus();
+        await loadReviewArtifacts();
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        clearDiscordButtonEl.disabled = false;
+      }
+    }
+
     formEl.addEventListener("submit", async (event) => {
       event.preventDefault();
       const started = await activateEntry(symbolEl.value, noteEl.value, false);
@@ -781,6 +841,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       await loadEntries();
       await loadRuntimeStatus();
       await loadReviewArtifacts();
+    });
+    clearDiscordButtonEl.addEventListener("click", clearDiscordPosts);
+    aiCleanReadButtonEl.addEventListener("click", () => {
+      window.open("/ai-clean-read", "ai-clean-read");
+    });
+    tradePlanReviewButtonEl.addEventListener("click", () => {
+      window.open("/trade-plan-review", "trade-plan-review");
     });
 
     Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]).catch((error) => {

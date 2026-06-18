@@ -19,13 +19,19 @@ import { LevelStore } from "../lib/monitoring/level-store.js";
 import {
   DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS,
   ManualWatchlistRuntimeManager,
+  resolveMarketStructureStandalonePostMode,
   type ManualWatchlistHistoricalLookbacks,
 } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import {
   AdaptiveScoringEngine,
   DEFAULT_ADAPTIVE_SCORING_CONFIG,
 } from "../lib/monitoring/adaptive-scoring.js";
-import { createConsoleManualWatchlistLifecycleListener } from "../lib/monitoring/manual-watchlist-runtime-events.js";
+import {
+  createCompositeManualWatchlistLifecycleListener,
+  createConsoleManualWatchlistLifecycleListener,
+  createManualWatchlistLifecycleFileListener,
+  isMarketStructureLifecycleEvent,
+} from "../lib/monitoring/manual-watchlist-runtime-events.js";
 import { AdaptiveStatePersistence } from "../lib/monitoring/adaptive-state-persistence.js";
 import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
 import { createMonitoringEventDiagnosticListener } from "../lib/monitoring/monitoring-event-diagnostic-logger.js";
@@ -45,6 +51,22 @@ import {
   sendJson,
 } from "./manual-watchlist-http.js";
 import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
+import { TRADE_PLAN_REVIEW_PAGE } from "./trade-plan-review-page.js";
+import { AI_CLEAN_READ_PAGE } from "./ai-clean-read-page.js";
+import {
+  appendTradePlanReviewNote,
+  buildTradePlanReviewPayload,
+  type TradePlanReviewNote,
+} from "./trade-plan-review.js";
+import {
+  AI_CLEAN_READ_REASONING_EFFORT,
+  DEFAULT_AI_CLEAN_READ_MODEL,
+  appendAiCleanReadComment,
+  appendAiCleanReadRecord,
+  buildAiCleanReadPayload,
+  createOpenAICleanReadServiceFromEnv,
+  resolveLatestCleanReadSnapshotInput,
+} from "./ai-clean-read.js";
 import { resolveLiveThreadPostingProfile } from "../lib/monitoring/live-thread-post-policy.js";
 
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
@@ -52,6 +74,7 @@ const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
 const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
 const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
 const AI_MODEL_ENV = "LEVEL_AI_MODEL";
+const AI_CLEAN_READ_MODEL_ENV = "LEVEL_CLEAN_READ_AI_MODEL";
 const MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV = "MANUAL_WATCHLIST_IBKR_TIMEOUT_MS";
 const MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_ENV = "MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS";
 const MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_ENV = "MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS";
@@ -62,6 +85,7 @@ const MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV = "LEVEL_MANUAL_LOOKBACK_DAILY";
 const MANUAL_WATCHLIST_LOOKBACK_4H_ENV = "LEVEL_MANUAL_LOOKBACK_4H";
 const MANUAL_WATCHLIST_LOOKBACK_5M_ENV = "LEVEL_MANUAL_LOOKBACK_5M";
 const WATCHLIST_POSTING_PROFILE_ENV = "WATCHLIST_POSTING_PROFILE";
+const MARKET_STRUCTURE_STANDALONE_POSTS_ENV = "MARKET_STRUCTURE_STANDALONE_POSTS";
 const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
 const DEFAULT_MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS = 90_000;
 const DEFAULT_MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS = 5000;
@@ -72,6 +96,8 @@ const REVIEW_ARTIFACT_FILES = [
   "live-post-replay-simulation.md",
   "live-post-profile-comparison.md",
   "runner-story-report.md",
+  "trader-story-quality-review.md",
+  "trader-story-quality-review.json",
   "trader-post-quality-report.md",
   "post-reason-audit.md",
   "known-bad-post-patterns.md",
@@ -87,6 +113,14 @@ const REVIEW_ARTIFACT_FILES = [
   "missed-meaningful-move-audit.json",
   "session-behavior-audit.md",
   "session-behavior-audit.json",
+  "market-structure-delivery-audit.md",
+  "market-structure-delivery-audit.json",
+  "market-structure-calibration.md",
+  "market-structure-calibration.json",
+  "market-structure-outcome-calibration.md",
+  "market-structure-outcome-calibration.json",
+  "market-structure-lifecycle.jsonl",
+  "market-structure-story-memory.json",
   "snapshot-audit-report.md",
   "live-post-replay-simulation.json",
   "live-post-profile-comparison.json",
@@ -94,7 +128,42 @@ const REVIEW_ARTIFACT_FILES = [
   "thread-clutter-report.json",
   "thread-summaries.json",
   "discord-delivery-audit.jsonl",
+  "trade-plan-review-notes.jsonl",
+  "ai-clean-read-records.jsonl",
+  "ai-clean-read-comments.jsonl",
 ] as const;
+
+type DiscordMessage = {
+  id: string;
+  content?: string;
+  thread?: {
+    id?: string;
+    name?: string;
+  };
+};
+
+type DiscordThreadChannel = {
+  id: string;
+  name?: string;
+  parent_id?: string | null;
+};
+
+type DiscordThreadListResponse = {
+  threads?: DiscordThreadChannel[];
+};
+
+type DiscordChannelCleanupResult = {
+  threadDeleteCount: number;
+  parentMessageDeleteCount: number;
+  skippedParentMessageCount: number;
+  deletedThreads: Array<{ id: string; name: string }>;
+  deletedParentMessages: Array<{ id: string; label: string }>;
+};
+
+const DISCORD_API_BASE_URL = "https://discord.com/api/v10";
+const DISCORD_CLEANUP_PAGE_LIMIT = 100;
+const DISCORD_CLEANUP_PARENT_MESSAGE_PAGE_LIMIT = 50;
+const DISCORD_CLEANUP_RETRY_DELAY_MS = 1000;
 
 function isTruthyEnv(value: string | undefined): boolean {
   if (!value) {
@@ -187,6 +256,169 @@ function readReviewArtifacts(sessionDirectory: string | null): Array<{
   });
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function discordCleanupRequest<T>(
+  path: string,
+  botToken: string,
+  init: RequestInit = {},
+): Promise<T | null> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch(`${DISCORD_API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        "Content-Type": "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
+
+    if (response.ok) {
+      const text = await response.text();
+      return text.trim() ? (JSON.parse(text) as T) : null;
+    }
+
+    if (response.status === 404 && init.method === "DELETE") {
+      return null;
+    }
+
+    if (response.status === 429 || response.status >= 500) {
+      const retryAfterSeconds = Number(response.headers.get("retry-after") ?? "");
+      await delay(
+        Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
+          ? retryAfterSeconds * 1000
+          : DISCORD_CLEANUP_RETRY_DELAY_MS,
+      );
+      continue;
+    }
+
+    const body = await response.text();
+    throw new Error(
+      `Discord cleanup request failed (${response.status}) for ${path}: ${body || response.statusText}`,
+    );
+  }
+
+  throw new Error(`Discord cleanup request failed after retries for ${path}.`);
+}
+
+async function fetchWatchlistParentMessages(
+  watchlistChannelId: string,
+  botToken: string,
+): Promise<DiscordMessage[]> {
+  const messages: DiscordMessage[] = [];
+  let before: string | null = null;
+
+  for (let page = 0; page < DISCORD_CLEANUP_PARENT_MESSAGE_PAGE_LIMIT; page += 1) {
+    const query = new URLSearchParams({ limit: String(DISCORD_CLEANUP_PAGE_LIMIT) });
+    if (before) {
+      query.set("before", before);
+    }
+    const batch = await discordCleanupRequest<DiscordMessage[]>(
+      `/channels/${watchlistChannelId}/messages?${query.toString()}`,
+      botToken,
+    );
+    if (!batch || batch.length === 0) {
+      break;
+    }
+
+    messages.push(...batch);
+    before = batch[batch.length - 1]?.id ?? null;
+    if (batch.length < DISCORD_CLEANUP_PAGE_LIMIT || !before) {
+      break;
+    }
+  }
+
+  return messages;
+}
+
+async function fetchWatchlistThreads(
+  watchlistChannelId: string,
+  guildId: string | undefined,
+  botToken: string,
+): Promise<DiscordThreadChannel[]> {
+  const threads: DiscordThreadChannel[] = [];
+
+  if (guildId) {
+    const active = await discordCleanupRequest<DiscordThreadListResponse>(
+      `/guilds/${guildId}/threads/active`,
+      botToken,
+    );
+    threads.push(...(active?.threads ?? []).filter((thread) => thread.parent_id === watchlistChannelId));
+  }
+
+  const archived = await discordCleanupRequest<DiscordThreadListResponse>(
+    `/channels/${watchlistChannelId}/threads/archived/public?limit=${DISCORD_CLEANUP_PAGE_LIMIT}`,
+    botToken,
+  );
+  threads.push(...(archived?.threads ?? []).filter((thread) => thread.parent_id === watchlistChannelId));
+
+  const seen = new Set<string>();
+  return threads.filter((thread) => {
+    if (seen.has(thread.id)) {
+      return false;
+    }
+    seen.add(thread.id);
+    return true;
+  });
+}
+
+async function clearDiscordWatchlistChannel(): Promise<DiscordChannelCleanupResult> {
+  const botToken = process.env.DISCORD_BOT_TOKEN?.trim();
+  const watchlistChannelId = process.env.DISCORD_WATCHLIST_CHANNEL_ID?.trim();
+  const guildId = process.env.DISCORD_GUILD_ID?.trim() || undefined;
+
+  if (!botToken) {
+    throw new Error("DISCORD_BOT_TOKEN is required to clear Discord posts.");
+  }
+  if (!watchlistChannelId) {
+    throw new Error("DISCORD_WATCHLIST_CHANNEL_ID is required to clear Discord posts.");
+  }
+
+  const [threads, parentMessages] = await Promise.all([
+    fetchWatchlistThreads(watchlistChannelId, guildId, botToken),
+    fetchWatchlistParentMessages(watchlistChannelId, botToken),
+  ]);
+
+  const deletedThreads: Array<{ id: string; name: string }> = [];
+  for (const thread of threads) {
+    await discordCleanupRequest(`/channels/${thread.id}`, botToken, { method: "DELETE" });
+    deletedThreads.push({ id: thread.id, name: thread.name ?? thread.id });
+  }
+
+  const deletedParentMessages: Array<{ id: string; label: string }> = [];
+  let skippedParentMessageCount = 0;
+  for (const message of parentMessages) {
+    try {
+      await discordCleanupRequest(
+        `/channels/${watchlistChannelId}/messages/${message.id}`,
+        botToken,
+        { method: "DELETE" },
+      );
+      deletedParentMessages.push({
+        id: message.id,
+        label: message.thread?.name ?? message.content?.slice(0, 30) ?? "message",
+      });
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : String(error);
+      if (messageText.includes("(403)") || messageText.includes("(404)")) {
+        skippedParentMessageCount += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return {
+    threadDeleteCount: deletedThreads.length,
+    parentMessageDeleteCount: deletedParentMessages.length,
+    skippedParentMessageCount,
+    deletedThreads,
+    deletedParentMessages,
+  };
+}
+
 async function main(): Promise<void> {
   const ib = createIbkrClient();
   const manualWatchlistIbkrTimeoutMs = Number(
@@ -264,11 +496,32 @@ async function main(): Promise<void> {
   });
   const aiCommentaryEnabled = isTruthyEnv(process.env[AI_COMMENTARY_ENV]);
   const aiCommentaryModel = process.env[AI_MODEL_ENV]?.trim() || "gpt-5-mini";
+  const aiCleanReadModel =
+    process.env[AI_CLEAN_READ_MODEL_ENV]?.trim() || DEFAULT_AI_CLEAN_READ_MODEL;
   const postingProfile = resolveLiveThreadPostingProfile(process.env[WATCHLIST_POSTING_PROFILE_ENV]);
+  const marketStructureStandalonePostMode = resolveMarketStructureStandalonePostMode(
+    process.env[MARKET_STRUCTURE_STANDALONE_POSTS_ENV],
+  );
+  const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
+  const marketStructureLifecyclePath = sessionDirectory
+    ? join(sessionDirectory, "market-structure-lifecycle.jsonl")
+    : null;
+  const marketStructureStoryMemoryPath = sessionDirectory
+    ? join(sessionDirectory, "market-structure-story-memory.json")
+    : null;
+  const lifecycleListener = marketStructureLifecyclePath
+    ? createCompositeManualWatchlistLifecycleListener([
+        createConsoleManualWatchlistLifecycleListener(),
+        createManualWatchlistLifecycleFileListener(marketStructureLifecyclePath, {
+          include: isMarketStructureLifecycleEvent,
+        }),
+      ])
+    : createConsoleManualWatchlistLifecycleListener();
   const openAiApiKeyPresent = Boolean(process.env.OPENAI_API_KEY?.trim());
   const aiCommentaryService = aiCommentaryEnabled
     ? createOpenAITraderCommentaryServiceFromEnv()
     : null;
+  const aiCleanReadService = createOpenAICleanReadServiceFromEnv();
   const finnhubClient = createFinnhubClientFromEnv();
   const yahooClient = createYahooClientFromEnv();
   const stockContextProvider =
@@ -289,13 +542,20 @@ async function main(): Promise<void> {
     aiCommentaryService,
     stockContextProvider,
     watchlistStatePersistence: new WatchlistStatePersistence(),
-    lifecycleListener: createConsoleManualWatchlistLifecycleListener(),
+    lifecycleListener,
     optionalPostSettleDelayMs: 250,
     postingProfile,
     levelSeedTimeoutMs: manualWatchlistLevelSeedTimeoutMs,
     fastLevelClearCoalesceMs: manualWatchlistFastLevelClearCoalesceMs,
+    marketStructureStoryMemoryPath,
+    marketStructureStandalonePostMode,
+    autoCleanReadGenerator: aiCleanReadService
+      ? async (input) => {
+          const result = await aiCleanReadService.generateCleanRead(input);
+          return appendAiCleanReadRecord(sessionDirectory, input, result);
+        }
+      : null,
   });
-  const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
   let startupState: "booting" | "ready" | "error" = "booting";
   let startupError: string | null = null;
 
@@ -325,6 +585,14 @@ async function main(): Promise<void> {
         `[ManualWatchlistRuntime] Historical lookbacks: daily=${historicalLookbackBars.daily}, 4h=${historicalLookbackBars["4h"]}, 5m=${historicalLookbackBars["5m"]}.`,
       );
       console.log(`[ManualWatchlistRuntime] Posting profile: ${postingProfile}.`);
+      console.log(
+        `[ManualWatchlistRuntime] Market structure standalone posts: ${marketStructureStandalonePostMode}.`,
+      );
+      if (marketStructureLifecyclePath) {
+        console.log(
+          `[ManualWatchlistRuntime] Market structure lifecycle log: ${marketStructureLifecyclePath}.`,
+        );
+      }
       if (monitoringEventDiagnosticsEnabled) {
         console.log(
           `[ManualWatchlistRuntime] Monitoring event diagnostics enabled via ${MONITORING_EVENT_DIAGNOSTICS_ENV}.`,
@@ -360,6 +628,20 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/trade-plan-review") {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "text/html; charset=utf-8");
+      response.end(TRADE_PLAN_REVIEW_PAGE);
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/ai-clean-read") {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "text/html; charset=utf-8");
+      response.end(AI_CLEAN_READ_PAGE);
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/api/watchlist") {
       sendJson(response, 200, {
         activeEntries: manager.getActiveEntries(),
@@ -392,12 +674,18 @@ async function main(): Promise<void> {
           startupCandleCacheEnabled,
           historicalLookbackBars: manager.getHistoricalLookbackBars(),
           postingProfile,
+          marketStructureStandalonePostMode,
+          marketStructureLifecyclePath,
+          marketStructureStoryMemoryPath,
           monitoringDiagnosticsRequested: monitoringEventDiagnosticsEnabled,
           aiCommentaryRequested: aiCommentaryEnabled,
           aiCommentaryServiceAvailable: aiCommentaryService !== null,
           aiCommentaryModel,
           openAiApiKeyPresent,
           aiCommentaryRoute: "symbol recaps and live alert AI reads",
+          aiCleanReadModel,
+          aiCleanReadReasoningEffort: AI_CLEAN_READ_REASONING_EFFORT,
+          aiCleanReadRoute: "automatic initial watchlist activation and manual clean-read UI",
         },
         activeSymbolCount: manager.getActiveEntries().length,
         ibkrConnected: isIbkrConnected(ib),
@@ -416,6 +704,185 @@ async function main(): Promise<void> {
         sessionDirectory,
         artifacts: readReviewArtifacts(sessionDirectory),
       });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/trade-plan-review") {
+      sendJson(response, 200, buildTradePlanReviewPayload(sessionDirectory));
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/ai-clean-read") {
+      sendJson(
+        response,
+        200,
+        buildAiCleanReadPayload({
+          sessionDirectory,
+          model: aiCleanReadModel,
+          openAiApiKeyPresent,
+        }),
+      );
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/ai-clean-read/generate") {
+      if (!aiCleanReadService) {
+        sendJson(response, 503, {
+          error: "OPENAI_API_KEY is required to generate AI clean reads.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request, 128 * 1024);
+        let symbol = typeof body.symbol === "string" ? body.symbol : "";
+        let currentPrice = typeof body.currentPrice === "string" ? body.currentPrice : "";
+        let ladderText = typeof body.ladderText === "string" ? body.ladderText : "";
+        const aiPromptNotes =
+          typeof body.aiPromptNotes === "string" ? body.aiPromptNotes : undefined;
+
+        if (!symbol.trim() || !currentPrice.trim() || !ladderText.trim()) {
+          const snapshot = resolveLatestCleanReadSnapshotInput(sessionDirectory, symbol);
+          if (snapshot) {
+            symbol = symbol.trim() || snapshot.input.symbol;
+            currentPrice = currentPrice.trim() || snapshot.input.currentPrice;
+            ladderText = ladderText.trim() || snapshot.input.ladderText;
+          }
+        }
+
+        if (!symbol.trim() || !currentPrice.trim() || !ladderText.trim()) {
+          const target = symbol.trim() ? ` for $${symbol.trim().toUpperCase()}` : "";
+          sendJson(response, 400, {
+            error:
+              `No posted support/resistance ladder was found${target}. Add/activate a ticker on the watchlist first, then retry the clean read.`,
+          });
+          return;
+        }
+
+        const result = await aiCleanReadService.generateCleanRead({
+          symbol,
+          currentPrice,
+          ladderText,
+          aiPromptNotes,
+        });
+        const record = appendAiCleanReadRecord(
+          sessionDirectory,
+          {
+            symbol,
+            currentPrice,
+            ladderText,
+            aiPromptNotes,
+          },
+          result,
+        );
+        sendJson(response, 200, { record });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/ai-clean-read/comments") {
+      try {
+        const body = await readJsonBody(request, 32 * 1024);
+        const cleanReadId =
+          typeof body.cleanReadId === "string" ? body.cleanReadId : null;
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const comments = typeof body.comments === "string" ? body.comments : "";
+        const comment = appendAiCleanReadComment(sessionDirectory, {
+          cleanReadId,
+          symbol,
+          comments,
+        });
+        sendJson(response, 200, { comment });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/trade-plan-review/notes") {
+      try {
+        const body = await readJsonBody(request, 32 * 1024);
+        const itemId = typeof body.itemId === "string" ? body.itemId : "";
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const verdict = typeof body.verdict === "string" ? body.verdict : "unreviewed";
+        const notes = typeof body.notes === "string" ? body.notes : "";
+        const tags = Array.isArray(body.tags)
+          ? body.tags.filter((tag): tag is string => typeof tag === "string")
+          : [];
+        const allowedVerdicts: TradePlanReviewNote["verdict"][] = [
+          "unreviewed",
+          "useful",
+          "needs_work",
+          "ignore",
+        ];
+
+        if (!itemId.trim() || !symbol.trim()) {
+          sendJson(response, 400, { error: "itemId and symbol are required." });
+          return;
+        }
+        if (!allowedVerdicts.includes(verdict as TradePlanReviewNote["verdict"])) {
+          sendJson(response, 400, { error: "Invalid review verdict." });
+          return;
+        }
+
+        const note = appendTradePlanReviewNote(sessionDirectory, {
+          itemId,
+          symbol,
+          verdict: verdict as TradePlanReviewNote["verdict"],
+          notes,
+          tags,
+        });
+        sendJson(response, 200, { note });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/discord/clear-watchlist-channel") {
+      try {
+        const body = await readJsonBody(request);
+        const confirmation = typeof body.confirmation === "string" ? body.confirmation : "";
+        if (confirmation !== "DELETE_DISCORD_WATCHLIST") {
+          sendJson(response, 400, {
+            error: "Confirmation is required to clear Discord watchlist posts.",
+          });
+          return;
+        }
+
+        const localReset = await manager.resetDiscordThreadState();
+        const discordCleanup = await clearDiscordWatchlistChannel();
+        sendJson(response, 200, {
+          ok: true,
+          localReset,
+          discordCleanup,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Discord channel cleanup failed: ${message}`);
+        sendJson(response, 500, { error: message });
+      }
       return;
     }
 
