@@ -21,7 +21,7 @@ import {
 
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
-  if (requested === "ibkr" || requested === "stub" || requested === "twelve_data") {
+  if (requested === "ibkr" || requested === "stub") {
     return requested;
   }
   return "ibkr";
@@ -65,7 +65,6 @@ async function main(): Promise<void> {
       : createHistoricalCandleProvider({
           provider: providerName,
           ib,
-          twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
           ibkrTimeoutMs,
         });
     const baseFetchService = new CandleFetchService(provider);

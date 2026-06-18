@@ -107,6 +107,11 @@ function buildCommands(params: {
       args: ["run", "saved-data:test", "--", "--input", params.sourceRoot, "--limit", params.savedDataLimit],
       required: true,
     },
+    {
+      label: "Startup cache readiness",
+      args: ["run", "startup:cache-readiness"],
+      required: false,
+    },
   ];
 
   if (params.latestSession) {
@@ -134,6 +139,60 @@ function buildCommands(params: {
       {
         label: "Latest-session missed meaningful moves",
         args: ["run", "audit:missed-moves", "--", params.latestSession],
+        required: true,
+      },
+      {
+        label: "Latest-session first snapshot trade maps",
+        args: ["run", "audit:first-snapshots", "--", params.latestSession],
+        required: true,
+      },
+      {
+        label: "Latest-session end-of-day verdict",
+        args: ["run", "audit:eod-verdict", "--", params.latestSession],
+        required: true,
+      },
+      {
+        label: "Latest-session why-no-post proof",
+        args: ["run", "audit:why-no-post", "--", params.latestSession],
+        required: true,
+      },
+      {
+        label: "Latest-session candle intelligence exploratory gate",
+        args: [
+          "run",
+          "candles:regression-gate",
+          "--",
+          params.latestSession,
+          "--preset",
+          "exploratory",
+          "--max-cases-per-type",
+          "10",
+          "--no-fail",
+        ],
+        required: true,
+      },
+      {
+        label: "Latest-session strict candle intelligence gate",
+        args: [
+          "run",
+          "candles:regression-gate",
+          "--",
+          params.latestSession,
+          "--preset",
+          "strict",
+          "--max-cases-per-type",
+          "10",
+        ],
+        required: false,
+      },
+      {
+        label: "Latest-session dynamic/reference calibration",
+        args: ["run", "candles:dynamic-calibrate", "--", params.latestSession],
+        required: true,
+      },
+      {
+        label: "Latest-session candle import safety",
+        args: ["run", "candles:import-safety", "--", params.latestSession],
         required: true,
       },
       {
@@ -171,6 +230,21 @@ function buildCommands(params: {
         args: ["run", "structure:discord-align", "--", "--limit", "all"],
         required: false,
       },
+      {
+        label: "Market-structure calibration",
+        args: ["run", "structure:calibrate", "--", "--max-files-per-symbol", "2", "--audit-limit", "all"],
+        required: false,
+      },
+      {
+        label: "Advanced candle context",
+        args: ["run", "candles:advanced-context", "--", "--max-symbols", "50"],
+        required: false,
+      },
+      {
+        label: "Provider comparison readiness",
+        args: ["run", "candles:provider-compare", "--", "--primary", "ibkr", "--comparison", "stub"],
+        required: false,
+      },
     );
   }
 
@@ -194,8 +268,18 @@ function followUpsFor(results: ChecklistCommandResult[], latestSession: string |
     "Review trader-usefulness-replay-score.md for repeat noise, missing context, late posts, ticker personality, and ladder confidence.",
     "Review daily-trader-review.md / .html for daily recap, expected post budget, best/worst examples, no-post evidence coverage, and post-timing flags.",
     "Review missed-meaningful-move-audit.md to confirm quiet posting did not hide candle-backed breakouts, support losses, or large 5m moves.",
+    "Review first-snapshot-trade-map-audit.md for first-post map checks, line-by-line levels, strength labels, and penny-risk/no-resistance wording.",
+    "Review end-of-day-symbol-verdict.md for final per-symbol verdicts that now include structure calibration, advanced candle context, and provider readiness warnings.",
+    "Review why-no-post-replay-proof.md for candle-backed quiet-period proof plus replay suppression evidence.",
+    "Review candle-intelligence-regression-gate.md for first-post quality, missed moves, forward-level gaps, execution relation evidence, and volume context.",
+    "Review dynamic-reference-calibration-report.md and -gate.md before allowing VWAP/EMA/opening-range facts into trader-facing posts.",
+    "Review candle-import-safety.md before bulk/backfill work so IBKR or future providers are not hammered.",
+    "Review startup-cache-readiness.md to confirm restarts can warm levels from disk while Discord snapshots still wait for fresh candles.",
     "Review session-behavior-audit.md for candle readiness, first-post quality, thread balance, session behavior profiles, runtime markers, and candle/post timeline samples.",
     "Review post-reason-audit.md after the next live run to see which posts fired and why.",
+    "Review market-structure-calibration.md before letting stable structure drive stronger suppression.",
+    "Review advanced-candle-context.md to see which candle-derived facts are ready, partial, blocked, or degraded.",
+    "Review provider-comparison-readiness.md for missing/stale timeframe behavior before any provider switch.",
   ];
   if (!latestSession) {
     followUps.unshift("No latest session with discord-delivery-audit.jsonl was found; run the live app before judging live output.");

@@ -29,7 +29,7 @@ const DEFAULT_FUTURE_BUFFER_BARS = 24;
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
 
-  if (requested === "ibkr" || requested === "stub" || requested === "twelve_data") {
+  if (requested === "ibkr" || requested === "stub") {
     return requested;
   }
 
@@ -141,7 +141,6 @@ async function main(): Promise<void> {
       : createHistoricalCandleProvider({
           provider: providerName,
           ib,
-          twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
           ibkrTimeoutMs,
         });
     const baseFetchService = new CandleFetchService(provider);
@@ -189,6 +188,9 @@ async function main(): Promise<void> {
     const futureCandles = futureResponse.candles.filter(
       (candle) => candle.timestamp > generationEndTimeMs,
     );
+    const baselineCandles = futureResponse.candles.filter(
+      (candle) => candle.timestamp <= generationEndTimeMs,
+    );
 
     if (futureCandles.length === 0) {
       throw new Error("No future 5m candles were available after the generation window.");
@@ -201,6 +203,7 @@ async function main(): Promise<void> {
     const report = validateForwardReactions({
       output: normalizedOutput,
       futureCandles,
+      baselineCandles,
     });
 
     for (const line of formatForwardReactionReport(report)) {

@@ -39,7 +39,7 @@ const RECOMMENDED_LIVE_BATCH_SIZE = 5;
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
 
-  if (requested === "ibkr" || requested === "stub" || requested === "twelve_data") {
+  if (requested === "ibkr" || requested === "stub") {
     return requested;
   }
 
@@ -214,6 +214,7 @@ async function runSymbolValidation(params: {
     generatedAt: generationEndTimeMs,
   };
   let futureCandles;
+  let baselineCandles;
   try {
     const futureResponse = await params.candleFetchService.fetchCandles({
       symbol: params.symbol,
@@ -224,6 +225,9 @@ async function runSymbolValidation(params: {
     });
     futureCandles = futureResponse.candles.filter(
       (candle) => candle.timestamp > generationEndTimeMs,
+    );
+    baselineCandles = futureResponse.candles.filter(
+      (candle) => candle.timestamp <= generationEndTimeMs,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -247,6 +251,7 @@ async function runSymbolValidation(params: {
   const forwardReactionReport = validateForwardReactions({
     output: normalizedForwardOutput,
     futureCandles,
+    baselineCandles,
   });
   for (const line of formatForwardReactionReport(forwardReactionReport)) {
     console.log(`${line} | symbol=${params.symbol}`);
@@ -293,7 +298,6 @@ async function main(): Promise<void> {
       : createHistoricalCandleProvider({
           provider: providerName,
           ib,
-          twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
           ibkrTimeoutMs,
         });
     const baseFetchService = new CandleFetchService(provider);

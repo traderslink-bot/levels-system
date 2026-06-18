@@ -1,10 +1,12 @@
 param(
+  [switch]$EnableDiagnostics,
   [switch]$DisableDiagnostics,
   [switch]$DoNotOpenBrowser
 )
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $runtimeUrl = "http://127.0.0.1:3010/"
+$tradePlanReviewUrl = "http://127.0.0.1:3010/trade-plan-review"
 $sessionStamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 $sessionDirectory = Join-Path $repoRoot ("artifacts\long-run\" + $sessionStamp)
 $fullLogPath = Join-Path $sessionDirectory "manual-watchlist-full.log"
@@ -2430,6 +2432,7 @@ Write-SessionInfo "runner_story_report_markdown=$runnerStoryReportMarkdownPath"
 Write-SessionInfo "session_review=$sessionReviewPath"
 Write-SessionInfo "human_review_feedback=$feedbackPath"
 Write-SessionInfo "runtime_url=$runtimeUrl"
+Write-SessionInfo "trade_plan_review_url=$tradePlanReviewUrl"
 
 Write-Host "Long-run session directory: $sessionDirectory"
 Write-Host "Full log: $fullLogPath"
@@ -2446,14 +2449,14 @@ try {
   exit 1
 }
 
-if ($DisableDiagnostics) {
-  Remove-Item Env:LEVEL_MONITORING_EVENT_DIAGNOSTICS -ErrorAction SilentlyContinue
-  Write-SessionInfo "diagnostics=off"
-  $summary.diagnosticsEnabled = $false
-} else {
+if ($EnableDiagnostics -and -not $DisableDiagnostics) {
   $env:LEVEL_MONITORING_EVENT_DIAGNOSTICS = "1"
   Write-SessionInfo "diagnostics=on"
   $summary.diagnosticsEnabled = $true
+} else {
+  Remove-Item Env:LEVEL_MONITORING_EVENT_DIAGNOSTICS -ErrorAction SilentlyContinue
+  Write-SessionInfo "diagnostics=off"
+  $summary.diagnosticsEnabled = $false
 }
 
 $env:LEVEL_MANUAL_SESSION_DIRECTORY = $sessionDirectory
