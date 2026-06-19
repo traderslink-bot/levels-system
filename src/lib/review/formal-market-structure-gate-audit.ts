@@ -139,9 +139,6 @@ function gateReason(params: {
     if (params.timeframe === "daily" || params.timeframe === "4h") {
       return "higher_timeframe_formal";
     }
-    if (params.context.stable?.materialChange === true && params.context.stable.confidence === "high") {
-      return "stable_5m_confirms_direction";
-    }
     return "actionable";
   }
 

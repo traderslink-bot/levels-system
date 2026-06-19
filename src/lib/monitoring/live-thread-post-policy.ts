@@ -1289,16 +1289,7 @@ function isActionableFormalStructureMaterialChange(params: {
     return true;
   }
 
-  if (params.timeframe !== "5m") {
-    return false;
-  }
-
-  return stableStructureSupportsFormalDirection({
-    eventType: params.eventType,
-    stableState: params.stableState,
-    stableConfidence: params.stableConfidence,
-    stableMaterialChange: params.stableMaterialChange,
-  });
+  return false;
 }
 
 function recordFormalStructureKey(record: IntelligentAlertStoryRecord): string | undefined {

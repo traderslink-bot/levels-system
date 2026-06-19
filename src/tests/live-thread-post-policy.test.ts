@@ -215,7 +215,7 @@ test("intelligent alert policy suppresses same-zone chatter", () => {
   });
 });
 
-test("intelligent alert policy lets fresh formal BOS/CHOCH break same-story cooldown", () => {
+test("intelligent alert policy lets higher-timeframe formal BOS/CHOCH break same-story cooldown", () => {
   const record = buildIntelligentAlertStoryRecord({
     timestamp: 1000,
     eventType: "breakout",
@@ -236,13 +236,10 @@ test("intelligent alert policy lets fresh formal BOS/CHOCH break same-story cool
     severity: "medium",
     score: 56,
     formalStructureEventType: "bos_bullish",
-    formalStructureKey: "5m|bos_bullish|bullish|2.50",
+    formalStructureKey: "4h|bos_bullish|bullish|2.50",
     formalStructureMaterialChange: true,
-    formalStructureTimeframe: "5m",
-    formalStructureConfidence: "high",
-    stableMarketStructureState: "breakout_holding",
-    stableMarketStructureMaterialChange: true,
-    stableMarketStructureConfidence: "high",
+    formalStructureTimeframe: "4h",
+    formalStructureConfidence: "medium",
   }), {
     shouldPost: true,
     reason: "material_escalation",

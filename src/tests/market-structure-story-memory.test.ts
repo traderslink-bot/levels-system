@@ -233,7 +233,7 @@ test("market structure story memory keeps medium-confidence 5m formal BOS/CHOCH 
   assert.equal(memory.decide("CLWT", 1_000, snapshot).includeStory, false);
 });
 
-test("market structure story memory allows medium 5m BOS/CHOCH when stable structure confirms direction", () => {
+test("market structure story memory keeps 5m BOS/CHOCH metadata-only even when stable structure confirms direction", () => {
   const memory = new MarketStructureStoryMemory();
   const tactical = formalStructure({
     timeframe: "5m",
@@ -256,9 +256,8 @@ test("market structure story memory allows medium 5m BOS/CHOCH when stable struc
     formal: tactical,
   };
 
-  assert.equal(isActionableFormalBosChoch("5m", tactical, snapshot.timeframes?.["5m"]), true);
+  assert.equal(isActionableFormalBosChoch("5m", tactical, snapshot.timeframes?.["5m"]), false);
   assert.deepEqual(memory.capture("SOFI", 1_000, snapshot), [
-    "5m|formal|5m|bos_bullish|2.10",
     "5m|stable|reclaim_confirmed|low:1.190|high:1.390",
   ]);
 });
@@ -295,7 +294,7 @@ test("market structure story memory only marks the pending keys represented by t
 
   const secondDecision = memory.decide("ABCD", 4_000, null);
   assert.equal(secondDecision.snapshot, fiveMinuteSnapshot);
-  assert.deepEqual(secondDecision.keys, ["5m|formal|5m|choch_bearish|1.92"]);
+  assert.deepEqual(secondDecision.keys, ["5m|stable|reclaim_confirmed|low:1.190|high:1.390"]);
 });
 
 test("market structure story memory prioritizes fresh formal BOS/CHOCH over stable context", () => {
@@ -327,7 +326,6 @@ test("market structure story memory prioritizes fresh formal BOS/CHOCH over stab
 
   assert.deepEqual(memory.capture("AUUD", 1_000, mixedSnapshot), [
     "4h|stable|reclaim_confirmed|low:1.190|high:1.390",
-    "5m|formal|5m|bos_bullish|2.10",
     "5m|stable|reclaim_confirmed|low:1.190|high:1.390",
   ]);
 
@@ -335,7 +333,7 @@ test("market structure story memory prioritizes fresh formal BOS/CHOCH over stab
 
   assert.equal(decision.includeStory, true);
   assert.equal(decision.snapshot, mixedSnapshot);
-  assert.deepEqual(decision.keys, ["5m|formal|5m|bos_bullish|2.10"]);
+  assert.deepEqual(decision.keys, ["4h|stable|reclaim_confirmed|low:1.190|high:1.390"]);
 });
 
 test("market structure story memory persists pending and posted state across restarts", () => {

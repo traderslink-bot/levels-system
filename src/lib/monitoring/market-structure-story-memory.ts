@@ -189,11 +189,7 @@ export function isActionableFormalBosChoch(
     return true;
   }
 
-  if (timeframe !== "5m") {
-    return false;
-  }
-
-  return stableSupportsFormalDirection(formal, context?.stable);
+  return false;
 }
 
 function timeframePriority(timeframe: FormalStructureTimeframe): number {
