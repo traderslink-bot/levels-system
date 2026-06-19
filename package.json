@@ -86,6 +86,7 @@
     "structure:gate-audit": "tsx src/scripts/run-formal-market-structure-gate-audit.ts",
     "structure:gate-calibrate": "tsx src/scripts/run-formal-market-structure-gate-calibration.ts",
     "structure:live-smoke": "tsx src/scripts/run-market-structure-live-smoke.ts",
+    "structure:bos-choch-regression": "tsx --test --test-timeout=90000 src/tests/market-structure-bos-choch-regression-pack.test.ts",
     "volume:replay": "tsx src/scripts/replay-volume-activity-from-cache.ts",
     "volume:warehouse": "tsx src/scripts/run-warehouse-volume-activity-report.ts",
     "discord:preflight": "tsx src/scripts/run-discord-permission-preflight.ts",
