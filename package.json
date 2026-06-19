@@ -83,6 +83,7 @@
     "structure:delivery-audit": "tsx src/scripts/run-market-structure-delivery-audit.ts",
     "structure:outcomes": "tsx src/scripts/run-market-structure-outcome-calibration.ts",
     "structure:gate-audit": "tsx src/scripts/run-formal-market-structure-gate-audit.ts",
+    "structure:gate-calibrate": "tsx src/scripts/run-formal-market-structure-gate-calibration.ts",
     "volume:replay": "tsx src/scripts/replay-volume-activity-from-cache.ts",
     "volume:warehouse": "tsx src/scripts/run-warehouse-volume-activity-report.ts",
     "discord:preflight": "tsx src/scripts/run-discord-permission-preflight.ts",
