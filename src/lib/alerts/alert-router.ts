@@ -5,6 +5,7 @@ import type {
   MonitoringEvent,
   RuntimeMarketStructureTimeframeSnapshot,
 } from "../monitoring/monitoring-types.js";
+import type { FormalStructureTimeframe } from "../structure/index.js";
 import type { OpportunityInterpretation } from "../monitoring/opportunity-interpretation.js";
 import {
   isAlertPrimaryCategoryLiveEnabled,
@@ -26,6 +27,7 @@ import type {
 } from "./alert-types.js";
 import { describeZoneStrength } from "./trader-message-language.js";
 import { assessFinalLevelImportance, assessSnapshotDisplayLevelImportance } from "../monitoring/level-importance.js";
+import { isActionableFormalBosChoch } from "../monitoring/market-structure-story-memory.js";
 
 type FormalMarketStructureSnapshot = NonNullable<LevelSnapshotPayload["marketStructure"]>["formal"];
 type MarketStructureStoryVisibility = "auto" | "always" | "material_only" | "metadata_only";
@@ -700,15 +702,42 @@ function runtimeMarketStructureHasMaterialStory(
   return timeframes.some((timeframe) => {
     const formal = timeframe?.formal;
     const stable = timeframe?.stable;
+    const actionableFormal = formal
+      ? isActionableFormalBosChoch(formal.timeframe, formal, timeframe)
+      : false;
     return (
-      (
-        formal?.materialChange === true &&
-        formal.eventFreshness === "fresh" &&
-        isMeaningfulFormalStructureEvent(formal.eventType)
-      ) ||
+      actionableFormal ||
       stable?.materialChange === true
     );
   });
+}
+
+function alertHasActionableFormalStructure(alert: IntelligentAlert): boolean {
+  const context = alert.event.eventContext;
+  const runtime = context.runtimeMarketStructure;
+  const selectedTimeframe = context.selectedFormalStructureTimeframe ?? context.formalStructureTimeframe;
+  const selectedKey = context.selectedFormalStructureKey ?? context.formalStructureKey;
+  if (selectedTimeframe && selectedKey) {
+    const timeframeContext = runtime?.timeframes?.[selectedTimeframe];
+    const selectedFormal = timeframeContext?.formal;
+    if (
+      selectedFormal?.structureKey === selectedKey &&
+      isActionableFormalBosChoch(selectedTimeframe, selectedFormal, timeframeContext)
+    ) {
+      return true;
+    }
+  }
+
+  return Boolean(
+    runtime &&
+    Object.entries(runtime.timeframes ?? {}).some(([timeframe, timeframeContext]) =>
+      isActionableFormalBosChoch(
+        timeframe as FormalStructureTimeframe,
+        timeframeContext.formal,
+        timeframeContext,
+      ),
+    ),
+  );
 }
 
 function shouldShowMarketStructureStory(
@@ -732,7 +761,8 @@ function shouldShowMarketStructureStory(
     context.stableMarketStructureMaterialChange === true ||
     (
       formalStructureMaterialChange === true &&
-      isMeaningfulFormalStructureEvent(formalStructureEventType)
+      isMeaningfulFormalStructureEvent(formalStructureEventType) &&
+      alertHasActionableFormalStructure(alert)
     ) ||
     runtimeMarketStructureHasMaterialStory(context.runtimeMarketStructure)
   );

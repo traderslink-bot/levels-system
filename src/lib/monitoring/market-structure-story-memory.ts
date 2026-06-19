@@ -109,12 +109,9 @@ function fallbackFormalStructureKey(formal: FormalMarketStructureRuntimeContext)
 function formalStoryKey(
   timeframe: FormalStructureTimeframe,
   formal: FormalMarketStructureRuntimeContext | undefined,
+  context?: RuntimeMarketStructureTimeframeSnapshot,
 ): string | null {
-  if (!formal || formal.eventType === "none") {
-    return null;
-  }
-
-  if (formal.materialChange !== true || formal.eventFreshness !== "fresh") {
+  if (!formal || !isActionableFormalBosChoch(timeframe, formal, context)) {
     return null;
   }
 
@@ -132,7 +129,9 @@ function stableStoryKey(
   return `${timeframe}|stable|${stable.structureKey}`;
 }
 
-function isFreshFormalBosChoch(formal: FormalMarketStructureRuntimeContext | undefined): boolean {
+function isFreshFormalBosChoch(
+  formal: FormalMarketStructureRuntimeContext | undefined,
+): formal is FormalMarketStructureRuntimeContext {
   return (
     formal?.materialChange === true &&
     formal.eventFreshness === "fresh" &&
@@ -143,6 +142,58 @@ function isFreshFormalBosChoch(formal: FormalMarketStructureRuntimeContext | und
       formal.eventType === "choch_bearish"
     )
   );
+}
+
+function stableSupportsFormalDirection(
+  formal: FormalMarketStructureRuntimeContext,
+  stable: StableMarketStructureRuntimeContext | undefined,
+): boolean {
+  if (!stable || stable.materialChange !== true || stable.confidence !== "high") {
+    return false;
+  }
+
+  if (formal.eventType === "bos_bullish" || formal.eventType === "choch_bullish") {
+    return (
+      stable.state === "breakout_holding" ||
+      stable.state === "reclaim_confirmed" ||
+      stable.state === "trend_intact" ||
+      stable.state === "pressing_range_high"
+    );
+  }
+
+  if (formal.eventType === "bos_bearish" || formal.eventType === "choch_bearish") {
+    return (
+      stable.state === "pivot_lost" ||
+      stable.state === "trend_damaged" ||
+      stable.state === "failed_breakout"
+    );
+  }
+
+  return false;
+}
+
+export function isActionableFormalBosChoch(
+  timeframe: FormalStructureTimeframe,
+  formal: FormalMarketStructureRuntimeContext | undefined,
+  context?: RuntimeMarketStructureTimeframeSnapshot,
+): boolean {
+  if (!isFreshFormalBosChoch(formal)) {
+    return false;
+  }
+
+  if (formal.confidence === "low") {
+    return false;
+  }
+
+  if (timeframe === "daily" || timeframe === "4h") {
+    return true;
+  }
+
+  if (timeframe !== "5m") {
+    return false;
+  }
+
+  return stableSupportsFormalDirection(formal, context?.stable);
 }
 
 function timeframePriority(timeframe: FormalStructureTimeframe): number {
@@ -222,7 +273,7 @@ export function getMaterialMarketStructureStoryKeys(
 
   const keys: string[] = [];
   for (const { timeframe, context } of getSnapshotTimeframeEntries(snapshot)) {
-    const formalKey = formalStoryKey(timeframe, context.formal);
+    const formalKey = formalStoryKey(timeframe, context.formal, context);
     const stableKey = stableStoryKey(timeframe, context.stable);
     if (formalKey) {
       keys.push(formalKey);
@@ -251,7 +302,7 @@ export function getFreshFormalBosChochMarketStructureStoryKeys(
       continue;
     }
 
-    const key = formalStoryKey(timeframe, context.formal);
+    const key = formalStoryKey(timeframe, context.formal, context);
     if (key) {
       keys.push(key);
     }

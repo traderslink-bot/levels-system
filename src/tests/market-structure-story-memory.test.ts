@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   getFreshFormalBosChochMarketStructureStoryKeys,
   getMaterialMarketStructureStoryKeys,
+  isActionableFormalBosChoch,
   MarketStructureStoryMemory,
 } from "../lib/monitoring/market-structure-story-memory.js";
 import type {
@@ -196,8 +197,7 @@ test("market structure story memory can tell a current fresh event without pre-c
   const memory = new MarketStructureStoryMemory();
   const freshSnapshot = snapshotWithFormal(
     formalStructure({
-      timeframe: "5m",
-      structureKey: "5m|choch_bearish|1.92",
+      structureKey: "4h|choch_bearish|1.92",
       eventType: "choch_bearish",
       bias: "bearish_transition",
       brokenSwingPrice: 1.92,
@@ -207,10 +207,60 @@ test("market structure story memory can tell a current fresh event without pre-c
   const decision = memory.decide("ABCD", 1_000, freshSnapshot);
   assert.equal(decision.includeStory, true);
   assert.equal(decision.reason, "current_material_structure");
-  assert.deepEqual(decision.keys, ["5m|formal|5m|choch_bearish|1.92"]);
+  assert.deepEqual(decision.keys, ["4h|formal|4h|choch_bearish|1.92"]);
 
   memory.markPosted("ABCD", 1_000, decision.snapshot, decision.keys);
   assert.equal(memory.decide("ABCD", 2_000, freshSnapshot).includeStory, false);
+});
+
+test("market structure story memory keeps medium-confidence 5m formal BOS/CHOCH metadata-only", () => {
+  const memory = new MarketStructureStoryMemory();
+  const weakTactical = formalStructure({
+    timeframe: "5m",
+    structureKey: "5m|bos_bearish|1.59",
+    eventType: "bos_bearish",
+    bias: "bearish_transition",
+    confidence: "medium",
+    confidenceScore: 0.64,
+    brokenSwingPrice: 1.59,
+  });
+  const snapshot = snapshotWithFormal(weakTactical);
+
+  assert.equal(isActionableFormalBosChoch("5m", weakTactical, snapshot.timeframes?.["5m"]), false);
+  assert.deepEqual(getMaterialMarketStructureStoryKeys(snapshot), []);
+  assert.deepEqual(getFreshFormalBosChochMarketStructureStoryKeys(snapshot), []);
+  assert.deepEqual(memory.capture("CLWT", 1_000, snapshot), []);
+  assert.equal(memory.decide("CLWT", 1_000, snapshot).includeStory, false);
+});
+
+test("market structure story memory allows medium 5m BOS/CHOCH when stable structure confirms direction", () => {
+  const memory = new MarketStructureStoryMemory();
+  const tactical = formalStructure({
+    timeframe: "5m",
+    structureKey: "5m|bos_bullish|2.10",
+    brokenSwingPrice: 2.1,
+    confidence: "medium",
+    confidenceScore: 0.68,
+  });
+  const snapshot: RuntimeMarketStructureSnapshot = {
+    timeframes: {
+      "5m": {
+        formal: tactical,
+        stable: stableStructure({
+          state: "breakout_holding",
+          materialChange: true,
+          confidence: "high",
+        }),
+      },
+    },
+    formal: tactical,
+  };
+
+  assert.equal(isActionableFormalBosChoch("5m", tactical, snapshot.timeframes?.["5m"]), true);
+  assert.deepEqual(memory.capture("SOFI", 1_000, snapshot), [
+    "5m|formal|5m|bos_bullish|2.10",
+    "5m|stable|reclaim_confirmed|low:1.190|high:1.390",
+  ]);
 });
 
 test("market structure story memory only marks the pending keys represented by the selected snapshot", () => {
@@ -228,6 +278,11 @@ test("market structure story memory only marks the pending keys represented by t
       brokenSwingPrice: 1.92,
     }),
   );
+  fiveMinuteSnapshot.timeframes!["5m"]!.stable = stableStructure({
+    state: "pivot_lost",
+    materialChange: true,
+    confidence: "high",
+  });
 
   memory.capture("ABCD", 1_000, fiveMinuteSnapshot);
   memory.capture("ABCD", 2_000, fourHourSnapshot);
@@ -260,6 +315,11 @@ test("market structure story memory prioritizes fresh formal BOS/CHOCH over stab
       },
       "5m": {
         formal: fiveMinuteFormal,
+        stable: stableStructure({
+          state: "breakout_holding",
+          materialChange: true,
+          confidence: "high",
+        }),
       },
     },
     formal: fiveMinuteFormal,
@@ -268,6 +328,7 @@ test("market structure story memory prioritizes fresh formal BOS/CHOCH over stab
   assert.deepEqual(memory.capture("AUUD", 1_000, mixedSnapshot), [
     "4h|stable|reclaim_confirmed|low:1.190|high:1.390",
     "5m|formal|5m|bos_bullish|2.10",
+    "5m|stable|reclaim_confirmed|low:1.190|high:1.390",
   ]);
 
   const decision = memory.decide("AUUD", 2_000, null);

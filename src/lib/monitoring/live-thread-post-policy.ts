@@ -1,5 +1,10 @@
 import type { AlertPayload } from "../alerts/alert-types.js";
-import type { CandleMarketStructureState, FormalStructureEventType } from "../structure/index.js";
+import type {
+  CandleMarketStructureState,
+  FormalStructureConfidenceLabel,
+  FormalStructureEventType,
+  FormalStructureTimeframe,
+} from "../structure/index.js";
 import type { EvaluatedOpportunity } from "./opportunity-evaluator.js";
 import { isPracticalStructureExpansion } from "./practical-trade-structure.js";
 import type { PracticalTradeStructureState } from "./monitoring-types.js";
@@ -64,12 +69,17 @@ export type IntelligentAlertStoryRecord = {
   practicalZoneKey?: string;
   stableMarketStructureState?: CandleMarketStructureState;
   stableMarketStructureKey?: string;
+  stableMarketStructureConfidence?: "low" | "medium" | "high";
   formalStructureEventType?: FormalStructureEventType;
   formalStructureKey?: string;
   formalStructureMaterialChange?: boolean;
+  formalStructureTimeframe?: FormalStructureTimeframe;
+  formalStructureConfidence?: FormalStructureConfidenceLabel;
   selectedFormalStructureEventType?: FormalStructureEventType;
   selectedFormalStructureKey?: string;
   selectedFormalStructureMaterialChange?: boolean;
+  selectedFormalStructureTimeframe?: FormalStructureTimeframe;
+  selectedFormalStructureConfidence?: FormalStructureConfidenceLabel;
   tradeStoryState?: TradeStoryState;
   rangeBoxLabel?: RangeBoxLabel;
   acceptanceLabel?: AcceptanceLabel;
@@ -1223,6 +1233,74 @@ function hasMaterialFormalStructureTransition(params: {
   return !params.previousKeys.includes(params.nextKey);
 }
 
+function stableStructureSupportsFormalDirection(params: {
+  eventType?: FormalStructureEventType;
+  stableState?: CandleMarketStructureState;
+  stableConfidence?: "low" | "medium" | "high";
+  stableMaterialChange?: boolean;
+}): boolean {
+  if (
+    params.stableMaterialChange !== true ||
+    params.stableConfidence !== "high" ||
+    !params.stableState
+  ) {
+    return false;
+  }
+
+  if (params.eventType === "bos_bullish" || params.eventType === "choch_bullish") {
+    return (
+      params.stableState === "breakout_holding" ||
+      params.stableState === "reclaim_confirmed" ||
+      params.stableState === "trend_intact" ||
+      params.stableState === "pressing_range_high"
+    );
+  }
+
+  if (params.eventType === "bos_bearish" || params.eventType === "choch_bearish") {
+    return (
+      params.stableState === "pivot_lost" ||
+      params.stableState === "trend_damaged" ||
+      params.stableState === "failed_breakout"
+    );
+  }
+
+  return false;
+}
+
+function isActionableFormalStructureMaterialChange(params: {
+  eventType?: FormalStructureEventType;
+  materialChange?: boolean;
+  timeframe?: FormalStructureTimeframe;
+  confidence?: FormalStructureConfidenceLabel;
+  stableState?: CandleMarketStructureState;
+  stableConfidence?: "low" | "medium" | "high";
+  stableMaterialChange?: boolean;
+}): boolean {
+  if (
+    params.materialChange !== true ||
+    !params.eventType ||
+    params.eventType === "none" ||
+    params.confidence === "low"
+  ) {
+    return false;
+  }
+
+  if (params.timeframe === "daily" || params.timeframe === "4h") {
+    return true;
+  }
+
+  if (params.timeframe !== "5m") {
+    return false;
+  }
+
+  return stableStructureSupportsFormalDirection({
+    eventType: params.eventType,
+    stableState: params.stableState,
+    stableConfidence: params.stableConfidence,
+    stableMaterialChange: params.stableMaterialChange,
+  });
+}
+
 function recordFormalStructureKey(record: IntelligentAlertStoryRecord): string | undefined {
   return record.selectedFormalStructureKey ?? record.formalStructureKey;
 }
@@ -1264,12 +1342,17 @@ export function decideIntelligentAlertPost(params: {
   stableMarketStructureState?: CandleMarketStructureState;
   stableMarketStructureKey?: string;
   stableMarketStructureMaterialChange?: boolean;
+  stableMarketStructureConfidence?: "low" | "medium" | "high";
   formalStructureEventType?: FormalStructureEventType;
   formalStructureKey?: string;
   formalStructureMaterialChange?: boolean;
+  formalStructureTimeframe?: FormalStructureTimeframe;
+  formalStructureConfidence?: FormalStructureConfidenceLabel;
   selectedFormalStructureEventType?: FormalStructureEventType;
   selectedFormalStructureKey?: string;
   selectedFormalStructureMaterialChange?: boolean;
+  selectedFormalStructureTimeframe?: FormalStructureTimeframe;
+  selectedFormalStructureConfidence?: FormalStructureConfidenceLabel;
   tradeStoryState?: TradeStoryState;
   rangeBoxLabel?: RangeBoxLabel;
   acceptanceLabel?: AcceptanceLabel;
@@ -1289,6 +1372,15 @@ export function decideIntelligentAlertPost(params: {
   const formalStructureKey = params.selectedFormalStructureKey ?? params.formalStructureKey;
   const formalStructureMaterialChange =
     params.selectedFormalStructureMaterialChange ?? params.formalStructureMaterialChange;
+  const actionableFormalStructureMaterialChange = isActionableFormalStructureMaterialChange({
+    eventType: formalStructureEventType,
+    materialChange: formalStructureMaterialChange,
+    timeframe: params.selectedFormalStructureTimeframe ?? params.formalStructureTimeframe,
+    confidence: params.selectedFormalStructureConfidence ?? params.formalStructureConfidence,
+    stableState: params.stableMarketStructureState,
+    stableConfidence: params.stableMarketStructureConfidence,
+    stableMaterialChange: params.stableMarketStructureMaterialChange,
+  });
   const matchingStory = params.records
     .filter(
       (record) =>
@@ -1338,7 +1430,7 @@ export function decideIntelligentAlertPost(params: {
 
       if (
         params.stableMarketStructureMaterialChange !== true &&
-        formalStructureMaterialChange !== true
+        actionableFormalStructureMaterialChange !== true
       ) {
         return { shouldPost: false, reason: "same_story_not_material", storyKey, zoneKey };
       }
@@ -1357,7 +1449,7 @@ export function decideIntelligentAlertPost(params: {
       settings,
     ) / 100;
     const materialEscalation =
-      formalStructureMaterialChange === true ||
+      actionableFormalStructureMaterialChange === true ||
       (scoreEscalated || severityEscalated) &&
       (
         triggerMovePct >= materialMovePct ||
@@ -1381,7 +1473,7 @@ export function decideIntelligentAlertPost(params: {
     params.levelImportanceLabel !== "major_decision" &&
     !params.practicalStructureMaterialChange &&
     !params.stableMarketStructureMaterialChange &&
-    !formalStructureMaterialChange
+    !actionableFormalStructureMaterialChange
   ) {
     const latestSameDirection = params.records
       .filter(
@@ -1448,7 +1540,7 @@ export function decideIntelligentAlertPost(params: {
     const structureChanged =
       params.practicalStructureMaterialChange === true ||
       params.stableMarketStructureMaterialChange === true ||
-      formalStructureMaterialChange === true ||
+      actionableFormalStructureMaterialChange === true ||
       hasMaterialFormalStructureTransition({
         previousKeys: [recordFormalStructureKey(matchingStory)],
         nextKey: formalStructureKey,
@@ -1532,7 +1624,7 @@ export function decideIntelligentAlertPost(params: {
       previousKeys: recentRange.map(recordFormalStructureKey),
       nextKey: formalStructureKey,
       eventType: formalStructureEventType,
-      materialChange: formalStructureMaterialChange,
+      materialChange: actionableFormalStructureMaterialChange,
     });
     if (
       recentRange.length >= rangeChopPostLimit &&
@@ -1553,7 +1645,7 @@ export function decideIntelligentAlertPost(params: {
     (params.acceptanceLabel === "weak_probe" || params.acceptanceLabel === "testing") &&
     !params.practicalStructureMaterialChange &&
     !params.stableMarketStructureMaterialChange &&
-    !formalStructureMaterialChange
+    !actionableFormalStructureMaterialChange
   ) {
     const recentBox = params.records.filter(
       (record) =>
@@ -1575,7 +1667,7 @@ export function decideIntelligentAlertPost(params: {
     (params.acceptanceLabel === "weak_probe" || params.acceptanceLabel === "testing") &&
     !params.practicalStructureMaterialChange &&
     !params.stableMarketStructureMaterialChange &&
-    !formalStructureMaterialChange
+    !actionableFormalStructureMaterialChange
   ) {
     const recentLockedArea = params.records.filter(
       (record) =>
@@ -1599,7 +1691,7 @@ export function decideIntelligentAlertPost(params: {
     params.levelImportanceLabel !== "major_decision" &&
     !params.practicalStructureMaterialChange &&
     !params.stableMarketStructureMaterialChange &&
-    !formalStructureMaterialChange
+    !actionableFormalStructureMaterialChange
   ) {
     const recentSameArea = params.records.filter(
       (record) =>
@@ -1632,7 +1724,7 @@ export function decideIntelligentAlertPost(params: {
     params.levelImportanceLabel !== "major_decision" &&
     !params.practicalStructureMaterialChange &&
     !params.stableMarketStructureMaterialChange &&
-    !formalStructureMaterialChange
+    !actionableFormalStructureMaterialChange
   ) {
     const recentProbe = params.records.filter(
       (record) =>
@@ -1651,7 +1743,7 @@ export function decideIntelligentAlertPost(params: {
     isStableStructureChopState(params.stableMarketStructureState) &&
     params.stableMarketStructureKey !== undefined &&
     params.stableMarketStructureMaterialChange !== true &&
-    formalStructureMaterialChange !== true &&
+    actionableFormalStructureMaterialChange !== true &&
     params.acceptanceLabel !== "accepted"
   ) {
     const recentStableSameStructure = params.records.filter(
@@ -1741,7 +1833,7 @@ export function decideIntelligentAlertPost(params: {
       previousKeys: recentStructure.map(recordFormalStructureKey),
       nextKey: formalStructureKey,
       eventType: formalStructureEventType,
-      materialChange: formalStructureMaterialChange,
+      materialChange: actionableFormalStructureMaterialChange,
     });
 
     if (
@@ -1764,7 +1856,7 @@ export function decideIntelligentAlertPost(params: {
       params.acceptanceLabel === "accepted" ||
       params.practicalStructureMaterialChange === true ||
       params.stableMarketStructureMaterialChange === true ||
-      formalStructureMaterialChange === true;
+      actionableFormalStructureMaterialChange === true;
     if (recentBoringRange.length >= 3 && !hasAcceptedChange) {
       return { shouldPost: false, reason: "behavior_budget", storyKey, zoneKey };
     }
@@ -1799,7 +1891,7 @@ export function decideIntelligentAlertPost(params: {
       previousKeys: recentPracticalArea.map(recordFormalStructureKey),
       nextKey: formalStructureKey,
       eventType: formalStructureEventType,
-      materialChange: formalStructureMaterialChange,
+      materialChange: actionableFormalStructureMaterialChange,
     });
     const latestPracticalArea = [...recentPracticalArea].sort((left, right) => right.postedAt - left.postedAt)[0];
     const materialMovePct = latestPracticalArea
@@ -1837,12 +1929,17 @@ export function buildIntelligentAlertStoryRecord(params: {
   practicalZoneKey?: string;
   stableMarketStructureState?: CandleMarketStructureState;
   stableMarketStructureKey?: string;
+  stableMarketStructureConfidence?: "low" | "medium" | "high";
   formalStructureEventType?: FormalStructureEventType;
   formalStructureKey?: string;
   formalStructureMaterialChange?: boolean;
+  formalStructureTimeframe?: FormalStructureTimeframe;
+  formalStructureConfidence?: FormalStructureConfidenceLabel;
   selectedFormalStructureEventType?: FormalStructureEventType;
   selectedFormalStructureKey?: string;
   selectedFormalStructureMaterialChange?: boolean;
+  selectedFormalStructureTimeframe?: FormalStructureTimeframe;
+  selectedFormalStructureConfidence?: FormalStructureConfidenceLabel;
   tradeStoryState?: TradeStoryState;
   rangeBoxLabel?: RangeBoxLabel;
   acceptanceLabel?: AcceptanceLabel;
@@ -1865,12 +1962,17 @@ export function buildIntelligentAlertStoryRecord(params: {
     practicalZoneKey: params.practicalZoneKey,
     stableMarketStructureState: params.stableMarketStructureState,
     stableMarketStructureKey: params.stableMarketStructureKey,
+    stableMarketStructureConfidence: params.stableMarketStructureConfidence,
     formalStructureEventType: params.formalStructureEventType,
     formalStructureKey: params.formalStructureKey,
     formalStructureMaterialChange: params.formalStructureMaterialChange,
+    formalStructureTimeframe: params.formalStructureTimeframe,
+    formalStructureConfidence: params.formalStructureConfidence,
     selectedFormalStructureEventType: params.selectedFormalStructureEventType,
     selectedFormalStructureKey: params.selectedFormalStructureKey,
     selectedFormalStructureMaterialChange: params.selectedFormalStructureMaterialChange,
+    selectedFormalStructureTimeframe: params.selectedFormalStructureTimeframe,
+    selectedFormalStructureConfidence: params.selectedFormalStructureConfidence,
     tradeStoryState: params.tradeStoryState,
     rangeBoxLabel: params.rangeBoxLabel,
     acceptanceLabel: params.acceptanceLabel,

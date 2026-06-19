@@ -238,6 +238,11 @@ test("intelligent alert policy lets fresh formal BOS/CHOCH break same-story cool
     formalStructureEventType: "bos_bullish",
     formalStructureKey: "5m|bos_bullish|bullish|2.50",
     formalStructureMaterialChange: true,
+    formalStructureTimeframe: "5m",
+    formalStructureConfidence: "high",
+    stableMarketStructureState: "breakout_holding",
+    stableMarketStructureMaterialChange: true,
+    stableMarketStructureConfidence: "high",
   }), {
     shouldPost: true,
     reason: "material_escalation",
@@ -276,9 +281,44 @@ test("intelligent alert policy uses selected higher-timeframe BOS/CHOCH for mate
     selectedFormalStructureEventType: "bos_bullish",
     selectedFormalStructureKey: "4h|bos_bullish|bullish|2.50",
     selectedFormalStructureMaterialChange: true,
+    selectedFormalStructureTimeframe: "4h",
+    selectedFormalStructureConfidence: "medium",
   }), {
     shouldPost: true,
     reason: "material_escalation",
+    storyKey: "breakout|2.48",
+    zoneKey: "2.48",
+  });
+});
+
+test("intelligent alert policy does not let medium 5m BOS/CHOCH alone break same-story cooldown", () => {
+  const record = buildIntelligentAlertStoryRecord({
+    timestamp: 1000,
+    eventType: "breakout",
+    level: 2.5,
+    triggerPrice: 2.52,
+    severity: "medium",
+    score: 55,
+    formalStructureEventType: "none",
+    formalStructureKey: "5m|range|2.40-2.60",
+  });
+
+  assert.deepEqual(decideIntelligentAlertPost({
+    records: [record],
+    timestamp: 2 * 60 * 1000,
+    eventType: "breakout",
+    level: 2.5,
+    triggerPrice: 2.53,
+    severity: "medium",
+    score: 56,
+    formalStructureEventType: "bos_bullish",
+    formalStructureKey: "5m|bos_bullish|bullish|2.50",
+    formalStructureMaterialChange: true,
+    formalStructureTimeframe: "5m",
+    formalStructureConfidence: "medium",
+  }), {
+    shouldPost: false,
+    reason: "same_story_cooldown",
     storyKey: "breakout|2.48",
     zoneKey: "2.48",
   });
