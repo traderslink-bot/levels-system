@@ -121,9 +121,14 @@ test("formal market structure gate audit classifies tactical events through the 
   assert.equal(report.totals.metadataOnly, 2);
   assert.equal(report.totals.newlyQuieted, 2);
   assert.equal(report.events.find((event) => event.symbol === "CLWT")?.decision, "metadata_only");
-  assert.equal(report.events.find((event) => event.symbol === "SOFI")?.gateReason, "tactical_5m_without_stable_confirmation");
+  const sofiEvent = report.events.find((event) => event.symbol === "SOFI");
+  assert.equal(sofiEvent?.gateReason, "tactical_5m_metadata_only");
+  assert.equal(sofiEvent?.gateChecks.stableSupportsDirection, true);
+  assert.match(sofiEvent?.gateSummary ?? "", /metadata-only/i);
   assert.equal(report.events.find((event) => event.symbol === "FTHM")?.gateReason, "higher_timeframe_formal");
+  assert.equal(report.events.find((event) => event.symbol === "FTHM")?.gateChecks.isHigherTimeframe, true);
   assert.match(markdown, /newly quieted by gate: 2/i);
+  assert.match(markdown, /tactical_5m_metadata_only/i);
 });
 
 test("formal market structure gate audit writer creates artifacts", () => {

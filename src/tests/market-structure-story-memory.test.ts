@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  explainFormalBosChochGate,
   getFreshFormalBosChochMarketStructureStoryKeys,
   getMaterialMarketStructureStoryKeys,
   isActionableFormalBosChoch,
@@ -256,7 +257,11 @@ test("market structure story memory keeps 5m BOS/CHOCH metadata-only even when s
     formal: tactical,
   };
 
+  const explanation = explainFormalBosChochGate("5m", tactical, snapshot.timeframes?.["5m"]);
   assert.equal(isActionableFormalBosChoch("5m", tactical, snapshot.timeframes?.["5m"]), false);
+  assert.equal(explanation.actionable, false);
+  assert.equal(explanation.reason, "tactical_5m_metadata_only");
+  assert.equal(explanation.checks.stableSupportsDirection, true);
   assert.deepEqual(memory.capture("SOFI", 1_000, snapshot), [
     "5m|stable|reclaim_confirmed|low:1.190|high:1.390",
   ]);

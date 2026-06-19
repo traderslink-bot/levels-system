@@ -18,6 +18,30 @@ export type MarketStructureStoryDecision = {
   keys: string[];
 };
 
+export type FormalBosChochGateReason =
+  | "not_fresh_bos_choch"
+  | "low_confidence_formal"
+  | "higher_timeframe_formal"
+  | "tactical_5m_metadata_only"
+  | "unsupported_timeframe";
+
+export type FormalBosChochGateExplanation = {
+  actionable: boolean;
+  reason: FormalBosChochGateReason;
+  summary: string;
+  checks: {
+    isFreshBosChoch: boolean;
+    materialChange: boolean;
+    confidence: FormalMarketStructureRuntimeContext["confidence"] | null;
+    timeframe: FormalStructureTimeframe;
+    isHigherTimeframe: boolean;
+    stableState: StableMarketStructureRuntimeContext["state"] | null;
+    stableConfidence: StableMarketStructureRuntimeContext["confidence"] | null;
+    stableMaterialChange: boolean;
+    stableSupportsDirection: boolean;
+  };
+};
+
 export type MarketStructureStoryMemoryOptions = {
   pendingTtlMs?: number;
   postedWindowMs?: number;
@@ -172,24 +196,80 @@ function stableSupportsFormalDirection(
   return false;
 }
 
+export function explainFormalBosChochGate(
+  timeframe: FormalStructureTimeframe,
+  formal: FormalMarketStructureRuntimeContext | undefined,
+  context?: RuntimeMarketStructureTimeframeSnapshot,
+): FormalBosChochGateExplanation {
+  const isFreshBosChoch = isFreshFormalBosChoch(formal);
+  const isHigherTimeframe = timeframe === "daily" || timeframe === "4h";
+  const stableSupportsDirection = formal
+    ? stableSupportsFormalDirection(formal, context?.stable)
+    : false;
+  const baseChecks: FormalBosChochGateExplanation["checks"] = {
+    isFreshBosChoch,
+    materialChange: formal?.materialChange === true,
+    confidence: formal?.confidence ?? null,
+    timeframe,
+    isHigherTimeframe,
+    stableState: context?.stable?.state ?? null,
+    stableConfidence: context?.stable?.confidence ?? null,
+    stableMaterialChange: context?.stable?.materialChange === true,
+    stableSupportsDirection,
+  };
+
+  if (!isFreshBosChoch) {
+    return {
+      actionable: false,
+      reason: "not_fresh_bos_choch",
+      summary: "Formal structure is not a fresh material BOS/CHOCH event.",
+      checks: baseChecks,
+    };
+  }
+
+  if (formal.confidence === "low") {
+    return {
+      actionable: false,
+      reason: "low_confidence_formal",
+      summary: "Formal BOS/CHOCH is fresh, but confidence is low.",
+      checks: baseChecks,
+    };
+  }
+
+  if (isHigherTimeframe) {
+    return {
+      actionable: true,
+      reason: "higher_timeframe_formal",
+      summary: "Fresh medium/high-confidence BOS/CHOCH on 4h/daily is allowed to be visible and influential.",
+      checks: baseChecks,
+    };
+  }
+
+  if (timeframe === "5m") {
+    return {
+      actionable: false,
+      reason: "tactical_5m_metadata_only",
+      summary: stableSupportsDirection
+        ? "5m BOS/CHOCH has confirming stable structure, but tactical formal events remain metadata-only."
+        : "5m BOS/CHOCH is tactical and remains metadata-only.",
+      checks: baseChecks,
+    };
+  }
+
+  return {
+    actionable: false,
+    reason: "unsupported_timeframe",
+    summary: "Formal BOS/CHOCH is on an unsupported actionable timeframe.",
+    checks: baseChecks,
+  };
+}
+
 export function isActionableFormalBosChoch(
   timeframe: FormalStructureTimeframe,
   formal: FormalMarketStructureRuntimeContext | undefined,
   context?: RuntimeMarketStructureTimeframeSnapshot,
 ): boolean {
-  if (!isFreshFormalBosChoch(formal)) {
-    return false;
-  }
-
-  if (formal.confidence === "low") {
-    return false;
-  }
-
-  if (timeframe === "daily" || timeframe === "4h") {
-    return true;
-  }
-
-  return false;
+  return explainFormalBosChochGate(timeframe, formal, context).actionable;
 }
 
 function timeframePriority(timeframe: FormalStructureTimeframe): number {

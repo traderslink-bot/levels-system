@@ -1,7 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { isActionableFormalBosChoch } from "../monitoring/market-structure-story-memory.js";
+import {
+  explainFormalBosChochGate,
+  type FormalBosChochGateExplanation,
+  type FormalBosChochGateReason,
+} from "../monitoring/market-structure-story-memory.js";
 import type {
   FormalMarketStructureRuntimeContext,
   RuntimeMarketStructureSnapshot,
@@ -46,7 +50,9 @@ export type FormalMarketStructureGateEvent = {
   storyKey: string;
   oldVisible: boolean;
   decision: FormalMarketStructureGateDecision;
-  gateReason: string;
+  gateReason: FormalBosChochGateReason;
+  gateSummary: string;
+  gateChecks: FormalBosChochGateExplanation["checks"];
 };
 
 export type FormalMarketStructureGateSymbolSummary = {
@@ -129,28 +135,6 @@ function formalStoryKey(timeframe: FormalStructureTimeframe, formal: FormalMarke
   return `${timeframe}|formal|${formal.structureKey}`;
 }
 
-function gateReason(params: {
-  timeframe: FormalStructureTimeframe;
-  formal: FormalMarketStructureRuntimeContext;
-  context: RuntimeMarketStructureTimeframeSnapshot;
-  actionable: boolean;
-}): string {
-  if (params.actionable) {
-    if (params.timeframe === "daily" || params.timeframe === "4h") {
-      return "higher_timeframe_formal";
-    }
-    return "actionable";
-  }
-
-  if (params.formal.confidence === "low") {
-    return "low_confidence_formal";
-  }
-  if (params.timeframe === "5m") {
-    return "tactical_5m_without_stable_confirmation";
-  }
-  return "not_actionable";
-}
-
 function extractFreshFormalEvents(row: AuditRow): FormalMarketStructureGateEvent[] {
   if (row.type !== "discord_delivery_audit" || row.status !== "posted") {
     return [];
@@ -169,7 +153,7 @@ function extractFreshFormalEvents(row: AuditRow): FormalMarketStructureGateEvent
 
     const formal = context.formal;
     const storyKey = formalStoryKey(timeframeRaw, formal);
-    const actionable = isActionableFormalBosChoch(timeframeRaw, formal, context);
+    const explanation = explainFormalBosChochGate(timeframeRaw, formal, context);
     events.push({
       timestamp,
       isoTimestamp: isoTimestamp(timestamp),
@@ -187,13 +171,10 @@ function extractFreshFormalEvents(row: AuditRow): FormalMarketStructureGateEvent
       stableMaterialChange: context.stable?.materialChange === true,
       storyKey,
       oldVisible: oldVisible || visibleKeys.has(storyKey),
-      decision: actionable ? "actionable" : "metadata_only",
-      gateReason: gateReason({
-        timeframe: timeframeRaw,
-        formal,
-        context,
-        actionable,
-      }),
+      decision: explanation.actionable ? "actionable" : "metadata_only",
+      gateReason: explanation.reason,
+      gateSummary: explanation.summary,
+      gateChecks: explanation.checks,
     });
   }
 
@@ -281,7 +262,7 @@ export function formatFormalMarketStructureGateAuditMarkdown(report: FormalMarke
   lines.push("## Events", "");
   for (const event of report.events.slice(0, 80)) {
     lines.push(
-      `- ${event.isoTimestamp} ${event.symbol} ${event.timeframe} ${event.eventType} ${event.confidence}: ${event.decision} (${event.gateReason}); stable ${event.stableState ?? "n/a"} ${event.stableConfidence ?? "n/a"}; ${event.title ?? "untitled"}`,
+      `- ${event.isoTimestamp} ${event.symbol} ${event.timeframe} ${event.eventType} ${event.confidence}: ${event.decision} (${event.gateReason}); ${event.gateSummary} stable ${event.stableState ?? "n/a"} ${event.stableConfidence ?? "n/a"}; ${event.title ?? "untitled"}`,
     );
   }
   if (report.events.length > 80) {
