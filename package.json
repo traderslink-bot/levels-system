@@ -58,6 +58,7 @@
     "candles:backfill-manifest": "tsx src/scripts/run-candle-backfill-stage-manifest.ts",
     "candles:backfill": "tsx src/scripts/run-candle-warehouse-backfill.ts",
     "candles:ibkr-diagnose": "tsx src/scripts/diagnose-ibkr-historical-candles.ts",
+    "candles:ibkr-readiness": "tsx src/scripts/run-ibkr-small-cap-readiness-report.ts",
     "candles:provider-compare": "tsx src/scripts/run-provider-comparison-readiness-report.ts",
     "candles:regression-pack": "tsx src/scripts/run-candle-intelligence-regression-pack.ts",
     "candles:regression-gate": "tsx src/scripts/run-candle-intelligence-regression-gate.ts",
