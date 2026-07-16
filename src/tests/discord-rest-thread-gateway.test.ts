@@ -18,6 +18,8 @@ function jsonResponse(init: MockResponseInit = {}): Response {
 }
 
 test("DiscordRestThreadGateway creates a symbol thread under the configured watchlist channel", async () => {
+  const originalWatchlistUrl = process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+  process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL = "https://traderslink.pro/watchlist";
   const calls: Array<{ input: string; init?: RequestInit }> = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     calls.push({ input: String(input), init });
@@ -29,23 +31,33 @@ test("DiscordRestThreadGateway creates a symbol thread under the configured watc
     return jsonResponse({ body: { id: "thread-1", name: "ALBT", parent_id: "watchlist-1" } });
   };
 
-  const gateway = new DiscordRestThreadGateway({
-    botToken: "token",
-    watchlistChannelId: "watchlist-1",
-    fetchImpl,
-  });
+  try {
+    const gateway = new DiscordRestThreadGateway({
+      botToken: "token",
+      watchlistChannelId: "watchlist-1",
+      fetchImpl,
+    });
 
-  const thread = await gateway.createThread("ALBT");
+    const thread = await gateway.createThread("ALBT");
 
-  assert.deepEqual(thread, {
-    id: "thread-1",
-    name: "ALBT",
-  });
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0]?.input, "https://discord.com/api/v10/channels/watchlist-1/messages");
-  assert.equal(calls[1]?.input, "https://discord.com/api/v10/channels/watchlist-1/messages/message-1/threads");
-  assert.match(String(calls[0]?.init?.body), /"content":"ALBT"/);
-  assert.match(String(calls[1]?.init?.body), /"name":"ALBT"/);
+    assert.deepEqual(thread, {
+      id: "thread-1",
+      name: "ALBT",
+    });
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0]?.input, "https://discord.com/api/v10/channels/watchlist-1/messages");
+    assert.equal(calls[1]?.input, "https://discord.com/api/v10/channels/watchlist-1/messages/message-1/threads");
+    assert.match(String(calls[0]?.init?.body), /The watchlist has been updated/);
+    assert.match(String(calls[0]?.init?.body), /View watchlist: https:\/\/traderslink\.pro\/watchlist/);
+    assert.match(String(calls[0]?.init?.body), /View ALBT details: https:\/\/traderslink\.pro\/watchlist\/ALBT/);
+    assert.match(String(calls[1]?.init?.body), /"name":"ALBT"/);
+  } finally {
+    if (originalWatchlistUrl === undefined) {
+      delete process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+    } else {
+      process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL = originalWatchlistUrl;
+    }
+  }
 });
 
 test("DiscordRestThreadGateway reuses only threads under the configured watchlist channel", async () => {

@@ -3,6 +3,7 @@
 
 import type { Candle, CandleTimeframe } from "../market-data/candle-types.js";
 import { rankLevels } from "./level-ranking.js";
+import { buildConfirmedRoleFlipCandidate } from "./level-role-flip-detector.js";
 import { normalizeSurfacedSelectionOutput, type ComparablePathOutput } from "./level-ranking-comparison.js";
 import { selectSurfacedLevels, type SurfacedSelectionResult } from "./level-surfaced-selection.js";
 import type {
@@ -61,9 +62,21 @@ export type LevelRuntimeOutputAdapterInput = {
   metadata: LevelEngineOutput["metadata"];
   specialLevels: LevelEngineOutput["specialLevels"];
   legacyRuntimeBuckets?: LegacyRuntimeBuckets;
+  /**
+   * Explicit owner of the runtime support/resistance buckets. `surfaced`
+   * publishes the ranked projected rows; `legacy` is retained only for
+   * parity diagnostics and requires legacyRuntimeBuckets.
+   */
+  runtimeBucketOwnership?: "surfaced" | "legacy";
   legacyExtensionLevels?: LevelEngineOutput["extensionLevels"];
   levelCandidates?: LevelCandidate[];
   generatedAt?: number;
+  /**
+   * Candle-close cutoff for each source series. This is separate from
+   * generatedAt so historical/replay generation cannot certify a role flip
+   * with a higher-timeframe candle that was still open at the requested end.
+   */
+  asOfTimestampByTimeframe?: Partial<Record<CandleTimeframe, number>>;
 };
 
 type RuntimeBucket = "major" | "intermediate" | "intraday";
@@ -71,6 +84,9 @@ type RuntimeBucket = "major" | "intermediate" | "intraday";
 const RAW_LEVEL_SOURCE_TYPES: readonly RawLevelCandidateSourceType[] = [
   "swing_high",
   "swing_low",
+  "breakout_base",
+  "gap_up_origin",
+  "gap_up_pullback_low",
   "premarket_high",
   "premarket_low",
   "opening_range_high",
@@ -132,10 +148,12 @@ function buildScoringContext(
 function convertRawCandidateToLevelCandidate(
   candidate: RawLevelCandidate,
   candlesByTimeframe: Partial<Record<CandleTimeframe, Candle[]>>,
+  referencePrice: number,
+  asOfTimestamp: number,
 ): LevelCandidate {
   const zoneBounds = buildZoneBounds(candidate.price);
 
-  return {
+  const levelCandidate: LevelCandidate = {
     id: candidate.id,
     symbol: candidate.symbol,
     type: candidate.kind,
@@ -144,6 +162,8 @@ function convertRawCandidateToLevelCandidate(
     zoneHigh: zoneBounds.zoneHigh,
     sourceTimeframes: [candidate.timeframe],
     originKinds: [candidate.sourceType],
+    firstTimestamp: candidate.firstTimestamp,
+    lastTimestamp: candidate.lastTimestamp,
     analysisCandles: candlesByTimeframe[candidate.timeframe] ?? [],
     touchCount: candidate.touchCount,
     meaningfulTouchCount: candidate.touchCount,
@@ -159,17 +179,56 @@ function convertRawCandidateToLevelCandidate(
     ageInBars: 0,
     barsSinceLastReaction: 0,
   };
+
+  if (
+    (candidate.timeframe !== "daily" && candidate.timeframe !== "4h") ||
+    (candidate.sourceType !== "swing_high" && candidate.sourceType !== "swing_low")
+  ) {
+    return levelCandidate;
+  }
+
+  return buildConfirmedRoleFlipCandidate({
+    candidate: levelCandidate,
+    timeframe: candidate.timeframe,
+    candles: candlesByTimeframe[candidate.timeframe] ?? [],
+    formationTimestamp: candidate.confirmationTimestamp ?? candidate.lastTimestamp,
+    referencePrice,
+    asOfTimestamp,
+  }) ?? levelCandidate;
 }
 
 function buildLevelCandidates(
   input: LevelRuntimeOutputAdapterInput,
 ): LevelCandidate[] {
-  return [
+  const referencePrice = input.metadata.referencePrice ?? 0;
+  const defaultAsOfTimestamp = input.generatedAt ?? Date.now();
+  const candidates = [
     ...(input.levelCandidates ?? []),
     ...input.rawCandidates.map((candidate) =>
-      convertRawCandidateToLevelCandidate(candidate, input.candlesByTimeframe),
+      convertRawCandidateToLevelCandidate(
+        candidate,
+        input.candlesByTimeframe,
+        referencePrice,
+        input.asOfTimestampByTimeframe?.[candidate.timeframe] ?? defaultAsOfTimestamp,
+      ),
     ),
   ];
+
+  if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
+    return candidates;
+  }
+
+  // A crossed level is no longer actionable in its original role. Daily/4h
+  // candidates reach this filter after the confirmation detector has had a
+  // chance to replace them with a proven flip; unconfirmed crossings and
+  // noisy intraday crossings are suppressed instead of mislabeled. A price
+  // inside the zone is still testing that original level and must not make the
+  // level disappear from the path.
+  return candidates.filter((candidate) =>
+    candidate.type === "support"
+      ? referencePrice >= (candidate.zoneLow ?? candidate.price) * 0.999
+      : referencePrice <= (candidate.zoneHigh ?? candidate.price) * 1.001,
+  );
 }
 
 function bucketForTimeframes(timeframes: readonly SourceTimeframe[]): RuntimeBucket {
@@ -215,7 +274,9 @@ function deriveSourceTypes(level: RankedLevel): RawLevelCandidateSourceType[] {
     (RAW_LEVEL_SOURCE_TYPES as readonly string[]).includes(origin),
   );
 
-  return sourceTypes.length > 0 ? sourceTypes : ["swing_low"];
+  return sourceTypes.length > 0
+    ? sourceTypes
+    : [level.type === "support" ? "swing_low" : "swing_high"];
 }
 
 function toEnrichedAnalysis(level: RankedLevel): EnrichedLevelAnalysis {
@@ -271,12 +332,22 @@ function toRuntimeZone(level: RankedLevel, generatedAt: number): FinalLevelZone 
     sessionSignificanceScore: clamp(level.scoreBreakdown.volumeScore / 10, 0, 1),
     followThroughScore: clamp(level.averageReactionMovePct / 0.08, 0, 1),
     sourceEvidenceCount: Math.max(level.touchCount, sourceTypes.length),
-    firstTimestamp: generatedAt,
-    lastTimestamp: generatedAt,
+    firstTimestamp:
+      level.roleFlipEvidence?.formationTimestamp ??
+      level.firstTimestamp ??
+      generatedAt,
+    lastTimestamp:
+      level.roleFlipEvidence?.reactionTimestamp ??
+      level.lastTimestamp ??
+      level.firstTimestamp ??
+      generatedAt,
     isExtension: false,
     freshness: deriveFreshness(level),
     notes: [level.explanation],
     enrichedAnalysis: toEnrichedAnalysis(level),
+    ...(level.roleFlipEvidence
+      ? { roleFlipEvidence: { ...level.roleFlipEvidence } }
+      : {}),
   };
 }
 
@@ -301,6 +372,9 @@ function cloneRuntimeZone(zone: FinalLevelZone): FinalLevelZone {
     timeframeSources: [...zone.timeframeSources],
     notes: [...zone.notes],
     enrichedAnalysis: cloneEnrichedAnalysis(zone.enrichedAnalysis),
+    ...(zone.roleFlipEvidence
+      ? { roleFlipEvidence: { ...zone.roleFlipEvidence } }
+      : {}),
   };
 }
 
@@ -451,6 +525,7 @@ function cloneExtensionLevels(
   extensionLevels: LevelEngineOutput["extensionLevels"] | undefined,
   rankedLevels: RankedLevel[],
   diagnostics: EnrichmentDiagnostics,
+  surfacedRuntimeZones: FinalLevelZone[],
 ): LevelEngineOutput["extensionLevels"] {
   if (!extensionLevels) {
     return {
@@ -459,9 +534,37 @@ function cloneExtensionLevels(
     };
   }
 
+  const overlapsSurfacedRow = (extension: FinalLevelZone): boolean =>
+    surfacedRuntimeZones.some((surfaced) => {
+      if (extension.kind !== surfaced.kind) {
+        return false;
+      }
+      const extensionWidth = Math.abs(extension.zoneHigh - extension.zoneLow);
+      const surfacedWidth = Math.abs(surfaced.zoneHigh - surfaced.zoneLow);
+      const tolerance = Math.max(
+        Math.abs(extension.representativePrice) * 0.0025,
+        extensionWidth,
+        surfacedWidth,
+        0.0001,
+      );
+      return (
+        extension.zoneLow <= surfaced.zoneHigh + tolerance &&
+        surfaced.zoneLow <= extension.zoneHigh + tolerance &&
+        Math.abs(extension.representativePrice - surfaced.representativePrice) <= tolerance
+      );
+    });
+
   return {
-    support: cloneRuntimeZones(extensionLevels.support, rankedLevels, diagnostics),
-    resistance: cloneRuntimeZones(extensionLevels.resistance, rankedLevels, diagnostics),
+    support: cloneRuntimeZones(
+      extensionLevels.support.filter((zone) => !overlapsSurfacedRow(zone)),
+      rankedLevels,
+      diagnostics,
+    ),
+    resistance: cloneRuntimeZones(
+      extensionLevels.resistance.filter((zone) => !overlapsSurfacedRow(zone)),
+      rankedLevels,
+      diagnostics,
+    ),
   };
 }
 
@@ -513,10 +616,15 @@ export function buildNewRuntimeCompatibleLevelOutput(
     unmatchedExtensionRuntimeZoneIds: [],
     unmatchedSyntheticRuntimeZoneIds: [],
   };
-  const supportBuckets = buildActionableBuckets(rankedOutput.supports, generatedAt);
-  const resistanceBuckets = buildActionableBuckets(rankedOutput.resistances, generatedAt);
-  const runtimeBuckets = input.legacyRuntimeBuckets
-    ? cloneLegacyRuntimeBuckets(input.legacyRuntimeBuckets, rankedLevels, diagnostics)
+  const supportBuckets = buildActionableBuckets(surfacedSelection.surfacedSupports, generatedAt);
+  const resistanceBuckets = buildActionableBuckets(surfacedSelection.surfacedResistances, generatedAt);
+  const runtimeBucketOwnership = input.runtimeBucketOwnership ??
+    (input.legacyRuntimeBuckets ? "legacy" : "surfaced");
+  if (runtimeBucketOwnership === "legacy" && !input.legacyRuntimeBuckets) {
+    throw new Error("legacy runtime bucket ownership requires legacyRuntimeBuckets.");
+  }
+  const runtimeBuckets = runtimeBucketOwnership === "legacy"
+    ? cloneLegacyRuntimeBuckets(input.legacyRuntimeBuckets!, rankedLevels, diagnostics)
     : {
         majorSupport: supportBuckets.major,
         majorResistance: resistanceBuckets.major,
@@ -525,7 +633,20 @@ export function buildNewRuntimeCompatibleLevelOutput(
         intradaySupport: supportBuckets.intraday,
         intradayResistance: resistanceBuckets.intraday,
       };
-  const extensionLevels = cloneExtensionLevels(input.legacyExtensionLevels, rankedLevels, diagnostics);
+  const surfacedRuntimeZones = [
+    ...runtimeBuckets.majorSupport,
+    ...runtimeBuckets.majorResistance,
+    ...runtimeBuckets.intermediateSupport,
+    ...runtimeBuckets.intermediateResistance,
+    ...runtimeBuckets.intradaySupport,
+    ...runtimeBuckets.intradayResistance,
+  ];
+  const extensionLevels = cloneExtensionLevels(
+    input.legacyExtensionLevels,
+    rankedLevels,
+    diagnostics,
+    surfacedRuntimeZones,
+  );
   const output: LevelEngineOutput = {
     symbol: input.symbol.toUpperCase(),
     generatedAt,
@@ -544,9 +665,10 @@ export function buildNewRuntimeCompatibleLevelOutput(
     enrichmentDiagnostics: diagnostics,
     mappingNotes: [
       "The new surfaced adapter is projected into the legacy bucketed LevelEngineOutput contract for runtime compatibility.",
-      input.legacyRuntimeBuckets
+      "The complete ranked candidate inventory remains internal; surfaced selection keeps nearest levels first and, above twelve rows per side, samples the complete detected distance range while preserving the outermost and outermost higher-timeframe anchors. Percentage bands do not cap the ladder.",
+      runtimeBucketOwnership === "legacy"
         ? "Runtime buckets reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path so bucket coverage, nearest levels, and legacy strength labels remain stable while richer surfaced selection stays observational."
-        : "Strength labels are approximated from surfaced-selection scores because no legacy runtime buckets were supplied.",
+        : "Runtime buckets are owned by the projected surfaced selection; changing runtime mode back to old bypasses this projection and returns the untouched legacy output.",
       input.legacyExtensionLevels
         ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path for practical forward planning."
         : "Extension levels remain empty unless a legacy extension ladder is supplied.",

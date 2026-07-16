@@ -22,9 +22,17 @@ export function formatMonitoringEventAsAlert(event: MonitoringEvent): AlertPaylo
 
 export function formatIntelligentAlertAsPayload(alert: IntelligentAlert): AlertPayload {
   return {
+    symbol: alert.symbol,
+    timestamp: alert.event.timestamp,
     title: alert.title,
     body: alert.body,
     event: alert.event,
+    metadata: {
+      eventType: alert.event.eventType,
+      severity: alert.severity,
+      confidence: alert.confidence,
+      score: alert.score,
+    },
   };
 }
 
@@ -49,6 +57,26 @@ function formatSnapshotDisplayZone(zone: LevelSnapshotDisplayZone): string {
   return formatLevel(zone.representativePrice);
 }
 
+export function formatLevelLadderMessage(payload: LevelSnapshotPayload): string {
+  const resistanceLines = payload.resistanceZones.length > 0
+    ? payload.resistanceZones.map((zone) => formatSnapshotDisplayZone(zone))
+    : ["none"];
+  const supportLines = payload.supportZones.length > 0
+    ? payload.supportZones.map((zone) => formatSnapshotDisplayZone(zone))
+    : ["none"];
+
+  return [
+    `${payload.symbol} full level ladder`,
+    `Price: ${formatLevel(payload.currentPrice)}`,
+    "",
+    "Resistance:",
+    ...resistanceLines,
+    "",
+    "Support:",
+    ...supportLines,
+  ].join("\n");
+}
+
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
   const supportLine =
     payload.supportZones.length > 0
@@ -59,12 +87,18 @@ export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): strin
       ? payload.resistanceZones.map((zone) => formatSnapshotDisplayZone(zone)).join(", ")
       : "none";
 
-  return [
+  const lines = [
     `LEVEL SNAPSHOT: ${payload.symbol}`,
     `PRICE: ${formatLevel(payload.currentPrice)}`,
     `SUPPORT: ${supportLine}`,
     `RESISTANCE: ${resistanceLine}`,
-  ].join("\n");
+  ];
+
+  if (payload.marketStructure?.trim()) {
+    lines.push("", "Market structure:", payload.marketStructure.trim());
+  }
+
+  return lines.join("\n");
 }
 
 export function formatLevelExtensionMessage(payload: LevelExtensionPayload): string {

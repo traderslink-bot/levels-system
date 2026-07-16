@@ -117,6 +117,45 @@ test("buildRawLevelCandidates does not overvalue a gap that fills quickly", () =
   assert.ok((resistance.gapContinuationScore ?? 0) < 0.45);
 });
 
+test("buildRawLevelCandidates detects breakout-base support after a tight base expands", () => {
+  const baseTimestamp = Date.parse("2026-04-15T09:30:00Z");
+  const candles = [
+    { timestamp: baseTimestamp, open: 1.0, high: 1.04, low: 0.98, close: 1.02, volume: 900 },
+    { timestamp: baseTimestamp + 5 * 60 * 1000, open: 1.02, high: 1.05, low: 0.99, close: 1.01, volume: 950 },
+    { timestamp: baseTimestamp + 10 * 60 * 1000, open: 1.01, high: 1.052, low: 0.995, close: 1.03, volume: 980 },
+    { timestamp: baseTimestamp + 15 * 60 * 1000, open: 1.03, high: 1.047, low: 1.0, close: 1.02, volume: 930 },
+    { timestamp: baseTimestamp + 20 * 60 * 1000, open: 1.02, high: 1.049, low: 1.0, close: 1.04, volume: 1020 },
+    { timestamp: baseTimestamp + 25 * 60 * 1000, open: 1.04, high: 1.051, low: 1.01, close: 1.03, volume: 970 },
+    { timestamp: baseTimestamp + 30 * 60 * 1000, open: 1.03, high: 1.048, low: 1.0, close: 1.01, volume: 940 },
+    { timestamp: baseTimestamp + 35 * 60 * 1000, open: 1.01, high: 1.05, low: 1.0, close: 1.04, volume: 990 },
+    { timestamp: baseTimestamp + 40 * 60 * 1000, open: 1.05, high: 1.12, low: 1.045, close: 1.09, volume: 2600 },
+    { timestamp: baseTimestamp + 45 * 60 * 1000, open: 1.09, high: 1.2, low: 1.08, close: 1.18, volume: 3100 },
+    { timestamp: baseTimestamp + 50 * 60 * 1000, open: 1.18, high: 1.28, low: 1.16, close: 1.24, volume: 3400 },
+    { timestamp: baseTimestamp + 55 * 60 * 1000, open: 1.24, high: 1.3, low: 1.19, close: 1.22, volume: 2800 },
+  ];
+  const swings = detectSwingPoints(candles, {
+    swingWindow: 1,
+    minimumDisplacementPct: 0.05,
+    minimumSeparationBars: 2,
+  });
+
+  const candidates = buildRawLevelCandidates({
+    symbol: "BASE",
+    timeframe: "5m",
+    candles,
+    swings,
+  });
+  const breakoutBase = candidates.find(
+    (candidate) => candidate.sourceType === "breakout_base",
+  );
+
+  assert.ok(breakoutBase);
+  assert.equal(breakoutBase?.kind, "support");
+  assert.equal(breakoutBase?.price, 1.052);
+  assert.ok((breakoutBase?.gapContinuationScore ?? 0) > 0.3);
+  assert.match(breakoutBase?.notes.join(" ") ?? "", /breakout-base support/);
+});
+
 test("buildRawLevelCandidates detects an isolated meaningful wick-high as a raw resistance candidate", () => {
   const baseTimestamp = Date.parse("2026-04-10T13:30:00Z");
   const candles = [

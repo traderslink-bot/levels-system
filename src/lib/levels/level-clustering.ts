@@ -14,6 +14,11 @@ type ClusterComparableLevel = Pick<
   | "zoneLow"
   | "zoneHigh"
   | "sourceTimeframes"
+  | "originKinds"
+  | "roleFlipCount"
+  | "roleFlipEvidence"
+  | "firstTimestamp"
+  | "lastTimestamp"
   | "strongestReactionMovePct"
   | "cleanlinessStdDevPct"
   | "barsSinceLastReaction"
@@ -23,6 +28,42 @@ type ClusterComparableLevel = Pick<
   clusterId?: string | null;
   isClusterRepresentative?: boolean;
 };
+
+function mergeRepresentativeEvidence<T extends ClusterComparableLevel>(
+  representative: T,
+  members: T[],
+): T {
+  const roleFlipEvidence = representative.roleFlipEvidence ?? [...members]
+    .filter((member) => member.roleFlipEvidence !== undefined)
+    .sort((left, right) => {
+      const leftEvidence = left.roleFlipEvidence!;
+      const rightEvidence = right.roleFlipEvidence!;
+      const timeframePriorityDifference =
+        timeframePriority([rightEvidence.timeframe]) -
+        timeframePriority([leftEvidence.timeframe]);
+      return timeframePriorityDifference ||
+        rightEvidence.reactionTimestamp - leftEvidence.reactionTimestamp;
+    })[0]?.roleFlipEvidence;
+  const firstTimestamps = members
+    .map((member) => member.firstTimestamp)
+    .filter((timestamp): timestamp is number => typeof timestamp === "number");
+  const lastTimestamps = members
+    .map((member) => member.lastTimestamp)
+    .filter((timestamp): timestamp is number => typeof timestamp === "number");
+
+  return {
+    ...representative,
+    sourceTimeframes: [...new Set(members.flatMap((member) => member.sourceTimeframes))],
+    originKinds: [...new Set(members.flatMap((member) => member.originKinds))],
+    // Nearby multi-timeframe candidates describe one price area. Preserve a
+    // confirmed flip without pretending duplicate detections are multiple
+    // independent flips.
+    roleFlipCount: Math.max(...members.map((member) => member.roleFlipCount)),
+    ...(firstTimestamps.length > 0 ? { firstTimestamp: Math.min(...firstTimestamps) } : {}),
+    ...(lastTimestamps.length > 0 ? { lastTimestamp: Math.max(...lastTimestamps) } : {}),
+    ...(roleFlipEvidence ? { roleFlipEvidence: { ...roleFlipEvidence } } : {}),
+  } as T;
+}
 
 function timeframePriority(timeframes: SourceTimeframe[]): number {
   const rank: Record<SourceTimeframe, number> = {
@@ -55,57 +96,72 @@ export function clusterLevels<T extends Pick<LevelCandidate, "id" | "type" | "pr
     return [];
   }
 
-  const sorted = [...levels].sort((left, right) => left.price - right.price);
   const clusters: LevelCluster[] = [];
-  let currentMembers: T[] = [sorted[0]!];
-  let clusterLow = sorted[0]!.zoneLow ?? sorted[0]!.price;
-  let clusterHigh = sorted[0]!.zoneHigh ?? sorted[0]!.price;
 
-  function flushCluster(index: number): void {
-    const representative = currentMembers.reduce((best, member) =>
-      member.price > best.price ? member : best,
-    );
-
-    clusters.push({
-      id: `${representative.type}-cluster-${index}`,
-      type: representative.type,
-      zoneLow: clusterLow,
-      zoneHigh: clusterHigh,
-      memberIds: currentMembers.map((level) => level.id),
-      representativeId: representative.id,
-    });
-  }
-
-  for (let index = 1; index < sorted.length; index += 1) {
-    const candidate = sorted[index]!;
-    const candidateLow = candidate.zoneLow ?? candidate.price;
-    const candidateHigh = candidate.zoneHigh ?? candidate.price;
-    const clusterZone = { zoneLow: clusterLow, zoneHigh: clusterHigh };
-    const candidateZone = { zoneLow: candidateLow, zoneHigh: candidateHigh };
-    const representativeDistancePct = priceDistancePct(
-      (clusterLow + clusterHigh) / 2,
-      (candidateLow + candidateHigh) / 2,
-    );
-    const enoughOverlap = overlapRatio(clusterZone, candidateZone) >= config.clustering.zoneOverlapThreshold;
-    const practicallyNearby =
-      representativeDistancePct <= config.clustering.maxRepresentativeDistancePct ||
-      zonesOverlap(clusterZone, candidateZone);
-
-    if (enoughOverlap || practicallyNearby) {
-      currentMembers.push(candidate);
-      clusterLow = Math.min(clusterLow, candidateLow);
-      clusterHigh = Math.max(clusterHigh, candidateHigh);
+  // Cluster each role independently. Sorting both sides in one stream let an
+  // interleaved opposite-side candidate split two otherwise-nearby supports
+  // (or resistances), losing their confluence and merged evidence.
+  for (const side of ["support", "resistance"] as const) {
+    const sorted = levels
+      .filter((level) => level.type === side)
+      .sort((left, right) => left.price - right.price);
+    if (sorted.length === 0) {
       continue;
     }
 
-    flushCluster(clusters.length + 1);
-    currentMembers = [candidate];
-    clusterLow = candidateLow;
-    clusterHigh = candidateHigh;
+    let currentMembers: T[] = [sorted[0]!];
+    let clusterLow = sorted[0]!.zoneLow ?? sorted[0]!.price;
+    let clusterHigh = sorted[0]!.zoneHigh ?? sorted[0]!.price;
+
+    const flushCluster = (): void => {
+      const representative = currentMembers.reduce((best, member) =>
+        member.price > best.price ? member : best,
+      );
+      clusters.push({
+        id: `${side}-cluster-${clusters.length + 1}`,
+        type: side,
+        zoneLow: clusterLow,
+        zoneHigh: clusterHigh,
+        memberIds: currentMembers.map((level) => level.id),
+        representativeId: representative.id,
+      });
+    };
+
+    for (let index = 1; index < sorted.length; index += 1) {
+      const candidate = sorted[index]!;
+      const candidateLow = candidate.zoneLow ?? candidate.price;
+      const candidateHigh = candidate.zoneHigh ?? candidate.price;
+      const clusterZone = { zoneLow: clusterLow, zoneHigh: clusterHigh };
+      const candidateZone = { zoneLow: candidateLow, zoneHigh: candidateHigh };
+      const representativeDistancePct = priceDistancePct(
+        (clusterLow + clusterHigh) / 2,
+        (candidateLow + candidateHigh) / 2,
+      );
+      const enoughOverlap =
+        overlapRatio(clusterZone, candidateZone) >= config.clustering.zoneOverlapThreshold;
+      const practicallyNearby =
+        representativeDistancePct <= config.clustering.maxRepresentativeDistancePct ||
+        zonesOverlap(clusterZone, candidateZone);
+
+      if (enoughOverlap || practicallyNearby) {
+        currentMembers.push(candidate);
+        clusterLow = Math.min(clusterLow, candidateLow);
+        clusterHigh = Math.max(clusterHigh, candidateHigh);
+        continue;
+      }
+
+      flushCluster();
+      currentMembers = [candidate];
+      clusterLow = candidateLow;
+      clusterHigh = candidateHigh;
+    }
+
+    flushCluster();
   }
 
-  flushCluster(clusters.length + 1);
-  return clusters;
+  return clusters.sort(
+    (left, right) => left.zoneLow - right.zoneLow || left.type.localeCompare(right.type),
+  );
 }
 
 export function applyClusterPenalties<T extends ClusterComparableLevel>(
@@ -133,8 +189,11 @@ export function applyClusterPenalties<T extends ClusterComparableLevel>(
     const isRepresentative = representative.id === level.id;
 
     if (isRepresentative || members.length === 1) {
+      const mergedRepresentative = members.length > 1
+        ? mergeRepresentativeEvidence(representative, members)
+        : representative;
       return {
-        ...level,
+        ...mergedRepresentative,
         clusterPenalty: 0,
         clusterId: cluster.id,
         isClusterRepresentative: true,

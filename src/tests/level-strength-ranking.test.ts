@@ -10,6 +10,7 @@ import { computeStructuralStrengthScore } from "../lib/levels/level-structural-s
 import { analyzeLevelTouches } from "../lib/levels/level-touch-analysis.js";
 import type { LevelCandidate, LevelTouch, LevelType, RankedLevel, SourceTimeframe } from "../lib/levels/level-types.js";
 import { rankLevels } from "../lib/levels/level-ranking.js";
+import { selectSurfacedLevels } from "../lib/levels/level-surfaced-selection.js";
 
 function makeTouch(overrides: Partial<LevelTouch> = {}): LevelTouch {
   return {
@@ -139,6 +140,53 @@ test("higher timeframe level outranks lower timeframe level with equal reactions
   assert.equal(ranked.supports[0]?.id, "daily");
 });
 
+test("candidate candles retain their higher-timeframe identity during touch analysis", () => {
+  const candidate: LevelCandidate = {
+    id: "daily-analysis-candles",
+    symbol: "TEST",
+    type: "support",
+    price: 10,
+    zoneLow: 9.975,
+    zoneHigh: 10.025,
+    sourceTimeframes: ["daily"],
+    originKinds: ["swing_low"],
+    analysisCandles: [
+      { timestamp: 1, open: 10.1, high: 10.2, low: 9.99, close: 10.15, volume: 100 },
+      { timestamp: 2, open: 10.12, high: 10.3, low: 10.08, close: 10.25, volume: 120 },
+    ],
+  };
+
+  const ranked = rankLevels([candidate], makeContext({ currentTimeframe: "5m" }));
+
+  assert.ok((ranked.supports[0]?.touches.length ?? 0) > 0);
+  assert.ok(ranked.supports[0]?.touches.every((touch) => touch.timeframe === "daily"));
+});
+
+test("context candles retain the context timeframe when a candidate has no own series", () => {
+  const candidate: LevelCandidate = {
+    id: "daily-candidate-context-candles",
+    symbol: "TEST",
+    type: "support",
+    price: 10,
+    zoneLow: 9.975,
+    zoneHigh: 10.025,
+    sourceTimeframes: ["daily"],
+    originKinds: ["swing_low"],
+  };
+  const ranked = rankLevels([
+    candidate,
+  ], makeContext({
+    currentTimeframe: "5m",
+    recentCandles: [
+      { timestamp: 1, open: 10.1, high: 10.2, low: 9.99, close: 10.15, volume: 100 },
+      { timestamp: 2, open: 10.12, high: 10.3, low: 10.08, close: 10.25, volume: 120 },
+    ],
+  }));
+
+  assert.ok((ranked.supports[0]?.touches.length ?? 0) > 0);
+  assert.ok(ranked.supports[0]?.touches.every((touch) => touch.timeframe === "5m"));
+});
+
 test("multi timeframe confluence boosts timeframe score without breaking cap", () => {
   const single = computeStructuralStrengthScore(
     makeLevel({ sourceTimeframes: ["4h"] }),
@@ -193,6 +241,66 @@ test("non reactive contacts do not inflate meaningfulTouchCount and stronger rea
   assert.equal(ranked.supports[0]?.id, "strong");
 });
 
+test("zero-volume five-minute placeholders do not count as level touches", () => {
+  const baseTimestamp = Date.parse("2026-07-01T13:30:00Z");
+  const candles = Array.from({ length: 6 }, (_, index) => ({
+    timestamp: baseTimestamp + index * 5 * 60_000,
+    open: 10,
+    high: 10.05,
+    low: 9.95,
+    close: 10,
+    volume: index === 2 ? 500 : 0,
+  }));
+
+  const analysis = analyzeLevelTouches(
+    { price: 10, type: "support", zoneLow: 9.95, zoneHigh: 10.05 },
+    candles,
+    "5m",
+  );
+
+  assert.equal(analysis.touchCount, 1);
+});
+
+test("one break episode counts once until the level is reclaimed", () => {
+  const baseTimestamp = Date.parse("2026-07-01T13:30:00Z");
+  const candles = [
+    { timestamp: baseTimestamp, open: 10.2, high: 10.3, low: 9.9, close: 10.1, volume: 1000 },
+    { timestamp: baseTimestamp + 60_000, open: 10, high: 10.05, low: 9.6, close: 9.7, volume: 1000 },
+    { timestamp: baseTimestamp + 120_000, open: 9.7, high: 9.8, low: 9.4, close: 9.5, volume: 1000 },
+    { timestamp: baseTimestamp + 180_000, open: 9.5, high: 9.7, low: 9.2, close: 9.4, volume: 1000 },
+    { timestamp: baseTimestamp + 240_000, open: 9.4, high: 9.6, low: 9.1, close: 9.3, volume: 1000 },
+  ];
+
+  const analysis = analyzeLevelTouches(
+    { price: 10, type: "support", zoneLow: 9.95, zoneHigh: 10.05 },
+    candles,
+    "5m",
+  );
+
+  assert.equal(analysis.cleanBreakCount, 1);
+});
+
+test("a reclaim permits a later break to begin a second episode", () => {
+  const baseTimestamp = Date.parse("2026-07-01T13:30:00Z");
+  const candles = [
+    { timestamp: baseTimestamp, open: 10.1, high: 10.2, low: 9.9, close: 10.05, volume: 1000 },
+    { timestamp: baseTimestamp + 60_000, open: 10, high: 10.02, low: 9.6, close: 9.7, volume: 1000 },
+    { timestamp: baseTimestamp + 120_000, open: 9.7, high: 9.8, low: 9.4, close: 9.6, volume: 1000 },
+    { timestamp: baseTimestamp + 180_000, open: 9.7, high: 10.3, low: 9.6, close: 10.2, volume: 1000 },
+    { timestamp: baseTimestamp + 240_000, open: 10.1, high: 10.15, low: 9.6, close: 9.7, volume: 1000 },
+    { timestamp: baseTimestamp + 300_000, open: 9.7, high: 9.8, low: 9.4, close: 9.6, volume: 1000 },
+  ];
+
+  const analysis = analyzeLevelTouches(
+    { price: 10, type: "support", zoneLow: 9.95, zoneHigh: 10.05 },
+    candles,
+    "5m",
+  );
+
+  assert.equal(analysis.cleanBreakCount, 2);
+  assert.equal(analysis.reclaimCount, 1);
+});
+
 test("tight repeated reaction zone scores higher than messy wide zone", () => {
   const clean = computeStructuralStrengthScore(
     makeLevel({ cleanlinessStdDevPct: 0.0008 }),
@@ -212,6 +320,26 @@ test("role flip adds structural bonus and repeated role flips cap at configured 
 
   assert.ok(oneFlip.scoreBreakdown.roleFlipScore > noFlip.scoreBreakdown.roleFlipScore);
   assert.equal(manyFlips.scoreBreakdown.roleFlipScore, 8);
+});
+
+test("an unproven role_flip origin tag earns no flip score or flipped state", () => {
+  const taggedOnly = makeLevel({
+    originKinds: ["role_flip"],
+    roleFlipCount: 0,
+    touchCount: 1,
+    meaningfulTouchCount: 0,
+    touches: [makeTouch({
+      reactionType: "tap",
+      reactionMovePct: 0,
+      volumeRatio: 1,
+      closedAwayFromLevel: false,
+      wickRejectStrength: 0,
+      bodyRejectStrength: 0,
+    })],
+  });
+
+  assert.equal(computeStructuralStrengthScore(taggedOnly).scoreBreakdown.roleFlipScore, 0);
+  assert.notEqual(deriveLevelState(taggedOnly), "flipped");
 });
 
 test("repeated shallow tests reduce structural score and overtest penalty is stronger when reaction quality is weak", () => {
@@ -264,6 +392,104 @@ test("nearby duplicate levels form one cluster and weaker duplicate receives a c
   assert.ok((penalizedWeaker?.clusterPenalty ?? 0) < 0);
 });
 
+test("cluster representative preserves multi-timeframe confluence and one confirmed flip", () => {
+  const daily = makeLevel({
+    id: "daily-cluster-member",
+    price: 10,
+    zoneLow: 9.98,
+    zoneHigh: 10.02,
+    sourceTimeframes: ["daily"],
+    originKinds: ["swing_low"],
+    roleFlipCount: 0,
+    touchCount: 3,
+    meaningfulTouchCount: 3,
+  });
+  const fourHourFlip = makeLevel({
+    id: "four-hour-flip-cluster-member",
+    price: 10.01,
+    zoneLow: 9.99,
+    zoneHigh: 10.03,
+    sourceTimeframes: ["4h"],
+    originKinds: ["swing_high", "role_flip"],
+    roleFlipCount: 1,
+    roleFlipEvidence: {
+      originalType: "resistance",
+      flippedType: "support",
+      timeframe: "4h",
+      formationTimestamp: 1,
+      firstBreakTimestamp: 2,
+      confirmationTimestamp: 3,
+      retestTimestamp: 4,
+      reactionTimestamp: 5,
+    },
+    touchCount: 2,
+    meaningfulTouchCount: 2,
+  });
+
+  const ranked = rankLevels(
+    [daily, fourHourFlip],
+    makeContext({ currentPrice: 10.5 }),
+  );
+  const surfaced = selectSurfacedLevels(ranked);
+  const representative = surfaced.surfacedSupports[0];
+
+  assert.equal(surfaced.surfacedSupports.length, 1);
+  assert.equal(surfaced.suppressedNearDuplicates.length, 1);
+  assert.ok(representative);
+  assert.deepEqual([...representative.sourceTimeframes].sort(), ["4h", "daily"]);
+  assert.ok(representative.originKinds.includes("role_flip"));
+  assert.equal(representative.roleFlipCount, 1);
+  assert.equal(representative.roleFlipEvidence?.reactionTimestamp, 5);
+  assert.equal(representative.state, "flipped");
+  assert.ok(representative.touchCount === 2 || representative.touchCount === 3);
+});
+
+test("support and resistance at the same price never share a duplicate cluster", () => {
+  const support = makeLevel({
+    id: "same-price-support",
+    type: "support",
+  });
+  const resistance = makeLevel({
+    id: "same-price-resistance",
+    type: "resistance",
+  });
+
+  const clusters = clusterLevels([support, resistance]);
+
+  assert.equal(clusters.length, 2);
+  assert.deepEqual(clusters.map((cluster) => cluster.type).sort(), ["resistance", "support"]);
+});
+
+test("an interleaved opposite-side level cannot split same-side confluence", () => {
+  const supportOne = makeLevel({
+    id: "support-one",
+    type: "support",
+    price: 10,
+    zoneLow: 9.98,
+    zoneHigh: 10.02,
+  });
+  const resistance = makeLevel({
+    id: "interleaved-resistance",
+    type: "resistance",
+    price: 10.01,
+    zoneLow: 9.99,
+    zoneHigh: 10.03,
+  });
+  const supportTwo = makeLevel({
+    id: "support-two",
+    type: "support",
+    price: 10.02,
+    zoneLow: 10,
+    zoneHigh: 10.04,
+  });
+
+  const clusters = clusterLevels([supportOne, resistance, supportTwo]);
+  const supportCluster = clusters.find((cluster) => cluster.type === "support");
+
+  assert.equal(clusters.length, 2);
+  assert.deepEqual(supportCluster?.memberIds, ["support-one", "support-two"]);
+});
+
 test("state engine covers fresh, respected, weakened, broken, reclaimed, and flipped transitions", () => {
   assert.equal(
     deriveLevelState(makeLevel({ touchCount: 1, meaningfulTouchCount: 0, touches: [makeTouch({ reactionType: "tap", reactionMovePct: 0.003, volumeRatio: 1, closedAwayFromLevel: false, wickRejectStrength: 0.1, bodyRejectStrength: 0.1 })] })),
@@ -297,6 +523,20 @@ test("state engine covers fresh, respected, weakened, broken, reclaimed, and fli
     deriveLevelState(makeLevel({ roleFlipCount: 1, originKinds: ["role_flip"] })),
     "flipped",
   );
+});
+
+test("a confirmed role flip can later become weakened without losing provenance", () => {
+  const level = makeLevel({
+    roleFlipCount: 1,
+    originKinds: ["swing_high", "role_flip"],
+    touchCount: 6,
+    meaningfulTouchCount: 5,
+    averageReactionMovePct: 0.01,
+  });
+
+  assert.equal(deriveLevelState(level), "weakened");
+  assert.equal(level.roleFlipCount, 1);
+  assert.ok(level.originKinds.includes("role_flip"));
 });
 
 test("closer level gets higher active score, recent interaction helps, and compression into resistance increases pressure", () => {
@@ -334,6 +574,32 @@ test("closer level gets higher active score, recent interaction helps, and compr
   assert.ok(nearScore.activeRelevanceScore > farScore.activeRelevanceScore);
   assert.ok(nearScore.scoreBreakdown.currentInteractionScore >= 6);
   assert.ok(nearScore.scoreBreakdown.intradayPressureScore >= 10);
+});
+
+test("remote historical volume cannot masquerade as current active volume", () => {
+  const remoteResistance = makeLevel({
+    type: "resistance",
+    price: 20,
+    zoneLow: 19.95,
+    zoneHigh: 20.05,
+    averageVolumeRatio: 4,
+    bestVolumeRatio: 5,
+  });
+  const context = makeContext({
+    currentPrice: 10,
+    currentSessionVolumeRatio: 3,
+    recentCandles: [
+      { timestamp: 1, open: 19.9, high: 20.1, low: 19.8, close: 20, volume: 1000 },
+      { timestamp: 2, open: 20, high: 20.2, low: 19.9, close: 20.1, volume: 3000 },
+    ],
+  });
+
+  const score = computeActiveRelevanceScore(
+    remoteResistance as unknown as RankedLevel,
+    context,
+  );
+
+  assert.equal(score.scoreBreakdown.recentVolumeActivityScore, 3);
 });
 
 test("final ranking combines structural and active scores correctly and still favors stronger structure over a slightly closer weak level", () => {

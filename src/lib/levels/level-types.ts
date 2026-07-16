@@ -20,6 +20,9 @@ export type SwingPoint = {
 export type RawLevelCandidateSourceType =
   | "swing_high"
   | "swing_low"
+  | "breakout_base"
+  | "gap_up_origin"
+  | "gap_up_pullback_low"
   | "premarket_high"
   | "premarket_low"
   | "opening_range_high"
@@ -44,6 +47,8 @@ export type RawLevelCandidate = {
   gapStructure: boolean;
   firstTimestamp: number;
   lastTimestamp: number;
+  /** First timestamp at which a swing-derived candidate was knowable. */
+  confirmationTimestamp?: number;
   notes: string[];
 };
 
@@ -105,6 +110,7 @@ export type FinalLevelZone = {
   notes: string[];
   extensionMetadata?: LevelExtensionMetadata;
   enrichedAnalysis?: EnrichedLevelAnalysis;
+  roleFlipEvidence?: RoleFlipEvidence;
 };
 
 export type LevelLadderExtension = {
@@ -193,6 +199,17 @@ export type LevelTouchAnalysisResult = {
   ageInBars: number;
 };
 
+export type RoleFlipEvidence = {
+  originalType: LevelType;
+  flippedType: LevelType;
+  timeframe: Extract<SourceTimeframe, "daily" | "4h">;
+  formationTimestamp: number;
+  firstBreakTimestamp: number;
+  confirmationTimestamp: number;
+  retestTimestamp: number;
+  reactionTimestamp: number;
+};
+
 export type LevelCandidate = {
   id: string;
   symbol: string;
@@ -202,6 +219,8 @@ export type LevelCandidate = {
   zoneHigh?: number;
   sourceTimeframes: SourceTimeframe[];
   originKinds: LevelOrigin[];
+  firstTimestamp?: number;
+  lastTimestamp?: number;
   analysisCandles?: Candle[];
   touches?: LevelTouch[];
   touchCount?: number;
@@ -211,6 +230,7 @@ export type LevelCandidate = {
   cleanBreakCount?: number;
   reclaimCount?: number;
   roleFlipCount?: number;
+  roleFlipEvidence?: RoleFlipEvidence;
   strongestReactionMovePct?: number;
   averageReactionMovePct?: number;
   bestVolumeRatio?: number;
@@ -267,6 +287,8 @@ export type RankedLevel = {
   zoneHigh: number;
   sourceTimeframes: SourceTimeframe[];
   originKinds: LevelOrigin[];
+  firstTimestamp?: number;
+  lastTimestamp?: number;
   touches: LevelTouch[];
   touchCount: number;
   meaningfulTouchCount: number;
@@ -275,6 +297,7 @@ export type RankedLevel = {
   cleanBreakCount: number;
   reclaimCount: number;
   roleFlipCount: number;
+  roleFlipEvidence?: RoleFlipEvidence;
   strongestReactionMovePct: number;
   averageReactionMovePct: number;
   bestVolumeRatio: number;

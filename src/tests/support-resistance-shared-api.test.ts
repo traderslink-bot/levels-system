@@ -72,6 +72,33 @@ test("execution support/resistance context is stable when a future candle is app
   );
 });
 
+test("shared support/resistance context exposes rich ranked final level zones", () => {
+  const context = buildSupportResistanceContext({
+    symbol: "RICH",
+    candlesByTimeframe: candlesByTimeframe([
+      candle(Date.parse("2026-05-01T09:30:00-04:00"), 10, 11, 10.6),
+      candle(Date.parse("2026-05-01T09:35:00-04:00"), 9.8, 10.7, 10.1),
+      candle(Date.parse("2026-05-01T09:40:00-04:00"), 10.2, 11.4, 11.1),
+      candle(Date.parse("2026-05-01T09:45:00-04:00"), 10.4, 11.2, 10.7),
+      candle(Date.parse("2026-05-01T09:50:00-04:00"), 9.9, 10.8, 10.2),
+      candle(Date.parse("2026-05-01T09:55:00-04:00"), 10.3, 11.6, 11.3),
+      candle(Date.parse("2026-05-01T10:00:00-04:00"), 10.7, 11.5, 11),
+      candle(Date.parse("2026-05-01T10:05:00-04:00"), 10.1, 11.1, 10.5),
+    ]),
+    asOfTimestamp: Date.parse("2026-05-01T10:10:00-04:00"),
+  });
+
+  assert.ok(context.levelEngineOutput);
+  assert.ok(context.finalLevelZones.length > 0);
+  assert.ok(
+    context.finalLevelZones.every(
+      (zone) =>
+        typeof zone.strengthScore === "number" &&
+        ["weak", "moderate", "strong", "major"].includes(zone.strengthLabel),
+    ),
+  );
+});
+
 test("VWAP remains a market fact unless explicitly allowed into trader interpretation", () => {
   const executionTimestamp = Date.parse("2026-05-01T09:40:00-04:00");
   const context = buildTradeAnalysisSupportResistanceContext({

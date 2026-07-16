@@ -9,6 +9,8 @@ export type SwingDetectionOptions = {
   minimumDisplacementPct: number;
   minimumSeparationBars: number;
   includeBarrierCandles?: boolean;
+  /** Ignore zero-volume placeholder bars when deriving intraday evidence. */
+  requirePositiveVolumeEvidence?: boolean;
 };
 
 function round(value: number): number {
@@ -20,6 +22,7 @@ function countLocalReactions(
   index: number,
   price: number,
   swingWindow: number,
+  requirePositiveVolumeEvidence: boolean,
 ): number {
   const tolerance = Math.max(price * 0.003, 0.0001);
   const left = Math.max(0, index - swingWindow * 3);
@@ -28,6 +31,9 @@ function countLocalReactions(
 
   for (let cursor = left; cursor <= right; cursor += 1) {
     const candle = candles[cursor]!;
+    if (requirePositiveVolumeEvidence && candle.volume <= 0) {
+      continue;
+    }
     if (Math.abs(candle.high - price) <= tolerance || Math.abs(candle.low - price) <= tolerance) {
       reactions += 1;
     }
@@ -84,9 +90,18 @@ export function detectSwingPoints(
 
   for (let index = options.swingWindow; index < candles.length - options.swingWindow; index += 1) {
     const current = candles[index]!;
+    if (options.requirePositiveVolumeEvidence && current.volume <= 0) {
+      continue;
+    }
     const window = candles.slice(index - options.swingWindow, index + options.swingWindow + 1);
-    const highest = Math.max(...window.map((candle) => candle.high));
-    const lowest = Math.min(...window.map((candle) => candle.low));
+    const evidenceWindow = options.requirePositiveVolumeEvidence
+      ? window.filter((candle) => candle.volume > 0)
+      : window;
+    if (evidenceWindow.length === 0) {
+      continue;
+    }
+    const highest = Math.max(...evidenceWindow.map((candle) => candle.high));
+    const lowest = Math.min(...evidenceWindow.map((candle) => candle.low));
     const baseline = Math.max((highest + lowest) / 2, 0.0001);
     const displacement = highest - lowest;
     const displacementPct = displacement / baseline;
@@ -104,7 +119,13 @@ export function detectSwingPoints(
         strength: round(displacement),
         displacement: round(displacementPct),
         separation: options.swingWindow,
-        reactionCount: countLocalReactions(candles, index, current.high, options.swingWindow),
+        reactionCount: countLocalReactions(
+          candles,
+          index,
+          current.high,
+          options.swingWindow,
+          Boolean(options.requirePositiveVolumeEvidence),
+        ),
       });
     }
 
@@ -117,7 +138,13 @@ export function detectSwingPoints(
         strength: round(displacement),
         displacement: round(displacementPct),
         separation: options.swingWindow,
-        reactionCount: countLocalReactions(candles, index, current.low, options.swingWindow),
+        reactionCount: countLocalReactions(
+          candles,
+          index,
+          current.low,
+          options.swingWindow,
+          Boolean(options.requirePositiveVolumeEvidence),
+        ),
       });
     }
   }

@@ -555,6 +555,7 @@ function buildCandidatePoolDiagnosticsForReview(params: {
       swingWindow: timeframeConfig.swingWindow,
       minimumDisplacementPct: timeframeConfig.minimumDisplacementPct,
       minimumSeparationBars: timeframeConfig.minimumSwingSeparationBars,
+      requirePositiveVolumeEvidence: item.timeframe === "5m",
     });
 
     rawCandidates.push(
@@ -568,7 +569,10 @@ function buildCandidatePoolDiagnosticsForReview(params: {
   }
 
   const fiveMinute = series.find((item) => item.timeframe === "5m")?.candles ?? [];
-  const special = buildSpecialLevelCandidates(params.symbol, fiveMinute);
+  const special = buildSpecialLevelCandidates(
+    params.symbol,
+    fiveMinute.filter((candle) => candle.volume > 0),
+  );
   rawCandidates.push(...special.candidates);
 
   const tolerance = Math.max(

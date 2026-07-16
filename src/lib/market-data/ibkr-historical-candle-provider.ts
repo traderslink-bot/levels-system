@@ -327,17 +327,6 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
 
     const trimmed = rawTime.trim();
 
-    if (/^\d+$/.test(trimmed)) {
-      const numericValue = Number(trimmed);
-      const timestamp = trimmed.length <= 10 ? numericValue * 1000 : numericValue;
-
-      if (!Number.isFinite(timestamp)) {
-        throw new Error(`Invalid IBKR numeric timestamp: ${rawTime}`);
-      }
-
-      return timestamp;
-    }
-
     if (/^\d{8}$/.test(trimmed)) {
       const year = Number(trimmed.slice(0, 4));
       const monthIndex = Number(trimmed.slice(4, 6)) - 1;
@@ -346,6 +335,17 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
 
       if (!Number.isFinite(timestamp)) {
         throw new Error(`Invalid IBKR daily timestamp: ${rawTime}`);
+      }
+
+      return timestamp;
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+      const numericValue = Number(trimmed);
+      const timestamp = trimmed.length <= 10 ? numericValue * 1000 : numericValue;
+
+      if (!Number.isFinite(timestamp)) {
+        throw new Error(`Invalid IBKR numeric timestamp: ${rawTime}`);
       }
 
       return timestamp;

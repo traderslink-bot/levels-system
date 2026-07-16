@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "level-quality-review-post-multi-timeframe-handoff-current-cache-stability/v1",
+  "generatedAt": "2026-06-07T14:50:00.000Z",
+  "gate": "level_quality_review_post_multi_timeframe_handoff_current_cache_stability",
+  "doc": "docs/151_LEVEL_QUALITY_REVIEW_POST_MULTI_TIMEFRAME_HANDOFF_CURRENT_CACHE_STABILITY.md",
+  "baseBranch": "origin/main",
+  "baseMergeCommits": {
+    "pr148": "4dd82e4bfb6f7b7b8ca35bb15f625b2e62fad6ca",
+    "pr149": "111bfab64aec6f21d56ed4162ee247c0ddb6e706"
+  },
+  "baselinePath": "docs/examples/level-analysis-snapshot/level-candidate-inventory-visibility/volume-session-context/latest-level-candidate-inventory-volume-session-context-review-wiring.json",
+  "reviewCommandGeneratedAt": "2026-06-07T14:45:00.000Z",
+  "provider": "ibkr",
+  "cacheRoot": "C:/Users/jerac/Documents/TraderLink/levels-system-post-mtf-handoff-stability/.validation-cache/candles",
+  "localSetupNote": "Validation cache is present in this v2 worktree's ignored .validation-cache directory; do not use the deprecated C:/Users/jerac/Documents/TraderLink/levels-system project for new work.",
+  "reviewedSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME",
+    "AIM",
+    "HCWB",
+    "YMAT",
+    "AAOI",
+    "PHOE"
+  ],
+  "supplied15mSymbols": [
+    "DEVS",
+    "ENVX",
+    "DXYZ",
+    "QUBT",
+    "GME"
+  ],
+  "supersededGateDecision": {
+    "staleRecommendedGate": "level_quality_review_baseline_refresh_decision",
+    "sourceArtifact": "docs/examples/level-analysis-snapshot/multi-timeframe-fixture-pack/latest-level-analysis-snapshot-multi-timeframe-fixture-pack-handoff.json",
+    "status": "superseded_by_completed_followup_chain",
+    "doNotRestartHereWithoutNewApproval": true,
+    "completedFollowupGates": [
+      "level_quality_review_cache_fingerprint_contract",
+      "level_quality_review_cache_fingerprint_wiring",
+      "level_quality_review_baseline_refresh_current_cache",
+      "level_quality_review_post_refresh_stability_check",
+      "level_quality_review_volume_session_fact_coverage_audit",
+      "level_analysis_snapshot_journal_delivery_contract",
+      "level_analysis_snapshot_journal_delivery_handoff",
+      "levels_system_multi_timeframe_snapshot_hardening",
+      "level_analysis_snapshot_multi_timeframe_fixture_pack",
+      "level_analysis_snapshot_multi_timeframe_fixture_pack_handoff",
+      "pr_149_handoff_test_carry_forward"
+    ]
+  },
+  "currentCacheRerun": {
+    "mismatchCount": 0,
+    "nearestSupportParityCount": 10,
+    "nearestResistanceParityCount": 10,
+    "bucketCountParityCount": 10,
+    "extensionCountParityCount": 10,
+    "syntheticCountParityCount": 10,
+    "syntheticMarkingParityCount": 10,
+    "diagnosticsParityCount": 10,
+    "diagnosticSemanticsParityCount": 10,
+    "enrichmentBreakdownParityCount": 10,
+    "extensionCoverageWarningParityCount": 10,
+    "clusteredDensityDiagnosticParityCount": 10,
+    "fifteenMinuteContextOnlyCount": 10,
+    "densityMetricPresentCount": 10,
+    "candidateInventoryPresentCount": 10,
+    "candidateInventoryValidCount": 10,
+    "candidateInventoryMissingCount": 0,
+    "candidateVolumeSessionContextPresentCount": 10,
+    "candidateVolumeSessionContextValidCount": 10,
+    "candidateVolumeSessionContextMissingCount": 0,
+    "sessionFactsPresentCount": 10,
+    "volumeFactsPresentCount": 10,
+    "volumeShelfContextPresentCount": 10,
+    "candidateVolumeSessionMissingFactsCount": 0,
+    "prohibitedLanguageHitCount": 0
+  },
+  "cacheFingerprintSummary": {
+    "totalFingerprints": 35,
+    "symbolCount": 10,
+    "levelEngineInputCount": 30,
+    "contextOnlyCount": 5,
+    "fifteenMinuteContextOnlyCount": 5,
+    "validationIssueCount": 45,
+    "wrapperCandleCount": 6662,
+    "actualBarsReturned": 6662
+  },
+  "candidateVolumeSessionComparisonOutcomeCounts": {
+    "surfaced_has_more_session_volume_context": 6,
+    "candidate_identifier_unavailable": 4
+  },
+  "fifteenMinutePolicy": {
+    "suppliedSymbols": [
+      "DEVS",
+      "ENVX",
+      "DXYZ",
+      "QUBT",
+      "GME"
+    ],
+    "entryContextOnlyCount": 10,
+    "fingerprintContextOnlyCount": 5,
+    "includedInLevelEngine": false,
+    "fedIntoLevelEngine": false
+  },
+  "boundariesConfirmed": {
+    "fifteenMinuteFactsOnly": true,
+    "volumeSessionFactsOnly": true,
+    "baselineRefreshDecisionSuperseded": true,
+    "pr149TestOnly": true
+  },
+  "recommendedNextGate": "await_next_approved_levels_system_gate",
+  "safety": {
+    "baselineRefreshed": false,
+    "rawCandlesIncluded": false,
+    "rawCacheWrapperPayloadsIncluded": false,
+    "fullSnapshotsIncluded": false,
+    "rawCacheFilesCommitted": false,
+    "providerCallsMade": false,
+    "cacheFilesWritten": false,
+    "supportResistanceDetectionChanged": false,
+    "levelEngineScoringRankingClusteringChanged": false,
+    "surfacedLevelsChangedByCode": false,
+    "extensionGenerationChanged": false,
+    "fifteenMinuteFedIntoLevelEngine": false,
+    "volumeSessionFactsUsedForSelection": false,
+    "runtimeDefaultsChanged": false,
+    "alertMonitoringDiscordChanged": false,
+    "journalAppFilesChanged": false,
+    "restrictedInterpretationAdded": false
+  }
+}

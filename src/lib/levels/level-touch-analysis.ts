@@ -113,7 +113,10 @@ function classifyReactionType(params: {
   const { candle, nextCandle, type, zoneLow, zoneHigh, mid, priorBroken, wickStrength, bodyStrength } = params;
 
   if (type === "support") {
-    const cleanBreak = candle.close < zoneLow && (!!nextCandle ? nextCandle.close <= zoneLow : true);
+    const cleanBreak =
+      !priorBroken &&
+      candle.close < zoneLow &&
+      (!!nextCandle ? nextCandle.close <= zoneLow : true);
     const reclaim = priorBroken && candle.close > zoneHigh;
     const failedBreak = candle.low < zoneLow && candle.close >= mid;
     const rejection = candle.close >= mid && (wickStrength >= 0.45 || bodyStrength >= 0.4);
@@ -134,7 +137,10 @@ function classifyReactionType(params: {
     return "tap";
   }
 
-  const cleanBreak = candle.close > zoneHigh && (!!nextCandle ? nextCandle.close >= zoneHigh : true);
+  const cleanBreak =
+    !priorBroken &&
+    candle.close > zoneHigh &&
+    (!!nextCandle ? nextCandle.close >= zoneHigh : true);
   const reclaim = priorBroken && candle.close < zoneLow;
   const failedBreak = candle.high > zoneHigh && candle.close <= mid;
   const rejection = candle.close <= mid && (wickStrength >= 0.45 || bodyStrength >= 0.4);
@@ -171,6 +177,12 @@ export function analyzeLevelTouches(
   timeframe: SourceTimeframe,
   config: LevelScoreConfig = LEVEL_SCORE_CONFIG,
 ): LevelTouchAnalysisResult {
+  // Five-minute feeds can contain flat zero-volume placeholders for intervals
+  // where no trade occurred. They preserve timeline continuity but are not
+  // independent touches, breaks, or follow-through evidence.
+  const evidenceCandles = timeframe === "5m"
+    ? candles.filter((candle) => candle.volume > 0)
+    : candles;
   const { zoneLow, zoneHigh } =
     level.zoneLow !== undefined && level.zoneHigh !== undefined
       ? { zoneLow: level.zoneLow, zoneHigh: level.zoneHigh }
@@ -182,7 +194,7 @@ export function analyzeLevelTouches(
   let firstTouchIndex: number | null = null;
   let lastMeaningfulTouchIndex: number | null = null;
 
-  candles.forEach((candle, index) => {
+  evidenceCandles.forEach((candle, index) => {
     const enteredZone = candle.high >= zoneLow && candle.low <= zoneHigh;
     const cleanBreakWithoutTouch =
       level.type === "support" ? candle.close < zoneLow : candle.close > zoneHigh;
@@ -193,13 +205,19 @@ export function analyzeLevelTouches(
 
     const wickStrength = wickRejectStrength(candle, level.type);
     const bodyStrength = bodyRejectStrength(candle, level.type, mid);
-    const reaction = computeReactionMove(candles, index, level.price, level.type, config);
+    const reaction = computeReactionMove(
+      evidenceCandles,
+      index,
+      level.price,
+      level.type,
+      config,
+    );
     const touch: LevelTouch = {
       candleTimestamp: candle.timestamp,
       timeframe,
       reactionType: classifyReactionType({
         candle,
-        nextCandle: candles[index + 1],
+        nextCandle: evidenceCandles[index + 1],
         type: level.type,
         zoneLow,
         zoneHigh,
@@ -211,7 +229,7 @@ export function analyzeLevelTouches(
       touchDistancePct: touchDistancePct(candle, level.price),
       reactionMovePct: reaction.reactionMovePct,
       reactionMoveCandles: reaction.reactionMoveCandles,
-      volumeRatio: rollingVolumeRatio(candles, index, config),
+      volumeRatio: rollingVolumeRatio(evidenceCandles, index, config),
       closedAwayFromLevel: closeAwayFromLevel(candle, level.type, zoneLow, zoneHigh, config),
       wickRejectStrength: wickStrength,
       bodyRejectStrength: bodyStrength,
@@ -268,7 +286,12 @@ export function analyzeLevelTouches(
       volumeRatios.length > 0 ? volumeRatios.reduce((sum, value) => sum + value, 0) / volumeRatios.length : 1,
     cleanlinessStdDevPct: standardDeviation(touchAnchors),
     barsSinceLastReaction:
-      lastMeaningfulTouchIndex === null ? candles.length : Math.max(candles.length - 1 - lastMeaningfulTouchIndex, 0),
-    ageInBars: firstTouchIndex === null ? candles.length : Math.max(candles.length - 1 - firstTouchIndex, 0),
+      lastMeaningfulTouchIndex === null
+        ? evidenceCandles.length
+        : Math.max(evidenceCandles.length - 1 - lastMeaningfulTouchIndex, 0),
+    ageInBars:
+      firstTouchIndex === null
+        ? evidenceCandles.length
+        : Math.max(evidenceCandles.length - 1 - firstTouchIndex, 0),
   };
 }

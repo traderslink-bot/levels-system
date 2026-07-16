@@ -31,6 +31,22 @@ const TIMEFRAME_TO_REMOTE_INTERVAL: Record<ProviderCandleTimeframe, string> = {
   "5m": "5min",
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const EODHD_BARS_PER_REGULAR_SESSION: Record<ProviderCandleTimeframe, number> = {
+  daily: 1,
+  "4h": 2,
+  "15m": 26,
+  "5m": 78,
+};
+
+const EODHD_MINIMUM_CALENDAR_DAYS: Record<ProviderCandleTimeframe, number> = {
+  daily: 14,
+  "4h": 14,
+  "15m": 7,
+  "5m": 7,
+};
+
 function resolvePlannedBarCount(
   timeframe: ProviderCandleTimeframe,
   lookbackBars: number,
@@ -48,7 +64,7 @@ function resolvePlannedBarCount(
 }
 
 function formatIbkrDurationFromMs(spanMs: number): string {
-  const dayMs = 24 * 60 * 60 * 1000;
+  const dayMs = DAY_MS;
   const weekMs = 7 * dayMs;
   const monthMs = 30 * dayMs;
   const yearMs = 365 * dayMs;
@@ -68,6 +84,31 @@ function formatIbkrDurationFromMs(spanMs: number): string {
   return `${Math.max(1, Math.ceil(spanMs / yearMs))} Y`;
 }
 
+function resolveRequestSpanMs(
+  provider: CandleProviderName,
+  timeframe: ProviderCandleTimeframe,
+  plannedBarCount: number,
+  intervalMs: number,
+): number {
+  if (provider !== "eodhd") {
+    return plannedBarCount * intervalMs;
+  }
+
+  // EODHD date ranges are wall-clock ranges, while lookbackBars counts market
+  // bars. Converting bars directly to nominal bar durations under-fetches every
+  // timeframe across nights, weekends, and holidays (especially aggregated 4h
+  // candles). Request enough trading sessions plus a calendar buffer, then let
+  // the provider keep the newest plannedBarCount bars.
+  const estimatedTradingSessions = Math.ceil(
+    plannedBarCount / EODHD_BARS_PER_REGULAR_SESSION[timeframe],
+  );
+  const calendarDaysForSessions = Math.ceil(estimatedTradingSessions * (7 / 5));
+  const bufferedCalendarDays =
+    calendarDaysForSessions + EODHD_MINIMUM_CALENDAR_DAYS[timeframe];
+
+  return bufferedCalendarDays * DAY_MS;
+}
+
 export function buildProviderHistoricalFetchPlan(
   request: ProviderHistoricalFetchRequest,
   provider: CandleProviderName,
@@ -75,7 +116,13 @@ export function buildProviderHistoricalFetchPlan(
   const requestEndTimestamp = request.endTimeMs ?? Date.now();
   const intervalMs = TIMEFRAME_TO_INTERVAL_MS[request.timeframe];
   const plannedBarCount = resolvePlannedBarCount(request.timeframe, request.lookbackBars);
-  const requestStartTimestamp = requestEndTimestamp - plannedBarCount * intervalMs;
+  const requestSpanMs = resolveRequestSpanMs(
+    provider,
+    request.timeframe,
+    plannedBarCount,
+    intervalMs,
+  );
+  const requestStartTimestamp = requestEndTimestamp - requestSpanMs;
   const providerRequest = {
     barSizeSetting: TIMEFRAME_TO_BAR_SIZE[request.timeframe],
     durationStr: formatIbkrDurationFromMs(requestEndTimestamp - requestStartTimestamp),

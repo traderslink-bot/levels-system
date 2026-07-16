@@ -9,9 +9,12 @@ export type AlertSeverity = "low" | "medium" | "high" | "critical";
 export type AlertConfidence = "low" | "medium" | "high";
 
 export type AlertPayload = {
+  symbol?: string;
+  timestamp?: number;
   title: string;
   body: string;
   event: MonitoringEvent;
+  metadata?: Record<string, string | number | boolean | null | undefined>;
 };
 
 export type DiscordThread = {
@@ -33,6 +36,18 @@ export type LevelSnapshotDisplayZone = {
   representativePrice: number;
   lowPrice?: number;
   highPrice?: number;
+  strengthLabel?: FinalLevelZone["strengthLabel"];
+  freshness?: FinalLevelZone["freshness"];
+  touchCount?: number;
+  confluenceCount?: number;
+  sourceEvidenceCount?: number;
+  firstEvidenceAt?: number;
+  lastEvidenceAt?: number;
+  timeframeSources?: FinalLevelZone["timeframeSources"];
+  isExtension?: boolean;
+  isSynthetic?: boolean;
+  sourceLabel?: string;
+  roleFlipEvidence?: FinalLevelZone["roleFlipEvidence"];
 };
 
 export type LevelSnapshotPayload = {
@@ -40,6 +55,7 @@ export type LevelSnapshotPayload = {
   currentPrice: number;
   supportZones: LevelSnapshotDisplayZone[];
   resistanceZones: LevelSnapshotDisplayZone[];
+  marketStructure?: string | null;
   timestamp: number;
 };
 

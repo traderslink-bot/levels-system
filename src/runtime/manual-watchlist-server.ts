@@ -3,10 +3,18 @@ import "dotenv/config";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
+import { EodhdHistoricalCandleProvider } from "../lib/market-data/eodhd-historical-candle-provider.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
 import { DiscordAlertRouter } from "../lib/alerts/alert-router.js";
 import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
 import { LocalDiscordThreadGateway } from "../lib/alerts/local-discord-thread-gateway.js";
+import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import type {
+  LiveWatchlistMarketDataStatus,
+  LiveWatchlistPublisher,
+} from "../lib/live-watchlist/live-watchlist-types.js";
+import { WebsitePublishingDiscordGateway } from "../lib/live-watchlist/website-publishing-discord-gateway.js";
+import { EodhdLivePriceProvider } from "../lib/monitoring/eodhd-live-price-provider.js";
 import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import {
@@ -27,6 +35,16 @@ import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
 import { createIbkrClient } from "../scripts/shared/ibkr-runtime.js";
 
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
+const LIVE_WATCHLIST_HEALTH_PUBLISH_INTERVAL_MS = 15_000;
+const WATCHLIST_TRADER_READ_AI_ENABLED_ENV = "WATCHLIST_TRADER_READ_AI_ENABLED";
+const HISTORICAL_PROVIDER_ENV = "LEVEL_HISTORICAL_CANDLE_PROVIDER";
+const LIVE_PRICE_PROVIDER_ENV = "LEVEL_LIVE_PRICE_PROVIDER";
+
+type ManualWatchlistProviderName = "ibkr" | "eodhd";
+
+function resolveManualWatchlistProviderName(value: string | undefined): ManualWatchlistProviderName {
+  return value?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
+}
 
 type DiscordRuntimeEnv = {
   botToken: string | null;
@@ -56,7 +74,22 @@ function logDiscordRuntimeDiagnostics(env: DiscordRuntimeEnv, mode: "real" | "fa
   );
 }
 
-function createDiscordAlertRouter(): DiscordAlertRouter {
+function logTraderReadRuntimeMode(): void {
+  const aiEnabled =
+    process.env[WATCHLIST_TRADER_READ_AI_ENABLED_ENV]?.trim().toLowerCase() === "true";
+  if (aiEnabled) {
+    console.log(
+      "[ManualWatchlistRuntime] AI trader reads are not implemented in v2 yet; using deterministic watchlist trader reads.",
+    );
+    return;
+  }
+
+  console.log("[ManualWatchlistRuntime] Watchlist trader reads: deterministic mode.");
+}
+
+function createDiscordAlertRouter(
+  liveWatchlistPublisher: LiveWatchlistPublisher | null,
+): DiscordAlertRouter {
   const env = readDiscordRuntimeEnv();
   const hasAnyDiscordConfig = Boolean(env.botToken || env.watchlistChannelId || env.guildId);
   const shouldUseRealDiscord = Boolean(env.botToken && env.watchlistChannelId);
@@ -75,12 +108,13 @@ function createDiscordAlertRouter(): DiscordAlertRouter {
       );
     }
 
-    return new DiscordAlertRouter(
-      new DiscordRestThreadGateway({
+    const gateway = new DiscordRestThreadGateway({
         botToken: env.botToken!,
         watchlistChannelId: env.watchlistChannelId!,
         guildId: env.guildId ?? undefined,
-      }),
+    });
+    return new DiscordAlertRouter(
+      new WebsitePublishingDiscordGateway(gateway, liveWatchlistPublisher),
     );
   }
 
@@ -88,7 +122,12 @@ function createDiscordAlertRouter(): DiscordAlertRouter {
   console.log(
     "[ManualWatchlistRuntime] Set DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID in .env for real Discord posting.",
   );
-  return new DiscordAlertRouter(new LocalDiscordThreadGateway());
+  return new DiscordAlertRouter(
+    new WebsitePublishingDiscordGateway(
+      new LocalDiscordThreadGateway(),
+      liveWatchlistPublisher,
+    ),
+  );
 }
 
 function createLevelIntelligenceAlertPreviewDryRunOptions():
@@ -259,10 +298,68 @@ async function readJsonBody(request: IncomingMessage): Promise<Record<string, un
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
 }
 
+function resolveMarketDataStatus(args: {
+  startupState: "booting" | "ready" | "error";
+  priceFeedStatus?: "live" | "stale" | "waiting";
+}): LiveWatchlistMarketDataStatus {
+  if (args.startupState === "error") {
+    return "offline";
+  }
+  if (args.startupState === "booting") {
+    return "starting";
+  }
+  switch (args.priceFeedStatus) {
+    case "live":
+      return "live";
+    case "stale":
+      return "stale";
+    case "waiting":
+    default:
+      return "starting";
+  }
+}
+
+function publishLiveWatchlistHealth(args: {
+  publisher: LiveWatchlistPublisher | null;
+  manager: ManualWatchlistRuntimeManager;
+  startupState: "booting" | "ready" | "error";
+}): void {
+  if (!args.publisher?.publishHealth) {
+    return;
+  }
+
+  const health = args.manager.getRuntimeHealth();
+  const marketDataStatus = resolveMarketDataStatus({
+    startupState: args.startupState,
+    priceFeedStatus: health.providerHealth.priceFeedStatus,
+  });
+  void args.publisher
+    .publishHealth({
+      type: "health",
+      marketDataStatus,
+      marketDataUpdatedAt: health.lastPriceUpdateAt ?? Date.now(),
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ManualWatchlistRuntime] Failed to publish live watchlist health: ${message}`);
+    });
+}
+
 async function main(): Promise<void> {
-  const ib = createIbkrClient();
-  const historicalProvider = new IbkrHistoricalCandleProvider(ib);
-  const liveProvider = new IBKRLivePriceProvider(ib);
+  const historicalProviderName = resolveManualWatchlistProviderName(
+    process.env[HISTORICAL_PROVIDER_ENV],
+  );
+  const liveProviderName = resolveManualWatchlistProviderName(
+    process.env[LIVE_PRICE_PROVIDER_ENV],
+  );
+  const needsIbkr = historicalProviderName === "ibkr" || liveProviderName === "ibkr";
+  const ib = needsIbkr ? createIbkrClient() : null;
+  const historicalProvider = historicalProviderName === "eodhd"
+    ? new EodhdHistoricalCandleProvider()
+    : new IbkrHistoricalCandleProvider(ib!);
+  const liveProvider = liveProviderName === "eodhd"
+    ? new EodhdLivePriceProvider()
+    : new IBKRLivePriceProvider(ib!);
   const candleService = new CandleFetchService(historicalProvider);
   const levelStore = new LevelStore();
   const monitor = new WatchlistMonitor(levelStore, liveProvider);
@@ -281,23 +378,58 @@ async function main(): Promise<void> {
     adaptiveStatePersistence,
   });
   const levelIntelligenceAlertPreviewDryRun = createLevelIntelligenceAlertPreviewDryRunOptions();
+  logTraderReadRuntimeMode();
+  const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
+  console.log(
+    `[ManualWatchlistRuntime] Live website watchlist publisher ${
+      liveWatchlistPublisher ? "enabled" : "disabled"
+    }.`,
+  );
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: candleService,
     levelStore,
     monitor,
-    discordAlertRouter: createDiscordAlertRouter(),
+    discordAlertRouter: createDiscordAlertRouter(liveWatchlistPublisher),
     opportunityRuntimeController,
+    liveWatchlistPublisher,
     watchlistStatePersistence: new WatchlistStatePersistence(),
     ...(levelIntelligenceAlertPreviewDryRun
       ? { levelIntelligenceAlertPreviewDryRun }
       : {}),
   });
+  let startupState: "booting" | "ready" | "error" = "booting";
+  const liveWatchlistHealthTimer = setInterval(() => {
+    publishLiveWatchlistHealth({
+      publisher: liveWatchlistPublisher,
+      manager,
+      startupState,
+    });
+  }, LIVE_WATCHLIST_HEALTH_PUBLISH_INTERVAL_MS);
 
-  await waitForIbkrConnection(ib);
-  console.log(
-    `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
-  );
-  await manager.start();
+  try {
+    if (ib) {
+      await waitForIbkrConnection(ib);
+    }
+    console.log(
+      `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
+    );
+    console.log(`[ManualWatchlistRuntime] Live price provider path: ${liveProviderName}`);
+    await manager.start();
+    startupState = "ready";
+    publishLiveWatchlistHealth({
+      publisher: liveWatchlistPublisher,
+      manager,
+      startupState,
+    });
+  } catch (error) {
+    startupState = "error";
+    publishLiveWatchlistHealth({
+      publisher: liveWatchlistPublisher,
+      manager,
+      startupState,
+    });
+    throw error;
+  }
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
@@ -370,13 +502,19 @@ async function main(): Promise<void> {
     }
 
     shuttingDown = true;
+    clearInterval(liveWatchlistHealthTimer);
+    await liveWatchlistPublisher?.publishHealth?.({
+      type: "health",
+      marketDataStatus: "offline",
+      marketDataUpdatedAt: Date.now(),
+    });
     if (signal) {
       console.log(`Received ${signal}. Shutting down manual watchlist server...`);
     }
 
     server.close();
     await manager.stop();
-    ib.disconnect();
+    ib?.disconnect();
   };
 
   process.once("SIGINT", () => {

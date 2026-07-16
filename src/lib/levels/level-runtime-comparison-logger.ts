@@ -16,6 +16,10 @@ export type LevelRuntimeComparisonLogEntry = {
   alternateTopSupport: string | null;
   activeTopResistance: string | null;
   alternateTopResistance: string | null;
+  activeNearestSupport: string | null;
+  alternateNearestSupport: string | null;
+  activeNearestResistance: string | null;
+  alternateNearestResistance: string | null;
   activeVisibleCounts: {
     support: number;
     resistance: number;
@@ -68,6 +72,10 @@ export function buildLevelRuntimeComparisonLogEntry(params: {
     alternateTopSupport: formatLevel(alternateOutput.topSupport),
     activeTopResistance: formatLevel(activeOutput.topResistance),
     alternateTopResistance: formatLevel(alternateOutput.topResistance),
+    activeNearestSupport: formatLevel(activeOutput.nearestSupport),
+    alternateNearestSupport: formatLevel(alternateOutput.nearestSupport),
+    activeNearestResistance: formatLevel(activeOutput.nearestResistance),
+    alternateNearestResistance: formatLevel(alternateOutput.nearestResistance),
     activeVisibleCounts: {
       support: activeOutput.visibleSupportCount,
       resistance: activeOutput.visibleResistanceCount,

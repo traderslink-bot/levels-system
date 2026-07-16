@@ -280,6 +280,7 @@ function buildRawCandidates(symbol: string, series: Record<CandleTimeframe, Cand
         DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig[timeframe].minimumDisplacementPct,
       minimumSeparationBars:
         DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig[timeframe].minimumSwingSeparationBars,
+      requirePositiveVolumeEvidence: timeframe === "5m",
     });
 
     rawCandidates.push(
@@ -292,7 +293,10 @@ function buildRawCandidates(symbol: string, series: Record<CandleTimeframe, Cand
     );
   }
 
-  const special = buildSpecialLevelCandidates(symbol, series["5m"]);
+  const special = buildSpecialLevelCandidates(
+    symbol,
+    series["5m"].filter((candle) => candle.volume > 0),
+  );
   rawCandidates.push(...special.candidates);
 
   return {

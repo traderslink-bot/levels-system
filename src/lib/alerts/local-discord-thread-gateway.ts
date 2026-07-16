@@ -10,6 +10,7 @@ import type {
 } from "./alert-types.js";
 import type { DiscordThreadGateway } from "./alert-router.js";
 import { formatLevelExtensionMessage, formatLevelSnapshotMessage } from "./alert-router.js";
+import { buildWatchlistDiscordLinkMessage } from "./watchlist-discord-link-message.js";
 
 type PersistedDiscordMessage = {
   type: DiscordThreadMessageType;
@@ -204,7 +205,15 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
     state.threads[threadId] = {
       id: threadId,
       name,
-      messages: [],
+      messages: [
+        {
+          type: "alert",
+          title: name,
+          body: buildWatchlistDiscordLinkMessage(name),
+          symbol: name,
+          timestamp: Date.now(),
+        },
+      ],
     };
     this.saveState(state);
 

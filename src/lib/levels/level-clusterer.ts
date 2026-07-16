@@ -274,7 +274,11 @@ function buildZoneFromGroup(
     representativePrice: Number(representativeCandidate.price.toFixed(4)),
     strengthScore: 0,
     strengthLabel: "weak",
-    touchCount: group.reduce((sum, item) => sum + item.touchCount, 0),
+    // Candidate touch windows overlap heavily inside one price cluster. A sum
+    // claims the same candle repeatedly (once per nearby swing). Keep the
+    // strongest observed interaction count and let confluence/source evidence
+    // represent independent corroboration.
+    touchCount: Math.max(...group.map((item) => item.touchCount)),
     confluenceCount: timeframeSources.length,
     sourceTypes,
     timeframeSources,
@@ -461,7 +465,7 @@ function secondPassMergeZones(
         zoneLow: Number(Math.min(current.zoneLow, next.zoneLow).toFixed(4)),
         zoneHigh: Number(Math.max(current.zoneHigh, next.zoneHigh).toFixed(4)),
         representativePrice: representativeZone.representativePrice,
-        touchCount: current.touchCount + next.touchCount,
+        touchCount: Math.max(current.touchCount, next.touchCount),
         confluenceCount: unique([
           ...current.timeframeSources,
           ...next.timeframeSources,
@@ -573,7 +577,7 @@ function secondPassMergeTrackedZones(
         zoneLow: Number(Math.min(current.zone.zoneLow, next.zone.zoneLow).toFixed(4)),
         zoneHigh: Number(Math.max(current.zone.zoneHigh, next.zone.zoneHigh).toFixed(4)),
         representativePrice: representativeZone.representativePrice,
-        touchCount: current.zone.touchCount + next.zone.touchCount,
+        touchCount: Math.max(current.zone.touchCount, next.zone.touchCount),
         confluenceCount: unique([
           ...current.zone.timeframeSources,
           ...next.zone.timeframeSources,

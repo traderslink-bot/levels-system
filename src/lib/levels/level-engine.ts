@@ -14,23 +14,69 @@ import type {
   LevelRuntimeMode,
 } from "./level-runtime-mode.js";
 import { buildNewRuntimeCompatibleLevelOutput } from "./level-runtime-output-adapter.js";
-import { buildRawLevelCandidates } from "./raw-level-candidate-builder.js";
+import {
+  buildGapOriginSupportCandidates,
+  buildRawLevelCandidates,
+} from "./raw-level-candidate-builder.js";
 import { rankLevelZones } from "./level-ranker.js";
 import { normalizeOldPathOutput } from "./level-ranking-comparison.js";
 import { scoreLevelZones } from "./level-scorer.js";
 import { buildSpecialLevelCandidates } from "./special-level-builder.js";
 import { detectSwingPoints } from "./swing-detector.js";
-import type { LevelDataFreshness, LevelEngineOutput, RawLevelCandidate } from "./level-types.js";
+import type {
+  LevelDataFreshness,
+  LevelEngineOutput,
+  LevelState,
+  LevelType,
+  RawLevelCandidate,
+  RoleFlipEvidence,
+  SourceTimeframe,
+} from "./level-types.js";
 
 export type LevelEngineRequest = {
   symbol: string;
   historicalRequests: Record<CandleTimeframe, HistoricalFetchRequest>;
+  /** Live/current price used only to classify, rank, and extend detected levels. */
+  referencePriceOverride?: number;
 };
 
 export type LevelEngineRuntimeOptions = {
   runtimeMode?: LevelRuntimeMode;
   compareActivePath?: LevelRuntimeCompareActivePath;
   onComparisonLog?: (entry: LevelRuntimeComparisonLogEntry) => void;
+  /** Rich shadow-only evidence for offline/QA review; never changes output. */
+  onComparisonDetails?: (details: LevelRuntimeComparisonDetails) => void;
+};
+
+export type LevelRuntimeRoleFlipComparisonDetail = {
+  id: string;
+  type: LevelType;
+  price: number;
+  state: LevelState;
+  sourceTimeframes: SourceTimeframe[];
+  evidence: RoleFlipEvidence;
+};
+
+export type LevelRuntimeSurfacedRowComparisonDetail = {
+  id: string;
+  type: LevelType;
+  price: number;
+  zoneLow: number;
+  zoneHigh: number;
+};
+
+export type LevelRuntimeComparisonDetails = {
+  symbol: string;
+  activePath: LevelRuntimeCompareActivePath;
+  surfacedRows: LevelRuntimeSurfacedRowComparisonDetail[];
+  confirmedRoleFlips: LevelRuntimeRoleFlipComparisonDetail[];
+};
+
+export type LevelEngineSeriesMap = Record<CandleTimeframe, CandleProviderResponse>;
+
+export type LevelEngineGenerationResult = {
+  output: LevelEngineOutput;
+  seriesByTimeframe: LevelEngineSeriesMap;
 };
 
 export class LevelEngine {
@@ -73,7 +119,7 @@ export class LevelEngine {
 
   private async loadSeries(
     request: LevelEngineRequest,
-  ): Promise<Record<CandleTimeframe, CandleProviderResponse>> {
+  ): Promise<LevelEngineSeriesMap> {
     const dailyPromise = this.fetchService.fetchCandles(request.historicalRequests.daily);
     const fourHourPromise = this.fetchService.fetchCandles(request.historicalRequests["4h"]);
     const fiveMinutePromise = this.fetchService.fetchCandles(request.historicalRequests["5m"]);
@@ -110,7 +156,7 @@ export class LevelEngine {
     };
   }
 
-  private assertSeriesUsable(seriesMap: Record<CandleTimeframe, CandleProviderResponse>): void {
+  private assertSeriesUsable(seriesMap: LevelEngineSeriesMap): void {
     for (const timeframe of ["daily", "4h"] as const) {
       const series = seriesMap[timeframe];
       const errors = series.validationIssues.filter((issue) => issue.severity === "error");
@@ -130,7 +176,8 @@ export class LevelEngine {
   }
 
   private deriveOutputMetadata(
-    seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+    seriesMap: LevelEngineSeriesMap,
+    referencePriceOverride?: number,
   ): LevelEngineOutput["metadata"] {
     const dataQualityFlags = [
       ...new Set(
@@ -146,10 +193,18 @@ export class LevelEngine {
     const ageHours = (Date.now() - freshestTimestamp) / (1000 * 60 * 60);
     const freshness: LevelDataFreshness =
       ageHours <= 24 ? "fresh" : ageHours <= 24 * 7 ? "aging" : "stale";
+    const latestTradedFiveMinuteClose = [...seriesMap["5m"].candles]
+      .reverse()
+      .find((candle) => candle.volume > 0)?.close;
     const referencePrice =
-      seriesMap["5m"].candles.at(-1)?.close ??
-      seriesMap["4h"].candles.at(-1)?.close ??
-      seriesMap.daily.candles.at(-1)?.close;
+      typeof referencePriceOverride === "number" &&
+      Number.isFinite(referencePriceOverride) &&
+      referencePriceOverride > 0
+        ? referencePriceOverride
+        : latestTradedFiveMinuteClose ??
+          seriesMap["5m"].candles.at(-1)?.close ??
+          seriesMap["4h"].candles.at(-1)?.close ??
+          seriesMap.daily.candles.at(-1)?.close;
 
     return {
       providerByTimeframe: {
@@ -207,10 +262,14 @@ export class LevelEngine {
     });
   }
 
-  async generateLevels(request: LevelEngineRequest): Promise<LevelEngineOutput> {
-    const seriesMap = await this.loadSeries(request);
-    this.assertSeriesUsable(seriesMap);
-    const metadata = this.deriveOutputMetadata(seriesMap);
+  private generateLevelsFromSeries(
+    request: LevelEngineRequest,
+    seriesMap: LevelEngineSeriesMap,
+  ): LevelEngineOutput {
+    const metadata = this.deriveOutputMetadata(
+      seriesMap,
+      request.referencePriceOverride,
+    );
     const rawCandidates: RawLevelCandidate[] = [];
 
     for (const timeframe of ["daily", "4h", "5m"] as const) {
@@ -224,6 +283,7 @@ export class LevelEngine {
           swingWindow: this.config.timeframeConfig[timeframe].swingWindow,
           minimumDisplacementPct: this.config.timeframeConfig[timeframe].minimumDisplacementPct,
           minimumSeparationBars: this.config.timeframeConfig[timeframe].minimumSwingSeparationBars,
+          requirePositiveVolumeEvidence: timeframe === "5m",
         },
       );
 
@@ -233,13 +293,19 @@ export class LevelEngine {
           timeframe,
           candles: series.candles,
           swings,
+          swingConfirmationBars: this.config.timeframeConfig[timeframe].swingWindow,
+        }),
+        ...buildGapOriginSupportCandidates({
+          symbol: request.symbol.toUpperCase(),
+          timeframe,
+          candles: series.candles,
         }),
       );
     }
 
     const special = buildSpecialLevelCandidates(
       request.symbol.toUpperCase(),
-      seriesMap["5m"].candles,
+      seriesMap["5m"].candles.filter((candle) => candle.volume > 0),
     );
 
     rawCandidates.push(...special.candidates);
@@ -266,14 +332,12 @@ export class LevelEngine {
       },
       metadata,
       specialLevels: special.summary,
-      legacyRuntimeBuckets: {
-        majorSupport: oldOutput.majorSupport,
-        majorResistance: oldOutput.majorResistance,
-        intermediateSupport: oldOutput.intermediateSupport,
-        intermediateResistance: oldOutput.intermediateResistance,
-        intradaySupport: oldOutput.intradaySupport,
-        intradayResistance: oldOutput.intradayResistance,
+      asOfTimestampByTimeframe: {
+        daily: seriesMap.daily.requestedEndTimestamp,
+        "4h": seriesMap["4h"].requestedEndTimestamp,
+        "5m": seriesMap["5m"].requestedEndTimestamp,
       },
+      runtimeBucketOwnership: "surfaced",
       legacyExtensionLevels: oldOutput.extensionLevels,
     });
 
@@ -282,6 +346,33 @@ export class LevelEngine {
     }
 
     const compareActivePath = this.runtimeOptions.compareActivePath ?? "old";
+    this.runtimeOptions.onComparisonDetails?.({
+      symbol,
+      activePath: compareActivePath,
+      surfacedRows: [
+        ...newProjection.surfacedSelection.surfacedSupports,
+        ...newProjection.surfacedSelection.surfacedResistances,
+      ].map((level) => ({
+        id: level.id,
+        type: level.type,
+        price: level.price,
+        zoneLow: level.zoneLow,
+        zoneHigh: level.zoneHigh,
+      })),
+      confirmedRoleFlips: [
+        ...newProjection.surfacedSelection.surfacedSupports,
+        ...newProjection.surfacedSelection.surfacedResistances,
+      ]
+        .filter((level) => level.roleFlipEvidence !== undefined)
+        .map((level) => ({
+          id: level.id,
+          type: level.type,
+          price: level.price,
+          state: level.state,
+          sourceTimeframes: [...level.sourceTimeframes],
+          evidence: { ...level.roleFlipEvidence! },
+        })),
+    });
     this.runtimeOptions.onComparisonLog?.(
       buildLevelRuntimeComparisonLogEntry({
         symbol,
@@ -292,5 +383,21 @@ export class LevelEngine {
     );
 
     return compareActivePath === "new" ? newProjection.output : oldOutput;
+  }
+
+  async generateLevelsWithSeries(
+    request: LevelEngineRequest,
+  ): Promise<LevelEngineGenerationResult> {
+    const seriesByTimeframe = await this.loadSeries(request);
+    this.assertSeriesUsable(seriesByTimeframe);
+
+    return {
+      output: this.generateLevelsFromSeries(request, seriesByTimeframe),
+      seriesByTimeframe,
+    };
+  }
+
+  async generateLevels(request: LevelEngineRequest): Promise<LevelEngineOutput> {
+    return (await this.generateLevelsWithSeries(request)).output;
   }
 }

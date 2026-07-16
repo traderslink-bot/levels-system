@@ -1,11 +1,20 @@
 {
-  "name": "levels-system-phase1",
+  "name": "levels-system-v2",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./support-resistance-engine": {
+      "types": "./dist/lib/support-resistance/index.d.ts",
+      "import": "./dist/lib/support-resistance/index.js",
+      "default": "./dist/lib/support-resistance/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "tsx --test src/tests/**/*.test.ts",
+    "check": "npm run build && npm test",
     "manual:test": "tsx src/scripts/run-manual-level-test.ts",
     "watchlist:test": "tsx src/scripts/run-watchlist-monitor-sample.ts",
     "alert:test": "tsx src/scripts/run-alert-intelligence-sample.ts",
@@ -18,11 +27,13 @@
     "manifest:level-analysis:snapshots": "tsx src/scripts/run-level-analysis-snapshot-batch-manifest.ts",
     "manifest:level-analysis:snapshots:review": "tsx src/scripts/run-level-analysis-snapshot-batch-manifest.ts --input docs/examples/level-analysis-snapshot/latest-level-analysis-snapshot.json --out docs/examples/level-analysis-snapshot/batch-manifest/latest-level-analysis-snapshot-batch-manifest.json --output-root docs/examples/level-analysis-snapshot --batch-id level-analysis-snapshot-review-batch --generated-at 2026-06-01T00:00:00.000Z",
     "review:level-quality": "tsx src/scripts/run-level-quality-review.ts",
+    "review:level-runtime-comparison": "tsx src/scripts/run-level-runtime-comparison-review.ts",
     "cache:collect:15m": "tsx src/scripts/collect-15m-validation-cache.ts",
     "validation:levels:live": "tsx src/scripts/run-level-candle-health-check.ts",
     "validation:levels:persistence": "tsx src/scripts/run-level-persistence-validation.ts",
     "validation:levels:forward": "tsx src/scripts/run-forward-reaction-validation.ts",
     "validation:levels:batch": "tsx src/scripts/run-level-validation-batch.ts",
+    "validation:eodhd:corpus": "tsx --test src/tests/eodhd-validation-corpus.test.ts",
     "validation:live": "tsx src/scripts/run-live-opportunity-validation.ts",
     "validation:test": "tsx src/scripts/run-opportunity-validation-sample.ts",
     "validation:summary": "tsx src/scripts/summarize-opportunity-validations.ts",

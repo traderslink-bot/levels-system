@@ -192,4 +192,52 @@ describe("level-ranker bucket ownership", () => {
     assert.ok(surfacedResistanceIds.includes("resistance-above"));
     assert.ok(!surfacedResistanceIds.includes("resistance-below"));
   });
+
+  it("preserves the nearest practical support levels before stronger far-away supports", () => {
+    const nearOrigin = makeZone({
+      id: "near-gap-origin",
+      kind: "support",
+      representativePrice: 5.18,
+      timeframeSources: ["daily"],
+      timeframeBias: "daily",
+      strengthScore: 20,
+      sourceTypes: ["gap_up_origin"],
+    });
+    const nearPullbackLow = makeZone({
+      id: "near-pullback-low",
+      kind: "support",
+      representativePrice: 4.75,
+      timeframeSources: ["daily"],
+      timeframeBias: "daily",
+      strengthScore: 19,
+      sourceTypes: ["gap_up_pullback_low"],
+    });
+    const farStrongSupports = [3.81, 1.36, 0.72].map((price, index) =>
+      makeZone({
+        id: `far-strong-${index}`,
+        kind: "support",
+        representativePrice: price,
+        timeframeSources: ["daily"],
+        timeframeBias: "daily",
+        strengthScore: 45 + index,
+      }),
+    );
+
+    const result = rankLevelZones({
+      symbol: "TEST",
+      supportZones: [nearOrigin, nearPullbackLow, ...farStrongSupports],
+      resistanceZones: [],
+      specialLevels: {},
+      metadata: {
+        ...testMetadata,
+        referencePrice: 7.25,
+      },
+      config: DEFAULT_LEVEL_ENGINE_CONFIG,
+    });
+
+    const surfacedSupportIds = result.majorSupport.map((zone) => zone.id);
+
+    assert.ok(surfacedSupportIds.includes("near-gap-origin"));
+    assert.ok(surfacedSupportIds.includes("near-pullback-low"));
+  });
 });

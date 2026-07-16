@@ -6,6 +6,7 @@ import {
   StubHistoricalCandleProvider,
 } from "../lib/market-data/candle-fetch-service.js";
 import { buildCandleSessionSummary } from "../lib/market-data/candle-session-classifier.js";
+import { validateCandleResponse } from "../lib/market-data/candle-validation.js";
 
 test("CandleFetchService returns the requested number of stub candles", async () => {
   const service = new CandleFetchService(new StubHistoricalCandleProvider());
@@ -39,6 +40,16 @@ test("CandleFetchService rejects non-positive lookbackBars", async () => {
       }),
     /lookbackBars must be greater than zero\./,
   );
+});
+
+test("CandleFetchService passes explicit IBKR timeout through provider options", () => {
+  const service = new CandleFetchService({
+    providerName: "ibkr",
+    ib: {} as never,
+    ibkrTimeoutMs: 120_000,
+  });
+
+  assert.equal((service as any).provider.timeoutMs, 120_000);
 });
 
 test("buildCandleSessionSummary classifies 5m candles into market sessions", () => {
@@ -89,4 +100,38 @@ test("buildCandleSessionSummary classifies 5m candles into market sessions", () 
     unknownBars: 0,
     latestRegularSessionDate: "2026-04-15",
   });
+});
+
+test("five-minute validation flags sparse traded bars and a thin outlier print", () => {
+  const base = Date.parse("2026-07-01T13:30:00.000Z");
+  const tradedIndexes = new Set([0, 6, 12, 19]);
+  const candles = Array.from({ length: 20 }, (_, index) => {
+    const isLatest = index === 19;
+    const close = isLatest ? 12 : 10;
+    return {
+      timestamp: base + index * 5 * 60_000,
+      open: close,
+      high: close,
+      low: close,
+      close,
+      volume: tradedIndexes.has(index) ? 100 : 0,
+    };
+  });
+
+  const result = validateCandleResponse({
+    provider: "stub",
+    symbol: "THIN",
+    timeframe: "5m",
+    requestedLookbackBars: 20,
+    candles,
+    fetchStartTimestamp: base,
+    fetchEndTimestamp: base + 19 * 5 * 60_000,
+    requestedStartTimestamp: base,
+    requestedEndTimestamp: base + 19 * 5 * 60_000,
+    sessionMetadataAvailable: true,
+  });
+  const codes = result.validationIssues.map((issue) => issue.code);
+
+  assert.ok(codes.includes("sparse_traded_bars"));
+  assert.ok(codes.includes("thin_last_print"));
 });

@@ -7,7 +7,7 @@ export type ProviderCandleTimeframe = "daily" | "4h" | "15m" | "5m";
 export type ValidationCacheCollectionTimeframe = ProviderCandleTimeframe;
 export type CandleFetchTimeframe = ProviderCandleTimeframe | "1m";
 
-export type CandleProviderName = "ibkr" | "stub" | "twelve_data";
+export type CandleProviderName = "ibkr" | "eodhd" | "stub" | "twelve_data";
 
 export type Candle = {
   timestamp: number;
@@ -37,7 +37,9 @@ export type CandleValidationCode =
   | "suspicious_gap"
   | "stale_final_candle"
   | "missing_recent_candles"
-  | "incomplete_current_session_data";
+  | "incomplete_current_session_data"
+  | "sparse_traded_bars"
+  | "thin_last_print";
 
 export type CandleValidationIssue = {
   code: CandleValidationCode;

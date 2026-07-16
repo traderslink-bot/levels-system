@@ -109,6 +109,39 @@ export function validateCandleResponse(
     previousTimestamp = candle.timestamp;
   }
 
+  if (response.timeframe === "5m" && candles.length >= 20) {
+    const tradedCandles = candles.filter((candle) => candle.volume > 0);
+    const tradedShare = tradedCandles.length / candles.length;
+    if (tradedShare < 0.35) {
+      pushIssue(issues, {
+        code: "sparse_traded_bars",
+        severity: "warning",
+        message:
+          `Only ${tradedCandles.length}/${candles.length} five-minute bars contain trades for ` +
+          `${response.symbol}; zero-volume placeholders are excluded from level evidence.`,
+      });
+    }
+
+    const latestTrade = tradedCandles.at(-1);
+    const previousTrade = tradedCandles.at(-2);
+    if (latestTrade && previousTrade) {
+      const closeMovePct =
+        Math.abs(latestTrade.close - previousTrade.close) /
+        Math.max(previousTrade.close, 0.0001);
+      const latestDollarVolume = latestTrade.close * latestTrade.volume;
+      if (closeMovePct >= 0.1 && latestDollarVolume < 25_000) {
+        pushIssue(issues, {
+          code: "thin_last_print",
+          severity: "warning",
+          message:
+            `Latest traded five-minute close for ${response.symbol} moved ` +
+            `${(closeMovePct * 100).toFixed(2)}% on approximately $${Math.round(latestDollarVolume)} ` +
+            "of bar volume; treat it as a thin reference print.",
+        });
+      }
+    }
+  }
+
   const lastCandle = candles.at(-1);
   let stale = false;
   if (lastCandle) {

@@ -83,6 +83,23 @@ export interface FormalStructureEvent {
   traderLine: string;
 }
 
+export type FormalLivePricePressureType =
+  | "above_protected_high"
+  | "below_protected_low"
+  | "testing_protected_high"
+  | "testing_protected_low";
+
+export interface FormalLivePricePressure {
+  type: FormalLivePricePressureType;
+  timeframe: FormalStructureTimeframe;
+  currentPrice: number;
+  levelPrice: number;
+  levelId: string;
+  distanceFromLevelPct: number;
+  confirmation: "unconfirmed_live_price";
+  traderLine: string;
+}
+
 export interface FormalMarketStructureContext {
   symbol: string;
   timeframe: FormalStructureTimeframe;
@@ -98,6 +115,7 @@ export interface FormalMarketStructureContext {
   protectedHigh: FormalStructureSwing | null;
   protectedLow: FormalStructureSwing | null;
   latestEvent: FormalStructureEvent;
+  livePricePressure: FormalLivePricePressure | null;
   diagnostics: FormalMarketStructureDiagnostic[];
 }
 
@@ -106,6 +124,7 @@ export interface BuildFormalMarketStructureRequest {
   candles: Candle[];
   timeframe?: FormalStructureTimeframe;
   asOfTimestamp?: number | string | Date;
+  currentPrice?: number;
   options?: FormalMarketStructureOptions;
 }
 
@@ -657,6 +676,123 @@ function traderLineForEvent(
   return `${tf} structure has no confirmed BOS or CHOCH on the latest completed candle.`;
 }
 
+function livePressureTraderLine(
+  type: FormalLivePricePressureType,
+  timeframe: FormalStructureTimeframe,
+  currentPrice: number,
+  levelPrice: number,
+): string {
+  const tf = timeframeLabel(timeframe);
+  if (type === "above_protected_high") {
+    return `live price ${formatPrice(currentPrice)} is above protected high ${formatPrice(levelPrice)} before the ${tf} candle has confirmed.`;
+  }
+  if (type === "below_protected_low") {
+    return `live price ${formatPrice(currentPrice)} is below protected low ${formatPrice(levelPrice)} before the ${tf} candle has confirmed.`;
+  }
+  if (type === "testing_protected_high") {
+    return `live price ${formatPrice(currentPrice)} is testing protected high ${formatPrice(levelPrice)} before the ${tf} candle has confirmed.`;
+  }
+  return `live price ${formatPrice(currentPrice)} is testing protected low ${formatPrice(levelPrice)} before the ${tf} candle has confirmed.`;
+}
+
+function buildLivePricePressure(params: {
+  timeframe: FormalStructureTimeframe;
+  currentPrice: number | undefined;
+  protectedHigh: FormalStructureSwing | null;
+  protectedLow: FormalStructureSwing | null;
+  options: ResolvedFormalMarketStructureOptions;
+}): FormalLivePricePressure | null {
+  const currentPrice = params.currentPrice;
+  if (!Number.isFinite(currentPrice ?? Number.NaN) || (currentPrice ?? 0) <= 0) {
+    return null;
+  }
+  const livePrice = currentPrice as number;
+
+  const protectedHigh = params.protectedHigh;
+  if (protectedHigh) {
+    const breakTolerance = breakToleranceForPrice(protectedHigh.price, params.options);
+    const testTolerance = Math.max(equalLevelTolerance(protectedHigh.price, params.options), breakTolerance * 2);
+    const distanceFromLevelPct = closeBeyondPct(livePrice, protectedHigh.price);
+    if (livePrice > protectedHigh.price + breakTolerance) {
+      return {
+        type: "above_protected_high",
+        timeframe: params.timeframe,
+        currentPrice: roundPrice(livePrice) ?? livePrice,
+        levelPrice: roundPrice(protectedHigh.price) ?? protectedHigh.price,
+        levelId: protectedHigh.id,
+        distanceFromLevelPct,
+        confirmation: "unconfirmed_live_price",
+        traderLine: livePressureTraderLine(
+          "above_protected_high",
+          params.timeframe,
+          livePrice,
+          protectedHigh.price,
+        ),
+      };
+    }
+    if (Math.abs(livePrice - protectedHigh.price) <= testTolerance) {
+      return {
+        type: "testing_protected_high",
+        timeframe: params.timeframe,
+        currentPrice: roundPrice(livePrice) ?? livePrice,
+        levelPrice: roundPrice(protectedHigh.price) ?? protectedHigh.price,
+        levelId: protectedHigh.id,
+        distanceFromLevelPct,
+        confirmation: "unconfirmed_live_price",
+        traderLine: livePressureTraderLine(
+          "testing_protected_high",
+          params.timeframe,
+          livePrice,
+          protectedHigh.price,
+        ),
+      };
+    }
+  }
+
+  const protectedLow = params.protectedLow;
+  if (protectedLow) {
+    const breakTolerance = breakToleranceForPrice(protectedLow.price, params.options);
+    const testTolerance = Math.max(equalLevelTolerance(protectedLow.price, params.options), breakTolerance * 2);
+    const distanceFromLevelPct = closeBeyondPct(livePrice, protectedLow.price);
+    if (livePrice < protectedLow.price - breakTolerance) {
+      return {
+        type: "below_protected_low",
+        timeframe: params.timeframe,
+        currentPrice: roundPrice(livePrice) ?? livePrice,
+        levelPrice: roundPrice(protectedLow.price) ?? protectedLow.price,
+        levelId: protectedLow.id,
+        distanceFromLevelPct,
+        confirmation: "unconfirmed_live_price",
+        traderLine: livePressureTraderLine(
+          "below_protected_low",
+          params.timeframe,
+          livePrice,
+          protectedLow.price,
+        ),
+      };
+    }
+    if (Math.abs(livePrice - protectedLow.price) <= testTolerance) {
+      return {
+        type: "testing_protected_low",
+        timeframe: params.timeframe,
+        currentPrice: roundPrice(livePrice) ?? livePrice,
+        levelPrice: roundPrice(protectedLow.price) ?? protectedLow.price,
+        levelId: protectedLow.id,
+        distanceFromLevelPct,
+        confirmation: "unconfirmed_live_price",
+        traderLine: livePressureTraderLine(
+          "testing_protected_low",
+          params.timeframe,
+          livePrice,
+          protectedLow.price,
+        ),
+      };
+    }
+  }
+
+  return null;
+}
+
 function makeEvent(params: {
   type: FormalStructureEventType;
   timeframe: FormalStructureTimeframe;
@@ -972,6 +1108,13 @@ export function buildFormalMarketStructureContext(
       confidenceScore: 0.1,
       confidence: "low",
     });
+    const livePricePressure = buildLivePricePressure({
+      timeframe,
+      currentPrice: request.currentPrice,
+      protectedHigh: emptyAnalysis.protectedHigh,
+      protectedLow: emptyAnalysis.protectedLow,
+      options,
+    });
     return {
       symbol: request.symbol,
       timeframe,
@@ -987,6 +1130,7 @@ export function buildFormalMarketStructureContext(
       protectedHigh: emptyAnalysis.protectedHigh,
       protectedLow: emptyAnalysis.protectedLow,
       latestEvent: event,
+      livePricePressure,
       diagnostics: [...diagnostics, ...emptyAnalysis.diagnostics],
     };
   }
@@ -995,6 +1139,16 @@ export function buildFormalMarketStructureContext(
   const priorAnalysis = deriveSwingAnalysis(request.symbol, timeframe, priorCandles, options);
   const displayAnalysis = deriveSwingAnalysis(request.symbol, timeframe, candles, options);
   const latestEvent = detectFormalEvent(request.symbol, timeframe, candles, priorAnalysis, options);
+  const livePricePressure =
+    latestEvent.type === "none"
+      ? buildLivePricePressure({
+          timeframe,
+          currentPrice: request.currentPrice,
+          protectedHigh: priorAnalysis.protectedHigh,
+          protectedLow: priorAnalysis.protectedLow,
+          options,
+        })
+      : null;
   const allDiagnostics = [...diagnostics, ...priorAnalysis.diagnostics, ...displayAnalysis.diagnostics];
 
   return {
@@ -1012,6 +1166,7 @@ export function buildFormalMarketStructureContext(
     protectedHigh: priorAnalysis.protectedHigh,
     protectedLow: priorAnalysis.protectedLow,
     latestEvent,
+    livePricePressure,
     diagnostics: allDiagnostics,
   };
 }
