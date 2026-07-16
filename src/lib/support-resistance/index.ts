@@ -22,3 +22,35 @@ export {
   type BuildTradeAnalysisSupportResistanceContextRequest,
   type TradeAnalysisSupportResistanceContext,
 } from "./trade-analysis-context.js";
+export type {
+  Candle,
+  CandleProviderResponse,
+  CandleFetchTimeframe,
+  CandleTimeframe,
+} from "../market-data/candle-types.js";
+export {
+  CandleFetchService,
+  StubHistoricalCandleProvider,
+  type CandleFetchServiceOptions,
+  type HistoricalCandleProvider,
+  type HistoricalFetchRequest,
+} from "../market-data/candle-fetch-service.js";
+export type {
+  CandleMarketStructureContext,
+  DynamicLevelsFromCandles,
+  SupportResistanceSymbolContext,
+  TradeAnalysisCandleContext,
+  TradeAnalysisCandleWindowOptions,
+  TradeAnalysisExecutionInput,
+  TradeAnalysisExecutionRelationFact,
+  TradeAnalysisMarketFacts,
+  TradeAnalysisTradeWindowFacts,
+} from "./trader-intelligence-contract.js";
+export type {
+  FinalLevelZone,
+  LevelEngineOutput,
+  RawLevelCandidateSourceType,
+} from "../levels/level-types.js";
+export {
+  buildSupportResistanceContextForSymbol,
+} from "./trader-intelligence-contract.js";

@@ -133,5 +133,6 @@ This folder contains the full plan for the candle-based levels system, including
 - `docs/148_LEVELS_SYSTEM_MULTI_TIMEFRAME_SNAPSHOT_HARDENING.md`
 - `docs/149_LEVEL_ANALYSIS_SNAPSHOT_MULTI_TIMEFRAME_FIXTURE_PACK.md`
 - `docs/150_LEVEL_ANALYSIS_SNAPSHOT_MULTI_TIMEFRAME_FIXTURE_PACK_HANDOFF.md`
+- `docs/151_LEVEL_QUALITY_REVIEW_POST_MULTI_TIMEFRAME_HANDOFF_CURRENT_CACHE_STABILITY.md`
 - Compact connector fixture: `docs/examples/level-analysis-snapshot/journal-connector-contract/journal-connector-level-analysis-snapshot-v1.json`
 - Connector test pack: `src/tests/level-analysis-snapshot-downstream-adapter-test-pack.test.ts`

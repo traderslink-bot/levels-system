@@ -136,14 +136,27 @@ function computeRecentVolumeActivityScore(
   context: LevelScoringContext,
   config: LevelScoreConfig,
 ): number {
-  const recentCandles = context.recentCandles ?? [];
+  const levelIsLocal =
+    priceDistancePct(context.currentPrice, zoneMid(level.zoneLow, level.zoneHigh)) <=
+    config.activeThresholds.localDistancePct;
+  if (!levelIsLocal) {
+    return 3;
+  }
+
+  const recentCandles = (context.recentCandles ?? [])
+    .slice(-config.activeThresholds.pressureLookbackBars);
   const nearbyCandles = recentCandles.filter((candle) =>
     level.type === "resistance"
       ? priceDistancePct(candle.high, level.zoneLow) <= config.activeThresholds.localDistancePct
       : priceDistancePct(candle.low, level.zoneHigh) <= config.activeThresholds.localDistancePct,
   );
-  const localRatio = nearbyCandles.length > 0 ? rollingVolumeRatio(nearbyCandles) : level.averageVolumeRatio ?? 1;
-  const combinedRatio = Math.max(localRatio, context.currentSessionVolumeRatio ?? 1);
+  const localRatio = nearbyCandles.length > 0 ? rollingVolumeRatio(nearbyCandles) : 1;
+  // Historical reaction volume is already part of structural strength. It is
+  // not current activity, and reusing it here let very remote old levels earn
+  // a second volume bonus. Session-wide volume is relevant only while price is
+  // locally interacting with the level.
+  const currentSessionRatio = context.currentSessionVolumeRatio ?? 1;
+  const combinedRatio = Math.max(localRatio, currentSessionRatio);
 
   if (combinedRatio >= 2) {
     return 15;

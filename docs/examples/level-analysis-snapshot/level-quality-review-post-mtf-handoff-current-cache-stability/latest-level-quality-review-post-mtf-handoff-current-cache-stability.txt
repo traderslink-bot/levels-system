@@ -1,0 +1,36 @@
+Gate: level_quality_review_post_multi_timeframe_handoff_current_cache_stability
+Doc: docs/151_LEVEL_QUALITY_REVIEW_POST_MULTI_TIMEFRAME_HANDOFF_CURRENT_CACHE_STABILITY.md
+Base: origin/main at PR #149 merge commit 111bfab64aec6f21d56ed4162ee247c0ddb6e706
+Cache: C:/Users/jerac/Documents/TraderLink/levels-system-post-mtf-handoff-stability/.validation-cache/candles
+Local setup: use this v2 worktree; do not use the deprecated C:/Users/jerac/Documents/TraderLink/levels-system project for new work.
+
+Current-cache rerun:
+- generatedAt: 2026-06-07T14:45:00.000Z
+- provider: ibkr
+- reviewed symbols: 10
+- mismatch count: 0
+- cache fingerprints: 35
+- LevelEngine input fingerprints: 30
+- context-only fingerprints: 5
+- 15m context-only fingerprints: 5
+- 15m context-only entries: 10/10
+- candidate inventory valid: 10/10
+- candidate volume/session context valid: 10/10
+- prohibited-language hits: 0
+
+Superseded recommendation:
+- PR #148 handoff recommended level_quality_review_baseline_refresh_decision.
+- That recommendation is historical now.
+- The baseline decision path already completed through cache fingerprinting, baseline refresh, post-refresh stability, volume/session audit, journal delivery, multi-timeframe hardening, fixture pack, handoff, and PR #149 test coverage.
+- Future sessions should not restart at the old baseline refresh decision unless a new approved gate explicitly asks for it.
+
+Boundaries:
+- 15m remains facts-only and outside LevelEngine.
+- Volume/session facts remain facts-only and outside scoring or surfaced selection.
+- No live IBKR API was used.
+- No cache files were collected or written.
+- No raw candles, raw cache wrappers, provider responses, or full snapshots are committed.
+- No LevelEngine, alert, monitoring, Discord, journal, recommendation, coaching, P/L, giveback, or behavior-scoring behavior changed.
+
+Recommended next gate:
+await_next_approved_levels_system_gate

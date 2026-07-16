@@ -4,7 +4,10 @@ import { rankLevelZones } from "../levels/level-ranker.js";
 import { scoreLevelZones } from "../levels/level-scorer.js";
 import { buildSpecialLevelCandidates } from "../levels/special-level-builder.js";
 import { detectSwingPoints } from "../levels/swing-detector.js";
-import { buildRawLevelCandidates } from "../levels/raw-level-candidate-builder.js";
+import {
+  buildGapOriginSupportCandidates,
+  buildRawLevelCandidates,
+} from "../levels/raw-level-candidate-builder.js";
 import type { LevelDataFreshness, LevelEngineOutput, RawLevelCandidate } from "../levels/level-types.js";
 import {
   buildMarketContextAnalysis,
@@ -199,6 +202,7 @@ function buildCandidateInventory(params: {
       swingWindow: timeframeConfig.swingWindow,
       minimumDisplacementPct: timeframeConfig.minimumDisplacementPct,
       minimumSeparationBars: timeframeConfig.minimumSwingSeparationBars,
+      requirePositiveVolumeEvidence: item.timeframe === "5m",
     });
 
     rawCandidates.push(
@@ -208,11 +212,19 @@ function buildCandidateInventory(params: {
         candles: item.candles,
         swings,
       }),
+      ...buildGapOriginSupportCandidates({
+        symbol: params.symbol,
+        timeframe: item.timeframe,
+        candles: item.candles,
+      }),
     );
   }
 
   const fiveMinute = params.series.find((item) => item.timeframe === "5m")?.candles ?? [];
-  const special = buildSpecialLevelCandidates(params.symbol, fiveMinute);
+  const special = buildSpecialLevelCandidates(
+    params.symbol,
+    fiveMinute.filter((candle) => candle.volume > 0),
+  );
   rawCandidates.push(...special.candidates);
 
   return {

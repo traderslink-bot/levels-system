@@ -151,6 +151,26 @@ test("formal structure caps initial range expansion confidence at medium", () =>
   assert.match(context.latestEvent.traderLine, /initial range expansion/);
 });
 
+test("formal structure reports live price pressure without confirming an unfinished higher-timeframe break", () => {
+  const context = buildFormalMarketStructureContext({
+    symbol: "LIVE",
+    timeframe: "4h",
+    candles: [...bullishPrior(), candle(7, 1.34, 1.24, 1.3)],
+    currentPrice: 1.42,
+    options: TEST_OPTIONS,
+  });
+
+  assert.equal(context.latestEvent.type, "none");
+  assert.equal(context.livePricePressure?.type, "above_protected_high");
+  assert.equal(context.livePricePressure?.levelPrice, 1.36);
+  assert.equal(context.livePricePressure?.currentPrice, 1.42);
+  assert.equal(context.livePricePressure?.confirmation, "unconfirmed_live_price");
+  assert.match(
+    context.livePricePressure?.traderLine ?? "",
+    /above protected high 1\.3600 before the 4h candle has confirmed/,
+  );
+});
+
 test("formal structure filters as-of partial candles using candle-close semantics", () => {
   const futureBos = candle(7, 1.46, 1.24, 1.43);
   const partialContext = buildFormalMarketStructureContext({

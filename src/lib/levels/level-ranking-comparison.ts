@@ -56,8 +56,18 @@ function sortNearest(
   side: "support" | "resistance",
 ): ComparableLevelSummary[] {
   return [...levels]
-    .filter((level) => (side === "support" ? level.price <= currentPrice : level.price >= currentPrice))
-    .sort((left, right) => Math.abs(left.price - currentPrice) - Math.abs(right.price - currentPrice))
+    .filter((level) =>
+      side === "support" ? level.zoneLow <= currentPrice : level.zoneHigh >= currentPrice,
+    )
+    .sort((left, right) => {
+      const distance = (level: ComparableLevelSummary): number =>
+        currentPrice < level.zoneLow
+          ? level.zoneLow - currentPrice
+          : currentPrice > level.zoneHigh
+            ? currentPrice - level.zoneHigh
+            : 0;
+      return distance(left) - distance(right) || right.score - left.score;
+    })
     .map((level, index) => ({
       ...level,
       nearestRank: index + 1,
@@ -88,8 +98,7 @@ export function normalizeOldPathOutput(
   currentPrice: number,
   maxComparableLevels = 8,
 ): ComparablePathOutput {
-  const supports = flattenOldSide(output, "support")
-    .slice(0, maxComparableLevels)
+  const allSupports = flattenOldSide(output, "support")
     .map(({ zone, bucket }, index) => ({
       sourcePath: "old" as const,
       side: "support" as const,
@@ -103,8 +112,7 @@ export function normalizeOldPathOutput(
       bucket,
       sourceTimeframes: zone.timeframeSources,
     }));
-  const resistances = flattenOldSide(output, "resistance")
-    .slice(0, maxComparableLevels)
+  const allResistances = flattenOldSide(output, "resistance")
     .map(({ zone, bucket }, index) => ({
       sourcePath: "old" as const,
       side: "resistance" as const,
@@ -118,8 +126,10 @@ export function normalizeOldPathOutput(
       bucket,
       sourceTimeframes: zone.timeframeSources,
     }));
-  const nearestSupports = sortNearest(supports, currentPrice, "support");
-  const nearestResistances = sortNearest(resistances, currentPrice, "resistance");
+  const supports = allSupports.slice(0, maxComparableLevels);
+  const resistances = allResistances.slice(0, maxComparableLevels);
+  const nearestSupports = sortNearest(allSupports, currentPrice, "support");
+  const nearestResistances = sortNearest(allResistances, currentPrice, "resistance");
 
   return {
     symbol: output.symbol,
@@ -130,8 +140,8 @@ export function normalizeOldPathOutput(
     nearestResistance: nearestResistances[0],
     supports,
     resistances,
-    visibleSupportCount: supports.length,
-    visibleResistanceCount: resistances.length,
+    visibleSupportCount: allSupports.length,
+    visibleResistanceCount: allResistances.length,
     nearbyDuplicateCount: 0,
     outputShape: "legacy_level_engine_output",
   };
@@ -141,7 +151,7 @@ export function normalizeSurfacedSelectionOutput(
   output: SurfacedSelectionResult,
   maxComparableLevels = 8,
 ): ComparablePathOutput {
-  const supports = output.surfacedSupports.slice(0, maxComparableLevels).map((level, index) => ({
+  const allSupports = output.surfacedSupports.map((level, index) => ({
     sourcePath: "surfaced_adapter" as const,
     side: "support" as const,
     price: level.price,
@@ -155,7 +165,7 @@ export function normalizeSurfacedSelectionOutput(
     explanation: level.surfacedSelectionExplanation,
     sourceTimeframes: level.sourceTimeframes,
   }));
-  const resistances = output.surfacedResistances.slice(0, maxComparableLevels).map((level, index) => ({
+  const allResistances = output.surfacedResistances.map((level, index) => ({
     sourcePath: "surfaced_adapter" as const,
     side: "resistance" as const,
     price: level.price,
@@ -169,8 +179,10 @@ export function normalizeSurfacedSelectionOutput(
     explanation: level.surfacedSelectionExplanation,
     sourceTimeframes: level.sourceTimeframes,
   }));
-  const nearestSupports = sortNearest(supports, output.currentPrice, "support");
-  const nearestResistances = sortNearest(resistances, output.currentPrice, "resistance");
+  const supports = allSupports.slice(0, maxComparableLevels);
+  const resistances = allResistances.slice(0, maxComparableLevels);
+  const nearestSupports = sortNearest(allSupports, output.currentPrice, "support");
+  const nearestResistances = sortNearest(allResistances, output.currentPrice, "resistance");
 
   return {
     symbol: output.symbol,
@@ -181,8 +193,8 @@ export function normalizeSurfacedSelectionOutput(
     nearestResistance: nearestResistances[0],
     supports,
     resistances,
-    visibleSupportCount: supports.length,
-    visibleResistanceCount: resistances.length,
+    visibleSupportCount: allSupports.length,
+    visibleResistanceCount: allResistances.length,
     nearbyDuplicateCount: output.suppressedNearDuplicates.length,
     outputShape: "surfaced_selection_projection",
   };

@@ -31,6 +31,7 @@ function countRespectRetests(
   candles: Candle[],
   swing: SwingPoint,
   tolerance: number,
+  requirePositiveVolumeEvidence: boolean,
 ): number {
   const start = Math.max(0, swing.index - 6);
   const end = Math.min(candles.length - 1, swing.index + 6);
@@ -42,6 +43,9 @@ function countRespectRetests(
     }
 
     const candle = candles[index]!;
+    if (requirePositiveVolumeEvidence && candle.volume <= 0) {
+      continue;
+    }
     const tested =
       swing.kind === "resistance"
         ? Math.abs(candle.high - swing.price) <= tolerance
@@ -64,13 +68,39 @@ function countRespectRetests(
   return retests;
 }
 
-function gapStructureScore(candles: Candle[], swing: SwingPoint, tolerance: number): boolean {
+function previousEvidenceCandle(
+  candles: Candle[],
+  index: number,
+  requirePositiveVolumeEvidence: boolean,
+): Candle | undefined {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const candle = candles[cursor]!;
+    if (!requirePositiveVolumeEvidence || candle.volume > 0) {
+      return candle;
+    }
+  }
+  return undefined;
+}
+
+function gapStructureScore(
+  candles: Candle[],
+  swing: SwingPoint,
+  tolerance: number,
+  requirePositiveVolumeEvidence: boolean,
+): boolean {
   if (swing.index <= 0 || swing.index >= candles.length) {
     return false;
   }
 
   const current = candles[swing.index]!;
-  const previous = candles[swing.index - 1]!;
+  const previous = previousEvidenceCandle(
+    candles,
+    swing.index,
+    requirePositiveVolumeEvidence,
+  );
+  if (!previous) {
+    return false;
+  }
   return Math.abs(current.open - previous.close) >= tolerance * 2;
 }
 
@@ -79,16 +109,26 @@ function gapContinuationScore(
   swing: SwingPoint,
   tolerance: number,
   hasGapStructure: boolean,
+  requirePositiveVolumeEvidence: boolean,
 ): number {
   if (!hasGapStructure || swing.index <= 0 || swing.index >= candles.length) {
     return 0;
   }
 
   const current = candles[swing.index]!;
-  const previous = candles[swing.index - 1]!;
+  const previous = previousEvidenceCandle(
+    candles,
+    swing.index,
+    requirePositiveVolumeEvidence,
+  );
+  if (!previous) {
+    return 0;
+  }
   const gapDistance = Math.abs(current.open - previous.close);
   const normalizedGapSize = clamp(gapDistance / Math.max(tolerance * 4, 0.0001));
-  const futureCandles = candles.slice(swing.index + 1, Math.min(candles.length, swing.index + 4));
+  const futureCandles = candles
+    .slice(swing.index + 1, Math.min(candles.length, swing.index + 4))
+    .filter((candle) => !requirePositiveVolumeEvidence || candle.volume > 0);
 
   if (futureCandles.length === 0) {
     return clamp(normalizedGapSize * 0.35);
@@ -139,23 +179,45 @@ export function buildSwingCandidateEvidence(
 > {
   const timeframeSessionSignificance =
     timeframe === "daily" ? 1 : timeframe === "4h" ? 0.72 : 0.45;
+  const requirePositiveVolumeEvidence = timeframe === "5m";
   const sourceCandle = candles[swing.index];
   const tolerance = toleranceForPrice(swing.price);
-  const respectRetests = countRespectRetests(candles, swing, tolerance);
+  const respectRetests = countRespectRetests(
+    candles,
+    swing,
+    tolerance,
+    requirePositiveVolumeEvidence,
+  );
+  const observedInteractions = Math.max(
+    1,
+    swing.reactionCount,
+    respectRetests + 1,
+  );
   const rejectionScore = sourceCandle ? wickRejectionScore(swing, sourceCandle) : 0;
   const recencyScore = recencyFactor(candles, swing);
   const normalizedDisplacement = normalizedDisplacementScore(timeframe, swing.displacement);
+  const distinctInteractionQuality = clamp((observedInteractions - 1) / 3);
   const reactionQuality = clamp(
-    swing.reactionCount / 4 * 0.4 +
-      respectRetests / 3 * 0.25 +
+    distinctInteractionQuality * 0.65 +
       rejectionScore * 0.2 +
       recencyScore * 0.15,
   );
-  const gapStructure = gapStructureScore(candles, swing, tolerance);
-  const gapContinuation = gapContinuationScore(candles, swing, tolerance, gapStructure);
+  const gapStructure = gapStructureScore(
+    candles,
+    swing,
+    tolerance,
+    requirePositiveVolumeEvidence,
+  );
+  const gapContinuation = gapContinuationScore(
+    candles,
+    swing,
+    tolerance,
+    gapStructure,
+    requirePositiveVolumeEvidence,
+  );
   const interactionOverusePenalty = Math.max(
     0,
-    (swing.reactionCount + respectRetests - 4) * 0.06,
+    (observedInteractions - 4) * 0.06,
   );
   const followThroughScore = clamp(
     normalizedDisplacement * 0.45 +
@@ -167,10 +229,10 @@ export function buildSwingCandidateEvidence(
   );
 
   return {
-    touchCount: Math.max(1, swing.reactionCount + respectRetests),
+    touchCount: observedInteractions,
     reactionScore: round(
       swing.strength *
-        Math.max(1, swing.reactionCount + respectRetests * 0.75) *
+        Math.max(1, observedInteractions) *
         (1 + rejectionScore * 0.25),
     ),
     reactionQuality: round(reactionQuality),
@@ -179,7 +241,7 @@ export function buildSwingCandidateEvidence(
     sessionSignificance: round(timeframeSessionSignificance * (0.7 + recencyScore * 0.3)),
     followThroughScore: round(followThroughScore),
     gapContinuationScore: round(gapContinuation),
-    repeatedReactionCount: swing.reactionCount + respectRetests,
+    repeatedReactionCount: observedInteractions,
     gapStructure,
   };
 }

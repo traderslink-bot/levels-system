@@ -150,38 +150,120 @@ function selectSpacedZones(params: {
   bucket: SurfaceBucket;
   maxCount: number;
   config: LevelEngineConfig;
+  side: "support" | "resistance";
+  referencePrice?: number;
 }): FinalLevelZone[] {
+  if (params.maxCount <= 0) {
+    return [];
+  }
+
   const selected: FinalLevelZone[] = [];
   const spacingPct = params.config.surfacedSpacingPct[params.bucket];
   const localBandPct = Math.max(
     params.config.maxMergedZoneWidthPct,
     Math.min(spacingPct * 8, 0.06),
   );
+  const nearestToReference =
+    params.referencePrice && params.referencePrice > 0
+      ? [...params.zones]
+          .filter((zone) =>
+            params.side === "support"
+              ? zone.representativePrice < params.referencePrice!
+              : zone.representativePrice > params.referencePrice!,
+          )
+          .sort((left, right) =>
+            params.side === "support"
+              ? right.representativePrice - left.representativePrice
+              : left.representativePrice - right.representativePrice,
+          )
+          .slice(0, Math.min(2, params.maxCount))
+      : [];
+  const closestSeedId = nearestToReference[0]?.id;
 
-  for (const zone of sortZones(params.zones)) {
-    const tooCloseToSelected = selected.some((existing) => {
-      const distancePct = proximityPct(existing, zone);
-      const tightClose = distancePct <= spacingPct;
-      const localBandClose = distancePct <= localBandPct;
-      const strongerExisting =
-        existing.strengthScore >= zone.strengthScore &&
-        existing.confluenceCount >= zone.confluenceCount;
-      const dominantBandIncumbent = materiallyDominatesInBand(existing, zone);
+  const distanceToReference = (zone: FinalLevelZone): number =>
+    params.referencePrice && params.referencePrice > 0
+      ? Math.abs(zone.representativePrice - params.referencePrice)
+      : Number.POSITIVE_INFINITY;
 
-      return (tightClose && strongerExisting) || (localBandClose && dominantBandIncumbent);
-    });
+  const preferredTightRepresentative = (
+    incumbent: FinalLevelZone,
+    challenger: FinalLevelZone,
+  ): FinalLevelZone => {
+    if (materiallyDominatesInBand(challenger, incumbent)) {
+      return challenger;
+    }
+    if (materiallyDominatesInBand(incumbent, challenger)) {
+      return incumbent;
+    }
+    if (challenger.strengthScore !== incumbent.strengthScore) {
+      return challenger.strengthScore > incumbent.strengthScore ? challenger : incumbent;
+    }
+    if (challenger.confluenceCount !== incumbent.confluenceCount) {
+      return challenger.confluenceCount > incumbent.confluenceCount ? challenger : incumbent;
+    }
+    return distanceToReference(challenger) < distanceToReference(incumbent)
+      ? challenger
+      : incumbent;
+  };
 
-    if (tooCloseToSelected) {
-      continue;
+  const considerZone = (zone: FinalLevelZone): void => {
+    if (selected.some((existing) => existing.id === zone.id)) {
+      return;
     }
 
-    selected.push(zone);
-    if (selected.length >= params.maxCount) {
-      break;
+    const tightConflicts = selected.filter(
+      (existing) => proximityPct(existing, zone) <= spacingPct,
+    );
+    if (tightConflicts.length > 0) {
+      const winner = tightConflicts.reduce(preferredTightRepresentative, zone);
+      if (winner.id !== zone.id) {
+        // The challenger can bridge two already-valid spaced levels. If an
+        // incumbent wins, retain the complete incumbent set; deleting every
+        // conflict here would let one weak bridge collapse two useful levels.
+        return;
+      }
+      for (const conflict of tightConflicts) {
+        selected.splice(selected.indexOf(conflict), 1);
+      }
+      selected.push(zone);
+      return;
     }
+
+    const dominantIncumbent = selected.some(
+      (existing) =>
+        proximityPct(existing, zone) <= localBandPct &&
+        materiallyDominatesInBand(existing, zone),
+    );
+    if (dominantIncumbent) {
+      return;
+    }
+
+    for (const existing of [...selected]) {
+      if (
+        existing.id !== closestSeedId &&
+        proximityPct(existing, zone) <= localBandPct &&
+        materiallyDominatesInBand(zone, existing)
+      ) {
+        selected.splice(selected.indexOf(existing), 1);
+      }
+    }
+
+    if (selected.length < params.maxCount) {
+      selected.push(zone);
+    }
+  };
+
+  for (const zone of nearestToReference) {
+    considerZone(zone);
   }
 
-  return selected;
+  for (const zone of sortZones(params.zones)) {
+    considerZone(zone);
+  }
+
+  // Preserve the established strongest-first bucket contract after the
+  // reference-aware spacing pass chooses which zones survive.
+  return sortZones(selected);
 }
 
 export function rankLevelZones(params: {
@@ -207,12 +289,16 @@ export function rankLevelZones(params: {
     bucket: "daily",
     maxCount: config.timeframeConfig.daily.maxOutputPerSide,
     config,
+    side: "support",
+    referencePrice: metadata.referencePrice,
   });
   const dailyResistance = selectSpacedZones({
     zones: byOwnedBucket(surfacedResistanceZones, "daily"),
     bucket: "daily",
     maxCount: config.timeframeConfig.daily.maxOutputPerSide,
     config,
+    side: "resistance",
+    referencePrice: metadata.referencePrice,
   });
 
   const intermediateSupport = selectSpacedZones({
@@ -220,12 +306,16 @@ export function rankLevelZones(params: {
     bucket: "4h",
     maxCount: config.timeframeConfig["4h"].maxOutputPerSide,
     config,
+    side: "support",
+    referencePrice: metadata.referencePrice,
   });
   const intermediateResistance = selectSpacedZones({
     zones: byOwnedBucket(surfacedResistanceZones, "4h"),
     bucket: "4h",
     maxCount: config.timeframeConfig["4h"].maxOutputPerSide,
     config,
+    side: "resistance",
+    referencePrice: metadata.referencePrice,
   });
 
   const intradaySupport = selectSpacedZones({
@@ -233,12 +323,16 @@ export function rankLevelZones(params: {
     bucket: "5m",
     maxCount: config.timeframeConfig["5m"].maxOutputPerSide,
     config,
+    side: "support",
+    referencePrice: metadata.referencePrice,
   });
   const intradayResistance = selectSpacedZones({
     zones: byOwnedBucket(surfacedResistanceZones, "5m"),
     bucket: "5m",
     maxCount: config.timeframeConfig["5m"].maxOutputPerSide,
     config,
+    side: "resistance",
+    referencePrice: metadata.referencePrice,
   });
 
   const extensionLevels = buildLevelExtensions({

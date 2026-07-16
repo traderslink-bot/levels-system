@@ -300,6 +300,7 @@ function buildGeneratedPipelineSample(spec: GeneratedSampleSpec): GeneratedPipel
         DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig[timeframe].minimumDisplacementPct,
       minimumSeparationBars:
         DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig[timeframe].minimumSwingSeparationBars,
+      requirePositiveVolumeEvidence: timeframe === "5m",
     });
     swingSummary[timeframe] = swingCounts(swings);
     rawCandidates.push(
@@ -312,7 +313,10 @@ function buildGeneratedPipelineSample(spec: GeneratedSampleSpec): GeneratedPipel
     );
   }
 
-  const special = buildSpecialLevelCandidates(symbol, series["5m"]);
+  const special = buildSpecialLevelCandidates(
+    symbol,
+    series["5m"].filter((candle) => candle.volume > 0),
+  );
   rawCandidates.push(...special.candidates);
 
   const supportTolerance = Math.max(

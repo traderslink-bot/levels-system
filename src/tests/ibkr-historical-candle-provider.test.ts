@@ -101,6 +101,39 @@ test("IbkrHistoricalCandleProvider maps historical bars into candles and honors 
   assert.equal(response.candles.at(-1)?.close, 100.5);
 });
 
+test("IbkrHistoricalCandleProvider parses daily YYYYMMDD bars as calendar dates", async () => {
+  sharedIbkrPacingQueue.resetForTests();
+  const ib = new FakeHistoricalIbApi();
+  const provider = new IbkrHistoricalCandleProvider(ib as any, 100);
+  const plan = buildHistoricalFetchPlan(
+    {
+      symbol: "CAST",
+      timeframe: "daily",
+      lookbackBars: 1,
+    },
+    "ibkr",
+  );
+
+  const fetchPromise = provider.fetchCandles(
+    {
+      symbol: "CAST",
+      timeframe: "daily",
+      lookbackBars: 1,
+    },
+    plan,
+  );
+
+  const reqId = await waitForHistoricalRequest(ib);
+  ib.emit(EventName.historicalData, reqId, "20260618", 5.25, 16.2, 4.75, 7.2499, 88_827_592);
+  ib.emit("historicalDataEnd", reqId, "start", "end");
+
+  const response = await fetchPromise;
+
+  assert.equal(response.candles.length, 1);
+  assert.equal(response.candles[0]?.timestamp, new Date(2026, 5, 18).getTime());
+  assert.equal(response.candles[0]?.close, 7.2499);
+});
+
 test("IbkrHistoricalCandleProvider returns an empty candle set when IBKR sends no bars", async () => {
   sharedIbkrPacingQueue.resetForTests();
   const ib = new FakeHistoricalIbApi();

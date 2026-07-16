@@ -38,7 +38,6 @@ export function deriveLevelState(
   const latestTouch = level.touches[level.touches.length - 1];
   const recentMeaningfulTrend = meaningfulReactionTrend(level.touches);
   const shallowAverageReaction = level.averageReactionMovePct <= config.stateThresholds.shallowReactionPct;
-  const hasRoleFlipOrigin = level.originKinds?.includes("role_flip") ?? false;
 
   if (level.reclaimCount > 0 && latestTouch?.reactionType === "reclaim") {
     return "reclaimed";
@@ -51,10 +50,6 @@ export function deriveLevelState(
     return "broken";
   }
 
-  if (level.roleFlipCount > 0 || hasRoleFlipOrigin) {
-    return "flipped";
-  }
-
   if (
     level.touchCount >= config.stateThresholds.weakenedTouchCount &&
     (recentMeaningfulTrend === "shrinking" || shallowAverageReaction)
@@ -64,6 +59,13 @@ export function deriveLevelState(
 
   if (level.touchCount >= config.stateThresholds.heavilyTestedTouchCount) {
     return "heavily_tested";
+  }
+
+  // A flip is provenance, not permanent proof of durability. Once the new
+  // role accumulates enough shallow or repeated tests, its current condition
+  // should read weakened/heavily tested while roleFlipEvidence remains intact.
+  if (level.roleFlipCount > 0) {
+    return "flipped";
   }
 
   if (level.meaningfulTouchCount >= config.stateThresholds.respectedMeaningfulTouches) {

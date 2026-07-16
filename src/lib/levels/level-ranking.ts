@@ -27,6 +27,18 @@ function uniqueTimeframes(level: LevelCandidate): LevelCandidate["sourceTimefram
   return [...new Set(level.sourceTimeframes)];
 }
 
+function analysisTimeframe(
+  level: LevelCandidate,
+  fallback: LevelScoringContext["currentTimeframe"],
+): LevelScoringContext["currentTimeframe"] {
+  // analysisCandles belong to the candidate, not to the live context series.
+  // Using the live (normally 5m) timeframe mislabeled daily/4h touches and
+  // applied five-minute placeholder handling to higher-timeframe evidence.
+  return level.analysisCandles !== undefined
+    ? level.sourceTimeframes[0] ?? fallback
+    : fallback;
+}
+
 function normalizeLevel(level: LevelCandidate, context: LevelScoringContext, config: LevelScoreConfig): NormalizedLevel {
   const zoneBounds =
     level.zoneLow !== undefined && level.zoneHigh !== undefined
@@ -58,7 +70,7 @@ function normalizeLevel(level: LevelCandidate, context: LevelScoringContext, con
             zoneHigh: zoneBounds.zoneHigh,
           },
           level.analysisCandles ?? context.recentCandles ?? [],
-          context.currentTimeframe,
+          analysisTimeframe(level, context.currentTimeframe),
           config,
         );
 
@@ -71,6 +83,8 @@ function normalizeLevel(level: LevelCandidate, context: LevelScoringContext, con
     zoneHigh: zoneBounds.zoneHigh,
     sourceTimeframes: uniqueTimeframes(level),
     originKinds: [...new Set(level.originKinds)],
+    firstTimestamp: level.firstTimestamp,
+    lastTimestamp: level.lastTimestamp,
     touches: baseAnalysis.touches,
     touchCount: baseAnalysis.touchCount,
     meaningfulTouchCount: baseAnalysis.meaningfulTouchCount,
@@ -78,7 +92,8 @@ function normalizeLevel(level: LevelCandidate, context: LevelScoringContext, con
     failedBreakCount: baseAnalysis.failedBreakCount,
     cleanBreakCount: baseAnalysis.cleanBreakCount,
     reclaimCount: baseAnalysis.reclaimCount,
-    roleFlipCount: level.roleFlipCount ?? (level.originKinds.includes("role_flip") ? 1 : 0),
+    roleFlipCount: level.roleFlipCount ?? (level.roleFlipEvidence ? 1 : 0),
+    roleFlipEvidence: level.roleFlipEvidence ? { ...level.roleFlipEvidence } : undefined,
     strongestReactionMovePct: baseAnalysis.strongestReactionMovePct,
     averageReactionMovePct: baseAnalysis.averageReactionMovePct,
     bestVolumeRatio: baseAnalysis.bestVolumeRatio,

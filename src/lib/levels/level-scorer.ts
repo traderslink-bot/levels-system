@@ -100,7 +100,11 @@ function confluenceContribution(zone: FinalLevelZone): number {
 
   const mixedTimeframeBonus = timeframeDiversity > 1 ? 0.9 : 0;
   const specialSourceBonus = zone.sourceTypes.some((sourceType) =>
-    sourceType.startsWith("premarket") || sourceType.startsWith("opening_range"),
+    sourceType.startsWith("premarket") ||
+    sourceType.startsWith("opening_range") ||
+    sourceType === "breakout_base" ||
+    sourceType === "gap_up_origin" ||
+    sourceType === "gap_up_pullback_low",
   )
     ? 0.45
     : 0;
@@ -227,8 +231,9 @@ export function scoreLevelZones(
     const overcrowdingPenalty = zone.sourceEvidenceCount >= 6 && zone.confluenceCount <= 1 ? 0.88 : 1;
     const crowdingPenalty = crowdingPenaltyMultiplier(zone, zones, config);
     const recycledPenalty = recycledIntradayPenaltyMultiplier(zone);
+    const saturatedTouchCount = Math.min(zone.touchCount, 12);
     const baseScore =
-      zone.touchCount * config.touchWeight +
+      saturatedTouchCount * config.touchWeight +
       timeframeWeight(zone, config) +
       confluenceContribution(zone) * config.confluenceWeight +
       recencyFactor(zone.lastTimestamp) * config.recencyWeight +
@@ -252,6 +257,7 @@ export function scoreLevelZones(
       notes: [
         ...zone.notes,
         `freshness=${zone.freshness}`,
+        `scoredTouches=${saturatedTouchCount}`,
         `evidence=${zone.sourceEvidenceCount}`,
         `rejection=${zone.rejectionScore.toFixed(4)}`,
         `followThrough=${zone.followThroughScore.toFixed(4)}`,

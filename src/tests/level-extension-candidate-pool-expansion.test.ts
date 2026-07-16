@@ -139,7 +139,7 @@ test("keeps strict frontier behavior when a beyond-frontier extension candidate 
   assert.deepEqual(ids(result.extensionLevels.resistance), ["strict-frontier-resistance"]);
 });
 
-test("ranked surfaced buckets and nearest surfaced levels remain unchanged while extensions use expanded pool", () => {
+test("ranked surfaced buckets keep nearest practical levels while extensions use expanded pool", () => {
   const config = structuredClone(DEFAULT_LEVEL_ENGINE_CONFIG);
   config.timeframeConfig.daily.maxOutputPerSide = 1;
   const supportZones = [
@@ -166,17 +166,20 @@ test("ranked surfaced buckets and nearest surfaced levels remain unchanged while
     config,
   });
 
-  assert.deepEqual(surfacedIds(output).sort(), ["surfaced-resistance", "surfaced-support"]);
-  assert.deepEqual(ids(output.extensionLevels.support), [
+  assert.deepEqual(surfacedIds(output).sort(), [
+    "resistance-extension-near",
     "support-extension-near",
+  ]);
+  assert.deepEqual(ids(output.extensionLevels.support), [
     "support-extension-far",
+    "surfaced-support",
   ]);
   assert.deepEqual(ids(output.extensionLevels.resistance), [
-    "resistance-extension-near",
     "resistance-extension-far",
+    "surfaced-resistance",
   ]);
-  assert.equal(output.majorSupport[0]?.id, "surfaced-support");
-  assert.equal(output.majorResistance[0]?.id, "surfaced-resistance");
+  assert.equal(output.majorSupport[0]?.id, "support-extension-near");
+  assert.equal(output.majorResistance[0]?.id, "resistance-extension-near");
   assert.deepEqual(output.intermediateSupport, []);
   assert.deepEqual(output.intermediateResistance, []);
   assert.deepEqual(output.intradaySupport, []);
