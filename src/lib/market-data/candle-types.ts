@@ -4,7 +4,7 @@
 export type CandleTimeframe = "daily" | "4h" | "5m";
 export type CandleFetchTimeframe = "1m" | CandleTimeframe;
 
-export type CandleProviderName = "ibkr" | "stub";
+export type CandleProviderName = "ibkr" | "eodhd" | "yahoo" | "stub";
 
 export type Candle = {
   timestamp: number;

@@ -4,7 +4,13 @@ import {
   type CandleFetchServiceOptions,
   type HistoricalFetchRequest,
 } from "../market-data/candle-fetch-service.js";
-import type { Candle, CandleFetchTimeframe, CandleProviderResponse } from "../market-data/candle-types.js";
+import { finalizeCandleProviderResponse } from "../market-data/candle-quality.js";
+import type {
+  BaseCandleProviderResponse,
+  Candle,
+  CandleFetchTimeframe,
+  CandleProviderResponse,
+} from "../market-data/candle-types.js";
 import {
   DurableCandleWarehouse,
   DurableCandleWarehouseFetchService,
@@ -283,6 +289,7 @@ export type TradeAnalysisCandleContextDiagnosticCode =
   | "trade_window_fetched"
   | "trade_window_one_minute_unavailable"
   | "trade_window_fell_back_to_5m"
+  | "trade_window_aggregated_eodhd_1m_to_5m"
   | "trade_window_missing_pre_trade_candles"
   | "trade_window_missing_trade_candles"
   | "trade_window_missing_post_trade_candles"
@@ -732,6 +739,69 @@ function oneMinuteFallbackMessage(params: {
   return "1m trade-window candles were unavailable, so levels-system requested 5m fallback candles.";
 }
 
+function shouldAggregateEodhdOneMinuteForFiveMinuteTradeWindow(params: {
+  preferredProvider: HistoricalFetchRequest["preferredProvider"] | undefined;
+  response: CandleProviderResponse;
+  requestedTimeframe: "1m" | "5m";
+}): boolean {
+  if (params.requestedTimeframe !== "5m") {
+    return false;
+  }
+  if (params.response.provider !== "eodhd" && params.preferredProvider !== "eodhd") {
+    return false;
+  }
+
+  return (
+    params.response.completenessStatus === "empty" ||
+    params.response.stale ||
+    params.response.validationIssues.some((issue) =>
+      issue.code === "zero_results" ||
+      issue.code === "stale_final_candle" ||
+      issue.code === "missing_recent_candles" ||
+      issue.code === "incomplete_current_session_data"
+    )
+  );
+}
+
+async function fetchAggregatedEodhdOneMinuteTradeWindow(params: {
+  fetchService: CandleFetchService;
+  symbol: string;
+  lookbackBars: number;
+  requestedEndTimestamp: number;
+  preferredProvider: HistoricalFetchRequest["preferredProvider"] | undefined;
+}): Promise<CandleProviderResponse> {
+  const oneMinuteResponse = await params.fetchService.fetchCandles({
+    symbol: params.symbol,
+    timeframe: "1m",
+    lookbackBars: params.lookbackBars * 5,
+    endTimeMs: params.requestedEndTimestamp,
+    preferredProvider: params.preferredProvider,
+  });
+  const candles = aggregateCandlesToFiveMinutes(oneMinuteResponse.candles)
+    .slice(-params.lookbackBars);
+  const baseResponse: BaseCandleProviderResponse = {
+    provider: oneMinuteResponse.provider,
+    symbol: oneMinuteResponse.symbol,
+    timeframe: "5m",
+    requestedLookbackBars: params.lookbackBars,
+    candles,
+    fetchStartTimestamp: oneMinuteResponse.fetchStartTimestamp,
+    fetchEndTimestamp: oneMinuteResponse.fetchEndTimestamp,
+    requestedStartTimestamp: oneMinuteResponse.requestedStartTimestamp,
+    requestedEndTimestamp: oneMinuteResponse.requestedEndTimestamp,
+    sessionMetadataAvailable: oneMinuteResponse.sessionMetadataAvailable,
+    providerMetadata: {
+      ...(oneMinuteResponse.providerMetadata ?? {}),
+      sourceTimeframe: "1m",
+      derivedTimeframe: "5m",
+      aggregationMethod: "ohlcv_1m_to_5m",
+      sourceActualBarsReturned: oneMinuteResponse.actualBarsReturned,
+    },
+  };
+
+  return finalizeCandleProviderResponse(baseResponse);
+}
+
 async function fetchTradeWindowCandles(params: {
   fetchService: CandleFetchService;
   symbol: string;
@@ -756,6 +826,38 @@ async function fetchTradeWindowCandles(params: {
       endTimeMs: params.requestedEndTimestamp,
       preferredProvider: params.preferredProvider,
     });
+
+    if (
+      shouldAggregateEodhdOneMinuteForFiveMinuteTradeWindow({
+        preferredProvider: params.preferredProvider,
+        response,
+        requestedTimeframe: params.requestedTimeframe,
+      })
+    ) {
+      const aggregatedResponse = await fetchAggregatedEodhdOneMinuteTradeWindow({
+        fetchService: params.fetchService,
+        symbol: params.symbol,
+        lookbackBars: params.lookbackBars,
+        requestedEndTimestamp: params.requestedEndTimestamp,
+        preferredProvider: params.preferredProvider,
+      });
+
+      if (aggregatedResponse.actualBarsReturned > 0 && !aggregatedResponse.stale) {
+        diagnostics.push({
+          code: "trade_window_aggregated_eodhd_1m_to_5m",
+          severity: "info",
+          message:
+            "EODHD 1m candles were aggregated into 5m candles for historical trade-window analysis.",
+        });
+        return {
+          response: aggregatedResponse,
+          requestedTimeframe: params.requestedTimeframe,
+          fallbackUsed: false,
+          diagnostics,
+        };
+      }
+    }
+
     if (
       params.requestedTimeframe === "1m" &&
       params.allowFiveMinuteFallback &&

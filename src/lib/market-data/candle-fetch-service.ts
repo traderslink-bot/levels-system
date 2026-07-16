@@ -109,7 +109,7 @@ export class StubHistoricalCandleProvider implements HistoricalCandleProvider {
 }
 
 export class CandleFetchService {
-  private readonly provider: HistoricalCandleProvider;
+  private provider: HistoricalCandleProvider;
 
   constructor(providerOrOptions: HistoricalCandleProvider | CandleFetchServiceOptions) {
     if ("fetchCandles" in providerOrOptions) {
@@ -123,11 +123,20 @@ export class CandleFetchService {
         provider: providerOrOptions.providerName,
         ib: providerOrOptions.ib,
         ibkrTimeoutMs: providerOrOptions.ibkrTimeoutMs,
+        eodhdApiToken: providerOrOptions.eodhdApiToken,
+        eodhdExchangeSuffix: providerOrOptions.eodhdExchangeSuffix,
+        eodhdBaseUrl: providerOrOptions.eodhdBaseUrl,
+        yahooBaseUrl: providerOrOptions.yahooBaseUrl,
+        yahooFetchFn: providerOrOptions.yahooFetchFn,
       });
   }
 
   getProviderName(): CandleProviderName {
     return this.provider.providerName;
+  }
+
+  setProvider(provider: HistoricalCandleProvider): void {
+    this.provider = provider;
   }
 
   async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {

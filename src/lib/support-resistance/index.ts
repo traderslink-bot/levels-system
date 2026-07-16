@@ -173,6 +173,14 @@ export {
   type HistoricalFetchRequest,
 } from "../market-data/candle-fetch-service.js";
 export {
+  buildTradeCandleContext,
+  type BuildTradeCandleContextRequest,
+  type TradeCandleContext,
+  type TradeCandleContextProviderSelection,
+  type TradeCandleContextSeries,
+  type TradeCandleContextTimeframe,
+} from "../market-data/trade-candle-context.js";
+export {
   DurableCandleWarehouse,
   DurableCandleWarehouseFetchService,
   type CandleWarehouseCoverage,

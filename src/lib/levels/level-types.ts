@@ -23,7 +23,19 @@ export type RawLevelCandidateSourceType =
   | "premarket_high"
   | "premarket_low"
   | "opening_range_high"
-  | "opening_range_low";
+  | "opening_range_low"
+  | "previous_day_high"
+  | "previous_day_low"
+  | "previous_day_close"
+  | "current_session_high"
+  | "current_session_low";
+
+export type LevelMarketDataProvenance = {
+  formedAt: number;
+  sourceLastSeenAt: number;
+  lastTestedAt?: number;
+  lastConfirmedAt?: number;
+};
 
 export type RawLevelCandidate = {
   id: string;
@@ -44,6 +56,7 @@ export type RawLevelCandidate = {
   gapStructure: boolean;
   firstTimestamp: number;
   lastTimestamp: number;
+  marketDataProvenance?: LevelMarketDataProvenance;
   notes: string[];
 };
 
@@ -72,6 +85,7 @@ export type FinalLevelZone = {
   sourceEvidenceCount: number;
   firstTimestamp: number;
   lastTimestamp: number;
+  marketDataProvenance?: LevelMarketDataProvenance;
   sessionDate?: string;
   isExtension: boolean;
   freshness: LevelDataFreshness;
@@ -87,6 +101,8 @@ export type LevelLadderExtension = {
 export type LevelOutputMetadata = {
   providerByTimeframe: Partial<Record<CandleTimeframe, string>>;
   dataQualityFlags: string[];
+  coverage?: "full" | "limited";
+  availableTimeframes?: CandleTimeframe[];
   freshness: LevelDataFreshness;
   referencePrice?: number;
   volumeBaselineByTimeframe?: Partial<Record<CandleTimeframe, {
@@ -111,6 +127,11 @@ export type LevelEngineOutput = {
     premarketLow?: number;
     openingRangeHigh?: number;
     openingRangeLow?: number;
+    previousDayHigh?: number;
+    previousDayLow?: number;
+    previousDayClose?: number;
+    currentSessionHigh?: number;
+    currentSessionLow?: number;
   };
 };
 
@@ -184,6 +205,7 @@ export type LevelCandidate = {
   zoneHigh?: number;
   sourceTimeframes: SourceTimeframe[];
   originKinds: LevelOrigin[];
+  marketDataProvenance?: LevelMarketDataProvenance;
   analysisCandles?: Candle[];
   touches?: LevelTouch[];
   touchCount?: number;
@@ -252,6 +274,7 @@ export type RankedLevel = {
   zoneHigh: number;
   sourceTimeframes: SourceTimeframe[];
   originKinds: LevelOrigin[];
+  marketDataProvenance?: LevelMarketDataProvenance;
   touches: LevelTouch[];
   touchCount: number;
   meaningfulTouchCount: number;

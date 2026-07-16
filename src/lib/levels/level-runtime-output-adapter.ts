@@ -70,6 +70,12 @@ export type LevelRuntimeOutputAdapterInput = {
   specialLevels: LevelEngineOutput["specialLevels"];
   legacyRuntimeBuckets?: LegacyRuntimeBuckets;
   legacyExtensionLevels?: LevelEngineOutput["extensionLevels"];
+  /**
+   * Selects the owner of the visible runtime buckets. The projected surfaced
+   * path owns normal new-mode output; legacy ownership is retained only for
+   * explicit parity diagnostics and requires legacyRuntimeBuckets.
+   */
+  runtimeBucketOwnership?: "surfaced" | "legacy";
   levelCandidates?: LevelCandidate[];
   generatedAt?: number;
   scoreConfig?: LevelScoreConfig;
@@ -88,6 +94,11 @@ const RAW_LEVEL_SOURCE_TYPES: readonly RawLevelCandidateSourceType[] = [
   "premarket_low",
   "opening_range_high",
   "opening_range_low",
+  "previous_day_high",
+  "previous_day_low",
+  "previous_day_close",
+  "current_session_high",
+  "current_session_low",
 ] as const;
 
 function normalizeRuntimeSourceTimeframe(timeframe: SourceTimeframe): CandleTimeframe {
@@ -158,6 +169,7 @@ function convertRawCandidateToLevelCandidate(
     zoneHigh: zoneBounds.zoneHigh,
     sourceTimeframes: [candidate.timeframe],
     originKinds: [candidate.sourceType],
+    marketDataProvenance: candidate.marketDataProvenance,
     analysisCandles: candlesByTimeframe[candidate.timeframe],
   };
 }
@@ -335,6 +347,7 @@ function toRuntimeZone(
     sourceEvidenceCount: Math.max(level.meaningfulTouchCount, timeframeSources.length),
     firstTimestamp: deriveFirstTimestamp(level, generatedAt),
     lastTimestamp: deriveLastTimestamp(level, generatedAt),
+    marketDataProvenance: level.marketDataProvenance,
     sessionDate: undefined,
     isExtension: level.selectionCategory === "anchor",
     freshness: deriveFreshness(level),
@@ -378,14 +391,35 @@ function cloneExtensionLevels(
   extensionLevels: LevelEngineOutput["extensionLevels"],
   rankedLevels: RankedLevel[],
   accumulator: EnrichmentAccumulator,
+  surfacedRuntimeZones: FinalLevelZone[],
 ): LevelEngineOutput["extensionLevels"] {
+  const overlapsSurfacedRow = (extension: FinalLevelZone): boolean =>
+    surfacedRuntimeZones.some((surfaced) => {
+      if (extension.kind !== surfaced.kind) {
+        return false;
+      }
+      const extensionWidth = Math.abs(extension.zoneHigh - extension.zoneLow);
+      const surfacedWidth = Math.abs(surfaced.zoneHigh - surfaced.zoneLow);
+      const tolerance = Math.max(
+        Math.abs(extension.representativePrice) * 0.0025,
+        extensionWidth,
+        surfacedWidth,
+        0.0001,
+      );
+      return (
+        extension.zoneLow <= surfaced.zoneHigh + tolerance &&
+        surfaced.zoneLow <= extension.zoneHigh + tolerance &&
+        Math.abs(extension.representativePrice - surfaced.representativePrice) <= tolerance
+      );
+    });
+
   return {
-    support: extensionLevels.support.map((zone) =>
-      cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator),
-    ),
-    resistance: extensionLevels.resistance.map((zone) =>
-      cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator),
-    ),
+    support: extensionLevels.support
+      .filter((zone) => !overlapsSurfacedRow(zone))
+      .map((zone) => cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator)),
+    resistance: extensionLevels.resistance
+      .filter((zone) => !overlapsSurfacedRow(zone))
+      .map((zone) => cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator)),
   };
 }
 
@@ -590,14 +624,13 @@ export function buildNewRuntimeCompatibleLevelOutput(
   const extensionResistance = surfacedSelection.deeperResistanceAnchor
     ? [toRuntimeZone(surfacedSelection.deeperResistanceAnchor, generatedAt)]
     : [];
-  const extensionLevels = input.legacyExtensionLevels
-    ? cloneExtensionLevels(input.legacyExtensionLevels, rankedLevels, enrichmentAccumulator)
-    : {
-        support: extensionSupport,
-        resistance: extensionResistance,
-      };
-  const runtimeBuckets = input.legacyRuntimeBuckets
-    ? cloneLegacyRuntimeBuckets(input.legacyRuntimeBuckets, rankedLevels, enrichmentAccumulator)
+  const runtimeBucketOwnership = input.runtimeBucketOwnership ??
+    (input.legacyRuntimeBuckets ? "legacy" : "surfaced");
+  if (runtimeBucketOwnership === "legacy" && !input.legacyRuntimeBuckets) {
+    throw new Error("legacy runtime bucket ownership requires legacyRuntimeBuckets.");
+  }
+  const runtimeBuckets = runtimeBucketOwnership === "legacy"
+    ? cloneLegacyRuntimeBuckets(input.legacyRuntimeBuckets!, rankedLevels, enrichmentAccumulator)
     : {
         majorSupport: supportBuckets.major,
         majorResistance: resistanceBuckets.major,
@@ -605,6 +638,25 @@ export function buildNewRuntimeCompatibleLevelOutput(
         intermediateResistance: resistanceBuckets.intermediate,
         intradaySupport: supportBuckets.intraday,
         intradayResistance: resistanceBuckets.intraday,
+      };
+  const surfacedRuntimeZones = [
+    ...runtimeBuckets.majorSupport,
+    ...runtimeBuckets.majorResistance,
+    ...runtimeBuckets.intermediateSupport,
+    ...runtimeBuckets.intermediateResistance,
+    ...runtimeBuckets.intradaySupport,
+    ...runtimeBuckets.intradayResistance,
+  ];
+  const extensionLevels = input.legacyExtensionLevels
+    ? cloneExtensionLevels(
+        input.legacyExtensionLevels,
+        rankedLevels,
+        enrichmentAccumulator,
+        surfacedRuntimeZones,
+      )
+    : {
+        support: extensionSupport,
+        resistance: extensionResistance,
       };
 
   const output: LevelEngineOutput = {
@@ -630,9 +682,9 @@ export function buildNewRuntimeCompatibleLevelOutput(
     enrichmentDiagnostics,
     mappingNotes: [
       "The new surfaced adapter is projected into the legacy bucketed LevelEngineOutput contract for runtime compatibility.",
-      input.legacyRuntimeBuckets
+      runtimeBucketOwnership === "legacy"
         ? "Runtime buckets reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path so bucket coverage, nearest levels, and legacy strength labels remain stable while richer surfaced selection stays observational."
-        : "Strength labels are approximated from surfaced-selection scores because the new path does not emit the old scorer's native label buckets.",
+        : "Runtime buckets are owned by the projected surfaced selection; changing runtime mode back to old bypasses this projection and returns the untouched legacy output.",
       input.legacyExtensionLevels
         ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path so forward-planning coverage is not limited to one surfaced anchor per side."
         : "Extension levels fall back to surfaced deeper anchors when no legacy extension ladder is supplied.",

@@ -316,6 +316,29 @@ function selectContinuityAwareResistanceExtensions(params: {
     return selected;
   }
 
+  if (params.preservePracticalResistanceCoverage && selected.length < params.maxCount) {
+    for (const candidate of remaining) {
+      if (!isActionableForwardCandidate(candidate)) {
+        continue;
+      }
+      if (isTooCloseToAny(candidate, params.surfaced, params.spacingPct)) {
+        continue;
+      }
+      if (isTooCloseToAny(candidate, selected, params.spacingPct)) {
+        continue;
+      }
+
+      selected.push({ ...candidate, isExtension: true });
+      if (selected.length >= params.maxCount) {
+        break;
+      }
+    }
+
+    if (selected.length >= params.maxCount || remaining.length === 0) {
+      return [...selected].sort((a, b) => a.representativePrice - b.representativePrice);
+    }
+  }
+
   const practicalFarCandidate = remaining
     .filter((candidate) => candidate.representativePrice <= maxPracticalPrice)
     .at(-1);

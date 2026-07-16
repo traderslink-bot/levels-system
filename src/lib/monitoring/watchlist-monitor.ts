@@ -139,10 +139,16 @@ export class WatchlistMonitor {
 
   constructor(
     private readonly levelStore: LevelStore,
-    private readonly livePriceProvider: LivePriceProvider,
+    private livePriceProvider: LivePriceProvider,
     private readonly config: MonitoringConfig = DEFAULT_MONITORING_CONFIG,
     private readonly options: WatchlistMonitorOptions = {},
   ) {}
+
+  setLivePriceProvider(provider: LivePriceProvider): LivePriceProvider {
+    const previousProvider = this.livePriceProvider;
+    this.livePriceProvider = provider;
+    return previousProvider;
+  }
 
   private ensureSymbolState(symbol: string): SymbolMonitoringState {
     const existing = this.symbolStates.get(symbol);

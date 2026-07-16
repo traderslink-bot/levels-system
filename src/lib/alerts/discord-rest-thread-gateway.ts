@@ -6,6 +6,7 @@ import type {
 } from "./alert-types.js";
 import type { DiscordThreadGateway } from "./alert-router.js";
 import { formatLevelExtensionMessage, formatLevelLadderMessage, formatLevelSnapshotMessage } from "./alert-router.js";
+import { buildWatchlistDiscordLinkMessage } from "./watchlist-discord-link-message.js";
 
 type DiscordSnowflake = string;
 
@@ -439,7 +440,10 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   }
 
   async createThread(name: string): Promise<DiscordThread> {
-    const starterMessage = await this.postMessage(this.watchlistChannelId, name);
+    const starterMessage = await this.postMessage(
+      this.watchlistChannelId,
+      buildWatchlistDiscordLinkMessage(name),
+    );
     const thread = await this.request<DiscordChannelResponse>(
       `/channels/${this.watchlistChannelId}/messages/${starterMessage.id}/threads`,
       {

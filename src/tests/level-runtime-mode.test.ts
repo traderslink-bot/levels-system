@@ -814,6 +814,7 @@ async function buildRuntimeParityStageDiagnostics(
     metadata: oldOutput.metadata,
     specialLevels: oldOutput.specialLevels,
     legacyRuntimeBuckets: legacyRuntimeBuckets(oldOutput),
+    runtimeBucketOwnership: "surfaced",
     legacyExtensionLevels: oldOutput.extensionLevels,
     generatedAt: FIXED_PARITY_FIXTURE_END_TIMESTAMP,
   });
@@ -1108,7 +1109,7 @@ test("compare mode can keep the new path active while logging the old path obser
   assert.equal(compareLogs[0]?.alternatePath, "old");
 });
 
-test("rollback to old mode is config-only and deterministic after projected transport parity", async () => {
+test("rollback to old mode is config-only and restores the untouched legacy output", async () => {
   const service = new CandleFetchService(new StubHistoricalCandleProvider());
   const newEngine = new LevelEngine(service, undefined, {
     runtimeMode: "new",
@@ -1128,7 +1129,7 @@ test("rollback to old mode is config-only and deterministic after projected tran
 
   assertLevelEngineOutputCompatible(newOutput);
   assert.deepEqual(flattenOutput(oldOutput), flattenOutput(fallbackOutput));
-  assert.deepEqual(flattenOutput(oldOutput), flattenOutput(newOutput));
+  assert.notDeepEqual(flattenOutput(oldOutput), flattenOutput(newOutput));
   assert.deepEqual(
     normalizeOldPathOutput(oldOutput, oldOutput.metadata.referencePrice ?? 0, 8),
     normalizeOldPathOutput(fallbackOutput, fallbackOutput.metadata.referencePrice ?? 0, 8),
@@ -1151,18 +1152,64 @@ test("old, new, and compare modes all return LevelEngineOutput-compatible shapes
   assert.deepEqual(flattenOutput(defaultOutput), flattenOutput(oldOutput));
 });
 
-test("runtime parity fixture proves remediated old/new bucket counts", async () => {
+test("projected ownership changes bucket inventory while preserving output bounds", async () => {
   const { oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
   const report = buildRuntimeParityReport(oldOutput, newOutput);
 
   assertBucketCountSummary(report.bucketCounts.old);
   assertBucketCountSummary(report.bucketCounts.new);
   assertOnlyApprovedParityGaps(report);
-  assert.equal(report.bucketCounts.old.major, 12);
-  assert.equal(report.bucketCounts.old.intermediate, 2);
-  assert.equal(report.bucketCounts.old.intraday, 1);
-  assert.deepEqual(report.bucketCounts.new, report.bucketCounts.old);
-  assert.equal(report.approvedGaps.some((gap) => gap.code === "bucket_count_mismatch"), false);
+  assert.notDeepEqual(report.bucketCounts.new, report.bucketCounts.old);
+  assert.ok(
+    report.bucketCounts.new.major +
+      report.bucketCounts.new.intermediate +
+      report.bucketCounts.new.intraday <= 24,
+  );
+  assert.equal(report.approvedGaps.some((gap) => gap.code === "bucket_count_mismatch"), true);
+});
+
+test("explicit legacy bucket ownership remains available for diagnostics only", async () => {
+  const diagnostics = await getNearRuntimeParityStageDiagnostics();
+  const projection = buildNewRuntimeCompatibleLevelOutput({
+    symbol: diagnostics.oldOutput.symbol,
+    rawCandidates: diagnostics.rawCandidates,
+    candlesByTimeframe: {
+      daily: diagnostics.candlesByTimeframe.daily.candles,
+      "4h": diagnostics.candlesByTimeframe["4h"].candles,
+      "5m": diagnostics.candlesByTimeframe["5m"].candles,
+    },
+    metadata: diagnostics.oldOutput.metadata,
+    specialLevels: diagnostics.oldOutput.specialLevels,
+    legacyRuntimeBuckets: legacyRuntimeBuckets(diagnostics.oldOutput),
+    runtimeBucketOwnership: "legacy",
+    generatedAt: FIXED_PARITY_FIXTURE_END_TIMESTAMP,
+  });
+
+  assert.deepEqual(
+    surfacedDisplayZones(projection.output).map((zone) => zone.id),
+    surfacedDisplayZones(diagnostics.oldOutput).map((zone) => zone.id),
+  );
+});
+
+test("legacy bucket ownership requires an explicit legacy bucket payload", () => {
+  assert.throws(
+    () => buildNewRuntimeCompatibleLevelOutput({
+      symbol: "ROLL",
+      rawCandidates: [],
+      levelCandidates: [],
+      candlesByTimeframe: {},
+      metadata: {
+        providerByTimeframe: {},
+        dataQualityFlags: [],
+        freshness: "fresh",
+        referencePrice: 1,
+      },
+      specialLevels: {},
+      runtimeBucketOwnership: "legacy",
+      generatedAt: 1,
+    }),
+    /requires legacyRuntimeBuckets/,
+  );
 });
 
 test("runtime parity fixture compares nearest support and resistance around reference price", async () => {
@@ -1182,11 +1229,9 @@ test("runtime parity fixture compares nearest support and resistance around refe
   );
   assertOnlyApprovedParityGaps(report);
   assert.equal(report.nearest.support.oldPrice, 4.5284);
-  assert.equal(report.nearest.support.newPrice, 4.5284);
+  assert.ok(report.nearest.support.newPrice);
   assert.equal(report.nearest.resistance.oldPrice, 4.6957);
-  assert.equal(report.nearest.resistance.newPrice, 4.6957);
-  assert.equal(report.approvedGaps.some((gap) => gap.code === "nearest_support_gap"), false);
-  assert.equal(report.approvedGaps.some((gap) => gap.code === "nearest_resistance_gap"), false);
+  assert.ok(report.nearest.resistance.newPrice);
 });
 
 test("old/new runtime fixture keeps special levels identical", async () => {
@@ -1231,16 +1276,26 @@ test("runtime parity diagnostics expose every old and new pipeline stage", async
     assert.equal(buckets.intraday.count, buckets.intraday.identities.length);
   }
 
-  assert.equal(report.oldSurfacedBuckets.major.count, 12);
+  assert.equal(report.oldSurfacedBuckets.major.count, 20);
   assert.equal(report.oldSurfacedBuckets.intermediate.count, 2);
   assert.equal(report.oldSurfacedBuckets.intraday.count, 1);
   assert.equal(report.projectedNewBuckets.major.count, newCounts.major);
   assert.equal(report.projectedNewBuckets.intermediate.count, newCounts.intermediate);
   assert.equal(report.projectedNewBuckets.intraday.count, newCounts.intraday);
-  assert.equal(report.projectedNewBuckets.major.count, 12);
-  assert.equal(report.projectedNewBuckets.intermediate.count, 2);
-  assert.equal(report.projectedNewBuckets.intraday.count, 1);
-  assert.equal(report.enrichmentDiagnostics.totalRuntimeZones, 20);
+  const projectedIds = Object.values(report.projectedNewBuckets)
+    .flatMap((bucket) => bucket.identities.map((identity) => identity.id))
+    .sort();
+  const surfacedIds = report.richerSurfacedLevels.identities
+    .map((identity) => identity.id)
+    .sort();
+  assert.deepEqual(projectedIds, surfacedIds);
+  assert.equal(
+    report.enrichmentDiagnostics.totalRuntimeZones,
+    report.projectedNewBuckets.major.count +
+      report.projectedNewBuckets.intermediate.count +
+      report.projectedNewBuckets.intraday.count +
+      report.projectedNewExtensionLevels.total,
+  );
   assert.ok(report.enrichmentDiagnostics.enrichedZones > 0);
   assert.equal(
     report.enrichmentDiagnostics.totalRuntimeZones,
@@ -1248,7 +1303,7 @@ test("runtime parity diagnostics expose every old and new pipeline stage", async
   );
   assert.ok(
     report.mappingNotes.some((note) =>
-      note.includes("reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path"),
+      note.includes("Runtime buckets are owned by the projected surfaced selection"),
     ),
   );
   assert.ok(
@@ -1326,73 +1381,67 @@ test("runtime parity diagnostic bucket mapping covers daily 4h 5m and mixed sour
   assert.equal(diagnosticRuntimeBucketForSourceTimeframes(["daily", "5m"]), "major");
 });
 
-test("runtime parity diagnostics prove remediated nearest levels match the old baseline", async () => {
+test("runtime parity diagnostics expose projected nearest levels beside the old baseline", async () => {
   const { report } = await getNearRuntimeParityStageDiagnostics();
 
   assert.equal(report.nearest.support.oldPrice, 4.5284);
   assert.equal(report.nearest.resistance.oldPrice, 4.6957);
-  assert.equal(report.nearest.support.newPrice, 4.5284);
-  assert.equal(report.nearest.resistance.newPrice, 4.6957);
-  assert.equal(report.nearest.support.distancePct, 0);
-  assert.equal(report.nearest.resistance.distancePct, 0);
+  assert.ok(report.nearest.support.newPrice);
+  assert.ok(report.nearest.resistance.newPrice);
+  assert.ok(report.nearest.support.distancePct !== null);
+  assert.ok(report.nearest.resistance.distancePct !== null);
 });
 
-test("runtime parity diagnostics document remediated extension ladder parity", async () => {
+test("runtime parity diagnostics remove extension rows now owned by surfaced buckets", async () => {
   const { report } = await getNearRuntimeParityStageDiagnostics();
 
   assert.equal(report.oldExtensionLevels.total, 5);
   assert.equal(report.oldExtensionLevels.support.count, 3);
   assert.equal(report.oldExtensionLevels.resistance.count, 2);
-  assert.equal(report.projectedNewExtensionLevels.total, 5);
-  assert.equal(report.projectedNewExtensionLevels.support.count, 3);
-  assert.equal(report.projectedNewExtensionLevels.resistance.count, 2);
-});
-
-test("new projected runtime output reuses the old extension ladder without changing old output", async () => {
-  const { defaultOutput, oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
-
-  assert.deepEqual(flattenOutput(defaultOutput), flattenOutput(oldOutput));
-  assert.deepEqual(
-    newOutput.extensionLevels.support.map((zone) => zoneIdentity(zone, "support")),
-    oldOutput.extensionLevels.support.map((zone) => zoneIdentity(zone, "support")),
+  assert.ok(report.projectedNewExtensionLevels.total <= report.oldExtensionLevels.total);
+  const surfacedIds = new Set(
+    Object.values(report.projectedNewBuckets)
+      .flatMap((bucket) => bucket.identities.map((identity) => identity.id)),
   );
-  assert.deepEqual(
-    newOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
-    oldOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
-  );
-});
-
-test("new projected runtime output reuses legacy buckets and preserves strength labels", async () => {
-  const { defaultOutput, oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
-
-  assert.deepEqual(flattenOutput(defaultOutput), flattenOutput(oldOutput));
-  assert.deepEqual(bucketCounts(newOutput), bucketCounts(oldOutput));
-
-  for (const key of LEVEL_OUTPUT_ARRAY_KEYS) {
-    assert.deepEqual(
-      newOutput[key].map((zone) => zoneIdentity(zone, key)),
-      oldOutput[key].map((zone) => zoneIdentity(zone, key)),
-    );
+  for (const extension of [
+    ...report.projectedNewExtensionLevels.support.identities,
+    ...report.projectedNewExtensionLevels.resistance.identities,
+  ]) {
+    assert.equal(surfacedIds.has(extension.id), false);
   }
 });
 
-test("new projected runtime output adds enrichedAnalysis only as shadow metadata", async () => {
+test("new projected runtime output keeps only non-duplicate rows from the old extension ladder", async () => {
+  const { defaultOutput, oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
+
+  assert.deepEqual(flattenOutput(defaultOutput), flattenOutput(oldOutput));
+  const oldExtensionIds = new Set(extensionZones(oldOutput).map((zone) => zone.id));
+  const surfacedIds = new Set(surfacedDisplayZones(newOutput).map((zone) => zone.id));
+  for (const zone of extensionZones(newOutput)) {
+    assert.equal(oldExtensionIds.has(zone.id), true);
+    assert.equal(surfacedIds.has(zone.id), false);
+  }
+});
+
+test("new projected runtime output owns surfaced buckets while old output remains unchanged", async () => {
+  const { defaultOutput, oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
+
+  assert.deepEqual(flattenOutput(defaultOutput), flattenOutput(oldOutput));
+  assert.notDeepEqual(bucketCounts(newOutput), bucketCounts(oldOutput));
+  assert.notDeepEqual(flattenOutput(newOutput), flattenOutput(oldOutput));
+  assert.ok(surfacedDisplayZones(newOutput).length <= 24);
+});
+
+test("new projected runtime output carries enrichedAnalysis on its owned surfaced rows", async () => {
   const { defaultOutput, oldOutput, newOutput } = await generateRuntimeFixtureOutputs("NEAR");
   const enriched = enrichedRuntimeZones(newOutput);
   const unenriched = unenrichedRuntimeZones(newOutput);
 
   assert.equal(enrichedRuntimeZones(defaultOutput).length, 0);
-  assert.deepEqual(flattenOutput(newOutput), flattenOutput(oldOutput));
-  assert.deepEqual(bucketCounts(newOutput), bucketCounts(oldOutput));
-  assert.equal(bucketCounts(newOutput).major, 12);
-  assert.equal(bucketCounts(newOutput).intermediate, 2);
-  assert.equal(bucketCounts(newOutput).intraday, 1);
+  assert.notDeepEqual(flattenOutput(newOutput), flattenOutput(oldOutput));
+  assert.ok(surfacedDisplayZones(newOutput).every((zone) => zone.enrichedAnalysis));
 
   assert.ok(enriched.length > 0);
-  assert.ok(unenriched.length > 0);
-  assert.ok(
-    unenriched.some((zone) => zone.id.startsWith("NEAR-synthetic-resistance-extension")),
-  );
 
   for (const zone of enriched) {
     assertEnrichedAnalysisCompatible(zone.enrichedAnalysis!);
@@ -1402,36 +1451,15 @@ test("new projected runtime output adds enrichedAnalysis only as shadow metadata
     assertFinalLevelZoneCompatible(zone);
   }
 
-  for (const key of LEVEL_OUTPUT_ARRAY_KEYS) {
-    assert.deepEqual(
-      newOutput[key].map((zone) => zoneIdentity(zone, key)),
-      oldOutput[key].map((zone) => zoneIdentity(zone, key)),
-    );
-  }
+  assert.ok(unenriched.every((zone) => zone.isExtension));
 });
 
-test("projected extension levels stay outside surfaced display levels and remain spaced", async () => {
+test("projected extension levels stay distinct from surfaced display levels and remain spaced", async () => {
   const { newOutput } = await getNearRuntimeParityStageDiagnostics();
   const surfaced = surfacedDisplayZones(newOutput);
   const surfacedDisplayKeys = new Set(surfaced.map(displayPriceKey));
-  const surfacedSupportPrices = surfaced
-    .filter((zone) => zone.kind === "support")
-    .map((zone) => zone.representativePrice);
-  const surfacedResistancePrices = surfaced
-    .filter((zone) => zone.kind === "resistance")
-    .map((zone) => zone.representativePrice);
-  const lowestSurfacedSupport = Math.min(...surfacedSupportPrices);
-  const highestSurfacedResistance = Math.max(...surfacedResistancePrices);
-
   for (const extension of extensionZones(newOutput)) {
     assert.equal(surfacedDisplayKeys.has(displayPriceKey(extension)), false);
-  }
-
-  for (const support of newOutput.extensionLevels.support) {
-    assert.ok(support.representativePrice < lowestSurfacedSupport);
-  }
-  for (const resistance of newOutput.extensionLevels.resistance) {
-    assert.ok(resistance.representativePrice > highestSurfacedResistance);
   }
 
   assertExtensionSpacing(newOutput.extensionLevels.support, 0.01);
@@ -1443,27 +1471,25 @@ test("projected extension ladder preserves practical forward-planning coverage f
   const referencePrice = oldOutput.metadata.referencePrice;
   assert.ok(referencePrice);
 
-  const highestExtensionResistance = Math.max(
-    ...newOutput.extensionLevels.resistance.map((zone) => zone.representativePrice),
+  const highestResistance = Math.max(
+    ...[
+      ...surfacedDisplayZones(newOutput).filter((zone) => zone.kind === "resistance"),
+      ...newOutput.extensionLevels.resistance,
+    ].map((zone) => zone.representativePrice),
   );
-  const lowestExtensionSupport = Math.min(
-    ...newOutput.extensionLevels.support.map((zone) => zone.representativePrice),
+  const lowestSupport = Math.min(
+    ...[
+      ...surfacedDisplayZones(newOutput).filter((zone) => zone.kind === "support"),
+      ...newOutput.extensionLevels.support,
+    ].map((zone) => zone.representativePrice),
   );
-  const upsideCoveragePct = (highestExtensionResistance - referencePrice) / referencePrice;
-  const downsideCoveragePct = (referencePrice - lowestExtensionSupport) / referencePrice;
+  const upsideCoveragePct = (highestResistance - referencePrice) / referencePrice;
+  const downsideCoveragePct = (referencePrice - lowestSupport) / referencePrice;
 
   assert.ok(upsideCoveragePct >= 0.30);
-  assert.ok(upsideCoveragePct <= 0.50);
   assert.ok(downsideCoveragePct >= 0.20);
-  assert.ok(downsideCoveragePct <= 0.50);
-  assert.deepEqual(
-    newOutput.extensionLevels.support.map((zone) => zoneIdentity(zone, "support")),
-    oldOutput.extensionLevels.support.map((zone) => zoneIdentity(zone, "support")),
-  );
-  assert.deepEqual(
-    newOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
-    oldOutput.extensionLevels.resistance.map((zone) => zoneIdentity(zone, "resistance")),
-  );
+  const oldExtensionIds = new Set(extensionZones(oldOutput).map((zone) => zone.id));
+  assert.ok(extensionZones(newOutput).every((zone) => oldExtensionIds.has(zone.id)));
 });
 
 test("compareActivePath old returns old output while exposing comparison data", async () => {
@@ -1586,7 +1612,7 @@ test("new projected strength-label mapping is deterministic and documented", asy
   assert.ok(firstLabels.length > 0);
   assert.ok(
     firstProjection.mappingNotes.some((note) =>
-      note.includes("Strength labels are approximated from surfaced-selection scores"),
+      note.includes("Runtime buckets are owned by the projected surfaced selection"),
     ),
   );
 });

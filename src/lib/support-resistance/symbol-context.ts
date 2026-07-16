@@ -3,7 +3,14 @@ import {
   type CandleFetchServiceOptions,
   type HistoricalFetchRequest,
 } from "../market-data/candle-fetch-service.js";
-import type { CandleProviderName, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
+import { finalizeCandleProviderResponse } from "../market-data/candle-quality.js";
+import type {
+  BaseCandleProviderResponse,
+  Candle,
+  CandleProviderName,
+  CandleProviderResponse,
+  CandleTimeframe,
+} from "../market-data/candle-types.js";
 import {
   filterCandlesByCloseAsOf,
   type CandleAsOfFilterDiagnostic,
@@ -79,6 +86,8 @@ const DEFAULT_LOOKBACK_BARS: Record<CandleTimeframe, number> = {
   "4h": 180,
   "5m": 120,
 };
+const ONE_MINUTE_MS = 60 * 1000;
+const FIVE_MINUTE_MS = 5 * ONE_MINUTE_MS;
 
 function normalizeSymbol(symbol: string): string {
   const normalized = symbol.trim().toUpperCase();
@@ -122,6 +131,92 @@ function fetchSummary(response: CandleProviderResponse): SupportResistanceSymbol
     stale: response.stale,
     validationIssues: response.validationIssues,
   };
+}
+
+function aggregateCandlesToFiveMinutes(candles: Candle[]): Candle[] {
+  const sorted = [...candles].sort((left, right) => left.timestamp - right.timestamp);
+  const buckets = new Map<number, Candle[]>();
+
+  for (const candle of sorted) {
+    const bucketStart = Math.floor(candle.timestamp / FIVE_MINUTE_MS) * FIVE_MINUTE_MS;
+    const bucket = buckets.get(bucketStart) ?? [];
+    bucket.push(candle);
+    buckets.set(bucketStart, bucket);
+  }
+
+  return [...buckets.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([timestamp, bucket]) => ({
+      timestamp,
+      open: bucket[0]!.open,
+      high: Math.max(...bucket.map((candle) => candle.high)),
+      low: Math.min(...bucket.map((candle) => candle.low)),
+      close: bucket.at(-1)!.close,
+      volume: bucket.reduce((sum, candle) => sum + candle.volume, 0),
+    }));
+}
+
+function shouldTryOneMinuteFallbackForFiveMinuteResponse(
+  response: CandleProviderResponse | undefined,
+  preferredProvider: HistoricalFetchRequest["preferredProvider"] | undefined,
+): boolean {
+  if (response && response.provider !== "eodhd") {
+    return false;
+  }
+  if (!response && preferredProvider !== "eodhd") {
+    return false;
+  }
+
+  return (
+    response === undefined ||
+    response.completenessStatus === "empty" ||
+    response.stale ||
+    response.validationIssues.some((issue) =>
+      issue.code === "zero_results" ||
+      issue.code === "stale_final_candle" ||
+      issue.code === "missing_recent_candles" ||
+      issue.code === "incomplete_current_session_data"
+    )
+  );
+}
+
+async function fetchOneMinuteAggregatedFiveMinuteResponse(params: {
+  fetchService: CandleFetchService;
+  symbol: string;
+  lookbackBars: number;
+  endTimeMs: number | undefined;
+  preferredProvider: HistoricalFetchRequest["preferredProvider"] | undefined;
+}): Promise<CandleProviderResponse> {
+  const oneMinuteResponse = await params.fetchService.fetchCandles({
+    symbol: params.symbol,
+    timeframe: "1m",
+    lookbackBars: params.lookbackBars * 5,
+    endTimeMs: params.endTimeMs,
+    preferredProvider: params.preferredProvider,
+  });
+  const candles = aggregateCandlesToFiveMinutes(oneMinuteResponse.candles)
+    .slice(-params.lookbackBars);
+  const baseResponse: BaseCandleProviderResponse = {
+    provider: oneMinuteResponse.provider,
+    symbol: oneMinuteResponse.symbol,
+    timeframe: "5m",
+    requestedLookbackBars: params.lookbackBars,
+    candles,
+    fetchStartTimestamp: oneMinuteResponse.fetchStartTimestamp,
+    fetchEndTimestamp: oneMinuteResponse.fetchEndTimestamp,
+    requestedStartTimestamp: oneMinuteResponse.requestedStartTimestamp,
+    requestedEndTimestamp: oneMinuteResponse.requestedEndTimestamp,
+    sessionMetadataAvailable: oneMinuteResponse.sessionMetadataAvailable,
+    providerMetadata: {
+      ...(oneMinuteResponse.providerMetadata ?? {}),
+      sourceTimeframe: "1m",
+      derivedTimeframe: "5m",
+      aggregationMethod: "ohlcv_1m_to_5m",
+      sourceActualBarsReturned: oneMinuteResponse.actualBarsReturned,
+    },
+  };
+
+  return finalizeCandleProviderResponse(baseResponse);
 }
 
 function diagnosticsFromResponses(
@@ -214,7 +309,7 @@ export async function buildSupportResistanceContextForSymbol(
   );
 
   const responses: Partial<Record<CandleTimeframe, CandleProviderResponse>> = {};
-  const failedDiagnostics: SupportResistanceSymbolContextDiagnostic[] = [];
+  let failedDiagnostics: SupportResistanceSymbolContextDiagnostic[] = [];
   for (const [index, result] of settled.entries()) {
     const timeframe = requestedTimeframes[index]!;
     if (result.status === "fulfilled") {
@@ -230,6 +325,32 @@ export async function buildSupportResistanceContextForSymbol(
           ? result.reason.message
           : `Failed to fetch ${timeframe} candles for ${symbol}.`,
     });
+  }
+
+  if (
+    shouldTryOneMinuteFallbackForFiveMinuteResponse(
+      responses["5m"],
+      request.preferredProvider,
+    )
+  ) {
+    try {
+      const fallbackResponse = await fetchOneMinuteAggregatedFiveMinuteResponse({
+        fetchService,
+        symbol,
+        lookbackBars: request.lookbackBars?.["5m"] ?? DEFAULT_LOOKBACK_BARS["5m"],
+        endTimeMs: endTimeMsByTimeframe["5m"] ?? endTimeMs,
+        preferredProvider: request.preferredProvider,
+      });
+
+      if (fallbackResponse.actualBarsReturned > 0 && !fallbackResponse.stale) {
+        responses["5m"] = fallbackResponse;
+        failedDiagnostics = failedDiagnostics.filter(
+          (diagnostic) => diagnostic.timeframe !== "5m",
+        );
+      }
+    } catch {
+      // Keep the original optional 5m diagnostics when the 1m fallback is unavailable.
+    }
   }
 
   const responseDiagnostics = diagnosticsFromResponses(responses);

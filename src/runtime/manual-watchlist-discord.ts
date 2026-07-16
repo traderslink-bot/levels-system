@@ -2,6 +2,16 @@ import { DiscordAlertRouter } from "../lib/alerts/alert-router.js";
 import { DiscordAuditedThreadGateway } from "../lib/alerts/discord-audited-thread-gateway.js";
 import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
 import { LocalDiscordThreadGateway } from "../lib/alerts/local-discord-thread-gateway.js";
+import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import {
+  LIVE_WATCHLIST_PULLBACK_READ_ENABLED_ENV,
+  resolveLiveWatchlistPullbackReadEnabled,
+} from "../lib/live-watchlist/pullback-read.js";
+import {
+  LIVE_WATCHLIST_TRADE_SETUP_READ_MODE_ENV,
+  resolveLiveWatchlistTradeSetupReadMode,
+} from "../lib/live-watchlist/trade-setup-read.js";
+import { WebsitePublishingDiscordGateway } from "../lib/live-watchlist/website-publishing-discord-gateway.js";
 
 type DiscordRuntimeEnv = {
   botToken: string | null;
@@ -57,6 +67,29 @@ export function createDiscordAlertRouter(): DiscordAlertRouter {
   const env = readDiscordRuntimeEnv();
   const hasAnyDiscordConfig = Boolean(env.botToken || env.watchlistChannelId || env.guildId);
   const shouldUseRealDiscord = Boolean(env.botToken && env.watchlistChannelId);
+  const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
+  const pullbackReadEnabled = resolveLiveWatchlistPullbackReadEnabled();
+  const tradeSetupReadMode = resolveLiveWatchlistTradeSetupReadMode();
+
+  if (liveWatchlistPublisher) {
+    console.log("[ManualWatchlistRuntime] Live website watchlist publisher enabled.");
+    if (pullbackReadEnabled) {
+      console.log(
+        `[ManualWatchlistRuntime] Watchlist pullback read enabled. Set ${LIVE_WATCHLIST_PULLBACK_READ_ENABLED_ENV}=0 to disable it.`,
+      );
+    }
+    console.log(
+      tradeSetupReadMode === "active"
+        ? `[ManualWatchlistRuntime] Trade Setup Trader Read active via ${LIVE_WATCHLIST_TRADE_SETUP_READ_MODE_ENV}=active.`
+        : tradeSetupReadMode === "observe"
+          ? `[ManualWatchlistRuntime] Trade Setup Trader Read is in observe mode; analysis is recorded without replacing live copy. Set ${LIVE_WATCHLIST_TRADE_SETUP_READ_MODE_ENV}=active only after review.`
+          : `[ManualWatchlistRuntime] Trade Setup Trader Read disabled via ${LIVE_WATCHLIST_TRADE_SETUP_READ_MODE_ENV}=off.`,
+    );
+  } else {
+    console.log(
+      "[ManualWatchlistRuntime] Live website watchlist publisher disabled. Set TRADERSLINK_WATCHLIST_INGEST_URL and TRADERSLINK_WATCHLIST_PUBLISHER_TOKEN to enable it.",
+    );
+  }
 
   if (hasAnyDiscordConfig && !shouldUseRealDiscord) {
     throw new Error(
@@ -73,13 +106,18 @@ export function createDiscordAlertRouter(): DiscordAlertRouter {
     }
 
     return new DiscordAlertRouter(
-      createAuditedGateway(
-        "real",
-        new DiscordRestThreadGateway({
-          botToken: env.botToken!,
-          watchlistChannelId: env.watchlistChannelId!,
-          guildId: env.guildId ?? undefined,
-        }),
+      new WebsitePublishingDiscordGateway(
+        createAuditedGateway(
+          "real",
+          new DiscordRestThreadGateway({
+            botToken: env.botToken!,
+            watchlistChannelId: env.watchlistChannelId!,
+            guildId: env.guildId ?? undefined,
+          }),
+        ),
+        liveWatchlistPublisher,
+        undefined,
+        { pullbackReadEnabled, tradeSetupReadMode },
       ),
     );
   }
@@ -88,5 +126,12 @@ export function createDiscordAlertRouter(): DiscordAlertRouter {
   console.log(
     "[ManualWatchlistRuntime] Set DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID in .env for real Discord posting.",
   );
-  return new DiscordAlertRouter(createAuditedGateway("local", new LocalDiscordThreadGateway()));
+  return new DiscordAlertRouter(
+    new WebsitePublishingDiscordGateway(
+      createAuditedGateway("local", new LocalDiscordThreadGateway()),
+      liveWatchlistPublisher,
+      undefined,
+      { pullbackReadEnabled, tradeSetupReadMode },
+    ),
+  );
 }

@@ -1,10 +1,12 @@
 import "dotenv/config";
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
+import { createHistoricalCandleProvider } from "../lib/market-data/provider-factory.js";
+import { YahooHistoricalCandleProvider } from "../lib/market-data/yahoo-historical-candle-provider.js";
 import {
   ValidationCachedCandleFetchService,
   resolveValidationCandleCacheMode,
@@ -13,8 +15,11 @@ import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-com
 import { createFinnhubClientFromEnv } from "../lib/stock-context/finnhub-client.js";
 import { createYahooClientFromEnv } from "../lib/stock-context/yahoo-client.js";
 import { CombinedStockContextProvider } from "../lib/stock-context/stock-context-provider.js";
-import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
-import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
+import {
+  createLivePriceProvider,
+  resolveLivePriceProviderName,
+  type LivePriceProviderName,
+} from "../lib/monitoring/live-price-provider-factory.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import {
   DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS,
@@ -44,6 +49,12 @@ import {
   isIbkrReconnecting,
 } from "../scripts/shared/ibkr-runtime.js";
 import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
+import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import { resolveLiveWatchlistPullbackReadEnabled } from "../lib/live-watchlist/pullback-read.js";
+import type {
+  LiveWatchlistMarketDataStatus,
+  LiveWatchlistPublisher,
+} from "../lib/live-watchlist/live-watchlist-types.js";
 import {
   LOCAL_BIND_HOST,
   RequestBodyParseError,
@@ -81,14 +92,19 @@ const MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_ENV = "MANUAL_WATCHLIST_FAST_LE
 const MANUAL_WATCHLIST_CANDLE_CACHE_MODE_ENV = "MANUAL_WATCHLIST_CANDLE_CACHE_MODE";
 const MANUAL_WATCHLIST_CANDLE_CACHE_DIR_ENV = "MANUAL_WATCHLIST_CANDLE_CACHE_DIR";
 const MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE_ENV = "MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE";
+const MANUAL_WATCHLIST_HISTORICAL_PROVIDER_ENV = "LEVEL_HISTORICAL_CANDLE_PROVIDER";
+const MANUAL_WATCHLIST_LIVE_PRICE_PROVIDER_ENV = "LEVEL_LIVE_PRICE_PROVIDER";
+const MANUAL_WATCHLIST_PROVIDER_CONFIG_PATH_ENV = "LEVEL_MANUAL_PROVIDER_CONFIG_PATH";
 const MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV = "LEVEL_MANUAL_LOOKBACK_DAILY";
 const MANUAL_WATCHLIST_LOOKBACK_4H_ENV = "LEVEL_MANUAL_LOOKBACK_4H";
 const MANUAL_WATCHLIST_LOOKBACK_5M_ENV = "LEVEL_MANUAL_LOOKBACK_5M";
 const WATCHLIST_POSTING_PROFILE_ENV = "WATCHLIST_POSTING_PROFILE";
 const MARKET_STRUCTURE_STANDALONE_POSTS_ENV = "MARKET_STRUCTURE_STANDALONE_POSTS";
+const LIVE_WATCHLIST_HEALTH_PUBLISH_INTERVAL_MS = 15_000;
 const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
 const DEFAULT_MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS = 90_000;
 const DEFAULT_MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS = 5000;
+const DEFAULT_EODHD_MANUAL_WATCHLIST_4H_LOOKBACK = 900;
 const REVIEW_ARTIFACT_FILES = [
   "session-review.md",
   "thread-post-policy-report.md",
@@ -120,6 +136,7 @@ const REVIEW_ARTIFACT_FILES = [
   "market-structure-outcome-calibration.md",
   "market-structure-outcome-calibration.json",
   "market-structure-lifecycle.jsonl",
+  "watchlist-lifecycle-events.jsonl",
   "market-structure-story-memory.json",
   "snapshot-audit-report.md",
   "live-post-replay-simulation.json",
@@ -164,6 +181,18 @@ const DISCORD_API_BASE_URL = "https://discord.com/api/v10";
 const DISCORD_CLEANUP_PAGE_LIMIT = 100;
 const DISCORD_CLEANUP_PARENT_MESSAGE_PAGE_LIMIT = 50;
 const DISCORD_CLEANUP_RETRY_DELAY_MS = 1000;
+const RUNTIME_HISTORICAL_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
+const RUNTIME_LIVE_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
+const PROVIDER_CONFIG_VERSION = 1;
+
+type RuntimeHistoricalProviderName = (typeof RUNTIME_HISTORICAL_PROVIDER_OPTIONS)[number];
+
+type RuntimeProviderConfig = {
+  version: typeof PROVIDER_CONFIG_VERSION;
+  lastUpdated: number;
+  historicalProvider: RuntimeHistoricalProviderName;
+  liveProvider: LivePriceProviderName;
+};
 
 function isTruthyEnv(value: string | undefined): boolean {
   if (!value) {
@@ -178,21 +207,162 @@ function resolvePositiveIntegerEnv(value: string | undefined, fallback: number):
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function resolveManualWatchlistHistoricalLookbacks(): ManualWatchlistHistoricalLookbacks {
+function resolveHistoricalProviderName(raw: string | undefined): RuntimeHistoricalProviderName {
+  return raw?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
+}
+
+function parseRuntimeHistoricalProviderName(raw: unknown): RuntimeHistoricalProviderName | null {
+  const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return normalized === "ibkr" || normalized === "eodhd" ? normalized : null;
+}
+
+function parseRuntimeLiveProviderName(raw: unknown): LivePriceProviderName | null {
+  const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return normalized === "ibkr" || normalized === "eodhd" ? normalized : null;
+}
+
+function resolveProviderConfigPath(): string {
+  return process.env[MANUAL_WATCHLIST_PROVIDER_CONFIG_PATH_ENV]?.trim() ||
+    join(process.cwd(), "artifacts", "manual-watchlist-provider-config.json");
+}
+
+function loadRuntimeProviderConfig(path: string): RuntimeProviderConfig | null {
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+    const historicalProvider = parseRuntimeHistoricalProviderName(parsed.historicalProvider);
+    const liveProvider = parseRuntimeLiveProviderName(parsed.liveProvider) ?? "ibkr";
+    if (parsed.version !== PROVIDER_CONFIG_VERSION || !historicalProvider) {
+      return null;
+    }
+
+    return {
+      version: PROVIDER_CONFIG_VERSION,
+      lastUpdated:
+        typeof parsed.lastUpdated === "number" && Number.isFinite(parsed.lastUpdated)
+          ? parsed.lastUpdated
+          : 0,
+      historicalProvider,
+      liveProvider,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ManualWatchlistRuntime] Failed to load provider config at ${path}: ${message}`);
+    }
+
+    return null;
+  }
+}
+
+function saveRuntimeProviderConfig(
+  path: string,
+  config: Omit<RuntimeProviderConfig, "version" | "lastUpdated">,
+): void {
+  const persisted: RuntimeProviderConfig = {
+    version: PROVIDER_CONFIG_VERSION,
+    lastUpdated: Date.now(),
+    ...config,
+  };
+  const tempPath = `${path}.tmp`;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(tempPath, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
+  renameSync(tempPath, path);
+}
+
+function resolveDefaultManualWatchlistHistoricalLookbacks(
+  providerName: RuntimeHistoricalProviderName,
+): ManualWatchlistHistoricalLookbacks {
+  if (providerName === "eodhd") {
+    return {
+      ...DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS,
+      "4h": DEFAULT_EODHD_MANUAL_WATCHLIST_4H_LOOKBACK,
+    };
+  }
+
+  return DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS;
+}
+
+function resolveManualWatchlistHistoricalLookbacks(
+  providerName: RuntimeHistoricalProviderName,
+): ManualWatchlistHistoricalLookbacks {
+  const defaults = resolveDefaultManualWatchlistHistoricalLookbacks(providerName);
+
   return {
     daily: resolvePositiveIntegerEnv(
       process.env[MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV],
-      DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS.daily,
+      defaults.daily,
     ),
     "4h": resolvePositiveIntegerEnv(
       process.env[MANUAL_WATCHLIST_LOOKBACK_4H_ENV],
-      DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS["4h"],
+      defaults["4h"],
     ),
     "5m": resolvePositiveIntegerEnv(
       process.env[MANUAL_WATCHLIST_LOOKBACK_5M_ENV],
-      DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS["5m"],
+      defaults["5m"],
     ),
   };
+}
+
+function resolveMarketDataStatus(args: {
+  liveProviderName: LivePriceProviderName;
+  startupState: "booting" | "ready" | "error";
+  ibkrConnected: boolean;
+  ibkrReconnecting: boolean;
+  priceFeedStatus?: "live" | "stale" | "waiting";
+}): LiveWatchlistMarketDataStatus {
+  if (args.startupState === "error") {
+    return "offline";
+  }
+  if (args.startupState === "booting") {
+    return "starting";
+  }
+
+  if (args.liveProviderName === "eodhd") {
+    if (args.priceFeedStatus === "live" || args.priceFeedStatus === "stale") {
+      return args.priceFeedStatus;
+    }
+    return "starting";
+  }
+
+  if (args.ibkrConnected) {
+    return "live";
+  }
+  if (args.ibkrReconnecting) {
+    return "offline";
+  }
+  return "offline";
+}
+
+function publishLiveWatchlistHealth(args: {
+  publisher: LiveWatchlistPublisher | null;
+  manager: ManualWatchlistRuntimeManager;
+  startupState: "booting" | "ready" | "error";
+  liveProviderName: LivePriceProviderName;
+  ibkrConnected: boolean;
+  ibkrReconnecting: boolean;
+}): void {
+  if (!args.publisher?.publishHealth) {
+    return;
+  }
+
+  const health = args.manager.getRuntimeHealth();
+  const marketDataStatus = resolveMarketDataStatus({
+    liveProviderName: args.liveProviderName,
+    startupState: args.startupState,
+    ibkrConnected: args.ibkrConnected,
+    ibkrReconnecting: args.ibkrReconnecting,
+    priceFeedStatus: health.providerHealth.priceFeedStatus,
+  });
+  void args.publisher
+    .publishHealth({
+      type: "health",
+      marketDataStatus,
+      marketDataUpdatedAt: Date.now(),
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ManualWatchlistRuntime] Failed to publish live watchlist health: ${message}`);
+    });
 }
 
 function readReviewArtifacts(sessionDirectory: string | null): Array<{
@@ -432,14 +602,28 @@ async function main(): Promise<void> {
     process.env[MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_ENV],
     DEFAULT_MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS,
   );
-  const historicalLookbackBars = resolveManualWatchlistHistoricalLookbacks();
-  const historicalProvider = new IbkrHistoricalCandleProvider(
+  const providerConfigPath = resolveProviderConfigPath();
+  const persistedProviderConfig = loadRuntimeProviderConfig(providerConfigPath);
+  let historicalProviderName = resolveHistoricalProviderName(
+    persistedProviderConfig?.historicalProvider ??
+      process.env[MANUAL_WATCHLIST_HISTORICAL_PROVIDER_ENV],
+  );
+  let liveProviderName = resolveLivePriceProviderName(
+    persistedProviderConfig?.liveProvider ??
+      process.env[MANUAL_WATCHLIST_LIVE_PRICE_PROVIDER_ENV],
+  );
+  const historicalLookbackBars = resolveManualWatchlistHistoricalLookbacks(historicalProviderName);
+  const historicalProvider = createHistoricalCandleProvider({
+    provider: historicalProviderName,
     ib,
-    Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+    ibkrTimeoutMs: Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
       ? manualWatchlistIbkrTimeoutMs
       : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
-  );
-  const liveProvider = new IBKRLivePriceProvider(ib);
+  });
+  const liveProvider = createLivePriceProvider({
+    provider: liveProviderName,
+    ib,
+  });
   const rawCandleService = new CandleFetchService(historicalProvider);
   const requestedCandleCacheMode = resolveValidationCandleCacheMode(
     process.env[MANUAL_WATCHLIST_CANDLE_CACHE_MODE_ENV],
@@ -502,21 +686,47 @@ async function main(): Promise<void> {
   const marketStructureStandalonePostMode = resolveMarketStructureStandalonePostMode(
     process.env[MARKET_STRUCTURE_STANDALONE_POSTS_ENV],
   );
+  const pullbackReadEnabled = resolveLiveWatchlistPullbackReadEnabled();
+  const recentIntradayCandleFetchService = pullbackReadEnabled
+    ? new CandleFetchService(new YahooHistoricalCandleProvider())
+    : null;
   const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
   const marketStructureLifecyclePath = sessionDirectory
     ? join(sessionDirectory, "market-structure-lifecycle.jsonl")
     : null;
+  const watchlistLifecyclePath = sessionDirectory
+    ? join(sessionDirectory, "watchlist-lifecycle-events.jsonl")
+    : join("artifacts", "watchlist-lifecycle-events.jsonl");
   const marketStructureStoryMemoryPath = sessionDirectory
     ? join(sessionDirectory, "market-structure-story-memory.json")
     : null;
-  const lifecycleListener = marketStructureLifecyclePath
-    ? createCompositeManualWatchlistLifecycleListener([
-        createConsoleManualWatchlistLifecycleListener(),
-        createManualWatchlistLifecycleFileListener(marketStructureLifecyclePath, {
-          include: isMarketStructureLifecycleEvent,
-        }),
-      ])
-    : createConsoleManualWatchlistLifecycleListener();
+  const lifecycleFileListeners = [
+    createManualWatchlistLifecycleFileListener(watchlistLifecyclePath, {
+      include: (event) =>
+        event.event === "activation_queued" ||
+        event.event === "activation_started" ||
+        event.event === "activation_completed" ||
+        event.event === "activation_failed" ||
+        event.event === "activation_marked_failed" ||
+        event.event === "activation_retry_scheduled" ||
+        event.event === "restore_started" ||
+        event.event === "restore_completed" ||
+        event.event === "restore_failed" ||
+        event.event === "restore_skipped" ||
+        event.event === "deactivated",
+    }),
+    ...(marketStructureLifecyclePath
+      ? [
+          createManualWatchlistLifecycleFileListener(marketStructureLifecyclePath, {
+            include: isMarketStructureLifecycleEvent,
+          }),
+        ]
+      : []),
+  ];
+  const lifecycleListener = createCompositeManualWatchlistLifecycleListener([
+    createConsoleManualWatchlistLifecycleListener(),
+    ...lifecycleFileListeners,
+  ]);
   const openAiApiKeyPresent = Boolean(process.env.OPENAI_API_KEY?.trim());
   const aiCommentaryService = aiCommentaryEnabled
     ? createOpenAITraderCommentaryServiceFromEnv()
@@ -549,6 +759,8 @@ async function main(): Promise<void> {
     fastLevelClearCoalesceMs: manualWatchlistFastLevelClearCoalesceMs,
     marketStructureStoryMemoryPath,
     marketStructureStandalonePostMode,
+    pullbackReadEnabled,
+    recentIntradayCandleFetchService,
     autoCleanReadGenerator: aiCleanReadService
       ? async (input) => {
           const result = await aiCleanReadService.generateCleanRead(input);
@@ -558,14 +770,31 @@ async function main(): Promise<void> {
   });
   let startupState: "booting" | "ready" | "error" = "booting";
   let startupError: string | null = null;
+  const liveWatchlistHealthPublisher = createLiveWatchlistPublisherFromEnv();
+  const liveWatchlistHealthTimer = setInterval(() => {
+    publishLiveWatchlistHealth({
+      publisher: liveWatchlistHealthPublisher,
+      manager,
+      startupState,
+      liveProviderName,
+      ibkrConnected: isIbkrConnected(ib),
+      ibkrReconnecting: isIbkrReconnecting(ib),
+    });
+  }, LIVE_WATCHLIST_HEALTH_PUBLISH_INTERVAL_MS);
 
   const bootRuntime = async (): Promise<void> => {
     try {
-      await waitForIbkrConnection(ib);
+      const needsIbkrConnection = historicalProviderName === "ibkr" || liveProviderName === "ibkr";
+      if (needsIbkrConnection) {
+        await waitForIbkrConnection(ib);
+      }
       startupState = "ready";
       startupError = null;
       console.log(
         `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Live price provider path: ${liveProviderName}`,
       );
       if (requestedCandleCacheMode !== "off") {
         console.log(
@@ -610,10 +839,26 @@ async function main(): Promise<void> {
         `[ManualWatchlistRuntime] Yahoo stock context ${yahooClient ? "enabled" : "disabled (YAHOO_STOCK_CONTEXT_ENABLED=false)"}.`,
       );
       await manager.start();
+      publishLiveWatchlistHealth({
+        publisher: liveWatchlistHealthPublisher,
+        manager,
+        startupState,
+        liveProviderName,
+        ibkrConnected: isIbkrConnected(ib),
+        ibkrReconnecting: isIbkrReconnecting(ib),
+      });
       console.log("[ManualWatchlistRuntime] Runtime startup complete.");
     } catch (error) {
       startupState = "error";
       startupError = error instanceof Error ? error.message : String(error);
+      publishLiveWatchlistHealth({
+        publisher: liveWatchlistHealthPublisher,
+        manager,
+        startupState,
+        liveProviderName,
+        ibkrConnected: isIbkrConnected(ib),
+        ibkrReconnecting: isIbkrReconnecting(ib),
+      });
       console.error(`[ManualWatchlistRuntime] Startup failed: ${startupError}`);
     }
   };
@@ -661,7 +906,12 @@ async function main(): Promise<void> {
           bindHost: LOCAL_BIND_HOST,
           port: PORT,
           historicalProvider: candleService.getProviderName(),
-          liveProvider: "ibkr",
+          availableHistoricalProviders: RUNTIME_HISTORICAL_PROVIDER_OPTIONS,
+          historicalProviderRuntimeMutable: true,
+          providerConfigPath,
+          liveProvider: liveProviderName,
+          availableLiveProviders: RUNTIME_LIVE_PROVIDER_OPTIONS,
+          liveProviderRuntimeMutable: true,
           ibkrHistoricalTimeoutMs:
             Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
               ? manualWatchlistIbkrTimeoutMs
@@ -696,6 +946,261 @@ async function main(): Promise<void> {
         startupState,
         startupError,
       });
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/historical-provider") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        const requestedProvider = parseRuntimeHistoricalProviderName(
+          body.historicalProvider ?? body.provider,
+        );
+        if (!requestedProvider) {
+          sendJson(response, 400, {
+            error: "historicalProvider must be ibkr or eodhd.",
+          });
+          return;
+        }
+
+        const previousHistoricalProvider = candleService.getProviderName();
+        if (requestedProvider === previousHistoricalProvider) {
+          saveRuntimeProviderConfig(providerConfigPath, {
+            historicalProvider: requestedProvider,
+            liveProvider: liveProviderName,
+          });
+          sendJson(response, 200, {
+            ok: true,
+            changed: false,
+            persisted: true,
+            providerConfigPath,
+            historicalProvider: previousHistoricalProvider,
+            liveProvider: liveProviderName,
+            activeSymbolCount: manager.getActiveEntries().length,
+          });
+          return;
+        }
+
+        const nextProvider = createHistoricalCandleProvider({
+          provider: requestedProvider,
+          ib,
+          ibkrTimeoutMs:
+            Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+              ? manualWatchlistIbkrTimeoutMs
+              : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+        });
+
+        if (requestedProvider === "ibkr") {
+          await waitForIbkrConnection(
+            ib,
+            Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+              ? manualWatchlistIbkrTimeoutMs
+              : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+          );
+        }
+
+        saveRuntimeProviderConfig(providerConfigPath, {
+          historicalProvider: requestedProvider,
+          liveProvider: liveProviderName,
+        });
+        rawCandleService.setProvider(nextProvider);
+        historicalProviderName = requestedProvider;
+        console.log(
+          `[ManualWatchlistRuntime] Historical candle provider changed from ${previousHistoricalProvider} to ${requestedProvider}.`,
+        );
+
+        sendJson(response, 200, {
+          ok: true,
+          changed: true,
+          persisted: true,
+          providerConfigPath,
+          previousHistoricalProvider,
+          historicalProvider: candleService.getProviderName(),
+          liveProvider: liveProviderName,
+          activeSymbolCount: manager.getActiveEntries().length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        const statusCode =
+          message.includes("EODHD_API_TOKEN") || message.includes("IBKR connection")
+            ? 503
+            : 500;
+        console.error(`[ManualWatchlistRuntime] Historical provider switch failed: ${message}`);
+        sendJson(response, statusCode, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/live-provider") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        const requestedProvider = parseRuntimeLiveProviderName(
+          body.liveProvider ?? body.provider,
+        );
+        if (!requestedProvider) {
+          sendJson(response, 400, {
+            error: "liveProvider must be ibkr or eodhd.",
+          });
+          return;
+        }
+
+        const previousLiveProvider = liveProviderName;
+        if (requestedProvider === previousLiveProvider) {
+          saveRuntimeProviderConfig(providerConfigPath, {
+            historicalProvider: historicalProviderName,
+            liveProvider: requestedProvider,
+          });
+          sendJson(response, 200, {
+            ok: true,
+            changed: false,
+            persisted: true,
+            providerConfigPath,
+            historicalProvider: candleService.getProviderName(),
+            liveProvider: previousLiveProvider,
+            activeSymbolCount: manager.getActiveEntries().length,
+          });
+          return;
+        }
+
+        const nextProvider = createLivePriceProvider({
+          provider: requestedProvider,
+          ib,
+        });
+
+        if (requestedProvider === "ibkr") {
+          await waitForIbkrConnection(
+            ib,
+            Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+              ? manualWatchlistIbkrTimeoutMs
+              : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+          );
+        }
+
+        await manager.switchLivePriceProvider(nextProvider);
+        liveProviderName = requestedProvider;
+        let persisted = true;
+        let persistenceWarning: string | null = null;
+        try {
+          saveRuntimeProviderConfig(providerConfigPath, {
+            historicalProvider: historicalProviderName,
+            liveProvider: requestedProvider,
+          });
+        } catch (error) {
+          persisted = false;
+          persistenceWarning = error instanceof Error ? error.message : String(error);
+          console.error(
+            `[ManualWatchlistRuntime] Live provider switched but provider config save failed: ${persistenceWarning}`,
+          );
+        }
+        publishLiveWatchlistHealth({
+          publisher: liveWatchlistHealthPublisher,
+          manager,
+          startupState,
+          liveProviderName,
+          ibkrConnected: isIbkrConnected(ib),
+          ibkrReconnecting: isIbkrReconnecting(ib),
+        });
+        console.log(
+          `[ManualWatchlistRuntime] Live price provider changed from ${previousLiveProvider} to ${requestedProvider}.`,
+        );
+
+        sendJson(response, 200, {
+          ok: true,
+          changed: true,
+          persisted,
+          warning: persistenceWarning,
+          providerConfigPath,
+          previousLiveProvider,
+          historicalProvider: candleService.getProviderName(),
+          liveProvider: liveProviderName,
+          activeSymbolCount: manager.getActiveEntries().length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        const statusCode =
+          message.includes("EODHD_API_TOKEN") ||
+          message.includes("EODHD WebSocket") ||
+          message.includes("Global WebSocket") ||
+          message.includes("IBKR connection")
+            ? 503
+            : 500;
+        console.error(`[ManualWatchlistRuntime] Live provider switch failed: ${message}`);
+        sendJson(response, statusCode, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/live-trader-read-card") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.visible !== "boolean") {
+          sendJson(response, 400, {
+            error: "visible must be true or false.",
+          });
+          return;
+        }
+
+        const result = await manager.setLiveTraderReadCardVisible(body.visible);
+        publishLiveWatchlistHealth({
+          publisher: liveWatchlistHealthPublisher,
+          manager,
+          startupState,
+          liveProviderName,
+          ibkrConnected: isIbkrConnected(ib),
+          ibkrReconnecting: isIbkrReconnecting(ib),
+        });
+        sendJson(response, 200, {
+          ok: true,
+          visible: result.visible,
+          refreshedSymbols: result.refreshedSymbols,
+          refreshedSymbolCount: result.refreshedSymbols.length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Trader Read card visibility change failed: ${message}`);
+        sendJson(response, 500, { error: message });
+      }
       return;
     }
 
@@ -1004,6 +1509,12 @@ async function main(): Promise<void> {
     }
 
     shuttingDown = true;
+    clearInterval(liveWatchlistHealthTimer);
+    await liveWatchlistHealthPublisher?.publishHealth?.({
+      type: "health",
+      marketDataStatus: "offline",
+      marketDataUpdatedAt: Date.now(),
+    });
     if (signal) {
       console.log(`Received ${signal}. Shutting down manual watchlist server...`);
     }

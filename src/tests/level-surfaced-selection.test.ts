@@ -148,7 +148,8 @@ test("nearest structurally credible level is surfaced ahead of deeper but strong
   );
 
   assert.equal(result.topActionableSupport?.id, "near");
-  assert.equal(result.deeperSupportAnchor?.id, "deep");
+  assert.deepEqual(result.surfacedSupports.map((level) => level.id), ["near", "deep"]);
+  assert.equal(result.deeperSupportAnchor, undefined);
 });
 
 test("very weak near price level does not beat a much stronger slightly farther level", () => {
@@ -320,10 +321,14 @@ test("credible practical interaction level is favored ahead of a deeper stronger
   );
 
   assert.equal(result.topActionableSupport?.id, "credible-near");
-  assert.equal(result.deeperSupportAnchor?.id, "deeper-stronger");
+  assert.deepEqual(
+    result.surfacedSupports.map((level) => level.id),
+    ["credible-near", "deeper-stronger"],
+  );
+  assert.equal(result.deeperSupportAnchor, undefined);
 });
 
-test("one deeper anchor can be included without cluttering the surfaced ladder", () => {
+test("small evidence inventories remain fully visible without a separate anchor", () => {
   const result = selectSurfacedLevels(
     makeOutput({
       currentPrice: 10,
@@ -343,9 +348,11 @@ test("one deeper anchor can be included without cluttering the surfaced ladder",
     }),
   );
 
-  assert.equal(result.surfacedSupports.length, 1);
-  assert.ok(result.deeperSupportAnchor);
-  assert.ok(["near-2", "deep-anchor"].includes(result.deeperSupportAnchor.id));
+  assert.deepEqual(
+    result.surfacedSupports.map((level) => level.id),
+    ["near-1", "near-2", "deep-anchor"],
+  );
+  assert.equal(result.deeperSupportAnchor, undefined);
 });
 
 test("surfaced output is stable, ordered correctly, and behaves directionally", () => {
@@ -394,14 +401,14 @@ test("surfaced output is stable, ordered correctly, and behaves directionally", 
 
   assert.deepEqual(
     result.surfacedSupports.map((level) => level.id),
-    ["support-near"],
+    ["support-near", "support-far"],
   );
   assert.deepEqual(
     result.surfacedResistances.map((level) => level.id),
-    ["resistance-near"],
+    ["resistance-near", "resistance-far"],
   );
-  assert.equal(result.deeperSupportAnchor?.id, "support-far");
-  assert.equal(result.deeperResistanceAnchor?.id, "resistance-far");
+  assert.equal(result.deeperSupportAnchor, undefined);
+  assert.equal(result.deeperResistanceAnchor, undefined);
   assert.ok(
     result.suppressedNearbyLevels.some(
       (entry) => entry.level.id === "wrong-side-support" && entry.reason === "wrong_side_of_price",
@@ -435,6 +442,50 @@ test("flipped support can still surface when structurally sound and actionable",
   );
 
   assert.equal(result.topActionableSupport?.id, "flipped-support");
+});
+
+test("stale historical resistance stays as context instead of beating fresher actionable resistance", () => {
+  const result = selectSurfacedLevels(
+    makeOutput({
+      currentPrice: 10,
+      resistances: [
+        makeRankedLevel({
+          id: "older-overhead",
+          type: "resistance",
+          price: 10.42,
+          zoneLow: 10.38,
+          zoneHigh: 10.46,
+          structuralStrengthScore: 82,
+          confidence: 82,
+          score: 84,
+          rank: 1,
+          barsSinceLastReaction: 64,
+          scoreBreakdown: makeScoreBreakdown({
+            freshReactionScore: 4,
+          }),
+        }),
+        makeRankedLevel({
+          id: "fresh-actionable",
+          type: "resistance",
+          price: 10.18,
+          zoneLow: 10.15,
+          zoneHigh: 10.21,
+          structuralStrengthScore: 66,
+          confidence: 74,
+          score: 68,
+          rank: 2,
+          barsSinceLastReaction: 4,
+        }),
+      ],
+    }),
+  );
+
+  assert.equal(result.topActionableResistance?.id, "fresh-actionable");
+  assert.deepEqual(
+    result.surfacedResistances.map((level) => level.id),
+    ["fresh-actionable", "older-overhead"],
+  );
+  assert.equal(result.deeperResistanceAnchor, undefined);
 });
 
 test("selection explanations reflect actual surfaced drivers", () => {
@@ -532,4 +583,31 @@ test("surfaced selection stays within configured maximum counts", () => {
   const result = selectSurfacedLevels(makeOutput({ currentPrice: 10, supports }));
 
   assert.ok(result.surfacedSupports.length <= LEVEL_SURFACED_SELECTION_CONFIG.maximumSurfacedSupportCount);
+});
+
+test("large inventories reserve nearest rows and sample the complete detected range", () => {
+  const supports = Array.from({ length: 20 }, (_, index) => {
+    const price = 9.9 - index * 0.2;
+    return makeRankedLevel({
+      id: `range-support-${index}`,
+      price,
+      zoneLow: price - 0.02,
+      zoneHigh: price + 0.02,
+      rank: index + 1,
+      structuralStrengthScore: 74 - index * 0.5,
+      confidence: 78,
+    });
+  });
+  const result = selectSurfacedLevels(makeOutput({ currentPrice: 10, supports }));
+  const ids = result.surfacedSupports.map((level) => level.id);
+
+  assert.equal(ids.length, 12);
+  assert.deepEqual(ids.slice(0, 4), [
+    "range-support-0",
+    "range-support-1",
+    "range-support-2",
+    "range-support-3",
+  ]);
+  assert.ok(ids.includes("range-support-19"));
+  assert.match(result.surfacedSelectionNotes[0] ?? "", /complete detected evidence range/i);
 });

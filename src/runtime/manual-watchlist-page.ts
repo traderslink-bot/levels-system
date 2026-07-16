@@ -9,7 +9,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     main { max-width: 920px; margin: 0 auto; }
     form, section { background: #fff; border: 1px solid #d7dee8; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
     label { display: block; font-size: 14px; margin-bottom: 6px; }
-    input, textarea { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
     textarea { min-height: 84px; resize: vertical; font-family: Arial, sans-serif; line-height: 1.35; }
     button { min-width: 94px; padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; background: #1d4ed8; color: #fff; white-space: nowrap; }
     button:disabled { cursor: wait; opacity: 0.62; }
@@ -33,6 +33,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .runtime-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; min-height: 58px; }
     .runtime-label { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
     .runtime-value { font-size: 14px; word-break: break-word; }
+    .provider-control { border: 1px solid #dbe3ee; border-radius: 8px; padding: 12px; background: #fbfdff; margin-bottom: 12px; }
+    .inline-control { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+    .inline-control select { flex: 1 1 220px; margin-bottom: 0; }
+    .inline-control button { flex: 0 0 auto; }
+    .inline-status { color: #475569; font-size: 13px; margin-top: 8px; min-height: 18px; overflow-wrap: anywhere; }
+    .toggle-control { align-items: center; }
+    .toggle-switch { align-items: center; cursor: pointer; display: inline-flex; gap: 10px; margin: 0; }
+    .toggle-switch input { height: 1px; margin: 0; opacity: 0; position: absolute; width: 1px; }
+    .toggle-slider { background: #cbd5e1; border-radius: 999px; display: inline-flex; height: 24px; position: relative; transition: background 0.16s ease; width: 44px; }
+    .toggle-slider::after { background: #fff; border-radius: 999px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2); content: ""; height: 18px; left: 3px; position: absolute; top: 3px; transition: transform 0.16s ease; width: 18px; }
+    .toggle-switch input:checked + .toggle-slider { background: #16a34a; }
+    .toggle-switch input:checked + .toggle-slider::after { transform: translateX(20px); }
+    .toggle-switch input:disabled + .toggle-slider { opacity: 0.6; }
     .health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 16px; }
     .health-item { border: 1px solid #dbe3ee; border-radius: 8px; padding: 10px; background: #fbfdff; min-height: 54px; }
     .health-label { color: #64748b; font-size: 12px; margin-bottom: 4px; }
@@ -42,6 +55,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .activity-message { min-width: 0; overflow-wrap: anywhere; }
     .activity-detail { color: #64748b; font-size: 12px; margin-top: 2px; }
     .notice { border: 1px solid #fde68a; background: #fffbeb; border-radius: 8px; color: #78350f; padding: 10px; font-size: 13px; margin-bottom: 12px; }
+    .field-hint { color: #64748b; font-size: 12px; line-height: 1.4; margin: -6px 0 12px; }
     .artifact-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
     .artifact-card { border: 1px solid #dbe3ee; border-radius: 8px; padding: 10px; background: #fbfdff; }
     .artifact-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
@@ -70,6 +84,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       <label for="symbol">npm run watchlist:manual</label>
       <label for="symbol">Symbol</label>
       <input id="symbol" name="symbol" maxlength="10" required />
+      <div class="field-hint">
+        Use this watchlist for small, micro, and nano-cap momentum tickers. Large liquid names should only be used for deliberate technical tests.
+      </div>
       <label for="note">Notes to send to OpenAI (optional)</label>
       <textarea id="note" name="note" maxlength="1200"></textarea>
       <button type="submit">Add / Activate</button>
@@ -84,6 +101,21 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     <section>
       <h2>Runtime Status</h2>
       <div class="runtime-grid" id="runtime-grid"></div>
+    </section>
+
+    <section>
+      <h2>Live Website Controls</h2>
+      <div class="provider-control">
+        <label for="live-trader-read-visible-toggle">Live Website Trader Read Card</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="live-trader-read-visible-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="live-trader-read-visible-label">Visible to users</span>
+          </label>
+        </div>
+        <div class="inline-status" id="live-trader-read-visible-status"></div>
+      </div>
     </section>
 
     <section>
@@ -105,6 +137,28 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     <section>
       <h2>Runtime Config</h2>
+      <div class="provider-control">
+        <label for="historical-provider-select">Historical Candle Provider</label>
+        <div class="inline-control">
+          <select id="historical-provider-select" name="historical-provider">
+            <option value="ibkr">IBKR</option>
+            <option value="eodhd">EODHD</option>
+          </select>
+          <button id="apply-historical-provider-button" type="button">Apply</button>
+        </div>
+        <div class="inline-status" id="historical-provider-status"></div>
+      </div>
+      <div class="provider-control">
+        <label for="live-provider-select">Live Price Provider</label>
+        <div class="inline-control">
+          <select id="live-provider-select" name="live-provider">
+            <option value="ibkr">IBKR</option>
+            <option value="eodhd">EODHD</option>
+          </select>
+          <button id="apply-live-provider-button" type="button">Apply</button>
+        </div>
+        <div class="inline-status" id="live-provider-status"></div>
+      </div>
       <div class="notice" id="ai-notice"></div>
       <div class="runtime-grid" id="config-grid"></div>
     </section>
@@ -132,8 +186,47 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const clearDiscordButtonEl = document.getElementById("clear-discord-button");
     const aiCleanReadButtonEl = document.getElementById("ai-clean-read-button");
     const tradePlanReviewButtonEl = document.getElementById("trade-plan-review-button");
+    const historicalProviderSelectEl = document.getElementById("historical-provider-select");
+    const applyHistoricalProviderButtonEl = document.getElementById("apply-historical-provider-button");
+    const historicalProviderStatusEl = document.getElementById("historical-provider-status");
+    const liveProviderSelectEl = document.getElementById("live-provider-select");
+    const applyLiveProviderButtonEl = document.getElementById("apply-live-provider-button");
+    const liveProviderStatusEl = document.getElementById("live-provider-status");
+    const liveTraderReadVisibleToggleEl = document.getElementById("live-trader-read-visible-toggle");
+    const liveTraderReadVisibleLabelEl = document.getElementById("live-trader-read-visible-label");
+    const liveTraderReadVisibleStatusEl = document.getElementById("live-trader-read-visible-status");
     const symbolEl = document.getElementById("symbol");
     const noteEl = document.getElementById("note");
+    let currentHistoricalProvider = "";
+    let currentLiveProvider = "";
+    let providerSelectionDirty = false;
+    let providerApplyInFlight = false;
+    let liveProviderSelectionDirty = false;
+    let liveProviderApplyInFlight = false;
+    let liveTraderReadVisible = true;
+    let liveTraderReadVisibilityInFlight = false;
+    const largeLiquidTickerSymbols = new Set([
+      "AAPL",
+      "MSFT",
+      "NVDA",
+      "AMZN",
+      "META",
+      "GOOGL",
+      "GOOG",
+      "TSLA",
+      "AMD",
+      "NFLX",
+      "AVGO",
+      "CRM",
+      "COST",
+      "LLY",
+      "JPM",
+      "V",
+      "MA",
+      "SPY",
+      "QQQ",
+      "IWM"
+    ]);
 
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
@@ -163,6 +256,16 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       return value >= 1 ? value.toFixed(2) : value.toFixed(4);
     }
 
+    function providerLabel(value) {
+      if (value === "eodhd") {
+        return "EODHD";
+      }
+      if (value === "ibkr") {
+        return "IBKR";
+      }
+      return lifecycleLabel(value);
+    }
+
     function lifecycleBadgeClass(value) {
       if (value === "active") {
         return "badge badge-active";
@@ -186,6 +289,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       badge.className = className || "badge";
       badge.textContent = text;
       return badge;
+    }
+
+    function shouldConfirmLargeLiquidTicker(symbol) {
+      return largeLiquidTickerSymbols.has(String(symbol || "").trim().toUpperCase());
     }
 
     function buildEntryMeta(entry) {
@@ -485,6 +592,77 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    function updateHistoricalProviderApplyState() {
+      const selected = historicalProviderSelectEl.value;
+      const hasChanged = selected && selected !== currentHistoricalProvider;
+      applyHistoricalProviderButtonEl.disabled = providerApplyInFlight || !hasChanged;
+    }
+
+    function updateLiveProviderApplyState() {
+      const selected = liveProviderSelectEl.value;
+      const hasChanged = selected && selected !== currentLiveProvider;
+      applyLiveProviderButtonEl.disabled = liveProviderApplyInFlight || !hasChanged;
+    }
+
+    function renderHistoricalProviderControl(config) {
+      const providers = Array.isArray(config.availableHistoricalProviders) && config.availableHistoricalProviders.length > 0
+        ? config.availableHistoricalProviders
+        : ["ibkr", "eodhd"];
+      const activeProvider = config.historicalProvider || "ibkr";
+      const priorSelection = historicalProviderSelectEl.value;
+      currentHistoricalProvider = activeProvider;
+      historicalProviderSelectEl.innerHTML = "";
+
+      for (const provider of providers) {
+        const option = document.createElement("option");
+        option.value = provider;
+        option.textContent = providerLabel(provider);
+        historicalProviderSelectEl.appendChild(option);
+      }
+
+      const canKeepSelection = providerSelectionDirty && providers.includes(priorSelection);
+      historicalProviderSelectEl.value = canKeepSelection ? priorSelection : activeProvider;
+      historicalProviderSelectEl.disabled = config.historicalProviderRuntimeMutable === false;
+      historicalProviderStatusEl.textContent = "Active: " + providerLabel(activeProvider);
+      updateHistoricalProviderApplyState();
+    }
+
+    function renderLiveProviderControl(config) {
+      const providers = Array.isArray(config.availableLiveProviders) && config.availableLiveProviders.length > 0
+        ? config.availableLiveProviders
+        : ["ibkr", "eodhd"];
+      const activeProvider = config.liveProvider || "ibkr";
+      const priorSelection = liveProviderSelectEl.value;
+      currentLiveProvider = activeProvider;
+      liveProviderSelectEl.innerHTML = "";
+
+      for (const provider of providers) {
+        const option = document.createElement("option");
+        option.value = provider;
+        option.textContent = providerLabel(provider);
+        liveProviderSelectEl.appendChild(option);
+      }
+
+      const canKeepSelection = liveProviderSelectionDirty && providers.includes(priorSelection);
+      liveProviderSelectEl.value = canKeepSelection ? priorSelection : activeProvider;
+      liveProviderSelectEl.disabled = config.liveProviderRuntimeMutable === false;
+      liveProviderStatusEl.textContent = "Active: " + providerLabel(activeProvider);
+      updateLiveProviderApplyState();
+    }
+
+    function renderLiveTraderReadVisibilityControl(status, options) {
+      const visible = status.runtimeHealth?.liveTraderReadCardVisible !== false;
+      if (!options?.keepPreviousState) {
+        liveTraderReadVisible = visible;
+      }
+      liveTraderReadVisibleToggleEl.checked = visible;
+      liveTraderReadVisibleToggleEl.disabled = liveTraderReadVisibilityInFlight;
+      liveTraderReadVisibleLabelEl.textContent = visible ? "Visible to users" : "Hidden from users";
+      liveTraderReadVisibleStatusEl.textContent = visible
+        ? "Active live ticker pages can show Trader Read when the runtime has one."
+        : "Active live ticker pages will remove the Trader Read card.";
+    }
+
     function renderRuntimeConfig(status) {
       const config = status.runtimeConfig || {};
       const health = status.runtimeHealth || {};
@@ -497,6 +675,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         : "";
 
       configGridEl.innerHTML = "";
+      renderHistoricalProviderControl(config);
+      renderLiveProviderControl(config);
+      renderLiveTraderReadVisibilityControl(status);
       aiNoticeEl.textContent =
         "AI commentary can add separate AI read posts after deterministic alerts and can enhance optional symbol recaps. Snapshots, continuity, and follow-through posts still use deterministic text.";
 
@@ -504,6 +685,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Server", (config.bindHost || "127.0.0.1") + ":" + (config.port || "3010")],
         ["Historical Provider", config.historicalProvider],
         ["Live Provider", config.liveProvider],
+        ["Trader Read Card", health.liveTraderReadCardVisible === false ? "hidden" : "visible"],
+        ["Provider Config", config.providerConfigPath],
         ["IBKR Timeout", config.ibkrHistoricalTimeoutMs ? config.ibkrHistoricalTimeoutMs + "ms" : ""],
         ["Candle Cache", config.candleCacheMode],
         ["Runtime Candle Cache", config.runtimeCandleCacheMode],
@@ -830,8 +1013,143 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyHistoricalProviderSelection() {
+      const selectedProvider = historicalProviderSelectEl.value;
+      if (!selectedProvider || selectedProvider === currentHistoricalProvider) {
+        updateHistoricalProviderApplyState();
+        return;
+      }
+
+      providerApplyInFlight = true;
+      updateHistoricalProviderApplyState();
+      setStatus("Switching historical candle provider to " + providerLabel(selectedProvider) + "...");
+      try {
+        const response = await fetch("/api/runtime/historical-provider", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ historicalProvider: selectedProvider }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "Provider switch failed", true);
+          return;
+        }
+
+        providerSelectionDirty = false;
+        currentHistoricalProvider = payload.historicalProvider || selectedProvider;
+        setStatus(
+          payload.changed
+            ? "Historical candle provider switched to " + providerLabel(currentHistoricalProvider) + " and saved for restart."
+            : "Historical candle provider already set to " + providerLabel(currentHistoricalProvider) + " and saved for restart.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        providerApplyInFlight = false;
+        updateHistoricalProviderApplyState();
+      }
+    }
+
+    async function applyLiveProviderSelection() {
+      const selectedProvider = liveProviderSelectEl.value;
+      if (!selectedProvider || selectedProvider === currentLiveProvider) {
+        updateLiveProviderApplyState();
+        return;
+      }
+
+      liveProviderApplyInFlight = true;
+      updateLiveProviderApplyState();
+      setStatus("Switching live price provider to " + providerLabel(selectedProvider) + "...");
+      try {
+        const response = await fetch("/api/runtime/live-provider", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ liveProvider: selectedProvider }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "Live provider switch failed", true);
+          return;
+        }
+
+        liveProviderSelectionDirty = false;
+        currentLiveProvider = payload.liveProvider || selectedProvider;
+        if (payload.persisted === false) {
+          setStatus(
+            "Live price provider switched to " + providerLabel(currentLiveProvider) + " and active tickers resubscribed, but the restart config was not saved: " + (payload.warning || "unknown save error"),
+            true,
+          );
+        } else {
+          setStatus(
+            payload.changed
+              ? "Live price provider switched to " + providerLabel(currentLiveProvider) + ", active tickers resubscribed, and saved for restart."
+              : "Live price provider already set to " + providerLabel(currentLiveProvider) + " and saved for restart.",
+          );
+        }
+        await loadRuntimeStatus();
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        liveProviderApplyInFlight = false;
+        updateLiveProviderApplyState();
+      }
+    }
+
+    async function applyLiveTraderReadVisibilitySelection() {
+      const requestedVisible = liveTraderReadVisibleToggleEl.checked;
+      if (requestedVisible === liveTraderReadVisible) {
+        renderLiveTraderReadVisibilityControl({ runtimeHealth: { liveTraderReadCardVisible: liveTraderReadVisible } });
+        return;
+      }
+
+      liveTraderReadVisibilityInFlight = true;
+      renderLiveTraderReadVisibilityControl(
+        { runtimeHealth: { liveTraderReadCardVisible: requestedVisible } },
+        { keepPreviousState: true },
+      );
+      setStatus((requestedVisible ? "Showing" : "Hiding") + " the live website Trader Read card...");
+      try {
+        const response = await fetch("/api/runtime/live-trader-read-card", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visible: requestedVisible }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          liveTraderReadVisibleToggleEl.checked = liveTraderReadVisible;
+          setStatus(payload.error || "Trader Read card visibility change failed", true);
+          return;
+        }
+
+        liveTraderReadVisible = payload.visible !== false;
+        setStatus(
+          (liveTraderReadVisible ? "Trader Read card visible" : "Trader Read card hidden") +
+            " on the live website. Refreshed " +
+            String(payload.refreshedSymbolCount || 0) +
+            " active ticker records.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        liveTraderReadVisibleToggleEl.checked = liveTraderReadVisible;
+        setStatus(String(error), true);
+      } finally {
+        liveTraderReadVisibilityInFlight = false;
+        renderLiveTraderReadVisibilityControl({ runtimeHealth: { liveTraderReadCardVisible: liveTraderReadVisible } });
+      }
+    }
+
     formEl.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (shouldConfirmLargeLiquidTicker(symbolEl.value)) {
+        const confirmed = window.confirm(
+          "This looks like a large liquid ticker. This watchlist is intended for small, micro, and nano-cap momentum names. Continue only if this is a deliberate technical test."
+        );
+        if (!confirmed) {
+          setStatus("Activation cancelled. Use a small, micro, or nano-cap ticker for the live watchlist.", true);
+          return;
+        }
+      }
       const started = await activateEntry(symbolEl.value, noteEl.value, false);
       if (!started) {
         return;
@@ -849,6 +1167,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     tradePlanReviewButtonEl.addEventListener("click", () => {
       window.open("/trade-plan-review", "trade-plan-review");
     });
+    historicalProviderSelectEl.addEventListener("change", () => {
+      providerSelectionDirty = true;
+      updateHistoricalProviderApplyState();
+    });
+    applyHistoricalProviderButtonEl.addEventListener("click", applyHistoricalProviderSelection);
+    liveProviderSelectEl.addEventListener("change", () => {
+      liveProviderSelectionDirty = true;
+      updateLiveProviderApplyState();
+    });
+    applyLiveProviderButtonEl.addEventListener("click", applyLiveProviderSelection);
+    liveTraderReadVisibleToggleEl.addEventListener("change", applyLiveTraderReadVisibilitySelection);
 
     Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]).catch((error) => {
       setStatus(String(error), true);

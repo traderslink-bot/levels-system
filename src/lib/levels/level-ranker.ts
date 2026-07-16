@@ -9,6 +9,11 @@ import type { FinalLevelZone, LevelEngineOutput } from "./level-types.js";
 type SurfaceBucket = "daily" | "4h" | "5m";
 const SURFACED_FORWARD_PLANNING_RANGE_PCT = 0.5;
 const LOW_PRICE_FORWARD_PLANNING_RANGE_PCT = 1;
+const ACTIVE_TRADER_FORWARD_PLANNING_RANGE_PCT = 1.25;
+const ACTIVE_TRADER_MIN_FORWARD_PLANNING_RANGE_PCT = 0.65;
+const ACTIVE_TRADER_FORWARD_PLANNING_DOLLAR_WINDOW = 15;
+const ACTIVE_RUNNER_CROSSED_RESISTANCE_REFERENCE_THRESHOLD = 50;
+const ACTIVE_RUNNER_CROSSED_RESISTANCE_LOOKBACK_PCT = 0.3;
 const DEFAULT_EXTENSION_LEVELS_PER_SIDE = 3;
 const ACTIVE_TRADER_EXTENSION_LEVELS_PER_SIDE = 6;
 const LOW_PRICE_EXTENSION_LEVELS_PER_SIDE = 10;
@@ -21,9 +26,22 @@ const ACTIVE_TRADER_GAP_FILL_MAX_ADDITIONS_PER_SIDE = 14;
 const ACTIVE_TRADER_HIGH_CONFIDENCE_FILL_MAX_ADDITIONS_PER_SIDE = 8;
 
 function forwardPlanningRangePctForReference(referencePrice: number | undefined): number {
-  return referencePrice && referencePrice > 0 && referencePrice < LOW_PRICE_RUNNER_THRESHOLD
-    ? LOW_PRICE_FORWARD_PLANNING_RANGE_PCT
-    : SURFACED_FORWARD_PLANNING_RANGE_PCT;
+  if (!referencePrice || referencePrice <= 0) {
+    return SURFACED_FORWARD_PLANNING_RANGE_PCT;
+  }
+  if (referencePrice < LOW_PRICE_RUNNER_THRESHOLD) {
+    return LOW_PRICE_FORWARD_PLANNING_RANGE_PCT;
+  }
+  if (referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD) {
+    return Math.min(
+      ACTIVE_TRADER_FORWARD_PLANNING_RANGE_PCT,
+      Math.max(
+        ACTIVE_TRADER_MIN_FORWARD_PLANNING_RANGE_PCT,
+        ACTIVE_TRADER_FORWARD_PLANNING_DOLLAR_WINDOW / referencePrice,
+      ),
+    );
+  }
+  return SURFACED_FORWARD_PLANNING_RANGE_PCT;
 }
 
 function maxExtensionLevelsPerSideForReference(referencePrice: number | undefined): number {
@@ -54,6 +72,12 @@ function maxGapFillAdditionsForReference(referencePrice: number | undefined): nu
 function highConfidenceFillMaxAdditionsForReference(referencePrice: number | undefined): number {
   return referencePrice && referencePrice > 0 && referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD
     ? ACTIVE_TRADER_HIGH_CONFIDENCE_FILL_MAX_ADDITIONS_PER_SIDE
+    : 0;
+}
+
+function crossedResistanceLookbackPctForReference(referencePrice: number | undefined): number {
+  return referencePrice && referencePrice > 0 && referencePrice < ACTIVE_RUNNER_CROSSED_RESISTANCE_REFERENCE_THRESHOLD
+    ? ACTIVE_RUNNER_CROSSED_RESISTANCE_LOOKBACK_PCT
     : 0;
 }
 
@@ -97,6 +121,19 @@ function timeframeBiasRank(zone: FinalLevelZone): number {
   return 1;
 }
 
+function isActionableCrossedResistanceZone(zone: FinalLevelZone): boolean {
+  return (
+    zone.strengthLabel !== "weak" &&
+    timeframeBiasRank(zone) >= 2 &&
+    (
+      zone.sourceEvidenceCount >= 1 ||
+      zone.rejectionScore >= 0.38 ||
+      zone.displacementScore >= 0.5 ||
+      zone.followThroughScore >= 0.5
+    )
+  );
+}
+
 function preferredBucketForZone(zone: FinalLevelZone): CandleTimeframe {
   const timeframeOrder: CandleTimeframe[] = ["daily", "4h", "5m"];
 
@@ -134,11 +171,20 @@ function filterPracticalSurfacedResistanceZones(
   }
 
   const maxPracticalPrice = referencePrice * (1 + forwardPlanningRangePctForReference(referencePrice));
-  return zones.filter(
-    (zone) =>
-      zone.representativePrice > referencePrice &&
-      zone.representativePrice <= maxPracticalPrice,
-  );
+  const crossedResistanceLookbackPct = crossedResistanceLookbackPctForReference(referencePrice);
+  const crossedResistanceFloor = referencePrice * (1 - crossedResistanceLookbackPct);
+  return zones.filter((zone) => {
+    if (zone.representativePrice > referencePrice) {
+      return zone.representativePrice <= maxPracticalPrice;
+    }
+
+    return (
+      crossedResistanceLookbackPct > 0 &&
+      zone.representativePrice < referencePrice &&
+      zone.representativePrice >= crossedResistanceFloor &&
+      isActionableCrossedResistanceZone(zone)
+    );
+  });
 }
 
 function filterActionableSurfacedSupportZones(

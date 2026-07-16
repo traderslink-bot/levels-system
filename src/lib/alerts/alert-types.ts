@@ -26,6 +26,7 @@ import type {
 import type { VolumeActivityContext } from "../monitoring/volume-activity.js";
 import type { SignalCategoryKey } from "../signals/signal-category-config.js";
 import type { FirstPostTradePlanContext } from "../trader-context/index.js";
+import type { TechnicalContext } from "../technical-context/technical-context-types.js";
 import type {
   AcceptanceContext,
   BehaviorBudgetContext,
@@ -393,15 +394,30 @@ export type LevelSnapshotDisplayZone = {
   highPrice?: number;
   strengthLabel?: FinalLevelZone["strengthLabel"];
   freshness?: FinalLevelZone["freshness"];
+  touchCount?: number;
+  confluenceCount?: number;
+  reactionQualityScore?: number;
+  rejectionScore?: number;
+  displacementScore?: number;
+  sessionSignificanceScore?: number;
+  sourceEvidenceCount?: number;
   isExtension?: boolean;
   sourceLabel?: string;
+  marketDataProvenance?: FinalLevelZone["marketDataProvenance"];
 };
 
 export type LevelSnapshotAuditOmittedReason =
   | "displayed"
   | "compacted"
   | "wrong_side"
-  | "outside_forward_range";
+  | "outside_forward_range"
+  | "stale_unconfirmed_intraday";
+
+export type LevelSnapshotProvenanceDisposition =
+  | "eligible"
+  | "would_suppress"
+  | "suppressed"
+  | "fallback_restored";
 
 export type LevelSnapshotAuditZone = {
   id: string;
@@ -419,6 +435,8 @@ export type LevelSnapshotAuditZone = {
   sourceTypes: FinalLevelZone["sourceTypes"];
   sourceLabel?: string;
   freshness: FinalLevelZone["freshness"];
+  marketDataProvenance?: FinalLevelZone["marketDataProvenance"];
+  provenanceDisposition?: LevelSnapshotProvenanceDisposition;
   isExtension: boolean;
   displayed: boolean;
   omittedReason: LevelSnapshotAuditOmittedReason;
@@ -449,8 +467,106 @@ export type LevelSnapshotPayload = {
   timestamp: number;
   audit?: LevelSnapshotAudit;
   tradePlan?: FirstPostTradePlanContext;
+  potentialMoveRead?: PotentialMoveRead | null;
+  tradeSetupThesisRead?: ChartThesisRead | null;
   marketStructure?: RuntimeMarketStructureSnapshot | null;
+  technicalContext?: TechnicalContext | null;
+  priorRegularClosePrice?: number | null;
+  priorRegularCloseSource?: string | null;
+  specialLevels?: {
+    premarketHigh?: number;
+    premarketLow?: number;
+    openingRangeHigh?: number;
+    openingRangeLow?: number;
+    previousDayHigh?: number;
+    previousDayLow?: number;
+    previousDayClose?: number;
+    currentSessionHigh?: number;
+    currentSessionLow?: number;
+  };
+  levelDataQuality?: {
+    status: "full" | "limited" | "unavailable";
+    availableTimeframes: Array<"daily" | "4h" | "5m">;
+    flags: string[];
+    message?: string;
+  };
+  roleFlipContext?: {
+    bidPrice?: number | null;
+    askPrice?: number | null;
+    atrPct?: number | null;
+    tickSize?: number | null;
+  };
 };
+
+export type ChartThesisType =
+  | "return_to_selloff_origin"
+  | "failed_breakdown_reclaim"
+  | "compression_breakout"
+  | "gap_fill_reclaim"
+  | "opening_range_expansion"
+  | "live_volume_expansion_confirmation"
+  | "impulse_flag_continuation"
+  | "momentum_expansion_continuation"
+  | "catalyst_active_runner_continuation"
+  | "cleared_shelf_power_continuation"
+  | "washout_base_reversal"
+  | "damaged_range_reclaim"
+  | "below_range_buyer_reclaim"
+  | "lower_range_springboard"
+  | "quiet_range_accumulation"
+  | "quiet_base_measured_expansion"
+  | "controlled_range_breakout"
+  | "upper_range_ignition"
+  | "small_cap_first_pullback"
+  | "small_cap_opening_range_retest"
+  | "small_cap_vwap_reclaim"
+  | "small_cap_flush_reclaim"
+  | "small_cap_intraday_base_breakout";
+
+export type ChartThesisStatus = "active" | "watch" | "early";
+
+export type ChartThesisRead = {
+  type: ChartThesisType;
+  label: string;
+  timeframe: "daily" | "4h" | "5m";
+  status: ChartThesisStatus;
+  confidence: "high" | "medium" | "low";
+  score: number;
+  triggerLow?: number;
+  triggerHigh?: number;
+  targetLow?: number;
+  targetHigh?: number;
+  invalidationLevel?: number;
+  roomToTargetPct: number;
+  sessionsAgo?: number;
+  evidence: string[];
+  selloffOriginLow?: number;
+  selloffOriginHigh?: number;
+  buyerResponseLow?: number;
+  reclaimTrigger?: number;
+  returnTargetLow?: number;
+  returnTargetHigh?: number;
+  activeRunnerTape?: {
+    latestCandleAt?: number;
+    classification: "steady_5m_support" | "hot_volatile_5m_support" | "extended_chase_risk";
+    structure:
+      | "holding_near_term_hold"
+      | "lost_near_term_hold"
+      | "upper_range_control"
+      | "weak_close_or_heavy_wick"
+      | "unavailable";
+    volumeRatio: number;
+    latestRangePct: number;
+    extensionPct: number;
+    latestCloseLocationPct: number | null;
+    latestUpperWickPct: number | null;
+    line: string;
+    riskFlags: string[];
+  };
+  lines: string[];
+};
+
+export type PotentialMoveRead = ChartThesisRead;
 
 export type LevelExtensionPayload = {
   symbol: string;

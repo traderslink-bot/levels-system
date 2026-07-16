@@ -19,8 +19,10 @@ type CandleFetchClient = {
   fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse>;
 };
 
+const CACHE_SCHEMA_VERSION = 3 as const;
+
 type ValidationCandleCacheEntry = {
-  schemaVersion: 1;
+  schemaVersion: typeof CACHE_SCHEMA_VERSION;
   cachedAt: number;
   request: {
     symbol: string;
@@ -45,8 +47,6 @@ export type ValidationCandleCacheRuntimeInfo = {
   misses: number;
   writes: number;
 };
-
-const CACHE_SCHEMA_VERSION = 1;
 
 function timeframeMs(timeframe: CandleFetchTimeframe): number {
   if (timeframe === "1m") {

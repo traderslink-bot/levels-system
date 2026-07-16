@@ -1,9 +1,13 @@
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
-import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
 import { formatCandleDiagnostics } from "../lib/market-data/candle-quality.js";
+import { createHistoricalCandleProvider } from "../lib/market-data/provider-factory.js";
+import type { CandleProviderName } from "../lib/market-data/candle-types.js";
 import { LevelEngine } from "../lib/levels/level-engine.js";
 import { AlertIntelligenceEngine } from "../lib/alerts/alert-intelligence-engine.js";
-import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
+import {
+  createLivePriceProvider,
+  resolveLivePriceProviderName,
+} from "../lib/monitoring/live-price-provider-factory.js";
 import {
   AdaptiveScoringEngine,
   DEFAULT_ADAPTIVE_SCORING_CONFIG,
@@ -20,6 +24,10 @@ import type { WatchlistEntry } from "../lib/monitoring/monitoring-types.js";
 import { resolveLevelRuntimeSettings } from "../lib/levels/level-runtime-mode.js";
 import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
 import { createIbkrClient } from "../scripts/shared/ibkr-runtime.js";
+
+function resolveHistoricalProviderName(raw: string | undefined): CandleProviderName {
+  return raw?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
+}
 
 async function seedLevels(
   entries: WatchlistEntry[],
@@ -76,8 +84,16 @@ async function main(): Promise<void> {
         ];
 
   const ib = createIbkrClient();
-  const historicalProvider = new IbkrHistoricalCandleProvider(ib);
-  const liveProvider = new IBKRLivePriceProvider(ib);
+  const historicalProviderName = resolveHistoricalProviderName(process.env.LEVEL_HISTORICAL_CANDLE_PROVIDER);
+  const liveProviderName = resolveLivePriceProviderName(process.env.LEVEL_LIVE_PRICE_PROVIDER);
+  const historicalProvider = createHistoricalCandleProvider({
+    provider: historicalProviderName,
+    ib,
+  });
+  const liveProvider = createLivePriceProvider({
+    provider: liveProviderName,
+    ib,
+  });
   const candleService = new CandleFetchService(historicalProvider);
   const levelStore = new LevelStore();
   const monitor = new WatchlistMonitor(levelStore, liveProvider);
@@ -130,7 +146,9 @@ async function main(): Promise<void> {
   });
 
   try {
-    await waitForIbkrConnection(ib);
+    if (historicalProviderName === "ibkr" || liveProviderName === "ibkr") {
+      await waitForIbkrConnection(ib);
+    }
     const diagnostics = await candleService.fetchCandles({
       symbol: watchlist[0]!.symbol,
       timeframe: "5m",
@@ -183,7 +201,7 @@ async function main(): Promise<void> {
     });
 
     console.log(
-      `Watchlist monitor started for ${watchlist
+      `Watchlist monitor started with historical=${historicalProviderName}, live=${liveProviderName} for ${watchlist
         .filter((entry) => entry.active)
         .map((entry) => entry.symbol)
         .join(", ")}.`,

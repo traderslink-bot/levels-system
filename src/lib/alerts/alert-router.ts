@@ -28,6 +28,7 @@ import type {
 import { describeZoneStrength } from "./trader-message-language.js";
 import { assessFinalLevelImportance, assessSnapshotDisplayLevelImportance } from "../monitoring/level-importance.js";
 import { isActionableFormalBosChoch } from "../monitoring/market-structure-story-memory.js";
+import { formatPotentialMoveRead } from "../monitoring/potential-move-read.js";
 
 type FormalMarketStructureSnapshot = NonNullable<LevelSnapshotPayload["marketStructure"]>["formal"];
 type MarketStructureStoryVisibility = "auto" | "always" | "material_only" | "metadata_only";
@@ -35,6 +36,26 @@ type MarketStructureStoryFormatOptions = {
   marketStructureStoryVisibility?: MarketStructureStoryVisibility;
   marketStructureStoryKeys?: string[];
 };
+
+export const WATCHLIST_TRADER_READ_AI_ENABLED_ENV = "WATCHLIST_TRADER_READ_AI_ENABLED";
+let watchlistTraderReadAiNotImplementedWarningShown = false;
+
+export function isWatchlistTraderReadAiEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env[WATCHLIST_TRADER_READ_AI_ENABLED_ENV]?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+function warnIfWatchlistTraderReadAiRequested(): void {
+  if (
+    !watchlistTraderReadAiNotImplementedWarningShown &&
+    isWatchlistTraderReadAiEnabled()
+  ) {
+    watchlistTraderReadAiNotImplementedWarningShown = true;
+    console.warn(
+      `[AlertRouter] ${WATCHLIST_TRADER_READ_AI_ENABLED_ENV} is enabled, but AI watchlist trader reads are not implemented yet; using deterministic trader read output.`,
+    );
+  }
+}
 
 export function formatMonitoringEventAsAlert(event: MonitoringEvent): AlertPayload {
   return {
@@ -2181,21 +2202,255 @@ function buildPracticalSnapshotAreaEntry(
   };
 }
 
+function snapshotEntryDistanceRatio(
+  entry: SnapshotDisplayEntry,
+  currentPrice: number,
+  side: "support" | "resistance",
+): number {
+  const reference = side === "support"
+    ? snapshotEntryHigh(entry)
+    : snapshotEntryLow(entry);
+  return Math.abs(reference - currentPrice) / Math.max(currentPrice, 0.0001);
+}
+
+function practicalPullbackDistanceLimit(currentPrice: number, index: number): number {
+  if (index === 0) {
+    return currentPrice < 10 ? 0.3 : 0.2;
+  }
+  return currentPrice < 10 ? 0.3 : 0.2;
+}
+
+const SMALL_CAP_ORDINARY_TRADE_MAP_DISTANCE_RATIO = 0.15;
+const SMALL_CAP_HIGH_QUALITY_TRADE_MAP_DISTANCE_RATIO = 0.1;
+const TIGHT_SMALL_CAP_LEVEL_CLUSTER_RATIO = 0.04;
+const MAX_ROUTINE_SMALL_CAP_PULLBACK_DISTANCE_RATIO = 0.12;
+
+function isHighQualityTradeMapEntry(entry: SnapshotDisplayEntry): boolean {
+  return (
+    strengthRank(snapshotEntryStrength(entry)) >= strengthRank("strong") ||
+    snapshotEntrySourceLabels(entry).some((label) => /daily|4h|confluence|structure/i.test(label)) ||
+    snapshotEntryZones(entry).some((zone) => zone.freshness === "fresh")
+  );
+}
+
+function isMaterialSmallCapTradeMapEntry(
+  entry: SnapshotDisplayEntry,
+  currentPrice: number,
+  side: "support" | "resistance",
+): boolean {
+  const distance = snapshotEntryDistanceRatio(entry, currentPrice, side);
+  return (
+    distance >= SMALL_CAP_ORDINARY_TRADE_MAP_DISTANCE_RATIO ||
+    (isHighQualityTradeMapEntry(entry) && distance >= SMALL_CAP_HIGH_QUALITY_TRADE_MAP_DISTANCE_RATIO)
+  );
+}
+
+function firstMaterialSnapshotEntry(
+  entries: LevelSnapshotDisplayZone[],
+  firstEntry: SnapshotDisplayEntry | null,
+  currentPrice: number,
+  side: "support" | "resistance",
+): SnapshotDisplayEntry | null {
+  let cursor = firstEntry;
+  for (let index = 0; index < 8 && cursor; index += 1) {
+    if (isMaterialSmallCapTradeMapEntry(cursor, currentPrice, side)) {
+      return cursor;
+    }
+    cursor = nextSnapshotEntryAfter(entries, cursor, side);
+  }
+  return null;
+}
+
+function collectPracticalPullbackEntries(
+  payload: LevelSnapshotPayload,
+  firstSupport: SnapshotDisplayEntry | null,
+): SnapshotDisplayEntry[] {
+  const entries: SnapshotDisplayEntry[] = [];
+  let cursor = firstSupport;
+
+  for (let index = 0; index < 3 && cursor; index += 1) {
+    const distance = snapshotEntryDistanceRatio(cursor, payload.currentPrice, "support");
+    if (
+      distance > practicalPullbackDistanceLimit(payload.currentPrice, index) ||
+      distance > MAX_ROUTINE_SMALL_CAP_PULLBACK_DISTANCE_RATIO
+    ) {
+      break;
+    }
+    if (isMaterialSmallCapTradeMapEntry(cursor, payload.currentPrice, "support")) {
+      entries.push(cursor);
+    }
+    cursor = nextSnapshotEntryAfter(payload.supportZones, cursor, "support");
+  }
+
+  return entries;
+}
+
+function firstDeepMaterialSupportEntry(
+  payload: LevelSnapshotPayload,
+  firstSupport: SnapshotDisplayEntry | null,
+): SnapshotDisplayEntry | null {
+  let cursor = firstSupport;
+
+  for (let index = 0; index < 8 && cursor; index += 1) {
+    const distance = snapshotEntryDistanceRatio(cursor, payload.currentPrice, "support");
+    if (
+      distance > MAX_ROUTINE_SMALL_CAP_PULLBACK_DISTANCE_RATIO &&
+      isMaterialSmallCapTradeMapEntry(cursor, payload.currentPrice, "support")
+    ) {
+      return cursor;
+    }
+    cursor = nextSnapshotEntryAfter(payload.supportZones, cursor, "support");
+  }
+
+  return null;
+}
+
+function formatSnapshotSetupPullbackLines(
+  payload: LevelSnapshotPayload,
+  firstSupport: SnapshotDisplayEntry | null,
+): string[] {
+  const pullbackEntries = collectPracticalPullbackEntries(payload, firstSupport);
+  if (pullbackEntries.length === 0) {
+    if (firstSupport) {
+      const firstSupportDistance = snapshotEntryDistanceRatio(firstSupport, payload.currentPrice, "support");
+      if (firstSupportDistance > practicalPullbackDistanceLimit(payload.currentPrice, 0)) {
+        return [
+          "Pullback Zones:",
+          `- Nearest support is ${formatSnapshotEntryLabelWithDistance(firstSupport, payload.currentPrice, "support")}, but it is too far from price to call a clean pullback zone.`,
+        ];
+      }
+      const lines = [
+        "Pullback Zones:",
+        `- Nearby support gate: ${formatSnapshotEntryLabelWithDistance(firstSupport, payload.currentPrice, "support")}; this is not a material small-cap pullback zone by itself.`,
+      ];
+      const deepSupport = firstDeepMaterialSupportEntry(payload, firstSupport);
+      if (deepSupport) {
+        lines.push(
+          `- First real support below that is ${formatSnapshotEntryLabelWithDistance(deepSupport, payload.currentPrice, "support")}; that is a deeper reset area, not a routine pullback zone.`,
+        );
+      }
+      return lines;
+    }
+    return [
+      "Pullback Zones:",
+      "- No clean support zone is available below price in this snapshot.",
+    ];
+  }
+
+  const labels = [
+    "First pullback area",
+    "Deeper pullback area",
+    "Last nearby support area",
+  ];
+  return [
+    "Pullback Zones:",
+    ...pullbackEntries.map((entry, index) =>
+      `- ${labels[index]}: ${formatSnapshotEntryLabelWithDistance(entry, payload.currentPrice, "support")}.`,
+    ),
+  ];
+}
+
+function isTightSmallCapLevelCluster(
+  support: SnapshotDisplayEntry,
+  resistance: SnapshotDisplayEntry,
+  currentPrice: number,
+): boolean {
+  const bandWidth =
+    (snapshotEntryLow(resistance) - snapshotEntryHigh(support)) /
+    Math.max(currentPrice, 0.0001);
+  return bandWidth > 0 && bandWidth <= TIGHT_SMALL_CAP_LEVEL_CLUSTER_RATIO;
+}
+
+function buildSnapshotStructureQualityNote(payload: LevelSnapshotPayload): string | null {
+  const stable =
+    payload.marketStructure?.timeframes?.["5m"]?.stable ??
+    payload.marketStructure?.stable;
+  if (!stable) {
+    return null;
+  }
+  if (stable.activeRangeQuality === "choppy") {
+    return "5m structure is choppy, so middle-of-range pushes can be noisy";
+  }
+  if (stable.trendDirection === "damaged") {
+    return "5m trend is damaged, so continuation needs cleaner acceptance";
+  }
+  if (stable.trendDirection === "uptrend" || stable.trendDirection === "building") {
+    return "5m structure is constructive while higher lows continue to hold";
+  }
+  return null;
+}
+
+function buildSnapshotSetupQualityLine(
+  payload: LevelSnapshotPayload,
+  support: SnapshotDisplayEntry | null,
+  resistance: SnapshotDisplayEntry | null,
+): string {
+  const notes: string[] = [];
+
+  if (support && resistance) {
+    const supportDistance = snapshotEntryDistanceRatio(support, payload.currentPrice, "support");
+    const resistanceDistance = snapshotEntryDistanceRatio(resistance, payload.currentPrice, "resistance");
+    const bandWidth =
+      (snapshotEntryLow(resistance) - snapshotEntryHigh(support)) /
+      Math.max(payload.currentPrice, 0.0001);
+
+    if (isTightSmallCapLevelCluster(support, resistance, payload.currentPrice)) {
+      notes.push("tight nearby level cluster; small pushes inside the band can be noise");
+    } else if (bandWidth <= 0.12) {
+      notes.push("range-bound; small pushes inside the band can be noise");
+    } else if (supportDistance >= 0.15) {
+      notes.push("extended from support; controlled pullback behavior matters");
+    } else if (resistanceDistance <= 0.035) {
+      notes.push("tight to resistance; breakout quality depends on acceptance above the area");
+    } else {
+      notes.push("cleaner while price respects support and works toward resistance");
+    }
+  } else if (resistance) {
+    notes.push("support is not clear from this snapshot");
+  } else if (support) {
+    notes.push("higher resistance is not clear from this snapshot");
+  } else {
+    notes.push("nearby ladder is too limited for a clean setup read");
+  }
+
+  const supportCount = payload.audit?.supportCandidates.length ?? payload.supportZones.length;
+  const resistanceCount = payload.audit?.resistanceCandidates.length ?? payload.resistanceZones.length;
+  if (supportCount <= 1 || resistanceCount <= 1) {
+    notes.push("ladder depth is thin");
+  }
+
+  if (
+    typeof payload.audit?.livePriceAgeMs === "number" &&
+    payload.audit.livePriceAgeMs > 120_000
+  ) {
+    notes.push("price reference may be stale");
+  }
+
+  const structureNote = buildSnapshotStructureQualityNote(payload);
+  if (structureNote) {
+    notes.push(structureNote);
+  }
+
+  return `Quality / Caution: ${[...new Set(notes)].join("; ")}.`;
+}
+
 function buildSnapshotTradeMapLines(payload: LevelSnapshotPayload): string[] {
   const support = buildPracticalSnapshotAreaEntry(payload.supportZones, payload.currentPrice, "support");
   const resistance = buildPracticalSnapshotAreaEntry(payload.resistanceZones, payload.currentPrice, "resistance");
   const nextResistance = resistance
     ? nextSnapshotEntryAfter(payload.resistanceZones, resistance, "resistance")
     : null;
+  const materialResistance = firstMaterialSnapshotEntry(
+    payload.resistanceZones,
+    resistance,
+    payload.currentPrice,
+    "resistance",
+  );
   const deeperSupport = support
     ? nextSnapshotEntryAfter(payload.supportZones, support, "support")
     : null;
-  const intradaySupport = nearestIntradaySupportEntry(payload.supportZones, payload.currentPrice);
   const lines: string[] = [];
   const supportLabel = support ? formatSnapshotEntryLabel(support, "support") : null;
-  const supportLabelWithDistance = support
-    ? formatSnapshotEntryLabelWithDistance(support, payload.currentPrice, "support")
-    : null;
   const resistanceLabel = resistance ? formatSnapshotEntryLabel(resistance, "resistance") : null;
   const resistanceLabelWithDistance = resistance
     ? formatSnapshotEntryLabelWithDistance(resistance, payload.currentPrice, "resistance")
@@ -2203,93 +2458,127 @@ function buildSnapshotTradeMapLines(payload: LevelSnapshotPayload): string[] {
   const nextResistanceLabelWithDistance = nextResistance
     ? formatSnapshotEntryLabelWithDistance(nextResistance, payload.currentPrice, "resistance")
     : null;
+  const materialResistanceLabelWithDistance =
+    materialResistance && materialResistance !== resistance
+      ? formatSnapshotEntryLabelWithDistance(materialResistance, payload.currentPrice, "resistance")
+      : null;
   const deeperSupportLabelWithDistance = deeperSupport
     ? formatSnapshotEntryLabelWithDistance(deeperSupport, payload.currentPrice, "support")
     : null;
-  const supportPrefix = support ? formatTradeMapImportancePrefix(support, payload.currentPrice, "support") : null;
-  const resistancePrefix = resistance ? formatTradeMapImportancePrefix(resistance, payload.currentPrice, "resistance") : null;
 
   if (support && resistance && supportLabel && resistanceLabel) {
-    const supportLine = snapshotEntryHigh(support);
-    const resistanceLine = snapshotEntryLow(resistance);
-    const supportDistance = Math.abs(payload.currentPrice - supportLine) / Math.max(payload.currentPrice, 0.0001);
-    const resistanceDistance = Math.abs(resistanceLine - payload.currentPrice) / Math.max(payload.currentPrice, 0.0001);
-    const bandWidth = (resistanceLine - supportLine) / Math.max(payload.currentPrice, 0.0001);
+    const supportDistance = snapshotEntryDistanceRatio(support, payload.currentPrice, "support");
+    const resistanceDistance = snapshotEntryDistanceRatio(resistance, payload.currentPrice, "resistance");
+    const bandWidth =
+      (snapshotEntryLow(resistance) - snapshotEntryHigh(support)) /
+      Math.max(payload.currentPrice, 0.0001);
 
-    if (bandWidth <= 0.12) {
+    if (isTightSmallCapLevelCluster(support, resistance, payload.currentPrice)) {
       lines.push(
-        `Current structure: ${payload.symbol} is range-bound between ${supportLabel} and ${resistanceLabel}.`,
+        `Current Read: ${payload.symbol} is inside a tight nearby level cluster from ${supportLabel} to ${resistanceLabel}; small pushes inside that band are noise. The useful read comes from acceptance above resistance or a clean loss/reclaim of support.`,
       );
-      lines.push(`${resistancePrefix}: ${resistanceLabel} is the upside area that needs acceptance.`);
-      lines.push(`${supportPrefix}: ${supportLabel} is the area buyers need to keep holding for the range to stay constructive.`);
-      lines.push("Small pushes inside this band can be noise; the cleaner read comes from expansion above resistance or a clean loss of support.");
+    } else if (bandWidth <= 0.12) {
+      lines.push(
+        `Current Read: ${payload.symbol} is range-bound between ${supportLabel} and ${resistanceLabel}; the better information comes from expansion above resistance or a clean support failure.`,
+      );
     } else if (resistanceDistance <= 0.035) {
-      lines.push(`Current structure: ${payload.symbol} is pressing ${resistanceLabel}.`);
-      lines.push(`${resistancePrefix}: buyers need acceptance above ${resistanceLabel} before the breakout read is cleaner.`);
-      lines.push(`${supportPrefix}: a clean loss of ${supportLabel} would weaken the setup.`);
+      lines.push(
+        `Current Read: ${payload.symbol} is a breakout-watch setup against ${resistanceLabel}; acceptance above that area matters more than small pushes just below it.`,
+      );
     } else if (supportDistance <= 0.035) {
-      lines.push(`Current structure: ${payload.symbol} is pulling into ${supportLabel}.`);
-      lines.push(`${supportPrefix}: buyers need ${supportLabel} to stabilize before the next resistance test matters.`);
-      lines.push(`${resistancePrefix}: ${resistanceLabel} is the next resistance area above.`);
+      lines.push(
+        `Current Read: ${payload.symbol} is pulling into ${supportLabel}; the cleaner read comes from stabilization there before the next resistance test.`,
+      );
+    } else if (supportDistance >= 0.15) {
+      lines.push(
+        `Current Read: ${payload.symbol} is extended from the nearest support, so pullback behavior matters before continuation gets cleaner.`,
+      );
     } else {
       lines.push(
-        `Current structure: ${payload.symbol} is trading between ${supportLabel} and ${resistanceLabel}.`,
+        `Current Read: ${payload.symbol} is trading between ${supportLabel} and ${resistanceLabel}; the active idea is the next clean reaction at either side of the range.`,
       );
-      lines.push(`${supportPrefix}: ${supportLabel}.`);
-      lines.push(`${resistancePrefix}: ${resistanceLabel}.`);
     }
   } else if (resistance && resistanceLabel) {
-    lines.push(`Current structure: ${payload.symbol} is below ${resistanceLabel}.`);
-    lines.push(`${resistancePrefix}: ${resistanceLabel} is the first area buyers need to clear.`);
+    lines.push(
+      `Current Read: ${payload.symbol} is below ${resistanceLabel}; the cleaner upside read needs acceptance above that area.`,
+    );
   } else if (support && supportLabel) {
-    lines.push(`Current structure: ${payload.symbol} is above ${supportLabel}.`);
-    lines.push(`${supportPrefix}: ${supportLabel} is the first area buyers need to keep holding.`);
+    lines.push(
+      `Current Read: ${payload.symbol} is above ${supportLabel}; the setup stays cleaner while that area holds.`,
+    );
   } else {
-    lines.push("Current structure: no nearby support or resistance is available in this snapshot.");
+    lines.push("Current Read: nearby levels are limited, so this read needs a fresh ladder before it becomes useful.");
   }
+
+  lines.push("");
 
   if (resistance && resistanceLabelWithDistance) {
-    if (nextResistanceLabelWithDistance) {
+    if (!isMaterialSmallCapTradeMapEntry(resistance, payload.currentPrice, "resistance")) {
+      if (materialResistanceLabelWithDistance) {
+        lines.push(
+          `Breakout Area To Watch: ${resistanceLabelWithDistance} is a nearby gate, not the material target; the first material upside map area is ${materialResistanceLabelWithDistance}.`,
+        );
+      } else {
+        lines.push(
+          `Breakout Area To Watch: ${resistanceLabelWithDistance} is a nearby gate, not the material target; higher resistance needs a fresh level check before treating the path as open.`,
+        );
+      }
+    } else if (nextResistanceLabelWithDistance) {
       lines.push(
-        `Cleaner above: acceptance above ${resistanceLabelWithDistance} would shift attention toward ${nextResistanceLabelWithDistance}.`,
+        `Breakout Area To Watch: ${resistanceLabelWithDistance} is the first upside area; acceptance above it shifts attention toward ${nextResistanceLabelWithDistance}.`,
       );
     } else {
       lines.push(
-        `Cleaner above: acceptance above ${resistanceLabelWithDistance} would be constructive; higher resistance needs a fresh level check before treating the path as open.`,
+        `Breakout Area To Watch: ${resistanceLabelWithDistance} is the first upside area; higher resistance needs a fresh level check before treating the path as open.`,
       );
     }
+  } else {
+    lines.push("Breakout Area To Watch: no clean nearby resistance is available in this snapshot.");
   }
 
-  if (support && supportLabelWithDistance) {
-    lines.push(`Support that matters: ${supportLabelWithDistance} is the first practical area buyers need to keep defending.`);
-    if (deeperSupportLabelWithDistance) {
+  lines.push("");
+  lines.push(...formatSnapshotSetupPullbackLines(payload, support));
+  lines.push("");
+
+  if (resistance && resistanceLabel) {
+    if (materialResistanceLabelWithDistance) {
       lines.push(
-        `Broader support: a clean loss of ${supportLabel} as a whole area would shift attention toward ${deeperSupportLabelWithDistance}.`,
+        `Continuation Path: above ${resistanceLabel}, the material upside map area is ${materialResistanceLabelWithDistance}; reactions there matter more than assuming open space.`,
+      );
+    } else if (nextResistanceLabelWithDistance && isMaterialSmallCapTradeMapEntry(resistance, payload.currentPrice, "resistance")) {
+      lines.push(
+        `Continuation Path: above ${resistanceLabel}, the next map area is ${nextResistanceLabelWithDistance}; reactions there matter more than assuming open space.`,
+      );
+    } else {
+      lines.push(
+        `Continuation Path: above ${resistanceLabel}, higher resistance needs a fresh level check before the move can be treated as open.`,
       );
     }
+  } else {
+    lines.push("Continuation Path: no continuation path is available until higher resistance is refreshed.");
   }
 
-  if (intradaySupport && (!support || formatSnapshotEntryPrice(intradaySupport) !== formatSnapshotEntryPrice(support))) {
+  lines.push("");
+
+  if (support && supportLabel) {
+    const nearbyDeeperSupportLabelWithDistance =
+      deeperSupport &&
+      deeperSupportLabelWithDistance &&
+      snapshotEntryDistanceRatio(deeperSupport, payload.currentPrice, "support") <= 0.3
+        ? deeperSupportLabelWithDistance
+        : null;
+    const reclaimText = nearbyDeeperSupportLabelWithDistance
+      ? ` Below that, the next map area is ${nearbyDeeperSupportLabelWithDistance}.`
+      : " A fresh support check matters below that area.";
     lines.push(
-      `Short-term momentum support: ${formatSnapshotEntryLabelWithDistance(intradaySupport, payload.currentPrice, "support")}.`,
+      `Setup Weakens If: price loses ${supportLabel} as a whole area and cannot reclaim it.${reclaimText}`,
     );
-  } else if (intradaySupport) {
-    lines.push(`Short-term momentum support is the same area: ${formatSnapshotEntryLabel(intradaySupport, "support")}.`);
+  } else {
+    lines.push("Setup Weakens If: price loses the active range and the ladder still cannot identify usable support.");
   }
 
-  if (support && resistance) {
-    const supportLine = snapshotEntryHigh(support);
-    const resistanceLine = snapshotEntryLow(resistance);
-    const bandWidth = (resistanceLine - supportLine) / Math.max(payload.currentPrice, 0.0001);
-    const supportDistance = Math.abs(payload.currentPrice - supportLine) / Math.max(payload.currentPrice, 0.0001);
-    if (bandWidth <= 0.12) {
-      lines.push("Setup quality: mixed and range-bound; better information comes from a clean expansion or a clean support failure.");
-    } else if (supportDistance >= 0.15) {
-      lines.push("Setup quality: extended from support; cleaner continuation needs acceptance above resistance or a controlled pullback that holds structure.");
-    } else {
-      lines.push("Setup quality: cleaner while price respects support and works toward the next resistance area.");
-    }
-  }
+  lines.push("");
+  lines.push(buildSnapshotSetupQualityLine(payload, support, resistance));
 
   return lines;
 }
@@ -2483,10 +2772,12 @@ function formatLevelContextLine(payload: LevelSnapshotPayload): string {
 }
 
 export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): string {
+  warnIfWatchlistTraderReadAiRequested();
   const keyResistanceLines = formatSnapshotResistanceBlock(payload.resistanceZones, payload.currentPrice);
   const keySupportLines = formatSnapshotLevelBlock("Support", payload.supportZones, payload.currentPrice, 3);
   const tradeMapLines = buildSnapshotTradeMapLines(payload);
   const tradePlanLines = payload.tradePlan?.lines.filter((line) => line.trim().length > 0) ?? [];
+  const potentialMoveReadLines = formatPotentialMoveRead(payload.potentialMoveRead);
   const hasMarketStructureField = Object.prototype.hasOwnProperty.call(payload, "marketStructure");
   const marketStructureLines = buildVisibleMarketStructureDiscordLines(payload.marketStructure, {
     includeWaitingPlaceholders: hasMarketStructureField,
@@ -2509,6 +2800,12 @@ export function formatLevelSnapshotMessage(payload: LevelSnapshotPayload): strin
       ? [
           "Market structure:",
           ...visibleMarketStructureLines.map((line) => `- ${line}`),
+          "",
+        ]
+      : []),
+    ...(potentialMoveReadLines.length > 0
+      ? [
+          ...potentialMoveReadLines,
           "",
         ]
       : []),

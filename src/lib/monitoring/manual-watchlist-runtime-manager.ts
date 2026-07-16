@@ -1,10 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { CandleFetchService } from "../market-data/candle-fetch-service.js";
+import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
+import type { Candle, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
 import { LevelEngine } from "../levels/level-engine.js";
 import { resolveLevelRuntimeSettings } from "../levels/level-runtime-mode.js";
-import type { FinalLevelZone } from "../levels/level-types.js";
+import type { FinalLevelZone, LevelEngineOutput } from "../levels/level-types.js";
+import { buildSpecialLevelCandidates } from "../levels/special-level-builder.js";
 import { decideLevelRefresh } from "../levels/level-refresh-policy.js";
 import { assessFinalLevelImportance } from "./level-importance.js";
 import { AlertIntelligenceEngine } from "../alerts/alert-intelligence-engine.js";
@@ -25,6 +27,40 @@ import {
   resolveStockContextCurrentPrice,
 } from "../stock-context/finnhub-thread-preview.js";
 import {
+  buildLiveWatchlistLevelsUnavailablePatch,
+  buildLiveWatchlistSnapshotPatch,
+  buildLiveWatchlistPullbackReadPatch,
+  buildLiveWatchlistStatusPatch,
+  buildLiveWatchlistTechnicalContextPatch,
+  buildLiveWatchlistTickerDataPatch,
+  createLiveWatchlistPublisherFromEnv,
+} from "../live-watchlist/live-watchlist-publisher.js";
+import {
+  deriveRecentWebsiteArticleCatalystFreshness,
+  publishRecentWebsiteArticlesForSymbol,
+  type RecentWebsiteArticleCatalystFreshness,
+  type RecentWebsiteArticleExecFile,
+} from "../live-watchlist/recent-website-articles.js";
+import {
+  lookupPressReleaseCatalystContextForSymbol,
+  newYorkDateKeyForTimestamp,
+  type PressReleaseCatalystContext,
+  type PressReleaseCatalystExecFile,
+} from "../catalysts/press-release-catalyst-context.js";
+import type {
+  LiveWatchlistCardPatch,
+  LiveWatchlistPublisher,
+  LiveWatchlistStatus,
+  LiveWatchlistTickerDataPatch,
+} from "../live-watchlist/live-watchlist-types.js";
+import type { LiveWatchlistPullbackVolumeRead } from "../live-watchlist/pullback-read.js";
+import { resolveLiveWatchlistTradeSetupReadMode } from "../live-watchlist/trade-setup-read.js";
+import {
+  buildTechnicalContextFromCandles,
+  refreshTechnicalContextForPrice,
+} from "../technical-context/technical-context.js";
+import type { TechnicalContext } from "../technical-context/technical-context-types.js";
+import {
   isSignalCategoryLiveEnabled,
   resolvePrimarySignalCategoryForAlert,
   routeMessageKindToSignalCategory,
@@ -40,6 +76,7 @@ import type {
   LevelSnapshotAuditZone,
   LevelSnapshotDisplayZone,
   LevelSnapshotPayload,
+  PotentialMoveRead,
 } from "../alerts/alert-types.js";
 import { deriveTraderFollowThroughContext, describeZoneStrength } from "../alerts/trader-message-language.js";
 import { LevelStore } from "./level-store.js";
@@ -51,6 +88,7 @@ import type {
   WatchlistEntry,
   WatchlistLifecycleState,
 } from "./monitoring-types.js";
+import type { LivePriceProvider } from "./live-price-types.js";
 import { buildOpportunityDiagnosticsLogEntry } from "./opportunity-diagnostics.js";
 import { OpportunityRuntimeController } from "./opportunity-runtime-controller.js";
 import type { OpportunityInterpretation } from "./opportunity-interpretation.js";
@@ -58,6 +96,11 @@ import type { EvaluatedOpportunity, OpportunityProgressUpdate } from "./opportun
 import { WatchlistMonitor } from "./watchlist-monitor.js";
 import { WatchlistStatePersistence } from "./watchlist-state-persistence.js";
 import { WatchlistStore } from "./watchlist-store.js";
+import { LiveDerivedFiveMinuteCandleStore } from "./live-derived-technical-candles.js";
+import {
+  buildTradeSetupChartThesisRead,
+  buildWatchlistChartThesisRead,
+} from "./chart-thesis-engine.js";
 import {
   getFreshFormalBosChochMarketStructureStoryKeys,
   getMaterialMarketStructureStoryKeys,
@@ -105,6 +148,20 @@ import {
 } from "./live-thread-post-policy.js";
 
 export type MarketStructureStandalonePostMode = "off" | "normal" | "testing";
+export type LiveWatchlistLevelProvenanceMode = "off" | "observe" | "active";
+
+export const LIVE_WATCHLIST_LEVEL_PROVENANCE_MODE_ENV =
+  "LIVE_WATCHLIST_LEVEL_PROVENANCE_MODE";
+
+export function resolveLiveWatchlistLevelProvenanceMode(
+  value: string | null | undefined,
+): LiveWatchlistLevelProvenanceMode {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "observe" || normalized === "active") {
+    return normalized;
+  }
+  return "off";
+}
 
 export function resolveMarketStructureStandalonePostMode(
   value: MarketStructureStandalonePostMode | string | null | undefined,
@@ -147,6 +204,14 @@ export type ManualWatchlistRuntimeManagerOptions = {
   } | null;
   marketStructureStoryMemoryPath?: string | null;
   marketStructureStandalonePostMode?: MarketStructureStandalonePostMode | string | null;
+  liveWatchlistPublisher?: LiveWatchlistPublisher | null;
+  levelProvenanceMode?: LiveWatchlistLevelProvenanceMode | string | null;
+  pullbackReadEnabled?: boolean;
+  pullbackReadPollIntervalMs?: number;
+  recentIntradayCandleFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName"> | null;
+  recentWebsiteArticlesExecFileImpl?: RecentWebsiteArticleExecFile;
+  pressReleaseCatalystContextEnabled?: boolean;
+  pressReleaseCatalystExecFileImpl?: PressReleaseCatalystExecFile;
   autoCleanReadGenerator?: ((input: ManualWatchlistAutoCleanReadInput) => Promise<{
     id?: string;
     text?: string;
@@ -167,6 +232,11 @@ export type ManualWatchlistHistoricalLookbacks = {
   "5m": number;
 };
 
+type PriorRegularCloseReference = {
+  price: number;
+  source: string;
+};
+
 export type ManualWatchlistActivationInput = {
   symbol: string;
   note?: string;
@@ -175,6 +245,7 @@ export type ManualWatchlistActivationInput = {
 export type ManualWatchlistRuntimeHealth = {
   isStarted: boolean;
   pendingActivationCount: number;
+  liveTraderReadCardVisible: boolean;
   lifecycleCounts: Record<WatchlistLifecycleState, number>;
   lastPriceUpdateAt: number | null;
   lastPriceUpdateSymbol: string | null;
@@ -293,6 +364,475 @@ function normalizeSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
 }
 
+function finitePositiveNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function resolvePriorRegularCloseReference(
+  preview: StockContextPreview,
+): PriorRegularCloseReference | null {
+  const yahooPreviousClose = finitePositiveNumber(preview.yahoo?.quote?.regularMarketPreviousClose);
+  if (yahooPreviousClose !== null) {
+    return { price: yahooPreviousClose, source: "Yahoo regular close" };
+  }
+
+  const finnhubPreviousClose = finitePositiveNumber(preview.quote?.pc);
+  if (finnhubPreviousClose !== null) {
+    return { price: finnhubPreviousClose, source: "Finnhub regular close" };
+  }
+
+  return null;
+}
+
+function resolveInitialLiveTraderReadCardVisible(): boolean {
+  const raw = process.env.TRADERSLINK_WATCHLIST_TRADER_READ_VISIBLE?.trim().toLowerCase();
+  return raw !== "0" && raw !== "false" && raw !== "no" && raw !== "off";
+}
+
+const NEW_YORK_TIMEZONE = "America/New_York";
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+const newYorkDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: NEW_YORK_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+function newYorkParts(timestamp: number): {
+  dateKey: string;
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  const parts = newYorkDateFormatter.formatToParts(new Date(timestamp));
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const year = Number(byType.year);
+  const month = Number(byType.month);
+  const day = Number(byType.day);
+  const hour = Number(byType.hour);
+  const minute = Number(byType.minute);
+  const second = Number(byType.second);
+
+  return {
+    dateKey: `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day
+      .toString()
+      .padStart(2, "0")}`,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    second,
+  };
+}
+
+function wallClockAsUtc(year: number, month: number, day: number, hour: number, minute: number, second = 0): number {
+  return Date.UTC(year, month - 1, day, hour, minute, second);
+}
+
+function newYorkWallClockTimestamp(dateKey: string, hour: number, minute: number): number {
+  const [yearRaw, monthRaw, dayRaw] = dateKey.split("-").map(Number);
+  const year = yearRaw ?? 0;
+  const month = monthRaw ?? 1;
+  const day = dayRaw ?? 1;
+  const targetWallClock = wallClockAsUtc(year, month, day, hour, minute);
+  let guess = targetWallClock;
+
+  for (let index = 0; index < 4; index += 1) {
+    const parts = newYorkParts(guess);
+    const observedWallClock = wallClockAsUtc(
+      parts.year,
+      parts.month,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      parts.second,
+    );
+    const delta = targetWallClock - observedWallClock;
+    guess += delta;
+    if (delta === 0) {
+      break;
+    }
+  }
+
+  return guess;
+}
+
+function shiftDateKey(dateKey: string, days: number): string {
+  const timestamp = Date.parse(`${dateKey}T12:00:00.000Z`);
+  return new Date(timestamp + days * ONE_DAY_MS).toISOString().slice(0, 10);
+}
+
+export function resolveEodhdConfirmedLevelRequestEndTimeMs(
+  timeframe: CandleTimeframe,
+  nowMs: number = Date.now(),
+): number | undefined {
+  const currentNewYorkDateKey = newYorkParts(nowMs).dateKey;
+
+  if (timeframe === "daily") {
+    const previousNewYorkDateKey = shiftDateKey(currentNewYorkDateKey, -1);
+    return Date.parse(`${previousNewYorkDateKey}T12:00:00.000Z`);
+  }
+
+  if (timeframe === "4h") {
+    return newYorkWallClockTimestamp(currentNewYorkDateKey, 0, 0);
+  }
+
+  return undefined;
+}
+
+function isTechnicalContextDisplayReady(context: TechnicalContext): boolean {
+  return (
+    context.confidence !== "unavailable" &&
+    context.vwap !== null &&
+    context.ema9 !== null &&
+    context.ema20 !== null &&
+    context.aboveVwap !== null &&
+    context.aboveEma9 !== null &&
+    context.aboveEma20 !== null
+  );
+}
+
+function technicalContextDataQualityFlags(flags: string[], candleCount: number): string[] {
+  return candleCount > 0 ? flags.filter((flag) => !flag.startsWith("5m:")) : flags;
+}
+
+function bucketCandleTimestamp(timestamp: number, bucketMs: number): number {
+  return Math.floor(timestamp / bucketMs) * bucketMs;
+}
+
+function isValidPullbackCandle(candle: Candle): boolean {
+  return (
+    Number.isFinite(candle.timestamp) &&
+    Number.isFinite(candle.open) &&
+    Number.isFinite(candle.high) &&
+    Number.isFinite(candle.low) &&
+    Number.isFinite(candle.close) &&
+    Number.isFinite(candle.volume) &&
+    candle.open > 0 &&
+    candle.high > 0 &&
+    candle.low > 0 &&
+    candle.close > 0 &&
+    candle.volume >= 0 &&
+    candle.high >= candle.low &&
+    candle.high >= candle.open &&
+    candle.high >= candle.close &&
+    candle.low <= candle.open &&
+    candle.low <= candle.close
+  );
+}
+
+function normalizePullbackCandles(candles: Candle[]): Candle[] {
+  const byTimestamp = new Map<number, Candle>();
+
+  for (const candle of candles) {
+    if (!isValidPullbackCandle(candle)) {
+      continue;
+    }
+
+    const normalized = {
+      ...candle,
+      volume: Math.max(0, Math.round(candle.volume)),
+    };
+    const existing = byTimestamp.get(candle.timestamp);
+    if (!existing || normalized.volume >= existing.volume) {
+      byTimestamp.set(candle.timestamp, normalized);
+    }
+  }
+
+  return [...byTimestamp.values()].sort((left, right) => left.timestamp - right.timestamp);
+}
+
+const TRADE_SETUP_FIVE_MINUTE_MS = 5 * 60 * 1000;
+const TRADE_SETUP_FOUR_HOUR_BAR_COUNT = 48;
+
+function completedFiveMinuteCandles(candles: Candle[], evaluatedAt: number): Candle[] {
+  return normalizePullbackCandles(candles)
+    .filter((candle) => candle.timestamp + TRADE_SETUP_FIVE_MINUTE_MS <= evaluatedAt);
+}
+
+function regularSessionCandlesForEvaluation(candles: Candle[], evaluatedAt: number): Candle[] {
+  const evaluationDate = newYorkParts(evaluatedAt).dateKey;
+  return candles.filter((candle) => {
+    const parts = newYorkParts(candle.timestamp);
+    const minutes = parts.hour * 60 + parts.minute;
+    return parts.dateKey === evaluationDate && minutes >= 9 * 60 + 30 && minutes < 16 * 60;
+  });
+}
+
+function aggregateTradeSetupFourHourBucket(candles: Candle[]): Candle {
+  return {
+    timestamp: candles[0]!.timestamp,
+    open: candles[0]!.open,
+    high: Math.max(...candles.map((candle) => candle.high)),
+    low: Math.min(...candles.map((candle) => candle.low)),
+    close: candles.at(-1)!.close,
+    volume: candles.reduce((sum, candle) => sum + candle.volume, 0),
+  };
+}
+
+export function buildLiveTradeSetupSeriesMap(params: {
+  baseSeriesMap: Record<CandleTimeframe, CandleProviderResponse>;
+  fiveMinuteCandles: Candle[];
+  evaluatedAt: number;
+}): Record<CandleTimeframe, CandleProviderResponse> {
+  const completedFiveMinute = completedFiveMinuteCandles(
+    params.fiveMinuteCandles,
+    params.evaluatedAt,
+  );
+  const fiveMinuteBase = params.baseSeriesMap["5m"];
+  const liveFiveMinute: CandleProviderResponse = {
+    ...fiveMinuteBase,
+    candles: completedFiveMinute.slice(-fiveMinuteBase.requestedLookbackBars),
+    actualBarsReturned: Math.min(completedFiveMinute.length, fiveMinuteBase.requestedLookbackBars),
+    fetchEndTimestamp: params.evaluatedAt,
+    requestedEndTimestamp: params.evaluatedAt,
+    completenessStatus: completedFiveMinute.length > 0 ? "complete" : "empty",
+    stale: completedFiveMinute.length === 0,
+    providerMetadata: {
+      ...fiveMinuteBase.providerMetadata,
+      tradeSetupCompletedFiveMinuteOnly: true,
+    },
+  };
+  const currentRegularSession = regularSessionCandlesForEvaluation(
+    liveFiveMinute.candles,
+    params.evaluatedAt,
+  );
+  if (currentRegularSession.length === 0) {
+    return {
+      ...params.baseSeriesMap,
+      "5m": liveFiveMinute,
+    };
+  }
+
+  const partialFourHourCandles: Candle[] = [];
+  for (let index = 0; index < currentRegularSession.length; index += TRADE_SETUP_FOUR_HOUR_BAR_COUNT) {
+    partialFourHourCandles.push(
+      aggregateTradeSetupFourHourBucket(
+        currentRegularSession.slice(index, index + TRADE_SETUP_FOUR_HOUR_BAR_COUNT),
+      ),
+    );
+  }
+  const evaluationDate = newYorkParts(params.evaluatedAt).dateKey;
+  const fourHourBase = params.baseSeriesMap["4h"];
+  const priorFourHourCandles = fourHourBase.candles.filter((candle) => {
+    const parts = newYorkParts(candle.timestamp);
+    const minutes = parts.hour * 60 + parts.minute;
+    return parts.dateKey !== evaluationDate || minutes < 9 * 60 + 30 || minutes >= 16 * 60;
+  });
+  const combinedFourHourCandles = [
+    ...priorFourHourCandles,
+    ...partialFourHourCandles,
+  ]
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .slice(-fourHourBase.requestedLookbackBars);
+  const liveFourHour: CandleProviderResponse = {
+    ...fourHourBase,
+    candles: combinedFourHourCandles,
+    actualBarsReturned: combinedFourHourCandles.length,
+    fetchEndTimestamp: params.evaluatedAt,
+    requestedEndTimestamp: params.evaluatedAt,
+    completenessStatus: "partial",
+    stale: false,
+    providerMetadata: {
+      ...fourHourBase.providerMetadata,
+      tradeSetupCausalFourHourFromCompletedFiveMinute: true,
+      tradeSetupCausalFourHourSourceBars: currentRegularSession.length,
+    },
+  };
+
+  return {
+    ...params.baseSeriesMap,
+    "4h": liveFourHour,
+    "5m": liveFiveMinute,
+  };
+}
+
+function aggregateCandlesToFiveMinute(candles: Candle[]): Candle[] {
+  const byBucket = new Map<number, Candle>();
+
+  for (const candle of normalizePullbackCandles(candles)) {
+    const timestamp = bucketCandleTimestamp(candle.timestamp, 5 * 60 * 1000);
+    const existing = byBucket.get(timestamp);
+    if (!existing) {
+      byBucket.set(timestamp, {
+        timestamp,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: Math.max(0, Math.round(candle.volume)),
+      });
+      continue;
+    }
+
+    existing.high = Math.max(existing.high, candle.high);
+    existing.low = Math.min(existing.low, candle.low);
+    existing.close = candle.close;
+    existing.volume += Math.max(0, Math.round(candle.volume));
+  }
+
+  return [...byBucket.values()].sort((left, right) => left.timestamp - right.timestamp);
+}
+
+function latestPullbackCandle(candles: Candle[]): Candle | null {
+  return normalizePullbackCandles(candles).at(-1) ?? null;
+}
+
+function mergeWebsiteSpecialLevels(
+  base: LevelEngineOutput["specialLevels"] | undefined,
+  live: LevelEngineOutput["specialLevels"] | undefined,
+): LevelEngineOutput["specialLevels"] | undefined {
+  const merged: LevelEngineOutput["specialLevels"] = { ...(base ?? {}) };
+  for (const [key, value] of Object.entries(live ?? {})) {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      (merged as Record<string, number>)[key] = value;
+    }
+  }
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
+function hasUsableRecentPullbackCandles(candles: Candle[], endTimeMs: number): boolean {
+  const latest = latestPullbackCandle(candles);
+  return Boolean(
+    latest &&
+      endTimeMs - latest.timestamp <= PULLBACK_READ_MAX_LATEST_CANDLE_AGE_MS &&
+      latest.timestamp - endTimeMs <= PULLBACK_READ_MAX_FUTURE_CANDLE_SKEW_MS,
+  );
+}
+
+function volumeLabelForRatio(params: {
+  relativeVolumeRatio: number;
+  latestVolume: number;
+  previousVolume: number | undefined;
+}): LiveWatchlistPullbackVolumeRead["label"] {
+  const fading = params.previousVolume !== undefined && params.latestVolume <= params.previousVolume * 0.75;
+  return fading && params.relativeVolumeRatio < 1.2
+    ? "fading"
+    : params.relativeVolumeRatio >= 2
+      ? "strong"
+      : params.relativeVolumeRatio >= 1.4
+        ? "expanding"
+        : params.relativeVolumeRatio < 0.75
+          ? "thin"
+          : "normal";
+}
+
+function buildPullbackVolumeRead(
+  candles: Candle[],
+  options: { nowMs?: number; timeframeMs?: number; minPartialElapsedMs?: number } = {},
+): LiveWatchlistPullbackVolumeRead {
+  const sorted = normalizePullbackCandles(candles);
+  const latest = sorted.at(-1);
+  const timeframeMs = Math.max(1, options.timeframeMs ?? 5 * 60 * 1000);
+  const minPartialElapsedMs = Math.max(1, options.minPartialElapsedMs ?? 60 * 1000);
+  const baselineCandles = sorted
+    .slice(0, -1)
+    .slice(-20)
+    .filter((candle) => Number.isFinite(candle.volume) && candle.volume > 0);
+  const baseline = baselineCandles.map((candle) => candle.volume);
+
+  if (!latest || !Number.isFinite(latest.volume) || latest.volume <= 0) {
+    return {
+      label: "unknown",
+      currentVolume: null,
+      averageVolume: null,
+      relativeVolumeRatio: null,
+      reason: "latest 5m volume missing",
+    };
+  }
+
+  if (baseline.length < 10) {
+    return {
+      label: "unknown",
+      currentVolume: Math.round(latest.volume),
+      averageVolume: null,
+      relativeVolumeRatio: null,
+      reason: "not enough recent 5m volume baseline",
+    };
+  }
+
+  const previousBaselineCandle = baselineCandles.at(-1);
+  if (
+    previousBaselineCandle &&
+    latest.timestamp - previousBaselineCandle.timestamp > timeframeMs * 3
+  ) {
+    return {
+      label: "unknown",
+      currentVolume: Math.round(latest.volume),
+      averageVolume: null,
+      relativeVolumeRatio: null,
+      reason: "recent 5m volume baseline is stale",
+    };
+  }
+
+  const averageVolume = baseline.reduce((sum, volume) => sum + volume, 0) / baseline.length;
+  const rawRelativeVolumeRatio = latest.volume / Math.max(averageVolume, 1);
+  const previousVolume = baseline.at(-1);
+  const nowMs = options.nowMs;
+  const latestAgeMs = typeof nowMs === "number" && Number.isFinite(nowMs)
+    ? nowMs - latest.timestamp
+    : null;
+  if (latestAgeMs !== null && latestAgeMs < 0) {
+    return {
+      label: "unknown",
+      currentVolume: Math.round(latest.volume),
+      averageVolume: Math.round(averageVolume),
+      relativeVolumeRatio: null,
+      rawRelativeVolumeRatio: Number(rawRelativeVolumeRatio.toFixed(4)),
+      projectedVolume: null,
+      partial: true,
+      reason: "latest 5m candle timestamp is ahead of request time",
+    };
+  }
+  const partial = latestAgeMs !== null && latestAgeMs >= 0 && latestAgeMs < timeframeMs;
+
+  if (partial && latestAgeMs < minPartialElapsedMs) {
+    return {
+      label: "unknown",
+      currentVolume: Math.round(latest.volume),
+      averageVolume: Math.round(averageVolume),
+      relativeVolumeRatio: null,
+      rawRelativeVolumeRatio: Number(rawRelativeVolumeRatio.toFixed(4)),
+      projectedVolume: null,
+      partial: true,
+      reason: "forming 5m candle is too young for a reliable volume read",
+    };
+  }
+
+  const projectedVolume = partial
+    ? latest.volume / Math.max(latestAgeMs! / timeframeMs, minPartialElapsedMs / timeframeMs)
+    : null;
+  const labelVolume = projectedVolume ?? latest.volume;
+  const relativeVolumeRatio = labelVolume / Math.max(averageVolume, 1);
+  const label = volumeLabelForRatio({
+    relativeVolumeRatio,
+    latestVolume: labelVolume,
+    previousVolume,
+  });
+
+  return {
+    label,
+    currentVolume: Math.round(latest.volume),
+    averageVolume: Math.round(averageVolume),
+    relativeVolumeRatio: Number(relativeVolumeRatio.toFixed(4)),
+    rawRelativeVolumeRatio: Number(rawRelativeVolumeRatio.toFixed(4)),
+    projectedVolume: projectedVolume === null ? null : Math.round(projectedVolume),
+    partial,
+    reason: partial
+      ? `forming 5m volume is pacing at ${relativeVolumeRatio.toFixed(2)}x recent average`
+      : `latest 5m volume is ${relativeVolumeRatio.toFixed(2)}x recent average`,
+  };
+}
+
 function isAbortLikeError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -332,10 +872,17 @@ const SNAPSHOT_DISPLAY_COMPACTION_PCT = 0.0075;
 const SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE = 0.01;
 const SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 0.5;
 const LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 1;
+const SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT = 2;
+const SNAPSHOT_BASE_COVERAGE_AT = 3;
+const SNAPSHOT_MAX_STRUCTURAL_OUTER_ANCHORS = 1;
 const SNAPSHOT_CONTINUATION_MAP_MIN_GAP_PCT = 0.18;
 const SNAPSHOT_CONTINUATION_MAP_TARGET_PCT = 0.55;
 const SNAPSHOT_CONTINUATION_MAP_MIN_STEP_PCT = 0.03;
+const SNAPSHOT_CONTINUATION_MAP_MIN_PATH_LEVELS = 5;
+const SNAPSHOT_CONTINUATION_MAP_MIN_SUPPLEMENTAL_PRICE = 10;
 const SNAPSHOT_CONTINUATION_MAP_MAX_LEVELS = 4;
+const SNAPSHOT_CONTINUATION_MAP_MAX_CURRENT_PRICE = 50;
+const SNAPSHOT_CROSSED_RESISTANCE_SUPPORT_FLIP_MAX_DISTANCE_PCT = 0.3;
 const SNAPSHOT_LIVE_REFERENCE_MAX_AGE_MS = 30 * 60 * 1000;
 const EXTENSION_LIVE_REFERENCE_MAX_AGE_MS = 30 * 60 * 1000;
 const SYMBOL_RECAP_COOLDOWN_MS = 60 * 60 * 1000;
@@ -367,6 +914,21 @@ const ACTIVATION_STUCK_WARNING_MS = 2 * 60 * 1000;
 const ACTIVATION_WATCHDOG_INTERVAL_MS = 15 * 1000;
 const MAX_ACTIVITY_ENTRIES = 80;
 const PRICE_UPDATE_PERSIST_INTERVAL_MS = 5 * 1000;
+const WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS = 2 * 1000;
+const WEBSITE_TECHNICAL_CONTEXT_PUBLISH_INTERVAL_MS = 30 * 1000;
+const WEBSITE_PULLBACK_READ_PUBLISH_INTERVAL_MS = 5 * 60 * 1000;
+const PRIOR_REGULAR_CLOSE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const PULLBACK_READ_INTRADAY_POLL_INTERVAL_MS = 60 * 1000;
+const PULLBACK_READ_1M_LOOKBACK_BARS = 120;
+const PULLBACK_READ_5M_LOOKBACK_BARS = 80;
+const PULLBACK_READ_MAX_LATEST_CANDLE_AGE_MS = 10 * 60 * 1000;
+const PULLBACK_READ_MAX_FUTURE_CANDLE_SKEW_MS = 90 * 1000;
+const TECHNICAL_CONTEXT_BOOTSTRAP_RETRY_DELAYS_MS = [
+  60 * 1000,
+  3 * 60 * 1000,
+  10 * 60 * 1000,
+  30 * 60 * 1000,
+];
 const LEVEL_TOUCH_SUPERSEDE_DELAY_MS = 1200;
 const FAST_LEVEL_CLEAR_CONFIRM_PCT = 0.0025;
 const FAST_LEVEL_CLUSTER_MAX_SPAN_PCT = 0.035;
@@ -478,9 +1040,22 @@ function formatSnapshotLevel(level: number): string {
 }
 
 function snapshotForwardResistanceRangePct(currentPrice: number): number {
-  return currentPrice < 2
-    ? LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT
-    : SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT;
+  if (currentPrice <= SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT) {
+    return LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT;
+  }
+  if (currentPrice >= SNAPSHOT_BASE_COVERAGE_AT) {
+    return SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT;
+  }
+
+  const progress =
+    (currentPrice - SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT) /
+    (SNAPSHOT_BASE_COVERAGE_AT - SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT);
+  return (
+    LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT -
+    progress *
+      (LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT -
+        SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT)
+  );
 }
 
 function decimalPlacesForIncrement(increment: number): number {
@@ -517,6 +1092,7 @@ type FastLevelReference = {
   zoneLow?: number;
   zoneHigh?: number;
   strengthLabel?: FinalLevelZone["strengthLabel"];
+  sourceLabel?: string;
 };
 
 function fastLevelLow(zone: FastLevelReference): number {
@@ -537,6 +1113,40 @@ function formatFastLevelZone(zone: FastLevelReference | null, side: "support" | 
 
 function formatFastLevelOnly(zone: FastLevelReference | null): string | null {
   return zone ? formatSnapshotLevel(zone.representativePrice) : null;
+}
+
+function fastLevelStrengthRank(label: FinalLevelZone["strengthLabel"] | undefined): number {
+  switch (label) {
+    case "major":
+      return 4;
+    case "strong":
+      return 3;
+    case "moderate":
+      return 2;
+    case "weak":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function fastLevelSourceRank(label: string | null | undefined): number {
+  const normalized = label?.trim().toLowerCase() ?? "";
+  if (normalized.includes("daily") && normalized.includes("confluence")) return 6;
+  if (normalized.includes("daily")) return 5;
+  if (normalized.includes("4h") && normalized.includes("confluence")) return 4;
+  if (normalized.includes("4h")) return 3;
+  if (normalized.includes("continuation") || normalized.includes("extension")) return 2;
+  if (normalized.includes("intraday") || normalized.includes("5m")) return 1;
+  if (normalized) return 0.5;
+  return 0;
+}
+
+function withFastLevelSourceLabel(zone: FinalLevelZone): FastLevelReference {
+  return {
+    ...zone,
+    sourceLabel: deriveSnapshotLevelSourceLabel(zone),
+  };
 }
 
 function isTinySmallCapLevelStep(fromLevel: number, toLevel: number): boolean {
@@ -585,6 +1195,17 @@ function formatFastLevelRange(levels: number[]): string {
 }
 
 function deriveSnapshotLevelSourceLabel(zone: FinalLevelZone): string {
+  const sourceTypes = new Set(zone.sourceTypes);
+  if (sourceTypes.has("current_session_high")) return "high of day";
+  if (sourceTypes.has("current_session_low")) return "low of day";
+  if (sourceTypes.has("premarket_high")) return "premarket high";
+  if (sourceTypes.has("premarket_low")) return "premarket low";
+  if (sourceTypes.has("opening_range_high")) return "opening range high";
+  if (sourceTypes.has("opening_range_low")) return "opening range low";
+  if (sourceTypes.has("previous_day_high")) return "previous day high";
+  if (sourceTypes.has("previous_day_low")) return "previous day low";
+  if (sourceTypes.has("previous_day_close")) return "previous day close";
+
   if (zone.notes.includes("snapshot_continuation_map")) {
     return "continuation map";
   }
@@ -671,6 +1292,29 @@ function isBetterSnapshotRepresentative(
     return freshnessRank(challenger.freshness) > freshnessRank(incumbent.freshness);
   }
 
+  const provenanceRank = (zone: FinalLevelZone): number =>
+    zone.marketDataProvenance?.lastConfirmedAt !== undefined
+      ? 2
+      : zone.marketDataProvenance?.lastTestedAt !== undefined
+        ? 1
+        : 0;
+  if (provenanceRank(challenger) !== provenanceRank(incumbent)) {
+    return provenanceRank(challenger) > provenanceRank(incumbent);
+  }
+  const challengerInteractionAt =
+    challenger.marketDataProvenance?.lastConfirmedAt ??
+    challenger.marketDataProvenance?.lastTestedAt ??
+    challenger.marketDataProvenance?.formedAt ??
+    0;
+  const incumbentInteractionAt =
+    incumbent.marketDataProvenance?.lastConfirmedAt ??
+    incumbent.marketDataProvenance?.lastTestedAt ??
+    incumbent.marketDataProvenance?.formedAt ??
+    0;
+  if (challengerInteractionAt !== incumbentInteractionAt) {
+    return challengerInteractionAt > incumbentInteractionAt;
+  }
+
   if (challengerDistance !== incumbentDistance) {
     return challengerDistance < incumbentDistance;
   }
@@ -732,11 +1376,145 @@ function buildSnapshotDisplayZones(
 ): LevelSnapshotDisplayZone[] {
   return sortSnapshotZones(zones, side).map((zone) => ({
     representativePrice: zone.representativePrice,
+    lowPrice: zone.zoneLow,
+    highPrice: zone.zoneHigh,
     strengthLabel: zone.strengthLabel,
     freshness: zone.freshness,
+    touchCount: zone.touchCount,
+    confluenceCount: zone.confluenceCount,
+    reactionQualityScore: zone.reactionQualityScore,
+    rejectionScore: zone.rejectionScore,
+    displacementScore: zone.displacementScore,
+    sessionSignificanceScore: zone.sessionSignificanceScore,
+    sourceEvidenceCount: zone.sourceEvidenceCount,
     isExtension: zone.isExtension,
     sourceLabel: deriveSnapshotLevelSourceLabel(zone),
+    ...(zone.marketDataProvenance
+      ? { marketDataProvenance: { ...zone.marketDataProvenance } }
+      : {}),
   }));
+}
+
+type SnapshotProvenancePolicyResult = {
+  zones: FinalLevelZone[];
+  wouldSuppressIds: Set<string>;
+  suppressedIds: Set<string>;
+  fallbackRestoredIds: Set<string>;
+};
+
+function isStaleUnconfirmedIntradaySnapshotZone(
+  zone: FinalLevelZone,
+  currentPrice: number,
+  timestamp: number,
+): boolean {
+  const provenance = zone.marketDataProvenance;
+  if (!provenance) {
+    return false;
+  }
+  const isFiveMinuteOnly =
+    zone.timeframeSources.length > 0 &&
+    zone.timeframeSources.every((timeframe) => timeframe === "5m");
+  if (!isFiveMinuteOnly || provenance.lastConfirmedAt !== undefined) {
+    return false;
+  }
+
+  const currentDate = newYorkDateKeyForTimestamp(timestamp);
+  const formedDate = newYorkDateKeyForTimestamp(provenance.formedAt);
+  const lastTestedDate = provenance.lastTestedAt === undefined
+    ? null
+    : newYorkDateKeyForTimestamp(provenance.lastTestedAt);
+  if (!currentDate || !formedDate || formedDate >= currentDate || lastTestedDate === currentDate) {
+    return false;
+  }
+
+  const priceInsideZone = currentPrice >= zone.zoneLow && currentPrice <= zone.zoneHigh;
+  const hasStrongOverride = zone.strengthLabel === "strong" || zone.strengthLabel === "major";
+  return !priceInsideZone && !hasStrongOverride;
+}
+
+export function applySnapshotLevelProvenancePolicy(params: {
+  zones: FinalLevelZone[];
+  currentPrice: number;
+  timestamp: number;
+  side: "support" | "resistance";
+  mode: LiveWatchlistLevelProvenanceMode;
+}): SnapshotProvenancePolicyResult {
+  const wouldSuppress = params.zones.filter((zone) =>
+    isStaleUnconfirmedIntradaySnapshotZone(
+      zone,
+      params.currentPrice,
+      params.timestamp,
+    ),
+  );
+  const wouldSuppressIds = new Set(wouldSuppress.map(snapshotCandidateKey));
+  if (params.mode === "off") {
+    return {
+      zones: params.zones,
+      wouldSuppressIds: new Set(),
+      suppressedIds: new Set(),
+      fallbackRestoredIds: new Set(),
+    };
+  }
+  if (params.mode === "observe" || wouldSuppress.length === 0) {
+    return {
+      zones: params.zones,
+      wouldSuppressIds,
+      suppressedIds: new Set(),
+      fallbackRestoredIds: new Set(),
+    };
+  }
+
+  const kept = params.zones.filter((zone) => !wouldSuppressIds.has(snapshotCandidateKey(zone)));
+  const suppressedIds = new Set(wouldSuppressIds);
+  const fallbackRestoredIds = new Set<string>();
+  if (kept.length === 0 && params.zones.length > 0) {
+    const fallback = params.zones.reduce((best, candidate) =>
+      isBetterSnapshotRepresentative(
+        candidate,
+        best,
+        params.currentPrice,
+        params.side,
+      )
+        ? candidate
+        : best,
+    );
+    const fallbackId = snapshotCandidateKey(fallback);
+    kept.push(fallback);
+    suppressedIds.delete(fallbackId);
+    fallbackRestoredIds.add(fallbackId);
+  }
+
+  return {
+    zones: kept,
+    wouldSuppressIds,
+    suppressedIds,
+    fallbackRestoredIds,
+  };
+}
+
+function deriveRecentAtrPct(candles: Candle[], currentPrice: number): number | null {
+  if (candles.length < 2 || !Number.isFinite(currentPrice) || currentPrice <= 0) {
+    return null;
+  }
+  const recent = candles.slice(-15);
+  const trueRanges = recent.slice(1).map((candle, index) => {
+    const previousClose = recent[index]!.close;
+    return Math.max(
+      candle.high - candle.low,
+      Math.abs(candle.high - previousClose),
+      Math.abs(candle.low - previousClose),
+    );
+  });
+  if (trueRanges.length === 0) {
+    return null;
+  }
+  return trueRanges.reduce((sum, value) => sum + value, 0) /
+    trueRanges.length /
+    currentPrice;
+}
+
+function inferredSmallCapTickSize(price: number): number {
+  return price < 1 ? 0.0001 : 0.01;
 }
 
 function flipWrongSideSnapshotZone(
@@ -749,6 +1527,26 @@ function flipWrongSideSnapshotZone(
     kind: side,
     notes: [...zone.notes, `snapshot_role_flip:${zone.kind}_as_${side}`],
   };
+}
+
+function isActionableCrossedResistanceSupportFlip(
+  zone: FinalLevelZone,
+  currentPrice: number,
+  distancePct: number,
+): boolean {
+  return (
+    currentPrice < SNAPSHOT_CONTINUATION_MAP_MAX_CURRENT_PRICE &&
+    distancePct <= SNAPSHOT_CROSSED_RESISTANCE_SUPPORT_FLIP_MAX_DISTANCE_PCT &&
+    zone.strengthLabel !== "weak" &&
+    zone.notes.includes("snapshot_role_flip:resistance_as_support") &&
+    zone.timeframeSources.some((timeframe) => timeframe === "daily" || timeframe === "4h") &&
+    (
+      zone.sourceEvidenceCount >= 1 ||
+      zone.rejectionScore >= 0.38 ||
+      zone.displacementScore >= 0.5 ||
+      zone.followThroughScore >= 0.5
+    )
+  );
 }
 
 function buildSnapshotSideZones(params: {
@@ -786,7 +1584,13 @@ function buildSnapshotSideZones(params: {
       const distancePct =
         Math.abs(zone.representativePrice - params.currentPrice) /
         Math.max(params.currentPrice, 0.0001);
-      return distancePct <= maxFlipDistancePct;
+      return (
+        distancePct <= maxFlipDistancePct ||
+        (
+          params.side === "support" &&
+          isActionableCrossedResistanceSupportFlip(zone, params.currentPrice, distancePct)
+        )
+      );
     })
     .sort((left, right) =>
       params.side === "support"
@@ -798,6 +1602,45 @@ function buildSnapshotSideZones(params: {
   return params.side === "support"
     ? [...params.primaryZones, ...roleFlippedZones]
     : [...params.primaryZones, ...roleFlippedZones];
+}
+
+function isMeaningfulStructuralOuterResistance(zone: FinalLevelZone): boolean {
+  return (
+    (zone.strengthLabel === "strong" || zone.strengthLabel === "major") &&
+    zone.timeframeSources.some(
+      (timeframe) => timeframe === "daily" || timeframe === "4h",
+    ) &&
+    !zone.notes.includes("snapshot_continuation_map")
+  );
+}
+
+function addSnapshotStructuralOuterResistanceAnchor(params: {
+  zones: FinalLevelZone[];
+  allCandidates: FinalLevelZone[];
+  currentPrice: number;
+  tolerance: number;
+  maxForwardResistancePrice: number;
+}): FinalLevelZone[] {
+  const existingIds = new Set(params.zones.map(snapshotCandidateKey));
+  const anchors = sortSnapshotZones(
+    params.allCandidates.filter(
+      (zone) =>
+        !existingIds.has(snapshotCandidateKey(zone)) &&
+        zone.zoneLow > params.maxForwardResistancePrice &&
+        isSnapshotZoneDisplayableForSide(
+          zone,
+          params.currentPrice,
+          params.tolerance,
+          "resistance",
+        ) &&
+        isMeaningfulStructuralOuterResistance(zone),
+    ),
+    "resistance",
+  ).slice(0, SNAPSHOT_MAX_STRUCTURAL_OUTER_ANCHORS);
+
+  return anchors.length > 0
+    ? sortSnapshotZones([...params.zones, ...anchors], "resistance")
+    : params.zones;
 }
 
 function hasNearbySnapshotZone(zones: FinalLevelZone[], price: number): boolean {
@@ -851,6 +1694,58 @@ function buildSnapshotContinuationMapZone(params: {
   };
 }
 
+function addSupplementalSnapshotContinuationResistances(params: {
+  sortedResistanceZones: FinalLevelZone[];
+  additions: FinalLevelZone[];
+  currentPrice: number;
+  maxForwardResistancePrice: number;
+  symbol: string;
+  timestamp: number;
+}): FinalLevelZone[] {
+  if (params.currentPrice < SNAPSHOT_CONTINUATION_MAP_MIN_SUPPLEMENTAL_PRICE) {
+    return params.additions;
+  }
+
+  const supplemented = [...params.additions];
+  let basePrice =
+    sortSnapshotZones([...params.sortedResistanceZones, ...supplemented], "resistance")
+      .filter((zone) => zone.representativePrice > params.currentPrice)
+      .at(-1)?.representativePrice ?? params.currentPrice;
+  const ceiling = Math.min(
+    params.maxForwardResistancePrice,
+    params.currentPrice * (1 + SNAPSHOT_CONTINUATION_MAP_TARGET_PCT),
+  );
+
+  for (
+    let guard = 0;
+    guard < 24 &&
+      params.sortedResistanceZones.length + supplemented.length < SNAPSHOT_CONTINUATION_MAP_MIN_PATH_LEVELS &&
+      supplemented.length < SNAPSHOT_CONTINUATION_MAP_MAX_LEVELS;
+    guard += 1
+  ) {
+    const nextPrice = nextSnapshotContinuationResistance(basePrice);
+    if (!Number.isFinite(nextPrice) || nextPrice <= basePrice || nextPrice > ceiling) {
+      break;
+    }
+
+    basePrice = nextPrice;
+    if (hasNearbySnapshotZone([...params.sortedResistanceZones, ...supplemented], nextPrice)) {
+      continue;
+    }
+
+    supplemented.push(
+      buildSnapshotContinuationMapZone({
+        symbol: params.symbol,
+        price: nextPrice,
+        currentPrice: params.currentPrice,
+        timestamp: params.timestamp,
+      }),
+    );
+  }
+
+  return supplemented;
+}
+
 function addSnapshotContinuationResistanceMap(params: {
   zones: FinalLevelZone[];
   currentPrice: number;
@@ -861,7 +1756,7 @@ function addSnapshotContinuationResistanceMap(params: {
   if (
     !Number.isFinite(params.currentPrice) ||
     params.currentPrice <= 0 ||
-    params.currentPrice >= 30
+    params.currentPrice >= SNAPSHOT_CONTINUATION_MAP_MAX_CURRENT_PRICE
   ) {
     return params.zones;
   }
@@ -922,8 +1817,17 @@ function addSnapshotContinuationResistanceMap(params: {
     }
   }
 
-  return additions.length > 0
-    ? sortSnapshotZones([...params.zones, ...additions], "resistance")
+  const supplementedAdditions = addSupplementalSnapshotContinuationResistances({
+    sortedResistanceZones: sorted,
+    additions,
+    currentPrice: params.currentPrice,
+    maxForwardResistancePrice: params.maxForwardResistancePrice,
+    symbol: params.symbol,
+    timestamp: params.timestamp,
+  });
+
+  return supplementedAdditions.length > 0
+    ? sortSnapshotZones([...params.zones, ...supplementedAdditions], "resistance")
     : params.zones;
 }
 
@@ -991,11 +1895,15 @@ function buildSnapshotAuditZones(params: {
   currentPrice: number;
   tolerance: number;
   maxForwardResistancePrice: number;
+  provenanceWouldSuppressIds: Set<string>;
+  provenanceSuppressedIds: Set<string>;
+  provenanceFallbackRestoredIds: Set<string>;
 }): LevelSnapshotAuditZone[] {
   const sorted = sortSnapshotZones(params.zones, params.side);
 
   return sorted.map((zone) => {
-    const displayed = params.displayedZoneIds.has(snapshotCandidateKey(zone));
+    const candidateKey = snapshotCandidateKey(zone);
+    const displayed = params.displayedZoneIds.has(candidateKey);
     const wrongSide =
       !isSnapshotZoneDisplayableForSide(
         zone,
@@ -1023,6 +1931,16 @@ function buildSnapshotAuditZones(params: {
       sourceTypes: [...zone.sourceTypes],
       sourceLabel: deriveSnapshotLevelSourceLabel(zone),
       freshness: zone.freshness,
+      ...(zone.marketDataProvenance
+        ? { marketDataProvenance: { ...zone.marketDataProvenance } }
+        : {}),
+      provenanceDisposition: params.provenanceFallbackRestoredIds.has(candidateKey)
+        ? "fallback_restored"
+        : params.provenanceSuppressedIds.has(candidateKey)
+          ? "suppressed"
+          : params.provenanceWouldSuppressIds.has(candidateKey)
+            ? "would_suppress"
+            : "eligible",
       isExtension: zone.isExtension,
       displayed,
       omittedReason: displayed
@@ -1031,7 +1949,9 @@ function buildSnapshotAuditZones(params: {
           ? "wrong_side"
           : outsideForwardRange
             ? "outside_forward_range"
-            : "compacted",
+            : params.provenanceSuppressedIds.has(candidateKey)
+              ? "stale_unconfirmed_intraday"
+              : "compacted",
     };
   });
 }
@@ -1048,6 +1968,8 @@ function buildSnapshotAudit(params: {
   extensionResistanceZones: FinalLevelZone[];
   displayedSupportZones: FinalLevelZone[];
   displayedResistanceZones: FinalLevelZone[];
+  supportProvenancePolicy: SnapshotProvenancePolicyResult;
+  resistanceProvenancePolicy: SnapshotProvenancePolicyResult;
 }): LevelSnapshotAudit {
   const displayedSupportIds = params.displayedSupportZones.map(snapshotCandidateKey);
   const displayedResistanceIds = params.displayedResistanceZones.map(snapshotCandidateKey);
@@ -1071,6 +1993,9 @@ function buildSnapshotAudit(params: {
     currentPrice: params.currentPrice,
     tolerance: params.tolerance,
     maxForwardResistancePrice: params.maxForwardResistancePrice,
+    provenanceWouldSuppressIds: params.supportProvenancePolicy.wouldSuppressIds,
+    provenanceSuppressedIds: params.supportProvenancePolicy.suppressedIds,
+    provenanceFallbackRestoredIds: params.supportProvenancePolicy.fallbackRestoredIds,
   });
   const resistanceCandidates = [
     ...buildSnapshotAuditZones({
@@ -1081,6 +2006,9 @@ function buildSnapshotAudit(params: {
       currentPrice: params.currentPrice,
       tolerance: params.tolerance,
       maxForwardResistancePrice: params.maxForwardResistancePrice,
+      provenanceWouldSuppressIds: params.resistanceProvenancePolicy.wouldSuppressIds,
+      provenanceSuppressedIds: params.resistanceProvenancePolicy.suppressedIds,
+      provenanceFallbackRestoredIds: params.resistanceProvenancePolicy.fallbackRestoredIds,
     }),
     ...buildSnapshotAuditZones({
       zones: params.extensionResistanceZones,
@@ -1090,6 +2018,9 @@ function buildSnapshotAudit(params: {
       currentPrice: params.currentPrice,
       tolerance: params.tolerance,
       maxForwardResistancePrice: params.maxForwardResistancePrice,
+      provenanceWouldSuppressIds: params.resistanceProvenancePolicy.wouldSuppressIds,
+      provenanceSuppressedIds: params.resistanceProvenancePolicy.suppressedIds,
+      provenanceFallbackRestoredIds: params.resistanceProvenancePolicy.fallbackRestoredIds,
     }),
   ];
 
@@ -1176,6 +2107,8 @@ export class ManualWatchlistRuntimeManager {
   private readonly pendingMarketStructureStandalonePosts = new Map<string, NodeJS.Timeout>();
   private readonly marketStructureStoryMemoryPath: string | null;
   private readonly marketStructureStandalonePostMode: MarketStructureStandalonePostMode;
+  private readonly liveWatchlistPublisher: LiveWatchlistPublisher | null;
+  private readonly levelProvenanceMode: LiveWatchlistLevelProvenanceMode;
   private readonly startupCacheWarmingSymbols = new Set<string>();
   private readonly startupCacheRestoredAt = new Map<string, number>();
   private readonly startupCacheFreshRefreshFailures = new Map<string, string>();
@@ -1215,6 +2148,30 @@ export class ManualWatchlistRuntimeManager {
   private lastPriceUpdateAt: number | null = null;
   private lastPriceUpdateSymbol: string | null = null;
   private lastPriceUpdatePersistAt: number | null = null;
+  private readonly lastWebsiteTickerDataPublishAt = new Map<string, number>();
+  private readonly lastWebsiteTechnicalContextPublishAt = new Map<string, number>();
+  private readonly lastWebsiteTechnicalContextStateKey = new Map<string, string>();
+  private readonly lastWebsitePullbackReadPublishAt = new Map<string, number>();
+  private readonly lastWebsitePullbackReadStateKey = new Map<string, string>();
+  private liveTraderReadCardVisible = resolveInitialLiveTraderReadCardVisible();
+  private readonly technicalContextBySymbol = new Map<string, TechnicalContext>();
+  private readonly potentialMoveReadBySymbol = new Map<string, PotentialMoveRead>();
+  private readonly tradeSetupThesisReadBySymbol = new Map<string, PotentialMoveRead>();
+  private readonly chartThesisLevelOutputBySymbol = new Map<string, LevelEngineOutput>();
+  private readonly chartThesisSeriesMapBySymbol = new Map<string, Record<CandleTimeframe, CandleProviderResponse>>();
+  private readonly recentWebsiteArticleFreshnessBySymbol = new Map<string, RecentWebsiteArticleCatalystFreshness>();
+  private readonly pressReleaseCatalystContextBySymbol = new Map<string, PressReleaseCatalystContext>();
+  private readonly priorRegularCloseBySymbol = new Map<string, PriorRegularCloseReference>();
+  private readonly priorRegularCloseRefreshInFlight = new Set<string>();
+  private readonly lastPriorRegularCloseRefreshAt = new Map<string, number>();
+  private readonly technicalContextCandleStore = new LiveDerivedFiveMinuteCandleStore();
+  private readonly technicalContextProviderBySymbol = new Map<string, string | null>();
+  private readonly technicalContextDataQualityFlagsBySymbol = new Map<string, string[]>();
+  private readonly technicalContextBootstrapRetryTimers = new Map<string, NodeJS.Timeout>();
+  private readonly technicalContextBootstrapRetryAttempts = new Map<string, number>();
+  private readonly technicalContextBootstrapRefreshInFlight = new Set<string>();
+  private pullbackReadIntradayPollTimer: NodeJS.Timeout | null = null;
+  private pullbackReadIntradayPollInFlight = false;
   private lastThreadPostAt: number | null = null;
   private lastThreadPostSymbol: string | null = null;
   private lastThreadPostKind: LiveThreadPostKind | null = null;
@@ -1236,6 +2193,14 @@ export class ManualWatchlistRuntimeManager {
     this.marketStructureStoryMemoryPath = options.marketStructureStoryMemoryPath?.trim() || null;
     this.marketStructureStandalonePostMode = resolveMarketStructureStandalonePostMode(
       options.marketStructureStandalonePostMode,
+    );
+    this.liveWatchlistPublisher =
+      options.liveWatchlistPublisher === undefined
+        ? createLiveWatchlistPublisherFromEnv()
+        : options.liveWatchlistPublisher;
+    this.levelProvenanceMode = resolveLiveWatchlistLevelProvenanceMode(
+      options.levelProvenanceMode ??
+        process.env[LIVE_WATCHLIST_LEVEL_PROVENANCE_MODE_ENV],
     );
     this.loadMarketStructureStoryMemory();
 
@@ -1581,6 +2546,8 @@ export class ManualWatchlistRuntimeManager {
     const normalizedPrice = Math.max(currentPrice, 0);
     const tolerance = snapshotPriceTolerance(Math.max(normalizedPrice, 0.0001));
     const levelsOutput = this.options.levelStore.getLevels(symbol);
+    const websiteSpecialLevels = this.resolveWebsiteSpecialLevels(symbol, levelsOutput);
+    const priorRegularClose = this.priorRegularCloseBySymbol.get(symbol) ?? null;
     const forwardResistanceRangePct = snapshotForwardResistanceRangePct(normalizedPrice);
     const maxForwardResistancePrice =
       normalizedPrice * (1 + forwardResistanceRangePct);
@@ -1616,29 +2583,50 @@ export class ManualWatchlistRuntimeManager {
       side: "resistance",
       maxForwardResistancePrice,
     });
-    const resistanceCandidatesWithContinuationMap = addSnapshotContinuationResistanceMap({
+    const resistanceCandidatesWithOuterAnchor = addSnapshotStructuralOuterResistanceAnchor({
       zones: resistanceCandidatesForDisplay,
+      allCandidates: [...surfacedResistanceZones, ...extensionResistanceCandidates],
+      currentPrice: normalizedPrice,
+      tolerance,
+      maxForwardResistancePrice,
+    });
+    const resistanceCandidatesWithContinuationMap = addSnapshotContinuationResistanceMap({
+      zones: resistanceCandidatesWithOuterAnchor,
       currentPrice: normalizedPrice,
       maxForwardResistancePrice,
       symbol,
       timestamp,
     });
+    const supportProvenancePolicy = applySnapshotLevelProvenancePolicy({
+      zones: supportCandidatesForDisplay,
+      currentPrice: normalizedPrice,
+      timestamp,
+      side: "support",
+      mode: this.levelProvenanceMode,
+    });
+    const resistanceProvenancePolicy = applySnapshotLevelProvenancePolicy({
+      zones: resistanceCandidatesWithContinuationMap,
+      currentPrice: normalizedPrice,
+      timestamp,
+      side: "resistance",
+      mode: this.levelProvenanceMode,
+    });
     const supportZones = compactSnapshotZones(
-      supportCandidatesForDisplay,
+      supportProvenancePolicy.zones,
       normalizedPrice,
       "support",
     );
     const ladderSupportZones = sortSnapshotZones(
-      supportCandidatesForDisplay,
+      supportProvenancePolicy.zones,
       "support",
     );
     const resistanceZones = compactSnapshotZones(
-      resistanceCandidatesWithContinuationMap,
+      resistanceProvenancePolicy.zones,
       normalizedPrice,
       "resistance",
     );
     const ladderResistanceZones = sortSnapshotZones(
-      resistanceCandidatesWithContinuationMap,
+      resistanceProvenancePolicy.zones,
       "resistance",
     );
     const supportDisplayZones = buildSnapshotDisplayZones(supportZones, normalizedPrice, "support");
@@ -1657,6 +2645,17 @@ export class ManualWatchlistRuntimeManager {
       normalizedPrice,
       "resistance",
     );
+    const technicalContext = this.technicalContextBySymbol.get(symbol) ?? null;
+    const refreshedTechnicalContext = technicalContext === null
+      ? null
+      : refreshTechnicalContextForPrice(technicalContext, normalizedPrice);
+    const availableTimeframes = levelsOutput?.metadata.availableTimeframes ??
+      (["daily", "4h", "5m"] as const).filter(
+        (timeframe) => levelsOutput?.metadata.providerByTimeframe[timeframe] !== undefined,
+      );
+    const levelCoverage = levelsOutput?.metadata.coverage ??
+      (availableTimeframes.length === 3 ? "full" : "limited");
+    const roleFlipCandles = this.technicalContextCandleStore.getCandles(symbol);
 
     return {
       symbol,
@@ -1678,9 +2677,41 @@ export class ManualWatchlistRuntimeManager {
         extensionResistanceZones: extensionResistanceCandidates,
         displayedSupportZones: supportZones,
         displayedResistanceZones: resistanceZones,
+        supportProvenancePolicy,
+        resistanceProvenancePolicy,
       }),
       marketStructure: this.getMarketStructureSnapshot(symbol),
+      potentialMoveRead: this.potentialMoveReadBySymbol.get(symbol) ?? null,
+      tradeSetupThesisRead: this.tradeSetupThesisReadBySymbol.get(symbol) ?? null,
+      technicalContext: refreshedTechnicalContext,
+      priorRegularClosePrice: priorRegularClose?.price ?? null,
+      priorRegularCloseSource: priorRegularClose?.source ?? null,
+      specialLevels: websiteSpecialLevels,
+      levelDataQuality: {
+        status: levelCoverage,
+        availableTimeframes: [...availableTimeframes],
+        flags: levelsOutput?.metadata.dataQualityFlags ?? [],
+        ...(levelCoverage === "limited"
+          ? { message: "Limited-history map: use the available intraday structure, but verify higher-timeframe levels manually." }
+          : {}),
+      },
+      roleFlipContext: {
+        atrPct: deriveRecentAtrPct(roleFlipCandles, normalizedPrice),
+        tickSize: inferredSmallCapTickSize(normalizedPrice),
+      },
     };
+  }
+
+  private resolveWebsiteSpecialLevels(
+    symbolInput: string,
+    levelsOutput: LevelEngineOutput | null | undefined = this.options.levelStore.getLevels(symbolInput),
+  ): LevelSnapshotPayload["specialLevels"] {
+    const symbol = normalizeSymbol(symbolInput);
+    const liveCandles = this.technicalContextCandleStore.getCandles(symbol);
+    const liveSpecialLevels = liveCandles.length > 0
+      ? buildSpecialLevelCandidates(symbol, liveCandles, []).summary
+      : undefined;
+    return mergeWebsiteSpecialLevels(levelsOutput?.specialLevels, liveSpecialLevels);
   }
 
   private buildLevelExtensionPayload(
@@ -2003,6 +3034,12 @@ export class ManualWatchlistRuntimeManager {
       const preview = await stockContextProvider.getThreadPreview(symbol);
       const payload = buildFinnhubThreadPreviewPayload(preview);
       const currentPrice = resolveStockContextCurrentPrice(preview);
+      const priorRegularClose = resolvePriorRegularCloseReference(preview);
+      if (priorRegularClose) {
+        this.priorRegularCloseBySymbol.set(symbol, priorRegularClose);
+      } else {
+        this.priorRegularCloseBySymbol.delete(symbol);
+      }
       if (currentPrice) {
         this.watchlistStore.patchEntry(symbol, {
           lastPrice: currentPrice.price,
@@ -2032,6 +3069,8 @@ export class ManualWatchlistRuntimeManager {
           currentPrice: currentPrice?.price ?? null,
           currentPriceSource: currentPrice?.source ?? null,
           currentPriceTimestamp: currentPrice?.timestamp ?? null,
+          priorRegularClose: priorRegularClose?.price ?? null,
+          priorRegularCloseSource: priorRegularClose?.source ?? null,
         },
       });
     } catch (error) {
@@ -2151,6 +3190,7 @@ export class ManualWatchlistRuntimeManager {
         lastExtensionPostAt: timestamp,
         operationStatus: "monitoring live price",
       });
+      this.publishWebsiteSnapshotRefresh(symbol, timestamp);
       return "posted";
     } catch (error) {
       this.activeSnapshotState.set(symbol, {
@@ -2313,15 +3353,54 @@ export class ManualWatchlistRuntimeManager {
           snapshotPriceTolerance(zone.representativePrice),
       );
       if (!existing) {
-        merged.push(zone);
+        merged.push({ ...zone });
         continue;
       }
 
-      if (!existing.strengthLabel && zone.strengthLabel) {
+      if (
+        fastLevelStrengthRank(zone.strengthLabel) >
+        fastLevelStrengthRank(existing.strengthLabel)
+      ) {
         existing.strengthLabel = zone.strengthLabel;
+      }
+      if (
+        fastLevelSourceRank(zone.sourceLabel) >
+        fastLevelSourceRank(existing.sourceLabel)
+      ) {
+        existing.sourceLabel = zone.sourceLabel;
       }
     }
 
+    return merged;
+  }
+
+  private mergeDisplayedLevelReferenceMetadata(
+    displayedZones: FastLevelReference[],
+    supplementalZones: FastLevelReference[],
+  ): FastLevelReference[] {
+    const merged = displayedZones.map((zone) => ({ ...zone }));
+    for (const zone of supplementalZones) {
+      const existing = merged.find(
+        (candidate) =>
+          Math.abs(candidate.representativePrice - zone.representativePrice) <=
+          snapshotPriceTolerance(zone.representativePrice),
+      );
+      if (!existing) {
+        continue;
+      }
+      if (
+        fastLevelStrengthRank(zone.strengthLabel) >
+        fastLevelStrengthRank(existing.strengthLabel)
+      ) {
+        existing.strengthLabel = zone.strengthLabel;
+      }
+      if (
+        fastLevelSourceRank(zone.sourceLabel) >
+        fastLevelSourceRank(existing.sourceLabel)
+      ) {
+        existing.sourceLabel = zone.sourceLabel;
+      }
+    }
     return merged;
   }
 
@@ -2331,8 +3410,19 @@ export class ManualWatchlistRuntimeManager {
   ): FastLevelReference[] {
     return this.mergeFastLevelReferences([
       ...(snapshotState?.displayedResistanceZones ?? []),
-      ...this.options.levelStore.getResistanceZones(symbol),
-      ...this.options.levelStore.getExtensionResistanceZones(symbol),
+      ...this.options.levelStore.getResistanceZones(symbol).map(withFastLevelSourceLabel),
+      ...this.options.levelStore.getExtensionResistanceZones(symbol).map(withFastLevelSourceLabel),
+    ]);
+  }
+
+  private getWebsiteTickerResistanceReferences(
+    symbol: string,
+    snapshotState?: ActiveLevelSnapshotState,
+  ): FastLevelReference[] {
+    return this.mergeFastLevelReferences([
+      ...(snapshotState?.displayedResistanceZones ?? []),
+      ...this.options.levelStore.getResistanceZones(symbol).map(withFastLevelSourceLabel),
+      ...this.options.levelStore.getExtensionResistanceZones(symbol).map(withFastLevelSourceLabel),
     ]);
   }
 
@@ -2342,8 +3432,19 @@ export class ManualWatchlistRuntimeManager {
   ): FastLevelReference[] {
     return this.mergeFastLevelReferences([
       ...(snapshotState?.displayedSupportZones ?? []),
-      ...this.options.levelStore.getSupportZones(symbol),
-      ...this.options.levelStore.getExtensionSupportZones(symbol),
+      ...this.options.levelStore.getSupportZones(symbol).map(withFastLevelSourceLabel),
+      ...this.options.levelStore.getExtensionSupportZones(symbol).map(withFastLevelSourceLabel),
+    ]);
+  }
+
+  private getWebsiteTickerSupportReferences(
+    symbol: string,
+    snapshotState?: ActiveLevelSnapshotState,
+  ): FastLevelReference[] {
+    return this.mergeFastLevelReferences([
+      ...(snapshotState?.displayedSupportZones ?? []),
+      ...this.options.levelStore.getSupportZones(symbol).map(withFastLevelSourceLabel),
+      ...this.options.levelStore.getExtensionSupportZones(symbol).map(withFastLevelSourceLabel),
     ]);
   }
 
@@ -2353,6 +3454,16 @@ export class ManualWatchlistRuntimeManager {
     snapshotState?: ActiveLevelSnapshotState,
   ): FastLevelReference | null {
     return this.getFastResistanceReferences(symbol, snapshotState)
+      .filter((zone) => zone.representativePrice > clearedLevel + snapshotPriceTolerance(clearedLevel))
+      .sort((left, right) => left.representativePrice - right.representativePrice)[0] ?? null;
+  }
+
+  private findNextWebsiteResistanceAbove(
+    symbol: string,
+    clearedLevel: number,
+    snapshotState?: ActiveLevelSnapshotState,
+  ): FastLevelReference | null {
+    return this.getWebsiteTickerResistanceReferences(symbol, snapshotState)
       .filter((zone) => zone.representativePrice > clearedLevel + snapshotPriceTolerance(clearedLevel))
       .sort((left, right) => left.representativePrice - right.representativePrice)[0] ?? null;
   }
@@ -2511,7 +3622,7 @@ export class ManualWatchlistRuntimeManager {
         return;
       }
 
-      const nextResistance = this.findNextResistanceAbove(symbol, resistance, snapshotState);
+      const nextResistance = this.findNextWebsiteResistanceAbove(symbol, resistance, snapshotState);
       const pullbackSupport = this.findNextSupportBelow(symbol, resistance, snapshotState);
       const nextResistanceText = formatFastLevelZone(nextResistance, "resistance");
       const missingResistanceText = "higher resistance needs a fresh level check before treating the path as open";
@@ -3102,6 +4213,484 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
+  private resolveLevelSeedReferencePrice(symbol: string, timestamp: number): number | undefined {
+    const entry = this.watchlistStore.getEntry(symbol);
+    if (
+      typeof entry?.lastPrice !== "number" ||
+      !Number.isFinite(entry.lastPrice) ||
+      entry.lastPrice <= 0 ||
+      typeof entry.lastPriceUpdateAt !== "number" ||
+      !Number.isFinite(entry.lastPriceUpdateAt)
+    ) {
+      return undefined;
+    }
+
+    const livePriceAgeMs = Math.max(0, timestamp - entry.lastPriceUpdateAt);
+    return livePriceAgeMs <= SNAPSHOT_LIVE_REFERENCE_MAX_AGE_MS ? entry.lastPrice : undefined;
+  }
+
+  private refreshPotentialMoveReadForSymbol(
+    symbol: string,
+    output: LevelEngineOutput,
+    seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+  ): PotentialMoveRead | null {
+    const normalizedSymbol = normalizeSymbol(symbol);
+    const catalystCardFreshness = this.recentWebsiteArticleFreshnessBySymbol.get(normalizedSymbol);
+    const catalystContext = this.pressReleaseCatalystContextBySymbol.get(normalizedSymbol);
+    const currentPrice =
+      output.metadata.referencePrice ??
+      seriesMap["5m"].candles.at(-1)?.close ??
+      seriesMap["4h"].candles.at(-1)?.close ??
+      seriesMap.daily.candles.at(-1)?.close ??
+      0;
+    const potentialMoveRead = buildWatchlistChartThesisRead({
+      symbol: normalizedSymbol,
+      currentPrice,
+      seriesMap,
+      ...(catalystCardFreshness || catalystContext
+        ? {
+            activeRunnerContext: {
+              activeRunner: this.isEntryActive(normalizedSymbol),
+              catalystCardFreshness,
+              catalystContext,
+            },
+          }
+        : {}),
+    });
+
+    if (potentialMoveRead) {
+      this.potentialMoveReadBySymbol.set(normalizedSymbol, potentialMoveRead);
+    } else {
+      this.potentialMoveReadBySymbol.delete(normalizedSymbol);
+    }
+    this.refreshTradeSetupThesisReadForSymbol({
+      symbol: normalizedSymbol,
+      currentPrice,
+      baseSeriesMap: seriesMap,
+      fiveMinuteCandles: seriesMap["5m"].candles,
+      evaluatedAt: Date.now(),
+    });
+    return potentialMoveRead;
+  }
+
+  private refreshTradeSetupThesisReadForSymbol(params: {
+    symbol: string;
+    currentPrice: number;
+    baseSeriesMap?: Record<CandleTimeframe, CandleProviderResponse>;
+    fiveMinuteCandles: Candle[];
+    evaluatedAt: number;
+  }): PotentialMoveRead | null {
+    const normalizedSymbol = normalizeSymbol(params.symbol);
+    const baseSeriesMap = params.baseSeriesMap ??
+      this.chartThesisSeriesMapBySymbol.get(normalizedSymbol);
+    if (!baseSeriesMap) {
+      this.tradeSetupThesisReadBySymbol.delete(normalizedSymbol);
+      return null;
+    }
+    const seriesMap = buildLiveTradeSetupSeriesMap({
+      baseSeriesMap,
+      fiveMinuteCandles: params.fiveMinuteCandles,
+      evaluatedAt: params.evaluatedAt,
+    });
+    const catalystCardFreshness = this.recentWebsiteArticleFreshnessBySymbol.get(normalizedSymbol);
+    const catalystContext = this.pressReleaseCatalystContextBySymbol.get(normalizedSymbol);
+    const completedPrice = seriesMap["5m"].candles.at(-1)?.close ?? params.currentPrice;
+    const tradeSetupThesisRead = buildTradeSetupChartThesisRead({
+      symbol: normalizedSymbol,
+      currentPrice: completedPrice,
+      seriesMap,
+      activeRunnerContext: {
+        activeRunner: this.isEntryActive(normalizedSymbol),
+        ...(catalystCardFreshness ? { catalystCardFreshness } : {}),
+        ...(catalystContext ? { catalystContext } : {}),
+      },
+    });
+    if (tradeSetupThesisRead) {
+      this.tradeSetupThesisReadBySymbol.set(normalizedSymbol, tradeSetupThesisRead);
+    } else {
+      this.tradeSetupThesisReadBySymbol.delete(normalizedSymbol);
+    }
+    return tradeSetupThesisRead;
+  }
+
+  private refreshPotentialMoveReadFromStoredChartContext(symbol: string): PotentialMoveRead | null {
+    const normalizedSymbol = normalizeSymbol(symbol);
+    const output = this.chartThesisLevelOutputBySymbol.get(normalizedSymbol);
+    const seriesMap = this.chartThesisSeriesMapBySymbol.get(normalizedSymbol);
+    if (!output || !seriesMap) {
+      return null;
+    }
+    return this.refreshPotentialMoveReadForSymbol(normalizedSymbol, output, seriesMap);
+  }
+
+  private storeTechnicalContextForSymbol(
+    symbol: string,
+    output: LevelEngineOutput,
+    seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+  ): void {
+    const fiveMinute = seriesMap["5m"];
+    const normalizedSymbol = normalizeSymbol(symbol);
+    this.chartThesisLevelOutputBySymbol.set(normalizedSymbol, output);
+    this.chartThesisSeriesMapBySymbol.set(normalizedSymbol, seriesMap);
+    this.refreshPotentialMoveReadForSymbol(normalizedSymbol, output, seriesMap);
+    this.technicalContextProviderBySymbol.set(normalizedSymbol, fiveMinute.provider);
+    this.technicalContextDataQualityFlagsBySymbol.set(
+      normalizedSymbol,
+      output.metadata.dataQualityFlags,
+    );
+    const candles = this.technicalContextCandleStore.setHistoricalCandles(
+      normalizedSymbol,
+      fiveMinute.candles,
+    );
+    const context = this.rebuildTechnicalContextForSymbol({
+      symbol: normalizedSymbol,
+      candles,
+      currentPrice: output.metadata.referencePrice ?? null,
+      provider: fiveMinute.provider,
+      dataQualityFlags: output.metadata.dataQualityFlags,
+    });
+    this.scheduleTechnicalContextBootstrapRetryIfNeeded(normalizedSymbol, context);
+  }
+
+  private rebuildTechnicalContextForSymbol(params: {
+    symbol: string;
+    candles: CandleProviderResponse["candles"];
+    currentPrice: number | null | undefined;
+    provider: string | null | undefined;
+    dataQualityFlags: string[];
+  }): TechnicalContext {
+    const context = buildTechnicalContextFromCandles({
+      candles: params.candles,
+      currentPrice: params.currentPrice ?? null,
+      provider: params.provider ?? null,
+      dataQualityFlags: technicalContextDataQualityFlags(
+        params.dataQualityFlags,
+        params.candles.length,
+      ),
+    });
+    this.technicalContextBySymbol.set(params.symbol, context);
+    return context;
+  }
+
+  private currentTechnicalContextPrice(
+    symbol: string,
+    fallback?: number | null,
+    referenceTimestamp?: number,
+  ): number | null {
+    const entry = this.watchlistStore.getEntry(symbol);
+    const livePrice =
+      typeof entry?.lastPrice === "number" &&
+      Number.isFinite(entry.lastPrice) &&
+      entry.lastPrice > 0
+        ? entry.lastPrice
+        : null;
+    if (livePrice !== null) {
+      if (typeof referenceTimestamp !== "number" || !Number.isFinite(referenceTimestamp)) {
+        return livePrice;
+      }
+
+      const hasLiveTimestamp =
+        typeof entry?.lastPriceUpdateAt === "number" &&
+        Number.isFinite(entry.lastPriceUpdateAt);
+      if (
+        hasLiveTimestamp &&
+        Math.max(0, referenceTimestamp - entry.lastPriceUpdateAt!) <= SNAPSHOT_LIVE_REFERENCE_MAX_AGE_MS
+      ) {
+        return livePrice;
+      }
+    }
+
+    if (typeof fallback === "number" && Number.isFinite(fallback) && fallback > 0) {
+      return fallback;
+    }
+
+    return livePrice;
+  }
+
+  private clearTechnicalContextBootstrapRetry(symbolInput: string): void {
+    const symbol = normalizeSymbol(symbolInput);
+    const timer = this.technicalContextBootstrapRetryTimers.get(symbol);
+    if (timer) {
+      clearTimeout(timer);
+    }
+    this.technicalContextBootstrapRetryTimers.delete(symbol);
+    this.technicalContextBootstrapRetryAttempts.delete(symbol);
+    this.technicalContextBootstrapRefreshInFlight.delete(symbol);
+  }
+
+  private scheduleTechnicalContextBootstrapRetryIfNeeded(
+    symbolInput: string,
+    context: TechnicalContext,
+  ): void {
+    const symbol = normalizeSymbol(symbolInput);
+    if (isTechnicalContextDisplayReady(context)) {
+      this.clearTechnicalContextBootstrapRetry(symbol);
+      return;
+    }
+
+    if (
+      this.technicalContextBootstrapRetryTimers.has(symbol) ||
+      this.technicalContextBootstrapRefreshInFlight.has(symbol)
+    ) {
+      return;
+    }
+
+    const attempt = this.technicalContextBootstrapRetryAttempts.get(symbol) ?? 0;
+    const delayMs = TECHNICAL_CONTEXT_BOOTSTRAP_RETRY_DELAYS_MS[attempt];
+    if (delayMs === undefined) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      this.technicalContextBootstrapRetryTimers.delete(symbol);
+      void this.refreshTechnicalContextHistoricalCandles(symbol).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[ManualWatchlistRuntimeManager] Failed to refresh 5m technical context candles for ${symbol}: ${message}`,
+        );
+      });
+    }, delayMs);
+    timer.unref?.();
+    this.technicalContextBootstrapRetryTimers.set(symbol, timer);
+  }
+
+  private async refreshTechnicalContextHistoricalCandles(symbolInput: string): Promise<void> {
+    const symbol = normalizeSymbol(symbolInput);
+    const entry = this.watchlistStore.getEntry(symbol);
+    if (!entry?.active) {
+      this.clearTechnicalContextBootstrapRetry(symbol);
+      return;
+    }
+
+    this.technicalContextBootstrapRefreshInFlight.add(symbol);
+    try {
+      const response = await this.options.candleFetchService.fetchCandles({
+        symbol,
+        timeframe: "5m",
+        lookbackBars: this.historicalLookbackBars["5m"],
+      });
+      this.technicalContextProviderBySymbol.set(symbol, response.provider);
+      const dataQualityFlags = response.validationIssues.map((issue) => `5m:${issue.code}`);
+      this.technicalContextDataQualityFlagsBySymbol.set(symbol, dataQualityFlags);
+      const candles = this.technicalContextCandleStore.setHistoricalCandles(symbol, response.candles);
+      const context = this.rebuildTechnicalContextForSymbol({
+        symbol,
+        candles,
+        currentPrice: this.currentTechnicalContextPrice(symbol),
+        provider: response.provider,
+        dataQualityFlags,
+      });
+      if (isTechnicalContextDisplayReady(context)) {
+        this.clearTechnicalContextBootstrapRetry(symbol);
+        return;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] 5m technical context retry failed for ${symbol}: ${message}`,
+      );
+    } finally {
+      this.technicalContextBootstrapRefreshInFlight.delete(symbol);
+    }
+
+    const attempt = (this.technicalContextBootstrapRetryAttempts.get(symbol) ?? 0) + 1;
+    this.technicalContextBootstrapRetryAttempts.set(symbol, attempt);
+    const context = this.technicalContextBySymbol.get(symbol);
+    if (context) {
+      this.scheduleTechnicalContextBootstrapRetryIfNeeded(symbol, context);
+    }
+  }
+
+  private pullbackReadEnabled(): boolean {
+    return this.options.pullbackReadEnabled !== false;
+  }
+
+  private pullbackReadPollIntervalMs(): number {
+    const configured = this.options.pullbackReadPollIntervalMs;
+    return typeof configured === "number" && Number.isFinite(configured) && configured > 0
+      ? configured
+      : PULLBACK_READ_INTRADAY_POLL_INTERVAL_MS;
+  }
+
+  private startPullbackReadIntradayPolling(): void {
+    if (
+      !this.pullbackReadEnabled() ||
+      !this.options.recentIntradayCandleFetchService ||
+      this.pullbackReadIntradayPollTimer
+    ) {
+      return;
+    }
+
+    void this.pollPullbackReadIntradayCandles();
+    this.pullbackReadIntradayPollTimer = setInterval(() => {
+      void this.pollPullbackReadIntradayCandles();
+    }, this.pullbackReadPollIntervalMs());
+    this.pullbackReadIntradayPollTimer.unref?.();
+  }
+
+  private stopPullbackReadIntradayPolling(): void {
+    if (this.pullbackReadIntradayPollTimer) {
+      clearInterval(this.pullbackReadIntradayPollTimer);
+      this.pullbackReadIntradayPollTimer = null;
+    }
+    this.pullbackReadIntradayPollInFlight = false;
+  }
+
+  private async pollPullbackReadIntradayCandles(): Promise<void> {
+    if (
+      this.pullbackReadIntradayPollInFlight ||
+      !this.pullbackReadEnabled() ||
+      !this.options.recentIntradayCandleFetchService
+    ) {
+      return;
+    }
+
+    this.pullbackReadIntradayPollInFlight = true;
+    try {
+      for (const entry of this.watchlistStore.getActiveEntries()) {
+        await this.refreshPullbackReadIntradayCandles(entry.symbol);
+      }
+    } finally {
+      this.pullbackReadIntradayPollInFlight = false;
+    }
+  }
+
+  private async refreshPullbackReadIntradayCandles(symbolInput: string): Promise<void> {
+    const service = this.options.recentIntradayCandleFetchService;
+    const symbol = normalizeSymbol(symbolInput);
+    const entry = this.watchlistStore.getEntry(symbol);
+    if (!service || !entry?.active) {
+      return;
+    }
+
+    const endTimeMs = Date.now();
+    try {
+      const fiveMinute = await service.fetchCandles({
+        symbol,
+        timeframe: "5m",
+        lookbackBars: PULLBACK_READ_5M_LOOKBACK_BARS,
+        endTimeMs,
+        preferredProvider: "yahoo",
+      });
+      const normalizedFiveMinuteCandles = normalizePullbackCandles(fiveMinute.candles);
+      const oneMinute = !hasUsableRecentPullbackCandles(normalizedFiveMinuteCandles, endTimeMs)
+        ? await service.fetchCandles({
+            symbol,
+            timeframe: "1m",
+            lookbackBars: PULLBACK_READ_1M_LOOKBACK_BARS,
+            endTimeMs,
+            preferredProvider: "yahoo",
+          })
+        : null;
+      const aggregatedOneMinuteCandles =
+        oneMinute && hasUsableRecentPullbackCandles(oneMinute.candles, endTimeMs)
+          ? aggregateCandlesToFiveMinute(oneMinute.candles)
+          : [];
+      const fiveMinuteCandles = hasUsableRecentPullbackCandles(normalizedFiveMinuteCandles, endTimeMs)
+        ? normalizedFiveMinuteCandles
+        : aggregatedOneMinuteCandles;
+      if (fiveMinuteCandles.length === 0) {
+        return;
+      }
+
+      if (!hasUsableRecentPullbackCandles(fiveMinuteCandles, endTimeMs)) {
+        return;
+      }
+
+      this.technicalContextProviderBySymbol.set(symbol, "yahoo");
+      const dataQualityFlags = [
+        ...fiveMinute.validationIssues.map((issue) => `5m:${issue.code}`),
+        ...(oneMinute?.validationIssues.map((issue) => `1m:${issue.code}`) ?? []),
+        ...(oneMinute ? ["5m:derived_from_1m_yahoo"] : []),
+      ];
+      this.technicalContextDataQualityFlagsBySymbol.set(symbol, dataQualityFlags);
+      const candles = this.technicalContextCandleStore.setHistoricalCandles(symbol, fiveMinuteCandles);
+      const latestCandle = candles.at(-1);
+      const currentPrice = this.currentTechnicalContextPrice(symbol, latestCandle?.close ?? null, endTimeMs);
+      const context = this.rebuildTechnicalContextForSymbol({
+        symbol,
+        candles,
+        currentPrice,
+        provider: "yahoo",
+        dataQualityFlags,
+      });
+      const volumeRead = buildPullbackVolumeRead(fiveMinuteCandles, { nowMs: endTimeMs });
+      if (currentPrice !== null) {
+        const timestamp = endTimeMs;
+        this.publishWebsiteTechnicalContext({
+          symbol,
+          timestamp,
+          lastPrice: currentPrice,
+          volume: latestCandle?.volume,
+        });
+        this.publishWebsitePullbackTraderRead({
+          symbol,
+          timestamp,
+          currentPrice,
+          technicalContext: context,
+          volumeRead,
+        });
+        this.publishWebsiteSnapshotRefresh(symbol, timestamp);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Yahoo pullback intraday candle refresh failed for ${symbol}: ${message}`,
+      );
+    }
+  }
+
+  private ingestLiveTechnicalContextPrice(update: LivePriceUpdate): void {
+    const symbol = normalizeSymbol(update.symbol);
+    const hadStoredCandles = this.technicalContextCandleStore.getCandles(symbol).length > 0;
+    const existingContext = this.technicalContextBySymbol.get(symbol);
+    if (!hadStoredCandles && existingContext && existingContext.candleCount > 0) {
+      return;
+    }
+
+    const candles = this.technicalContextCandleStore.updateFromLivePrice({
+      ...update,
+      symbol,
+    });
+    const provider = this.technicalContextProviderBySymbol.get(symbol) ?? "live_stream";
+    const dataQualityFlags = this.technicalContextDataQualityFlagsBySymbol.get(symbol) ?? [];
+    const context = this.rebuildTechnicalContextForSymbol({
+      symbol,
+      candles,
+      currentPrice: update.lastPrice,
+      provider,
+      dataQualityFlags,
+    });
+    this.scheduleTechnicalContextBootstrapRetryIfNeeded(symbol, context);
+  }
+
+  private buildLevelSeedHistoricalRequests(
+    symbol: string,
+    candleFetchService: Pick<CandleFetchService, "getProviderName">,
+  ): Record<CandleTimeframe, HistoricalFetchRequest> {
+    const providerName = candleFetchService.getProviderName();
+    const now = Date.now();
+
+    const buildRequest = (timeframe: CandleTimeframe): HistoricalFetchRequest => {
+      const endTimeMs = providerName === "eodhd"
+        ? resolveEodhdConfirmedLevelRequestEndTimeMs(timeframe, now)
+        : undefined;
+
+      return {
+        symbol,
+        timeframe,
+        lookbackBars: this.historicalLookbackBars[timeframe],
+        ...(endTimeMs === undefined ? {} : { endTimeMs }),
+      };
+    };
+
+    return {
+      daily: buildRequest("daily"),
+      "4h": buildRequest("4h"),
+      "5m": buildRequest("5m"),
+    };
+  }
+
   private beginSeedLevelsForSymbol(symbol: string): Promise<void> {
     const startedAt = this.recordLevelSeedStarted(symbol);
     return (async (): Promise<void> => {
@@ -3116,16 +4705,15 @@ export class ManualWatchlistRuntimeManager {
           return;
         }
 
+        const referencePriceOverride = this.resolveLevelSeedReferencePrice(symbol, Date.now());
         const { output, seriesMap } = await this.levelEngine.generateLevelsWithCandleSeries({
           symbol,
-          historicalRequests: {
-            daily: { symbol, timeframe: "daily", lookbackBars: this.historicalLookbackBars.daily },
-            "4h": { symbol, timeframe: "4h", lookbackBars: this.historicalLookbackBars["4h"] },
-            "5m": { symbol, timeframe: "5m", lookbackBars: this.historicalLookbackBars["5m"] },
-          },
+          historicalRequests: this.buildLevelSeedHistoricalRequests(symbol, this.options.candleFetchService),
+          referencePriceOverride,
         });
 
         this.options.levelStore.setLevels(output);
+        this.storeTechnicalContextForSymbol(symbol, output, seriesMap);
         this.options.monitor.seedMarketStructure(symbol, seriesMap);
         this.markSeededLevelsReady(symbol);
         this.emitLifecycle("levels_seeded", {
@@ -3201,13 +4789,14 @@ export class ManualWatchlistRuntimeManager {
     try {
       const { output, seriesMap } = await this.startupCachedLevelEngine.generateLevelsWithCandleSeries({
         symbol,
-        historicalRequests: {
-          daily: { symbol, timeframe: "daily", lookbackBars: this.historicalLookbackBars.daily },
-          "4h": { symbol, timeframe: "4h", lookbackBars: this.historicalLookbackBars["4h"] },
-          "5m": { symbol, timeframe: "5m", lookbackBars: this.historicalLookbackBars["5m"] },
-        },
+        historicalRequests: this.buildLevelSeedHistoricalRequests(
+          symbol,
+          this.options.startupCachedCandleFetchService ?? this.options.candleFetchService,
+        ),
+        referencePriceOverride: this.resolveLevelSeedReferencePrice(symbol, Date.now()),
       });
       this.options.levelStore.setLevels(output);
+      this.storeTechnicalContextForSymbol(symbol, output, seriesMap);
       this.options.monitor.seedMarketStructure(symbol, seriesMap);
       this.markSeededLevelsReady(symbol);
       this.startupCacheWarmingSymbols.add(symbol);
@@ -6527,6 +8116,8 @@ export class ManualWatchlistRuntimeManager {
       lastPrice: update.lastPrice,
       operationStatus: "monitoring live price",
     });
+    this.ingestLiveTechnicalContextPrice(update);
+    this.publishLiveTickerData(update);
     if (
       this.lastPriceUpdatePersistAt === null ||
       update.timestamp - this.lastPriceUpdatePersistAt >= PRICE_UPDATE_PERSIST_INTERVAL_MS
@@ -6708,6 +8299,73 @@ export class ManualWatchlistRuntimeManager {
     await restartTask;
   }
 
+  async switchLivePriceProvider(provider: LivePriceProvider): Promise<void> {
+    const restartTask = this.monitoringRestartQueue
+      .catch(() => undefined)
+      .then(async () => {
+        const activeEntries = this.watchlistStore.getActiveEntries();
+        const startableEntries = this.isStarted
+          ? await this.ensureLevelsForActiveEntries(activeEntries, {
+              seedMissingLevels: false,
+            })
+          : [];
+        await this.options.monitor.stop();
+        const previousProvider = this.options.monitor.setLivePriceProvider(provider);
+        if (!this.isStarted) {
+          return;
+        }
+
+        try {
+          if (startableEntries.length === 0) {
+            this.emitLifecycle("monitor_restart_completed", {
+              details: {
+                activeSymbolCount: activeEntries.length,
+                startableSymbolCount: 0,
+                liveProviderSwitched: true,
+                readyOnly: true,
+              },
+            });
+            return;
+          }
+
+          await this.options.monitor.start(
+            startableEntries,
+            this.handleMonitoringEvent,
+            this.handlePriceUpdate,
+          );
+          this.emitLifecycle("monitor_restart_completed", {
+            details: {
+              activeSymbolCount: activeEntries.length,
+              startableSymbolCount: startableEntries.length,
+              liveProviderSwitched: true,
+              readyOnly: true,
+            },
+          });
+        } catch (error) {
+          await provider.stop().catch((stopError) => {
+            const message = stopError instanceof Error ? stopError.message : String(stopError);
+            console.warn(`[ManualWatchlistRuntimeManager] Failed to stop rejected live provider: ${message}`);
+          });
+          this.options.monitor.setLivePriceProvider(previousProvider);
+          if (startableEntries.length > 0) {
+            try {
+              await this.options.monitor.start(
+                startableEntries,
+                this.handleMonitoringEvent,
+                this.handlePriceUpdate,
+              );
+            } catch (restoreError) {
+              const message = restoreError instanceof Error ? restoreError.message : String(restoreError);
+              console.error(`[ManualWatchlistRuntimeManager] Failed to restore previous live provider: ${message}`);
+            }
+          }
+          throw error;
+        }
+      });
+    this.monitoringRestartQueue = restartTask;
+    await restartTask;
+  }
+
   async start(): Promise<void> {
     if (this.isStarted) {
       return;
@@ -6810,6 +8468,7 @@ export class ManualWatchlistRuntimeManager {
           }
           this.setEntryOperation(entry.symbol, "posting startup snapshot");
           await this.postLevelSnapshot(entry.symbol, entry.discordThreadId, Date.now());
+          this.refreshPriorRegularClose(entry.symbol, Date.now());
           this.emitLifecycle("restore_completed", {
             symbol: entry.symbol,
             threadId: entry.discordThreadId,
@@ -6821,6 +8480,7 @@ export class ManualWatchlistRuntimeManager {
           if (!restoredFromCache && this.options.levelStore.getLevels(entry.symbol) && entry.discordThreadId) {
             this.setEntryOperation(entry.symbol, "posting startup snapshot");
             await this.postLevelSnapshot(entry.symbol, entry.discordThreadId, Date.now());
+            this.refreshPriorRegularClose(entry.symbol, Date.now());
             this.emitLifecycle("restore_completed", {
               symbol: entry.symbol,
               threadId: entry.discordThreadId,
@@ -6860,6 +8520,7 @@ export class ManualWatchlistRuntimeManager {
 
     this.persistWatchlist();
     await this.restartMonitoring();
+    this.startPullbackReadIntradayPolling();
     this.emitLifecycle("runtime_started", {
       details: {
         activeSymbolCount: this.watchlistStore.getActiveEntries().length,
@@ -6869,6 +8530,7 @@ export class ManualWatchlistRuntimeManager {
   }
 
   async stop(): Promise<void> {
+    this.stopPullbackReadIntradayPolling();
     this.stopActivationWatchdog();
     for (const timer of this.pendingLevelTouchAlerts.values()) {
       clearTimeout(timer);
@@ -6882,6 +8544,13 @@ export class ManualWatchlistRuntimeManager {
       clearTimeout(pending);
     }
     this.pendingMarketStructureStandalonePosts.clear();
+    for (const timer of this.technicalContextBootstrapRetryTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.technicalContextBootstrapRetryTimers.clear();
+    this.technicalContextBootstrapRetryAttempts.clear();
+    this.technicalContextBootstrapRefreshInFlight.clear();
+    this.technicalContextCandleStore.clearAll();
     this.persistMarketStructureStoryMemory();
     await this.options.monitor.stop();
     this.isStarted = false;
@@ -6889,6 +8558,30 @@ export class ManualWatchlistRuntimeManager {
 
   getActiveEntries(): WatchlistEntry[] {
     return this.watchlistStore.getActiveEntries();
+  }
+
+  async setLiveTraderReadCardVisible(visible: boolean): Promise<{
+    visible: boolean;
+    refreshedSymbols: string[];
+  }> {
+    this.liveTraderReadCardVisible = visible;
+    const refreshedSymbols = this.watchlistStore.getActiveEntries().map((entry) => entry.symbol);
+    const timestamp = Date.now();
+
+    for (const symbol of refreshedSymbols) {
+      this.lastWebsitePullbackReadPublishAt.delete(symbol);
+      this.lastWebsitePullbackReadStateKey.delete(symbol);
+      if (visible) {
+        this.publishWebsiteSnapshotRefresh(symbol, timestamp);
+      } else {
+        await this.publishLiveTraderReadCardRemoval(symbol, timestamp);
+      }
+    }
+
+    return {
+      visible: this.liveTraderReadCardVisible,
+      refreshedSymbols,
+    };
   }
 
   getRecentActivity(limit = 30): ManualWatchlistActivityEntry[] {
@@ -6924,6 +8617,7 @@ export class ManualWatchlistRuntimeManager {
     return {
       isStarted: this.isStarted,
       pendingActivationCount,
+      liveTraderReadCardVisible: this.liveTraderReadCardVisible,
       lifecycleCounts,
       lastPriceUpdateAt: this.lastPriceUpdateAt,
       lastPriceUpdateSymbol: this.lastPriceUpdateSymbol,
@@ -7129,7 +8823,7 @@ export class ManualWatchlistRuntimeManager {
         symbol,
         threadId: preparedThread?.threadId ?? existing?.discordThreadId ?? null,
       });
-      if (preparedThread?.created) {
+      if (preparedThread) {
         await this.maybePostStockContext(symbol, preparedThread.threadId, Date.now());
       }
       this.assertActivationCurrent(symbol, activationEpoch);
@@ -7206,6 +8900,7 @@ export class ManualWatchlistRuntimeManager {
         lastError: null,
         operationStatus: "posting level snapshot",
       });
+      this.publishWebsiteTickerStatus(symbol, "live", entry.activatedAt ?? null);
 
       let snapshotPayload: LevelSnapshotPayload | null = null;
       try {
@@ -7230,6 +8925,7 @@ export class ManualWatchlistRuntimeManager {
         symbol,
         threadId,
       });
+      this.publishRecentWebsiteArticles(symbol);
       return this.watchlistStore.getEntry(symbol) ?? entry;
     } catch (error) {
       if (error instanceof ActivationCancelledError) {
@@ -7246,6 +8942,15 @@ export class ManualWatchlistRuntimeManager {
 
       this.watchlistStore.setEntries(rollbackEntries);
       this.activeSnapshotState.delete(symbol);
+      this.potentialMoveReadBySymbol.delete(symbol);
+      this.tradeSetupThesisReadBySymbol.delete(symbol);
+      this.chartThesisLevelOutputBySymbol.delete(symbol);
+      this.chartThesisSeriesMapBySymbol.delete(symbol);
+      this.recentWebsiteArticleFreshnessBySymbol.delete(symbol);
+      this.pressReleaseCatalystContextBySymbol.delete(symbol);
+      this.priorRegularCloseBySymbol.delete(symbol);
+      this.priorRegularCloseRefreshInFlight.delete(symbol);
+      this.lastPriorRegularCloseRefreshAt.delete(symbol);
       const message = error instanceof Error ? error.message : String(error);
       if (preparedThread) {
         this.watchlistStore.upsertManualEntry({
@@ -7266,6 +8971,21 @@ export class ManualWatchlistRuntimeManager {
             error: message,
           },
         });
+        if (/no usable candle series|no candles were returned|candle validation failed/i.test(message)) {
+          const currentEntry = this.watchlistStore.getEntry(symbol);
+          void this.liveWatchlistPublisher?.publish(
+            buildLiveWatchlistLevelsUnavailablePatch({
+              symbol,
+              timestamp: Date.now(),
+              currentPrice: currentEntry?.lastPrice ?? null,
+            }),
+          ).catch((publishError) => {
+            const publishMessage = publishError instanceof Error ? publishError.message : String(publishError);
+            console.warn(
+              `[ManualWatchlistRuntimeManager] Failed to publish unavailable level state for ${symbol}: ${publishMessage}`,
+            );
+          });
+        }
       }
       this.persistWatchlist();
       this.emitLifecycle("activation_failed", {
@@ -7277,6 +8997,529 @@ export class ManualWatchlistRuntimeManager {
       });
       throw error;
     }
+  }
+
+  private publishRecentWebsiteArticles(symbol: string): void {
+    const normalizedSymbol = normalizeSymbol(symbol);
+    void (async () => {
+      const result = await publishRecentWebsiteArticlesForSymbol({
+        symbol: normalizedSymbol,
+        publisher: this.liveWatchlistPublisher,
+        execFileImpl: this.options.recentWebsiteArticlesExecFileImpl,
+      });
+      const freshness = result
+        ? deriveRecentWebsiteArticleCatalystFreshness({ result })
+        : "lookup_unavailable";
+      const catalystContext = await this.lookupPressReleaseCatalystContext(normalizedSymbol);
+      const previousFreshness = this.recentWebsiteArticleFreshnessBySymbol.get(normalizedSymbol);
+      const previousCatalystContext = this.pressReleaseCatalystContextBySymbol.get(normalizedSymbol);
+      this.recentWebsiteArticleFreshnessBySymbol.set(normalizedSymbol, freshness);
+      if (catalystContext) {
+        this.pressReleaseCatalystContextBySymbol.set(normalizedSymbol, catalystContext);
+      } else {
+        this.pressReleaseCatalystContextBySymbol.delete(normalizedSymbol);
+      }
+      if (
+        previousFreshness === freshness &&
+        JSON.stringify(previousCatalystContext ?? null) === JSON.stringify(catalystContext ?? null)
+      ) {
+        return;
+      }
+      this.refreshPotentialMoveReadFromStoredChartContext(normalizedSymbol);
+      this.publishWebsiteSnapshotRefresh(normalizedSymbol, Date.now());
+    })().catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Failed to refresh catalyst-aware trader read for ${normalizedSymbol}: ${message}`,
+      );
+    });
+  }
+
+  private pressReleaseCatalystContextEnabled(): boolean {
+    if (this.options.pressReleaseCatalystContextEnabled !== undefined) {
+      return this.options.pressReleaseCatalystContextEnabled;
+    }
+    const raw = process.env.TRADERSLINK_PRESS_RELEASE_CATALYST_CONTEXT_ENABLED?.trim().toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+  }
+
+  private async lookupPressReleaseCatalystContext(symbol: string): Promise<PressReleaseCatalystContext | null> {
+    if (!this.pressReleaseCatalystContextEnabled()) {
+      return null;
+    }
+    const referenceDate = newYorkDateKeyForTimestamp(Date.now());
+    if (!referenceDate) {
+      return null;
+    }
+    const context = await lookupPressReleaseCatalystContextForSymbol({
+      symbol,
+      referenceDate,
+      lookbackDays: 7,
+      lookaheadDays: 1,
+      enabled: true,
+      execFileImpl: this.options.pressReleaseCatalystExecFileImpl,
+    });
+    return context.timing === "lookup_unavailable" ? null : context;
+  }
+
+  private publishWebsiteSnapshotRefresh(symbol: string, timestamp: number): void {
+    if (!this.liveWatchlistPublisher || !this.isEntryActive(symbol) || !this.options.levelStore.getLevels(symbol)) {
+      return;
+    }
+
+    const patch = this.applyLiveTraderReadCardVisibility(
+      buildLiveWatchlistSnapshotPatch(
+        this.buildLevelSnapshotPayload(symbol, timestamp),
+        { pullbackReadEnabled: this.options.pullbackReadEnabled },
+      ),
+    );
+    void this.liveWatchlistPublisher.publish(patch).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Failed to publish catalyst-aware website snapshot for ${symbol}: ${message}`,
+      );
+    });
+  }
+
+  private applyLiveTraderReadCardVisibility(patch: LiveWatchlistCardPatch): LiveWatchlistCardPatch {
+    if (this.liveTraderReadCardVisible) {
+      return patch;
+    }
+    return {
+      ...patch,
+      cards: {
+        ...patch.cards,
+        liveTraderRead: null,
+      },
+    };
+  }
+
+  private async publishLiveTraderReadCardRemoval(symbol: string, timestamp: number): Promise<void> {
+    if (!this.liveWatchlistPublisher) {
+      return;
+    }
+
+    try {
+      await this.liveWatchlistPublisher.publish({
+        symbol,
+        status: "live",
+        updatedAt: timestamp,
+        cards: {
+          liveTraderRead: null,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Failed to hide website trader read card for ${symbol}: ${message}`,
+      );
+    }
+  }
+
+  private publishWebsiteTickerStatus(
+    symbol: string,
+    status: LiveWatchlistStatus,
+    firstPostedAt?: number | null,
+  ): void {
+    if (!this.liveWatchlistPublisher) {
+      return;
+    }
+
+    const patch = buildLiveWatchlistStatusPatch({
+      symbol,
+      status,
+      firstPostedAt,
+    });
+    void this.liveWatchlistPublisher.publish(patch).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Failed to publish website status for ${symbol}: ${message}`,
+      );
+    });
+  }
+
+  private async publishWebsiteTickerDeactivation(symbol: string, timestamp: number): Promise<void> {
+    if (!this.liveWatchlistPublisher) {
+      return;
+    }
+
+    const normalizedSymbol = normalizeSymbol(symbol);
+    const levels = this.options.levelStore.getLevels(normalizedSymbol);
+    const patch = levels
+      ? {
+          ...this.applyLiveTraderReadCardVisibility(
+            buildLiveWatchlistSnapshotPatch(
+              this.buildLevelSnapshotPayload(normalizedSymbol, timestamp),
+              { pullbackReadEnabled: this.options.pullbackReadEnabled },
+            ),
+          ),
+          status: "deactivated" as const,
+          updatedAt: timestamp,
+        }
+      : buildLiveWatchlistStatusPatch({
+          symbol: normalizedSymbol,
+          status: "deactivated",
+          updatedAt: timestamp,
+        });
+
+    try {
+      await this.liveWatchlistPublisher.publish(patch);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Failed to publish website deactivation for ${normalizedSymbol}: ${message}`,
+      );
+    }
+  }
+
+  private technicalContextStateKey(context: TechnicalContext): string {
+    return [
+      context.confidence,
+      context.aboveVwap,
+      context.aboveEma9,
+      context.aboveEma20,
+      this.technicalContextDistanceBucket(context.priceVsVwapPct),
+      this.technicalContextDistanceBucket(context.priceVsEma9Pct),
+      this.technicalContextDistanceBucket(context.priceVsEma20Pct),
+    ].join("|");
+  }
+
+  private technicalContextDistanceBucket(value: number | null): string {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return "n/a";
+    }
+
+    const absValue = Math.abs(value);
+    if (absValue <= 0.5) {
+      return "testing";
+    }
+    if (absValue <= 2) {
+      return "near";
+    }
+    if (absValue <= 5) {
+      return "approaching";
+    }
+    return "extended";
+  }
+
+  private pullbackVolumeRatioBucket(value: unknown): string {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return "n/a";
+    }
+    if (value < 0.75) {
+      return "thin";
+    }
+    if (value < 1.2) {
+      return "normal";
+    }
+    if (value < 1.4) {
+      return "building";
+    }
+    if (value < 2) {
+      return "expanding";
+    }
+    if (value < 4) {
+      return "strong";
+    }
+    return "surge";
+  }
+
+  private publishWebsiteTechnicalContext(update: LivePriceUpdate): void {
+    if (!this.liveWatchlistPublisher) {
+      return;
+    }
+
+    const technicalContext = this.technicalContextBySymbol.get(update.symbol);
+    if (!technicalContext) {
+      return;
+    }
+
+    const refreshedContext = refreshTechnicalContextForPrice(technicalContext, update.lastPrice);
+    const stateKey = this.technicalContextStateKey(refreshedContext);
+    const previousStateKey = this.lastWebsiteTechnicalContextStateKey.get(update.symbol);
+    const firstPublish = previousStateKey === undefined;
+    const relationChanged = !firstPublish && previousStateKey !== stateKey;
+    const lastPublishedAt = this.lastWebsiteTechnicalContextPublishAt.get(update.symbol) ?? 0;
+    if (
+      !firstPublish &&
+      !relationChanged &&
+      update.timestamp - lastPublishedAt < WEBSITE_TECHNICAL_CONTEXT_PUBLISH_INTERVAL_MS
+    ) {
+      return;
+    }
+
+    const patch = buildLiveWatchlistTechnicalContextPatch({
+      symbol: update.symbol,
+      timestamp: update.timestamp,
+      currentPrice: update.lastPrice,
+      technicalContext: refreshedContext,
+    });
+    if (!patch) {
+      return;
+    }
+
+    this.lastWebsiteTechnicalContextPublishAt.set(update.symbol, update.timestamp);
+    this.lastWebsiteTechnicalContextStateKey.set(update.symbol, stateKey);
+    void this.liveWatchlistPublisher.publish(patch).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Failed to publish technical context for ${update.symbol}: ${message}`,
+      );
+    });
+  }
+
+  private pullbackReadStateKey(patch: NonNullable<ReturnType<typeof buildLiveWatchlistPullbackReadPatch>>): string {
+    const metadata = patch.cards.liveTraderRead?.metadata ?? {};
+    return [
+      metadata.pullbackPhase,
+      metadata.pullbackConfidence,
+      metadata.pullbackFallback1,
+      metadata.pullbackFallback2,
+      metadata.pullbackFallback3,
+      metadata.pullbackContinuationTrigger,
+      metadata.pullbackNextPathResistance,
+      metadata.pullbackVolumeLabel,
+      metadata.tradeSetupReadMode,
+      metadata.tradeSetupThesisSource,
+      metadata.tradeSetupType,
+      metadata.tradeSetupState,
+      metadata.tradeSetupActionable,
+      metadata.tradeSetupZoneLow,
+      metadata.tradeSetupZoneHigh,
+      metadata.tradeSetupTrigger,
+      metadata.tradeSetupInvalidation,
+      metadata.tradeSetupTarget1,
+      metadata.tradeSetupFirstTargetRewardRisk,
+      metadata.tradeSetupFirstObstacle,
+      metadata.tradeSetupNearestBarrierRewardRisk,
+      metadata.tradeSetupInterveningBarrierCount,
+      metadata.tradeSetupPrimaryBlocker,
+      metadata.tradeSetupMarketStructureBias,
+      metadata.tradeSetupMarketStructureFormalTimeframes,
+      metadata.tradeSetupMarketStructureStable5mState,
+      metadata.tradeSetupMarketStructureTacticalFormalMetadataOnly,
+      this.pullbackVolumeRatioBucket(metadata.pullbackVolumeRatio),
+      this.technicalContextDistanceBucket(
+        typeof metadata.pullbackPriceVsVwapPct === "number" ? metadata.pullbackPriceVsVwapPct : null,
+      ),
+      this.technicalContextDistanceBucket(
+        typeof metadata.pullbackPriceVsEma9Pct === "number" ? metadata.pullbackPriceVsEma9Pct : null,
+      ),
+      this.technicalContextDistanceBucket(
+        typeof metadata.pullbackPriceVsEma20Pct === "number" ? metadata.pullbackPriceVsEma20Pct : null,
+      ),
+    ].join("|");
+  }
+
+  private publishWebsitePullbackTraderRead(args: {
+    symbol: string;
+    timestamp: number;
+    currentPrice: number;
+    technicalContext: TechnicalContext;
+    volumeRead?: LiveWatchlistPullbackVolumeRead | null;
+  }): void {
+    const pullbackReadEnabled = this.pullbackReadEnabled();
+    const tradeSetupReadMode = resolveLiveWatchlistTradeSetupReadMode();
+    if (
+      !this.liveWatchlistPublisher ||
+      (!pullbackReadEnabled && tradeSetupReadMode === "off") ||
+      !this.liveTraderReadCardVisible
+    ) {
+      return;
+    }
+
+    const snapshotState = this.activeSnapshotState.get(args.symbol);
+    const levelsOutput = this.options.levelStore.getLevels(args.symbol);
+    const availableTimeframes = levelsOutput?.metadata.availableTimeframes ??
+      (["daily", "4h", "5m"] as const).filter(
+        (timeframe) => levelsOutput?.metadata.providerByTimeframe[timeframe] !== undefined,
+      );
+    const levelCoverage = levelsOutput?.metadata.coverage ??
+      (availableTimeframes.length === 3 ? "full" : "limited");
+    const roleFlipCandles = this.technicalContextCandleStore.getCandles(args.symbol);
+    const priorRegularClose = this.priorRegularCloseBySymbol.get(args.symbol) ?? null;
+    this.refreshTradeSetupThesisReadForSymbol({
+      symbol: args.symbol,
+      currentPrice: args.currentPrice,
+      fiveMinuteCandles: roleFlipCandles,
+      evaluatedAt: args.timestamp,
+    });
+    const patch = buildLiveWatchlistPullbackReadPatch({
+      symbol: args.symbol,
+      timestamp: args.timestamp,
+      currentPrice: args.currentPrice,
+      supportZones: this.getWebsiteTickerSupportReferences(args.symbol, snapshotState),
+      resistanceZones: this.getWebsiteTickerResistanceReferences(args.symbol, snapshotState),
+      technicalContext: args.technicalContext,
+      volumeRead: args.volumeRead,
+      potentialMoveRead: this.potentialMoveReadBySymbol.get(args.symbol) ?? null,
+      tradeSetupThesisRead: this.tradeSetupThesisReadBySymbol.get(args.symbol) ?? null,
+      marketStructure: this.getMarketStructureSnapshot(args.symbol),
+      pullbackReadEnabled,
+      tradeSetupReadMode,
+      specialLevels: this.resolveWebsiteSpecialLevels(args.symbol, levelsOutput),
+      priorRegularClosePrice: priorRegularClose?.price ?? null,
+      dataQuality: {
+        status: levelCoverage,
+        availableTimeframes: [...availableTimeframes],
+        flags: levelsOutput?.metadata.dataQualityFlags ?? [],
+      },
+      roleFlipContext: {
+        atrPct: deriveRecentAtrPct(roleFlipCandles, args.currentPrice),
+        tickSize: inferredSmallCapTickSize(args.currentPrice),
+      },
+    });
+    if (!patch) {
+      return;
+    }
+
+    const stateKey = this.pullbackReadStateKey(patch);
+    const previousStateKey = this.lastWebsitePullbackReadStateKey.get(args.symbol);
+    const lastPublishedAt = this.lastWebsitePullbackReadPublishAt.get(args.symbol) ?? 0;
+    if (
+      previousStateKey === stateKey &&
+      args.timestamp - lastPublishedAt < WEBSITE_PULLBACK_READ_PUBLISH_INTERVAL_MS
+    ) {
+      return;
+    }
+
+    this.lastWebsitePullbackReadStateKey.set(args.symbol, stateKey);
+    this.lastWebsitePullbackReadPublishAt.set(args.symbol, args.timestamp);
+    void this.liveWatchlistPublisher.publish(patch).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Failed to publish pullback trader read for ${args.symbol}: ${message}`,
+      );
+    });
+  }
+
+  private refreshPriorRegularClose(symbolInput: string, timestamp = Date.now()): void {
+    const symbol = normalizeSymbol(symbolInput);
+    if (this.priorRegularCloseBySymbol.has(symbol) || this.priorRegularCloseRefreshInFlight.has(symbol)) {
+      return;
+    }
+    const stockContextProvider = this.options.stockContextProvider;
+    if (!stockContextProvider) {
+      return;
+    }
+    const lastAttemptAt = this.lastPriorRegularCloseRefreshAt.get(symbol) ?? 0;
+    if (lastAttemptAt > 0 && timestamp - lastAttemptAt < PRIOR_REGULAR_CLOSE_REFRESH_INTERVAL_MS) {
+      return;
+    }
+
+    this.lastPriorRegularCloseRefreshAt.set(symbol, timestamp);
+    this.priorRegularCloseRefreshInFlight.add(symbol);
+    void stockContextProvider.getThreadPreview(symbol)
+      .then((preview) => {
+        const priorRegularClose = resolvePriorRegularCloseReference(preview);
+        if (priorRegularClose) {
+          this.priorRegularCloseBySymbol.set(symbol, priorRegularClose);
+          const entry = this.watchlistStore.getEntry(symbol);
+          if (
+            entry?.active &&
+            typeof entry.lastPrice === "number" &&
+            Number.isFinite(entry.lastPrice) &&
+            entry.lastPrice > 0
+          ) {
+            this.publishLiveTickerData({
+              symbol,
+              timestamp: Date.now(),
+              lastPrice: entry.lastPrice,
+            }, { force: true });
+          }
+        } else {
+          this.priorRegularCloseBySymbol.delete(symbol);
+        }
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[ManualWatchlistRuntimeManager] Failed to refresh prior regular close for ${symbol}: ${message}`);
+      })
+      .finally(() => {
+        this.priorRegularCloseRefreshInFlight.delete(symbol);
+      });
+  }
+
+  private publishLiveTickerData(
+    update: LivePriceUpdate,
+    options: { force?: boolean } = {},
+  ): void {
+    if (!this.liveWatchlistPublisher?.publishTickerData) {
+      return;
+    }
+
+    const lastPublishedAt = this.lastWebsiteTickerDataPublishAt.get(update.symbol) ?? 0;
+    if (!options.force && update.timestamp - lastPublishedAt < WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS) {
+      return;
+    }
+
+    const snapshotState = this.activeSnapshotState.get(update.symbol);
+    this.refreshPriorRegularClose(update.symbol, update.timestamp);
+    const priorRegularClose = this.priorRegularCloseBySymbol.get(update.symbol) ?? null;
+    const levelsOutput = this.options.levelStore.getLevels(update.symbol);
+    const availableTimeframes = levelsOutput?.metadata.availableTimeframes ??
+      (["daily", "4h", "5m"] as const).filter(
+        (timeframe) => levelsOutput?.metadata.providerByTimeframe[timeframe] !== undefined,
+      );
+    const levelCoverage = levelsOutput?.metadata.coverage ??
+      (availableTimeframes.length === 3 ? "full" : "limited");
+    const storedTechnicalContext = this.technicalContextBySymbol.get(update.symbol) ?? null;
+    const refreshedTechnicalContext = storedTechnicalContext
+      ? refreshTechnicalContextForPrice(storedTechnicalContext, update.lastPrice)
+      : null;
+    const roleFlipCandles = this.technicalContextCandleStore.getCandles(update.symbol);
+    const patch = buildLiveWatchlistTickerDataPatch({
+      symbol: update.symbol,
+      lastPrice: update.lastPrice,
+      timestamp: update.timestamp,
+      supportZones: this.getWebsiteTickerSupportReferences(update.symbol, snapshotState),
+      resistanceZones: this.getWebsiteTickerResistanceReferences(update.symbol, snapshotState),
+      volume: update.volume,
+      priorRegularClosePrice: priorRegularClose?.price ?? null,
+      priorRegularCloseSource: priorRegularClose?.source ?? null,
+      specialLevels: this.resolveWebsiteSpecialLevels(update.symbol, levelsOutput),
+      technicalContext: refreshedTechnicalContext,
+      dataQuality: {
+        status: levelCoverage,
+        availableTimeframes: [...availableTimeframes],
+        flags: levelsOutput?.metadata.dataQualityFlags ?? [],
+        ...(levelCoverage === "limited"
+          ? { message: "Limited-history map: verify missing higher-timeframe structure manually." }
+          : {}),
+      },
+      roleFlipContext: {
+        atrPct: deriveRecentAtrPct(roleFlipCandles, update.lastPrice),
+        tickSize: inferredSmallCapTickSize(update.lastPrice),
+      },
+    });
+    if (!patch) {
+      return;
+    }
+
+    this.lastWebsiteTickerDataPublishAt.set(update.symbol, update.timestamp);
+    this.publishWebsiteTechnicalContext(update);
+    const technicalContext = this.technicalContextBySymbol.get(update.symbol);
+    if (technicalContext) {
+      const liveVolumeRead =
+        typeof update.volume === "number" && Number.isFinite(update.volume) && update.volume > 0
+          ? buildPullbackVolumeRead(this.technicalContextCandleStore.getCandles(update.symbol), {
+              nowMs: update.timestamp,
+            })
+          : null;
+      this.publishWebsitePullbackTraderRead({
+        symbol: update.symbol,
+        timestamp: update.timestamp,
+        currentPrice: update.lastPrice,
+        technicalContext: refreshTechnicalContextForPrice(technicalContext, update.lastPrice),
+        volumeRead: liveVolumeRead,
+      });
+    }
+    void this.liveWatchlistPublisher.publishTickerData(patch).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Failed to publish live ticker data for ${update.symbol}: ${message}`,
+      );
+    });
   }
 
   private shouldAutoRetryActivation(error: unknown, attempt: number): boolean {
@@ -7386,7 +9629,18 @@ export class ManualWatchlistRuntimeManager {
     }
 
     if (existing?.active && existing.lifecycle === "active") {
-      return existing;
+      const activatedAt = Date.now();
+      const refreshedEntry = this.watchlistStore.patchEntry(symbol, {
+        note:
+          typeof input.note === "string" && input.note.trim().length > 0
+            ? input.note.trim()
+            : existing.note,
+        activatedAt,
+        operationStatus: "monitoring live price",
+      }) ?? existing;
+      this.persistWatchlist();
+      this.publishWebsiteTickerStatus(symbol, "live", activatedAt);
+      return refreshedEntry;
     }
 
     const activationEpoch = this.nextActivationEpoch(symbol);
@@ -7487,6 +9741,10 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.activeSnapshotState.delete(symbol);
+    this.potentialMoveReadBySymbol.delete(symbol);
+    this.tradeSetupThesisReadBySymbol.delete(symbol);
+    this.chartThesisLevelOutputBySymbol.delete(symbol);
+    this.chartThesisSeriesMapBySymbol.delete(symbol);
     const pendingFastClear = this.pendingFastLevelClearAlerts.get(symbol);
     if (pendingFastClear) {
       clearTimeout(pendingFastClear.timer);
@@ -7499,6 +9757,7 @@ export class ManualWatchlistRuntimeManager {
 
   async deactivateSymbol(symbol: string): Promise<WatchlistEntry | null> {
     const normalizedSymbol = normalizeSymbol(symbol);
+    const deactivatedAt = Date.now();
     this.nextActivationEpoch(normalizedSymbol);
     this.pendingActivations.delete(normalizedSymbol);
     const entry = this.watchlistStore.deactivateSymbol(normalizedSymbol);
@@ -7507,6 +9766,11 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.activeSnapshotState.delete(normalizedSymbol);
+    this.potentialMoveReadBySymbol.delete(normalizedSymbol);
+    this.tradeSetupThesisReadBySymbol.delete(normalizedSymbol);
+    this.priorRegularCloseBySymbol.delete(normalizedSymbol);
+    this.priorRegularCloseRefreshInFlight.delete(normalizedSymbol);
+    this.lastPriorRegularCloseRefreshAt.delete(normalizedSymbol);
     const pendingFastClear = this.pendingFastLevelClearAlerts.get(normalizedSymbol);
     if (pendingFastClear) {
       clearTimeout(pendingFastClear.timer);
@@ -7523,11 +9787,27 @@ export class ManualWatchlistRuntimeManager {
     this.narrationBurstState.delete(normalizedSymbol);
     this.storyCriticalState.delete(normalizedSymbol);
     this.deliveryPressureState.delete(normalizedSymbol);
+    this.technicalContextBySymbol.delete(normalizedSymbol);
+    this.potentialMoveReadBySymbol.delete(normalizedSymbol);
+    this.tradeSetupThesisReadBySymbol.delete(normalizedSymbol);
+    this.chartThesisLevelOutputBySymbol.delete(normalizedSymbol);
+    this.chartThesisSeriesMapBySymbol.delete(normalizedSymbol);
+    this.recentWebsiteArticleFreshnessBySymbol.delete(normalizedSymbol);
+    this.pressReleaseCatalystContextBySymbol.delete(normalizedSymbol);
+    this.technicalContextCandleStore.clear(normalizedSymbol);
+    this.technicalContextProviderBySymbol.delete(normalizedSymbol);
+    this.technicalContextDataQualityFlagsBySymbol.delete(normalizedSymbol);
+    this.clearTechnicalContextBootstrapRetry(normalizedSymbol);
+    this.lastWebsiteTechnicalContextPublishAt.delete(normalizedSymbol);
+    this.lastWebsiteTechnicalContextStateKey.delete(normalizedSymbol);
+    this.lastWebsitePullbackReadPublishAt.delete(normalizedSymbol);
+    this.lastWebsitePullbackReadStateKey.delete(normalizedSymbol);
     this.marketStructureStoryMemory.clear(normalizedSymbol);
     this.persistMarketStructureStoryMemory();
     this.marketStructureCarrierInFlightKeys.delete(normalizedSymbol);
     this.clearPendingMarketStructureStandalonePost(normalizedSymbol);
     this.persistWatchlist();
+    await this.publishWebsiteTickerDeactivation(entry.symbol, deactivatedAt);
     await this.restartMonitoring();
     this.emitLifecycle("deactivated", {
       symbol: entry.symbol,
@@ -7577,6 +9857,15 @@ export class ManualWatchlistRuntimeManager {
 
     this.watchlistStore.setEntries(entries);
     this.activeSnapshotState.clear();
+    this.potentialMoveReadBySymbol.clear();
+    this.tradeSetupThesisReadBySymbol.clear();
+    this.chartThesisLevelOutputBySymbol.clear();
+    this.chartThesisSeriesMapBySymbol.clear();
+    this.recentWebsiteArticleFreshnessBySymbol.clear();
+    this.pressReleaseCatalystContextBySymbol.clear();
+    this.priorRegularCloseBySymbol.clear();
+    this.priorRegularCloseRefreshInFlight.clear();
+    this.lastPriorRegularCloseRefreshAt.clear();
     for (const pending of this.pendingFastLevelClearAlerts.values()) {
       clearTimeout(pending.timer);
     }
@@ -7612,7 +9901,31 @@ export class ManualWatchlistRuntimeManager {
     this.lastDeliveryFailureAt = null;
     this.lastDeliveryFailureSymbol = null;
     this.lastDeliveryFailureMessage = null;
+    this.technicalContextBySymbol.clear();
+    this.potentialMoveReadBySymbol.clear();
+    this.tradeSetupThesisReadBySymbol.clear();
+    this.chartThesisLevelOutputBySymbol.clear();
+    this.chartThesisSeriesMapBySymbol.clear();
+    this.recentWebsiteArticleFreshnessBySymbol.clear();
+    this.pressReleaseCatalystContextBySymbol.clear();
+    this.technicalContextCandleStore.clearAll();
+    this.technicalContextProviderBySymbol.clear();
+    this.technicalContextDataQualityFlagsBySymbol.clear();
+    for (const timer of this.technicalContextBootstrapRetryTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.technicalContextBootstrapRetryTimers.clear();
+    this.technicalContextBootstrapRetryAttempts.clear();
+    this.technicalContextBootstrapRefreshInFlight.clear();
+    this.lastWebsiteTechnicalContextPublishAt.clear();
+    this.lastWebsiteTechnicalContextStateKey.clear();
+    this.lastWebsitePullbackReadPublishAt.clear();
+    this.lastWebsitePullbackReadStateKey.clear();
     this.persistWatchlist();
+    const deactivatedAt = Date.now();
+    for (const entry of entries) {
+      await this.publishWebsiteTickerDeactivation(entry.symbol, deactivatedAt);
+    }
     await this.restartMonitoring();
     this.emitLifecycle("deactivated", {
       details: {

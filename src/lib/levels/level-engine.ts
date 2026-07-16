@@ -26,6 +26,7 @@ import type { LevelDataFreshness, LevelEngineOutput, RawLevelCandidate } from ".
 export type LevelEngineRequest = {
   symbol: string;
   historicalRequests: Record<CandleTimeframe, HistoricalFetchRequest>;
+  referencePriceOverride?: number;
 };
 
 export type LevelEngineRuntimeOptions = {
@@ -46,19 +47,25 @@ export class LevelEngine {
     private readonly runtimeOptions: LevelEngineRuntimeOptions = {},
   ) {}
 
-  private buildOptionalIntradayFallback(params: {
+  private buildUnavailableSeriesFallback(params: {
     symbol: string;
     request: HistoricalFetchRequest;
     fallbackProvider: CandleProviderResponse["provider"];
+    reason: string;
   }): CandleProviderResponse {
     const requestEndTimestamp = params.request.endTimeMs ?? Date.now();
-    const intervalMs = 5 * 60 * 1000;
+    const intervalMs =
+      params.request.timeframe === "daily"
+        ? 24 * 60 * 60 * 1000
+        : params.request.timeframe === "4h"
+          ? 4 * 60 * 60 * 1000
+          : 5 * 60 * 1000;
     const requestedStartTimestamp = requestEndTimestamp - params.request.lookbackBars * intervalMs;
 
     return {
       provider: params.fallbackProvider,
       symbol: params.symbol.toUpperCase(),
-      timeframe: "5m",
+      timeframe: params.request.timeframe,
       requestedLookbackBars: params.request.lookbackBars,
       candles: [],
       fetchStartTimestamp: requestEndTimestamp,
@@ -69,12 +76,22 @@ export class LevelEngine {
       actualBarsReturned: 0,
       completenessStatus: "empty",
       stale: true,
-      validationIssues: [],
+      validationIssues: [{
+        code: "zero_results",
+        severity: "error",
+        message: `${params.request.timeframe} candles are unavailable: ${params.reason}`,
+      }],
       sessionSummary: null,
       providerMetadata: {
-        degraded_reason: "optional_intraday_unavailable",
+        degraded_reason: "provider_or_validation_unavailable",
       },
     };
+  }
+
+  private isSeriesUsable(series: CandleProviderResponse): boolean {
+    return series.candles.length > 0 &&
+      series.completenessStatus !== "empty" &&
+      !series.validationIssues.some((issue) => issue.severity === "error");
   }
 
   private async loadSeries(
@@ -84,61 +101,59 @@ export class LevelEngine {
     const fourHourPromise = this.fetchService.fetchCandles(request.historicalRequests["4h"]);
     const fiveMinutePromise = this.fetchService.fetchCandles(request.historicalRequests["5m"]);
 
-    const [daily, fourHour, fiveMinuteResult] = await Promise.allSettled([
+    const [dailyResult, fourHourResult, fiveMinuteResult] = await Promise.allSettled([
       dailyPromise,
       fourHourPromise,
       fiveMinutePromise,
     ]);
 
-    if (daily.status !== "fulfilled") {
-      throw daily.reason;
-    }
-
-    if (fourHour.status !== "fulfilled") {
-      throw fourHour.reason;
-    }
-
-    const fiveMinute =
-      fiveMinuteResult.status === "fulfilled" &&
-      fiveMinuteResult.value.completenessStatus !== "empty" &&
-      !fiveMinuteResult.value.validationIssues.some((issue) => issue.severity === "error")
-        ? fiveMinuteResult.value
-        : this.buildOptionalIntradayFallback({
-            symbol: request.symbol,
-            request: request.historicalRequests["5m"],
-            fallbackProvider: daily.value.provider,
-          });
+    const fallbackProvider = this.fetchService.getProviderName();
+    const resolveSeries = (
+      result: PromiseSettledResult<CandleProviderResponse>,
+      historicalRequest: HistoricalFetchRequest,
+    ): CandleProviderResponse => result.status === "fulfilled"
+      ? result.value
+      : this.buildUnavailableSeriesFallback({
+          symbol: request.symbol,
+          request: historicalRequest,
+          fallbackProvider,
+          reason: result.reason instanceof Error ? result.reason.message : "provider request failed",
+        });
 
     return {
-      daily: daily.value,
-      "4h": fourHour.value,
-      "5m": fiveMinute,
+      daily: resolveSeries(dailyResult, request.historicalRequests.daily),
+      "4h": resolveSeries(fourHourResult, request.historicalRequests["4h"]),
+      "5m": resolveSeries(fiveMinuteResult, request.historicalRequests["5m"]),
     };
   }
 
   private assertSeriesUsable(seriesMap: Record<CandleTimeframe, CandleProviderResponse>): void {
-    for (const timeframe of ["daily", "4h"] as const) {
-      const series = seriesMap[timeframe];
-      const errors = series.validationIssues.filter((issue) => issue.severity === "error");
-
-      if (errors.length > 0) {
-        throw new Error(
-          `Cannot generate levels for ${series.symbol} ${timeframe} because candle validation failed: ${errors
-            .map((issue) => issue.code)
-            .join(", ")}`,
-        );
-      }
-
-      if (series.completenessStatus === "empty") {
-        throw new Error(`Cannot generate levels for ${series.symbol} ${timeframe} because no candles were returned.`);
-      }
+    const availableTimeframes = (["daily", "4h", "5m"] as const)
+      .filter((timeframe) => this.isSeriesUsable(seriesMap[timeframe]));
+    if (availableTimeframes.length > 0) {
+      return;
     }
+
+    const symbol = seriesMap.daily.symbol;
+    const causes = (["daily", "4h", "5m"] as const).map((timeframe) => {
+      const series = seriesMap[timeframe];
+      const errors = series.validationIssues
+        .filter((issue) => issue.severity === "error")
+        .map((issue) => issue.code);
+      return `${timeframe}:${errors.join("+") || "empty"}`;
+    });
+    throw new Error(
+      `Cannot generate levels for ${symbol} because no usable candle series were returned (${causes.join(", ")}).`,
+    );
   }
 
   private deriveOutputMetadata(
     seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
     referenceTimestamp: number,
+    referencePriceOverride?: number,
   ): LevelEngineOutput["metadata"] {
+    const availableTimeframes = (["daily", "4h", "5m"] as const)
+      .filter((timeframe) => this.isSeriesUsable(seriesMap[timeframe]));
     const dataQualityFlags = [
       ...new Set(
         Object.values(seriesMap).flatMap((series) =>
@@ -146,17 +161,23 @@ export class LevelEngine {
         ),
       ),
     ];
-    if (seriesMap["5m"].candles.length === 0) {
-      dataQualityFlags.push("5m:unavailable");
+    for (const timeframe of ["daily", "4h", "5m"] as const) {
+      if (!availableTimeframes.includes(timeframe)) {
+        dataQualityFlags.push(`${timeframe}:unavailable`);
+      }
     }
     const freshestTimestamp = Math.max(...Object.values(seriesMap).map((series) => series.candles.at(-1)?.timestamp ?? 0));
     const ageHours = Math.max(0, referenceTimestamp - freshestTimestamp) / (1000 * 60 * 60);
     const freshness: LevelDataFreshness =
       ageHours <= 24 ? "fresh" : ageHours <= 24 * 7 ? "aging" : "stale";
     const referencePrice =
-      seriesMap["5m"].candles.at(-1)?.close ??
-      seriesMap["4h"].candles.at(-1)?.close ??
-      seriesMap.daily.candles.at(-1)?.close;
+      typeof referencePriceOverride === "number" &&
+      Number.isFinite(referencePriceOverride) &&
+      referencePriceOverride > 0
+        ? referencePriceOverride
+        : seriesMap["5m"].candles.at(-1)?.close ??
+          seriesMap["4h"].candles.at(-1)?.close ??
+          seriesMap.daily.candles.at(-1)?.close;
     const fiveMinuteVolumeBaseline = buildVolumeBaselineFromCandles(seriesMap["5m"].candles);
 
     return {
@@ -166,6 +187,8 @@ export class LevelEngine {
         "5m": seriesMap["5m"].provider,
       },
       dataQualityFlags,
+      coverage: availableTimeframes.length === 3 ? "full" : "limited",
+      availableTimeframes,
       freshness,
       referencePrice,
       volumeBaselineByTimeframe: {
@@ -243,12 +266,16 @@ export class LevelEngine {
   ): LevelEngineOutput {
     this.assertSeriesUsable(seriesMap);
     const referenceTimestamp = this.deriveReferenceTimestamp(seriesMap);
-    const metadata = this.deriveOutputMetadata(seriesMap, referenceTimestamp);
+    const metadata = this.deriveOutputMetadata(
+      seriesMap,
+      referenceTimestamp,
+      request.referencePriceOverride,
+    );
     const rawCandidates: RawLevelCandidate[] = [];
 
     for (const timeframe of ["daily", "4h", "5m"] as const) {
       const series = seriesMap[timeframe];
-      if (series.candles.length === 0) {
+      if (!this.isSeriesUsable(series)) {
         continue;
       }
       const swings = detectSwingPoints(
@@ -273,7 +300,8 @@ export class LevelEngine {
 
     const special = buildSpecialLevelCandidates(
       request.symbol.toUpperCase(),
-      seriesMap["5m"].candles,
+      this.isSeriesUsable(seriesMap["5m"]) ? seriesMap["5m"].candles : [],
+      this.isSeriesUsable(seriesMap.daily) ? seriesMap.daily.candles : [],
     );
 
     rawCandidates.push(...special.candidates);
@@ -301,14 +329,7 @@ export class LevelEngine {
       },
       metadata,
       specialLevels: special.summary,
-      legacyRuntimeBuckets: {
-        majorSupport: oldOutput.majorSupport,
-        majorResistance: oldOutput.majorResistance,
-        intermediateSupport: oldOutput.intermediateSupport,
-        intermediateResistance: oldOutput.intermediateResistance,
-        intradaySupport: oldOutput.intradaySupport,
-        intradayResistance: oldOutput.intradayResistance,
-      },
+      runtimeBucketOwnership: "surfaced",
       legacyExtensionLevels: oldOutput.extensionLevels,
     });
 

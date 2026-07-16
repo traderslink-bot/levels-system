@@ -82,6 +82,8 @@ type PreparedCandidate = {
   isInsideZone: boolean;
   isPracticalInteractionCandidate: boolean;
   isCredibleNearActionable: boolean;
+  isStaleContext: boolean;
+  hasStrongStaleConfirmation: boolean;
 };
 
 type SelectionScoring = {
@@ -89,6 +91,8 @@ type SelectionScoring = {
   breakdown: SurfacedSelectionScoreBreakdown;
   notes: string[];
 };
+
+const NEAREST_LEVELS_RESERVED_FOR_BROAD_LADDER = 4;
 
 function maxSurfacedCount(side: LevelType, config: LevelSurfacedSelectionConfig): number {
   return side === "support" ? config.maximumSurfacedSupportCount : config.maximumSurfacedResistanceCount;
@@ -184,6 +188,13 @@ function baseLadderUsefulnessScore(
   return clamp((raw / Math.max(maxRaw, 1)) * 100, 0, 100);
 }
 
+function isStaleContextLevel(level: RankedLevel, config: LevelSurfacedSelectionConfig): boolean {
+  return (
+    level.barsSinceLastReaction > config.staleContext.barsSinceLastReaction &&
+    level.scoreBreakdown.freshReactionScore < config.staleContext.freshReactionScore
+  );
+}
+
 function isOnActionableSide(level: RankedLevel, currentPrice: number, side: LevelType): boolean {
   if (isPriceInsideZone(currentPrice, level.zoneLow, level.zoneHigh)) {
     return true;
@@ -203,6 +214,11 @@ function prepareCandidate(
   const isInsideZone = isPriceInsideZone(context.currentPrice, level.zoneLow, level.zoneHigh);
   const isPracticalInteractionCandidate =
     isInsideZone || distanceToPricePct <= practicalInteractionBandPct(side, config);
+  const isStaleContext = isStaleContextLevel(level, config);
+  const hasStrongStaleConfirmation =
+    level.structuralStrengthScore >= config.staleContext.strongConfirmationStructuralScore &&
+    level.confidence >= config.staleContext.strongConfirmationConfidence &&
+    distanceToPricePct <= config.staleContext.maxStrongConfirmationDistancePct;
   const credibleNearBase =
     level.structuralStrengthScore >= config.nearPriceSelection.minimumStructuralScore &&
     level.confidence >= config.nearPriceSelection.minimumConfidence;
@@ -213,6 +229,7 @@ function prepareCandidate(
   const isCredibleNearActionable =
     isPracticalInteractionCandidate &&
     level.state !== "broken" &&
+    (!isStaleContext || hasStrongStaleConfirmation || isInsideZone) &&
     (credibleNearBase || weakenedOverride) &&
     (level.state !== "weakened" || weakenedOverride);
 
@@ -227,6 +244,8 @@ function prepareCandidate(
     isInsideZone,
     isPracticalInteractionCandidate,
     isCredibleNearActionable,
+    isStaleContext,
+    hasStrongStaleConfirmation,
   };
 }
 
@@ -266,6 +285,16 @@ function buildSelectionScore(
   ) {
     redundancyPenalty += config.nearPriceSelection.weakNearClutterPenalty;
     notes.push("near-price clutter penalty");
+  }
+
+  if (
+    selectionCategory === "actionable" &&
+    candidate.isStaleContext &&
+    !candidate.hasStrongStaleConfirmation &&
+    !candidate.isInsideZone
+  ) {
+    redundancyPenalty += config.staleContext.actionablePenalty;
+    notes.push("older context penalty");
   }
 
   if (selected.length === 0 && selectionCategory === "actionable") {
@@ -460,6 +489,7 @@ function selectSurfacedSide(
   const anchorCandidates: PreparedCandidate[] = [];
   const suppressed: SuppressedSurfacedLevel[] = [];
   const notes: string[] = [];
+  const broadLadderMode = maxSurfacedCount(side, config) >= 12;
 
   for (const level of levels) {
     if (!isOnActionableSide(level, context.currentPrice, side)) {
@@ -470,21 +500,19 @@ function selectSurfacedSide(
       suppressed.push(buildSuppressedLevel(level, side, "broken_state"));
       continue;
     }
-    if (level.structuralStrengthScore < config.minimumStructuralScore) {
+    if (!broadLadderMode && level.structuralStrengthScore < config.minimumStructuralScore) {
       suppressed.push(buildSuppressedLevel(level, side, "below_minimum_structural_quality"));
       continue;
     }
-    if (level.confidence < config.minimumConfidence) {
+    if (!broadLadderMode && level.confidence < config.minimumConfidence) {
       suppressed.push(buildSuppressedLevel(level, side, "below_minimum_confidence"));
       continue;
     }
 
     const prepared = prepareCandidate(level, context, side, config);
-    if (prepared.distanceToPricePct <= config.sideRules[side].maxActionableDistancePct) {
-      actionableCandidates.push(prepared);
-    } else {
-      suppressed.push(buildSuppressedLevel(level, side, "outside_actionable_range"));
-    }
+    // The detected evidence inventory, not a percentage boundary, defines the
+    // full ladder. Distance remains a ranking input but never an exclusion.
+    actionableCandidates.push(prepared);
 
     if (
       config.includeOneDeeperAnchor &&
@@ -568,6 +596,7 @@ function selectSurfacedSide(
       }
 
       if (
+        !broadLadderMode &&
         next.candidate.isCredibleNearActionable &&
         selected.length === 1 &&
         prefersAnchorRole(candidate, config)
@@ -587,7 +616,57 @@ function selectSurfacedSide(
     remaining.splice(0, remaining.length, ...survivors);
   }
 
-  const surfaced = sortTraderFacing(selected, side, context.currentPrice);
+  const selectedById = new Map(selected.map((level) => [level.id, level]));
+  const nearbySuppressedIds = new Set(
+    suppressed
+      .filter((item) => item.reason === "nearby_stronger_level")
+      .map((item) => item.level.id),
+  );
+  const candidatesByDistance = actionableCandidates
+    .filter((candidate) => !nearbySuppressedIds.has(candidate.level.id))
+    .sort(
+    (left, right) =>
+      left.distanceToPricePct - right.distanceToPricePct ||
+      right.level.score - left.level.score,
+  );
+  const maximumCount = maxSurfacedCount(side, config);
+  const chosenCandidates = !broadLadderMode
+    ? selected.map((level) => actionableCandidates.find((candidate) => candidate.level.id === level.id)!)
+    : candidatesByDistance.length <= maximumCount
+    ? candidatesByDistance
+    : (() => {
+        const nearest = candidatesByDistance.slice(
+          0,
+          Math.min(NEAREST_LEVELS_RESERVED_FOR_BROAD_LADDER, maximumCount),
+        );
+        const remaining = candidatesByDistance.filter(
+          (candidate) => !nearest.some((item) => item.level.id === candidate.level.id),
+        );
+        const remainingSlots = maximumCount - nearest.length;
+        const sampled = Array.from({ length: remainingSlots }, (_, index) => {
+          if (remainingSlots === 1) {
+            return remaining.at(-1)!;
+          }
+          const sampleIndex = Math.round(
+            index * (remaining.length - 1) / (remainingSlots - 1),
+          );
+          return remaining[sampleIndex]!;
+        });
+        return [...nearest, ...sampled];
+      })();
+  const broadened = chosenCandidates.map((candidate) => {
+    const existing = selectedById.get(candidate.level.id);
+    if (existing) {
+      return existing;
+    }
+    const scoring = buildSelectionScore(candidate, [], config, "actionable");
+    return finalizeSelection(candidate, scoring, "actionable", false);
+  });
+  const surfaced = sortTraderFacing(
+    [...new Map(broadened.map((level) => [level.id, level])).values()],
+    side,
+    context.currentPrice,
+  );
 
   let anchor: SurfacedLevelSelection | undefined;
   if (config.includeOneDeeperAnchor && anchorCandidates.length > 0) {
@@ -666,7 +745,7 @@ export function selectSurfacedLevels(
   const supports = selectSurfacedSupports(output, config);
   const resistances = selectSurfacedResistances(output, config);
   const surfacedSelectionNotes = [
-    "Surfaced selection starts from the structurally ranked output but biases the final ladder toward near-price actionable levels.",
+    "Surfaced selection reserves nearest actionable rows and samples the complete detected evidence range; percentage bands do not cap the ladder.",
     ...supports.notes,
     ...resistances.notes,
   ];

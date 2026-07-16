@@ -9,6 +9,7 @@ import { explainLevelScore } from "./level-score-explainer.js";
 import { deriveLevelState } from "./level-state-engine.js";
 import { computeStructuralStrengthScore } from "./level-structural-scoring.js";
 import { analyzeLevelTouches } from "./level-touch-analysis.js";
+import { enrichMarketDataProvenanceFromTouches } from "./level-market-data-provenance.js";
 import type {
   LevelCandidate,
   LevelScoreBreakdown,
@@ -71,6 +72,11 @@ function normalizeLevel(level: LevelCandidate, context: LevelScoringContext, con
     zoneHigh: zoneBounds.zoneHigh,
     sourceTimeframes: uniqueTimeframes(level),
     originKinds: [...new Set(level.originKinds)],
+    marketDataProvenance: enrichMarketDataProvenanceFromTouches({
+      provenance: level.marketDataProvenance,
+      touches: baseAnalysis.touches,
+      config,
+    }),
     touches: baseAnalysis.touches,
     touchCount: baseAnalysis.touchCount,
     meaningfulTouchCount: baseAnalysis.meaningfulTouchCount,

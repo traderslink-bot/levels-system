@@ -4,12 +4,20 @@
 export const LEVEL_SURFACED_SELECTION_CONFIG = {
   minimumStructuralScore: 32,
   minimumConfidence: 45,
-  maximumSurfacedSupportCount: 3,
-  maximumSurfacedResistanceCount: 3,
+  maximumSurfacedSupportCount: 12,
+  maximumSurfacedResistanceCount: 12,
   includeOneDeeperAnchor: true,
   deeperAnchorMinStructuralScore: 52,
   deeperAnchorMinDistancePct: 0.018,
   strongerFarLevelStructuralBuffer: 12,
+  staleContext: {
+    barsSinceLastReaction: 30,
+    freshReactionScore: 8,
+    actionablePenalty: 18,
+    strongConfirmationStructuralScore: 72,
+    strongConfirmationConfidence: 70,
+    maxStrongConfirmationDistancePct: 0.03,
+  },
   sideRules: {
     support: {
       maxActionableDistancePct: 0.12,
