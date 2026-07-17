@@ -373,6 +373,76 @@ function finiteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function discoveryDollarVolume(candidate: AutoWatchlistDiscoveryCandidate): number {
+  return Math.max(0, candidate.price ?? 0) * Math.max(0, candidate.volume ?? 0);
+}
+
+function isEligibleForExtendedSessionProbe(
+  candidate: AutoWatchlistDiscoveryCandidate,
+  thresholds: AutoWatchlistSelectorThresholds,
+): boolean {
+  const price = candidate.price;
+  return (
+    (candidate.marketCap === null || candidate.marketCap <= thresholds.maxMarketCap) &&
+    (price === null || (price >= thresholds.minPrice && price <= thresholds.maxPrice))
+  );
+}
+
+/**
+ * A single regular-hours leader board cannot identify an after-hours runner.
+ * Keep the session-activity request budget fixed, but split it across three
+ * independent discovery lanes: Nasdaq movers, regular-session dollar volume,
+ * and regular-session percentage gain. This prevents the first lane from
+ * monopolizing all probes while still retaining independent Nasdaq movers.
+ */
+function selectExtendedSessionProbeCandidates(input: {
+  candidates: AutoWatchlistDiscoveryCandidate[];
+  marketMovers: AutoWatchlistDiscoveryCandidate[];
+  limit: number;
+  thresholds: AutoWatchlistSelectorThresholds;
+}): AutoWatchlistDiscoveryCandidate[] {
+  const eligible = (candidate: AutoWatchlistDiscoveryCandidate) =>
+    isEligibleForExtendedSessionProbe(candidate, input.thresholds);
+  const byDollarVolume = [...input.candidates]
+    .filter(eligible)
+    .sort((left, right) =>
+      discoveryDollarVolume(right) - discoveryDollarVolume(left) ||
+      (right.gainPct ?? 0) - (left.gainPct ?? 0),
+    );
+  const byGain = [...input.candidates]
+    .filter(eligible)
+    .sort((left, right) =>
+      (right.gainPct ?? 0) - (left.gainPct ?? 0) ||
+      discoveryDollarVolume(right) - discoveryDollarVolume(left),
+    );
+  const byMover = [...input.marketMovers]
+    .filter(eligible)
+    .sort((left, right) =>
+      (right.gainPct ?? 0) - (left.gainPct ?? 0) ||
+      discoveryDollarVolume(right) - discoveryDollarVolume(left),
+    );
+  const lanes = [byMover, byDollarVolume, byGain];
+  const nextIndex = lanes.map(() => 0);
+  const selected = new Map<string, AutoWatchlistDiscoveryCandidate>();
+
+  while (selected.size < input.limit) {
+    let addedAny = false;
+    for (const [laneIndex, lane] of lanes.entries()) {
+      while (nextIndex[laneIndex]! < lane.length) {
+        const candidate = lane[nextIndex[laneIndex]++]!;
+        if (selected.has(candidate.symbol)) continue;
+        selected.set(candidate.symbol, candidate);
+        addedAny = true;
+        break;
+      }
+      if (selected.size >= input.limit) break;
+    }
+    if (!addedAny) break;
+  }
+
+  return [...selected.values()];
+}
+
 function normalizeSymbol(value: unknown): string {
   return typeof value === "string" ? value.trim().toUpperCase() : "";
 }
@@ -2043,34 +2113,12 @@ export class AutoWatchlistSelector {
       }
       if (session === "premarket" || session === "postmarket") {
         const candidateLimit = this.thresholds.extendedSessionCandidateLimit;
-        const byVolume = [...candidates]
-          .sort((left, right) => (right.volume ?? 0) - (left.volume ?? 0))
-          .slice(0, candidateLimit);
-        const byRegularGain = [...candidates]
-          .sort((left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0))
-          .slice(0, candidateLimit);
-        const extendedBySymbol = new Map<string, AutoWatchlistDiscoveryCandidate>();
-        for (const candidate of marketMoversBySymbol.values()) {
-          if (extendedBySymbol.size >= candidateLimit) break;
-          extendedBySymbol.set(candidate.symbol, candidate);
-        }
-        let volumeIndex = 0;
-        let gainIndex = 0;
-        while (
-          extendedBySymbol.size < candidateLimit &&
-          (volumeIndex < byVolume.length || gainIndex < byRegularGain.length)
-        ) {
-          for (let offset = 0; offset < 2 && volumeIndex < byVolume.length; offset += 1) {
-            const candidate = byVolume[volumeIndex++]!;
-            extendedBySymbol.set(candidate.symbol, candidate);
-            if (extendedBySymbol.size >= candidateLimit) break;
-          }
-          if (extendedBySymbol.size < candidateLimit && gainIndex < byRegularGain.length) {
-            const candidate = byRegularGain[gainIndex++]!;
-            extendedBySymbol.set(candidate.symbol, candidate);
-          }
-        }
-        const extendedUniverse = [...extendedBySymbol.values()];
+        const extendedUniverse = selectExtendedSessionProbeCandidates({
+          candidates,
+          marketMovers: [...marketMoversBySymbol.values()],
+          limit: candidateLimit,
+          thresholds: this.thresholds,
+        });
         const activities = await this.lookupSessionActivities(extendedUniverse, session, this.now());
         return extendedUniverse
           .map((candidate) => {

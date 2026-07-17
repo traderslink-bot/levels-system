@@ -944,6 +944,113 @@ test("premarket discovery prioritizes current market movers that stale regular-s
   );
 });
 
+test("postmarket discovery probes liquid names even when Nasdaq movers would otherwise fill the activity budget", async () => {
+  const staleMoverRows = Array.from({ length: 8 }, (_, index) => ({
+    symbol: `MVR${index}`,
+    name: `Mover ${index} Corporation Common Stock`,
+    lastsale: "$1.00",
+    pctchange: "2%",
+    volume: "1000000",
+    marketCap: "10000000",
+  }));
+  const fetchImpl: typeof fetch = async (input) => {
+    if (String(input).includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({
+        data: {
+          STOCKS: {
+            MostAdvanced: {
+              table: {
+                rows: staleMoverRows.map((row) => ({
+                  symbol: row.symbol,
+                  name: row.name,
+                  lastSalePrice: "$1.20",
+                  lastSaleChange: "+0.20",
+                  change: "+20%",
+                  deltaIndicator: "up",
+                })),
+              },
+            },
+            MostActiveByShareVolume: { table: { rows: [] } },
+          },
+        },
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        rows: [
+          ...staleMoverRows,
+          {
+            // The ADVB-shaped runner is only a modest regular-session gainer,
+            // but its $9M+ regular-session dollar volume earns it an
+            // extended-hours activity probe.
+            symbol: "ADVB",
+            name: "Advanced Biomed Inc. Common Stock",
+            lastsale: "$5.03",
+            pctchange: "2.653%",
+            volume: "1846868",
+            marketCap: "8310229",
+          },
+          {
+            symbol: "GAIN",
+            name: "Gain Leader Corporation Common Stock",
+            lastsale: "$0.50",
+            pctchange: "30%",
+            volume: "200000",
+            marketCap: "10000000",
+          },
+        ],
+      },
+    }), { status: 200 });
+  };
+  let lookedUpSymbols: string[] = [];
+  const activityLookup: AutoWatchlistSessionActivityLookup = async ({ symbols, session, now }) => {
+    lookedUpSymbols = [...symbols];
+    return Object.fromEntries(symbols.map((symbol) => [symbol, {
+      symbol,
+      session,
+      price: symbol === "ADVB" ? 7.05 : 1.2,
+      gainPct: symbol === "ADVB" ? 40.16 : 10,
+      sessionVolume: symbol === "ADVB" ? 2_500_000 : 1_000_000,
+      sessionDollarVolume: symbol === "ADVB" ? 16_000_000 : 1_200_000,
+      recent15mVolume: symbol === "ADVB" ? 60_000 : 100_000,
+      recent15mDollarVolume: symbol === "ADVB" ? 423_000 : 120_000,
+      sessionElapsedMinutes: 150,
+      volumeAcceleration: 2,
+      quoteTime: Math.floor(now / 1000),
+      quoteAgeMinutes: 0,
+      available: true,
+    }]));
+  };
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async (symbol: string) => ({
+        ticker: symbol,
+        marketCapitalization: symbol === "ADVB" ? 8.3 : 10,
+        floatingShare: 1,
+        shareOutstanding: 10,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-postmarket-liquid-probe-test.json"),
+    thresholds: { extendedSessionCandidateLimit: 3, enrichmentLimit: 3 },
+    now: () => Date.parse("2026-07-17T22:30:00Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: activityLookup,
+  });
+
+  const preview = await selector.previewScan();
+  const advb = preview.recentDecisions.find((decision) => decision.symbol === "ADVB");
+  assert.equal(lookedUpSymbols.includes("ADVB"), true);
+  assert.ok(advb);
+  assert.equal(advb.qualified, true);
+  assert.equal(advb.gainPct, 40.16);
+  assert.equal(advb.sourceScreens.includes("live_exchange_postmarket_activity"), true);
+});
+
 test("Nasdaq movers are independently evaluated when the bulk screener omits them", async () => {
   const cases = [
     { label: "premarket", now: Date.parse("2026-07-17T12:30:00Z") },
