@@ -11,6 +11,11 @@ test("watchlist entry session grouping follows the website's New York add-time b
   assert.equal(getWatchlistEntrySessionGroup({ tags: ["manual"], activatedAt: Date.parse("2026-07-17T00:00:00Z") }), "main");
 });
 
+test("watchlist entry session grouping honors an early regular close", () => {
+  assert.equal(getWatchlistEntrySessionGroup({ tags: ["manual"], activatedAt: Date.parse("2026-11-27T17:30:00Z") }), "main");
+  assert.equal(getWatchlistEntrySessionGroup({ tags: ["manual"], activatedAt: Date.parse("2026-11-27T18:30:00Z") }), "postmarket");
+});
+
 test("explicit automatic session tags and legacy notes take precedence over timestamps", () => {
   assert.equal(getWatchlistEntrySessionGroup({ tags: ["auto", "auto-postmarket"], activatedAt: Date.parse("2026-07-16T15:00:00Z") }), "postmarket");
   assert.equal(getWatchlistEntrySessionGroup({ tags: ["auto", "auto-main"], activatedAt: Date.parse("2026-07-16T22:00:00Z") }), "main");

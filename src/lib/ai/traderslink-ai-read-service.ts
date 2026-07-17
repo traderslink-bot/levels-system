@@ -20,6 +20,7 @@ import type {
   TradersLinkAiReadTarget,
   TradersLinkAiReadUsage,
 } from "../live-watchlist/live-watchlist-types.js";
+import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 
 // Luna is the lower-cost primary model for high-frequency trader-read work.  Terra
 // stays available as the automatic compatibility fallback and as an explicit env override.
@@ -1127,33 +1128,9 @@ function buildUsage(
   };
 }
 
-function marketSessionAt(timestamp: number): TradersLinkAiReadMarketSession {
+export function marketSessionAt(timestamp: number): TradersLinkAiReadMarketSession {
   try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(new Date(timestamp));
-    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-    if (values.weekday === "Sat" || values.weekday === "Sun") {
-      return "closed";
-    }
-    const minutes = Number(values.hour) * 60 + Number(values.minute);
-    if (!Number.isFinite(minutes)) {
-      return "unknown";
-    }
-    if (minutes >= 4 * 60 && minutes < 9 * 60 + 30) {
-      return "premarket";
-    }
-    if (minutes >= 9 * 60 + 30 && minutes < 16 * 60) {
-      return "regular";
-    }
-    if (minutes >= 16 * 60 && minutes < 20 * 60) {
-      return "postmarket";
-    }
-    return "closed";
+    return classifyUsEquityMarketSession(timestamp).session;
   } catch {
     return "unknown";
   }

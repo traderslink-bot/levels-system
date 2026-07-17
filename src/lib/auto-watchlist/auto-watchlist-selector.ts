@@ -15,11 +15,15 @@ import {
   type PressReleaseCatalystLookupResult,
   type PressReleaseCatalystTiming,
 } from "../catalysts/press-release-catalyst-context.js";
+import {
+  classifyUsEquityMarketSession,
+  newYorkDateTimeParts,
+  usEquitySessionStartMinutes,
+} from "../market-data/us-equity-exchange-calendar.js";
 
 type FetchLike = typeof fetch;
 
 const CONFIG_VERSION = 1;
-const EASTERN_TIME_ZONE = "America/New_York";
 
 export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxMarketCap: 100_000_000,
@@ -514,43 +518,17 @@ function easternParts(timestamp: number): {
   hour: number;
   minute: number;
 } {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: EASTERN_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-  const values = Object.fromEntries(
-    formatter.formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]),
-  );
+  const values = newYorkDateTimeParts(timestamp);
   return {
-    date: `${values.year}-${values.month}-${values.day}`,
-    weekday: values.weekday,
-    hour: Number(values.hour),
-    minute: Number(values.minute),
+    date: values?.date ?? "",
+    weekday: values?.weekday ?? "",
+    hour: values?.hour ?? Number.NaN,
+    minute: values?.minute ?? Number.NaN,
   };
 }
 
 export function autoWatchlistSessionForTimestamp(timestamp: number): AutoWatchlistSession {
-  const parts = easternParts(timestamp);
-  if (parts.weekday === "Sat" || parts.weekday === "Sun") {
-    return "closed";
-  }
-  const minutes = parts.hour * 60 + parts.minute;
-  if (minutes >= 4 * 60 && minutes < 9 * 60 + 30) {
-    return "premarket";
-  }
-  if (minutes >= 9 * 60 + 30 && minutes < 16 * 60) {
-    return "regular";
-  }
-  if (minutes >= 16 * 60 && minutes < 20 * 60) {
-    return "postmarket";
-  }
-  return "closed";
+  return classifyUsEquityMarketSession(timestamp).session;
 }
 
 function isAutoWatchlistSessionEnabled(
@@ -575,13 +553,10 @@ function minimumRecentDollarVolume(
 function elapsedSessionMinutes(timestamp: number, session: AutoWatchlistSession): number | null {
   const parts = easternParts(timestamp);
   const currentMinutes = parts.hour * 60 + parts.minute;
-  const startMinutes = session === "premarket"
-    ? 4 * 60
-    : session === "regular"
-      ? 9 * 60 + 30
-      : session === "postmarket"
-        ? 16 * 60
-        : null;
+  const classification = classifyUsEquityMarketSession(timestamp);
+  const startMinutes = classification.tradingDay
+    ? usEquitySessionStartMinutes(session, classification.tradingDay)
+    : null;
   return startMinutes === null ? null : Math.max(0, currentMinutes - startMinutes);
 }
 
@@ -750,10 +725,9 @@ export function isWithinAutoWatchlistScanWindow(
   timestamp: number,
   thresholds: AutoWatchlistSelectorThresholds,
 ): boolean {
+  const classification = classifyUsEquityMarketSession(timestamp);
+  if (!classification.tradingDay?.isTradingDay) return false;
   const parts = easternParts(timestamp);
-  if (parts.weekday === "Sat" || parts.weekday === "Sun") {
-    return false;
-  }
   const currentMinutes = parts.hour * 60 + parts.minute;
   const startMinutes = thresholds.scanStartHourEastern * 60;
   const endMinutes = thresholds.scanEndHourEastern * 60 + thresholds.scanEndMinuteEastern;

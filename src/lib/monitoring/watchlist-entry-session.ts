@@ -1,13 +1,7 @@
 import type { WatchlistEntry } from "./monitoring-types.js";
+import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 
 export type WatchlistEntrySessionGroup = "main" | "postmarket";
-
-const entryTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "2-digit",
-  hourCycle: "h23",
-  minute: "2-digit",
-  timeZone: "America/New_York",
-});
 
 export function getWatchlistEntrySessionGroup(
   entry: Pick<WatchlistEntry, "activatedAt" | "tags" | "note">,
@@ -24,11 +18,7 @@ export function getWatchlistEntrySessionGroup(
   if (typeof entry.activatedAt !== "number" || !Number.isFinite(entry.activatedAt)) {
     return "main";
   }
-  const parts = Object.fromEntries(
-    entryTimeFormatter
-      .formatToParts(new Date(entry.activatedAt))
-      .map((part) => [part.type, part.value]),
-  );
-  const minutes = Number(parts.hour) * 60 + Number(parts.minute);
-  return minutes >= 16 * 60 && minutes < 20 * 60 ? "postmarket" : "main";
+  return classifyUsEquityMarketSession(entry.activatedAt).session === "postmarket"
+    ? "postmarket"
+    : "main";
 }

@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   AutoWatchlistSelector,
+  autoWatchlistSessionForTimestamp,
   compareAutoWatchlistDecisions,
   DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   isWithinAutoWatchlistScanWindow,
@@ -244,6 +245,13 @@ test("automatic scans are limited to the configured weekday day-trading window i
     isWithinAutoWatchlistScanWindow(Date.parse("2026-07-18T13:00:00Z"), thresholds),
     false,
   );
+});
+
+test("automatic scans do not treat a U.S. exchange holiday as a weekday trading window", () => {
+  const thresholds = { ...DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG };
+  const goodFridayAtTenEastern = Date.parse("2026-04-03T14:00:00Z");
+  assert.equal(autoWatchlistSessionForTimestamp(goodFridayAtTenEastern), "closed");
+  assert.equal(isWithinAutoWatchlistScanWindow(goodFridayAtTenEastern, thresholds), false);
 });
 
 test("Nasdaq chart wall-clock timestamps normalize into the correct New York session", () => {

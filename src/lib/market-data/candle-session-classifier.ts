@@ -1,4 +1,8 @@
 import type { Candle, CandleFetchTimeframe, CandleSessionLabel, CandleSessionSummary } from "./candle-types.js";
+import {
+  classifyUsEquityMarketSession,
+  newYorkDateTimeParts,
+} from "./us-equity-exchange-calendar.js";
 
 type SessionAnnotatedCandle = {
   candle: Candle;
@@ -6,37 +10,16 @@ type SessionAnnotatedCandle = {
   sessionDate: string | null;
 };
 
-const NEW_YORK_TIMEZONE = "America/New_York";
-
-const sessionFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: NEW_YORK_TIMEZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
 function extractParts(timestamp: number): {
   sessionDate: string;
   hour: number;
   minute: number;
 } {
-  const parts = sessionFormatter.formatToParts(new Date(timestamp));
-  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const year = Number(byType.year);
-  const month = Number(byType.month);
-  const day = Number(byType.day);
-  const hour = Number(byType.hour);
-  const minute = Number(byType.minute);
-
+  const parts = newYorkDateTimeParts(timestamp);
   return {
-    sessionDate: `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day
-      .toString()
-      .padStart(2, "0")}`,
-    hour,
-    minute,
+    sessionDate: parts?.date ?? "",
+    hour: parts?.hour ?? Number.NaN,
+    minute: parts?.minute ?? Number.NaN,
   };
 }
 
@@ -46,6 +29,11 @@ export function classifyIntradayCandleTimestamp(timestamp: number): {
 } {
   const { sessionDate, hour, minute } = extractParts(timestamp);
   const minutesIntoDay = hour * 60 + minute;
+  const marketSession = classifyUsEquityMarketSession(timestamp).session;
+
+  if (marketSession === "closed") {
+    return { session: "extended", sessionDate };
+  }
 
   if (minutesIntoDay >= 4 * 60 && minutesIntoDay < 9 * 60 + 30) {
     return { session: "premarket", sessionDate };
@@ -55,11 +43,11 @@ export function classifyIntradayCandleTimestamp(timestamp: number): {
     return { session: "opening_range", sessionDate };
   }
 
-  if (minutesIntoDay >= 10 * 60 && minutesIntoDay < 16 * 60) {
+  if (minutesIntoDay >= 10 * 60 && marketSession === "regular") {
     return { session: "regular", sessionDate };
   }
 
-  if (minutesIntoDay >= 16 * 60 && minutesIntoDay < 20 * 60) {
+  if (marketSession === "postmarket") {
     return { session: "after_hours", sessionDate };
   }
 
