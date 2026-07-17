@@ -60,16 +60,22 @@ test("auto selector strongly favors known low float and rejects oversized share 
     candidate: BASE_CANDIDATE,
     floatShares: 45_000_000,
   });
+  const fallbackOutstanding = scoreAutoWatchlistCandidate({
+    candidate: BASE_CANDIDATE,
+    finnhubSharesOutstanding: 54_220_000,
+  });
   const tooLarge = scoreAutoWatchlistCandidate({
     candidate: BASE_CANDIDATE,
-    finnhubSharesOutstanding: 55_000_000,
+    finnhubSharesOutstanding: 60_000_001,
   });
 
   assert.equal(lowFloat.qualified, true);
   assert.equal(lowFloat.effectiveSharesSource, "yahoo_float");
   assert.ok(lowFloat.score > largerFloat.score);
+  assert.equal(fallbackOutstanding.qualified, true);
+  assert.equal(fallbackOutstanding.effectiveSharesSource, "finnhub_outstanding");
   assert.equal(tooLarge.qualified, false);
-  assert.match(tooLarge.rejectionReasons.join(" "), /shares outstanding must be at most 50M/);
+  assert.match(tooLarge.rejectionReasons.join(" "), /shares outstanding must be at most 60M/);
 });
 
 test("auto selector rejects candidates over the $100M default market-cap ceiling", () => {
@@ -407,6 +413,9 @@ test("a full main-session allowance does not block the separate post-market allo
 test("live exchange discovery surfaces current day-trader leaders and ignores warrants", async () => {
   const fetchImpl: typeof fetch = async (input) => {
     const url = String(input);
+    if (url.includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
     assert.match(url, /api\.nasdaq\.com\/api\/screener\/stocks/);
     return new Response(JSON.stringify({
       data: {
@@ -429,6 +438,7 @@ test("live exchange discovery surfaces current day-trader leaders and ignores wa
     yahooClient: null,
     finnhubClient,
     fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-live-leaders-test.json"),
     now: () => Date.parse("2026-07-16T15:00:00Z"),
     getActiveSymbols: () => [],
     isRuntimeReady: () => true,
@@ -488,6 +498,7 @@ test("press-release catalysts rerank only candidates that already pass the base 
     yahooClient: null,
     finnhubClient,
     fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-catalyst-rerank-test.json"),
     now: () => Date.parse("2026-07-16T15:00:00Z"),
     getActiveSymbols: () => [],
     isRuntimeReady: () => true,
@@ -537,6 +548,7 @@ test("strong recent activity and acceleration can outrank a same-day catalyst", 
     yahooClient: null,
     finnhubClient,
     fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-activity-rerank-test.json"),
     now: () => Date.parse("2026-07-16T15:00:00Z"),
     getActiveSymbols: () => [],
     isRuntimeReady: () => true,
@@ -676,6 +688,194 @@ test("post-market discovery can promote an active after-hours runner that was do
   assert.equal(preview.recentDecisions.find((decision) => decision.symbol === "LGPS")?.qualified, false);
 });
 
+test("premarket discovery prioritizes current market movers that stale regular-session rankings would omit", async () => {
+  const regularLeaders = Array.from({ length: 8 }, (_, index) => ({
+    symbol: `OLD${index}`,
+    name: `Old Leader ${index} Common Stock`,
+    lastsale: "$2.00",
+    pctchange: `${30 - index}%`,
+    volume: String(5_000_000 - index * 100_000),
+    marketCap: "10000000",
+  }));
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({
+        data: {
+          STOCKS: {
+            MostAdvanced: {
+              table: {
+                rows: [{
+                  symbol: "SLND",
+                  name: "Southland Holdings, Inc. Common Stock",
+                  lastSalePrice: "$1.1385",
+                  lastSaleChange: "+0.4572",
+                  change: "+67.10%",
+                  deltaIndicator: "up",
+                }],
+              },
+            },
+            MostActiveByShareVolume: { table: { rows: [] } },
+          },
+        },
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        rows: [
+          ...regularLeaders,
+          {
+            symbol: "SLND",
+            name: "Southland Holdings, Inc. Common Stock",
+            lastsale: "$0.6813",
+            pctchange: "-4.177%",
+            volume: "109245",
+            marketCap: "36939324",
+          },
+        ],
+      },
+    }), { status: 200 });
+  };
+  let lookedUpSymbols: string[] = [];
+  const activityLookup: AutoWatchlistSessionActivityLookup = async ({ symbols, session, now }) => {
+    lookedUpSymbols = [...symbols];
+    return Object.fromEntries(symbols.map((symbol) => [symbol, {
+      symbol,
+      session,
+      price: symbol === "SLND" ? 1.1385 : 2,
+      gainPct: symbol === "SLND" ? 67.1 : 10,
+      sessionVolume: symbol === "SLND" ? 41_000_000 : 1_000_000,
+      sessionDollarVolume: symbol === "SLND" ? 46_000_000 : 2_000_000,
+      recent15mVolume: symbol === "SLND" ? 2_000_000 : 100_000,
+      recent15mDollarVolume: symbol === "SLND" ? 2_277_000 : 200_000,
+      sessionElapsedMinutes: 310,
+      volumeAcceleration: symbol === "SLND" ? 4 : 1.2,
+      quoteTime: Math.floor(now / 1000),
+      quoteAgeMinutes: 0,
+      available: true,
+    }]));
+  };
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async (symbol: string) => ({
+        ticker: symbol,
+        marketCapitalization: symbol === "SLND" ? 36.9 : 10,
+        shareOutstanding: 10,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-premarket-movers-test.json"),
+    thresholds: { extendedSessionCandidateLimit: 4, enrichmentLimit: 4 },
+    now: () => Date.parse("2026-07-17T13:10:00Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: activityLookup,
+  });
+
+  const preview = await selector.previewScan();
+  assert.equal(lookedUpSymbols.includes("SLND"), true);
+  assert.equal(preview.recentDecisions[0]?.symbol, "SLND");
+  assert.equal(preview.recentDecisions[0]?.qualified, true);
+  assert.equal(
+    preview.recentDecisions[0]?.sourceScreens.includes("nasdaq_live_most_advanced"),
+    true,
+  );
+});
+
+test("regular-hours discovery uses live market movers when the downloadable screener is stale", async () => {
+  const fetchImpl: typeof fetch = async (input) => {
+    if (String(input).includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({
+        data: {
+          STOCKS: {
+            MostAdvanced: {
+              table: {
+                rows: [{
+                  symbol: "SLND",
+                  name: "Southland Holdings, Inc.",
+                  lastSalePrice: "$1.0601",
+                  lastSaleChange: "+0.3788",
+                  change: "+55.5996%",
+                  deltaIndicator: "up",
+                }],
+              },
+            },
+            MostActiveByShareVolume: {
+              table: {
+                rows: [{
+                  symbol: "SLND",
+                  name: "Southland Holdings, Inc.",
+                  lastSalePrice: "$1.0601",
+                  lastSaleChange: "+0.3788",
+                  change: "90250836",
+                  deltaIndicator: "up",
+                }],
+              },
+            },
+          },
+        },
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "SLND",
+          name: "Southland Holdings, Inc. Common Stock",
+          lastsale: "$0.6813",
+          pctchange: "-4.177%",
+          volume: "109245",
+          marketCap: "36939324",
+        }],
+      },
+    }), { status: 200 });
+  };
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "SLND",
+        marketCapitalization: 36.9,
+        shareOutstanding: 10,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-regular-live-mover-test.json"),
+    thresholds: { enrichmentLimit: 4 },
+    now: () => Date.parse("2026-07-17T13:45:00Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: async ({ symbols, session, now }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: 1.0601,
+        gainPct: 55.5996,
+        sessionVolume: 90_250_836,
+        sessionDollarVolume: 95_000_000,
+        recent15mVolume: 2_000_000,
+        recent15mDollarVolume: 2_120_000,
+        sessionElapsedMinutes: 15,
+        volumeAcceleration: 3,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+
+  const preview = await selector.previewScan();
+  assert.equal(preview.recentDecisions[0]?.symbol, "SLND");
+  assert.equal(preview.recentDecisions[0]?.gainPct, 55.5996);
+  assert.equal(preview.recentDecisions[0]?.qualified, true);
+  assert.equal(preview.recentDecisions[0]?.sourceScreens.includes("nasdaq_live_most_advanced"), true);
+  assert.equal(preview.recentDecisions[0]?.sourceScreens.includes("nasdaq_live_most_active"), true);
+});
+
 test("enabling the selector runs an immediate scan even outside the recurring window", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-immediate-"));
   const activated: string[] = [];
@@ -723,7 +923,10 @@ test("a preview requested during an active scan waits for that scan instead of r
   const fetchGate = new Promise<void>((resolve) => {
     releaseFetch = resolve;
   });
-  const fetchImpl: typeof fetch = async () => {
+  const fetchImpl: typeof fetch = async (input) => {
+    if (String(input).includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
     fetchCalls += 1;
     await fetchGate;
     return new Response(JSON.stringify({
@@ -737,6 +940,7 @@ test("a preview requested during an active scan waits for that scan instead of r
     yahooClient: null,
     finnhubClient,
     fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-concurrent-preview-test.json"),
     now: () => Date.parse("2026-07-16T15:00:00Z"),
     getActiveSymbols: () => [],
     isRuntimeReady: () => true,
@@ -766,7 +970,10 @@ test("consecutive-pass credit resets when a ticker disappears from the evaluated
   writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
   const symbolsByScan = ["ALFA", "BETA", "ALFA", "ALFA"];
   let scanIndex = 0;
-  const fetchImpl: typeof fetch = async () => {
+  const fetchImpl: typeof fetch = async (input) => {
+    if (String(input).includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
     const symbol = symbolsByScan[Math.min(scanIndex, symbolsByScan.length - 1)]!;
     scanIndex += 1;
     return new Response(JSON.stringify({
@@ -986,7 +1193,7 @@ test("extended-hours discovery honors its configured candidate lookup ceiling", 
     assert.equal(largestLookup, 3);
     assert.equal(status.lastScanCandidateCount, 3);
     assert.equal(status.lastEvaluatedCount, 3);
-    assert.deepEqual(status.lastDiscoverySources, ["live_exchange_postmarket_activity"]);
+    assert.equal(status.lastDiscoverySources.includes("live_exchange_postmarket_activity"), true);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });

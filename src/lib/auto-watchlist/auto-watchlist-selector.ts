@@ -24,7 +24,7 @@ const EASTERN_TIME_ZONE = "America/New_York";
 export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxMarketCap: 100_000_000,
   maxFloatShares: 50_000_000,
-  maxSharesOutstanding: 50_000_000,
+  maxSharesOutstanding: 60_000_000,
   requireShareData: true,
   minPrice: 0.25,
   maxPrice: 20,
@@ -235,6 +235,7 @@ export type AutoWatchlistSelectorStatus = {
   postmarketAddedToday: string[];
   activeMainSessionSymbols: string[];
   activePostmarketSymbols: string[];
+  pendingReplacementSymbols: string[];
   standbyToday: AutoWatchlistManagedEntry[];
   managedEntries: AutoWatchlistManagedEntry[];
   recentReplacements: AutoWatchlistReplacementEvent[];
@@ -252,6 +253,15 @@ type PersistedConfig = {
   postmarketAddedToday?: string[];
   managedEntries?: AutoWatchlistManagedEntry[];
   replacementHistory?: AutoWatchlistReplacementEvent[];
+};
+
+type NasdaqMarketMoverRow = {
+  symbol?: unknown;
+  name?: unknown;
+  lastSalePrice?: unknown;
+  lastSaleChange?: unknown;
+  change?: unknown;
+  deltaIndicator?: unknown;
 };
 
 type AutoWatchlistSelectorOptions = {
@@ -896,7 +906,7 @@ export function scoreAutoWatchlistCandidate(input: {
       reasons.push("float at or below 20M");
     } else if (floatShares <= thresholds.maxFloatShares) {
       score += 10;
-      reasons.push("float at or below 50M");
+      reasons.push(`float at or below ${Math.round(thresholds.maxFloatShares / 1_000_000)}M`);
     }
   } else if (sharesOutstanding) {
     if (sharesOutstanding <= 10_000_000) {
@@ -907,7 +917,7 @@ export function scoreAutoWatchlistCandidate(input: {
       reasons.push("outstanding shares at or below 25M");
     } else if (sharesOutstanding <= thresholds.maxSharesOutstanding) {
       score += 5;
-      reasons.push("outstanding shares at or below 50M");
+      reasons.push(`outstanding shares at or below ${Math.round(thresholds.maxSharesOutstanding / 1_000_000)}M`);
     }
   }
 
@@ -1233,6 +1243,10 @@ export class AutoWatchlistSelector {
       postmarketAddedToday: [...this.postmarketAddedToday],
       activeMainSessionSymbols: this.managedEntriesFor("main", "active").map((entry) => entry.symbol),
       activePostmarketSymbols: this.managedEntriesFor("postmarket", "active").map((entry) => entry.symbol),
+      pendingReplacementSymbols: [
+        ...this.pendingReplacementDepartures("main"),
+        ...this.pendingReplacementDepartures("postmarket"),
+      ].map((entry) => entry.symbol),
       standbyToday: this.managedEntriesFor(undefined, "standby"),
       managedEntries: this.managedEntriesFor(),
       recentReplacements: this.replacementHistory.slice(-20).reverse(),
@@ -1348,6 +1362,25 @@ export class AutoWatchlistSelector {
     return this.replacementHistory.filter(
       (event) => event.bucket === bucket && event.incomingSymbol !== null,
     ).length;
+  }
+
+  private pendingReplacementDepartures(bucket: AutoWatchlistBucket): AutoWatchlistManagedEntry[] {
+    const pendingBySymbol = new Map<string, number>();
+    for (const event of this.replacementHistory) {
+      if (event.bucket !== bucket) continue;
+      if (event.incomingSymbol === null) {
+        pendingBySymbol.set(event.outgoingSymbol, event.timestamp);
+      } else {
+        pendingBySymbol.delete(event.outgoingSymbol);
+      }
+    }
+    return [...pendingBySymbol.entries()]
+      .sort((left, right) => left[1] - right[1] || left[0].localeCompare(right[0]))
+      .map(([symbol]) => this.managedEntries.get(symbol))
+      .filter((entry): entry is AutoWatchlistManagedEntry =>
+        entry?.bucket === bucket && entry.state === "standby",
+      )
+      .map((entry) => ({ ...entry }));
   }
 
   private replacementLimit(bucket: AutoWatchlistBucket): number {
@@ -1721,6 +1754,50 @@ export class AutoWatchlistSelector {
     }
   }
 
+  private async fetchNasdaqMarketMovers(): Promise<{
+    advanced: NasdaqMarketMoverRow[];
+    active: NasdaqMarketMoverRow[];
+  }> {
+    const url = new URL("https://api.nasdaq.com/api/marketmovers");
+    url.searchParams.set("assetclass", "stocks");
+    url.searchParams.set("limit", "50");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const response = await this.fetchImpl(url, {
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json,text/plain,*/*",
+          "Accept-Language": "en-US,en;q=0.9",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36",
+          Origin: "https://www.nasdaq.com",
+          Referer: "https://www.nasdaq.com/market-activity/most-active",
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`Nasdaq market-movers request failed (${response.status}).`);
+      }
+      const body = await response.json() as {
+        data?: {
+          STOCKS?: {
+            MostAdvanced?: { table?: { rows?: NasdaqMarketMoverRow[] } };
+            MostActiveByShareVolume?: { table?: { rows?: NasdaqMarketMoverRow[] } };
+          };
+        };
+      };
+      return {
+        advanced: Array.isArray(body.data?.STOCKS?.MostAdvanced?.table?.rows)
+          ? body.data.STOCKS.MostAdvanced.table.rows
+          : [],
+        active: Array.isArray(body.data?.STOCKS?.MostActiveByShareVolume?.table?.rows)
+          ? body.data.STOCKS.MostActiveByShareVolume.table.rows
+          : [],
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   private async fetchLiveExchangeCandidates(): Promise<AutoWatchlistDiscoveryCandidate[]> {
     const url = new URL("https://api.nasdaq.com/api/screener/stocks");
     url.searchParams.set("download", "true");
@@ -1745,7 +1822,7 @@ export class AutoWatchlistSelector {
         throw new Error("Live exchange screener did not return stock rows.");
       }
       this.liveExchangeDiscoveryAvailable = true;
-      const candidates = body.data.rows
+      const commonCandidates = body.data.rows
         .map(normalizeNasdaqRow)
         .filter((row) => row.isLikelyCommonEquity)
         .map((row): AutoWatchlistDiscoveryCandidate => ({
@@ -1759,13 +1836,48 @@ export class AutoWatchlistSelector {
           sourceScreens: ["live_exchange_gainers"],
         }))
         .filter((candidate) =>
-          candidate.price !== null &&
-          candidate.price >= this.thresholds.minPrice &&
-          candidate.price <= this.thresholds.maxPrice &&
-          (candidate.marketCap ?? Number.POSITIVE_INFINITY) <= this.thresholds.maxMarketCap &&
-          (candidate.volume ?? 0) >= this.thresholds.minVolume,
+          (candidate.marketCap ?? Number.POSITIVE_INFINITY) <= this.thresholds.maxMarketCap,
         );
+      const candidates = commonCandidates.filter((candidate) =>
+        candidate.price !== null &&
+        candidate.price >= this.thresholds.minPrice &&
+        candidate.price <= this.thresholds.maxPrice &&
+        (candidate.volume ?? 0) >= this.thresholds.minVolume,
+      );
       const session = autoWatchlistSessionForTimestamp(this.now());
+      const commonBySymbol = new Map(commonCandidates.map((candidate) => [candidate.symbol, candidate]));
+      const marketMoversBySymbol = new Map<string, AutoWatchlistDiscoveryCandidate>();
+      try {
+        const movers = await this.fetchNasdaqMarketMovers();
+        for (const [rows, source] of [
+          [movers.advanced, "nasdaq_live_most_advanced"],
+          [movers.active, "nasdaq_live_most_active"],
+        ] as const) {
+          for (const row of rows) {
+            const symbol = normalizeSymbol(String(row.symbol ?? ""));
+            const base = marketMoversBySymbol.get(symbol) ?? commonBySymbol.get(symbol);
+            if (!base) continue;
+            const moverPrice = finitePositive(Number(String(row.lastSalePrice ?? "").replace(/[^0-9.-]/g, "")));
+            const moverGain = source === "nasdaq_live_most_advanced"
+              ? finiteNumber(Number(String(row.change ?? "").replace(/[^0-9.-]/g, "")))
+              : null;
+            const moverVolume = source === "nasdaq_live_most_active"
+              ? finitePositive(Number(String(row.change ?? "").replace(/[^0-9.-]/g, "")))
+              : null;
+            marketMoversBySymbol.set(symbol, {
+              ...base,
+              price: moverPrice ?? base.price,
+              gainPct: moverGain ?? base.gainPct,
+              volume: moverVolume ?? base.volume,
+              sourceScreens: [...new Set([...base.sourceScreens, source])],
+            });
+          }
+        }
+      } catch (error) {
+        console.warn(
+          `[AutoWatchlistSelector] Nasdaq live market movers unavailable; using the regular screener fallback: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
       if (session === "premarket" || session === "postmarket") {
         const candidateLimit = this.thresholds.extendedSessionCandidateLimit;
         const byVolume = [...candidates]
@@ -1775,6 +1887,10 @@ export class AutoWatchlistSelector {
           .sort((left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0))
           .slice(0, candidateLimit);
         const extendedBySymbol = new Map<string, AutoWatchlistDiscoveryCandidate>();
+        for (const candidate of marketMoversBySymbol.values()) {
+          if (extendedBySymbol.size >= candidateLimit) break;
+          extendedBySymbol.set(candidate.symbol, candidate);
+        }
         let volumeIndex = 0;
         let gainIndex = 0;
         while (
@@ -1803,7 +1919,9 @@ export class AutoWatchlistSelector {
                   gainPct: activity.gainPct,
                   volume: activity.sessionVolume,
                   quoteTime: activity.quoteTime,
-                  sourceScreens: [`live_exchange_${session}_activity`],
+                  sourceScreens: [
+                    ...new Set([...candidate.sourceScreens, `live_exchange_${session}_activity`]),
+                  ],
                 }
               : candidate;
           })
@@ -1811,7 +1929,15 @@ export class AutoWatchlistSelector {
           .sort((left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0))
           .slice(0, 50);
       }
-      return candidates
+      const liveBySymbol = new Map(marketMoversBySymbol);
+      for (const candidate of [...candidates].sort(
+        (left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0),
+      )) {
+        if (!liveBySymbol.has(candidate.symbol)) {
+          liveBySymbol.set(candidate.symbol, candidate);
+        }
+      }
+      return [...liveBySymbol.values()]
         .filter((candidate) => (candidate.gainPct ?? 0) > 0)
         .sort((left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0))
         .slice(0, 50);
@@ -2155,12 +2281,24 @@ export class AutoWatchlistSelector {
           }
         }
 
+        const pendingDepartures = this.pendingReplacementDepartures(bucket);
+        const availableReplacementDepartures = [
+          ...pendingDepartures,
+          ...fadedDepartures.filter((departure) =>
+            !pendingDepartures.some((pending) => pending.symbol === departure.symbol),
+          ),
+        ];
+        const newlyFadedSymbols = new Set(fadedDepartures.map((departure) => departure.symbol));
         const usedChallengers = new Set<string>();
         let activeManagedCount = this.managedEntriesFor(bucket, "active").length;
         for (const decision of eligibleChallengers) {
           if (activeManagedCount >= this.activeSlotLimit(bucket)) break;
           const alreadyAdded = this.sessionAddedSet(bucket).has(decision.symbol);
-          const departure = fadedDepartures.shift();
+          const departureIndex = availableReplacementDepartures.findIndex(
+            (candidate) => candidate.symbol === decision.symbol,
+          );
+          const resolvedDepartureIndex = departureIndex >= 0 ? departureIndex : 0;
+          const departure = availableReplacementDepartures.splice(resolvedDepartureIndex, 1)[0];
           const isReplacement = Boolean(departure);
           if (
             !alreadyAdded &&
@@ -2173,7 +2311,7 @@ export class AutoWatchlistSelector {
             isReplacement &&
             this.replacementCount(bucket) >= this.replacementLimit(bucket)
           ) {
-            fadedDepartures.unshift(departure!);
+            availableReplacementDepartures.splice(resolvedDepartureIndex, 0, departure!);
             continue;
           }
           const reason = departure
@@ -2182,7 +2320,9 @@ export class AutoWatchlistSelector {
               ? "reactivated from standby after renewed qualification"
               : "filled an available automatic slot";
           if (!await this.activateManagedDecision(decision, bucket, scanStartedAt, reason)) {
-            if (departure) fadedDepartures.unshift(departure);
+            if (departure) {
+              availableReplacementDepartures.splice(resolvedDepartureIndex, 0, departure);
+            }
             continue;
           }
           usedChallengers.add(decision.symbol);
@@ -2197,7 +2337,9 @@ export class AutoWatchlistSelector {
             );
           }
         }
-        for (const departure of fadedDepartures) {
+        for (const departure of availableReplacementDepartures.filter((entry) =>
+          newlyFadedSymbols.has(entry.symbol),
+        )) {
           this.recordReplacement(
             bucket,
             null,

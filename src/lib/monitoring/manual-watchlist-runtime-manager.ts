@@ -3101,6 +3101,18 @@ export class ManualWatchlistRuntimeManager {
 
     this.setEntryOperation(symbol, "posting level snapshot");
     const payload = this.buildLevelSnapshotPayload(symbol, timestamp, referencePriceOverride);
+    if (payload.audit?.referencePriceSource === "live_price" && payload.currentPrice > 0) {
+      const entry = this.watchlistStore.getEntry(symbol);
+      const quoteTimestamp =
+        typeof entry?.lastPriceUpdateAt === "number" && Number.isFinite(entry.lastPriceUpdateAt)
+          ? entry.lastPriceUpdateAt
+          : payload.timestamp;
+      this.publishLiveTickerData({
+        symbol,
+        timestamp: quoteTimestamp,
+        lastPrice: payload.currentPrice,
+      }, { force: true });
+    }
     const snapshotKey = JSON.stringify({
       symbol: payload.symbol,
       supportZones: payload.supportZones,

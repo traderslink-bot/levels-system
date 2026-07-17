@@ -1655,6 +1655,7 @@ test("ManualWatchlistRuntimeManager anchors queued activation snapshot to stock 
   const levelStore = new LevelStore();
   const watchlistStore = new WatchlistStore();
   const discordAlertRouter = new FakeDiscordAlertRouter();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
   const nowSeconds = Math.floor(Date.now() / 1000);
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: {} as any,
@@ -1664,6 +1665,7 @@ test("ManualWatchlistRuntimeManager anchors queued activation snapshot to stock 
     opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
     watchlistStore,
     watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
     stockContextProvider: {
       async getThreadPreview(symbol: string) {
         return {
@@ -1737,6 +1739,12 @@ test("ManualWatchlistRuntimeManager anchors queued activation snapshot to stock 
   assert.equal(snapshot?.audit?.referencePriceSource, "live_price");
   assert.equal(snapshot?.audit?.metadataReferencePrice, 4.15);
   assert.equal(watchlistStore.getEntry("DGXX")?.lastPrice, 4.96);
+  assert.equal(
+    liveWatchlistPublisher.tickerDataPatches.some(
+      (patch) => patch.symbol === "DGXX" && patch.latestPrice === 4.96,
+    ),
+    true,
+  );
   assert.match(discordAlertRouter.routed[0]?.payload.body ?? "", /Current price: 4\.96 \(premarket\)/);
 });
 

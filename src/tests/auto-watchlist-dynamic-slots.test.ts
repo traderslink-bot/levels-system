@@ -213,6 +213,94 @@ test("a faded incumbent moves to standby and frees a full slot for a sustained r
   }
 });
 
+test("an unfilled faded slot remains a replacement opening across later scans and restart", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-pending-replacement-"));
+  const configPath = join(directory, "config.json");
+  writeConfig(configPath, {
+    symbols: ["OLD"],
+    thresholds: {
+      consecutivePassesRequired: 1,
+      maxAddsPerTradingDay: 1,
+      maxActiveMainSessionTickers: 1,
+      maxMainSessionReplacementsPerTradingDay: 3,
+      minimumAutoHoldMinutes: 0,
+      regularOpenProtectionMinutes: 0,
+      retentionFailureScansRequired: 1,
+      obviousRunnerOverrideEnabled: false,
+    },
+  });
+  const activeEntries = [automaticRuntimeEntry("OLD")];
+  let discoverySymbol = "OLD";
+  const activityLookup: AutoWatchlistSessionActivityLookup = async ({ symbols, session }) =>
+    Object.fromEntries(symbols.map((symbol) => [symbol, symbol === "OLD" ? {
+      symbol,
+      session,
+      price: 1,
+      gainPct: 1,
+      sessionVolume: 100_000,
+      sessionDollarVolume: 100_000,
+      recent15mVolume: 0,
+      recent15mDollarVolume: 0,
+      volumeAcceleration: 0.1,
+      quoteTime: Math.floor(NOW / 1000),
+      quoteAgeMinutes: 0,
+      available: true,
+    } : {
+      symbol,
+      session,
+      price: 2,
+      gainPct: 50,
+      sessionVolume: 2_000_000,
+      sessionDollarVolume: 4_000_000,
+      recent15mVolume: 300_000,
+      recent15mDollarVolume: 600_000,
+      volumeAcceleration: 3,
+      quoteTime: Math.floor(NOW / 1000),
+      quoteAgeMinutes: 0,
+      available: true,
+    }]));
+  const options = () => ({
+    yahooClient: null,
+    finnhubClient: FINNHUB,
+    fetchImpl: async () => screenerResponse([{ symbol: discoverySymbol, gain: discoverySymbol === "OLD" ? 1 : 50 }]),
+    configPath,
+    now: () => NOW,
+    getActiveSymbols: () => activeEntries.map((entry) => entry.symbol),
+    getActiveEntries: () => activeEntries,
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol, note }: { symbol: string; note?: string }) => {
+      activeEntries.push({ ...automaticRuntimeEntry(symbol), note });
+    },
+    deactivateSymbol: async (symbol: string) => {
+      const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
+      if (index >= 0) activeEntries.splice(index, 1);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: activityLookup,
+  });
+
+  try {
+    const firstSelector = new AutoWatchlistSelector(options());
+    const faded = await firstSelector.runNow({ activate: true });
+    firstSelector.stop();
+    assert.equal(activeEntries.length, 0);
+    assert.deepEqual(faded.pendingReplacementSymbols, ["OLD"]);
+    assert.equal(faded.recentReplacements[0]?.incomingSymbol, null);
+
+    discoverySymbol = "NEW";
+    const restartedSelector = new AutoWatchlistSelector(options());
+    const replaced = await restartedSelector.runNow({ activate: true });
+    restartedSelector.stop();
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["NEW"]);
+    assert.deepEqual(replaced.mainSessionAddedToday.sort(), ["NEW", "OLD"]);
+    assert.deepEqual(replaced.pendingReplacementSymbols, []);
+    assert.equal(replaced.recentReplacements[0]?.incomingSymbol, "NEW");
+    assert.equal(replaced.recentReplacements[0]?.outgoingSymbol, "OLD");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("manual entries are pinned outside the automatic active-slot limit", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-manual-"));
   const activeEntries: RuntimeEntry[] = [{
