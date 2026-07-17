@@ -20,6 +20,11 @@ import {
   newYorkDateTimeParts,
   usEquitySessionStartMinutes,
 } from "../market-data/us-equity-exchange-calendar.js";
+import {
+  EodhdCommonStockSecurityMaster,
+  type CommonEquitySecurityMasterLookup,
+  type CommonEquitySecurityMasterStatus,
+} from "./eodhd-common-stock-security-master.js";
 
 type FetchLike = typeof fetch;
 
@@ -140,6 +145,7 @@ export type AutoWatchlistDiscoveryCandidate = {
   marketCap: number | null;
   quoteTime: number | null;
   sourceScreens: string[];
+  securityMasterStatus?: CommonEquitySecurityMasterStatus;
 };
 
 export type AutoWatchlistCandidateDecision = AutoWatchlistDiscoveryCandidate & {
@@ -220,6 +226,10 @@ export type AutoWatchlistSelectorStatus = {
     finnhubOutstandingAvailable: boolean;
     pressReleaseCatalystAvailable: boolean;
     sessionActivityAvailable: boolean;
+    commonEquitySecurityMasterEnabled: boolean;
+    commonEquitySecurityMasterAvailable: boolean;
+    commonEquitySecurityMasterCheckedAt: number | null;
+    commonEquitySecurityMasterCacheUsed: boolean | null;
   };
   lastScanAt: number | null;
   lastScanCompletedAt: number | null;
@@ -233,6 +243,7 @@ export type AutoWatchlistSelectorStatus = {
   lastDiscoveryError: string | null;
   lastCatalystLookupError: string | null;
   lastActivityLookupError: string | null;
+  lastSecurityMasterError: string | null;
   tradingDay: string | null;
   addedToday: string[];
   mainSessionAddedToday: string[];
@@ -287,6 +298,8 @@ type AutoWatchlistSelectorOptions = {
   now?: () => number;
   catalystLookup?: typeof lookupLocalPressReleaseCatalystArticles;
   sessionActivityLookup?: AutoWatchlistSessionActivityLookup;
+  securityMasterLookup?: CommonEquitySecurityMasterLookup;
+  requireVerifiedCommonEquity?: boolean;
 };
 
 export type AutoWatchlistSession = "premarket" | "regular" | "postmarket" | "closed";
@@ -813,6 +826,13 @@ export function scoreAutoWatchlistCandidate(input: {
   if (!candidate.marketCap || candidate.marketCap > thresholds.maxMarketCap) {
     rejectionReasons.push(`market cap must be known and at most $${Math.round(thresholds.maxMarketCap / 1_000_000)}M`);
   }
+  if (candidate.securityMasterStatus && candidate.securityMasterStatus !== "verified_common_stock") {
+    rejectionReasons.push(
+      candidate.securityMasterStatus === "unavailable"
+        ? "authoritative common-equity verification is unavailable"
+        : "authoritative security master did not verify common stock",
+    );
+  }
   if (!candidate.gainPct || candidate.gainPct < thresholds.minGainPct) {
     rejectionReasons.push(`gain must be at least ${thresholds.minGainPct}%`);
   }
@@ -990,6 +1010,8 @@ export class AutoWatchlistSelector {
   private readonly fetchImpl: FetchLike;
   private readonly catalystLookup: typeof lookupLocalPressReleaseCatalystArticles;
   private readonly sessionActivityLookup: AutoWatchlistSessionActivityLookup;
+  private readonly securityMasterLookup: CommonEquitySecurityMasterLookup;
+  private readonly requireVerifiedCommonEquity: boolean;
   private readonly configPath: string;
   private thresholds: AutoWatchlistSelectorThresholds;
   private readonly now: () => number;
@@ -1012,6 +1034,10 @@ export class AutoWatchlistSelector {
   private pressReleaseCatalystAvailable = false;
   private sessionActivityAvailable = false;
   private lastActivityLookupError: string | null = null;
+  private commonEquitySecurityMasterAvailable = false;
+  private commonEquitySecurityMasterCheckedAt: number | null = null;
+  private commonEquitySecurityMasterCacheUsed: boolean | null = null;
+  private lastSecurityMasterError: string | null = null;
   private tradingDay: string | null = null;
   private readonly mainSessionAddedToday = new Set<string>();
   private readonly postmarketAddedToday = new Set<string>();
@@ -1034,6 +1060,17 @@ export class AutoWatchlistSelector {
       ...options.thresholds,
     });
     this.now = options.now ?? Date.now;
+    this.requireVerifiedCommonEquity = options.requireVerifiedCommonEquity ?? Boolean(
+      process.env.EODHD_API_TOKEN?.trim() || process.env.LEVEL_EODHD_API_TOKEN?.trim(),
+    );
+    this.securityMasterLookup = options.securityMasterLookup ?? (() => {
+      const master = new EodhdCommonStockSecurityMaster({
+        cachePath: join(dirname(this.configPath), "eodhd-common-stock-security-master.json"),
+        fetchImpl: this.fetchImpl,
+        now: this.now,
+      });
+      return master.verifySymbols.bind(master);
+    })();
     this.enabled = persistedConfig?.enabled ?? false;
     this.tradingDay = persistedConfig?.tradingDay ?? null;
     for (const symbol of persistedConfig?.mainSessionAddedToday ?? persistedConfig?.addedToday ?? []) {
@@ -1198,6 +1235,10 @@ export class AutoWatchlistSelector {
         finnhubOutstandingAvailable: this.options.finnhubClient !== null,
         pressReleaseCatalystAvailable: this.pressReleaseCatalystAvailable,
         sessionActivityAvailable: this.sessionActivityAvailable,
+        commonEquitySecurityMasterEnabled: this.requireVerifiedCommonEquity,
+        commonEquitySecurityMasterAvailable: this.commonEquitySecurityMasterAvailable,
+        commonEquitySecurityMasterCheckedAt: this.commonEquitySecurityMasterCheckedAt,
+        commonEquitySecurityMasterCacheUsed: this.commonEquitySecurityMasterCacheUsed,
       },
       lastScanAt: this.lastScanAt,
       lastScanCompletedAt: this.lastScanCompletedAt,
@@ -1211,6 +1252,7 @@ export class AutoWatchlistSelector {
       lastDiscoveryError: this.lastDiscoveryError,
       lastCatalystLookupError: this.lastCatalystLookupError,
       lastActivityLookupError: this.lastActivityLookupError,
+      lastSecurityMasterError: this.lastSecurityMasterError,
       tradingDay: this.tradingDay,
       addedToday: [...this.mainSessionAddedToday, ...this.postmarketAddedToday],
       mainSessionAddedToday: [...this.mainSessionAddedToday],
@@ -2234,6 +2276,31 @@ export class AutoWatchlistSelector {
       const activities = await this.lookupSessionActivities(enrichmentCandidates, session, scanStartedAt);
       const referenceDate = easternParts(scanStartedAt).date;
       const catalystContexts = await this.lookupCatalysts(enrichmentCandidates, referenceDate);
+      const securityMasterBySymbol = new Map<string, CommonEquitySecurityMasterStatus>();
+      if (this.requireVerifiedCommonEquity) {
+        try {
+          const securityMaster = await this.securityMasterLookup({
+            symbols: enrichmentCandidates.map((candidate) => candidate.symbol),
+          });
+          this.commonEquitySecurityMasterAvailable = securityMaster.available;
+          this.commonEquitySecurityMasterCheckedAt = securityMaster.checkedAt;
+          this.commonEquitySecurityMasterCacheUsed = securityMaster.cacheUsed;
+          this.lastSecurityMasterError = securityMaster.error;
+          for (const [symbol, verification] of Object.entries(securityMaster.bySymbol)) {
+            securityMasterBySymbol.set(normalizeSymbol(symbol), verification.status);
+          }
+        } catch (error) {
+          this.commonEquitySecurityMasterAvailable = false;
+          this.commonEquitySecurityMasterCheckedAt = this.now();
+          this.commonEquitySecurityMasterCacheUsed = false;
+          this.lastSecurityMasterError = error instanceof Error ? error.message : String(error);
+        }
+      } else {
+        this.commonEquitySecurityMasterAvailable = false;
+        this.commonEquitySecurityMasterCheckedAt = null;
+        this.commonEquitySecurityMasterCacheUsed = null;
+        this.lastSecurityMasterError = null;
+      }
       const decisions: AutoWatchlistCandidateDecision[] = [];
       for (const candidate of enrichmentCandidates) {
         const activity = activities.get(candidate.symbol) ?? null;
@@ -2246,8 +2313,14 @@ export class AutoWatchlistSelector {
               quoteTime: activity.quoteTime ?? candidate.quoteTime,
             }
           : candidate;
+        const verifiedSessionCandidate = this.requireVerifiedCommonEquity
+          ? {
+              ...sessionCandidate,
+              securityMasterStatus: securityMasterBySymbol.get(candidate.symbol) ?? "unavailable" as const,
+            }
+          : sessionCandidate;
         decisions.push(await this.enrichAndScore(
-          sessionCandidate,
+          verifiedSessionCandidate,
           activate,
           catalystContexts.get(candidate.symbol) ?? derivePressReleaseCatalystContext({
             symbol: candidate.symbol,

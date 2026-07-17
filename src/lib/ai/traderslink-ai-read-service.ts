@@ -346,7 +346,7 @@ Interpretation contract:
 - targets are ordered upside continuation checkpoints after breakout confirmation. downsideCheckpoints are ordered lower structural areas exposed after momentumFailure. Include the meaningful lower areas a day trader would need if the long thesis fails, such as $1.20 then $1.05; do not bury those prices only in prose. These are scenario checkpoints, not predictions. The final upside target should be above the supplied current price and the final downside checkpoint below it whenever evidence supports a usable mapped range; do not return an already-crossed price as the outer edge of a fresh map.
 - Compare the current-session high with material highs and supply from the immediately preceding regular and after-hours sessions. Do not automatically stop the upside map at today's premarket high when a recent prior-session high remains a practical outer checkpoint, and do not mechanically include an obsolete isolated spike. If the nearer current-session high is the better final target, explain from the tape why the higher prior-session boundary is not presently actionable.
 - Distinguish a real catalyst from catalyst-free momentum. Do not treat an announced transaction valuation as guaranteed value for current shares.
-- Separate Catalyst Reality Check, Dilution Risk, and Listing Status. Every material factual claim in those three objects must include the exact URL of at least one source actually used. If evidence is absent, mark it unverified or unknown instead of filling gaps.
+- Separate Catalyst Reality Check, Dilution Risk, and Listing Status. Every material factual claim in those three objects must include the exact URL of at least one source actually used. The supplied database records include a source excerpt/title, publication metadata, retrieval time, and a limited-window supersession status: never claim facts beyond that record's explicit excerpt/title. If evidence is absent, mark it unverified or unknown instead of filling gaps.
 - For dilution research, prioritize current official SEC filings and issuer releases. Check, when relevant, recent 424B prospectuses, S-1/F-1 and S-3/F-3 registrations, EFFECT notices, 8-K/6-K reports, ATM or equity-line agreements, warrant and convertible terms, shareholder approvals, and merger closing conditions.
 - Dilution has two separate clocks. companyIssuance is when the issuer can add shares to the cap table. publicResale is when those shares can become freely sellable into the public market. Do not collapse these clocks or describe a registration statement, shelf capacity, announced deal, authorized shares, or immediately exercisable warrant as proof that shares were actually issued or sold.
 - For a registered public or direct offering, company issuance normally follows the source-backed closing or settlement; public resale can be immediate only when the source supports registered freely tradeable issuance. For a private placement, issuance can occur at closing while public resale may require an effective resale registration statement or an exemption. For an ATM, shelf, or equity line, available capacity is conditional until a sale or purchase trigger occurs. Warrants and convertibles require exercise or conversion. Merger consideration shares require closing/effective time and satisfaction of closing conditions. Respect lockups and resale restrictions.
@@ -483,7 +483,7 @@ function sourceTextForUrl(url: string, sources: TradersLinkAiReadSource[]): stri
   }
   return sources
     .filter((source) => canonicalizeUrl(source.url) === canonical)
-    .map((source) => `${source.title} ${source.url}`)
+    .map((source) => `${source.title} ${source.evidence?.supportingExcerpt ?? ""} ${source.evidence?.filingType ?? ""} ${source.url}`)
     .join(" ");
 }
 
@@ -551,6 +551,12 @@ function normalizeIsoDate(value: unknown): string | null {
   return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value
     ? value
     : null;
+}
+
+function normalizeIsoTimestamp(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
 }
 
 function normalizeDilutionTimingLane(
@@ -960,7 +966,7 @@ function isPrimaryListingEvidence(value: string): boolean {
   );
 }
 
-function extractWebSources(payload: ResponsesApiResponse): TradersLinkAiReadSource[] {
+function extractWebSources(payload: ResponsesApiResponse, retrievedAt: string): TradersLinkAiReadSource[] {
   const sources: TradersLinkAiReadSource[] = [];
   for (const item of payload.output ?? []) {
     for (const source of item.action?.sources ?? []) {
@@ -972,6 +978,14 @@ function extractWebSources(payload: ResponsesApiResponse): TradersLinkAiReadSour
         title: normalizeText(source.title, new URL(url).hostname),
         url,
         sourceType: "web_search",
+        evidence: {
+          publishedAt: null,
+          filingType: null,
+          retrievedAt,
+          supportingExcerpt: normalizeText(source.title, new URL(url).hostname),
+          excerptKind: "web_search_title",
+          supersessionStatus: "not_checked",
+        },
       });
     }
     for (const content of item.content ?? []) {
@@ -987,6 +1001,14 @@ function extractWebSources(payload: ResponsesApiResponse): TradersLinkAiReadSour
           title: normalizeText(annotation.title, new URL(url).hostname),
           url,
           sourceType: "web_search",
+          evidence: {
+            publishedAt: null,
+            filingType: null,
+            retrievedAt,
+            supportingExcerpt: normalizeText(annotation.title, new URL(url).hostname),
+            excerptKind: "web_search_title",
+            supersessionStatus: "not_checked",
+          },
         });
       }
     }
@@ -999,24 +1021,40 @@ function databaseSources(research: RecentWebsiteArticleLookupResult): TradersLin
     const sourceUrls = [article.sourceUrl, article.url]
       .map(normalizeUrl)
       .filter((url): url is string => Boolean(url));
+    const supportingExcerpt = normalizeText(article.summary, article.title);
     return sourceUrls.map((url) => ({
       title: article.title,
       url,
       sourceType: "press_release_sec_database" as const,
+      evidence: {
+        publishedAt: normalizeIsoTimestamp(article.publishedAt) ?? null,
+        filingType: normalizeText(article.filingType, "") || null,
+        retrievedAt: normalizeIsoTimestamp(research.generatedAt) ?? null,
+        supportingExcerpt,
+        excerptKind: article.summary ? "article_summary" as const : "article_title" as const,
+        // The lookup deduplicates each original source URL to its most recent
+        // website article inside the configured research window.
+        supersessionStatus: "latest_in_retrieved_window" as const,
+      },
     }));
   });
 }
 
 function dedupeSources(sources: TradersLinkAiReadSource[]): TradersLinkAiReadSource[] {
-  const seen = new Set<string>();
-  return sources.filter((source) => {
+  const byUrl = new Map<string, TradersLinkAiReadSource>();
+  for (const source of sources) {
     const key = canonicalizeUrl(source.url) ?? source.url;
-    if (seen.has(key)) {
-      return false;
+    const existing = byUrl.get(key);
+    const evidenceRank = (value: TradersLinkAiReadSource): number =>
+      value.evidence?.excerptKind === "article_summary" ? 3
+        : value.evidence?.excerptKind === "article_title" ? 2
+          : value.evidence?.excerptKind === "web_search_title" ? 1
+            : 0;
+    if (!existing || evidenceRank(source) > evidenceRank(existing)) {
+      byUrl.set(key, source);
     }
-    seen.add(key);
-    return true;
-  });
+  }
+  return [...byUrl.values()];
 }
 
 function selectPayloadSources(
@@ -1183,6 +1221,7 @@ function compactResearch(research: RecentWebsiteArticleLookupResult): Record<str
       filingType: article.filingType ?? null,
       articleUrl: article.url,
       originalSourceUrl: article.sourceUrl ?? null,
+      sourceSummary: article.summary ?? null,
     })),
   };
 }
@@ -1456,7 +1495,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     };
     let availableSources = dedupeSources([
       ...databaseSources(input.research),
-      ...extractWebSources(response),
+      ...extractWebSources(response, new Date().toISOString()),
     ]);
     try {
       read = applyQuoteDisagreementGuard(
@@ -1490,7 +1529,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       text = extractResponseText(response);
       availableSources = dedupeSources([
         ...availableSources,
-        ...extractWebSources(response),
+        ...extractWebSources(response, new Date().toISOString()),
       ]);
       try {
         read = applyQuoteDisagreementGuard(

@@ -23,6 +23,7 @@ export type RecentWebsiteArticle = {
   filingType?: string;
   sourceUrl?: string;
   observedAt?: string;
+  summary?: string;
 };
 
 export type RecentWebsiteArticleLookupResult = {
@@ -82,6 +83,7 @@ function normalizeArticle(value: unknown, fallbackTicker: string): RecentWebsite
     filingType: normalizeOptionalString(candidate.filingType),
     sourceUrl: normalizeOptionalString(candidate.sourceUrl),
     observedAt: normalizeOptionalString(candidate.observedAt),
+    summary: normalizeOptionalString(candidate.summary),
   };
 }
 

@@ -92,6 +92,26 @@ test("auto selector rejects candidates over the $100M default market-cap ceiling
   assert.match(result.rejectionReasons.join(" "), /at most \$100M/);
 });
 
+test("automatic selection rejects a ticker that an authoritative security master cannot verify as common stock", () => {
+  const result = scoreAutoWatchlistCandidate({
+    candidate: { ...BASE_CANDIDATE, securityMasterStatus: "not_found" },
+    floatShares: 4_500_000,
+  });
+
+  assert.equal(result.qualified, false);
+  assert.match(result.rejectionReasons.join(" "), /security master did not verify common stock/i);
+});
+
+test("automatic selection fails closed when authoritative common-equity verification is unavailable", () => {
+  const result = scoreAutoWatchlistCandidate({
+    candidate: { ...BASE_CANDIDATE, securityMasterStatus: "unavailable" },
+    floatShares: 4_500_000,
+  });
+
+  assert.equal(result.qualified, false);
+  assert.match(result.rejectionReasons.join(" "), /common-equity verification is unavailable/i);
+});
+
 test("current enrichment market cap overrides a stale smaller discovery cap", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-market-cap-authority-"));
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({

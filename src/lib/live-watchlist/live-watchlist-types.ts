@@ -127,10 +127,20 @@ export type TradersLinkAiReadTarget = {
   condition: string;
 };
 
+export type TradersLinkAiReadSourceEvidence = {
+  publishedAt: string | null;
+  filingType: string | null;
+  retrievedAt: string | null;
+  supportingExcerpt: string | null;
+  excerptKind: "article_summary" | "article_title" | "web_search_title";
+  supersessionStatus: "latest_in_retrieved_window" | "not_checked";
+};
+
 export type TradersLinkAiReadSource = {
   title: string;
   url: string;
   sourceType: "press_release_sec_database" | "web_search";
+  evidence?: TradersLinkAiReadSourceEvidence;
 };
 
 export type TradersLinkAiReadCatalystStatus =

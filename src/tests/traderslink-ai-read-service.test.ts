@@ -268,12 +268,15 @@ describe("OpenAITradersLinkAiReadService", () => {
       research: {
         ticker: "TGHL",
         businessDays: 5,
+        generatedAt: "2026-07-15T20:31:00.000Z",
         count: 1,
         articles: [{
           ticker: "TGHL",
           title: "TGHL files merger and financing 8-K",
+          summary: "The Form 8-K describes the merger consideration and related financing terms.",
           url: "https://traderslink.pro/news/tghl-current-report",
           sourceUrl: "https://www.sec.gov/Archives/example",
+          publishedAt: "2026-07-15T19:45:00.000Z",
           filingType: "8-K",
         }],
       },
@@ -295,6 +298,13 @@ describe("OpenAITradersLinkAiReadService", () => {
       2,
     );
     assert.equal(read.sources.filter((source) => source.sourceType === "web_search").length, 1);
+    const filingSource = read.sources.find((source) => source.url === "https://www.sec.gov/Archives/example");
+    assert.ok(filingSource?.evidence);
+    assert.equal(filingSource.evidence?.excerptKind, "article_summary");
+    assert.equal(filingSource.evidence?.publishedAt, "2026-07-15T19:45:00.000Z");
+    assert.equal(filingSource.evidence?.retrievedAt, "2026-07-15T20:31:00.000Z");
+    assert.match(filingSource.evidence?.supportingExcerpt ?? "", /merger consideration/i);
+    assert.equal(filingSource.evidence?.supersessionStatus, "latest_in_retrieved_window");
     assert.equal(read.version, 2);
     assert.equal(read.breakoutContinuation.price, 1.68);
     assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), [1.12, 1.05]);
