@@ -7,7 +7,9 @@ import {
   OpenAITradersLinkAiReadService,
 } from "../lib/ai/traderslink-ai-read-service.js";
 import {
+  buildTradersLinkAiCompletedSessionWindow,
   buildTradersLinkAiPriceActionPacket,
+  mergeTradersLinkAiIntradayCandles,
   type TradersLinkAiReadPriceActionContext,
 } from "../lib/ai/traderslink-ai-read-price-action.js";
 
@@ -133,6 +135,40 @@ function modelRead(): Record<string, unknown> {
 }
 
 describe("TradersLink AI price-action volume quality", () => {
+  it("replaces completed-session Yahoo bars with EODHD while keeping today's Yahoo bars", () => {
+    const priorOpen = Date.parse("2026-07-16T20:00:00.000Z");
+    const priorClose = Date.parse("2026-07-16T23:55:00.000Z");
+    const currentBar = Date.parse("2026-07-17T14:00:00.000Z");
+    const dataAsOf = Date.parse("2026-07-17T15:00:00.000Z");
+    const candle = (timestamp: number, close: number, volume: number) => ({
+      timestamp,
+      open: close,
+      high: close,
+      low: close,
+      close,
+      volume,
+    });
+    const yahoo = [
+      candle(priorOpen, 1.35, 0),
+      candle(priorClose, 1.46, 0),
+      candle(currentBar, 1.52, 25_000),
+    ];
+    const eodhd = [
+      candle(priorOpen, 1.35, 10_000),
+      candle(priorClose, 1.46, 2_700_000),
+    ];
+
+    assert.deepEqual(buildTradersLinkAiCompletedSessionWindow(yahoo, dataAsOf), {
+      currentSessionDate: "2026-07-17",
+      fromTimeMs: priorOpen,
+      toTimeMs: priorClose + 5 * 60_000,
+    });
+    const merged = mergeTradersLinkAiIntradayCandles(yahoo, eodhd, dataAsOf);
+    assert.equal(merged.find((item) => item.timestamp === priorOpen)?.volume, 10_000);
+    assert.equal(merged.find((item) => item.timestamp === priorClose)?.volume, 2_700_000);
+    assert.equal(merged.find((item) => item.timestamp === currentBar)?.volume, 25_000);
+  });
+
   it("treats a provider zero placeholder as unavailable volume", () => {
     const context = priceAction();
     context.intradayCandles.at(-1)!.volume = 0;

@@ -499,6 +499,62 @@ class DuplicateOneMinuteFallbackCandleFetchService extends StaticRecentIntradayC
   }
 }
 
+test("ManualWatchlistRuntimeManager blends EODHD completed sessions with Yahoo current-session candles for AI reads", async () => {
+  const historicalRequests: any[] = [];
+  const historicalLoader = async (request: any) => {
+    historicalRequests.push({ ...request });
+    const timeframe = request.timeframes[0];
+    const timestamp = timeframe === "daily"
+      ? request.toTimeMs - 24 * 60 * 60 * 1_000
+      : request.fromTimeMs;
+    const candles = [{
+      timestamp,
+      open: 1.4,
+      high: 1.5,
+      low: 1.35,
+      close: 1.46,
+      volume: timeframe === "daily" ? 888_000 : 777_000,
+    }];
+    return {
+      symbol: request.symbol,
+      fromTimeMs: request.fromTimeMs,
+      toTimeMs: request.toTimeMs,
+      generatedAt: Date.now(),
+      series: [{
+        timeframe,
+        provider: "eodhd",
+        selectionReason: "historical_or_daily_window",
+        requestedStartTimestamp: request.fromTimeMs,
+        requestedEndTimestamp: request.toTimeMs,
+        candles,
+        response: { provider: "eodhd" },
+      }],
+    };
+  };
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    recentIntradayCandleFetchService: new StaticRecentIntradayCandleFetchService() as any,
+    tradersLinkAiReadHistoricalCandleLoader: historicalLoader,
+  });
+
+  const context = await (manager as any).buildTradersLinkAiReadPriceActionContext(
+    "GLXG",
+    Date.now(),
+  );
+
+  assert.deepEqual(
+    historicalRequests.map((request) => request.timeframes[0]).sort(),
+    ["5m", "daily"],
+  );
+  assert.match(context.source, /yahoo current-session \+ eodhd completed-session OHLCV/);
+  assert.ok(context.intradayCandles.some((candle: Candle) => candle.volume === 777_000));
+  assert.ok(context.dailyCandles.some((candle: Candle) => candle.volume === 888_000));
+});
+
 test("ManualWatchlistRuntimeManager polls Yahoo recent intraday candles for pullback trader reads", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();

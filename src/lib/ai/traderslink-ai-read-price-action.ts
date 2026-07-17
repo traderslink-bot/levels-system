@@ -19,6 +19,12 @@ export type TradersLinkAiReadReferenceQuote = {
   source: string;
 };
 
+export type TradersLinkAiCompletedSessionWindow = {
+  currentSessionDate: string;
+  fromTimeMs: number;
+  toTimeMs: number;
+};
+
 type CompactPriceActionBar = {
   timestamp: number;
   timestampIso: string;
@@ -69,6 +75,45 @@ function normalizeCandles(candles: Candle[], dataAsOf: number): Candle[] {
     }
   }
   return [...byTimestamp.values()].sort((left, right) => left.timestamp - right.timestamp);
+}
+
+export function buildTradersLinkAiCompletedSessionWindow(
+  recentCandles: Candle[],
+  dataAsOf: number,
+): TradersLinkAiCompletedSessionWindow | null {
+  const currentSessionDate = classifyIntradayCandleTimestamp(dataAsOf).sessionDate;
+  const completedSessionCandles = normalizeCandles(recentCandles, dataAsOf)
+    .filter((candle) => {
+      const classified = classifyIntradayCandleTimestamp(candle.timestamp);
+      return classified.sessionDate !== currentSessionDate &&
+        classified.session !== "extended";
+    });
+  if (completedSessionCandles.length === 0) {
+    return null;
+  }
+  return {
+    currentSessionDate,
+    fromTimeMs: completedSessionCandles[0]!.timestamp,
+    toTimeMs: completedSessionCandles.at(-1)!.timestamp + 5 * 60 * 1_000,
+  };
+}
+
+export function mergeTradersLinkAiIntradayCandles(
+  recentCandles: Candle[],
+  completedSessionCandles: Candle[],
+  dataAsOf: number,
+): Candle[] {
+  const currentSessionDate = classifyIntradayCandleTimestamp(dataAsOf).sessionDate;
+  const merged = new Map<number, Candle>();
+  for (const candle of normalizeCandles(recentCandles, dataAsOf)) {
+    merged.set(candle.timestamp, candle);
+  }
+  for (const candle of normalizeCandles(completedSessionCandles, dataAsOf)) {
+    if (classifyIntradayCandleTimestamp(candle.timestamp).sessionDate !== currentSessionDate) {
+      merged.set(candle.timestamp, candle);
+    }
+  }
+  return [...merged.values()].sort((left, right) => left.timestamp - right.timestamp);
 }
 
 function roundPrice(value: number): number {

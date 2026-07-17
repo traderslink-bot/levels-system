@@ -3,6 +3,10 @@ import { dirname } from "node:path";
 
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import type { Candle, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
+import type {
+  BuildTradeCandleContextRequest,
+  TradeCandleContext,
+} from "../market-data/trade-candle-context.js";
 import { LevelEngine } from "../levels/level-engine.js";
 import { resolveLevelRuntimeSettings } from "../levels/level-runtime-mode.js";
 import type { FinalLevelZone, LevelEngineOutput } from "../levels/level-types.js";
@@ -23,7 +27,11 @@ import {
 } from "../alerts/alert-router.js";
 import type { TraderCommentaryService } from "../ai/trader-commentary-service.js";
 import type { TradersLinkAiReadService } from "../ai/traderslink-ai-read-service.js";
-import type { TradersLinkAiReadPriceActionContext } from "../ai/traderslink-ai-read-price-action.js";
+import {
+  buildTradersLinkAiCompletedSessionWindow,
+  mergeTradersLinkAiIntradayCandles,
+  type TradersLinkAiReadPriceActionContext,
+} from "../ai/traderslink-ai-read-price-action.js";
 import type {
   TradersLinkAiReadCostLedger,
   TradersLinkAiReadCostTrigger,
@@ -228,6 +236,9 @@ export type ManualWatchlistRuntimeManagerOptions = {
   pullbackReadEnabled?: boolean;
   pullbackReadPollIntervalMs?: number;
   recentIntradayCandleFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName"> | null;
+  tradersLinkAiReadHistoricalCandleLoader?: (
+    request: BuildTradeCandleContextRequest,
+  ) => Promise<TradeCandleContext>;
   recentWebsiteArticlesExecFileImpl?: RecentWebsiteArticleExecFile;
   pressReleaseCatalystContextEnabled?: boolean;
   pressReleaseCatalystExecFileImpl?: PressReleaseCatalystExecFile;
@@ -2630,7 +2641,9 @@ export class ManualWatchlistRuntimeManager {
     );
     let dailyCandles = normalizePullbackCandles(storedSeries?.daily.candles ?? []);
     let source = this.technicalContextProviderBySymbol.get(symbol) ?? "runtime raw OHLCV";
+    let recentIntradayProvider = source;
     const service = this.options.recentIntradayCandleFetchService;
+    const historicalLoader = this.options.tradersLinkAiReadHistoricalCandleLoader;
     const fetchAsOf = Math.max(dataAsOf, Date.now());
 
     if (service) {
@@ -2654,6 +2667,7 @@ export class ManualWatchlistRuntimeManager {
         const fetchedIntraday = normalizePullbackCandles(intradayResult.value.candles);
         if (fetchedIntraday.length > 0) {
           intradayCandles = fetchedIntraday;
+          recentIntradayProvider = intradayResult.value.provider;
           source = `${intradayResult.value.provider} full-session OHLCV`;
         }
       }
@@ -2662,6 +2676,72 @@ export class ManualWatchlistRuntimeManager {
         if (fetchedDaily.length > 0) {
           dailyCandles = fetchedDaily;
         }
+      }
+    }
+
+    if (historicalLoader) {
+      const completedWindow = buildTradersLinkAiCompletedSessionWindow(
+        intradayCandles,
+        fetchAsOf,
+      );
+      const completedIntradayPromise = completedWindow
+        ? historicalLoader({
+            symbol,
+            fromTimeMs: completedWindow.fromTimeMs,
+            toTimeMs: completedWindow.toTimeMs,
+            timeframes: ["5m"],
+            nowMs: fetchAsOf,
+          })
+        : Promise.resolve(null);
+      const dailyPromise = historicalLoader({
+        symbol,
+        fromTimeMs: fetchAsOf - 120 * 24 * 60 * 60 * 1_000,
+        toTimeMs: fetchAsOf,
+        timeframes: ["daily"],
+        nowMs: fetchAsOf,
+      });
+      const [completedIntradayResult, historicalDailyResult] = await Promise.allSettled([
+        completedIntradayPromise,
+        dailyPromise,
+      ]);
+
+      if (completedIntradayResult.status === "fulfilled" && completedIntradayResult.value) {
+        const historicalSeries = completedIntradayResult.value.series.find(
+          (series) => series.timeframe === "5m",
+        );
+        const historicalCandles = normalizePullbackCandles(historicalSeries?.candles ?? []);
+        if (historicalSeries && historicalCandles.length > 0) {
+          intradayCandles = mergeTradersLinkAiIntradayCandles(
+            intradayCandles,
+            historicalCandles,
+            fetchAsOf,
+          );
+          source = `${recentIntradayProvider} current-session + ${historicalSeries.provider} completed-session OHLCV`;
+        }
+      } else if (completedIntradayResult.status === "rejected") {
+        const message = completedIntradayResult.reason instanceof Error
+          ? completedIntradayResult.reason.message
+          : String(completedIntradayResult.reason);
+        console.warn(
+          `[TradersLinkAiRead] Completed-session candle lookup failed for ${symbol}; using recent-provider history: ${message}`,
+        );
+      }
+
+      if (historicalDailyResult.status === "fulfilled") {
+        const dailySeries = historicalDailyResult.value.series.find(
+          (series) => series.timeframe === "daily",
+        );
+        const historicalDailyCandles = normalizePullbackCandles(dailySeries?.candles ?? []);
+        if (historicalDailyCandles.length > 0) {
+          dailyCandles = historicalDailyCandles;
+        }
+      } else {
+        const message = historicalDailyResult.reason instanceof Error
+          ? historicalDailyResult.reason.message
+          : String(historicalDailyResult.reason);
+        console.warn(
+          `[TradersLinkAiRead] Historical daily candle lookup failed for ${symbol}; using Yahoo daily fallback: ${message}`,
+        );
       }
     }
 

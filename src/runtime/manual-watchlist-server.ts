@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { createHistoricalCandleProvider } from "../lib/market-data/provider-factory.js";
 import { YahooHistoricalCandleProvider } from "../lib/market-data/yahoo-historical-candle-provider.js";
+import { buildTradeCandleContext } from "../lib/market-data/trade-candle-context.js";
 import {
   ValidationCachedCandleFetchService,
   resolveValidationCandleCacheMode,
@@ -869,6 +870,7 @@ async function main(): Promise<void> {
     ),
     pullbackReadEnabled,
     recentIntradayCandleFetchService,
+    tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
     autoCleanReadGenerator: aiCleanReadService
       ? async (input) => {
           const result = await aiCleanReadService.generateCleanRead(input);
