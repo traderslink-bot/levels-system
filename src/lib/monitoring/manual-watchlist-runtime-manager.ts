@@ -108,6 +108,7 @@ import type {
   MonitoringEvent,
   PracticalTradeStructureState,
   RuntimeMarketStructureSnapshot,
+  TradersLinkAiReadBoundary,
   TradersLinkAiReadBoundaryState,
   WatchlistEntry,
   WatchlistLifecycleState,
@@ -266,8 +267,11 @@ export function buildTradersLinkAiReadRefreshState(
     TradersLinkAiReadPayload,
     | "generatedAt"
     | "currentPrice"
+    | "needsToHold"
+    | "cautionBelow"
     | "breakoutContinuation"
     | "momentumFailure"
+    | "mustClear"
     | "targets"
     | "downsideCheckpoints"
   >,
@@ -282,11 +286,37 @@ export function buildTradersLinkAiReadRefreshState(
     read.momentumFailure.price,
     ...read.downsideCheckpoints.map((checkpoint) => checkpoint.price),
   ].map(positivePrice).filter((price): price is number => price !== null);
+  const primaryBoundaries: TradersLinkAiReadBoundary[] = [
+    { role: "needsToHold", side: "downside", impact: "hold", price: read.needsToHold.price },
+    { role: "cautionBelow", side: "downside", impact: "caution", price: read.cautionBelow.price },
+    { role: "momentumFailure", side: "downside", impact: "invalidates", price: read.momentumFailure.price },
+    { role: "mustClear", side: "upside", impact: "improves", price: read.mustClear.price },
+    { role: "breakoutContinuation", side: "upside", impact: "improves", price: read.breakoutContinuation.price },
+  ];
+  const boundaries: TradersLinkAiReadBoundary[] = [
+    ...primaryBoundaries,
+    ...read.targets.map((target): TradersLinkAiReadBoundary => ({
+      role: "upsideTarget" as const,
+      side: "upside" as const,
+      impact: "exhausts" as const,
+      price: target.price,
+    })),
+    ...read.downsideCheckpoints.map((checkpoint): TradersLinkAiReadBoundary => ({
+      role: "downsideCheckpoint" as const,
+      side: "downside" as const,
+      impact: "exhausts" as const,
+      price: checkpoint.price,
+    })),
+  ].flatMap((boundary): TradersLinkAiReadBoundary[] => {
+    const price = positivePrice(boundary.price);
+    return price === null ? [] : [{ ...boundary, price }];
+  });
   return {
     generatedAt: read.generatedAt,
     currentPrice: read.currentPrice,
     upperBoundary: upsidePrices.length > 0 ? Math.max(...upsidePrices) : null,
     lowerBoundary: downsidePrices.length > 0 ? Math.min(...downsidePrices) : null,
+    ...(boundaries.length > 0 ? { boundaries } : {}),
   };
 }
 
@@ -298,8 +328,16 @@ export function parseArchivedTradersLinkAiReadRefreshState(
   }
   try {
     const parsed = JSON.parse(body) as Record<string, unknown>;
-    const breakoutContinuation = parsed.breakoutContinuation as Record<string, unknown> | undefined;
-    const momentumFailure = parsed.momentumFailure as Record<string, unknown> | undefined;
+    const archivedLevel = (value: unknown, label: string) => {
+      const candidate = value as Record<string, unknown> | undefined;
+      return {
+        label,
+        price: typeof candidate?.price === "number" ? candidate.price : null,
+        rationale: "Recovered from the published AI Read.",
+      };
+    };
+    const breakoutContinuation = archivedLevel(parsed.breakoutContinuation, "Archived breakout continuation");
+    const momentumFailure = archivedLevel(parsed.momentumFailure, "Archived momentum failure");
     const targets = Array.isArray(parsed.targets) ? parsed.targets : [];
     const downsideCheckpoints = Array.isArray(parsed.downsideCheckpoints)
       ? parsed.downsideCheckpoints
@@ -318,24 +356,19 @@ export function parseArchivedTradersLinkAiReadRefreshState(
       typeof parsed.currentPrice !== "number" ||
       !Number.isFinite(parsed.currentPrice) ||
       parsed.currentPrice <= 0 ||
-      typeof breakoutContinuation?.price !== "number" ||
-      typeof momentumFailure?.price !== "number"
+      typeof breakoutContinuation.price !== "number" ||
+      typeof momentumFailure.price !== "number"
     ) {
       return null;
     }
     return buildTradersLinkAiReadRefreshState({
       generatedAt: parsed.generatedAt,
       currentPrice: parsed.currentPrice,
-      breakoutContinuation: {
-        label: "Archived breakout continuation",
-        price: breakoutContinuation.price,
-        rationale: "Recovered from the published AI Read.",
-      },
-      momentumFailure: {
-        label: "Archived momentum failure",
-        price: momentumFailure.price,
-        rationale: "Recovered from the published AI Read.",
-      },
+      needsToHold: archivedLevel(parsed.needsToHold, "Archived needs-to-hold"),
+      cautionBelow: archivedLevel(parsed.cautionBelow, "Archived caution below"),
+      breakoutContinuation,
+      momentumFailure,
+      mustClear: archivedLevel(parsed.mustClear, "Archived must clear"),
       targets: archivedTargets(targets),
       downsideCheckpoints: archivedTargets(downsideCheckpoints),
     });
@@ -364,6 +397,13 @@ export function decideTradersLinkAiReadRefresh(args: {
       automaticRefreshRegime: null,
     };
   }
+  const crossedTypedInvalidation = (previous.boundaries ?? []).find(
+    (boundary) =>
+      boundary.impact === "invalidates" &&
+      boundary.side === "downside" &&
+      previous.currentPrice >= boundary.price &&
+      args.currentPrice < boundary.price,
+  ) ?? null;
   const crossedUpperBoundary =
     previous.upperBoundary !== null &&
     previous.currentPrice <= previous.upperBoundary &&
@@ -372,7 +412,8 @@ export function decideTradersLinkAiReadRefresh(args: {
     previous.lowerBoundary !== null &&
     previous.currentPrice >= previous.lowerBoundary &&
     args.currentPrice < previous.lowerBoundary;
-  const crossedAnalysisBoundary = crossedUpperBoundary || crossedLowerBoundary;
+  const crossedAnalysisBoundary =
+    crossedTypedInvalidation !== null || crossedUpperBoundary || crossedLowerBoundary;
   const upperProgress = previous.upperBoundary !== null && previous.upperBoundary > previous.currentPrice
     ? (args.currentPrice - previous.currentPrice) /
       (previous.upperBoundary - previous.currentPrice)
@@ -394,7 +435,9 @@ export function decideTradersLinkAiReadRefresh(args: {
     : args.requestedTrigger;
   const automaticRefreshRegime = args.requestedTrigger === "automatic" &&
     (crossedAnalysisBoundary || reachedRangeEdge)
-    ? crossedUpperBoundary || (reachedRangeEdge && upperProgress >= TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS)
+    ? crossedTypedInvalidation
+      ? `${crossedTypedInvalidation.side}:${crossedTypedInvalidation.role}:${crossedTypedInvalidation.price}`
+      : crossedUpperBoundary || (reachedRangeEdge && upperProgress >= TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS)
       ? `upper:${previous.upperBoundary ?? "none"}`
       : `lower:${previous.lowerBoundary ?? "none"}`
     : null;
