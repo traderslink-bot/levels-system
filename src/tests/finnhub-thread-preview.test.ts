@@ -41,6 +41,7 @@ test("FinnhubClient assembles a stock context preview from quote and profile dat
             ipo: "2021-01-01",
             marketCapitalization: 850,
             name: "Example Corp",
+            floatingShare: 100,
             shareOutstanding: 125,
             ticker: "EXMP",
             weburl: "https://www.example.com",
@@ -61,6 +62,7 @@ test("FinnhubClient assembles a stock context preview from quote and profile dat
     ["/api/v1/quote", "/api/v1/stock/profile2"].sort(),
   );
   assert.equal(preview.profile.name, "Example Corp");
+  assert.equal(preview.profile.floatingShare, 100);
 });
 
 test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
@@ -83,6 +85,7 @@ test("formatFinnhubThreadPreview prints a compact terminal preview", () => {
       ipo: "2021-01-01",
       marketCapitalization: 850,
       name: "Example Corp",
+      floatingShare: 100,
       shareOutstanding: 125,
       weburl: "https://www.example.com",
     },

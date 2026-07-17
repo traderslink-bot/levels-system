@@ -449,11 +449,13 @@ export function buildCatalystProfileRiskFromStockContext(
   const yahoo = stockContext?.yahoo;
   const finnhubMarketCapDollars =
     finite(stockContext?.profile.marketCapitalization) ? stockContext!.profile.marketCapitalization! * 1_000_000 : undefined;
+  const finnhubFloatShares =
+    finite(stockContext?.profile.floatingShare) ? stockContext!.profile.floatingShare! * 1_000_000 : undefined;
   const finnhubSharesOutstanding =
     finite(stockContext?.profile.shareOutstanding) ? stockContext!.profile.shareOutstanding! * 1_000_000 : undefined;
   return buildCatalystProfileRiskContext({
     marketCapDollars: yahoo?.summary?.marketCap ?? yahoo?.quote?.marketCap ?? finnhubMarketCapDollars,
-    floatShares: yahoo?.summary?.floatShares,
+    floatShares: yahoo?.summary?.floatShares ?? finnhubFloatShares,
     sharesOutstanding: yahoo?.summary?.sharesOutstanding ?? finnhubSharesOutstanding,
     shortPercentOfFloat: yahoo?.summary?.shortPercentOfFloat,
     knownCatalyst,
