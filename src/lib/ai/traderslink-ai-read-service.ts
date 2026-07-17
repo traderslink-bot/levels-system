@@ -310,6 +310,7 @@ Interpretation contract:
 - Derive the tactical map independently from the raw OHLCV price action. The packet intentionally does not contain the app's detected support/resistance ladder. Never infer a ladder or fill fields by stepping through adjacent prices.
 - First locate price inside the active small-cap session: premarket/regular/postmarket range, prior close, opening range, session high/low, repeated rejection and acceptance, consolidation shelves, failed spikes, high-volume pivots, and expansion or compression of the recent range.
 - The 5-minute feed covers premarket, the complete regular session, and after-hours. Never interpret "full-session" as pre/post-market only. The packet also provides compact 15-minute bars for up to two completed regular sessions and 30 recent daily bars. Give current and prior regular-hours structure appropriate weight because it normally has deeper participation, while still using current premarket or after-hours acceptance/rejection to frame the live setup. Discount isolated thin-volume extended-session wicks.
+- A null volume with volumeDataQuality "unavailable" means the provider did not supply reliable volume for that bar or session. It does not mean zero shares traded. Never describe unavailable or partial volume as zero trading volume, and do not infer thin participation from missing volume alone.
 - A secondary runtime quote may be supplied from EODHD or the configured monitor. It is useful for continuity but may be delayed. Never average conflicting quotes. Anchor tactical boundaries to the full-session candle tape; if quote disagreement is material, lower confidence and describe the data conflict instead of pretending the reference price is certain.
 - A breakout is the ceiling of a real consolidation or a repeatedly defended supply/rejection zone. A breakout-continuation trigger is a separate acceptance point that demonstrates price has cleared that structure; it is not simply the next higher price in a list.
 - needsToHold is the highest price-action shelf, reclaimed pivot, or consolidation floor that keeps the active long setup healthy. It is not merely the closest number below the quote. cautionBelow must be at or below needsToHold and marks deeper deterioration; momentumFailure must be at or below cautionBelow and marks decisive structural failure. Use null when the tape does not establish a defensible distinction.
@@ -698,11 +699,27 @@ function assertTradersLinkAiTradeMap(read: ModelRead, currentPrice: number): voi
     /\b(?:4h|four[- ]hour|confluence|supplied (?:level|support|resistance)|support stack|resistance stack|next level)\b/i;
   const tapeEvidenceLanguage =
     /\b(?:premarket|postmarket|after[- ]hours|regular session|opening range|session (?:high|low|open)|prior close|daily (?:high|low|range)|consolidation|shelf|base|rejection|rejected|acceptance|reclaim|failed spike|range (?:high|low|ceiling|floor)|volume|vwap|wick|tested|tests?|held|holding|higher low|lower high|whole-dollar|half-dollar|psychological)\b/i;
+  const unsupportedZeroVolumeClaim =
+    /\b(?:reported\s+)?(?:extended[- ]hours|premarket|postmarket|after[- ]hours|session|bar)?\s*volume\s+(?:was|is|reported(?:\s+as)?)?\s*zero\b|\bzero\s+(?:reported\s+)?volume\b/i;
   const fail = (message: string): never => {
     throw new Error(`OpenAI returned an invalid tactical trade map: ${message}`);
   };
   const isAbove = (left: number, right: number): boolean => left > right + tolerance;
   const isBelow = (left: number, right: number): boolean => left < right - tolerance;
+  const allTradeText = [
+    read.currentRead,
+    read.needsToHold.rationale,
+    read.cautionBelow.rationale,
+    read.momentumFailure.rationale,
+    read.mustClear.rationale,
+    read.breakoutContinuation.rationale,
+    ...read.targets.map((target) => target.condition),
+    ...read.downsideCheckpoints.map((checkpoint) => checkpoint.condition),
+    ...read.riskSummary,
+  ].join(" ");
+  if (unsupportedZeroVolumeClaim.test(allTradeText)) {
+    fail("claims that unavailable provider volume means zero shares traded");
+  }
 
   for (const [label, level] of [
     ["needsToHold", read.needsToHold],

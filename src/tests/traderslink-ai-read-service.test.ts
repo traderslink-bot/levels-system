@@ -6,7 +6,10 @@ import {
   createTradersLinkAiReadServiceFromEnv,
   OpenAITradersLinkAiReadService,
 } from "../lib/ai/traderslink-ai-read-service.js";
-import type { TradersLinkAiReadPriceActionContext } from "../lib/ai/traderslink-ai-read-price-action.js";
+import {
+  buildTradersLinkAiPriceActionPacket,
+  type TradersLinkAiReadPriceActionContext,
+} from "../lib/ai/traderslink-ai-read-price-action.js";
 
 const DATA_AS_OF = Date.parse("2026-07-15T20:30:00.000Z");
 
@@ -128,6 +131,33 @@ function modelRead(): Record<string, unknown> {
     riskSummary: ["Low-priced shares can move quickly and may halt."],
   };
 }
+
+describe("TradersLink AI price-action volume quality", () => {
+  it("treats a provider zero placeholder as unavailable volume", () => {
+    const context = priceAction();
+    context.intradayCandles.at(-1)!.volume = 0;
+    const packet = buildTradersLinkAiPriceActionPacket(
+      context,
+      context.intradayCandles.at(-1)!.close,
+      DATA_AS_OF,
+    ) as {
+      recentFiveMinuteBars: Array<{ volume: number | null; volumeDataQuality: string }>;
+      sessionPhaseSummaries: Array<{
+        session: string;
+        volume: number | null;
+        volumeDataQuality: string;
+      }>;
+    };
+
+    assert.equal(packet.recentFiveMinuteBars.at(-1)!.volume, null);
+    assert.equal(packet.recentFiveMinuteBars.at(-1)!.volumeDataQuality, "unavailable");
+    const affectedSession = packet.sessionPhaseSummaries.find((summary) =>
+      summary.volumeDataQuality !== "reported"
+    );
+    assert.ok(affectedSession);
+    assert.equal(affectedSession.volume, null);
+  });
+});
 
 describe("OpenAITradersLinkAiReadService", () => {
   it("sends authoritative market data, database-first research, web search, and a strict schema", async () => {

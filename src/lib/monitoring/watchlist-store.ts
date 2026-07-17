@@ -1,7 +1,11 @@
 // 2026-04-14 09:28 PM America/Toronto
 // In-memory watchlist store with manual activate/deactivate operations.
 
-import type { WatchlistEntry, WatchlistLifecycleState } from "./monitoring-types.js";
+import type {
+  TradersLinkAiReadBoundaryState,
+  WatchlistEntry,
+  WatchlistLifecycleState,
+} from "./monitoring-types.js";
 
 function normalizeSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
@@ -9,6 +13,27 @@ function normalizeSymbol(symbol: string): string {
 
 function normalizeFiniteTimestamp(value: number | undefined): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeAiReadBoundaryState(
+  value: TradersLinkAiReadBoundaryState | undefined,
+): TradersLinkAiReadBoundaryState | undefined {
+  if (
+    !value ||
+    !Number.isFinite(value.generatedAt) ||
+    !Number.isFinite(value.currentPrice) ||
+    value.currentPrice <= 0
+  ) {
+    return undefined;
+  }
+  const boundary = (price: number | null): number | null =>
+    typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
+  return {
+    generatedAt: value.generatedAt,
+    currentPrice: value.currentPrice,
+    upperBoundary: boundary(value.upperBoundary),
+    lowerBoundary: boundary(value.lowerBoundary),
+  };
 }
 
 export class WatchlistStore {
@@ -28,6 +53,9 @@ export class WatchlistStore {
     const lastError = entry.lastError?.trim() || undefined;
     const operationStatus = entry.operationStatus?.trim() || undefined;
     const lastThreadPostKind = entry.lastThreadPostKind?.trim() || undefined;
+    const tradersLinkAiReadBoundaryState = normalizeAiReadBoundaryState(
+      entry.tradersLinkAiReadBoundaryState,
+    );
 
     return {
       symbol: normalizeSymbol(entry.symbol),
@@ -49,6 +77,9 @@ export class WatchlistStore {
       ...(operationStatus !== undefined ? { operationStatus } : {}),
       ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
         ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
+        : {}),
+      ...(tradersLinkAiReadBoundaryState
+        ? { tradersLinkAiReadBoundaryState }
         : {}),
     };
   }
@@ -99,6 +130,7 @@ export class WatchlistStore {
     lastError?: string | null;
     operationStatus?: string | null;
     tradersLinkAiReadCardVisible?: boolean;
+    tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
   }): WatchlistEntry {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.entries.get(symbol);
@@ -154,6 +186,10 @@ export class WatchlistStore {
         typeof input.tradersLinkAiReadCardVisible === "boolean"
           ? input.tradersLinkAiReadCardVisible
           : existing?.tradersLinkAiReadCardVisible,
+      tradersLinkAiReadBoundaryState:
+        input.tradersLinkAiReadBoundaryState !== undefined
+          ? input.tradersLinkAiReadBoundaryState
+          : existing?.tradersLinkAiReadBoundaryState,
     };
 
     this.entries.set(symbol, entry);

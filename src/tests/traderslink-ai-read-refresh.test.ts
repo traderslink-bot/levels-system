@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { decideTradersLinkAiReadRefresh } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
+import {
+  buildTradersLinkAiReadRefreshState,
+  decideTradersLinkAiReadRefresh,
+  parseArchivedTradersLinkAiReadRefreshState,
+} from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 
 const GENERATED_AT = Date.parse("2026-07-17T14:00:00.000Z");
 
@@ -15,6 +19,54 @@ function state(currentPrice = 1.98) {
 }
 
 describe("TradersLink AI Read refresh decisions", () => {
+  it("keeps the outer profit and downside targets as the read boundaries", () => {
+    const refreshState = buildTradersLinkAiReadRefreshState({
+      generatedAt: GENERATED_AT,
+      currentPrice: 3.95,
+      breakoutContinuation: {
+        label: "Breakout continuation",
+        price: 4.2,
+        rationale: "Acceptance confirms the setup.",
+      },
+      momentumFailure: {
+        label: "Momentum failure",
+        price: 3.77,
+        rationale: "A loss invalidates the setup.",
+      },
+      targets: [
+        { label: "Where the trade could go", price: 4.43, condition: "Above continuation." },
+      ],
+      downsideCheckpoints: [
+        { label: "Lower checkpoint", price: 3.5, condition: "Below momentum failure." },
+      ],
+    });
+
+    assert.deepEqual(refreshState, {
+      generatedAt: GENERATED_AT,
+      currentPrice: 3.95,
+      upperBoundary: 4.43,
+      lowerBoundary: 3.5,
+    });
+  });
+
+  it("recovers the same outer boundaries from an already-published AI card", () => {
+    const recovered = parseArchivedTradersLinkAiReadRefreshState(JSON.stringify({
+      generatedAt: GENERATED_AT,
+      currentPrice: 3.95,
+      breakoutContinuation: { price: 4.2 },
+      momentumFailure: { price: 3.77 },
+      targets: [{ label: "Premarket high", price: 4.43 }],
+      downsideCheckpoints: [{ label: "Lower checkpoint", price: 3.5 }],
+    }));
+
+    assert.deepEqual(recovered, {
+      generatedAt: GENERATED_AT,
+      currentPrice: 3.95,
+      upperBoundary: 4.43,
+      lowerBoundary: 3.5,
+    });
+  });
+
   it("suppresses an initial automatic read when startup generation is disabled", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: null,
@@ -41,7 +93,7 @@ describe("TradersLink AI Read refresh decisions", () => {
     assert.deepEqual(decision, { shouldRefresh: true, trigger: "manual" });
   });
 
-  it("refreshes immediately when price exits above the highest continuation target", () => {
+  it("refreshes immediately when price exits above the outer upside target", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: state(),
       currentPrice: 2.01,
@@ -53,7 +105,7 @@ describe("TradersLink AI Read refresh decisions", () => {
     assert.deepEqual(decision, { shouldRefresh: true, trigger: "boundary_cross" });
   });
 
-  it("refreshes immediately when price exits below the lowest downside checkpoint", () => {
+  it("refreshes immediately when price exits below the outer downside checkpoint", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: state(1.06),
       currentPrice: 1.04,

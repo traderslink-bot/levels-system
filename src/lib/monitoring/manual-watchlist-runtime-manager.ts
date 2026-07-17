@@ -44,6 +44,10 @@ import {
   createLiveWatchlistPublisherFromEnv,
 } from "../live-watchlist/live-watchlist-publisher.js";
 import {
+  DEFAULT_LIVE_WATCHLIST_AUDIT_ARCHIVE_FILE,
+  LiveWatchlistAuditArchivePersistence,
+} from "../live-watchlist/live-watchlist-audit-archive.js";
+import {
   deriveRecentWebsiteArticleCatalystFreshness,
   lookupRecentWebsiteArticlesForSymbol,
   publishRecentWebsiteArticlesForSymbol,
@@ -96,6 +100,7 @@ import type {
   MonitoringEvent,
   PracticalTradeStructureState,
   RuntimeMarketStructureSnapshot,
+  TradersLinkAiReadBoundaryState,
   WatchlistEntry,
   WatchlistLifecycleState,
 } from "./monitoring-types.js";
@@ -237,12 +242,90 @@ const TRADERSLINK_AI_READ_AUTO_REFRESH_MIN_MS = 60 * 60 * 1_000;
 const TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS = 0.85;
 export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "automatic";
 
-export type TradersLinkAiReadRefreshState = {
-  generatedAt: number;
-  currentPrice: number;
-  upperBoundary: number | null;
-  lowerBoundary: number | null;
-};
+export type TradersLinkAiReadRefreshState = TradersLinkAiReadBoundaryState;
+
+export function buildTradersLinkAiReadRefreshState(
+  read: Pick<
+    TradersLinkAiReadPayload,
+    | "generatedAt"
+    | "currentPrice"
+    | "breakoutContinuation"
+    | "momentumFailure"
+    | "targets"
+    | "downsideCheckpoints"
+  >,
+): TradersLinkAiReadRefreshState {
+  const positivePrice = (price: number | null): number | null =>
+    typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
+  const upsidePrices = [
+    read.breakoutContinuation.price,
+    ...read.targets.map((target) => target.price),
+  ].map(positivePrice).filter((price): price is number => price !== null);
+  const downsidePrices = [
+    read.momentumFailure.price,
+    ...read.downsideCheckpoints.map((checkpoint) => checkpoint.price),
+  ].map(positivePrice).filter((price): price is number => price !== null);
+  return {
+    generatedAt: read.generatedAt,
+    currentPrice: read.currentPrice,
+    upperBoundary: upsidePrices.length > 0 ? Math.max(...upsidePrices) : null,
+    lowerBoundary: downsidePrices.length > 0 ? Math.min(...downsidePrices) : null,
+  };
+}
+
+export function parseArchivedTradersLinkAiReadRefreshState(
+  body: unknown,
+): TradersLinkAiReadRefreshState | null {
+  if (typeof body !== "string" || body.trim().length === 0) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    const breakoutContinuation = parsed.breakoutContinuation as Record<string, unknown> | undefined;
+    const momentumFailure = parsed.momentumFailure as Record<string, unknown> | undefined;
+    const targets = Array.isArray(parsed.targets) ? parsed.targets : [];
+    const downsideCheckpoints = Array.isArray(parsed.downsideCheckpoints)
+      ? parsed.downsideCheckpoints
+      : [];
+    const archivedTargets = (values: unknown[]) => values
+      .map((value) => value as Record<string, unknown>)
+      .filter((value) => typeof value?.price === "number")
+      .map((value) => ({
+        label: typeof value.label === "string" ? value.label : "Archived target",
+        price: value.price as number,
+        condition: typeof value.condition === "string" ? value.condition : "Recovered from the published AI Read.",
+      }));
+    if (
+      typeof parsed.generatedAt !== "number" ||
+      !Number.isFinite(parsed.generatedAt) ||
+      typeof parsed.currentPrice !== "number" ||
+      !Number.isFinite(parsed.currentPrice) ||
+      parsed.currentPrice <= 0 ||
+      typeof breakoutContinuation?.price !== "number" ||
+      typeof momentumFailure?.price !== "number"
+    ) {
+      return null;
+    }
+    return buildTradersLinkAiReadRefreshState({
+      generatedAt: parsed.generatedAt,
+      currentPrice: parsed.currentPrice,
+      breakoutContinuation: {
+        label: "Archived breakout continuation",
+        price: breakoutContinuation.price,
+        rationale: "Recovered from the published AI Read.",
+      },
+      momentumFailure: {
+        label: "Archived momentum failure",
+        price: momentumFailure.price,
+        rationale: "Recovered from the published AI Read.",
+      },
+      targets: archivedTargets(targets),
+      downsideCheckpoints: archivedTargets(downsideCheckpoints),
+    });
+  } catch {
+    return null;
+  }
+}
 
 export function decideTradersLinkAiReadRefresh(args: {
   previous: TradersLinkAiReadRefreshState | null;
@@ -2490,6 +2573,46 @@ export class ManualWatchlistRuntimeManager {
     this.watchlistStatePersistence.save(this.watchlistStore.getEntries());
   }
 
+  private restoreTradersLinkAiReadRefreshStates(activeEntries: WatchlistEntry[]): void {
+    let archivedBySymbol = new Map<string, unknown>();
+    try {
+      const archive = new LiveWatchlistAuditArchivePersistence(
+        process.env.LIVE_WATCHLIST_AUDIT_ARCHIVE_PATH?.trim() ||
+          DEFAULT_LIVE_WATCHLIST_AUDIT_ARCHIVE_FILE,
+      ).load();
+      archivedBySymbol = new Map(
+        archive.symbols.map((symbol) => [normalizeSymbol(symbol.symbol), symbol]),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[TradersLinkAiRead] Could not recover published read boundaries: ${message}`);
+    }
+
+    for (const entry of activeEntries) {
+      let state = entry.tradersLinkAiReadBoundaryState;
+      if (!state) {
+        const archived = archivedBySymbol.get(entry.symbol) as
+          | { cards?: Record<string, { body?: unknown } | null> }
+          | undefined;
+        const recovered = parseArchivedTradersLinkAiReadRefreshState(
+          archived?.cards?.tradersLinkAiRead?.body,
+        );
+        if (
+          recovered &&
+          (entry.activatedAt === undefined || recovered.generatedAt >= entry.activatedAt)
+        ) {
+          state = recovered;
+          this.watchlistStore.patchEntry(entry.symbol, {
+            tradersLinkAiReadBoundaryState: recovered,
+          });
+        }
+      }
+      if (state) {
+        this.aiReadState.set(entry.symbol, state);
+      }
+    }
+  }
+
   isTradersLinkAiReadConfigured(): boolean {
     return Boolean(
       this.options.tradersLinkAiReadService && this.liveWatchlistPublisher,
@@ -2622,24 +2745,12 @@ export class ManualWatchlistRuntimeManager {
         return null;
       }
       await publisher.publish(buildTradersLinkAiReadPatch({ read, visible: true }));
-      this.aiReadState.set(symbol, {
-        generatedAt: read.generatedAt,
-        currentPrice: read.currentPrice,
-        upperBoundary: [
-          read.breakoutContinuation.price,
-          ...read.targets.map((target) => target.price),
-        ].reduce<number | null>(
-          (highest, price) => price === null ? highest : Math.max(highest ?? price, price),
-          null,
-        ),
-        lowerBoundary: [
-          read.momentumFailure.price,
-          ...read.downsideCheckpoints.map((checkpoint) => checkpoint.price),
-        ].reduce<number | null>(
-          (lowest, price) => price === null ? lowest : Math.min(lowest ?? price, price),
-          null,
-        ),
+      const nextRefreshState = buildTradersLinkAiReadRefreshState(read);
+      this.aiReadState.set(symbol, nextRefreshState);
+      this.watchlistStore.patchEntry(symbol, {
+        tradersLinkAiReadBoundaryState: nextRefreshState,
       });
+      this.persistWatchlist();
       this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
       return read;
     } finally {
@@ -8691,6 +8802,7 @@ export class ManualWatchlistRuntimeManager {
     }
 
     const activeEntries = this.watchlistStore.getActiveEntries();
+    this.restoreTradersLinkAiReadRefreshStates(activeEntries);
     if (!this.options.tradersLinkAiReadStartupRefreshEnabled) {
       for (const entry of activeEntries) {
         this.aiReadInitialGenerationSuppressedSymbols.add(entry.symbol);
@@ -10141,6 +10253,9 @@ export class ManualWatchlistRuntimeManager {
   private prepareSymbolDeactivation(normalizedSymbol: string): WatchlistEntry | null {
     this.nextActivationEpoch(normalizedSymbol);
     this.pendingActivations.delete(normalizedSymbol);
+    this.watchlistStore.patchEntry(normalizedSymbol, {
+      tradersLinkAiReadBoundaryState: undefined,
+    });
     const entry = this.watchlistStore.deactivateSymbol(normalizedSymbol);
     if (!entry) {
       return null;

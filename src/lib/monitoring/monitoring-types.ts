@@ -252,6 +252,13 @@ export type MonitoringZoneContext = {
   lastRemappedAt?: number;
 };
 
+export type TradersLinkAiReadBoundaryState = {
+  generatedAt: number;
+  currentPrice: number;
+  upperBoundary: number | null;
+  lowerBoundary: number | null;
+};
+
 export type WatchlistEntry = {
   symbol: string;
   active: boolean;
@@ -272,6 +279,7 @@ export type WatchlistEntry = {
   lastTriggerPrice?: number;
   refreshPending?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
+  tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
   lastError?: string;
   operationStatus?: string;
 };

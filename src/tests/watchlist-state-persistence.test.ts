@@ -28,6 +28,12 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       lastThreadPostAt: 900,
       lastThreadPostKind: "snapshot",
       refreshPending: false,
+      tradersLinkAiReadBoundaryState: {
+        generatedAt: 850,
+        currentPrice: 3.95,
+        upperBoundary: 4.2,
+        lowerBoundary: 3.77,
+      },
       operationStatus: "monitoring live price",
     },
   ]);
@@ -50,6 +56,12 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       lastThreadPostAt: 900,
       lastThreadPostKind: "snapshot",
       refreshPending: false,
+      tradersLinkAiReadBoundaryState: {
+        generatedAt: 850,
+        currentPrice: 3.95,
+        upperBoundary: 4.2,
+        lowerBoundary: 3.77,
+      },
       operationStatus: "monitoring live price",
     },
   ]);

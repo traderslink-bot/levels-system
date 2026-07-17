@@ -1,7 +1,11 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import type { WatchlistEntry, WatchlistLifecycleState } from "./monitoring-types.js";
+import type {
+  TradersLinkAiReadBoundaryState,
+  WatchlistEntry,
+  WatchlistLifecycleState,
+} from "./monitoring-types.js";
 
 export type PersistedWatchlistState = {
   version: 1;
@@ -43,6 +47,27 @@ function isLifecycle(value: unknown): value is WatchlistLifecycleState {
 
 function normalizeOptionalTimestamp(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundaryState | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.generatedAt !== "number" ||
+    !Number.isFinite(value.generatedAt) ||
+    typeof value.currentPrice !== "number" ||
+    !Number.isFinite(value.currentPrice) ||
+    value.currentPrice <= 0
+  ) {
+    return undefined;
+  }
+  const normalizeBoundary = (price: unknown): number | null =>
+    typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
+  return {
+    generatedAt: value.generatedAt,
+    currentPrice: value.currentPrice,
+    upperBoundary: normalizeBoundary(value.upperBoundary),
+    lowerBoundary: normalizeBoundary(value.lowerBoundary),
+  };
 }
 
 function validateEntry(value: unknown): WatchlistEntry | null {
@@ -146,6 +171,9 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     typeof value.lastTriggerPrice === "number" && Number.isFinite(value.lastTriggerPrice)
       ? value.lastTriggerPrice
       : undefined;
+  const tradersLinkAiReadBoundaryState = normalizeAiReadBoundaryState(
+    value.tradersLinkAiReadBoundaryState,
+  );
 
   return {
     symbol: value.symbol.trim().toUpperCase(),
@@ -182,6 +210,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     ...(typeof value.tradersLinkAiReadCardVisible === "boolean"
       ? { tradersLinkAiReadCardVisible: value.tradersLinkAiReadCardVisible }
       : {}),
+    ...(tradersLinkAiReadBoundaryState ? { tradersLinkAiReadBoundaryState } : {}),
     ...(lastError !== undefined ? { lastError } : {}),
     ...(operationStatus !== undefined ? { operationStatus } : {}),
   };
@@ -246,6 +275,9 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
       refreshPending: entry.refreshPending ?? false,
       ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
         ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
+        : {}),
+      ...(normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState)
+        ? { tradersLinkAiReadBoundaryState: normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState) }
         : {}),
       lastError: entry.lastError?.trim() || undefined,
       operationStatus: entry.operationStatus?.trim() || undefined,

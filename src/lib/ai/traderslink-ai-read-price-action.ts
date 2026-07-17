@@ -28,7 +28,8 @@ type CompactPriceActionBar = {
   high: number;
   low: number;
   close: number;
-  volume: number;
+  volume: number | null;
+  volumeDataQuality: "reported" | "unavailable";
 };
 
 type SessionPhaseSummary = {
@@ -38,7 +39,8 @@ type SessionPhaseSummary = {
   high: number;
   low: number;
   close: number;
-  volume: number;
+  volume: number | null;
+  volumeDataQuality: "reported" | "partial" | "unavailable";
   approximateVwap: number | null;
   barCount: number;
 };
@@ -75,6 +77,7 @@ function roundPrice(value: number): number {
 
 function compactIntradayBar(candle: Candle): CompactPriceActionBar {
   const classified = classifyIntradayCandleTimestamp(candle.timestamp);
+  const reportedVolume = candle.volume > 0 ? Math.round(candle.volume) : null;
   return {
     timestamp: candle.timestamp,
     timestampIso: new Date(candle.timestamp).toISOString(),
@@ -84,7 +87,8 @@ function compactIntradayBar(candle: Candle): CompactPriceActionBar {
     high: roundPrice(candle.high),
     low: roundPrice(candle.low),
     close: roundPrice(candle.close),
-    volume: Math.max(0, Math.round(candle.volume)),
+    volume: reportedVolume,
+    volumeDataQuality: reportedVolume === null ? "unavailable" : "reported",
   };
 }
 
@@ -99,9 +103,13 @@ function summarizeSessionPhases(candles: Candle[]): SessionPhaseSummary[] {
   }
 
   return [...grouped.values()].map((bars) => {
-    const volume = bars.reduce((sum, bar) => sum + bar.volume, 0);
+    const reportedBars = bars.filter((bar) => bar.volume !== null);
+    const allVolumeReported = reportedBars.length === bars.length;
+    const volume = allVolumeReported
+      ? reportedBars.reduce((sum, bar) => sum + bar.volume!, 0)
+      : null;
     const typicalPriceVolume = bars.reduce(
-      (sum, bar) => sum + ((bar.high + bar.low + bar.close) / 3) * bar.volume,
+      (sum, bar) => sum + ((bar.high + bar.low + bar.close) / 3) * (bar.volume ?? 0),
       0,
     );
     return {
@@ -112,13 +120,21 @@ function summarizeSessionPhases(candles: Candle[]): SessionPhaseSummary[] {
       low: roundPrice(Math.min(...bars.map((bar) => bar.low))),
       close: bars.at(-1)!.close,
       volume,
-      approximateVwap: volume > 0 ? roundPrice(typicalPriceVolume / volume) : null,
+      volumeDataQuality:
+        reportedBars.length === 0
+          ? "unavailable"
+          : allVolumeReported
+            ? "reported"
+            : "partial",
+      approximateVwap: volume !== null && volume > 0
+        ? roundPrice(typicalPriceVolume / volume)
+        : null,
       barCount: bars.length,
     };
   });
 }
 
-function compactDailyBars(candles: Candle[]): Array<Record<string, number | string>> {
+function compactDailyBars(candles: Candle[]): Array<Record<string, number | string | null>> {
   return candles.slice(-RECENT_DAILY_BAR_LIMIT).map((candle) => ({
     timestamp: candle.timestamp,
     dateIso: new Date(candle.timestamp).toISOString(),
@@ -126,7 +142,8 @@ function compactDailyBars(candles: Candle[]): Array<Record<string, number | stri
     high: roundPrice(candle.high),
     low: roundPrice(candle.low),
     close: roundPrice(candle.close),
-    volume: Math.max(0, Math.round(candle.volume)),
+    volume: candle.volume > 0 ? Math.round(candle.volume) : null,
+    volumeDataQuality: candle.volume > 0 ? "reported" : "unavailable",
   }));
 }
 
@@ -135,7 +152,7 @@ function aggregateRegularSessionToFifteenMinutes(
     candle: Candle;
     classified: ReturnType<typeof classifyIntradayCandleTimestamp>;
   }>,
-): Array<Record<string, number | string>> {
+): Array<Record<string, number | string | null>> {
   const latest = annotated.at(-1)?.classified ?? null;
   const regularSessionDates = [...new Set(
     annotated
@@ -149,7 +166,7 @@ function aggregateRegularSessionToFifteenMinutes(
       sessionDate !== latest?.sessionDate || latest.session === "after_hours"
     )
     .slice(-2);
-  const output: Array<Record<string, number | string>> = [];
+  const output: Array<Record<string, number | string | null>> = [];
 
   for (const sessionDate of completedSessionDates) {
     const candles = annotated
@@ -163,6 +180,8 @@ function aggregateRegularSessionToFifteenMinutes(
       if (bucket.length === 0) {
         continue;
       }
+      const reportedVolumes = bucket.map((candle) => candle.volume).filter((volume) => volume > 0);
+      const allVolumeReported = reportedVolumes.length === bucket.length;
       output.push({
         sessionDate,
         timestamp: bucket[0]!.timestamp,
@@ -171,7 +190,15 @@ function aggregateRegularSessionToFifteenMinutes(
         high: roundPrice(Math.max(...bucket.map((candle) => candle.high))),
         low: roundPrice(Math.min(...bucket.map((candle) => candle.low))),
         close: roundPrice(bucket.at(-1)!.close),
-        volume: bucket.reduce((sum, candle) => sum + Math.max(0, Math.round(candle.volume)), 0),
+        volume: allVolumeReported
+          ? reportedVolumes.reduce((sum, volume) => sum + Math.round(volume), 0)
+          : null,
+        volumeDataQuality:
+          reportedVolumes.length === 0
+            ? "unavailable"
+            : allVolumeReported
+              ? "reported"
+              : "partial",
       });
     }
   }
@@ -250,6 +277,7 @@ export function buildTradersLinkAiPriceActionPacket(
     )
     .map((item) => item.candle);
   const volumeLandmarks = [...landmarkCandidates]
+    .filter((candle) => candle.volume > 0)
     .sort((left, right) => right.volume - left.volume)
     .slice(0, VOLUME_LANDMARK_LIMIT)
     .sort((left, right) => left.timestamp - right.timestamp)
