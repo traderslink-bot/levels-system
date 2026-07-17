@@ -91,6 +91,60 @@ test("auto selector rejects candidates over the $100M default market-cap ceiling
   assert.match(result.rejectionReasons.join(" "), /at most \$100M/);
 });
 
+test("current enrichment market cap overrides a stale smaller discovery cap", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-market-cap-authority-"));
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    finance: {
+      result: [{
+        quotes: [{
+          symbol: "LARG",
+          quoteType: "EQUITY",
+          regularMarketPrice: 2,
+          regularMarketChangePercent: 20,
+          regularMarketVolume: 1_000_000,
+          averageDailyVolume3Month: 200_000,
+          // Simulates a stale discovery snapshot below the $100M automatic ceiling.
+          marketCap: 80_000_000,
+          regularMarketTime: 1_784_207_400,
+        }],
+      }],
+      error: null,
+    },
+  }), { status: 200 });
+  const selector = new AutoWatchlistSelector({
+    yahooClient: {
+      getSummary: async () => ({
+        source: "Yahoo" as const,
+        // Current enrichment must win, so this automatic candidate is rejected.
+        marketCap: 500_000_000,
+        floatShares: 4_500_000,
+        sharesOutstanding: 20_000_000,
+      }),
+    } as unknown as YahooClient,
+    finnhubClient: {
+      getCompanyProfile: async () => ({ ticker: "LARG", marketCapitalization: 500, shareOutstanding: 20 }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath: join(directory, "config.json"),
+    now: () => Date.parse("2026-07-16T15:00:00Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+  try {
+    const preview = await selector.previewScan();
+    const decision = preview.recentDecisions.find((item) => item.symbol === "LARG");
+    assert.ok(decision);
+    assert.equal(decision.qualified, false);
+    assert.match(decision.rejectionReasons.join(" "), /market cap must be known and at most \$100M/i);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("recent 15-minute activity gate rejects an otherwise qualifying late isolated spike", () => {
   const result = scoreAutoWatchlistCandidate({
     candidate: { ...BASE_CANDIDATE, gainPct: 26.7, volume: 200_000, marketCap: 34_000_000 },

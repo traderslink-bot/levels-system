@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "description": "Sanitized, deterministic full-session OHLCV, research evidence, model drafts, usage, and independent expected tactical boundaries for the mandatory post-change TradersLink AI Read audit. Candle tuple order: timestamp, open, high, low, close, volume.",
+  "fixtures": [
+    {
+      "id": "aurx-premarket-continuation",
+      "symbol": "AURX",
+      "snapshot": { "timestamp": 1784319000000, "currentPrice": 1.37 },
+      "priorRegularClose": 1.08,
+      "intradayCandles": [[1784230500000,1.06,1.09,1.04,1.08,210000],[1784230800000,1.08,1.12,1.07,1.11,235000],[1784231100000,1.11,1.15,1.09,1.13,250000],[1784231400000,1.13,1.16,1.11,1.14,220000],[1784289000000,1.16,1.22,1.15,1.2,160000],[1784289300000,1.2,1.28,1.19,1.26,280000],[1784289600000,1.26,1.33,1.24,1.31,330000],[1784289900000,1.31,1.36,1.29,1.34,290000],[1784298600000,1.34,1.4,1.3,1.36,410000],[1784298900000,1.36,1.41,1.33,1.38,380000],[1784299200000,1.38,1.42,1.35,1.37,355000],[1784318400000,1.35,1.39,1.32,1.36,140000],[1784318700000,1.36,1.4,1.34,1.38,150000],[1784319000000,1.38,1.4,1.35,1.37,125000]],
+      "dailyCandles": [[1783886400000,0.91,1.01,0.88,0.98,900000],[1783972800000,0.98,1.05,0.94,1.02,1100000],[1784059200000,1.02,1.1,0.99,1.07,1250000],[1784145600000,1.07,1.16,1.04,1.12,1450000],[1784232000000,1.12,1.18,1.06,1.14,1600000]],
+      "research": [{ "title": "AURX clinical trial update filing", "url": "https://traderslink.pro/news/aurx-clinical-update", "sourceUrl": "https://www.sec.gov/Archives/aurx-clinical-update", "filingType": "8-K" }],
+      "modelResponse": {
+        "bias": "bullish", "confidence": "medium", "currentRead": "AURX is constructive while the after-hours shelf holds, but continuation still needs acceptance through the session-high rejection area.",
+        "needsToHold": { "label": "After-hours shelf", "price": 1.29, "rationale": "The postmarket consolidation held above this higher-low shelf." },
+        "cautionBelow": { "label": "Premarket base", "price": 1.24, "rationale": "A loss of the premarket base would weaken the opening range structure." },
+        "momentumFailure": { "label": "Prior regular low", "price": 1.18, "rationale": "A failed spike through the prior regular session low would break the higher low sequence." },
+        "mustClear": { "label": "Session rejection zone", "price": 1.42, "rationale": "Repeated regular session rejection near the session high makes acceptance necessary." },
+        "breakoutContinuation": { "label": "Range-high continuation", "price": 1.5, "rationale": "Acceptance above the range high opens the continuation path." },
+        "targets": [{ "label": "First extension", "price": 1.62, "condition": "Only after the postmarket range high holds as support." },{ "label": "Daily extension", "price": 1.78, "condition": "A sustained daily range breakout can expose this higher range." }],
+        "downsideCheckpoints": [{ "label": "Lower range support", "price": 1.1, "condition": "Exposed if the prior regular session shelf fails." },{ "label": "Outer daily support", "price": 0.98, "condition": "The next daily range low is in play after a failed spike." }],
+        "catalystRealityCheck": { "status": "confirmed", "summary": "A current clinical filing is the source-backed catalyst context.", "dayTradeRelevance": "Price and volume still need to confirm the response.", "sourceUrls": ["https://www.sec.gov/Archives/aurx-clinical-update"] },
+        "dilutionRisk": { "level": "unknown", "summary": "No source-backed dilution conclusion was established.", "dayTradeRelevance": "Treat supply risk as unknown.", "sourceUrls": [], "canCompanyIssueToday": null, "companyIssuance": { "status": "unknown", "earliestDate": null, "trigger": "unknown", "summary": "Unknown." }, "publicResale": { "status": "unknown", "earliestDate": null, "trigger": "unknown", "summary": "Unknown." } },
+        "listingStatus": { "status": "none", "immediacy": "background", "summary": "No current listing issue was established.", "dayTradeRelevance": "No listing thesis is part of this trade.", "sourceUrls": [] }, "riskSummary": ["Thin after-hours liquidity can invalidate an isolated breakout."]
+      },
+      "expected": { "currentPrice": [1.36,1.38], "needsToHold": 1.29, "cautionBelow": 1.24, "momentumFailure": 1.18, "mustClear": 1.42, "breakoutContinuation": 1.5, "targets": [1.62,1.78], "downsideCheckpoints": [1.1,0.98], "catalystStatus": "confirmed" }
+    },
+    {
+      "id": "bpln-failed-bounce",
+      "symbol": "BPLN",
+      "snapshot": { "timestamp": 1784319000000, "currentPrice": 0.82 },
+      "priorRegularClose": 0.93,
+      "intradayCandles": [[1784230500000,0.98,1.01,0.94,0.96,620000],[1784230800000,0.96,0.98,0.9,0.92,700000],[1784231100000,0.92,0.95,0.87,0.89,760000],[1784231400000,0.89,0.92,0.85,0.87,640000],[1784289000000,0.86,0.9,0.8,0.83,430000],[1784289300000,0.83,0.88,0.78,0.81,490000],[1784289600000,0.81,0.86,0.77,0.84,515000],[1784289900000,0.84,0.88,0.8,0.85,450000],[1784298600000,0.85,0.87,0.78,0.8,830000],[1784298900000,0.8,0.84,0.76,0.79,790000],[1784299200000,0.79,0.83,0.75,0.8,810000],[1784318400000,0.8,0.84,0.78,0.81,260000],[1784318700000,0.81,0.85,0.79,0.83,270000],[1784319000000,0.83,0.85,0.8,0.82,250000]],
+      "dailyCandles": [[1783886400000,1.15,1.2,1.08,1.12,1800000],[1783972800000,1.12,1.16,1.02,1.06,1900000],[1784059200000,1.06,1.1,0.96,1,2100000],[1784145600000,1,1.03,0.9,0.94,2400000],[1784232000000,0.94,0.98,0.84,0.87,2600000]],
+      "research": [{ "title": "BPLN shelf registration filing", "url": "https://traderslink.pro/news/bpln-shelf", "sourceUrl": "https://www.sec.gov/Archives/bpln-shelf", "filingType": "S-3" }],
+      "modelResponse": {
+        "bias": "mixed", "confidence": "medium", "currentRead": "BPLN is a failed-bounce setup until it can reclaim the regular-session rejection zone with volume.",
+        "needsToHold": { "label": "After-hours pivot", "price": 0.79, "rationale": "The postmarket shelf held this consolidation pivot." },
+        "cautionBelow": { "label": "Regular-session base", "price": 0.75, "rationale": "A loss of the regular session base revives the failed spike pattern." },
+        "momentumFailure": { "label": "Premarket low", "price": 0.7, "rationale": "A clean break of the premarket range low invalidates the bounce." },
+        "mustClear": { "label": "Repeated rejection", "price": 0.86, "rationale": "Repeated regular session rejection makes this acceptance level important." },
+        "breakoutContinuation": { "label": "Range reclaim", "price": 0.94, "rationale": "Acceptance above the prior regular range opens continuation." },
+        "targets": [{ "label": "First rebound", "price": 1.02, "condition": "Only after the regular session range high holds as support." }],
+        "downsideCheckpoints": [{ "label": "Lower daily support", "price": 0.64, "condition": "The daily range low is exposed after a failed spike." },{ "label": "Outer daily support", "price": 0.56, "condition": "A further daily range failure exposes this lower support." }],
+        "catalystRealityCheck": { "status": "none", "summary": "No separate source-backed catalyst conclusion was established.", "dayTradeRelevance": "Trade the tape rather than a headline thesis.", "sourceUrls": [] },
+        "dilutionRisk": { "level": "medium", "summary": "The shelf registration is a source-backed potential supply factor, not proof of immediate issuance.", "dayTradeRelevance": "Supply expectations can cap weak rebounds.", "sourceUrls": ["https://www.sec.gov/Archives/bpln-shelf"], "canCompanyIssueToday": null, "companyIssuance": { "status": "conditional", "earliestDate": null, "trigger": "registration_effective", "summary": "The filing alone does not establish immediate issuance timing." }, "publicResale": { "status": "unknown", "earliestDate": null, "trigger": "unknown", "summary": "Public resale timing was not established." } },
+        "listingStatus": { "status": "none", "immediacy": "background", "summary": "No current listing issue was established.", "dayTradeRelevance": "No listing thesis is part of this trade.", "sourceUrls": [] }, "riskSummary": ["The shelf filing does not establish same-day dilution."]
+      },
+      "expected": { "currentPrice": [0.81,0.83], "needsToHold": 0.79, "cautionBelow": 0.75, "momentumFailure": 0.7, "mustClear": 0.86, "breakoutContinuation": 0.94, "targets": [1.02], "downsideCheckpoints": [0.64,0.56], "dilutionLevel": "medium" }
+    },
+    {
+      "id": "crvm-range-reclaim",
+      "symbol": "CRVM",
+      "snapshot": { "timestamp": 1784319000000, "currentPrice": 2.41 },
+      "priorRegularClose": 2.18,
+      "intradayCandles": [[1784230500000,2.1,2.17,2.06,2.15,190000],[1784230800000,2.15,2.21,2.11,2.19,230000],[1784231100000,2.19,2.24,2.14,2.17,245000],[1784231400000,2.17,2.22,2.12,2.18,220000],[1784289000000,2.2,2.3,2.18,2.27,180000],[1784289300000,2.27,2.38,2.24,2.34,260000],[1784289600000,2.34,2.44,2.3,2.4,315000],[1784289900000,2.4,2.47,2.36,2.43,305000],[1784298600000,2.43,2.49,2.37,2.4,390000],[1784298900000,2.4,2.46,2.35,2.39,350000],[1784299200000,2.39,2.45,2.33,2.37,330000],[1784318400000,2.37,2.43,2.34,2.39,140000],[1784318700000,2.39,2.45,2.37,2.42,155000],[1784319000000,2.42,2.46,2.38,2.41,135000]],
+      "dailyCandles": [[1783886400000,1.86,1.95,1.8,1.92,850000],[1783972800000,1.92,2.03,1.88,1.99,950000],[1784059200000,1.99,2.11,1.94,2.06,1100000],[1784145600000,2.06,2.2,2,2.15,1250000],[1784232000000,2.15,2.28,2.1,2.18,1400000]],
+      "research": [{ "title": "CRVM earnings results filing", "url": "https://traderslink.pro/news/crvm-results", "sourceUrl": "https://www.sec.gov/Archives/crvm-results", "filingType": "8-K" }],
+      "modelResponse": {
+        "bias": "bullish", "confidence": "medium", "currentRead": "CRVM is attempting a range reclaim; the setup stays constructive only if the after-hours shelf is defended.",
+        "needsToHold": { "label": "After-hours shelf", "price": 2.37, "rationale": "The postmarket consolidation repeatedly held this shelf." },
+        "cautionBelow": { "label": "Premarket pivot", "price": 2.3, "rationale": "A loss of the premarket pivot would weaken the higher-low structure." },
+        "momentumFailure": { "label": "Regular-session floor", "price": 2.18, "rationale": "The prior regular session range low marks failed reclaim risk." },
+        "mustClear": { "label": "Session ceiling", "price": 2.49, "rationale": "The regular session high rejected multiple tests near this ceiling." },
+        "breakoutContinuation": { "label": "Daily range breakout", "price": 2.62, "rationale": "Acceptance above the daily range high confirms continuation." },
+        "targets": [{ "label": "First extension", "price": 2.78, "condition": "Only after the regular session range high holds as support." },{ "label": "Outer daily extension", "price": 2.96, "condition": "A sustained daily range breakout can extend into this area." }],
+        "downsideCheckpoints": [{ "label": "Lower regular support", "price": 2.04, "condition": "Exposed if the regular session shelf fails." },{ "label": "Outer daily support", "price": 1.9, "condition": "The daily range low is next after a failed spike." }],
+        "catalystRealityCheck": { "status": "confirmed", "summary": "The earnings filing is source-backed context, not a substitute for tape confirmation.", "dayTradeRelevance": "Watch whether volume confirms the reclaim.", "sourceUrls": ["https://www.sec.gov/Archives/crvm-results"] },
+        "dilutionRisk": { "level": "unknown", "summary": "No source-backed dilution conclusion was established.", "dayTradeRelevance": "Treat supply risk as unknown.", "sourceUrls": [], "canCompanyIssueToday": null, "companyIssuance": { "status": "unknown", "earliestDate": null, "trigger": "unknown", "summary": "Unknown." }, "publicResale": { "status": "unknown", "earliestDate": null, "trigger": "unknown", "summary": "Unknown." } },
+        "listingStatus": { "status": "none", "immediacy": "background", "summary": "No current listing issue was established.", "dayTradeRelevance": "No listing thesis is part of this trade.", "sourceUrls": [] }, "riskSummary": ["A reclaim without volume can become another range rejection."]
+      },
+      "expected": { "currentPrice": [2.4,2.42], "needsToHold": 2.37, "cautionBelow": 2.3, "momentumFailure": 2.18, "mustClear": 2.49, "breakoutContinuation": 2.62, "targets": [2.78,2.96], "downsideCheckpoints": [2.04,1.9], "catalystStatus": "confirmed" }
+    },
+    {
+      "id": "dltx-low-priced-breakout",
+      "symbol": "DLTX",
+      "snapshot": { "timestamp": 1784319000000, "currentPrice": 0.58 },
+      "priorRegularClose": 0.49,
+      "intradayCandles": [[1784230500000,0.46,0.5,0.44,0.48,850000],[1784230800000,0.48,0.52,0.46,0.5,900000],[1784231100000,0.5,0.53,0.48,0.51,940000],[1784231400000,0.51,0.54,0.49,0.49,880000],[1784289000000,0.5,0.55,0.48,0.53,620000],[1784289300000,0.53,0.59,0.51,0.57,790000],[1784289600000,0.57,0.62,0.55,0.6,960000],[1784289900000,0.6,0.64,0.57,0.61,880000],[1784298600000,0.61,0.65,0.56,0.58,1300000],[1784298900000,0.58,0.62,0.54,0.56,1200000],[1784299200000,0.56,0.6,0.53,0.55,1100000],[1784318400000,0.55,0.59,0.53,0.56,360000],[1784318700000,0.56,0.6,0.54,0.59,400000],[1784319000000,0.59,0.61,0.56,0.58,350000]],
+      "dailyCandles": [[1783886400000,0.38,0.43,0.36,0.41,2300000],[1783972800000,0.41,0.46,0.39,0.44,2500000],[1784059200000,0.44,0.5,0.42,0.48,2700000],[1784145600000,0.48,0.54,0.45,0.5,3000000],[1784232000000,0.5,0.56,0.46,0.49,3300000]],
+      "research": [],
+      "modelResponse": {
+        "bias": "mixed", "confidence": "low", "currentRead": "DLTX remains volatile inside a low-priced range; a breakout needs acceptance rather than one thin wick.",
+        "needsToHold": { "label": "After-hours base", "price": 0.54, "rationale": "The postmarket base held this consolidation floor." },
+        "cautionBelow": { "label": "Regular pivot", "price": 0.52, "rationale": "A loss of the regular session pivot weakens the immediate range." },
+        "momentumFailure": { "label": "Premarket low", "price": 0.48, "rationale": "The premarket range low marks a failed spike invalidation." },
+        "mustClear": { "label": "Regular rejection", "price": 0.62, "rationale": "The regular session wick rejected repeatedly near this ceiling." },
+        "breakoutContinuation": { "label": "Range-high continuation", "price": 0.68, "rationale": "Acceptance above the range high confirms continuation." },
+        "targets": [{ "label": "First extension", "price": 0.78, "condition": "Only after the postmarket range high holds as support." }],
+        "downsideCheckpoints": [{ "label": "Lower daily support", "price": 0.42, "condition": "The daily range low is exposed after a failed spike." },{ "label": "Outer support", "price": 0.36, "condition": "A deeper daily range failure exposes this support." }],
+        "catalystRealityCheck": { "status": "none", "summary": "No source-backed active catalyst was established.", "dayTradeRelevance": "Treat the move as price-action driven.", "sourceUrls": [] },
+        "dilutionRisk": { "level": "unknown", "summary": "No source-backed dilution conclusion was established.", "dayTradeRelevance": "Treat supply risk as unknown.", "sourceUrls": [], "canCompanyIssueToday": null, "companyIssuance": { "status": "unknown", "earliestDate": null, "trigger": "unknown", "summary": "Unknown." }, "publicResale": { "status": "unknown", "earliestDate": null, "trigger": "unknown", "summary": "Unknown." } },
+        "listingStatus": { "status": "none", "immediacy": "background", "summary": "No current listing issue was established.", "dayTradeRelevance": "No listing thesis is part of this trade.", "sourceUrls": [] }, "riskSummary": ["Low-priced liquidity can make isolated wicks unreliable."]
+      },
+      "expected": { "currentPrice": [0.57,0.59], "needsToHold": 0.54, "cautionBelow": 0.52, "momentumFailure": 0.48, "mustClear": 0.62, "breakoutContinuation": 0.68, "targets": [0.78], "downsideCheckpoints": [0.42,0.36], "catalystStatus": "none" }
+    },
+    {
+      "id": "escr-higher-priced-continuation",
+      "symbol": "ESCR",
+      "snapshot": { "timestamp": 1784319000000, "currentPrice": 5.18 },
+      "priorRegularClose": 4.72,
+      "intradayCandles": [[1784230500000,4.6,4.76,4.55,4.7,130000],[1784230800000,4.7,4.82,4.65,4.78,160000],[1784231100000,4.78,4.87,4.71,4.75,175000],[1784231400000,4.75,4.8,4.66,4.72,150000],[1784289000000,4.76,4.95,4.72,4.9,145000],[1784289300000,4.9,5.12,4.85,5.06,205000],[1784289600000,5.06,5.27,5,5.2,260000],[1784289900000,5.2,5.35,5.12,5.28,245000],[1784298600000,5.28,5.42,5.08,5.18,310000],[1784298900000,5.18,5.3,5.02,5.1,290000],[1784299200000,5.1,5.24,4.98,5.06,275000],[1784318400000,5.06,5.18,5.0,5.12,105000],[1784318700000,5.12,5.24,5.06,5.2,115000],[1784319000000,5.2,5.25,5.12,5.18,98000]],
+      "dailyCandles": [[1783886400000,4.1,4.28,4.02,4.22,620000],[1783972800000,4.22,4.46,4.15,4.38,700000],[1784059200000,4.38,4.62,4.3,4.55,780000],[1784145600000,4.55,4.86,4.45,4.72,860000],[1784232000000,4.72,4.95,4.6,4.72,920000]],
+      "research": [{ "title": "ESCR merger consideration issuance filing", "url": "https://traderslink.pro/news/escr-merger", "sourceUrl": "https://www.sec.gov/Archives/escr-merger", "filingType": "8-K" }],
+      "modelResponse": {
+        "bias": "bullish", "confidence": "medium", "currentRead": "ESCR is holding a higher-priced consolidation after a regular-session pullback; continuation depends on reclaiming the session ceiling.",
+        "needsToHold": { "label": "After-hours shelf", "price": 5.06, "rationale": "The postmarket consolidation held this higher-low shelf." },
+        "cautionBelow": { "label": "Regular-session pivot", "price": 4.98, "rationale": "A loss of the regular session pivot weakens the current base." },
+        "momentumFailure": { "label": "Prior close", "price": 4.72, "rationale": "A clean loss of the prior regular close would invalidate the reclaim." },
+        "mustClear": { "label": "Session ceiling", "price": 5.42, "rationale": "The regular session high rejected the first breakout test." },
+        "breakoutContinuation": { "label": "Daily extension", "price": 5.68, "rationale": "Acceptance above the daily range high confirms continuation." },
+        "targets": [{ "label": "First extension", "price": 5.98, "condition": "Only after the regular session range high holds as support." },{ "label": "Outer extension", "price": 6.32, "condition": "A sustained daily range breakout can reach this extension." }],
+        "downsideCheckpoints": [{ "label": "Lower range support", "price": 4.46, "condition": "The prior regular session range low is exposed after a failed spike." },{ "label": "Outer daily support", "price": 4.1, "condition": "The daily range low is next if lower support fails." }],
+        "catalystRealityCheck": { "status": "confirmed", "summary": "The merger agreement filing is source-backed context; price still needs to confirm it.", "dayTradeRelevance": "Watch whether volume confirms the breakout.", "sourceUrls": ["https://www.sec.gov/Archives/escr-merger"] },
+        "dilutionRisk": { "level": "medium", "summary": "Merger consideration can be a conditional supply factor; the filing does not establish immediate issuance.", "dayTradeRelevance": "Supply expectations can affect failed spikes.", "sourceUrls": ["https://www.sec.gov/Archives/escr-merger"], "canCompanyIssueToday": null, "companyIssuance": { "status": "conditional", "earliestDate": null, "trigger": "merger_closing", "summary": "Any company issuance depends on closing conditions." }, "publicResale": { "status": "unknown", "earliestDate": null, "trigger": "unknown", "summary": "Public resale timing was not established." } },
+        "listingStatus": { "status": "none", "immediacy": "background", "summary": "No current listing issue was established.", "dayTradeRelevance": "No listing thesis is part of this trade.", "sourceUrls": [] }, "riskSummary": ["A high-priced reclaim can fail if the session ceiling rejects again."]
+      },
+      "expected": { "currentPrice": [5.17,5.19], "needsToHold": 5.06, "cautionBelow": 4.98, "momentumFailure": 4.72, "mustClear": 5.42, "breakoutContinuation": 5.68, "targets": [5.98,6.32], "downsideCheckpoints": [4.46,4.1], "catalystStatus": "confirmed", "dilutionLevel": "medium" }
+    }
+  ]
+}

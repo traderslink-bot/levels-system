@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { appendFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -102,6 +102,45 @@ describe("TradersLinkAiReadCostLedger", () => {
       assert.equal(summary.perTicker[0]?.averageCostPerRequestUsd, 0.0225);
       assert.equal(summary.byTrigger.find((item) => item.trigger === "manual")?.totals.requestCount, 1);
       assert.equal(summary.byModel[0]?.model, "gpt-5.6-terra");
+      assert.deepEqual(summary.accountingHealth, {
+        healthy: true,
+        corruptLineCount: 0,
+        lastLoadError: null,
+      });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves valid totals but reports corrupt ledger lines as incomplete accounting", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-corrupt-"));
+    try {
+      const filePath = join(directory, "costs.jsonl");
+      const ledger = new TradersLinkAiReadCostLedger({ filePath });
+      const now = Date.parse("2026-07-17T18:00:00.000Z");
+      ledger.record({ read: read("TGHL", now - 60_000, 0.025), trigger: "manual" });
+      appendFileSync(filePath, "{not-json}\n{\"version\":99}\n", "utf8");
+
+      const summary = ledger.summarize(now);
+      assert.equal(summary.windows.allTime.requestCount, 1);
+      assert.equal(summary.windows.allTime.estimatedTotalCostUsd, 0.025);
+      assert.equal(summary.accountingHealth.healthy, false);
+      assert.equal(summary.accountingHealth.corruptLineCount, 2);
+      assert.match(summary.accountingHealth.lastLoadError ?? "", /2 malformed or unsupported/i);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("throws when an attempt cannot be durably appended", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-write-"));
+    try {
+      const ledger = new TradersLinkAiReadCostLedger({ filePath: directory });
+      const now = Date.parse("2026-07-17T18:00:00.000Z");
+      assert.throws(
+        () => ledger.record({ read: read("TGHL", now, 0.025), trigger: "manual" }),
+        /EISDIR|illegal operation on a directory/i,
+      );
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

@@ -463,6 +463,35 @@ function validatedSourceUrls(value: unknown, sources: TradersLinkAiReadSource[])
   return validated.slice(0, 6);
 }
 
+type EvidenceTopic = "catalyst" | "dilution" | "listing";
+
+const SOURCE_TOPIC_PATTERNS: Record<EvidenceTopic, RegExp> = {
+  catalyst: /\b(?:news|fil(?:e|ing|ed)|report|earnings|results|approval|contract|agreement|merger|acqui(?:re|sition)|financ(?:ing|ed)|offering|launch|clinical|patent|guidance|update|transaction)\b/i,
+  dilution: /\b(?:dilut(?:ion|ive)|offering|financ(?:ing|ed)|private placement|pipe|at[- ]the[- ]market|atm|equity line|shelf|prospectus|registration|resale|warrant|convertible|convert|debenture|share issuance|newly issued|merger consideration)\b/i,
+  listing: /\b(?:nasdaq|nyse|listing|delist(?:ing|ed)?|deficien(?:cy|cies)|compliance|hearing|suspension|appeal|exception)\b/i,
+};
+
+function sourceTextForUrl(url: string, sources: TradersLinkAiReadSource[]): string {
+  const canonical = canonicalizeUrl(url);
+  if (!canonical) {
+    return "";
+  }
+  return sources
+    .filter((source) => canonicalizeUrl(source.url) === canonical)
+    .map((source) => `${source.title} ${source.url}`)
+    .join(" ");
+}
+
+function contextuallySupportedSourceUrls(
+  value: unknown,
+  sources: TradersLinkAiReadSource[],
+  topic: EvidenceTopic,
+): string[] {
+  const candidates = validatedSourceUrls(value, sources);
+  const pattern = SOURCE_TOPIC_PATTERNS[topic];
+  return candidates.filter((url) => pattern.test(sourceTextForUrl(url, sources)));
+}
+
 function normalizeCatalystContext(
   value: unknown,
   sources: TradersLinkAiReadSource[],
@@ -470,7 +499,7 @@ function normalizeCatalystContext(
   const candidate = typeof value === "object" && value !== null
     ? value as Record<string, unknown>
     : {};
-  const sourceUrls = validatedSourceUrls(candidate.sourceUrls, sources);
+  const sourceUrls = contextuallySupportedSourceUrls(candidate.sourceUrls, sources, "catalyst");
   const rawStatus = typeof candidate.status === "string" && CATALYST_STATUSES.has(candidate.status)
     ? candidate.status as TradersLinkAiReadCatalystContext["status"]
     : "unverified";
@@ -547,7 +576,7 @@ function normalizeDilutionRisk(
   const candidate = typeof value === "object" && value !== null
     ? value as Record<string, unknown>
     : {};
-  const sourceUrls = validatedSourceUrls(candidate.sourceUrls, sources);
+  const sourceUrls = contextuallySupportedSourceUrls(candidate.sourceUrls, sources, "dilution");
   if (sourceUrls.length === 0) {
     return {
       level: "unknown",
@@ -592,7 +621,7 @@ function normalizeListingContext(
   const candidate = typeof value === "object" && value !== null
     ? value as Record<string, unknown>
     : {};
-  const sourceUrls = validatedSourceUrls(candidate.sourceUrls, sources);
+  const sourceUrls = contextuallySupportedSourceUrls(candidate.sourceUrls, sources, "listing");
   if (sourceUrls.length === 0) {
     return {
       status: "unknown",
@@ -707,6 +736,31 @@ function normalizeModelRead(value: unknown, sources: TradersLinkAiReadSource[]):
     dilutionRisk,
     listingStatus,
     riskSummary,
+  };
+}
+
+const MATERIAL_QUOTE_DISAGREEMENT_PCT = 5;
+
+function applyQuoteDisagreementGuard(
+  read: ModelRead,
+  snapshotPrice: number,
+  referencePrice: number,
+): ModelRead {
+  if (!(snapshotPrice > 0) || !(referencePrice > 0)) {
+    return read;
+  }
+  const disagreementPct = Math.abs(referencePrice - snapshotPrice) / snapshotPrice * 100;
+  if (disagreementPct < MATERIAL_QUOTE_DISAGREEMENT_PCT) {
+    return read;
+  }
+  const roundedDisagreement = Number(disagreementPct.toFixed(2));
+  const quoteRisk =
+    `The candle-derived reference quote differs from the runtime quote by ${roundedDisagreement}%; ` +
+    "confidence is lowered until the live quote converges.";
+  return {
+    ...read,
+    confidence: "low",
+    riskSummary: [...read.riskSummary, quoteRisk].slice(0, 6),
   };
 }
 
@@ -1416,7 +1470,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       ...extractWebSources(response),
     ]);
     try {
-      read = parseAndValidate(text, availableSources);
+      read = applyQuoteDisagreementGuard(
+        parseAndValidate(text, availableSources),
+        input.snapshot.currentPrice,
+        referenceQuote.price,
+      );
       recordAttempt(initialAttemptType, "success", model, response);
     } catch (error) {
       validationError = error instanceof Error ? error : new Error(String(error));
@@ -1446,7 +1504,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         ...extractWebSources(response),
       ]);
       try {
-        read = parseAndValidate(text, availableSources);
+        read = applyQuoteDisagreementGuard(
+          parseAndValidate(text, availableSources),
+          input.snapshot.currentPrice,
+          referenceQuote.price,
+        );
         recordAttempt("correction", "success", model, response);
       } catch (correctionValidationError) {
         recordAttempt(

@@ -58,6 +58,11 @@ export type TradersLinkAiReadCostSummary = {
   generatedAt: number;
   currency: "USD";
   estimateNotice: string;
+  accountingHealth: {
+    healthy: boolean;
+    corruptLineCount: number;
+    lastLoadError: string | null;
+  };
   windows: {
     today: TradersLinkAiReadCostTotals;
     last7Days: TradersLinkAiReadCostTotals;
@@ -187,6 +192,11 @@ function easternDateKey(timestamp: number): string {
 
 export class TradersLinkAiReadCostLedger {
   private readonly filePath: string;
+  private accountingHealth: TradersLinkAiReadCostSummary["accountingHealth"] = {
+    healthy: true,
+    corruptLineCount: 0,
+    lastLoadError: null,
+  };
 
   constructor(options: TradersLinkAiReadCostLedgerOptions = {}) {
     this.filePath = options.filePath ?? DEFAULT_LEDGER_FILE;
@@ -265,23 +275,49 @@ export class TradersLinkAiReadCostLedger {
   }
 
   load(): TradersLinkAiReadCostLedgerEntry[] {
+    let corruptLineCount = 0;
     try {
       const raw = readFileSync(this.filePath, "utf8");
-      return raw
+      const entries = raw
         .split(/\r?\n/)
         .filter(Boolean)
         .flatMap((line) => {
           try {
             const parsed = JSON.parse(line) as unknown;
-            return isEntry(parsed) ? [parsed] : [];
+            if (isEntry(parsed)) {
+              return [parsed];
+            }
+            corruptLineCount += 1;
+            return [];
           } catch {
+            corruptLineCount += 1;
             return [];
           }
         });
+      this.accountingHealth = {
+        healthy: corruptLineCount === 0,
+        corruptLineCount,
+        lastLoadError: corruptLineCount > 0
+          ? `${corruptLineCount} malformed or unsupported ledger line(s) were excluded from totals.`
+          : null,
+      };
+      return entries;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      const missing = (error as NodeJS.ErrnoException)?.code === "ENOENT";
+      if (!missing) {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[TradersLinkAiReadCostLedger] Failed to load usage: ${message}`);
+        this.accountingHealth = {
+          healthy: false,
+          corruptLineCount: 0,
+          lastLoadError: message,
+        };
+      } else {
+        this.accountingHealth = {
+          healthy: true,
+          corruptLineCount: 0,
+          lastLoadError: null,
+        };
       }
       return [];
     }
@@ -322,6 +358,7 @@ export class TradersLinkAiReadCostLedger {
       currency: "USD",
       estimateNotice:
         "Estimated from API token usage and actual web-search tool calls. OpenAI billing remains the invoice authority; unpriced requests are flagged.",
+      accountingHealth: { ...this.accountingHealth },
       windows: {
         today: totalsFor(entries.filter((entry) => easternDateKey(entry.generatedAt) === todayKey)),
         last7Days: totalsFor(entries.filter((entry) => entry.generatedAt >= now - 7 * DAY_MS)),

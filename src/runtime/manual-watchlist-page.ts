@@ -909,6 +909,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const last7Days = windows.last7Days || {};
       const last30Days = windows.last30Days || {};
       const allTime = windows.allTime || {};
+      const accountingHealth = summary.accountingHealth || {};
       aiReadCostGridEl.innerHTML = "";
       const cards = [
         ["Today", formatAiReadCost(today.estimatedTotalCostUsd)],
@@ -917,12 +918,21 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Last 30 Days", formatAiReadCost(last30Days.estimatedTotalCostUsd)],
         ["All Time", formatAiReadCost(allTime.estimatedTotalCostUsd)],
         ["Web Searches", String(allTime.webSearchCallCount || 0)],
+        ["Accounting", accountingHealth.healthy === false ? "CHECK LEDGER" : "Healthy"],
       ];
       for (const [label, value] of cards) {
         aiReadCostGridEl.appendChild(createRuntimeCard(label, value));
       }
 
       aiReadCostListEl.innerHTML = "";
+      if (accountingHealth.healthy === false) {
+        const warning = document.createElement("li");
+        warning.className = "warning-text";
+        warning.textContent =
+          "Expense totals may be incomplete: " +
+          String(accountingHealth.lastLoadError || "the usage ledger could not be read completely.");
+        aiReadCostListEl.appendChild(warning);
+      }
       const perTicker = Array.isArray(summary.perTicker) ? summary.perTicker : [];
       if (perTicker.length === 0) {
         const empty = document.createElement("li");

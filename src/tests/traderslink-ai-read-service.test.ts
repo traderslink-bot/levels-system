@@ -227,7 +227,7 @@ describe("OpenAITradersLinkAiReadService", () => {
             action: {
               sources: [{
                 type: "url",
-                title: "Supplemental listing source",
+                title: "Supplemental financing catalyst source",
                 url: "https://example.com/listing-source",
               }],
             },
@@ -271,7 +271,7 @@ describe("OpenAITradersLinkAiReadService", () => {
         count: 1,
         articles: [{
           ticker: "TGHL",
-          title: "TGHL files current report",
+          title: "TGHL files merger and financing 8-K",
           url: "https://traderslink.pro/news/tghl-current-report",
           sourceUrl: "https://www.sec.gov/Archives/example",
           filingType: "8-K",
@@ -403,7 +403,7 @@ describe("OpenAITradersLinkAiReadService", () => {
         count: 1,
         articles: [{
           ticker: "TGHL",
-          title: "TGHL files current report",
+          title: "TGHL files merger and financing 8-K",
           url: "https://traderslink.pro/news/tghl-current-report",
           sourceUrl: "https://www.sec.gov/Archives/example",
           filingType: "8-K",
@@ -506,6 +506,75 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.deepEqual(read.riskSummary, ["Thin liquidity can amplify failed spikes."]);
     assert.ok(read.sources.some((source) => source.url === "https://example.com/dilution"));
     assert.ok(read.sources.some((source) => source.url === "https://www.sec.gov/Archives/hearing"));
+  });
+
+  it("does not let a source URL support an unrelated dilution or listing claim", async () => {
+    const unsafeRead = modelRead();
+    unsafeRead.dilutionRisk = {
+      level: "high",
+      summary: "A large offering could create immediate supply.",
+      dayTradeRelevance: "Supply can cap spikes.",
+      sourceUrls: ["https://example.com/unrelated"],
+      canCompanyIssueToday: true,
+      companyIssuance: { status: "immediate", earliestDate: "2026-07-17", trigger: "already_issued", summary: "Immediate." },
+      publicResale: { status: "unknown", earliestDate: null, trigger: "unknown", summary: "Unknown." },
+    };
+    unsafeRead.listingStatus = {
+      status: "suspension_scheduled",
+      immediacy: "immediate",
+      summary: "Trading suspension is scheduled.",
+      dayTradeRelevance: "Trading access could be affected now.",
+      sourceUrls: ["https://example.com/unrelated"],
+    };
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => new Response(JSON.stringify({
+        output: [{
+          type: "web_search_call",
+          action: { sources: [{ title: "TGHL announces new product launch", url: "https://example.com/unrelated" }] },
+        }, {
+          type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(unsafeRead) }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(read.dilutionRisk.level, "unknown");
+    assert.deepEqual(read.dilutionRisk.sourceUrls, []);
+    assert.equal(read.listingStatus.status, "unknown");
+    assert.deepEqual(read.listingStatus.sourceUrls, []);
+  });
+
+  it("lowers confidence when the runtime quote materially disagrees with the current candle", async () => {
+    const highConfidenceRead = modelRead();
+    highConfidenceRead.confidence = "high";
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => new Response(JSON.stringify({
+        output: [{
+          type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(highConfidenceRead) }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    });
+    const conflictingSnapshot = { ...snapshot(), currentPrice: 1 };
+
+    const read = await service.generate({
+      snapshot: conflictingSnapshot,
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(read.confidence, "low");
+    assert.ok(read.riskSummary.some((item) => /differs from the runtime quote/i.test(item)));
   });
 
   it("does not call OpenAI without a usable full-session tape", async () => {
@@ -667,6 +736,67 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.deepEqual(attempts, [
       { attemptType: "primary", status: "invalid_output", totalTokens: 120 },
       { attemptType: "correction", status: "success", totalTokens: 230 },
+    ]);
+  });
+
+  it("records an unavailable primary model and successful fallback as separate attempts", async () => {
+    const requestedModels: string[] = [];
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "unavailable-model",
+      fallbackModel: "test-fallback-model",
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as { model?: string };
+        requestedModels.push(body.model ?? "");
+        if (body.model === "unavailable-model") {
+          return new Response(JSON.stringify({
+            error: { message: "The requested model was not found or is not accessible." },
+          }), { status: 404, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({
+          id: "resp_fallback_success",
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(modelRead()) }],
+          }],
+          usage: { input_tokens: 200, output_tokens: 30, total_tokens: 230 },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const attempts: Array<{
+      attemptType: string;
+      status: string;
+      model: string;
+      totalTokens: number;
+    }> = [];
+    const generated = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      onAttempt: (attempt) => attempts.push({
+        attemptType: attempt.attemptType,
+        status: attempt.status,
+        model: attempt.model,
+        totalTokens: attempt.usage.totalTokens,
+      }),
+    });
+
+    assert.deepEqual(requestedModels, ["unavailable-model", "test-fallback-model"]);
+    assert.equal(generated.model, "test-fallback-model");
+    assert.deepEqual(attempts, [
+      {
+        attemptType: "primary",
+        status: "transport_error",
+        model: "unavailable-model",
+        totalTokens: 0,
+      },
+      {
+        attemptType: "fallback",
+        status: "success",
+        model: "test-fallback-model",
+        totalTokens: 230,
+      },
     ]);
   });
 
