@@ -7,7 +7,7 @@ export type ProviderCandleTimeframe = "daily" | "4h" | "15m" | "5m";
 export type ValidationCacheCollectionTimeframe = ProviderCandleTimeframe;
 export type CandleFetchTimeframe = ProviderCandleTimeframe | "1m";
 
-export type CandleProviderName = "ibkr" | "eodhd" | "stub" | "twelve_data";
+export type CandleProviderName = "ibkr" | "eodhd" | "yahoo" | "stub" | "twelve_data";
 
 export type Candle = {
   timestamp: number;

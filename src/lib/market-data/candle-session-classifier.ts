@@ -40,7 +40,7 @@ function extractParts(timestamp: number): {
   };
 }
 
-function classifyIntradaySession(timestamp: number): {
+export function classifyIntradayCandleTimestamp(timestamp: number): {
   session: CandleSessionLabel;
   sessionDate: string;
 } {
@@ -79,7 +79,7 @@ export function classifyCandleSessions(
   }
 
   return candles.map((candle) => {
-    const classified = classifyIntradaySession(candle.timestamp);
+    const classified = classifyIntradayCandleTimestamp(candle.timestamp);
     return {
       candle,
       session: classified.session,

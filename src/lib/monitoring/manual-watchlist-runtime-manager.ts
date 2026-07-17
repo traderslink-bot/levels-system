@@ -5,6 +5,7 @@ import type { LevelRuntimeComparisonLogEntry } from "../levels/level-runtime-com
 import type {
   TradersLinkAiReadService,
 } from "../ai/traderslink-ai-read-service.js";
+import type { TradersLinkAiReadPriceActionContext } from "../ai/traderslink-ai-read-price-action.js";
 import type {
   TradersLinkAiReadCostLedger,
   TradersLinkAiReadCostTrigger,
@@ -72,6 +73,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   liveWatchlistPublisher?: LiveWatchlistPublisher | null;
   tradersLinkAiReadService?: TradersLinkAiReadService | null;
   tradersLinkAiReadCostLedger?: TradersLinkAiReadCostLedger | null;
+  tradersLinkAiReadCandleFetchService?: CandleFetchService | null;
   tradersLinkAiReadStartupRefreshEnabled?: boolean;
   seedSymbolLevels?: (symbol: string, referencePriceOverride?: number) => Promise<void>;
   levelIntelligenceAlertPreviewDryRun?: LevelIntelligenceAlertPreviewDryRunOptions;
@@ -79,6 +81,8 @@ export type ManualWatchlistRuntimeManagerOptions = {
 
 const TRADERSLINK_AI_READ_AUTO_REFRESH_MIN_MS = 60 * 60 * 1_000;
 const TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS = 0.85;
+const TRADERSLINK_AI_READ_5M_FETCH_BARS = 720;
+const TRADERSLINK_AI_READ_DAILY_FETCH_BARS = 30;
 export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "automatic";
 
 export type TradersLinkAiReadRefreshState = {
@@ -633,6 +637,64 @@ export class ManualWatchlistRuntimeManager {
     );
   }
 
+  private async buildTradersLinkAiReadPriceActionContext(
+    symbolInput: string,
+    dataAsOf: number,
+  ): Promise<TradersLinkAiReadPriceActionContext> {
+    const symbol = normalizeSymbol(symbolInput);
+    const services = [
+      this.options.tradersLinkAiReadCandleFetchService,
+      this.options.candleFetchService,
+    ].filter((service, index, all): service is CandleFetchService =>
+      Boolean(service) && all.indexOf(service) === index
+    );
+    const fetchAsOf = Math.max(dataAsOf, Date.now());
+    let intradayCandles: Candle[] = [];
+    let dailyCandles: Candle[] = [];
+    let source = "runtime OHLCV fallback";
+
+    for (const candleService of services) {
+      const [intradayResult, dailyResult] = await Promise.allSettled([
+        candleService.fetchCandles({
+          symbol,
+          timeframe: "5m",
+          lookbackBars: TRADERSLINK_AI_READ_5M_FETCH_BARS,
+          endTimeMs: fetchAsOf,
+        }),
+        candleService.fetchCandles({
+          symbol,
+          timeframe: "daily",
+          lookbackBars: TRADERSLINK_AI_READ_DAILY_FETCH_BARS,
+          endTimeMs: fetchAsOf,
+        }),
+      ]);
+      if (intradayCandles.length === 0 && intradayResult.status === "fulfilled") {
+        const fetched = intradayResult.value.candles;
+        if (fetched.length > 0) {
+          intradayCandles = fetched;
+          source = `${intradayResult.value.provider} full-session OHLCV`;
+        }
+      }
+      if (dailyCandles.length === 0 && dailyResult.status === "fulfilled") {
+        const fetched = dailyResult.value.candles;
+        if (fetched.length > 0) {
+          dailyCandles = fetched;
+        }
+      }
+      if (intradayCandles.length > 0 && dailyCandles.length > 0) {
+        break;
+      }
+    }
+
+    return {
+      source,
+      fetchedAt: Date.now(),
+      priorRegularClose: null,
+      intradayCandles,
+      dailyCandles,
+    };
+  }
+
   private async generateTradersLinkAiRead(
     symbolInput: string,
     force: boolean,
@@ -679,6 +741,7 @@ export class ManualWatchlistRuntimeManager {
 
     this.aiReadInFlight.add(symbol);
     try {
+      const priceActionPromise = this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
       let research;
       try {
         research = await lookupRecentWebsiteArticlesForSymbol({ symbol });
@@ -695,7 +758,8 @@ export class ManualWatchlistRuntimeManager {
         };
       }
 
-      const read = await service.generate({ snapshot, research, dataAsOf });
+      const priceAction = await priceActionPromise;
+      const read = await service.generate({ snapshot, research, priceAction, dataAsOf });
       this.options.tradersLinkAiReadCostLedger?.record({ read, trigger });
       const latestEntry = this.watchlistStore.getEntry(symbol);
       if (!latestEntry?.active || latestEntry.tradersLinkAiReadCardVisible === false) {

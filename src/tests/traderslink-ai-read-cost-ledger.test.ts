@@ -60,6 +60,7 @@ function read(symbol: string, generatedAt: number, totalCostUsd: number): Trader
     riskSummary: [],
     sources: [],
     model: "gpt-5.6-terra",
+    externalResearchEnabled: true,
     usedWebSearch: true,
     usage: {
       inputTokens: 1_000,
