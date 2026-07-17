@@ -3925,6 +3925,14 @@ test("ManualWatchlistRuntimeManager preserves the source observation time when p
         return {
           symbol: symbolInput.toUpperCase(),
           quote: { c: 4.2, d: 0, dp: 0, h: 4.3, l: 4.1, o: 4.15, pc: 4, t: 1_700_000_000 },
+          profile: {
+            country: "US",
+            exchange: "NASDAQ",
+            finnhubIndustry: "Technology",
+            marketCapitalization: 850,
+            name: "Stale Quote Corp",
+            weburl: "https://example.com",
+          },
         };
       },
     },
