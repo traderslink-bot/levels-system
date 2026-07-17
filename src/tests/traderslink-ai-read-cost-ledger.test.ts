@@ -10,6 +10,7 @@ import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchl
 function read(symbol: string, generatedAt: number, totalCostUsd: number): TradersLinkAiReadPayload {
   return {
     version: 2,
+    generationId: `${symbol}-${generatedAt}`,
     symbol,
     generatedAt,
     dataAsOf: generatedAt - 1_000,

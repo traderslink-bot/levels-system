@@ -69,6 +69,8 @@ describe("live watchlist publisher", () => {
           symbol: "QUEUE",
           updatedAt: 1,
           latestPrice: 1,
+          nearestSupport: null,
+          nearestResistance: null,
         }),
         /ingest unavailable/,
       );
@@ -78,6 +80,8 @@ describe("live watchlist publisher", () => {
           symbol: "QUEUE",
           updatedAt: 2,
           latestPrice: 1.25,
+          nearestSupport: null,
+          nearestResistance: null,
         }),
         /ingest unavailable/,
       );

@@ -150,6 +150,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Maximum market cap ($M)<input id="auto-selector-max-market-cap" type="number" min="1" step="1" /></label>
           <label>Maximum float (M shares)<input id="auto-selector-max-float" type="number" min="0.1" step="0.1" /></label>
           <label>Maximum outstanding (M shares)<input id="auto-selector-max-outstanding" type="number" min="0.1" step="0.1" /></label>
+          <label>Low-price float treatment at or below ($)<input id="auto-selector-low-price-float-max-price" type="number" min="0.01" step="0.01" /></label>
+          <label>Maximum low-price dollar float ($M)<input id="auto-selector-low-price-float-max-dollar" type="number" min="0.1" step="0.1" /></label>
           <label>Minimum price ($)<input id="auto-selector-min-price" type="number" min="0.01" step="0.01" /></label>
           <label>Maximum price ($)<input id="auto-selector-max-price" type="number" min="0.02" step="0.01" /></label>
           <label>Minimum gain (%)<input id="auto-selector-min-gain" type="number" min="0" step="0.1" /></label>
@@ -216,6 +218,14 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             <span>Require float or outstanding-share data</span>
           </label>
         </div>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="auto-selector-low-price-float-normalization" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span>Allow low-price shares to qualify on verified dollar float</span>
+          </label>
+        </div>
+        <div class="inline-status">This only applies to a known float above the share cap when its dollar float is below the setting. It keeps a true low-float ticker ranked higher and never relaxes the fallback outstanding-share cap.</div>
         <div class="inline-control toggle-control">
           <label class="toggle-switch">
             <input id="auto-selector-catalyst-ranking" type="checkbox" />
@@ -365,6 +375,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       maxMarketCap: document.getElementById("auto-selector-max-market-cap"),
       maxFloatShares: document.getElementById("auto-selector-max-float"),
       maxSharesOutstanding: document.getElementById("auto-selector-max-outstanding"),
+      lowPriceFloatNormalizationEnabled: document.getElementById("auto-selector-low-price-float-normalization"),
+      lowPriceFloatNormalizationMaxPrice: document.getElementById("auto-selector-low-price-float-max-price"),
+      lowPriceFloatNormalizationMaxDollarValue: document.getElementById("auto-selector-low-price-float-max-dollar"),
       requireShareData: document.getElementById("auto-selector-require-share-data"),
       minPrice: document.getElementById("auto-selector-min-price"),
       maxPrice: document.getElementById("auto-selector-max-price"),
@@ -1046,6 +1059,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("maxMarketCap", thresholds.maxMarketCap, 1000000);
         setAutoSelectorInputValue("maxFloatShares", thresholds.maxFloatShares, 1000000);
         setAutoSelectorInputValue("maxSharesOutstanding", thresholds.maxSharesOutstanding, 1000000);
+        setAutoSelectorInputValue("lowPriceFloatNormalizationEnabled", thresholds.lowPriceFloatNormalizationEnabled);
+        setAutoSelectorInputValue("lowPriceFloatNormalizationMaxPrice", thresholds.lowPriceFloatNormalizationMaxPrice);
+        setAutoSelectorInputValue("lowPriceFloatNormalizationMaxDollarValue", thresholds.lowPriceFloatNormalizationMaxDollarValue, 1000000);
         setAutoSelectorInputValue("requireShareData", thresholds.requireShareData);
         setAutoSelectorInputValue("minPrice", thresholds.minPrice);
         setAutoSelectorInputValue("maxPrice", thresholds.maxPrice);
@@ -1924,6 +1940,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         maxMarketCap: readAutoSelectorNumber("maxMarketCap", 1000000),
         maxFloatShares: readAutoSelectorNumber("maxFloatShares", 1000000),
         maxSharesOutstanding: readAutoSelectorNumber("maxSharesOutstanding", 1000000),
+        lowPriceFloatNormalizationEnabled: autoSelectorInputEls.lowPriceFloatNormalizationEnabled.checked,
+        lowPriceFloatNormalizationMaxPrice: readAutoSelectorNumber("lowPriceFloatNormalizationMaxPrice"),
+        lowPriceFloatNormalizationMaxDollarValue: readAutoSelectorNumber("lowPriceFloatNormalizationMaxDollarValue", 1000000),
         requireShareData: autoSelectorInputEls.requireShareData.checked,
         minPrice: readAutoSelectorNumber("minPrice"),
         maxPrice: readAutoSelectorNumber("maxPrice"),

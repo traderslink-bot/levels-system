@@ -289,31 +289,37 @@ export function buildTradersLinkAiReadRefreshState(
     read.momentumFailure.price,
     ...read.downsideCheckpoints.map((checkpoint) => checkpoint.price),
   ].map(positivePrice).filter((price): price is number => price !== null);
-  const primaryBoundaries: TradersLinkAiReadBoundary[] = [
+  const normalizeBoundary = (
+    boundary: Omit<TradersLinkAiReadBoundary, "price"> & { price: number | null },
+  ): TradersLinkAiReadBoundary[] => {
+    const price = positivePrice(boundary.price);
+    return price === null ? [] : [{ ...boundary, price }];
+  };
+  const primaryBoundaryCandidates: Array<
+    Omit<TradersLinkAiReadBoundary, "price"> & { price: number | null }
+  > = [
     { role: "needsToHold", side: "downside", impact: "hold", price: read.needsToHold.price },
     { role: "cautionBelow", side: "downside", impact: "caution", price: read.cautionBelow.price },
     { role: "momentumFailure", side: "downside", impact: "invalidates", price: read.momentumFailure.price },
     { role: "mustClear", side: "upside", impact: "improves", price: read.mustClear.price },
     { role: "breakoutContinuation", side: "upside", impact: "improves", price: read.breakoutContinuation.price },
   ];
+  const primaryBoundaries = primaryBoundaryCandidates.flatMap(normalizeBoundary);
   const boundaries: TradersLinkAiReadBoundary[] = [
     ...primaryBoundaries,
-    ...read.targets.map((target): TradersLinkAiReadBoundary => ({
+    ...read.targets.flatMap((target) => normalizeBoundary({
       role: "upsideTarget" as const,
       side: "upside" as const,
       impact: "exhausts" as const,
       price: target.price,
     })),
-    ...read.downsideCheckpoints.map((checkpoint): TradersLinkAiReadBoundary => ({
+    ...read.downsideCheckpoints.flatMap((checkpoint) => normalizeBoundary({
       role: "downsideCheckpoint" as const,
       side: "downside" as const,
       impact: "exhausts" as const,
       price: checkpoint.price,
     })),
-  ].flatMap((boundary): TradersLinkAiReadBoundary[] => {
-    const price = positivePrice(boundary.price);
-    return price === null ? [] : [{ ...boundary, price }];
-  });
+  ];
   return {
     generatedAt: read.generatedAt,
     currentPrice: read.currentPrice,
