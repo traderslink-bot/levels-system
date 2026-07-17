@@ -1957,6 +1957,7 @@ export function buildTradersLinkAiReadPatch(args: {
           : "openai_responses_press_sec_database",
         metadata: {
           model: read.model,
+          generationId: read.generationId,
           externalResearchEnabled: read.externalResearchEnabled,
           bias: read.bias,
           confidence: read.confidence,
@@ -2081,10 +2082,6 @@ export function createLiveWatchlistPublisherFromEnv(
     env.LIVE_WATCHLIST_PUBLISH_OUTBOX_PATH?.trim() ||
       DEFAULT_LIVE_WATCHLIST_PUBLISH_OUTBOX_FILE,
   );
-  void publisher.replayPending().catch((error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[LiveWatchlistPublisher] Pending outbox replay remains queued: ${message}`);
-  });
 
   if (env.LIVE_WATCHLIST_AUDIT_ARCHIVE_DISABLED === "1") {
     return publisher;

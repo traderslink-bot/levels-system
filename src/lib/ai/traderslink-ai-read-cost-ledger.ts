@@ -26,9 +26,14 @@ export type TradersLinkAiReadCostLedgerEntry = {
   usage: TradersLinkAiReadUsage;
   generationId?: string;
   requestId?: string;
+  clientRequestId?: string;
   attemptType?: TradersLinkAiReadAttempt["attemptType"] | "publication";
   status?: TradersLinkAiReadAttempt["status"] | "publish_error";
   receivedAt?: number;
+  startedAt?: number;
+  durationMs?: number;
+  timeoutMs?: number;
+  timeoutOverrunMs?: number;
   error?: string | null;
 };
 
@@ -252,9 +257,14 @@ export class TradersLinkAiReadCostLedger {
       usage: args.attempt.usage,
       generationId: args.attempt.generationId,
       requestId: args.attempt.requestId,
+      clientRequestId: args.attempt.clientRequestId,
       attemptType: args.attempt.attemptType,
       status: args.attempt.status,
       receivedAt: args.attempt.receivedAt,
+      startedAt: args.attempt.startedAt,
+      durationMs: args.attempt.durationMs,
+      timeoutMs: args.attempt.timeoutMs,
+      timeoutOverrunMs: args.attempt.timeoutOverrunMs,
       error: args.attempt.error,
     });
   }

@@ -70,6 +70,7 @@ import {
 } from "../catalysts/press-release-catalyst-context.js";
 import type {
   LiveWatchlistCardPatch,
+  LiveWatchlistPublishedPatch,
   LiveWatchlistPublisher,
   LiveWatchlistStatus,
   LiveWatchlistTickerDataPatch,
@@ -105,6 +106,7 @@ import { deriveTraderFollowThroughContext, describeZoneStrength } from "../alert
 import { LevelStore } from "./level-store.js";
 import type {
   LivePriceUpdate,
+  PendingTradersLinkAiReadGeneration,
   MonitoringEvent,
   PracticalTradeStructureState,
   RuntimeMarketStructureSnapshot,
@@ -257,6 +259,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
 };
 
 const TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS = 0.85;
+const TRADERSLINK_AI_READ_AUTOMATIC_SCHEDULE_COALESCE_MS = 250;
 const DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 1;
 export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "automatic";
 
@@ -2366,6 +2369,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly aiReadInFlight = new Set<string>();
   private readonly aiReadState = new Map<string, TradersLinkAiReadRefreshState>();
   private readonly aiReadInitialGenerationSuppressedSymbols = new Set<string>();
+  private readonly pendingAutomaticAiReadSchedules = new Map<string, NodeJS.Timeout>();
   private tradersLinkAiReadDailyCostBudget = {
     enabled: false,
     dailyLimitUsd: DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD,
@@ -2468,6 +2472,9 @@ export class ManualWatchlistRuntimeManager {
       options.liveWatchlistPublisher === undefined
         ? createLiveWatchlistPublisherFromEnv()
         : options.liveWatchlistPublisher;
+    this.liveWatchlistPublisher?.onPublished?.((patch) => {
+      this.acknowledgeTradersLinkAiReadPublication(patch);
+    });
     this.levelProvenanceMode = resolveLiveWatchlistLevelProvenanceMode(
       options.levelProvenanceMode ??
         process.env[LIVE_WATCHLIST_LEVEL_PROVENANCE_MODE_ENV],
@@ -2883,6 +2890,13 @@ export class ManualWatchlistRuntimeManager {
     if (this.aiReadInFlight.has(symbol)) {
       return null;
     }
+    if (entry.pendingTradersLinkAiReadGeneration) {
+      await publisher.replayPending?.().catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[TradersLinkAiRead] Pending ${symbol} read remains unpublished: ${message}`);
+      });
+      return null;
+    }
 
     const currentPrice = entry.lastPrice;
     const dataAsOf = entry.lastPriceUpdateAt ?? Date.now();
@@ -2938,11 +2952,13 @@ export class ManualWatchlistRuntimeManager {
 
       const priceAction = await priceActionPromise;
       let recordedAttemptCount = 0;
+      const generationId = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const read = await service.generate({
         snapshot,
         research,
         priceAction,
         dataAsOf,
+        generationId,
         onAttempt: (attempt) => {
           this.options.tradersLinkAiReadCostLedger?.recordAttempt({
             attempt,
@@ -2961,6 +2977,20 @@ export class ManualWatchlistRuntimeManager {
       if (!latestEntry?.active || latestEntry.tradersLinkAiReadCardVisible === false) {
         return null;
       }
+      const nextRefreshState = {
+        ...buildTradersLinkAiReadRefreshState(read),
+        lastAutomaticRefreshRegime: refreshDecision.automaticRefreshRegime,
+      };
+      const pendingGeneration: PendingTradersLinkAiReadGeneration = {
+        generationId: read.generationId,
+        createdAt: Date.now(),
+        trigger: refreshDecision.trigger,
+        boundaryState: nextRefreshState,
+      };
+      this.watchlistStore.patchEntry(symbol, {
+        pendingTradersLinkAiReadGeneration: pendingGeneration,
+      });
+      this.persistWatchlist();
       try {
         await publisher.publish(buildTradersLinkAiReadPatch({ read, visible: true }));
       } catch (error) {
@@ -2971,19 +3001,63 @@ export class ManualWatchlistRuntimeManager {
         });
         throw error;
       }
-      const nextRefreshState = {
-        ...buildTradersLinkAiReadRefreshState(read),
-        lastAutomaticRefreshRegime: refreshDecision.automaticRefreshRegime,
-      };
-      this.aiReadState.set(symbol, nextRefreshState);
-      this.watchlistStore.patchEntry(symbol, {
-        tradersLinkAiReadBoundaryState: nextRefreshState,
-      });
-      this.persistWatchlist();
-      this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
+      this.acknowledgeTradersLinkAiReadPublication(read);
       return read;
     } finally {
       this.aiReadInFlight.delete(symbol);
+    }
+  }
+
+  private acknowledgeTradersLinkAiReadPublication(
+    published: TradersLinkAiReadPayload | LiveWatchlistPublishedPatch,
+  ): void {
+    const read = this.resolvePublishedTradersLinkAiRead(published);
+    if (!read) {
+      return;
+    }
+    const entry = this.watchlistStore.getEntry(read.symbol);
+    const pending = entry?.pendingTradersLinkAiReadGeneration;
+    if (!entry || !pending || pending.generationId !== read.generationId) {
+      return;
+    }
+    this.aiReadState.set(read.symbol, pending.boundaryState);
+    this.watchlistStore.patchEntry(read.symbol, {
+      tradersLinkAiReadBoundaryState: pending.boundaryState,
+      pendingTradersLinkAiReadGeneration: null,
+    });
+    this.persistWatchlist();
+    this.aiReadInitialGenerationSuppressedSymbols.delete(read.symbol);
+  }
+
+  private resolvePublishedTradersLinkAiRead(
+    published: TradersLinkAiReadPayload | LiveWatchlistPublishedPatch,
+  ): Pick<TradersLinkAiReadPayload, "symbol" | "generationId"> | null {
+    if ("generationId" in published && typeof published.generationId === "string") {
+      return {
+        symbol: normalizeSymbol(published.symbol),
+        generationId: published.generationId,
+      };
+    }
+    if (!("cards" in published)) {
+      return null;
+    }
+    const card = published.cards.tradersLinkAiRead;
+    if (!card || typeof card.body !== "string") {
+      return null;
+    }
+    try {
+      const body = JSON.parse(card.body) as { symbol?: unknown; generationId?: unknown };
+      const generationId = typeof body.generationId === "string"
+        ? body.generationId
+        : typeof card.metadata?.generationId === "string"
+          ? card.metadata.generationId
+          : null;
+      if (!generationId || typeof body.symbol !== "string") {
+        return null;
+      }
+      return { symbol: normalizeSymbol(body.symbol), generationId };
+    } catch {
+      return null;
     }
   }
 
@@ -2992,10 +3066,33 @@ export class ManualWatchlistRuntimeManager {
     force: boolean,
     trigger: TradersLinkAiReadRequestedTrigger,
   ): void {
-    void this.generateTradersLinkAiRead(symbol, force, trigger).catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[TradersLinkAiRead] Failed to generate ${normalizeSymbol(symbol)} read: ${message}`);
-    });
+    const normalizedSymbol = normalizeSymbol(symbol);
+    const dispatch = (): void => {
+      void this.generateTradersLinkAiRead(normalizedSymbol, force, trigger).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[TradersLinkAiRead] Failed to generate ${normalizedSymbol} read: ${message}`);
+      });
+    };
+
+    if (!force && trigger === "automatic") {
+      if (this.pendingAutomaticAiReadSchedules.has(normalizedSymbol)) {
+        return;
+      }
+      const timer = setTimeout(() => {
+        this.pendingAutomaticAiReadSchedules.delete(normalizedSymbol);
+        dispatch();
+      }, TRADERSLINK_AI_READ_AUTOMATIC_SCHEDULE_COALESCE_MS);
+      timer.unref?.();
+      this.pendingAutomaticAiReadSchedules.set(normalizedSymbol, timer);
+      return;
+    }
+
+    const pendingAutomatic = this.pendingAutomaticAiReadSchedules.get(normalizedSymbol);
+    if (pendingAutomatic) {
+      clearTimeout(pendingAutomatic);
+      this.pendingAutomaticAiReadSchedules.delete(normalizedSymbol);
+    }
+    dispatch();
   }
 
   async refreshTradersLinkAiRead(symbolInput: string): Promise<TradersLinkAiReadPayload | null> {
@@ -9095,6 +9192,7 @@ export class ManualWatchlistRuntimeManager {
     if (persistedEntries) {
       this.watchlistStore.setEntries(persistedEntries);
     }
+    await this.liveWatchlistPublisher?.replayPending?.();
 
     for (const entry of this.watchlistStore.getEntries()) {
       if (entry.lifecycle !== "activating" && entry.lifecycle !== "activation_failed") {
@@ -9287,6 +9385,10 @@ export class ManualWatchlistRuntimeManager {
   async stop(): Promise<void> {
     this.stopPullbackReadIntradayPolling();
     this.stopActivationWatchdog();
+    for (const timer of this.pendingAutomaticAiReadSchedules.values()) {
+      clearTimeout(timer);
+    }
+    this.pendingAutomaticAiReadSchedules.clear();
     for (const timer of this.pendingLevelTouchAlerts.values()) {
       clearTimeout(timer);
     }
@@ -9309,6 +9411,7 @@ export class ManualWatchlistRuntimeManager {
     this.aiReadInitialGenerationSuppressedSymbols.clear();
     this.persistMarketStructureStoryMemory();
     await this.options.monitor.stop();
+    await this.liveWatchlistPublisher?.flushPending?.();
     this.isStarted = false;
   }
 

@@ -14,6 +14,7 @@ import {
   LiveWatchlistHttpPublisher,
 } from "../lib/live-watchlist/live-watchlist-publisher.js";
 import { DurableLiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-publish-outbox.js";
+import type { LiveWatchlistTickerDataPatch } from "../lib/live-watchlist/live-watchlist-types.js";
 import {
   buildRecentWebsiteArticlesPatch,
   deriveRecentWebsiteArticleCatalystFreshness,
@@ -47,6 +48,50 @@ describe("live watchlist publisher", () => {
       await recovered.replayPending();
       assert.deepEqual(published, ["RETRY"]);
       assert.equal(recovered.pendingCount(), 0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps only the latest queued live quote for a symbol while delivery is unavailable", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "live-watchlist-outbox-coalesce-"));
+    const filePath = join(directory, "outbox.json");
+    try {
+      const failing = new DurableLiveWatchlistPublisher({
+        async publish() {},
+        async publishTickerData() {
+          throw new Error("ingest unavailable");
+        },
+      }, filePath);
+      await assert.rejects(
+        failing.publishTickerData({
+          type: "tickerData",
+          symbol: "QUEUE",
+          updatedAt: 1,
+          latestPrice: 1,
+        }),
+        /ingest unavailable/,
+      );
+      await assert.rejects(
+        failing.publishTickerData({
+          type: "tickerData",
+          symbol: "QUEUE",
+          updatedAt: 2,
+          latestPrice: 1.25,
+        }),
+        /ingest unavailable/,
+      );
+      assert.equal(failing.pendingCount(), 1);
+
+      const delivered: LiveWatchlistTickerDataPatch[] = [];
+      const recovered = new DurableLiveWatchlistPublisher({
+        async publish() {},
+        async publishTickerData(patch) {
+          delivered.push(patch);
+        },
+      }, filePath);
+      await recovered.replayPending();
+      assert.deepEqual(delivered.map((patch) => patch.latestPrice), [1.25]);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

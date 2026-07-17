@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import type {
   LiveWatchlistCardPatch,
   LiveWatchlistHealthPatch,
+  LiveWatchlistPublishedPatch,
   LiveWatchlistPublisher,
   LiveWatchlistTickerDataPatch,
 } from "./live-watchlist-types.js";
@@ -49,9 +50,31 @@ function parseEntries(raw: string): OutboxEntry[] {
   });
 }
 
+function isTickerDataPayload(payload: PublishPayload): payload is LiveWatchlistTickerDataPatch {
+  return "type" in payload && payload.type === "tickerData";
+}
+
+function coalesceQueuedTickerData(
+  entries: OutboxEntry[],
+  payload: LiveWatchlistTickerDataPatch,
+): boolean {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const candidate = entries[index]!;
+    if (!isTickerDataPayload(candidate.payload) || candidate.payload.symbol !== payload.symbol) {
+      continue;
+    }
+    if (candidate.payload.updatedAt <= payload.updatedAt) {
+      candidate.payload = payload;
+    }
+    return true;
+  }
+  return false;
+}
+
 export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
   private operationQueue: Promise<void> = Promise.resolve();
   private sequence = 0;
+  private readonly publishedListeners = new Set<(patch: LiveWatchlistPublishedPatch) => void>();
 
   constructor(
     private readonly delegate: LiveWatchlistPublisher,
@@ -74,6 +97,11 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
     return this.serialize(() => this.flush());
   }
 
+  onPublished(listener: (patch: LiveWatchlistPublishedPatch) => void): () => void {
+    this.publishedListeners.add(listener);
+    return () => this.publishedListeners.delete(listener);
+  }
+
   pendingCount(): number {
     return this.load().length;
   }
@@ -82,11 +110,13 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
     return this.serialize(async () => {
       const entries = this.load();
       const now = Date.now();
-      entries.push({
-        id: `${now}-${process.pid}-${++this.sequence}`,
-        queuedAt: now,
-        payload,
-      });
+      if (!isTickerDataPayload(payload) || !coalesceQueuedTickerData(entries, payload)) {
+        entries.push({
+          id: `${now}-${process.pid}-${++this.sequence}`,
+          queuedAt: now,
+          payload,
+        });
+      }
       this.save(entries);
       await this.flush(entries);
     });
@@ -105,6 +135,14 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
       await this.publishPayload(next.payload);
       entries.shift();
       this.save(entries);
+      for (const listener of this.publishedListeners) {
+        try {
+          listener(next.payload);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(`[LiveWatchlistPublisher] Publish acknowledgement listener failed: ${message}`);
+        }
+      }
     }
   }
 

@@ -239,6 +239,8 @@ export type TradersLinkAiReadListingContext = {
 
 export type TradersLinkAiReadPayload = {
   version: 2;
+  /** Immutable id assigned before the first provider attempt for this read. */
+  generationId: string;
   symbol: string;
   generatedAt: number;
   dataAsOf: number;
@@ -265,10 +267,20 @@ export type TradersLinkAiReadPayload = {
   usage: TradersLinkAiReadUsage;
 };
 
+export type LiveWatchlistPublishedPatch =
+  | LiveWatchlistCardPatch
+  | LiveWatchlistHealthPatch
+  | LiveWatchlistTickerDataPatch;
+
 export type LiveWatchlistPublisher = {
   publish(patch: LiveWatchlistCardPatch): Promise<void>;
   publishHealth?(patch: LiveWatchlistHealthPatch): Promise<void>;
   publishTickerData?(patch: LiveWatchlistTickerDataPatch): Promise<void>;
+  /** Optional durable-publisher acknowledgement, including replayed outbox items. */
+  onPublished?(listener: (patch: LiveWatchlistPublishedPatch) => void): () => void;
+  replayPending?(): Promise<void>;
+  /** Flushes any buffered local audit persistence without delaying normal publishes. */
+  flushPending?(): Promise<void>;
 };
 
 export type LiveWatchlistHttpPublisherOptions = {
