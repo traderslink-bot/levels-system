@@ -2364,6 +2364,7 @@ export class ManualWatchlistRuntimeManager {
   private lastPriceUpdateSymbol: string | null = null;
   private lastPriceUpdatePersistAt: number | null = null;
   private readonly lastWebsiteTickerDataPublishAt = new Map<string, number>();
+  private readonly lastWebsiteTickerDataObservedAt = new Map<string, number>();
   private readonly lastWebsiteTickerDataRevision = new Map<string, number>();
   private readonly lastWebsiteTechnicalContextPublishAt = new Map<string, number>();
   private readonly lastWebsiteTechnicalContextStateKey = new Map<string, string>();
@@ -10212,11 +10213,17 @@ export class ManualWatchlistRuntimeManager {
             entry?.active &&
             typeof entry.lastPrice === "number" &&
             Number.isFinite(entry.lastPrice) &&
-            entry.lastPrice > 0
+            entry.lastPrice > 0 &&
+            typeof entry.lastPriceUpdateAt === "number" &&
+            Number.isFinite(entry.lastPriceUpdateAt) &&
+            entry.lastPriceUpdateAt > 0
           ) {
             this.publishLiveTickerData({
               symbol,
-              timestamp: Date.now(),
+              // Prior-close lookup changes card context, not the quote itself.
+              // Reuse the actual price observation so stale restored data can
+              // never outrank a newer trade in the website's monotonic store.
+              timestamp: entry.lastPriceUpdateAt,
               lastPrice: entry.lastPrice,
             }, { force: true });
           }
@@ -10262,11 +10269,12 @@ export class ManualWatchlistRuntimeManager {
       : null;
     const roleFlipCandles = this.technicalContextCandleStore.getCandles(update.symbol);
     const previousMarketDataRevision = this.lastWebsiteTickerDataRevision.get(update.symbol) ?? -1;
+    const previousMarketDataObservedAt = this.lastWebsiteTickerDataObservedAt.get(update.symbol);
     const observedAtRevisionBase = Math.max(0, Math.trunc(update.timestamp)) * 1_000;
-    const marketDataRevision = Math.max(
-      observedAtRevisionBase,
-      previousMarketDataRevision + 1,
-    );
+    const marketDataRevision =
+      previousMarketDataObservedAt === undefined || update.timestamp > previousMarketDataObservedAt
+        ? Math.max(observedAtRevisionBase, previousMarketDataRevision + 1)
+        : previousMarketDataRevision;
     const patch = buildLiveWatchlistTickerDataPatch({
       symbol: update.symbol,
       lastPrice: update.lastPrice,
@@ -10297,7 +10305,10 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.lastWebsiteTickerDataPublishAt.set(update.symbol, update.timestamp);
-    this.lastWebsiteTickerDataRevision.set(update.symbol, marketDataRevision);
+    if (previousMarketDataObservedAt === undefined || update.timestamp > previousMarketDataObservedAt) {
+      this.lastWebsiteTickerDataObservedAt.set(update.symbol, update.timestamp);
+      this.lastWebsiteTickerDataRevision.set(update.symbol, marketDataRevision);
+    }
     this.publishWebsiteTechnicalContext(update);
     const technicalContext = this.technicalContextBySymbol.get(update.symbol);
     if (technicalContext) {

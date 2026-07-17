@@ -3894,6 +3894,52 @@ test("ManualWatchlistRuntimeManager posts stock context into a newly created thr
   );
 });
 
+test("ManualWatchlistRuntimeManager preserves the source observation time when prior-close enrichment republishes a stored quote", async () => {
+  const observationTime = Date.parse("2026-07-17T13:45:00Z");
+  const enrichmentTime = observationTime + 45 * 60 * 1000;
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.setEntries([
+    {
+      symbol: "STALE",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      lifecycle: "active",
+      refreshPending: false,
+      lastPrice: 4.2,
+      lastPriceUpdateAt: observationTime,
+    },
+  ]);
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    liveWatchlistPublisher,
+    stockContextProvider: {
+      async getThreadPreview(symbolInput: string) {
+        return {
+          symbol: symbolInput.toUpperCase(),
+          quote: { c: 4.2, d: 0, dp: 0, h: 4.3, l: 4.1, o: 4.15, pc: 4, t: 1_700_000_000 },
+        };
+      },
+    },
+  });
+
+  (manager as any).refreshPriorRegularClose("STALE", enrichmentTime);
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+
+  const patch = liveWatchlistPublisher.tickerDataPatches.at(-1);
+  assert.equal(patch?.latestPrice, 4.2);
+  assert.equal(patch?.marketDataObservedAt, observationTime);
+  assert.equal(patch?.marketDataRevision, observationTime * 1_000);
+});
+
 test("ManualWatchlistRuntimeManager posts stock context when reactivating a reused thread", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
