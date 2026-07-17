@@ -5,6 +5,7 @@
 **Date:** 2026-07-17  
 **Levels repository:** `traderslink-bot/levels-system`  
 **Review branch:** `codex/watchlist-ai-audit-remediation-20260717`  
+**Latest remediation commit:** `690593ea1bbb8ea0317d46b56d97c291438f99c5`  
 **Prior rollout-evidence commit:** `247533e8c43f9551e1c7a1b0c497e5cb10e3f81f`  
 **Website repository:** `traderslink-bot/traderslink-trader-improvement-system`  
 **Website production merge:** PR [#99](https://github.com/traderslink-bot/traderslink-trader-improvement-system/pull/99), merge commit `a1258406b0e0d4b6cdaa04b9ff8e302b4810bc1b`
@@ -25,6 +26,7 @@
 - The final local runtime reported `startupState: ready`, three active tickers, `gpt-5.6-luna`, medium reasoning, external research disabled, daily spend guard disabled, and EODHD common-stock verification available.
 - An authenticated live watchlist browser smoke check showed three current ticker rows and `Live Data: ON`. BIYA's detail page rendered the TradersLink AI Read card with the full trade-plan contract.
 - No new paid OpenAI request was made solely to satisfy this audit handoff.
+- The branch CI was repaired after this handoff was first recorded: GitHub Actions run `29607694169` passed on `690593e`. The repair makes a forward-validation case inconclusive when neither output was tested by price, aligns stale level-map fixtures with the current bounded Path-card contract, and covers the persisted refresh-regime field.
 
 ## Change sets
 
@@ -39,6 +41,7 @@
 | `d298e32` | Adds source-evidence metadata and EODHD common-stock verification for automatic selections. |
 | `061db96` | Completes audit tracking and makes synthetic test sessions honor trading days. |
 | `247533e` | Records the completed website/runtime rollout, real-provider preview, and authenticated smoke-check evidence. |
+| `690593e` | Repairs the audit-branch CI regressions and records the current forward-validation, Path-card, and refresh-regime test contract. |
 
 ## Finding-by-finding remediation map
 
@@ -133,6 +136,8 @@ npx vitest run \
 ```
 
 The broader `npm run check` Levels run completed after the calendar-linked synthetic-session correction. The website's full Turbopack check had a worktree `node_modules` symlink-root limitation after its focused tests and TypeScript passed; CI for PR #99 then completed successfully before merge.
+
+After the final CI-contract repair, the focused regression set passed 15/15, `npm run check` passed locally, and GitHub Actions run `29607694169` completed successfully on the review branch.
 
 ### Production/runtime verification
 
