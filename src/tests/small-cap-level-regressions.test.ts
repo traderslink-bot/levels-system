@@ -43,7 +43,7 @@ for (const fixture of SMALL_CAP_LEVEL_REGRESSION_FIXTURES) {
       const flipped = map.supportLevels.find((level) => level.price === 6);
       assert.equal(flipped?.roleFlipState, "confirmed");
       assert.equal(flipped?.roleFlipFromSide, "resistance");
-      assert.ok(map.resistanceLevels.some((level) => level.price === 13.35));
+      assert.equal(map.resistanceLevels.some((level) => level.price === 13.35), false);
     }
     if (fixture.expected === "catalyst_references") {
       assert.deepEqual(
@@ -52,7 +52,9 @@ for (const fixture of SMALL_CAP_LEVEL_REGRESSION_FIXTURES) {
       );
     }
     if (fixture.expected === "dense_ladder") {
-      assert.deepEqual(map.resistanceLevels.map((level) => level.price), [0.66, 0.7, 0.75]);
+      // The potential-path card keeps one strong structural checkpoint between
+      // 30% and 50% away; it does not collapse the path to only nearby levels.
+      assert.deepEqual(map.resistanceLevels.map((level) => level.price), [0.66, 0.7, 0.75, 0.92]);
       assert.equal(map.tradePlan?.mustClear?.price, 0.66);
       assert.deepEqual(map.tradePlan?.targets.map((level) => level.price), [0.7, 0.75]);
     }
