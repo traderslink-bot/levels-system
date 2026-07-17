@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
+import { buildWatchlistDiscordLinkMessage } from "../lib/alerts/watchlist-discord-link-message.js";
 
 type MockResponseInit = {
   status?: number;
@@ -19,7 +20,17 @@ function jsonResponse(init: MockResponseInit = {}): Response {
   });
 }
 
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+}
+
 test("DiscordRestThreadGateway creates a symbol thread under the configured watchlist channel", async () => {
+  const originalPublicUrl = process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+  process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL = "https://traderslink.pro/watchlist";
   const calls: Array<{ input: string; init?: RequestInit }> = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     calls.push({ input: String(input), init });
@@ -46,8 +57,31 @@ test("DiscordRestThreadGateway creates a symbol thread under the configured watc
   assert.equal(calls.length, 2);
   assert.equal(calls[0]?.input, "https://discord.com/api/v10/channels/watchlist-1/messages");
   assert.equal(calls[1]?.input, "https://discord.com/api/v10/channels/watchlist-1/messages/message-1/threads");
-  assert.match(String(calls[0]?.init?.body), /"content":"ALBT"/);
+  assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), {
+    content: [
+      "ALBT added to the watchlist.",
+      "",
+      "View ALBT watchlist page: https://traderslink.pro/watchlist/ALBT",
+    ].join("\n"),
+  });
   assert.match(String(calls[1]?.init?.body), /"name":"ALBT"/);
+  restoreEnv("TRADERSLINK_WATCHLIST_PUBLIC_URL", originalPublicUrl);
+});
+
+test("buildWatchlistDiscordLinkMessage names the added ticker when no public URL is configured", () => {
+  const originalPublicUrl = process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+  delete process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+
+  assert.equal(
+    buildWatchlistDiscordLinkMessage("cdt"),
+    [
+      "CDT added to the watchlist.",
+      "",
+      "View CDT details when the watchlist link is configured.",
+    ].join("\n"),
+  );
+
+  restoreEnv("TRADERSLINK_WATCHLIST_PUBLIC_URL", originalPublicUrl);
 });
 
 test("DiscordRestThreadGateway reuses only threads under the configured watchlist channel", async () => {
@@ -147,14 +181,18 @@ test("DiscordRestThreadGateway posts deterministic level snapshots into the targ
       "Level context: the nearby ladder is thin, so the strongest areas matter more than every small level.",
       "",
       "Trade map:",
-      "Current structure: ALBT is range-bound between support 2.40 and resistance 2.58-2.62 area.",
-      "Minor resistance reference: resistance 2.58-2.62 area is the upside area that needs acceptance.",
-      "Minor support reference: support 2.40 is the area buyers need to keep holding for the range to stay constructive.",
-      "Small pushes inside this band can be noise; the cleaner read comes from expansion above resistance or a clean loss of support.",
-      "Cleaner above: acceptance above resistance 2.58-2.62 area (+2.8% to +4.4%) would shift attention toward resistance 2.75 (+9.6%).",
-      "Support that matters: support 2.40 (-4.4%) is the first practical area buyers need to keep defending.",
-      "Broader support: a clean loss of support 2.40 as a whole area would shift attention toward support 2.20-2.28 area (-12.4% to -9.2%).",
-      "Setup quality: mixed and range-bound; better information comes from a clean expansion or a clean support failure.",
+      "Current Read: ALBT is range-bound between support 2.40 and resistance 2.58-2.62 area; the better information comes from expansion above resistance or a clean support failure.",
+      "",
+      "Breakout Area To Watch: resistance 2.58-2.62 area (+2.8% to +4.4%) is a nearby gate, not the material target; higher resistance needs a fresh level check before treating the path as open.",
+      "",
+      "Pullback Zones:",
+      "- Nearby support gate: support 2.40 (-4.4%); this is not a material small-cap pullback zone by itself.",
+      "",
+      "Continuation Path: above resistance 2.58-2.62 area, higher resistance needs a fresh level check before the move can be treated as open.",
+      "",
+      "Setup Weakens If: price loses support 2.40 as a whole area and cannot reclaim it. Below that, the next map area is support 2.20-2.28 area (-12.4% to -9.2%).",
+      "",
+      "Quality / Caution: range-bound; small pushes inside the band can be noise.",
       "",
       "Closest levels to watch:",
       "Resistance:",

@@ -2,15 +2,26 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { DiscordThreadRoutingResult } from "../lib/alerts/alert-types.js";
-import type { CandleProviderResponse } from "../lib/market-data/candle-types.js";
+import type { Candle, CandleProviderName, CandleProviderResponse, CandleTimeframe } from "../lib/market-data/candle-types.js";
 import type { HistoricalFetchRequest } from "../lib/market-data/candle-fetch-service.js";
 import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
-import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
+import {
+  buildLiveTradeSetupSeriesMap,
+  ManualWatchlistRuntimeManager,
+  resolveEodhdConfirmedLevelRequestEndTimeMs,
+} from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import type { ManualWatchlistLifecycleEvent } from "../lib/monitoring/manual-watchlist-runtime-events.js";
 import { WatchlistStore } from "../lib/monitoring/watchlist-store.js";
 import type { WatchlistEntry } from "../lib/monitoring/monitoring-types.js";
 import type { FinalLevelZone, LevelEngineOutput } from "../lib/levels/level-types.js";
+import type {
+  LiveWatchlistCardPatch,
+  LiveWatchlistHealthPatch,
+  LiveWatchlistPublisher,
+  LiveWatchlistTickerDataPatch,
+} from "../lib/live-watchlist/live-watchlist-types.js";
+import type { TechnicalContext } from "../lib/technical-context/technical-context-types.js";
 
 function waitForAsyncWork(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -48,8 +59,18 @@ function buildZone(params: Partial<FinalLevelZone> & Pick<FinalLevelZone, "id" |
   };
 }
 
-function withoutSnapshotSourceLabels<T extends { sourceLabel?: string }>(zones: T[]): Array<Omit<T, "sourceLabel">> {
-  return zones.map(({ sourceLabel: _sourceLabel, ...zone }) => zone);
+function withoutSnapshotSourceLabels<T extends {
+  representativePrice: number;
+  strengthLabel?: string;
+  freshness?: string;
+  isExtension?: boolean;
+}>(zones: T[]) {
+  return zones.map((zone) => ({
+    representativePrice: zone.representativePrice,
+    strengthLabel: zone.strengthLabel,
+    freshness: zone.freshness,
+    isExtension: zone.isExtension,
+  }));
 }
 
 function buildLevelOutput(
@@ -106,17 +127,33 @@ class FakeWatchlistStatePersistence {
 class FakeMonitor {
   public startCalls: any[][] = [];
   public stopCalls = 0;
+  public providerSetCalls: any[] = [];
+  public currentLivePriceProvider?: FakeLivePriceProvider;
+  public failNextStart?: Error;
   public marketStructureSeedCalls: any[] = [];
   public marketStructureSnapshots = new Map<string, any>();
 
   async start(entries: any[], listener: (event: any) => void, onPriceUpdate?: (update: any) => void): Promise<void> {
     this.startCalls.push(entries.map((entry) => ({ ...entry })));
+    if (this.failNextStart) {
+      const error = this.failNextStart;
+      this.failNextStart = undefined;
+      throw error;
+    }
     this.listener = listener;
     this.onPriceUpdate = onPriceUpdate;
   }
 
   async stop(): Promise<void> {
     this.stopCalls += 1;
+    await this.currentLivePriceProvider?.stop();
+  }
+
+  setLivePriceProvider(provider: FakeLivePriceProvider): FakeLivePriceProvider {
+    const previousProvider = this.currentLivePriceProvider ?? new FakeLivePriceProvider("previous");
+    this.currentLivePriceProvider = provider;
+    this.providerSetCalls.push(provider);
+    return previousProvider;
   }
 
   public listener?: (event: any) => void;
@@ -129,6 +166,20 @@ class FakeMonitor {
 
   getMarketStructureSnapshot(symbolInput?: string): any {
     return this.marketStructureSnapshots.get(String(symbolInput ?? "").toUpperCase()) ?? null;
+  }
+}
+
+class FakeLivePriceProvider {
+  public stopCalls = 0;
+
+  constructor(public readonly name: string) {}
+
+  async start(): Promise<void> {
+    return undefined;
+  }
+
+  async stop(): Promise<void> {
+    this.stopCalls += 1;
   }
 }
 
@@ -158,6 +209,24 @@ class FakeDiscordAlertRouter {
 
   async routeLevelExtension(threadId: string, payload: any): Promise<void> {
     this.levelExtensions.push({ threadId, payload });
+  }
+}
+
+class FakeLiveWatchlistPublisher implements LiveWatchlistPublisher {
+  public cardPatches: LiveWatchlistCardPatch[] = [];
+  public healthPatches: LiveWatchlistHealthPatch[] = [];
+  public tickerDataPatches: LiveWatchlistTickerDataPatch[] = [];
+
+  async publish(patch: LiveWatchlistCardPatch): Promise<void> {
+    this.cardPatches.push(patch);
+  }
+
+  async publishHealth(patch: LiveWatchlistHealthPatch): Promise<void> {
+    this.healthPatches.push(patch);
+  }
+
+  async publishTickerData(patch: LiveWatchlistTickerDataPatch): Promise<void> {
+    this.tickerDataPatches.push(patch);
   }
 }
 
@@ -243,18 +312,1075 @@ function buildCandleResponse(request: HistoricalFetchRequest): CandleProviderRes
   };
 }
 
+function buildTestCandle(day: number, open: number, high: number, low: number, close: number): Candle {
+  return {
+    timestamp: day * 24 * 60 * 60 * 1000,
+    open,
+    high,
+    low,
+    close,
+    volume: 1_000_000,
+  };
+}
+
+function buildTestCandleResponse(timeframe: CandleTimeframe, candles: Candle[]): CandleProviderResponse {
+  return {
+    provider: "stub",
+    symbol: "CAT",
+    timeframe,
+    requestedLookbackBars: candles.length,
+    candles,
+    fetchStartTimestamp: candles[0]?.timestamp ?? 0,
+    fetchEndTimestamp: candles.at(-1)?.timestamp ?? 0,
+    requestedStartTimestamp: candles[0]?.timestamp ?? 0,
+    requestedEndTimestamp: candles.at(-1)?.timestamp ?? 0,
+    sessionMetadataAvailable: false,
+    actualBarsReturned: candles.length,
+    completenessStatus: candles.length > 0 ? "complete" : "empty",
+    stale: false,
+    validationIssues: [],
+    sessionSummary: null,
+  };
+}
+
 class RecordingCandleFetchService {
   public requests: HistoricalFetchRequest[] = [];
 
-  getProviderName() {
-    return "stub";
+  constructor(private readonly providerName: CandleProviderName = "stub") {}
+
+  getProviderName(): CandleProviderName {
+    return this.providerName;
   }
 
   async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
     this.requests.push({ ...request });
-    return buildCandleResponse(request);
+    return {
+      ...buildCandleResponse(request),
+      provider: this.providerName,
+    };
   }
 }
+
+class StaticRecentIntradayCandleFetchService {
+  public requests: HistoricalFetchRequest[] = [];
+
+  constructor(
+    private readonly latestCandleAgeMs = 5 * 60 * 1000,
+    private readonly latestVolume = 500_000,
+    private readonly baselineVolume = 100_000,
+  ) {}
+
+  getProviderName(): CandleProviderName {
+    return "yahoo";
+  }
+
+  async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    this.requests.push({ ...request });
+    const intervalMs = request.timeframe === "1m" ? 60_000 : 5 * 60_000;
+    const end = (request.endTimeMs ?? Date.now()) - this.latestCandleAgeMs;
+    const candles = Array.from({ length: request.lookbackBars }, (_, index) => {
+      const price = index === request.lookbackBars - 1 ? 2.2 : 1.8 + index * 0.001;
+      return {
+        timestamp: end - (request.lookbackBars - index - 1) * intervalMs,
+        open: price,
+        high: price + 0.02,
+        low: price - 0.02,
+        close: price,
+        volume: index === request.lookbackBars - 1 ? this.latestVolume : this.baselineVolume,
+      };
+    });
+
+    return {
+      provider: "yahoo",
+      symbol: request.symbol.toUpperCase(),
+      timeframe: request.timeframe,
+      requestedLookbackBars: request.lookbackBars,
+      candles,
+      fetchStartTimestamp: end - candles.length * intervalMs,
+      fetchEndTimestamp: end,
+      requestedStartTimestamp: end - request.lookbackBars * intervalMs,
+      requestedEndTimestamp: end,
+      sessionMetadataAvailable: true,
+      actualBarsReturned: candles.length,
+      completenessStatus: "complete",
+      stale: false,
+      validationIssues: [],
+      sessionSummary: null,
+    };
+  }
+}
+
+class StaleFiveMinuteFreshOneMinuteCandleFetchService extends StaticRecentIntradayCandleFetchService {
+  override async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    if (request.timeframe === "5m") {
+      const staleService = new StaticRecentIntradayCandleFetchService(30 * 60 * 1000);
+      const response = await staleService.fetchCandles(request);
+      this.requests.push({ ...request });
+      return response;
+    }
+
+    return super.fetchCandles(request);
+  }
+}
+
+class OutOfOrderRecentFiveMinuteCandleFetchService extends StaticRecentIntradayCandleFetchService {
+  override async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    if (request.timeframe === "1m") {
+      throw new Error("1m fallback should not be needed when 5m contains a fresh candle.");
+    }
+
+    const response = await super.fetchCandles(request);
+    const latest = response.candles.at(-1);
+    const earlier = response.candles.slice(0, -1);
+    return {
+      ...response,
+      candles: latest ? [latest, ...earlier] : response.candles,
+      validationIssues: [
+        {
+          code: "out_of_order_timestamps",
+          severity: "error",
+          message: "Synthetic out-of-order 5m response.",
+        },
+      ],
+    };
+  }
+}
+
+class DuplicateOneMinuteFallbackCandleFetchService extends StaticRecentIntradayCandleFetchService {
+  override async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    if (request.timeframe === "5m") {
+      const staleService = new StaticRecentIntradayCandleFetchService(30 * 60 * 1000);
+      const response = await staleService.fetchCandles(request);
+      this.requests.push({ ...request });
+      return response;
+    }
+
+    this.requests.push({ ...request });
+    const end = request.endTimeMs ?? Date.now();
+    const latestTimestamp = end - 5 * 60 * 1000;
+    const candles = Array.from({ length: request.lookbackBars }, (_, index) => {
+      const timestamp = latestTimestamp - (request.lookbackBars - index - 1) * 60 * 1000;
+      const price = index === request.lookbackBars - 1 ? 2.2 : 1.8 + index * 0.001;
+      return {
+        timestamp,
+        open: price,
+        high: price + 0.02,
+        low: price - 0.02,
+        close: price,
+        volume: 20_000,
+      };
+    });
+    const latest = candles.at(-1)!;
+    const duplicateLatestBars = Array.from({ length: 25 }, () => ({ ...latest }));
+
+    return {
+      provider: "yahoo",
+      symbol: request.symbol.toUpperCase(),
+      timeframe: request.timeframe,
+      requestedLookbackBars: request.lookbackBars,
+      candles: [...candles, ...duplicateLatestBars],
+      fetchStartTimestamp: end - request.lookbackBars * 60 * 1000,
+      fetchEndTimestamp: end,
+      requestedStartTimestamp: end - request.lookbackBars * 60 * 1000,
+      requestedEndTimestamp: end,
+      sessionMetadataAvailable: true,
+      actualBarsReturned: candles.length + duplicateLatestBars.length,
+      completenessStatus: "complete",
+      stale: false,
+      validationIssues: [
+        {
+          code: "duplicate_timestamps",
+          severity: "error",
+          message: "Synthetic duplicated 1m latest bar.",
+        },
+      ],
+      sessionSummary: null,
+    };
+  }
+}
+
+test("ManualWatchlistRuntimeManager polls Yahoo recent intraday candles for pullback trader reads", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  persistence.storedEntries = [
+    {
+      symbol: "CAST",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cast",
+      lifecycle: "active",
+      refreshPending: false,
+      lastPrice: 2.2,
+      lastPriceUpdateAt: Date.now(),
+    },
+  ];
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({
+        id: "support-cast",
+        symbol: "CAST",
+        kind: "support",
+        representativePrice: 1.95,
+        zoneLow: 1.94,
+        zoneHigh: 1.96,
+        strengthLabel: "major",
+        timeframeSources: ["daily"],
+      }),
+    ],
+    majorResistance: [
+      buildZone({
+        id: "resistance-cast",
+        symbol: "CAST",
+        kind: "resistance",
+        representativePrice: 2.5,
+        zoneLow: 2.49,
+        zoneHigh: 2.51,
+        strengthLabel: "major",
+        timeframeSources: ["daily"],
+      }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const recentIntradayCandleFetchService = new StaticRecentIntradayCandleFetchService();
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.setEntries(persistence.storedEntries);
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentIntradayCandleFetchService: recentIntradayCandleFetchService as any,
+    pullbackReadEnabled: true,
+  });
+
+  await (manager as any).refreshPullbackReadIntradayCandles("CAST");
+  await waitForAsyncWork();
+
+  assert.deepEqual(
+    recentIntradayCandleFetchService.requests.map((request) => request.timeframe).sort(),
+    ["5m"],
+  );
+  const traderReadPatch = liveWatchlistPublisher.cardPatches.find((patch) =>
+    Boolean(patch.cards.liveTraderRead),
+  );
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.source, "pullback_read");
+  assert.match(traderReadPatch?.cards.liveTraderRead?.body ?? "", /^CAST Extended/);
+  assert.match(traderReadPatch?.cards.liveTraderRead?.body ?? "", /Volume read: strong \(5\.00x recent 5m average\)/);
+  assert.match(traderReadPatch?.cards.liveTraderRead?.body ?? "", /Needs to hold:/);
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackReadEnabled, true);
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackProvider, "yahoo");
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeLabel, "strong");
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeRatio, 5);
+  assert.ok(
+    liveWatchlistPublisher.cardPatches.some((patch) =>
+      Boolean(patch.cards.nearestSupportResistance && patch.cards.fullLadder),
+    ),
+    "expected refreshed Yahoo session candles to republish Potential Path and Full Ladder",
+  );
+});
+
+test("ManualWatchlistRuntimeManager projects forming Yahoo 5m volume before labeling pullbacks", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  persistence.storedEntries = [
+    {
+      symbol: "CAST",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cast",
+      lifecycle: "active",
+      refreshPending: false,
+      lastPrice: 2.2,
+      lastPriceUpdateAt: Date.now(),
+    },
+  ];
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.setEntries(persistence.storedEntries);
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({ id: "support-cast", symbol: "CAST", kind: "support", representativePrice: 1.95 }),
+    ],
+    majorResistance: [
+      buildZone({ id: "resistance-cast", symbol: "CAST", kind: "resistance", representativePrice: 2.5 }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentIntradayCandleFetchService: new StaticRecentIntradayCandleFetchService(60 * 1000, 40_000, 100_000) as any,
+    pullbackReadEnabled: true,
+  });
+
+  await (manager as any).refreshPullbackReadIntradayCandles("CAST");
+  await waitForAsyncWork();
+
+  const traderReadPatch = liveWatchlistPublisher.cardPatches.find((patch) =>
+    Boolean(patch.cards.liveTraderRead),
+  );
+  assert.match(
+    traderReadPatch?.cards.liveTraderRead?.body ?? "",
+    /Volume read: strong \(2\.00x projected 5m pace; raw 0\.40x so far\)/,
+  );
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeLabel, "strong");
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeRatio, 2);
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeRawRatio, 0.4);
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackProjectedVolume, 200_000);
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumePartial, true);
+});
+
+test("ManualWatchlistRuntimeManager uses fresh live price over Yahoo candle close for pullback reads", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const now = Date.now();
+  persistence.storedEntries = [
+    {
+      symbol: "CAST",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cast",
+      lifecycle: "active",
+      refreshPending: false,
+      lastPrice: 2.55,
+      lastPriceUpdateAt: now,
+    },
+  ];
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({
+        id: "support-cast",
+        symbol: "CAST",
+        kind: "support",
+        representativePrice: 1.95,
+        strengthLabel: "major",
+        timeframeSources: ["daily"],
+      }),
+    ],
+    majorResistance: [
+      buildZone({
+        id: "resistance-cast",
+        symbol: "CAST",
+        kind: "resistance",
+        representativePrice: 2.8,
+        strengthLabel: "major",
+        timeframeSources: ["daily"],
+      }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.setEntries(persistence.storedEntries);
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentIntradayCandleFetchService: new StaticRecentIntradayCandleFetchService() as any,
+    pullbackReadEnabled: true,
+  });
+
+  await (manager as any).refreshPullbackReadIntradayCandles("CAST");
+  await waitForAsyncWork();
+
+  const traderReadPatch = liveWatchlistPublisher.cardPatches.find((patch) =>
+    Boolean(patch.cards.liveTraderRead),
+  );
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.priceWhenPosted, 2.55);
+  assert.match(
+    traderReadPatch?.cards.liveTraderRead?.body ?? "",
+    /Continuation trigger: no clean higher path level on the current map yet/,
+  );
+  assert.doesNotMatch(
+    traderReadPatch?.cards.liveTraderRead?.body ?? "",
+    /Continuation trigger: reclaim\/hold above 2\.80/,
+  );
+});
+
+test("ManualWatchlistRuntimeManager skips stale Yahoo pullback candles", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const watchlistStore = new WatchlistStore();
+  persistence.storedEntries = [
+    {
+      symbol: "CAST",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cast",
+      lifecycle: "active",
+      refreshPending: false,
+    },
+  ];
+  watchlistStore.setEntries(persistence.storedEntries);
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore: new LevelStore(),
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentIntradayCandleFetchService: new StaticRecentIntradayCandleFetchService(30 * 60 * 1000) as any,
+    pullbackReadEnabled: true,
+  });
+
+  await (manager as any).refreshPullbackReadIntradayCandles("CAST");
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 0);
+});
+
+test("ManualWatchlistRuntimeManager falls back to Yahoo 1m when 5m candles are stale", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  persistence.storedEntries = [
+    {
+      symbol: "CAST",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cast",
+      lifecycle: "active",
+      refreshPending: false,
+      lastPrice: 2.2,
+      lastPriceUpdateAt: Date.now(),
+    },
+  ];
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.setEntries(persistence.storedEntries);
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({ id: "support-cast", symbol: "CAST", kind: "support", representativePrice: 1.95 }),
+    ],
+    majorResistance: [
+      buildZone({ id: "resistance-cast", symbol: "CAST", kind: "resistance", representativePrice: 2.5 }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const recentIntradayCandleFetchService = new StaleFiveMinuteFreshOneMinuteCandleFetchService();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentIntradayCandleFetchService: recentIntradayCandleFetchService as any,
+    pullbackReadEnabled: true,
+  });
+
+  await (manager as any).refreshPullbackReadIntradayCandles("CAST");
+  await waitForAsyncWork();
+
+  assert.deepEqual(
+    recentIntradayCandleFetchService.requests.map((request) => request.timeframe),
+    ["5m", "1m"],
+  );
+  const traderReadPatch = liveWatchlistPublisher.cardPatches.find((patch) =>
+    Boolean(patch.cards.liveTraderRead),
+  );
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.source, "pullback_read");
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackProvider, "yahoo");
+  assert.doesNotMatch(traderReadPatch?.cards.liveTraderRead?.body ?? "", /5m candles from yahoo/);
+});
+
+test("ManualWatchlistRuntimeManager treats out-of-order Yahoo 5m candles by latest timestamp", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  persistence.storedEntries = [
+    {
+      symbol: "CAST",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cast",
+      lifecycle: "active",
+      refreshPending: false,
+      lastPrice: 2.2,
+      lastPriceUpdateAt: Date.now(),
+    },
+  ];
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.setEntries(persistence.storedEntries);
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({ id: "support-cast", symbol: "CAST", kind: "support", representativePrice: 1.95 }),
+    ],
+    majorResistance: [
+      buildZone({ id: "resistance-cast", symbol: "CAST", kind: "resistance", representativePrice: 2.5 }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const recentIntradayCandleFetchService = new OutOfOrderRecentFiveMinuteCandleFetchService();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentIntradayCandleFetchService: recentIntradayCandleFetchService as any,
+    pullbackReadEnabled: true,
+  });
+
+  await (manager as any).refreshPullbackReadIntradayCandles("CAST");
+  await waitForAsyncWork();
+
+  assert.deepEqual(
+    recentIntradayCandleFetchService.requests.map((request) => request.timeframe),
+    ["5m"],
+  );
+  const traderReadPatch = liveWatchlistPublisher.cardPatches.find((patch) =>
+    Boolean(patch.cards.liveTraderRead),
+  );
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.source, "pullback_read");
+  assert.match(traderReadPatch?.cards.liveTraderRead?.body ?? "", /^CAST Extended/);
+});
+
+test("ManualWatchlistRuntimeManager dedupes Yahoo 1m fallback candles before volume reads", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  persistence.storedEntries = [
+    {
+      symbol: "CAST",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cast",
+      lifecycle: "active",
+      refreshPending: false,
+      lastPrice: 2.2,
+      lastPriceUpdateAt: Date.now(),
+    },
+  ];
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.setEntries(persistence.storedEntries);
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({ id: "support-cast", symbol: "CAST", kind: "support", representativePrice: 1.95 }),
+    ],
+    majorResistance: [
+      buildZone({ id: "resistance-cast", symbol: "CAST", kind: "resistance", representativePrice: 2.5 }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const recentIntradayCandleFetchService = new DuplicateOneMinuteFallbackCandleFetchService();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentIntradayCandleFetchService: recentIntradayCandleFetchService as any,
+    pullbackReadEnabled: true,
+  });
+
+  await (manager as any).refreshPullbackReadIntradayCandles("CAST");
+  await waitForAsyncWork();
+
+  assert.deepEqual(
+    recentIntradayCandleFetchService.requests.map((request) => request.timeframe),
+    ["5m", "1m"],
+  );
+  const traderReadPatch = liveWatchlistPublisher.cardPatches.find((patch) =>
+    Boolean(patch.cards.liveTraderRead),
+  );
+  assert.notEqual(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeLabel, "strong");
+  assert.ok(
+    Number(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackCurrentVolume) < 120_000,
+  );
+});
+
+test("ManualWatchlistRuntimeManager marks live pullback volume unknown when the baseline is stale", async () => {
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({ id: "support-cast", symbol: "CAST", kind: "support", representativePrice: 1.95 }),
+    ],
+    majorResistance: [
+      buildZone({ id: "resistance-cast", symbol: "CAST", kind: "resistance", representativePrice: 2.5 }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    liveWatchlistPublisher,
+    pullbackReadEnabled: true,
+  });
+  const staleStart = Date.UTC(2026, 6, 10, 14, 0, 0);
+  const staleCandles = Array.from({ length: 20 }, (_, index) => {
+    const price = 2 + index * 0.005;
+    return {
+      timestamp: staleStart + index * 5 * 60 * 1000,
+      open: price,
+      high: price + 0.02,
+      low: price - 0.02,
+      close: price,
+      volume: 10_000,
+    };
+  });
+  const liveTimestamp = staleStart + 4 * 60 * 60 * 1000;
+  const liveUpdates = [
+    {
+      symbol: "CAST",
+      timestamp: liveTimestamp + 1_000,
+      lastPrice: 2.45,
+      volume: 250_000,
+    },
+    {
+      symbol: "CAST",
+      timestamp: liveTimestamp + 61_000,
+      lastPrice: 2.46,
+      volume: 250_100,
+    },
+  ];
+
+  (manager as any).technicalContextProviderBySymbol.set("CAST", "yahoo");
+  (manager as any).technicalContextDataQualityFlagsBySymbol.set("CAST", []);
+  (manager as any).technicalContextCandleStore.setHistoricalCandles("CAST", staleCandles);
+  (manager as any).rebuildTechnicalContextForSymbol({
+    symbol: "CAST",
+    candles: staleCandles,
+    currentPrice: 2.2,
+    provider: "yahoo",
+    dataQualityFlags: [],
+  });
+
+  for (const update of liveUpdates) {
+    (manager as any).ingestLiveTechnicalContextPrice(update);
+  }
+  (manager as any).publishLiveTickerData(liveUpdates.at(-1)!);
+  await waitForAsyncWork();
+
+  const traderReadPatch = liveWatchlistPublisher.cardPatches.find((patch) =>
+    Boolean(patch.cards.liveTraderRead),
+  );
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeLabel, "unknown");
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeRatio, null);
+  assert.doesNotMatch(
+    traderReadPatch?.cards.liveTraderRead?.body ?? "",
+    /Volume read: unknown \(recent 5m volume baseline is stale\)/,
+  );
+});
+
+test("ManualWatchlistRuntimeManager uses cumulative live volume deltas for pullback reads", async () => {
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({ id: "support-cast", symbol: "CAST", kind: "support", representativePrice: 1.95 }),
+    ],
+    majorResistance: [
+      buildZone({ id: "resistance-cast", symbol: "CAST", kind: "resistance", representativePrice: 2.5 }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    liveWatchlistPublisher,
+    pullbackReadEnabled: true,
+  });
+  const baselineStart = Date.UTC(2026, 6, 10, 14, 0, 0);
+  const baselineCandles = Array.from({ length: 20 }, (_, index) => {
+    const price = 2 + index * 0.005;
+    return {
+      timestamp: baselineStart + index * 5 * 60 * 1000,
+      open: price,
+      high: price + 0.02,
+      low: price - 0.02,
+      close: price,
+      volume: 10_000,
+    };
+  });
+  const liveBucketStart = baselineStart + 20 * 5 * 60 * 1000;
+  const liveUpdates = [
+    { symbol: "CAST", timestamp: liveBucketStart + 1_000, lastPrice: 2.45, volume: 250_000 },
+    { symbol: "CAST", timestamp: liveBucketStart + 30_000, lastPrice: 2.46, volume: 250_050 },
+    { symbol: "CAST", timestamp: liveBucketStart + 61_000, lastPrice: 2.47, volume: 250_120 },
+  ];
+
+  (manager as any).technicalContextProviderBySymbol.set("CAST", "yahoo");
+  (manager as any).technicalContextDataQualityFlagsBySymbol.set("CAST", []);
+  (manager as any).technicalContextCandleStore.setHistoricalCandles("CAST", baselineCandles);
+  (manager as any).rebuildTechnicalContextForSymbol({
+    symbol: "CAST",
+    candles: baselineCandles,
+    currentPrice: 2.2,
+    provider: "yahoo",
+    dataQualityFlags: [],
+  });
+
+  for (const update of liveUpdates) {
+    (manager as any).ingestLiveTechnicalContextPrice(update);
+  }
+  (manager as any).publishLiveTickerData(liveUpdates.at(-1)!);
+  await waitForAsyncWork();
+
+  const traderReadPatch = liveWatchlistPublisher.cardPatches.find((patch) =>
+    Boolean(patch.cards.liveTraderRead),
+  );
+  assert.notEqual(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeLabel, "strong");
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackCurrentVolume, 120);
+  assert.ok(
+    Number(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackProjectedVolume) < 1_000,
+  );
+});
+
+test("ManualWatchlistRuntimeManager skips future-dated Yahoo pullback candles", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  const watchlistStore = new WatchlistStore();
+  persistence.storedEntries = [
+    {
+      symbol: "CAST",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cast",
+      lifecycle: "active",
+      refreshPending: false,
+    },
+  ];
+  watchlistStore.setEntries(persistence.storedEntries);
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentIntradayCandleFetchService: new StaticRecentIntradayCandleFetchService(-5 * 60 * 1000) as any,
+    pullbackReadEnabled: true,
+  });
+
+  await (manager as any).refreshPullbackReadIntradayCandles("CAST");
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 0);
+});
+
+test("ManualWatchlistRuntimeManager clamps slightly future Yahoo candles without confident volume", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  persistence.storedEntries = [
+    {
+      symbol: "CAST",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cast",
+      lifecycle: "active",
+      refreshPending: false,
+      lastPrice: 2.2,
+      lastPriceUpdateAt: Date.now(),
+    },
+  ];
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.setEntries(persistence.storedEntries);
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({ id: "support-cast", symbol: "CAST", kind: "support", representativePrice: 1.95 }),
+    ],
+    majorResistance: [
+      buildZone({ id: "resistance-cast", symbol: "CAST", kind: "resistance", representativePrice: 2.5 }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const recentIntradayCandleFetchService = new StaticRecentIntradayCandleFetchService(-30 * 1000, 500_000, 100_000);
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentIntradayCandleFetchService: recentIntradayCandleFetchService as any,
+    pullbackReadEnabled: true,
+  });
+
+  await (manager as any).refreshPullbackReadIntradayCandles("CAST");
+  await waitForAsyncWork();
+
+  const requestEndTime = recentIntradayCandleFetchService.requests[0]?.endTimeMs;
+  const traderReadPatch = liveWatchlistPublisher.cardPatches.find((patch) =>
+    Boolean(patch.cards.liveTraderRead),
+  );
+  assert.equal(traderReadPatch?.updatedAt, requestEndTime);
+  assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeLabel, "unknown");
+  assert.doesNotMatch(
+    traderReadPatch?.cards.liveTraderRead?.body ?? "",
+    /latest 5m candle timestamp is ahead of request time/,
+  );
+});
+
+test("ManualWatchlistRuntimeManager republishes pullback read when volume label changes", async () => {
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("CAST", {
+    majorSupport: [
+      buildZone({
+        id: "support-cast",
+        symbol: "CAST",
+        kind: "support",
+        representativePrice: 1.95,
+        strengthLabel: "major",
+        timeframeSources: ["daily"],
+      }),
+    ],
+    majorResistance: [
+      buildZone({
+        id: "resistance-cast",
+        symbol: "CAST",
+        kind: "resistance",
+        representativePrice: 2.5,
+        strengthLabel: "major",
+        timeframeSources: ["daily"],
+      }),
+    ],
+  }));
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    liveWatchlistPublisher,
+    pullbackReadEnabled: true,
+  });
+  const technicalContext: TechnicalContext = {
+    source: "levels_system_intraday",
+    sourceTimeframe: "5m",
+    provider: "yahoo",
+    sessionDate: "2026-07-10",
+    updatedAt: 1_000,
+    candleCount: 80,
+    currentPrice: 2.2,
+    vwap: 1.9,
+    ema9: 1.95,
+    ema20: 1.8,
+    priceVsVwapPct: 13.6364,
+    priceVsEma9Pct: 11.3636,
+    priceVsEma20Pct: 18.1818,
+    aboveVwap: true,
+    aboveEma9: true,
+    aboveEma20: true,
+    confidence: "high",
+    diagnostics: [],
+  };
+
+  (manager as any).publishWebsitePullbackTraderRead({
+    symbol: "CAST",
+    timestamp: 1_000,
+    currentPrice: 2.2,
+    technicalContext,
+    volumeRead: {
+      label: "strong",
+      currentVolume: 500_000,
+      averageVolume: 100_000,
+      relativeVolumeRatio: 5,
+      reason: "latest 5m volume is 5.00x recent average",
+    },
+  });
+  await waitForAsyncWork();
+
+  (manager as any).publishWebsitePullbackTraderRead({
+    symbol: "CAST",
+    timestamp: 2_000,
+    currentPrice: 2.2,
+    technicalContext,
+    volumeRead: {
+      label: "fading",
+      currentVolume: 50_000,
+      averageVolume: 100_000,
+      relativeVolumeRatio: 0.5,
+      reason: "latest 5m volume is 0.50x recent average",
+    },
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 2);
+  assert.match(liveWatchlistPublisher.cardPatches[0]?.cards.liveTraderRead?.body ?? "", /Volume read: strong/);
+  assert.match(liveWatchlistPublisher.cardPatches[1]?.cards.liveTraderRead?.body ?? "", /Volume read: fading/);
+});
+
+test("live trade setup series uses only completed 5m candles and builds causal regular-session 4h bars", () => {
+  const sessionOpen = Date.parse("2026-07-15T09:30:00-04:00");
+  const fiveMinuteCandles = Array.from({ length: 50 }, (_, index): Candle => ({
+    timestamp: sessionOpen + index * 5 * 60 * 1000,
+    open: 1 + index * 0.01,
+    high: 1.03 + index * 0.01,
+    low: 0.98 + index * 0.01,
+    close: 1.02 + index * 0.01,
+    volume: 100_000 + index,
+  }));
+  const evaluatedAt = sessionOpen + 49 * 5 * 60 * 1000;
+  const oldFourHour = buildTestCandle(1, 0.8, 0.9, 0.75, 0.85);
+  const staleCurrentSessionFourHour: Candle = {
+    timestamp: sessionOpen,
+    open: 9,
+    high: 10,
+    low: 8,
+    close: 9.5,
+    volume: 1,
+  };
+  const fiveMinuteResponse = {
+    ...buildTestCandleResponse("5m", fiveMinuteCandles),
+    requestedLookbackBars: 120,
+  };
+  const fourHourResponse = {
+    ...buildTestCandleResponse("4h", [oldFourHour, staleCurrentSessionFourHour]),
+    requestedLookbackBars: 240,
+  };
+  const dailyResponse = {
+    ...buildTestCandleResponse("daily", []),
+    requestedLookbackBars: 180,
+  };
+
+  const result = buildLiveTradeSetupSeriesMap({
+    baseSeriesMap: {
+      daily: dailyResponse,
+      "4h": fourHourResponse,
+      "5m": fiveMinuteResponse,
+    },
+    fiveMinuteCandles,
+    evaluatedAt,
+  });
+
+  assert.equal(result["5m"].candles.length, 49);
+  assert.equal(result["5m"].candles.at(-1)?.timestamp, sessionOpen + 48 * 5 * 60 * 1000);
+  assert.equal(result["5m"].providerMetadata?.tradeSetupCompletedFiveMinuteOnly, true);
+  const currentSessionFourHour = result["4h"].candles.filter((candle) => candle.timestamp >= sessionOpen);
+  assert.equal(currentSessionFourHour.length, 2);
+  assert.equal(currentSessionFourHour[0]?.close, fiveMinuteCandles[47]?.close);
+  assert.equal(currentSessionFourHour[1]?.timestamp, sessionOpen + 48 * 5 * 60 * 1000);
+  assert.equal(currentSessionFourHour[1]?.close, fiveMinuteCandles[48]?.close);
+  assert.equal(result["4h"].providerMetadata?.tradeSetupCausalFourHourSourceBars, 49);
+  assert.equal(result["4h"].candles.some((candle) => candle.open === 9), false);
+});
+
+test("ManualWatchlistRuntimeManager stores the V2 small-cap thesis for live observation snapshots", () => {
+  const sessionOpen = Date.parse("2026-07-15T09:30:00-04:00");
+  const values = [
+    [1.00, 1.08, 0.98, 1.05],
+    [1.05, 1.12, 1.02, 1.10],
+    [1.10, 1.18, 1.08, 1.16],
+    [1.16, 1.20, 1.12, 1.18],
+    [1.18, 1.20, 1.14, 1.17],
+    [1.17, 1.19, 1.13, 1.18],
+    [1.18, 1.31, 1.17, 1.28],
+    [1.28, 1.42, 1.26, 1.38],
+    [1.38, 1.40, 1.30, 1.34],
+    [1.34, 1.36, 1.24, 1.27],
+    [1.27, 1.30, 1.18, 1.23],
+    [1.23, 1.27, 1.21, 1.25],
+    [1.25, 1.32, 1.23, 1.30],
+  ] as const;
+  const candles = values.map(([open, high, low, close], index): Candle => ({
+    timestamp: sessionOpen + index * 5 * 60 * 1000,
+    open,
+    high,
+    low,
+    close,
+    volume: 200_000 + index * 10_000,
+  }));
+  const evaluatedAt = candles.at(-1)!.timestamp + 5 * 60 * 1000;
+  const persistence = new FakeWatchlistStatePersistence();
+  const watchlistStore = new WatchlistStore();
+  persistence.storedEntries = [{
+    symbol: "SCAP",
+    active: true,
+    priority: 1,
+    tags: ["manual"],
+    lifecycle: "active",
+    refreshPending: false,
+    lastPrice: 1.30,
+    lastPriceUpdateAt: evaluatedAt,
+  }];
+  watchlistStore.setEntries(persistence.storedEntries);
+  const levelStore = new LevelStore();
+  const output = buildLevelOutput("SCAP", {
+    metadata: {
+      providerByTimeframe: {},
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 1.30,
+    },
+  });
+  levelStore.setLevels(output);
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+  });
+  const seriesMap = {
+    daily: { ...buildTestCandleResponse("daily", []), requestedLookbackBars: 180 },
+    "4h": { ...buildTestCandleResponse("4h", []), requestedLookbackBars: 240 },
+    "5m": { ...buildTestCandleResponse("5m", candles), requestedLookbackBars: 120 },
+  };
+
+  const read = (manager as any).refreshTradeSetupThesisReadForSymbol({
+    symbol: "SCAP",
+    currentPrice: 1.30,
+    baseSeriesMap: seriesMap,
+    fiveMinuteCandles: candles,
+    evaluatedAt,
+  });
+
+  assert.equal(read?.type, "small_cap_opening_range_retest");
+  assert.equal((manager as any).tradeSetupThesisReadBySymbol.get("SCAP")?.type, read?.type);
+  const payload = (manager as any).buildLevelSnapshotPayload("SCAP", evaluatedAt);
+  assert.equal(payload.tradeSetupThesisRead?.type, "small_cap_opening_range_retest");
+});
 
 test("ManualWatchlistRuntimeManager uses deep configurable daily lookbacks for level seeding", async () => {
   const monitor = new FakeMonitor();
@@ -292,6 +1418,59 @@ test("ManualWatchlistRuntimeManager uses deep configurable daily lookbacks for l
       ["5m", 120],
     ],
   );
+  assert.deepEqual(
+    candleFetchService.requests.map((request) => request.endTimeMs),
+    [undefined, undefined, undefined],
+  );
+});
+
+test("ManualWatchlistRuntimeManager pins EODHD higher-timeframe level seeding to prior confirmed structure", async () => {
+  const fixedNow = Date.parse("2026-07-10T15:00:00-04:00");
+  assert.equal(
+    resolveEodhdConfirmedLevelRequestEndTimeMs("daily", fixedNow),
+    Date.parse("2026-07-09T12:00:00.000Z"),
+  );
+  assert.equal(
+    resolveEodhdConfirmedLevelRequestEndTimeMs("4h", fixedNow),
+    Date.parse("2026-07-10T04:00:00.000Z"),
+  );
+  assert.equal(resolveEodhdConfirmedLevelRequestEndTimeMs("5m", fixedNow), undefined);
+
+  const originalNow = Date.now;
+  Date.now = () => fixedNow;
+  try {
+    const monitor = new FakeMonitor();
+    const discordAlertRouter = new FakeDiscordAlertRouter();
+    const persistence = new FakeWatchlistStatePersistence();
+    persistence.storedEntries = [];
+    const candleFetchService = new RecordingCandleFetchService("eodhd");
+    const manager = new ManualWatchlistRuntimeManager({
+      candleFetchService: candleFetchService as any,
+      levelStore: new LevelStore(),
+      monitor: monitor as any,
+      discordAlertRouter: discordAlertRouter as any,
+      opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+      watchlistStore: new WatchlistStore(),
+      watchlistStatePersistence: persistence as any,
+      historicalLookbackBars: {
+        daily: 620,
+        "4h": 240,
+        "5m": 120,
+      },
+    });
+
+    await (manager as any).seedLevelsForSymbol("ALBT", { force: true });
+
+    const daily = candleFetchService.requests.find((request) => request.timeframe === "daily");
+    const fourHour = candleFetchService.requests.find((request) => request.timeframe === "4h");
+    const fiveMinute = candleFetchService.requests.find((request) => request.timeframe === "5m");
+
+    assert.equal(daily?.endTimeMs, Date.parse("2026-07-09T12:00:00.000Z"));
+    assert.equal(fourHour?.endTimeMs, Date.parse("2026-07-10T04:00:00.000Z"));
+    assert.equal(fiveMinute?.endTimeMs, undefined);
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test("ManualWatchlistRuntimeManager exposes level seed stats and restart readiness", async () => {
@@ -391,6 +1570,82 @@ test("ManualWatchlistRuntimeManager loads persisted active entries and starts mo
     { representativePrice: 2.45, strengthLabel: "moderate", freshness: "fresh", isExtension: false },
   ]);
   assert.equal(typeof discordAlertRouter.levelSnapshots[0]?.payload.timestamp, "number");
+});
+
+test("ManualWatchlistRuntimeManager hot-swaps the live provider and resubscribes ready entries", async () => {
+  const monitor = new FakeMonitor();
+  const previousProvider = new FakeLivePriceProvider("ibkr");
+  const nextProvider = new FakeLivePriceProvider("eodhd");
+  monitor.currentLivePriceProvider = previousProvider;
+  const levelStore = new LevelStore();
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({
+    symbol: "ALBT",
+    active: true,
+    discordThreadId: "thread-albt",
+    lifecycle: "active",
+  });
+  levelStore.setLevels(buildLevelOutput("ALBT"));
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    liveWatchlistPublisher: null,
+  });
+  (manager as any).isStarted = true;
+
+  await manager.switchLivePriceProvider(nextProvider as any);
+
+  assert.equal(previousProvider.stopCalls, 1);
+  assert.deepEqual(monitor.providerSetCalls, [nextProvider]);
+  assert.equal(monitor.currentLivePriceProvider, nextProvider);
+  assert.deepEqual(monitor.startCalls.at(-1)?.map((entry) => entry.symbol), ["ALBT"]);
+});
+
+test("ManualWatchlistRuntimeManager restores the previous live provider when the new provider cannot subscribe", async () => {
+  const monitor = new FakeMonitor();
+  const previousProvider = new FakeLivePriceProvider("ibkr");
+  const nextProvider = new FakeLivePriceProvider("eodhd");
+  monitor.currentLivePriceProvider = previousProvider;
+  monitor.failNextStart = new Error("new provider subscribe failed");
+  const levelStore = new LevelStore();
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({
+    symbol: "ALBT",
+    active: true,
+    discordThreadId: "thread-albt",
+    lifecycle: "active",
+  });
+  levelStore.setLevels(buildLevelOutput("ALBT"));
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    liveWatchlistPublisher: null,
+  });
+  (manager as any).isStarted = true;
+
+  await assert.rejects(
+    manager.switchLivePriceProvider(nextProvider as any),
+    /new provider subscribe failed/,
+  );
+
+  assert.equal(previousProvider.stopCalls, 1);
+  assert.equal(nextProvider.stopCalls, 1);
+  assert.deepEqual(monitor.providerSetCalls, [nextProvider, previousProvider]);
+  assert.equal(monitor.currentLivePriceProvider, previousProvider);
+  assert.deepEqual(monitor.startCalls.map((entries) => entries.map((entry) => entry.symbol)), [
+    ["ALBT"],
+    ["ALBT"],
+  ]);
 });
 
 test("ManualWatchlistRuntimeManager anchors queued activation snapshot to stock context current price", async () => {
@@ -914,6 +2169,47 @@ test("ManualWatchlistRuntimeManager reuses entries on reactivation and does not 
   assert.equal(discordAlertRouter.levelSnapshots.length, 2);
 });
 
+test("ManualWatchlistRuntimeManager treats adding an already-active ticker as an idempotent no-op", async () => {
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const persistence = new FakeWatchlistStatePersistence();
+  const watchlistStore = new WatchlistStore();
+  const oldActivatedAt = Date.UTC(2026, 6, 10, 13, 30, 0);
+  watchlistStore.setEntries([
+    {
+      symbol: "FTRK",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      note: "old test add",
+      discordThreadId: "thread-FTRK",
+      lifecycle: "active",
+      refreshPending: false,
+      activatedAt: oldActivatedAt,
+      operationStatus: "monitoring live price",
+    },
+  ]);
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+  });
+  const persistedBeforeDuplicateAdd = structuredClone(persistence.storedEntries);
+
+  const existing = await manager.queueActivation({ symbol: "FTRK", note: "today add" });
+
+  assert.equal(manager.getActiveEntries().length, 1);
+  assert.equal(existing.symbol, "FTRK");
+  assert.equal(existing.activatedAt, oldActivatedAt);
+  assert.equal(existing.note, "old test add");
+  assert.deepEqual(persistence.storedEntries, persistedBeforeDuplicateAdd);
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 0);
+});
+
 test("ManualWatchlistRuntimeManager automatically generates an AI clean read after activation snapshot", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
@@ -1117,6 +2413,1012 @@ test("ManualWatchlistRuntimeManager deactivates symbols and keeps stored thread 
   });
   assert.equal(manager.getActiveEntries().length, 0);
   assert.equal(persistence.storedEntries[0]?.discordThreadId, "thread-HUBC");
+});
+
+test("ManualWatchlistRuntimeManager bulk deactivates once while preserving Discord thread ids", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "MAIN" });
+  await manager.activateSymbol({ symbol: "POST" });
+  await manager.activateSymbol({ symbol: "KEEP" });
+  const stopCallsBeforeBulkRemoval = monitor.stopCalls;
+  liveWatchlistPublisher.cardPatches = [];
+
+  const deactivated = await manager.deactivateSymbols(["main", "POST", "missing", "MAIN"]);
+
+  assert.deepEqual(deactivated.map((entry) => entry.symbol), ["MAIN", "POST"]);
+  assert.deepEqual(manager.getActiveEntries().map((entry) => entry.symbol), ["KEEP"]);
+  assert.equal(monitor.stopCalls, stopCallsBeforeBulkRemoval + 1);
+  assert.equal(persistence.storedEntries.find((entry) => entry.symbol === "MAIN")?.discordThreadId, "thread-MAIN");
+  assert.equal(persistence.storedEntries.find((entry) => entry.symbol === "POST")?.discordThreadId, "thread-POST");
+  assert.deepEqual(
+    liveWatchlistPublisher.cardPatches.map((patch) => [patch.symbol, patch.status]),
+    [["MAIN", "deactivated"], ["POST", "deactivated"]],
+  );
+});
+
+test("ManualWatchlistRuntimeManager publishes a full deactivation snapshot for website archives", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({
+            id: "S1",
+            symbol,
+            kind: "support",
+            representativePrice: 1.95,
+          }),
+        ],
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            representativePrice: 2.45,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "CAST" });
+  await waitForAsyncWork();
+
+  liveWatchlistPublisher.cardPatches = [];
+  await manager.deactivateSymbol("CAST");
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
+  const patch = liveWatchlistPublisher.cardPatches[0];
+  assert.equal(patch?.symbol, "CAST");
+  assert.equal(patch?.status, "deactivated");
+  assert.equal(patch?.cards.fullLadder?.source, "level_snapshot");
+  assert.equal(patch?.cards.levelMap, null);
+  assert.equal(patch?.cards.nearestSupportResistance?.source, "level_snapshot");
+  assert.equal(patch?.cards.liveTraderRead?.source, "level_snapshot");
+});
+
+test("ManualWatchlistRuntimeManager can hide and restore the live website Trader Read card", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({
+            id: "S1",
+            symbol,
+            kind: "support",
+            representativePrice: 1.95,
+          }),
+        ],
+        intradayResistance: [
+          buildZone({
+            id: "R1",
+            symbol,
+            kind: "resistance",
+            representativePrice: 2.45,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "CAST" });
+  await waitForAsyncWork();
+
+  liveWatchlistPublisher.cardPatches = [];
+  const hiddenResult = await manager.setLiveTraderReadCardVisible(false);
+
+  assert.equal(hiddenResult.visible, false);
+  assert.deepEqual(hiddenResult.refreshedSymbols, ["CAST"]);
+  assert.equal(manager.getRuntimeHealth().liveTraderReadCardVisible, false);
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.cards.liveTraderRead, null);
+
+  liveWatchlistPublisher.cardPatches = [];
+  const visibleResult = await manager.setLiveTraderReadCardVisible(true);
+  await waitForAsyncWork();
+
+  assert.equal(visibleResult.visible, true);
+  assert.deepEqual(visibleResult.refreshedSymbols, ["CAST"]);
+  assert.equal(manager.getRuntimeHealth().liveTraderReadCardVisible, true);
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.cards.liveTraderRead?.source, "level_snapshot");
+});
+
+test("ManualWatchlistRuntimeManager can hide and restore the live website Potential Gain card", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({
+    symbol: "GAIN",
+    active: true,
+    lifecycle: "active",
+    activatedAt: 1000,
+  });
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+  });
+
+  liveWatchlistPublisher.cardPatches = [];
+
+  const hidden = await manager.setPotentialGainCardVisible(false);
+  assert.equal(hidden.visible, false);
+  assert.deepEqual(hidden.refreshedSymbols, ["GAIN"]);
+  assert.equal(manager.getRuntimeHealth().potentialGainCardVisible, false);
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.potentialGainCardVisible, false);
+
+  liveWatchlistPublisher.cardPatches = [];
+  const visible = await manager.setPotentialGainCardVisible(true);
+  assert.equal(visible.visible, true);
+  assert.equal(manager.getRuntimeHealth().potentialGainCardVisible, true);
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.potentialGainCardVisible, true);
+});
+
+test("ManualWatchlistRuntimeManager refreshes live trader read from same-day catalyst card context", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  const watchlistStore = new WatchlistStore();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const now = Date.now();
+  persistence.storedEntries = [
+    {
+      symbol: "CAT",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cat",
+      lifecycle: "active",
+      refreshPending: false,
+      activatedAt: now,
+      lastPrice: 2.35,
+      lastPriceUpdateAt: now,
+    },
+  ];
+  watchlistStore.setEntries(persistence.storedEntries);
+  const output = buildLevelOutput("CAT", {
+    metadata: {
+      providerByTimeframe: {},
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 2.35,
+    },
+  });
+  levelStore.setLevels(output);
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentWebsiteArticlesExecFileImpl: async () => ({
+      stderr: "",
+      stdout: JSON.stringify({
+        ticker: "CAT",
+        businessDays: 7,
+        count: 1,
+        articles: [
+          {
+            ticker: "CAT",
+            title: "CAT announces same-day catalyst",
+            url: "https://traderslink.pro/news/cat-announces-same-day-catalyst",
+            publishedAt: new Date(now).toISOString(),
+          },
+        ],
+      }),
+    }),
+  });
+  const seriesMap = {
+    daily: buildTestCandleResponse("daily", []),
+    "4h": buildTestCandleResponse("4h", [
+      buildTestCandle(1, 1.2, 1.32, 1.15, 1.24),
+      buildTestCandle(2, 1.24, 1.38, 1.18, 1.3),
+      buildTestCandle(3, 1.3, 1.44, 1.22, 1.34),
+      buildTestCandle(4, 1.34, 1.48, 1.26, 1.4),
+      buildTestCandle(5, 1.4, 1.52, 1.32, 1.45),
+      buildTestCandle(6, 1.45, 1.58, 1.36, 1.5),
+      buildTestCandle(7, 1.5, 1.66, 1.42, 1.56),
+      buildTestCandle(8, 1.58, 2.48, 1.52, 2.35),
+    ]),
+    "5m": buildTestCandleResponse("5m", []),
+  };
+
+  (manager as any).storeTechnicalContextForSymbol("CAT", output, seriesMap);
+  assert.notEqual(
+    (manager as any).potentialMoveReadBySymbol.get("CAT")?.type,
+    "catalyst_active_runner_continuation",
+  );
+
+  (manager as any).publishRecentWebsiteArticles("CAT");
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+
+  assert.equal(
+    (manager as any).potentialMoveReadBySymbol.get("CAT")?.type,
+    "catalyst_active_runner_continuation",
+  );
+  const snapshotPatch = liveWatchlistPublisher.cardPatches
+    .slice()
+    .reverse()
+    .find((patch) => Boolean(patch.cards.liveTraderRead));
+  assert.match(snapshotPatch?.cards.liveTraderRead?.body ?? "", /same-day catalyst card/);
+  assert.match(snapshotPatch?.cards.liveTraderRead?.body ?? "", /active 4h runner candle/);
+});
+
+test("ManualWatchlistRuntimeManager can refresh live trader read from raw press-release catalyst context", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  const watchlistStore = new WatchlistStore();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const now = Date.now();
+  persistence.storedEntries = [
+    {
+      symbol: "RAW",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-raw",
+      lifecycle: "active",
+      refreshPending: false,
+      activatedAt: now,
+      lastPrice: 2.35,
+      lastPriceUpdateAt: now,
+    },
+  ];
+  watchlistStore.setEntries(persistence.storedEntries);
+  const output = buildLevelOutput("RAW", {
+    metadata: {
+      providerByTimeframe: {},
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 2.35,
+    },
+  });
+  levelStore.setLevels(output);
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    pressReleaseCatalystContextEnabled: true,
+    recentWebsiteArticlesExecFileImpl: async () => ({
+      stderr: "",
+      stdout: JSON.stringify({
+        ticker: "RAW",
+        businessDays: 7,
+        count: 0,
+        articles: [],
+      }),
+    }),
+    pressReleaseCatalystExecFileImpl: async () => ({
+      stderr: "",
+      stdout: JSON.stringify({
+        available: true,
+        databasePath: "test.db",
+        articlesBySymbol: {
+          RAW: [
+            {
+              ingestEventId: "raw-1",
+              ticker: "RAW",
+              url: "raw-1",
+              articlePath: null,
+              title: "RAW announces same-day catalyst from ingest",
+              publishedAt: new Date(now).toISOString(),
+              eventType: "press_release",
+              filingType: null,
+              routeTag: null,
+              sourceUrl: null,
+              observedAt: null,
+              sourceKind: "ingest_events",
+            },
+          ],
+        },
+      }),
+    }),
+  });
+  const seriesMap = {
+    daily: buildTestCandleResponse("daily", []),
+    "4h": buildTestCandleResponse("4h", [
+      buildTestCandle(1, 1.2, 1.32, 1.15, 1.24),
+      buildTestCandle(2, 1.24, 1.38, 1.18, 1.3),
+      buildTestCandle(3, 1.3, 1.44, 1.22, 1.34),
+      buildTestCandle(4, 1.34, 1.48, 1.26, 1.4),
+      buildTestCandle(5, 1.4, 1.52, 1.32, 1.45),
+      buildTestCandle(6, 1.45, 1.58, 1.36, 1.5),
+      buildTestCandle(7, 1.5, 1.66, 1.42, 1.56),
+      buildTestCandle(8, 1.58, 2.48, 1.52, 2.35),
+    ]),
+    "5m": buildTestCandleResponse("5m", []),
+  };
+
+  (manager as any).storeTechnicalContextForSymbol("RAW", output, seriesMap);
+  (manager as any).publishRecentWebsiteArticles("RAW");
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+
+  assert.equal(
+    (manager as any).potentialMoveReadBySymbol.get("RAW")?.type,
+    "catalyst_active_runner_continuation",
+  );
+  const snapshotPatch = liveWatchlistPublisher.cardPatches
+    .slice()
+    .reverse()
+    .find((patch) => Boolean(patch.cards.liveTraderRead));
+  assert.match(snapshotPatch?.cards.liveTraderRead?.body ?? "", /fresh local press-release catalyst/);
+  assert.match(snapshotPatch?.cards.liveTraderRead?.body ?? "", /RAW announces same-day catalyst from ingest/);
+});
+
+test("ManualWatchlistRuntimeManager does not use catalyst runner thesis for stale catalyst cards", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  const watchlistStore = new WatchlistStore();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const now = Date.now();
+  persistence.storedEntries = [
+    {
+      symbol: "CAT",
+      active: true,
+      priority: 1,
+      tags: ["manual"],
+      discordThreadId: "thread-cat",
+      lifecycle: "active",
+      refreshPending: false,
+      activatedAt: now,
+      lastPrice: 2.35,
+      lastPriceUpdateAt: now,
+    },
+  ];
+  watchlistStore.setEntries(persistence.storedEntries);
+  const output = buildLevelOutput("CAT", {
+    metadata: {
+      providerByTimeframe: {},
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 2.35,
+    },
+  });
+  levelStore.setLevels(output);
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    recentWebsiteArticlesExecFileImpl: async () => ({
+      stderr: "",
+      stdout: JSON.stringify({
+        ticker: "CAT",
+        businessDays: 7,
+        count: 1,
+        articles: [
+          {
+            ticker: "CAT",
+            title: "CAT old catalyst",
+            url: "https://traderslink.pro/news/cat-old-catalyst",
+            publishedAt: new Date(now - 4 * 86_400_000).toISOString(),
+          },
+        ],
+      }),
+    }),
+  });
+  const seriesMap = {
+    daily: buildTestCandleResponse("daily", []),
+    "4h": buildTestCandleResponse("4h", [
+      buildTestCandle(1, 1.2, 1.32, 1.15, 1.24),
+      buildTestCandle(2, 1.24, 1.38, 1.18, 1.3),
+      buildTestCandle(3, 1.3, 1.44, 1.22, 1.34),
+      buildTestCandle(4, 1.34, 1.48, 1.26, 1.4),
+      buildTestCandle(5, 1.4, 1.52, 1.32, 1.45),
+      buildTestCandle(6, 1.45, 1.58, 1.36, 1.5),
+      buildTestCandle(7, 1.5, 1.66, 1.42, 1.56),
+      buildTestCandle(8, 1.58, 2.48, 1.52, 2.35),
+    ]),
+    "5m": buildTestCandleResponse("5m", []),
+  };
+
+  (manager as any).storeTechnicalContextForSymbol("CAT", output, seriesMap);
+  (manager as any).publishRecentWebsiteArticles("CAT");
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+
+  assert.notEqual(
+    (manager as any).potentialMoveReadBySymbol.get("CAT")?.type,
+    "catalyst_active_runner_continuation",
+  );
+});
+
+test("ManualWatchlistRuntimeManager publishes live volume in website ticker data", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({ id: "S1", symbol, kind: "support", representativePrice: 1.95 }),
+        ],
+        intradayResistance: [
+          buildZone({ id: "R1", symbol, kind: "resistance", representativePrice: 2.45 }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "CAST" });
+  await waitForAsyncWork();
+
+  liveWatchlistPublisher.tickerDataPatches = [];
+  monitor.onPriceUpdate?.({
+    symbol: "CAST",
+    timestamp: 3000,
+    lastPrice: 2.12,
+    volume: 123_456,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.tickerDataPatches.length, 1);
+  assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.symbol, "CAST");
+  assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.latestPrice, 2.12);
+  assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.volume, 123_456);
+});
+
+test("ManualWatchlistRuntimeManager keeps stronger duplicate metadata in live website ticker levels", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        intradaySupport: [
+          buildZone({
+            id: "S-displayed",
+            symbol,
+            kind: "support",
+            representativePrice: 1.95,
+            strengthLabel: "weak",
+            timeframeSources: ["5m"],
+          }),
+        ],
+        intradayResistance: [
+          buildZone({ id: "R1", symbol, kind: "resistance", representativePrice: 2.45 }),
+        ],
+        extensionLevels: {
+          support: [
+            buildZone({
+              id: "S-extension-duplicate",
+              symbol,
+              kind: "support",
+              representativePrice: 1.95,
+              strengthLabel: "major",
+              isExtension: true,
+            }),
+          ],
+          resistance: [],
+        },
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "CAST" });
+  await waitForAsyncWork();
+
+  liveWatchlistPublisher.tickerDataPatches = [];
+  monitor.onPriceUpdate?.({
+    symbol: "CAST",
+    timestamp: 3000,
+    lastPrice: 2.12,
+  });
+  await waitForAsyncWork();
+
+  const support = liveWatchlistPublisher.tickerDataPatches[0]?.levelMap?.supportLevels[0];
+  assert.equal(support?.price, 1.95);
+  assert.equal(support?.strengthLabel, "major");
+  assert.equal(support?.sourceLabel, "extension");
+  assert.match(support?.label ?? "", /major, .*extension/);
+});
+
+test("ManualWatchlistRuntimeManager keeps ticker data level map anchored to the active snapshot ladder", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+  });
+
+  levelStore.setLevels(buildLevelOutput("FTRK", {
+    intradayResistance: [
+      buildZone({ id: "R-extra-near", symbol: "FTRK", kind: "resistance", representativePrice: 0.66 }),
+      buildZone({ id: "R70", symbol: "FTRK", kind: "resistance", representativePrice: 0.7, strengthLabel: "major" }),
+      buildZone({ id: "R7432-extra", symbol: "FTRK", kind: "resistance", representativePrice: 0.7432 }),
+      buildZone({ id: "R75", symbol: "FTRK", kind: "resistance", representativePrice: 0.75, strengthLabel: "moderate" }),
+      buildZone({ id: "R80-extra", symbol: "FTRK", kind: "resistance", representativePrice: 0.8 }),
+    ],
+  }));
+  (manager as any).activeSnapshotState.set("FTRK", {
+    displayedSupportZones: [],
+    displayedResistanceZones: [
+      { representativePrice: 0.65, strengthLabel: "moderate", sourceLabel: "4h structure" },
+      { representativePrice: 0.7, strengthLabel: "moderate", sourceLabel: "4h structure" },
+      { representativePrice: 0.75, strengthLabel: "major", sourceLabel: "daily confluence" },
+    ],
+  });
+
+  (manager as any).publishLiveTickerData({
+    symbol: "FTRK",
+    timestamp: 3_000,
+    lastPrice: 0.639,
+  });
+  await waitForAsyncWork();
+
+  assert.deepEqual(
+    liveWatchlistPublisher.tickerDataPatches[0]?.levelMap?.resistanceLevels.map((level) => level.price),
+    [0.65, 0.7, 0.75],
+  );
+  assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.levelMap?.nearestResistance?.price, 0.65);
+  assert.equal(
+    liveWatchlistPublisher.tickerDataPatches[0]?.levelMap?.resistanceLevels.some((level) => level.price === 0.7432),
+    false,
+  );
+  assert.equal(
+    liveWatchlistPublisher.tickerDataPatches[0]?.levelMap?.resistanceLevels[1]?.strengthLabel,
+    "major",
+  );
+  assert.equal(
+    liveWatchlistPublisher.tickerDataPatches[0]?.levelMap?.resistanceLevels[1]?.sourceLabel,
+    "4h structure",
+  );
+  assert.equal(
+    liveWatchlistPublisher.tickerDataPatches[0]?.levelMap?.resistanceLevels[2]?.strengthLabel,
+    "major",
+  );
+  assert.equal(
+    liveWatchlistPublisher.tickerDataPatches[0]?.levelMap?.resistanceLevels[2]?.sourceLabel,
+    "daily confluence",
+  );
+
+  liveWatchlistPublisher.cardPatches = [];
+  (manager as any).publishWebsitePullbackTraderRead({
+    symbol: "FTRK",
+    timestamp: 4_000,
+    currentPrice: 0.639,
+    technicalContext: {
+      source: "levels_system_intraday",
+      sourceTimeframe: "5m",
+      provider: "yahoo",
+      sessionDate: "2026-07-13",
+      updatedAt: 4_000,
+      candleCount: 42,
+      currentPrice: 0.639,
+      vwap: 0.5,
+      ema9: 0.58,
+      ema20: 0.52,
+      priceVsVwapPct: 27.8,
+      priceVsEma9Pct: 10.2,
+      priceVsEma20Pct: 22.9,
+      aboveVwap: true,
+      aboveEma9: true,
+      aboveEma20: true,
+      confidence: "high",
+      diagnostics: [],
+    } satisfies TechnicalContext,
+  });
+  await waitForAsyncWork();
+
+  assert.deepEqual(
+    liveWatchlistPublisher.cardPatches[0]?.levelMap?.resistanceLevels.map((level) => level.price),
+    [0.65, 0.7, 0.75],
+  );
+  assert.equal(
+    liveWatchlistPublisher.cardPatches[0]?.levelMap?.resistanceLevels[1]?.label,
+    "0.7000 (+9.5%, major, 4h structure)",
+  );
+  assert.equal(
+    liveWatchlistPublisher.cardPatches[0]?.levelMap?.resistanceLevels[2]?.label,
+    "0.7500 (+17.4%, major, daily confluence)",
+  );
+});
+
+test("ManualWatchlistRuntimeManager republishes technical context when live price flips VWAP and EMA posture", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    pullbackReadEnabled: false,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+  const technicalContext: TechnicalContext = {
+    source: "levels_system_intraday",
+    sourceTimeframe: "5m",
+    provider: "ibkr",
+    sessionDate: "2026-07-09",
+    updatedAt: 1_000,
+    candleCount: 42,
+    currentPrice: 1.9,
+    vwap: 2,
+    ema9: 2,
+    ema20: 1.95,
+    priceVsVwapPct: -5.2632,
+    priceVsEma9Pct: -5.2632,
+    priceVsEma20Pct: -2.6316,
+    aboveVwap: false,
+    aboveEma9: false,
+    aboveEma20: false,
+    confidence: "high",
+    diagnostics: [],
+  };
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ABCD" });
+  await waitForAsyncWork();
+  (manager as any).technicalContextBySymbol.set("ABCD", technicalContext);
+  liveWatchlistPublisher.cardPatches = [];
+  liveWatchlistPublisher.tickerDataPatches = [];
+
+  monitor.onPriceUpdate?.({
+    symbol: "ABCD",
+    timestamp: 2_000,
+    lastPrice: 1.9,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
+  assert.match(
+    liveWatchlistPublisher.cardPatches[0]?.cards.technicalContext?.body ?? "",
+    /bearish intraday posture/,
+  );
+  assert.equal(
+    liveWatchlistPublisher.cardPatches[0]?.cards.technicalContext?.metadata?.aboveVwap,
+    false,
+  );
+
+  monitor.onPriceUpdate?.({
+    symbol: "ABCD",
+    timestamp: 3_000,
+    lastPrice: 1.91,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
+
+  monitor.onPriceUpdate?.({
+    symbol: "ABCD",
+    timestamp: 4_000,
+    lastPrice: 2.05,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 2);
+  assert.match(
+    liveWatchlistPublisher.cardPatches[1]?.cards.technicalContext?.body ?? "",
+    /bullish intraday posture/,
+  );
+  assert.match(
+    liveWatchlistPublisher.cardPatches[1]?.cards.technicalContext?.body ?? "",
+    /bullish short-term posture/,
+  );
+  assert.equal(
+    liveWatchlistPublisher.cardPatches[1]?.cards.technicalContext?.metadata?.aboveVwap,
+    true,
+  );
+  assert.equal(
+    liveWatchlistPublisher.cardPatches[1]?.cards.technicalContext?.metadata?.aboveEma9,
+    true,
+  );
+  assert.equal(
+    liveWatchlistPublisher.cardPatches[1]?.cards.technicalContext?.metadata?.aboveEma20,
+    true,
+  );
+});
+
+test("ManualWatchlistRuntimeManager republishes technical context when price approaches indicator levels before crossing", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    pullbackReadEnabled: false,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+  const technicalContext: TechnicalContext = {
+    source: "levels_system_intraday",
+    sourceTimeframe: "5m",
+    provider: "ibkr",
+    sessionDate: "2026-07-09",
+    updatedAt: 1_000,
+    candleCount: 42,
+    currentPrice: 2.3,
+    vwap: 2,
+    ema9: 2.02,
+    ema20: 1.95,
+    priceVsVwapPct: 13.0435,
+    priceVsEma9Pct: 12.1739,
+    priceVsEma20Pct: 15.2174,
+    aboveVwap: true,
+    aboveEma9: true,
+    aboveEma20: true,
+    confidence: "high",
+    diagnostics: [],
+  };
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ABCD" });
+  await waitForAsyncWork();
+  (manager as any).technicalContextBySymbol.set("ABCD", technicalContext);
+  liveWatchlistPublisher.cardPatches = [];
+  liveWatchlistPublisher.tickerDataPatches = [];
+
+  monitor.onPriceUpdate?.({
+    symbol: "ABCD",
+    timestamp: 2_000,
+    lastPrice: 2.3,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
+  assert.match(
+    liveWatchlistPublisher.cardPatches[0]?.cards.technicalContext?.body ?? "",
+    /^Levels:/,
+  );
+  assert.doesNotMatch(
+    liveWatchlistPublisher.cardPatches[0]?.cards.technicalContext?.body ?? "",
+    /Pullback refs below:/,
+  );
+  assert.equal(
+    liveWatchlistPublisher.cardPatches[0]?.cards.technicalContext?.metadata?.aboveVwap,
+    true,
+  );
+
+  monitor.onPriceUpdate?.({
+    symbol: "ABCD",
+    timestamp: 4_000,
+    lastPrice: 2.1,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 2);
+  assert.equal(
+    liveWatchlistPublisher.cardPatches[1]?.cards.technicalContext?.metadata?.aboveVwap,
+    true,
+  );
+  assert.equal(
+    liveWatchlistPublisher.cardPatches[1]?.cards.technicalContext?.metadata?.aboveEma9,
+    true,
+  );
+  assert.match(
+    liveWatchlistPublisher.cardPatches[1]?.cards.technicalContext?.body ?? "",
+    /VWAP 2\.00 \(\+4\.8%\)/,
+  );
+  assert.ok(
+    Number(liveWatchlistPublisher.cardPatches[1]?.cards.technicalContext?.metadata?.priceVsVwapPct) < 5,
+  );
+});
+
+test("ManualWatchlistRuntimeManager derives technical context from live 5m buckets when historical candles are not ready", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ZBAO" });
+  await waitForAsyncWork();
+
+  liveWatchlistPublisher.cardPatches = [];
+  liveWatchlistPublisher.tickerDataPatches = [];
+  const start = Date.UTC(2026, 6, 10, 8, 0, 0);
+  for (let index = 0; index < 20; index += 1) {
+    monitor.onPriceUpdate?.({
+      symbol: "ZBAO",
+      timestamp: start + index * 5 * 60 * 1000,
+      lastPrice: 0.3 + index * 0.01,
+      volume: 1_000 + index,
+    });
+  }
+  await waitForAsyncWork();
+
+  const readyPatch = [...liveWatchlistPublisher.cardPatches]
+    .reverse()
+    .find((patch) => patch.cards.technicalContext);
+  assert.ok(readyPatch?.cards.technicalContext);
+  assert.equal(readyPatch.cards.technicalContext.metadata?.provider, "live_stream");
+  assert.equal(readyPatch.cards.technicalContext.metadata?.candleCount, 20);
+  assert.equal(readyPatch.cards.technicalContext.metadata?.confidence, "medium");
+  assert.match(readyPatch.cards.technicalContext.body, /EMA read:/);
+  assert.match(readyPatch.cards.technicalContext.body, /VWAP read:/);
+});
+
+test("ManualWatchlistRuntimeManager starts live technical buckets after an empty historical placeholder", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "ZBAO" });
+  await waitForAsyncWork();
+
+  (manager as any).technicalContextBySymbol.set("ZBAO", {
+    source: "levels_system_intraday",
+    sourceTimeframe: "5m",
+    provider: "eodhd",
+    sessionDate: "2026-07-10",
+    updatedAt: null,
+    candleCount: 0,
+    currentPrice: null,
+    vwap: null,
+    ema9: null,
+    ema20: null,
+    priceVsVwapPct: null,
+    priceVsEma9Pct: null,
+    priceVsEma20Pct: null,
+    aboveVwap: null,
+    aboveEma9: null,
+    aboveEma20: null,
+    confidence: "unavailable",
+    diagnostics: ["5m:unavailable", "missing_intraday_candles"],
+  } satisfies TechnicalContext);
+
+  liveWatchlistPublisher.cardPatches = [];
+  const start = Date.UTC(2026, 6, 10, 8, 0, 0);
+  for (let index = 0; index < 20; index += 1) {
+    monitor.onPriceUpdate?.({
+      symbol: "ZBAO",
+      timestamp: start + index * 5 * 60 * 1000,
+      lastPrice: 0.3 + index * 0.01,
+      volume: 1_000 + index,
+    });
+  }
+  await waitForAsyncWork();
+
+  const readyPatch = [...liveWatchlistPublisher.cardPatches]
+    .reverse()
+    .find((patch) => patch.cards.technicalContext);
+  assert.ok(readyPatch?.cards.technicalContext);
+  assert.equal(readyPatch.cards.technicalContext.metadata?.provider, "live_stream");
+  assert.equal(readyPatch.cards.technicalContext.metadata?.candleCount, 20);
 });
 
 test("ManualWatchlistRuntimeManager health counts only live display entries", async () => {
@@ -1424,6 +3726,7 @@ test("ManualWatchlistRuntimeManager posts stock context into a newly created thr
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const persistence = new FakeWatchlistStatePersistence();
   const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
   persistence.storedEntries = [];
 
   const manager = new ManualWatchlistRuntimeManager({
@@ -1434,6 +3737,7 @@ test("ManualWatchlistRuntimeManager posts stock context into a newly created thr
     opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
     watchlistStore: new WatchlistStore(),
     watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
     stockContextProvider: {
       async getThreadPreview(symbolInput: string) {
         return {
@@ -1473,6 +3777,83 @@ test("ManualWatchlistRuntimeManager posts stock context into a newly created thr
   assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.messageKind, "stock_context");
   assert.equal(discordAlertRouter.routed[0]?.payload.title, "");
   assert.equal(discordAlertRouter.levelSnapshots.length >= 1, true);
+
+  monitor.onPriceUpdate?.({
+    symbol: "EXMP",
+    timestamp: 5_000,
+    lastPrice: 12.5,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.priorRegularClosePrice, 11.11);
+  assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.priorRegularCloseSource, "Finnhub regular close");
+  assert.equal(
+    liveWatchlistPublisher.tickerDataPatches[0]?.moveFromPriorRegularClosePct,
+    ((12.5 - 11.11) / 11.11) * 100,
+  );
+});
+
+test("ManualWatchlistRuntimeManager posts stock context when reactivating a reused thread", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  let previewCalls = 0;
+  persistence.storedEntries = [];
+
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    stockContextProvider: {
+      async getThreadPreview(symbolInput: string) {
+        previewCalls += 1;
+        return {
+          symbol: symbolInput.toUpperCase(),
+          quote: {
+            c: 12.34,
+            d: 1.23,
+            dp: 11.1,
+            h: 13,
+            l: 11.5,
+            o: 11.75,
+            pc: 11.11,
+            t: 1_700_000_000,
+          },
+          profile: {
+            country: "US",
+            exchange: "NASDAQ",
+            finnhubIndustry: "Technology",
+            marketCapitalization: 850,
+            name: "Example Corp",
+            weburl: "https://example.com",
+          },
+        };
+      },
+    },
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.queueActivation({ symbol: "EXMP" });
+  await waitForAsyncWork();
+  await manager.deactivateSymbol("EXMP");
+  await manager.queueActivation({ symbol: "EXMP" });
+  await waitForAsyncWork();
+
+  const stockContextPosts = discordAlertRouter.routed.filter(
+    (item) => item.payload.metadata?.messageKind === "stock_context",
+  );
+  assert.equal(previewCalls, 2);
+  assert.equal(stockContextPosts.length, 2);
+  assert.equal(discordAlertRouter.ensured[1]?.storedThreadId, "thread-EXMP");
+  assert.equal(discordAlertRouter.ensured[1]?.symbol, "EXMP");
 });
 
 test("ManualWatchlistRuntimeManager records stock context without consuming trader-story budget", async () => {
@@ -1848,7 +4229,7 @@ test("ManualWatchlistRuntimeManager uses cached extension levels when price appr
   monitor.onPriceUpdate?.({
     symbol: "ALBT",
     timestamp: 1000,
-    lastPrice: 2.46,
+    lastPrice: 3.23,
   });
   await waitForAsyncWork();
 
@@ -2060,6 +4441,7 @@ test("ManualWatchlistRuntimeManager does not repost cleared resistance as the ne
   const persistence = new FakeWatchlistStatePersistence();
   const levelStore = new LevelStore();
   const watchlistStore = new WatchlistStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
   persistence.storedEntries = [];
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: {} as any,
@@ -2069,6 +4451,7 @@ test("ManualWatchlistRuntimeManager does not repost cleared resistance as the ne
     opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
     watchlistStore,
     watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
     seedSymbolLevels: async (symbol: string) => {
       levelStore.setLevels(buildLevelOutput(symbol, {
         metadata: {
@@ -2138,6 +4521,17 @@ test("ManualWatchlistRuntimeManager does not repost cleared resistance as the ne
       timestamp: 3_000,
     },
   });
+  await waitForAsyncWork();
+  const refreshedWebsitePatch = liveWatchlistPublisher.cardPatches.at(-1);
+  assert.equal(refreshedWebsitePatch?.cards.fullLadder?.title, "RXT full level ladder");
+  assert.equal(
+    refreshedWebsitePatch?.cards.nearestSupportResistance?.title,
+    "Potential Path Levels",
+  );
+  assert.equal(
+    refreshedWebsitePatch?.cards.nearestSupportResistance?.source,
+    "level_snapshot",
+  );
 
   await manager.stop();
 });
@@ -3625,7 +6019,7 @@ test("ManualWatchlistRuntimeManager keeps earlier symbols live after a newer sym
   monitor.onPriceUpdate?.({
     symbol: "ALBT",
     timestamp: 1000,
-    lastPrice: 2.46,
+    lastPrice: 3.23,
   });
   await waitForAsyncWork();
 
@@ -4018,6 +6412,88 @@ test("ManualWatchlistRuntimeManager flips important just-overhead support into r
     )?.omittedReason,
     "displayed",
   );
+});
+
+test("ManualWatchlistRuntimeManager flips meaningful crossed higher-timeframe resistance into snapshot support", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 28.17,
+        },
+        intradaySupport: [
+          buildZone({
+            id: "S-1769",
+            symbol,
+            kind: "support",
+            representativePrice: 17.69,
+            zoneLow: 17.69,
+            zoneHigh: 17.69,
+            strengthLabel: "major",
+            strengthScore: 48,
+            timeframeBias: "mixed",
+            timeframeSources: ["daily", "4h"],
+          }),
+        ],
+        intradayResistance: [
+          buildZone({
+            id: "R-2305",
+            symbol,
+            kind: "resistance",
+            representativePrice: 23.05,
+            zoneLow: 23.05,
+            zoneHigh: 23.05,
+            strengthLabel: "strong",
+            strengthScore: 34,
+            confluenceCount: 2,
+            sourceEvidenceCount: 2,
+            rejectionScore: 0.48,
+            displacementScore: 0.68,
+            followThroughScore: 0.58,
+            timeframeBias: "mixed",
+            timeframeSources: ["daily", "4h"],
+            sourceTypes: ["swing_high"],
+          }),
+          buildZone({
+            id: "R-3866",
+            symbol,
+            kind: "resistance",
+            representativePrice: 38.66,
+            zoneLow: 38.66,
+            zoneHigh: 38.66,
+            timeframeBias: "4h",
+            timeframeSources: ["4h"],
+            sourceTypes: ["swing_high"],
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "VEEE" });
+
+  const snapshot = discordAlertRouter.levelSnapshots.at(-1)?.payload;
+  assert.deepEqual(withoutSnapshotSourceLabels(snapshot.supportZones), [
+    { representativePrice: 23.05, strengthLabel: "strong", freshness: "fresh", isExtension: false },
+    { representativePrice: 17.69, strengthLabel: "major", freshness: "fresh", isExtension: false },
+  ]);
+  assert.equal(snapshot.supportZones[0]?.sourceLabel, "daily confluence");
 });
 
 test("ManualWatchlistRuntimeManager keeps resistance zones that touch price but extend overhead", async () => {
@@ -4583,6 +7059,99 @@ test("ManualWatchlistRuntimeManager extends low-priced resistance snapshots beyo
   ]);
 });
 
+test("ManualWatchlistRuntimeManager smooths the two-dollar ladder boundary and keeps one structural outer anchor", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 2.01,
+        },
+        intradayResistance: [
+          buildZone({
+            id: "R-250",
+            symbol,
+            kind: "resistance",
+            representativePrice: 2.5,
+            zoneLow: 2.5,
+            zoneHigh: 2.5,
+          }),
+          buildZone({
+            id: "R-340",
+            symbol,
+            kind: "resistance",
+            representativePrice: 3.4,
+            zoneLow: 3.4,
+            zoneHigh: 3.4,
+          }),
+        ],
+        extensionLevels: {
+          support: [],
+          resistance: [
+            buildZone({
+              id: "RX-405-weak",
+              symbol,
+              kind: "resistance",
+              representativePrice: 4.05,
+              zoneLow: 4.05,
+              zoneHigh: 4.05,
+              strengthLabel: "weak",
+              isExtension: true,
+            }),
+            buildZone({
+              id: "RX-420-strong-daily",
+              symbol,
+              kind: "resistance",
+              representativePrice: 4.2,
+              zoneLow: 4.2,
+              zoneHigh: 4.2,
+              strengthLabel: "strong",
+              timeframeBias: "daily",
+              timeframeSources: ["daily"],
+              isExtension: true,
+            }),
+            buildZone({
+              id: "RX-440-major-daily",
+              symbol,
+              kind: "resistance",
+              representativePrice: 4.4,
+              zoneLow: 4.4,
+              zoneHigh: 4.4,
+              strengthLabel: "major",
+              timeframeBias: "daily",
+              timeframeSources: ["daily"],
+              isExtension: true,
+            }),
+          ],
+        },
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "VIVS" });
+
+  const resistancePrices = discordAlertRouter.levelSnapshots.at(-1)?.payload
+    .ladderResistanceZones.map((zone: any) => zone.representativePrice) ?? [];
+  assert.equal(resistancePrices.includes(4.2), true);
+  assert.equal(resistancePrices.includes(4.05), false);
+  assert.equal(resistancePrices.includes(4.4), false);
+});
+
 test("ManualWatchlistRuntimeManager preserves near, intermediate, and far resistance continuity in the compact snapshot ladder", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
@@ -4784,6 +7353,119 @@ test("ManualWatchlistRuntimeManager adds continuation-map resistance checkpoints
     true,
   );
   assert.equal(snapshot.audit?.omittedResistanceCount, 0);
+});
+
+test("ManualWatchlistRuntimeManager fills a runner resistance path when only one nearby overhead level remains", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    pullbackReadEnabled: false,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 22.1,
+        },
+        intradaySupport: [
+          buildZone({
+            id: "S-1769",
+            symbol,
+            kind: "support",
+            representativePrice: 17.686,
+            zoneLow: 17.686,
+            zoneHigh: 17.686,
+            strengthScore: 4,
+            strengthLabel: "major",
+            freshness: "stale",
+            timeframeBias: "daily",
+            timeframeSources: ["daily"],
+          }),
+        ],
+        extensionLevels: {
+          support: [],
+          resistance: [
+            buildZone({
+              id: "RX-2305",
+              symbol,
+              kind: "resistance",
+              representativePrice: 23.051,
+              zoneLow: 23.051,
+              zoneHigh: 23.051,
+              strengthScore: 3,
+              strengthLabel: "strong",
+              freshness: "stale",
+              isExtension: true,
+              timeframeBias: "daily",
+              timeframeSources: ["daily"],
+            }),
+            buildZone({
+              id: "RX-3866",
+              symbol,
+              kind: "resistance",
+              representativePrice: 38.665,
+              zoneLow: 38.665,
+              zoneHigh: 38.665,
+              strengthScore: 2,
+              strengthLabel: "moderate",
+              freshness: "stale",
+              isExtension: true,
+              timeframeBias: "4h",
+              timeframeSources: ["4h"],
+            }),
+          ],
+        },
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "VEEE" });
+  await waitForAsyncWork();
+
+  const snapshot = discordAlertRouter.levelSnapshots.at(-1)?.payload;
+  assert.equal(snapshot.symbol, "VEEE");
+  assert.deepEqual(
+    snapshot.resistanceZones.map((zone: any) => zone.representativePrice),
+    [23.051, 24, 25, 27.5, 30],
+  );
+  assert.deepEqual(
+    snapshot.resistanceZones.map((zone: any) => zone.sourceLabel),
+    ["extension", "continuation map", "continuation map", "continuation map", "continuation map"],
+  );
+  assert.equal(
+    snapshot.ladderResistanceZones.some((zone: any) => zone.representativePrice === 38.665),
+    false,
+  );
+  assert.equal(snapshot.audit?.omittedResistanceCount, 1);
+
+  liveWatchlistPublisher.cardPatches = [];
+  await manager.setLiveTraderReadCardVisible(true);
+  await waitForAsyncWork();
+
+  const pathLevelsBody = liveWatchlistPublisher.cardPatches.at(-1)?.cards.nearestSupportResistance?.body ?? "";
+  assert.match(pathLevelsBody, /23\.05/);
+  assert.match(pathLevelsBody, /24\.00/);
+  assert.match(pathLevelsBody, /25\.00/);
+  assert.match(pathLevelsBody, /27\.50/);
+  assert.doesNotMatch(pathLevelsBody, /30\.00/);
+  assert.deepEqual(
+    liveWatchlistPublisher.cardPatches.at(-1)?.levelMap?.resistanceLevels.map((level) => level.price),
+    [23.051, 24, 25, 27.5],
+  );
 });
 
 test("ManualWatchlistRuntimeManager preserves a meaningful isolated intermediate wick-high when capping resistance display zones", async () => {

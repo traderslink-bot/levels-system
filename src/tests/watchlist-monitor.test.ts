@@ -13,12 +13,16 @@ import type {
 
 class FakeLivePriceProvider implements LivePriceProvider {
   public listener?: LivePriceListener;
+  public startEntries: WatchlistEntry[][] = [];
+  public stopCount = 0;
 
   async start(entries: WatchlistEntry[], onUpdate: LivePriceListener): Promise<void> {
+    this.startEntries.push(entries);
     this.listener = onUpdate;
   }
 
   async stop(): Promise<void> {
+    this.stopCount += 1;
     this.listener = undefined;
   }
 }
@@ -84,6 +88,23 @@ test("WatchlistMonitor omits empty higher-timeframe market-structure buckets", (
   });
 
   assert.equal(snapshot, null);
+});
+
+test("WatchlistMonitor can replace the live price provider before subscribing", async () => {
+  const firstProvider = new FakeLivePriceProvider();
+  const secondProvider = new FakeLivePriceProvider();
+  const monitor = new WatchlistMonitor(new LevelStore(), firstProvider);
+
+  const previousProvider = monitor.setLivePriceProvider(secondProvider);
+  await monitor.start(
+    [{ symbol: "albt", active: true, priority: 1, tags: ["manual"] }],
+    () => undefined,
+  );
+
+  assert.equal(previousProvider, firstProvider);
+  assert.equal(firstProvider.startEntries.length, 0);
+  assert.equal(secondProvider.startEntries.length, 1);
+  assert.equal(secondProvider.startEntries[0]?.[0]?.symbol, "ALBT");
 });
 
 test("WatchlistMonitor reconciles refreshed levels and emits events for the new active zone set", async () => {

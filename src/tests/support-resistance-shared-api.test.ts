@@ -18,6 +18,7 @@ import {
   type BaseCandleProviderResponse,
   type Candle,
   type CandleFetchTimeframe,
+  type HistoricalCandleProvider,
   type HistoricalFetchRequest,
   type SharedSupportResistanceCandle,
 } from "../lib/support-resistance/index.js";
@@ -127,6 +128,53 @@ class CountingHistoricalProvider extends StubHistoricalCandleProvider {
   }
 }
 
+class EodhdOneMinuteFallbackProvider implements HistoricalCandleProvider {
+  readonly providerName = "eodhd" as const;
+  readonly calls: HistoricalFetchRequest[] = [];
+
+  async fetchCandles(request: HistoricalFetchRequest): Promise<BaseCandleProviderResponse> {
+    this.calls.push({ ...request });
+    const end = request.endTimeMs ?? Date.UTC(2026, 4, 1, 15, 45);
+    const interval =
+      request.timeframe === "1m"
+        ? 60_000
+        : request.timeframe === "5m"
+          ? 5 * 60_000
+          : request.timeframe === "4h"
+            ? 4 * 60 * 60_000
+            : 24 * 60 * 60_000;
+    const candleCount = request.timeframe === "5m" ? 0 : request.lookbackBars;
+    const candles =
+      candleCount === 0
+        ? []
+        : Array.from({ length: candleCount }, (_, index) => {
+            const timestamp = end - (candleCount - 1 - index) * interval;
+            const base = 2 + index * 0.01;
+            return candle(timestamp, Number(base.toFixed(4)), 100_000 + index * 100);
+          });
+
+    return {
+      provider: this.providerName,
+      symbol: request.symbol.toUpperCase(),
+      timeframe: request.timeframe,
+      requestedLookbackBars: request.lookbackBars,
+      candles,
+      fetchStartTimestamp: Date.UTC(2026, 4, 1, 12, 0),
+      fetchEndTimestamp: Date.UTC(2026, 4, 1, 12, 0, 1),
+      requestedStartTimestamp: end - request.lookbackBars * interval,
+      requestedEndTimestamp: end,
+      sessionMetadataAvailable: request.timeframe === "1m" || request.timeframe === "5m",
+      providerMetadata: {
+        source: "eodhd_one_minute_fallback_test_provider",
+      },
+    };
+  }
+
+  count(timeframe: CandleFetchTimeframe): number {
+    return this.calls.filter((call) => call.timeframe === timeframe).length;
+  }
+}
+
 class FakeIbkrHistoricalClient {
   isConnected = false;
   connectCount = 0;
@@ -147,6 +195,11 @@ class FakeIbkrHistoricalClient {
     this.connectCount += 1;
     this.isConnected = true;
     this.emit("connected");
+  }
+
+  disconnect(): void {
+    this.isConnected = false;
+    this.emit("disconnected");
   }
 
   reqHistoricalData(
@@ -609,6 +662,42 @@ test("symbol context API owns multi-timeframe fetching and returns full levels",
   assert.ok(context.traderContext.storyMemory);
 });
 
+test("symbol context API aggregates EODHD 1m candles when direct 5m is unavailable", async () => {
+  const provider = new EodhdOneMinuteFallbackProvider();
+
+  const context = await buildSupportResistanceContextForSymbol({
+    symbol: "cmnd",
+    sessionDate: "2026-04-20",
+    asOfTimestamp: "2026-04-20T12:00:00.000Z",
+    lookbackBars: {
+      daily: 180,
+      "4h": 120,
+      "5m": 24,
+    },
+    fetchServiceOptions: {
+      provider,
+    },
+    preferredProvider: "eodhd",
+  });
+
+  const fiveMinuteFetch = context.fetches.find((fetch) => fetch.timeframe === "5m");
+
+  assert.equal(context.levels.metadata.providerByTimeframe["5m"], "eodhd");
+  assert.equal(fiveMinuteFetch?.actualBarsReturned, 24);
+  assert.equal(fiveMinuteFetch?.completenessStatus, "complete");
+  assert.equal(provider.count("5m"), 1);
+  assert.equal(provider.count("1m"), 1);
+  assert.ok(
+    context.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.code === "fetched_candle_group" &&
+        diagnostic.timeframe === "5m" &&
+        diagnostic.message.includes("Fetched 24 5m candles from eodhd"),
+    ),
+  );
+  assert.ok(context.dynamicLevels.vwap !== null);
+});
+
 test("symbol context API requires fetched daily and 4h candles for full levels", async () => {
   class BrokenProvider extends StubHistoricalCandleProvider {
     override async fetchCandles(request: Parameters<StubHistoricalCandleProvider["fetchCandles"]>[0]) {
@@ -695,6 +784,53 @@ test("trade analysis context owns support/resistance and trade-window candle fet
   assert.equal(context.executionRelations[1]?.side, "sell");
   assert.ok(context.diagnostics.some((diagnostic) => diagnostic.code === "trade_window_fetched"));
   assert.ok(context.diagnostics.some((diagnostic) => diagnostic.code === "trade_window_truncated_by_as_of"));
+});
+
+test("trade analysis context aggregates EODHD 1m candles when requested 5m trade window is unavailable", async () => {
+  const provider = new EodhdOneMinuteFallbackProvider();
+  const tradeStart = Date.UTC(2026, 3, 20, 11, 10, 0);
+  const tradeEnd = tradeStart + 10 * 60_000;
+  const asOfTimestamp = tradeEnd + 30 * 60_000;
+
+  const context = await buildTradeAnalysisCandleContext({
+    symbol: "cmnd",
+    sessionDate: "2026-04-20",
+    asOfTimestamp,
+    executions: [
+      { timestamp: new Date(tradeStart).toISOString(), price: 4.5, quantity: 100, side: "buy" },
+      { timestamp: new Date(tradeEnd).toISOString(), price: 4.7, quantity: 100, side: "sell" },
+    ],
+    supportResistance: {
+      lookbackBars: {
+        daily: 180,
+        "4h": 120,
+        "5m": 24,
+      },
+    },
+    tradeWindow: {
+      timeframe: "5m",
+      preTradeMinutes: 30,
+      postTradeMinutes: 30,
+      paddingMinutes: 0,
+      lookbackBars: 24,
+    },
+    fetchServiceOptions: {
+      provider,
+    },
+    preferredProvider: "eodhd",
+  });
+
+  assert.equal(context.tradeWindow.timeframe, "5m");
+  assert.equal(context.tradeWindow.fetch.provider, "eodhd");
+  assert.ok(context.tradeWindow.preTradeCandles.length > 0);
+  assert.ok(context.tradeWindow.tradeCandles.length > 0);
+  assert.ok(
+    context.diagnostics.some(
+      (diagnostic) => diagnostic.code === "trade_window_aggregated_eodhd_1m_to_5m",
+    ),
+  );
+  assert.ok(provider.count("5m") >= 2);
+  assert.ok(provider.count("1m") >= 2);
 });
 
 test("trade analysis fetches execution-time support/resistance contexts at each historical fill timestamp", async () => {

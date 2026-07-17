@@ -24,7 +24,7 @@ function hasFlag(name: string): boolean {
 
 function resolveProvider(raw: string | undefined): CandleProviderName {
   const normalized = raw?.trim().toLowerCase();
-  if (normalized === "ibkr" || normalized === "stub") {
+  if (normalized === "ibkr" || normalized === "eodhd" || normalized === "stub") {
     return normalized;
   }
   return "ibkr";

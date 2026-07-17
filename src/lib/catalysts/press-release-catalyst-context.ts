@@ -77,6 +77,10 @@ function normalizeSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
 }
 
+function isPressReleaseCatalystArticle(article: PressReleaseCatalystArticle): boolean {
+  return article.eventType?.trim().toLowerCase().startsWith("press_release") === true;
+}
+
 function addUtcDays(date: string, days: number): string {
   const timestamp = Date.parse(`${date}T00:00:00.000Z`);
   if (!Number.isFinite(timestamp)) {
@@ -165,6 +169,7 @@ export function derivePressReleaseCatalystContext(args: {
   const windowEnd = addUtcDays(args.referenceDate, lookaheadDays);
   const articles = args.articles
     .filter((article) => normalizeSymbol(article.ticker) === symbol)
+    .filter(isPressReleaseCatalystArticle)
     .filter((article) => {
       const parts = newYorkDateParts(article.publishedAt);
       return parts !== null && parts.date >= windowStart && parts.date <= windowEnd;
@@ -250,6 +255,7 @@ const websiteRows = placeholders
         observed_at
       FROM website_article_posts
       WHERE UPPER(ticker) IN (\${placeholders})
+        AND LOWER(COALESCE(event_type, '')) LIKE 'press_release%'
         AND article_url IS NOT NULL
         AND article_url != ''
         AND datetime(website_published_at) >= datetime(@startIso)
@@ -273,6 +279,7 @@ const ingestRows = placeholders
         observed_at
       FROM ingest_events
       WHERE UPPER(ticker) IN (\${placeholders})
+        AND LOWER(COALESCE(event_type, '')) LIKE 'press_release%'
         AND datetime(COALESCE(message_timestamp, observed_at, created_at)) >= datetime(@startIso)
         AND datetime(COALESCE(message_timestamp, observed_at, created_at)) < datetime(@endIso)
       ORDER BY UPPER(ticker), datetime(COALESCE(message_timestamp, observed_at, created_at)) ASC, datetime(created_at) ASC

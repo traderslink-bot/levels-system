@@ -494,6 +494,12 @@ export type LevelSnapshotPayload = {
     bidPrice?: number | null;
     askPrice?: number | null;
     atrPct?: number | null;
+    atrValue?: number | null;
+    atrPeriod?: number | null;
+    atrTimeframe?: "5m" | null;
+    atrCompletedCandleCount?: number | null;
+    atrReliability?: "reliable" | "unstable" | "unavailable" | null;
+    atrReason?: string | null;
     tickSize?: number | null;
   };
 };

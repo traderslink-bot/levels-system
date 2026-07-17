@@ -88,7 +88,7 @@ function parsePriority(raw: string | undefined): CandleBackfillPriorityLevel | u
 }
 
 function parseProvider(raw: string | undefined): CandleProviderName {
-  return raw === "stub" || raw === "ibkr" ? raw : "ibkr";
+  return raw === "stub" || raw === "ibkr" || raw === "eodhd" ? raw : "ibkr";
 }
 
 function envPositiveInteger(name: string): number | undefined {

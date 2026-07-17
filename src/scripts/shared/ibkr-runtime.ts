@@ -2,6 +2,7 @@ import { IBApi } from "@stoqey/ib";
 
 type IBApiWithEvents = IBApi & {
   connect: () => void;
+  disconnect: () => void;
   on: (eventName: string, handler: (...args: any[]) => void) => void;
   off: (eventName: string, handler: (...args: any[]) => void) => void;
 };
@@ -17,6 +18,7 @@ type RuntimeState = {
   reconnectTimer?: NodeJS.Timeout;
   reconnectListeners: Set<(info: ReconnectInfo) => void>;
   disconnectListeners: Set<() => void>;
+  intentionalDisconnect: boolean;
   onConnected: () => void;
   onDisconnected: () => void;
   onError: (error: unknown, code?: number) => void;
@@ -82,6 +84,16 @@ function scheduleReconnect(ib: IBApi, state: RuntimeState): void {
   state.reconnectTimer = setTimeout(attemptReconnect, RECONNECT_DELAY_MS);
 }
 
+function wrapDisconnectForIntent(ib: IBApi, state: RuntimeState): void {
+  const ibWithEvents = getIbApiWithEvents(ib);
+  const originalDisconnect = ibWithEvents.disconnect.bind(ibWithEvents);
+
+  ibWithEvents.disconnect = () => {
+    state.intentionalDisconnect = true;
+    return originalDisconnect();
+  };
+}
+
 export function initializeIbkrRuntime(ib: IBApi): IBApi {
   const existing = runtimeStateByClient.get(ib);
   if (existing) {
@@ -93,13 +105,21 @@ export function initializeIbkrRuntime(ib: IBApi): IBApi {
     reconnecting: false,
     reconnectListeners: new Set(),
     disconnectListeners: new Set(),
+    intentionalDisconnect: false,
     onConnected: () => {
       state.isConnected = true;
       state.reconnecting = false;
+      state.intentionalDisconnect = false;
       clearReconnectTimer(state);
     },
     onDisconnected: () => {
       state.isConnected = false;
+      notifyDisconnect(state);
+      if (state.intentionalDisconnect) {
+        state.intentionalDisconnect = false;
+        return;
+      }
+      scheduleReconnect(ib, state);
     },
     onError: (_error: unknown, code?: number) => {
       if (code === 1100) {
@@ -125,6 +145,7 @@ export function initializeIbkrRuntime(ib: IBApi): IBApi {
   };
 
   const ibWithEvents = getIbApiWithEvents(ib);
+  wrapDisconnectForIntent(ib, state);
   ibWithEvents.on("connected", state.onConnected);
   ibWithEvents.on("disconnected", state.onDisconnected);
   ibWithEvents.on("error", state.onError);

@@ -30,7 +30,7 @@ const DEFAULT_STEP_MINUTES = 15;
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
 
-  if (requested === "ibkr" || requested === "stub") {
+  if (requested === "ibkr" || requested === "eodhd" || requested === "stub") {
     return requested;
   }
 

@@ -29,7 +29,7 @@ const DEFAULT_FUTURE_BUFFER_BARS = 24;
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
 
-  if (requested === "ibkr" || requested === "stub") {
+  if (requested === "ibkr" || requested === "eodhd" || requested === "stub") {
     return requested;
   }
 

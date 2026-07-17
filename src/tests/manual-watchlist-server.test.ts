@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { Readable } from "node:stream";
 import test from "node:test";
 import type { IncomingMessage } from "node:http";
@@ -11,6 +12,11 @@ import {
 import { AI_CLEAN_READ_PAGE } from "../runtime/ai-clean-read-page.js";
 import { MANUAL_WATCHLIST_PAGE } from "../runtime/manual-watchlist-page.js";
 import { TRADE_PLAN_REVIEW_PAGE } from "../runtime/trade-plan-review-page.js";
+
+const MANUAL_WATCHLIST_SERVER_SOURCE = readFileSync(
+  new URL("../runtime/manual-watchlist-server.ts", import.meta.url),
+  "utf8",
+);
 
 function buildRequest(
   body: string,
@@ -33,6 +39,24 @@ test("manual watchlist page shows runtime status and separate review surfaces", 
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Status/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Config/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Historical Candle Provider/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="historical-provider-select"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="apply-historical-provider-button"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /\/api\/runtime\/historical-provider/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /renderHistoricalProviderControl/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /historicalProviderSelectEl\.addEventListener\("change"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /providerSelectionDirty = true/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Live Price Provider/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="live-provider-select"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="apply-live-provider-button"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /\/api\/runtime\/live-provider/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /renderLiveProviderControl/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /liveProviderSelectEl\.addEventListener\("change"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /liveProviderSelectionDirty = true/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /payload\.persisted === false/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /active tickers resubscribed/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Provider Config/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /saved for restart/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Open AI Clean Read/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Notes to send to OpenAI \(optional\)/);
@@ -87,6 +111,104 @@ test("manual watchlist page shows runtime status and separate review surfaces", 
   assert.match(AI_CLEAN_READ_PAGE, /forceLatest/);
   assert.match(AI_CLEAN_READ_PAGE, /button\.dataset\.recordId/);
   assert.match(AI_CLEAN_READ_PAGE, /Show clean read for/);
+});
+
+test("manual watchlist server exposes and persists historical and live provider selectors", () => {
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /MANUAL_WATCHLIST_HISTORICAL_PROVIDER_ENV = "LEVEL_HISTORICAL_CANDLE_PROVIDER"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /MANUAL_WATCHLIST_LIVE_PRICE_PROVIDER_ENV = "LEVEL_LIVE_PRICE_PROVIDER"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /MANUAL_WATCHLIST_PROVIDER_CONFIG_PATH_ENV = "LEVEL_MANUAL_PROVIDER_CONFIG_PATH"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /loadRuntimeProviderConfig\(providerConfigPath\)/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /persistedProviderConfig\?\.historicalProvider/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /persistedProviderConfig\?\.liveProvider/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /availableHistoricalProviders: RUNTIME_HISTORICAL_PROVIDER_OPTIONS/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /availableLiveProviders: RUNTIME_LIVE_PROVIDER_OPTIONS/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /providerConfigPath/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/historical-provider"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /saveRuntimeProviderConfig\(providerConfigPath, \{\s+historicalProvider: requestedProvider,\s+liveProvider: liveProviderName,/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /rawCandleService\.setProvider\(nextProvider\)/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/live-provider"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /await manager\.switchLivePriceProvider\(nextProvider\)/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /persisted = false/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /Live provider switched but provider config save failed/);
+});
+
+test("manual watchlist server exposes Potential Gain website visibility controls", () => {
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/potential-gain-card/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /await manager\.setPotentialGainCardVisible\(body\.visible\)/);
+});
+
+test("manual watchlist admin adds TradersLink AI Read without replacing full controls", () => {
+  assert.match(MANUAL_WATCHLIST_PAGE, /TradersLink AI Read/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /External Catalyst, SEC, and Web Research/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Refresh AI Read/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /AI Card: Shown/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-cost-grid/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Automatic Low-Float Selection/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-external-research/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-visibility/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-refresh/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /tradersLinkAiReadCostLedger\.summarize\(\)/);
+});
+
+test("manual watchlist admin exposes persisted automatic low-float selection controls", () => {
+  assert.match(MANUAL_WATCHLIST_PAGE, /Automatic Low-Float Selection/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="auto-selector-enabled-toggle"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Maximum market cap \(\$M\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Maximum float \(M shares\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Maximum outstanding \(M shares\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Minimum dollar volume/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Consecutive passing scans/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Maximum active premarket\/regular auto tickers/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Maximum active post-market auto tickers/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Initial main-session automatic additions per day/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Main-session automatic replacements per day/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Continuously replace faded auto tickers/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Allow obvious-runner fast replacement/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Failed scans before standby/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Catalyst lookback \(days\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Same-day catalyst rank boost/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Recent 15m activity maximum rank boost/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Volume acceleration maximum rank boost/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Share turnover maximum rank boost/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="auto-selector-catalyst-ranking"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Catalysts never bypass/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Allow premarket automatic additions/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Allow regular-hours automatic additions/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Allow post-market automatic additions/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Regular minimum last-15m dollar volume/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /outer safety window/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Run Preview Only/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /collectAutoSelectorThresholds/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /\/api\/runtime\/auto-watchlist-selector\/preview/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /new AutoWatchlistSelector/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /autoWatchlistSelector: autoWatchlistSelector\.getStatus\(\)/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/auto-watchlist-selector"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/auto-watchlist-selector\/preview"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /autoWatchlistSelector\.stop\(\)/);
+});
+
+test("manual watchlist admin exposes scoped bulk ticker removal without clearing Discord", () => {
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="remove-all-tickers-button"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="remove-main-tickers-button"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="remove-postmarket-tickers-button"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("all", "all tickers"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("main", "all Main Session tickers"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("postmarket", "all Post-Market tickers"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Discord posts and threads will be kept/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /\/api\/watchlist\/deactivate-bulk/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/watchlist\/deactivate-bulk"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /getWatchlistEntrySessionGroup\(entry\) === scope/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /await manager\.deactivateSymbols\(symbols\)/);
+});
+
+test("manual watchlist server uses a deeper default 4h lookback for EODHD", () => {
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /DEFAULT_EODHD_MANUAL_WATCHLIST_4H_LOOKBACK = 900/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /providerName === "eodhd"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /"4h": DEFAULT_EODHD_MANUAL_WATCHLIST_4H_LOOKBACK/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /process\.env\[MANUAL_WATCHLIST_LOOKBACK_4H_ENV\],\s+defaults\["4h"\]/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /resolveManualWatchlistHistoricalLookbacks\(historicalProviderName\)/);
 });
 
 test("readJsonBody parses valid JSON requests", async () => {

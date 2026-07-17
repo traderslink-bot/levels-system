@@ -5,8 +5,44 @@ import {
   CandleFetchService,
   StubHistoricalCandleProvider,
 } from "../lib/market-data/candle-fetch-service.js";
+import type { BaseCandleProviderResponse, CandleProviderName } from "../lib/market-data/candle-types.js";
 import { buildCandleSessionSummary } from "../lib/market-data/candle-session-classifier.js";
+import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "../lib/market-data/provider-types.js";
 import { createValidationIbkrClient } from "../scripts/shared/ibkr-runtime.js";
+
+class FixedHistoricalProvider implements HistoricalCandleProvider {
+  constructor(
+    readonly providerName: CandleProviderName,
+    private readonly close: number,
+  ) {}
+
+  async fetchCandles(
+    request: HistoricalFetchRequest,
+    plan: HistoricalFetchPlan,
+  ): Promise<BaseCandleProviderResponse> {
+    return {
+      provider: this.providerName,
+      symbol: request.symbol.trim().toUpperCase(),
+      timeframe: request.timeframe,
+      requestedLookbackBars: request.lookbackBars,
+      candles: [
+        {
+          timestamp: plan.requestEndTimestamp,
+          open: this.close,
+          high: this.close,
+          low: this.close,
+          close: this.close,
+          volume: 100,
+        },
+      ],
+      fetchStartTimestamp: plan.requestEndTimestamp,
+      fetchEndTimestamp: plan.requestEndTimestamp,
+      requestedStartTimestamp: plan.requestStartTimestamp,
+      requestedEndTimestamp: plan.requestEndTimestamp,
+      sessionMetadataAvailable: plan.sessionMetadataAvailable,
+    };
+  }
+}
 
 test("CandleFetchService returns the requested number of stub candles", async () => {
   const service = new CandleFetchService(new StubHistoricalCandleProvider());
@@ -57,6 +93,24 @@ test("CandleFetchService rejects non-positive lookbackBars", async () => {
       }),
     /lookbackBars must be greater than zero\./,
   );
+});
+
+test("CandleFetchService can swap historical providers at runtime", async () => {
+  const service = new CandleFetchService(new FixedHistoricalProvider("ibkr", 10));
+  assert.equal(service.getProviderName(), "ibkr");
+
+  service.setProvider(new FixedHistoricalProvider("eodhd", 20));
+
+  const response = await service.fetchCandles({
+    symbol: "AAPL",
+    timeframe: "daily",
+    lookbackBars: 1,
+    endTimeMs: Date.parse("2026-05-01T00:00:00.000Z"),
+  });
+
+  assert.equal(service.getProviderName(), "eodhd");
+  assert.equal(response.provider, "eodhd");
+  assert.equal(response.candles[0]?.close, 20);
 });
 
 test("CandleFetchService passes IBKR historical timeout through provider options", () => {

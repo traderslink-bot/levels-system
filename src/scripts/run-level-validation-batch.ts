@@ -39,7 +39,7 @@ const RECOMMENDED_LIVE_BATCH_SIZE = 5;
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
 
-  if (requested === "ibkr" || requested === "stub") {
+  if (requested === "ibkr" || requested === "eodhd" || requested === "stub") {
     return requested;
   }
 

@@ -18,7 +18,6 @@ import type {
   FinalLevelZone,
   LevelCandidate,
   LevelDataFreshness,
-  LevelDurabilityLabel,
   LevelEngineOutput,
   LevelScoringContext,
   RawLevelCandidate,
@@ -185,37 +184,14 @@ function bucketForSurfacedLevel(level: SurfacedLevelSelection): RuntimeBucket {
   return "intraday";
 }
 
-function adjustedLabelScore(
-  score: number,
-  durabilityLabel?: LevelDurabilityLabel,
-): number {
-  if (durabilityLabel === "reinforced") {
-    return score + 4;
-  }
-
-  if (durabilityLabel === "tested") {
-    return score - 4;
-  }
-
-  if (durabilityLabel === "fragile") {
-    return score - 10;
-  }
-
-  return score;
-}
-
-function deriveStrengthLabel(
-  score: number,
-  durabilityLabel?: LevelDurabilityLabel,
-): FinalLevelZone["strengthLabel"] {
-  const labelScore = adjustedLabelScore(score, durabilityLabel);
-  if (labelScore >= 80) {
+function deriveStructuralStrengthLabel(score: number): FinalLevelZone["strengthLabel"] {
+  if (score >= 80) {
     return "major";
   }
-  if (labelScore >= 64) {
+  if (score >= 64) {
     return "strong";
   }
-  if (labelScore >= 46) {
+  if (score >= 46) {
     return "moderate";
   }
   return "weak";
@@ -318,8 +294,11 @@ function toEnrichedAnalysis(level: RankedLevel): EnrichedLevelAnalysis {
 function toRuntimeZone(
   level: SurfacedLevelSelection,
   generatedAt: number,
+  legacyLabelZones: FinalLevelZone[] = [],
 ): FinalLevelZone {
-  const strengthScore = Number(level.surfacedSelectionScore.toFixed(2));
+  const legacyLabelMatch = findLegacyRuntimeLabelMatch(level, legacyLabelZones);
+  const strengthScore =
+    legacyLabelMatch?.strengthScore ?? Number(level.structuralStrengthScore.toFixed(2));
   const timeframeSources = [...new Set(level.sourceTimeframes.map(normalizeRuntimeSourceTimeframe))];
 
   return {
@@ -331,9 +310,8 @@ function toRuntimeZone(
     zoneHigh: level.zoneHigh,
     representativePrice: level.price,
     strengthScore,
-    // This label is an explicit approximation from the new surfaced-selection score,
-    // not the old scorer's native label taxonomy.
-    strengthLabel: deriveStrengthLabel(strengthScore, level.durabilityLabel),
+    strengthLabel:
+      legacyLabelMatch?.strengthLabel ?? deriveStructuralStrengthLabel(strengthScore),
     touchCount: level.touchCount,
     confluenceCount: Math.max(timeframeSources.length + level.roleFlipCount, 1),
     sourceTypes: deriveSourceTypes(level),
@@ -353,6 +331,9 @@ function toRuntimeZone(
     freshness: deriveFreshness(level),
     notes: [
       "runtime_compatibility_adapter:new_surfaced_selection",
+      legacyLabelMatch
+        ? `legacy_strength_label_match=${legacyLabelMatch.id}`
+        : "strength_label_source=projected_structural_strength",
       `state=${level.state}`,
       `durability=${level.durabilityLabel ?? "tested"}`,
       `confidence=${level.confidence.toFixed(2)}`,
@@ -490,6 +471,54 @@ function findEnrichmentMatch(
   return matches[0] ?? null;
 }
 
+function flattenLegacyRuntimeBuckets(
+  runtimeBuckets: LegacyRuntimeBuckets | undefined,
+): FinalLevelZone[] {
+  if (!runtimeBuckets) {
+    return [];
+  }
+
+  return [
+    ...runtimeBuckets.majorSupport,
+    ...runtimeBuckets.majorResistance,
+    ...runtimeBuckets.intermediateSupport,
+    ...runtimeBuckets.intermediateResistance,
+    ...runtimeBuckets.intradaySupport,
+    ...runtimeBuckets.intradayResistance,
+  ];
+}
+
+function findLegacyRuntimeLabelMatch(
+  level: RankedLevel,
+  legacyZones: FinalLevelZone[],
+): FinalLevelZone | null {
+  const matches = legacyZones
+    .filter((zone) => zone.symbol === level.symbol)
+    .filter((zone) => zone.kind === level.type)
+    .filter((zone) => levelSourceContextMatches(zone, level))
+    .filter((zone) => levelPriceMatches(zone, level))
+    .sort((left, right) => {
+      const leftInside = isPriceInsideZone(
+        level.price,
+        Math.min(left.zoneLow, left.zoneHigh),
+        Math.max(left.zoneLow, left.zoneHigh),
+      );
+      const rightInside = isPriceInsideZone(
+        level.price,
+        Math.min(right.zoneLow, right.zoneHigh),
+        Math.max(right.zoneLow, right.zoneHigh),
+      );
+
+      return (
+        Number(rightInside) - Number(leftInside) ||
+        priceDistancePct(level.price, left.representativePrice) -
+          priceDistancePct(level.price, right.representativePrice)
+      );
+    });
+
+  return matches[0] ?? null;
+}
+
 function cloneRuntimeZoneWithEnrichment(
   zone: FinalLevelZone,
   rankedLevels: RankedLevel[],
@@ -566,13 +595,17 @@ function pushBucketedZone(
   buckets: Record<RuntimeBucket, FinalLevelZone[]>,
   level: SurfacedLevelSelection,
   generatedAt: number,
+  legacyLabelZones: FinalLevelZone[],
 ): void {
-  buckets[bucketForSurfacedLevel(level)].push(toRuntimeZone(level, generatedAt));
+  buckets[bucketForSurfacedLevel(level)].push(
+    toRuntimeZone(level, generatedAt, legacyLabelZones),
+  );
 }
 
 function buildActionableBuckets(
   levels: SurfacedLevelSelection[],
   generatedAt: number,
+  legacyLabelZones: FinalLevelZone[],
 ): Record<RuntimeBucket, FinalLevelZone[]> {
   const buckets: Record<RuntimeBucket, FinalLevelZone[]> = {
     major: [],
@@ -581,7 +614,7 @@ function buildActionableBuckets(
   };
 
   for (const level of levels) {
-    pushBucketedZone(buckets, level, generatedAt);
+    pushBucketedZone(buckets, level, generatedAt, legacyLabelZones);
   }
 
   return buckets;
@@ -613,16 +646,22 @@ export function buildNewRuntimeCompatibleLevelOutput(
     unmatchedRuntimeZoneIds: [],
   };
   const surfacedSelection = selectSurfacedLevels(rankedOutput, surfacedSelectionConfig);
-  const supportBuckets = buildActionableBuckets(surfacedSelection.surfacedSupports, generatedAt);
+  const legacyLabelZones = flattenLegacyRuntimeBuckets(input.legacyRuntimeBuckets);
+  const supportBuckets = buildActionableBuckets(
+    surfacedSelection.surfacedSupports,
+    generatedAt,
+    legacyLabelZones,
+  );
   const resistanceBuckets = buildActionableBuckets(
     surfacedSelection.surfacedResistances,
     generatedAt,
+    legacyLabelZones,
   );
   const extensionSupport = surfacedSelection.deeperSupportAnchor
-    ? [toRuntimeZone(surfacedSelection.deeperSupportAnchor, generatedAt)]
+    ? [toRuntimeZone(surfacedSelection.deeperSupportAnchor, generatedAt, legacyLabelZones)]
     : [];
   const extensionResistance = surfacedSelection.deeperResistanceAnchor
-    ? [toRuntimeZone(surfacedSelection.deeperResistanceAnchor, generatedAt)]
+    ? [toRuntimeZone(surfacedSelection.deeperResistanceAnchor, generatedAt, legacyLabelZones)]
     : [];
   const runtimeBucketOwnership = input.runtimeBucketOwnership ??
     (input.legacyRuntimeBuckets ? "legacy" : "surfaced");
@@ -685,6 +724,9 @@ export function buildNewRuntimeCompatibleLevelOutput(
       runtimeBucketOwnership === "legacy"
         ? "Runtime buckets reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path so bucket coverage, nearest levels, and legacy strength labels remain stable while richer surfaced selection stays observational."
         : "Runtime buckets are owned by the projected surfaced selection; changing runtime mode back to old bypasses this projection and returns the untouched legacy output.",
+      legacyLabelZones.length > 0
+        ? "Projected runtime zones preserve legacy strengthScore and strengthLabel when price, side, timeframe, and source context match safely; unmatched zones use structuralStrengthScore rather than proximity-weighted surfacedSelectionScore."
+        : "Projected runtime zones without legacy match context derive transport labels from structuralStrengthScore rather than proximity-weighted surfacedSelectionScore.",
       input.legacyExtensionLevels
         ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path so forward-planning coverage is not limited to one surfaced anchor per side."
         : "Extension levels fall back to surfaced deeper anchors when no legacy extension ladder is supplied.",

@@ -252,6 +252,109 @@ test("buildRawLevelCandidates preserves low-priced shelf highs hidden below a la
   );
 });
 
+test("buildRawLevelCandidates keeps low-priced overhead rejection shelves after a sharp step-down", () => {
+  const baseTimestamp = Date.parse("2026-05-15T05:00:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = [
+    { timestamp: baseTimestamp, open: 2.688, high: 3.2, low: 2.688, close: 2.944, volume: 822_509 },
+    { timestamp: baseTimestamp + dayMs, open: 2.688, high: 2.688, low: 2.048, close: 2.304, volume: 762_680 },
+    { timestamp: baseTimestamp + dayMs * 2, open: 1.92, high: 2.176, low: 1.664, close: 1.792, volume: 6_799_431 },
+    { timestamp: baseTimestamp + dayMs * 3, open: 1.92, high: 2.176, low: 1.536, close: 1.792, volume: 2_571_422 },
+    { timestamp: baseTimestamp + dayMs * 4, open: 1.63, high: 1.65, low: 1.39, close: 1.54, volume: 488_200 },
+    { timestamp: baseTimestamp + dayMs * 5, open: 1.35, high: 1.35, low: 1.22, close: 1.34, volume: 595_800 },
+    { timestamp: baseTimestamp + dayMs * 6, open: 1.11, high: 1.15, low: 1.015, close: 1.09, volume: 518_800 },
+  ];
+
+  const swings = detectSwingPoints(candles, {
+    swingWindow: 3,
+    minimumDisplacementPct: 0.02,
+    minimumSeparationBars: 4,
+    includeBarrierCandles: true,
+  });
+  const candidates = buildRawLevelCandidates({
+    symbol: "HAO",
+    timeframe: "daily",
+    candles,
+    swings,
+  });
+  const breakdownShelf = candidates.find(
+    (candidate) =>
+      candidate.kind === "resistance" &&
+      candidate.price === 2.688 &&
+      candidate.notes.some((note) => note.includes("breakdown shelf")),
+  );
+
+  assert.ok(breakdownShelf);
+
+  const resistanceZones = scoreLevelZones(
+    clusterRawLevelCandidates(
+      "HAO",
+      "resistance",
+      candidates,
+      DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig.daily.clusterTolerancePct,
+      DEFAULT_LEVEL_ENGINE_CONFIG,
+      Date.parse("2026-07-10T12:00:00Z"),
+    ),
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+    Date.parse("2026-07-10T12:00:00Z"),
+  );
+  const output = rankLevelZones({
+    symbol: "HAO",
+    supportZones: [],
+    resistanceZones,
+    specialLevels: {},
+    metadata: {
+      providerByTimeframe: { daily: "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 1.4263,
+    },
+    config: DEFAULT_LEVEL_ENGINE_CONFIG,
+  });
+
+  assert.ok(output.majorResistance.some((zone) => zone.representativePrice === 2.688));
+});
+
+test("buildRawLevelCandidates captures low-priced 4h demand shelves after a washout reversal", () => {
+  const candles = [
+    { timestamp: Date.parse("2026-07-07T13:30:00Z"), open: 0.42, high: 0.4994, low: 0.415, close: 0.446, volume: 17_771 },
+    { timestamp: Date.parse("2026-07-07T17:30:00Z"), open: 0.4595, high: 0.489, low: 0.43, close: 0.4342, volume: 5_727 },
+    { timestamp: Date.parse("2026-07-08T13:30:00Z"), open: 0.428, high: 0.4522, low: 0.415, close: 0.4299, volume: 53_710 },
+    { timestamp: Date.parse("2026-07-08T17:30:00Z"), open: 0.4196, high: 0.45, low: 0.2251, close: 0.2911, volume: 655_883 },
+    { timestamp: Date.parse("2026-07-09T13:30:00Z"), open: 0.2833, high: 0.4788, low: 0.2623, close: 0.4244, volume: 11_455_756 },
+    { timestamp: Date.parse("2026-07-09T17:30:00Z"), open: 0.4236, high: 0.4236, low: 0.2281, close: 0.296, volume: 12_440_199 },
+  ];
+
+  const swings = detectSwingPoints(candles, {
+    swingWindow: 2,
+    minimumDisplacementPct: 0.012,
+    minimumSeparationBars: 3,
+    includeBarrierCandles: true,
+  });
+  const candidates = buildRawLevelCandidates({
+    symbol: "ZBAO",
+    timeframe: "4h",
+    candles,
+    swings,
+  });
+  const demandShelves = candidates.filter(
+    (candidate) =>
+      candidate.kind === "support" &&
+      candidate.notes.some((note) => note.includes("demand shelf")),
+  );
+
+  assert.equal(swings.some((swing) => swing.kind === "support" && swing.price === 0.2623), false);
+  assert.ok(demandShelves.some((candidate) => candidate.price >= 0.28 && candidate.price <= 0.3));
+  assert.ok(
+    demandShelves.some(
+      (candidate) =>
+        candidate.price === 0.296 &&
+        candidate.followThroughScore >= 0.55 &&
+        candidate.rejectionScore >= 0.3,
+    ),
+  );
+});
+
 test("buildRawLevelCandidates promotes repeated daily OHLC pivots as practical resistance", () => {
   const baseTimestamp = Date.parse("2026-01-01T14:30:00Z");
   const dayMs = 24 * 60 * 60 * 1000;
@@ -690,7 +793,96 @@ test("LevelEngine still generates structural levels when 5m is unavailable", asy
   assert.ok(output.majorResistance.length + output.intermediateResistance.length >= 0);
   assert.equal(output.specialLevels.premarketHigh, undefined);
   assert.ok(output.metadata.dataQualityFlags.includes("5m:unavailable"));
+  assert.equal(output.metadata.coverage, "limited");
+  assert.deepEqual(output.metadata.availableTimeframes, ["daily", "4h"]);
   assert.ok(Math.abs((output.metadata.referencePrice ?? 0) - 6.025) < 1e-9);
+});
+
+test("LevelEngine builds an honest intraday-only map when daily and 4h history are unavailable", async () => {
+  const baseTimestamp = Date.parse("2026-07-14T13:30:00Z");
+  const emptyResponse = (timeframe: "daily" | "4h"): CandleProviderResponse => ({
+    provider: "stub",
+    symbol: "PMA",
+    timeframe,
+    requestedLookbackBars: 20,
+    candles: [],
+    fetchStartTimestamp: 1,
+    fetchEndTimestamp: 2,
+    requestedStartTimestamp: baseTimestamp,
+    requestedEndTimestamp: baseTimestamp,
+    sessionMetadataAvailable: false,
+    actualBarsReturned: 0,
+    completenessStatus: "empty",
+    stale: true,
+    validationIssues: [{ code: "zero_results", severity: "error", message: `${timeframe} unavailable` }],
+    sessionSummary: null,
+  });
+  const intradayCandles = Array.from({ length: 18 }, (_, index) => ({
+    timestamp: baseTimestamp + index * 5 * 60 * 1000,
+    open: 0.41 + index * 0.002,
+    high: 0.425 + index * 0.0025,
+    low: 0.4 + index * 0.0015,
+    close: 0.414 + index * 0.002,
+    volume: 20_000 + index * 1_000,
+  }));
+  const provider = new FakeHistoricalProvider({
+    daily: emptyResponse("daily"),
+    "4h": emptyResponse("4h"),
+    "5m": {
+      provider: "stub",
+      symbol: "PMA",
+      timeframe: "5m",
+      requestedLookbackBars: intradayCandles.length,
+      candles: intradayCandles,
+      fetchStartTimestamp: 1,
+      fetchEndTimestamp: 2,
+      requestedStartTimestamp: intradayCandles[0]!.timestamp,
+      requestedEndTimestamp: intradayCandles.at(-1)!.timestamp,
+      sessionMetadataAvailable: true,
+      actualBarsReturned: intradayCandles.length,
+      completenessStatus: "complete",
+      stale: false,
+      validationIssues: [],
+      sessionSummary: null,
+    },
+  });
+
+  const output = await new LevelEngine(new CandleFetchService(provider as any)).generateLevels({
+    symbol: "PMA",
+    historicalRequests: {
+      daily: { symbol: "PMA", timeframe: "daily", lookbackBars: 20 },
+      "4h": { symbol: "PMA", timeframe: "4h", lookbackBars: 20 },
+      "5m": { symbol: "PMA", timeframe: "5m", lookbackBars: intradayCandles.length },
+    },
+  });
+
+  assert.equal(output.metadata.coverage, "limited");
+  assert.deepEqual(output.metadata.availableTimeframes, ["5m"]);
+  assert.ok(output.metadata.dataQualityFlags.includes("daily:unavailable"));
+  assert.ok(output.metadata.dataQualityFlags.includes("4h:unavailable"));
+  assert.ok((output.metadata.referencePrice ?? 0) > 0);
+});
+
+test("LevelEngine rejects an empty map when every candle timeframe is unavailable", async () => {
+  const provider = {
+    providerName: "stub" as const,
+    async fetchCandles(): Promise<never> {
+      throw new Error("provider returned no history");
+    },
+  };
+  const engine = new LevelEngine(new CandleFetchService(provider));
+
+  await assert.rejects(
+    engine.generateLevels({
+      symbol: "GFUZ",
+      historicalRequests: {
+        daily: { symbol: "GFUZ", timeframe: "daily", lookbackBars: 20 },
+        "4h": { symbol: "GFUZ", timeframe: "4h", lookbackBars: 20 },
+        "5m": { symbol: "GFUZ", timeframe: "5m", lookbackBars: 20 },
+      },
+    }),
+    /no usable candle series were returned/i,
+  );
 });
 
 test("buildLevelExtensions exposes the next resistance and support ladder beyond surfaced zones", () => {
@@ -2150,6 +2342,126 @@ test("rankLevelZones fills practical small-cap resistance gaps with in-between d
   assert.ok(surfacedPrices.includes(6.6));
   assert.ok(surfacedPrices.includes(7.0));
   assert.ok(surfacedPrices.includes(7.17));
+});
+
+test("rankLevelZones preserves active-runner higher-timeframe checkpoints beyond the old 50 percent cap", () => {
+  const zone = (id: string, price: number, strengthScore: number): FinalLevelZone => ({
+    id,
+    symbol: "VEEE",
+    kind: "resistance",
+    timeframeBias: "mixed",
+    zoneLow: price,
+    zoneHigh: price,
+    representativePrice: price,
+    strengthScore,
+    strengthLabel: strengthScore >= 40 ? "major" : "strong",
+    touchCount: 2,
+    confluenceCount: 2,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["daily", "4h"],
+    reactionQualityScore: 0.66,
+    rejectionScore: 0.48,
+    displacementScore: 0.68,
+    sessionSignificanceScore: 0.18,
+    followThroughScore: 0.58,
+    sourceEvidenceCount: 2,
+    firstTimestamp: 1,
+    lastTimestamp: 2,
+    sessionDate: undefined,
+    isExtension: false,
+    freshness: "stale",
+    notes: [],
+  });
+
+  const output = rankLevelZones({
+    symbol: "VEEE",
+    supportZones: [],
+    resistanceZones: [
+      zone("R-1769", 17.69, 46),
+      zone("R-1813", 18.13, 32),
+      zone("R-2305", 23.05, 33),
+      zone("R-3866", 38.66, 34),
+    ],
+    specialLevels: {},
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 12.04,
+    },
+    config: DEFAULT_LEVEL_ENGINE_CONFIG,
+  });
+
+  const surfacedResistancePrices = [
+    ...output.majorResistance,
+    ...output.intermediateResistance,
+    ...output.intradayResistance,
+  ].map((level) => level.representativePrice);
+  const extensionResistancePrices = output.extensionLevels.resistance.map(
+    (level) => level.representativePrice,
+  );
+
+  assert.ok(surfacedResistancePrices.includes(23.05));
+  assert.ok(!surfacedResistancePrices.includes(38.66));
+  assert.ok(!extensionResistancePrices.includes(38.66));
+});
+
+test("rankLevelZones keeps crossed active-runner resistance available for live support role flips", () => {
+  const zone = (id: string, price: number, strengthScore: number): FinalLevelZone => ({
+    id,
+    symbol: "VEEE",
+    kind: "resistance",
+    timeframeBias: "mixed",
+    zoneLow: price,
+    zoneHigh: price,
+    representativePrice: price,
+    strengthScore,
+    strengthLabel: strengthScore >= 40 ? "major" : "strong",
+    touchCount: 2,
+    confluenceCount: 2,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["daily", "4h"],
+    reactionQualityScore: 0.66,
+    rejectionScore: 0.48,
+    displacementScore: 0.68,
+    sessionSignificanceScore: 0.18,
+    followThroughScore: 0.58,
+    sourceEvidenceCount: 2,
+    firstTimestamp: 1,
+    lastTimestamp: 2,
+    sessionDate: undefined,
+    isExtension: false,
+    freshness: "stale",
+    notes: [],
+  });
+
+  const output = rankLevelZones({
+    symbol: "VEEE",
+    supportZones: [],
+    resistanceZones: [
+      zone("R-1769", 17.69, 46),
+      zone("R-2305", 23.05, 33),
+      zone("R-3866", 38.66, 34),
+    ],
+    specialLevels: {},
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 29.26,
+    },
+    config: DEFAULT_LEVEL_ENGINE_CONFIG,
+  });
+
+  const surfacedResistancePrices = [
+    ...output.majorResistance,
+    ...output.intermediateResistance,
+    ...output.intradayResistance,
+  ].map((level) => level.representativePrice);
+
+  assert.ok(surfacedResistancePrices.includes(23.05));
+  assert.ok(surfacedResistancePrices.includes(38.66));
+  assert.ok(!surfacedResistancePrices.includes(17.69));
 });
 
 test("rankLevelZones preserves a reverse-split small-cap shelf before the next higher anchor", () => {

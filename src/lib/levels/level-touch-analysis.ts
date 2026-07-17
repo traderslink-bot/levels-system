@@ -113,7 +113,10 @@ function classifyReactionType(params: {
   const { candle, nextCandle, type, zoneLow, zoneHigh, mid, priorBroken, wickStrength, bodyStrength } = params;
 
   if (type === "support") {
-    const cleanBreak = candle.close < zoneLow && (!!nextCandle ? nextCandle.close <= zoneLow : true);
+    const cleanBreak =
+      !priorBroken &&
+      candle.close < zoneLow &&
+      (!!nextCandle ? nextCandle.close <= zoneLow : true);
     const reclaim = priorBroken && candle.close > zoneHigh;
     const failedBreak = candle.low < zoneLow && candle.close >= mid;
     const rejection = candle.close >= mid && (wickStrength >= 0.45 || bodyStrength >= 0.4);
@@ -134,7 +137,10 @@ function classifyReactionType(params: {
     return "tap";
   }
 
-  const cleanBreak = candle.close > zoneHigh && (!!nextCandle ? nextCandle.close >= zoneHigh : true);
+  const cleanBreak =
+    !priorBroken &&
+    candle.close > zoneHigh &&
+    (!!nextCandle ? nextCandle.close >= zoneHigh : true);
   const reclaim = priorBroken && candle.close < zoneLow;
   const failedBreak = candle.high > zoneHigh && candle.close <= mid;
   const rejection = candle.close <= mid && (wickStrength >= 0.45 || bodyStrength >= 0.4);
@@ -185,9 +191,13 @@ export function analyzeLevelTouches(
   candles.forEach((candle, index) => {
     const enteredZone = candle.high >= zoneLow && candle.low <= zoneHigh;
     const cleanBreakWithoutTouch =
-      level.type === "support" ? candle.close < zoneLow : candle.close > zoneHigh;
+      !priorBroken &&
+      (level.type === "support" ? candle.close < zoneLow : candle.close > zoneHigh);
+    const reclaimWithoutTouch =
+      priorBroken &&
+      (level.type === "support" ? candle.close > zoneHigh : candle.close < zoneLow);
 
-    if (!enteredZone && !cleanBreakWithoutTouch && !priorBroken) {
+    if (!enteredZone && !cleanBreakWithoutTouch && !reclaimWithoutTouch) {
       return;
     }
 

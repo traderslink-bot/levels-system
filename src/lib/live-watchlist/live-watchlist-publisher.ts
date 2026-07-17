@@ -28,11 +28,13 @@ import type {
   LiveWatchlistCardPatch,
   LiveWatchlistHealthPatch,
   LiveWatchlistLevelMap,
+  LiveWatchlistAtrDistanceState,
   LiveWatchlistLevelMapLevel,
   LiveWatchlistHttpPublisherOptions,
   LiveWatchlistPublisher,
   LiveWatchlistStatus,
   LiveWatchlistTickerDataPatch,
+  TradersLinkAiReadPayload,
 } from "./live-watchlist-types.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -42,12 +44,13 @@ const LEVEL_MAP_MAX_LEVELS_PER_SIDE = 8;
 const LEVEL_MAP_FULL_CONTEXT_NEAREST_LEVELS_PER_SIDE = 6;
 const LEVEL_MAP_STACKED_LEVEL_DISTANCE_PCT = 0.02;
 const LEVEL_MAP_SOFT_PATH_DISTANCE_PCT = 0.3;
-const LEVEL_MAP_EXTREME_GAP_SESSION_EXTENSION_PCT = 0.4;
-const LEVEL_MAP_MIN_LOGICAL_BEYOND_GAP_PCT = 0.2;
-const LEVEL_MAP_LOGICAL_GAP_MULTIPLIER = 2.5;
+const LEVEL_MAP_HARD_PATH_DISTANCE_PCT = 0.5;
 const LEVEL_MAP_ROLE_FLIP_CONFIRM_PCT = 0.0025;
 const TIGHT_LEVEL_GAP_PCT = 0.03;
 const WIDE_LEVEL_GAP_PCT = 0.12;
+const ATR_NORMAL_NOISE_MAX = 0.35;
+const ATR_NEARBY_MAX = 1;
+const ATR_MEANINGFUL_MAX = 2;
 const NEARBY_TACTICAL_LEVEL_DISPLAY_MAX_DISTANCE_PCT = 0.15;
 const LOW_PRICED_NEARBY_TACTICAL_LEVEL_DISPLAY_MAX_DISTANCE_PCT = 0.2;
 const HIGHER_PRICED_TACTICAL_LEVEL_PRICE = 10;
@@ -409,7 +412,14 @@ function isExtremeGapSessionLandmark(level: Pick<LiveWatchlistLevelMapLevel, "so
 function isStackedNearLevel(
   candidate: Pick<LiveWatchlistLevelMapLevel, "price">,
   existing: Pick<LiveWatchlistLevelMapLevel, "price">,
+  atrNoiseDistancePrice = 0,
 ): boolean {
+  if (
+    atrNoiseDistancePrice > 0 &&
+    Math.abs(candidate.price - existing.price) <= atrNoiseDistancePrice
+  ) {
+    return true;
+  }
   const priceDistancePct =
     Math.abs(candidate.price - existing.price) /
     Math.max(Math.abs(candidate.price), Math.abs(existing.price), 0.0001);
@@ -606,10 +616,13 @@ function isPreferredPotentialPathLevel(
 
 function clusterPotentialPathLevels(
   levels: LiveWatchlistLevelMapLevel[],
+  atrNoiseDistancePrice = 0,
 ): LiveWatchlistLevelMapLevel[] {
   const selected: LiveWatchlistLevelMapLevel[] = [];
   for (const level of levels) {
-    const existingIndex = selected.findIndex((existing) => isStackedNearLevel(level, existing));
+    const existingIndex = selected.findIndex((existing) =>
+      isStackedNearLevel(level, existing, atrNoiseDistancePrice),
+    );
     if (existingIndex === -1) {
       selected.push(level);
       continue;
@@ -626,14 +639,6 @@ function clusterPotentialPathLevels(
   );
 }
 
-function lowerMedian(values: number[]): number {
-  if (values.length === 0) {
-    return 0;
-  }
-  const sorted = [...values].sort((left, right) => left - right);
-  return sorted[Math.floor((sorted.length - 1) / 2)]!;
-}
-
 function isMeaningfulBeyondSoftPathLevel(level: LiveWatchlistLevelMapLevel): boolean {
   return (
     strengthRank(level.strengthLabel) >= strengthRank("strong") &&
@@ -641,22 +646,23 @@ function isMeaningfulBeyondSoftPathLevel(level: LiveWatchlistLevelMapLevel): boo
   );
 }
 
-function isLogicalNextLevelBeyondSoftPath(
+function appendPotentialPathOuterCheckpoint(
   inBandLevels: LiveWatchlistLevelMapLevel[],
-  candidate: LiveWatchlistLevelMapLevel,
-): boolean {
-  const distances = inBandLevels
-    .map((level) => Math.abs(level.distancePct))
-    .sort((left, right) => left - right);
-  const lastDistance = distances.at(-1) ?? 0;
-  const normalGaps = distances
-    .slice(1)
-    .map((distance, index) => distance - distances[index]!);
-  const allowedGap = Math.max(
-    LEVEL_MAP_MIN_LOGICAL_BEYOND_GAP_PCT,
-    lowerMedian(normalGaps) * LEVEL_MAP_LOGICAL_GAP_MULTIPLIER,
+  outerCheckpoint: LiveWatchlistLevelMapLevel | null,
+): LiveWatchlistLevelMapLevel[] {
+  const inBandLimit = outerCheckpoint
+    ? LEVEL_MAP_MAX_LEVELS_PER_SIDE - 1
+    : LEVEL_MAP_MAX_LEVELS_PER_SIDE;
+  const selected = inBandLevels.slice(0, inBandLimit);
+  if (
+    outerCheckpoint &&
+    !selected.some((level) => isSameDisplayedLevelPrice(level, outerCheckpoint))
+  ) {
+    selected.push(outerCheckpoint);
+  }
+  return selected.sort(
+    (left, right) => Math.abs(left.distancePct) - Math.abs(right.distancePct),
   );
-  return Math.abs(candidate.distancePct) - lastDistance <= allowedGap;
 }
 
 function selectDisplayedLevelMapLevels(
@@ -665,40 +671,71 @@ function selectDisplayedLevelMapLevels(
   options: {
     preferStructuralLevels?: boolean;
     selectionMode?: LevelMapSelectionMode;
+    atrNoiseDistancePrice?: number;
   } = {},
 ): LiveWatchlistLevelMapLevel[] {
   if (levels.length === 0) {
     return levels;
   }
 
+  const isPotentialPath =
+    options.selectionMode !== "full_context" && options.selectionMode !== "trade_setup";
+  const boundedPotentialPathLevels = isPotentialPath
+    ? clusterPotentialPathLevels(
+        levels.filter(
+          (level) => Math.abs(level.distancePct) <= LEVEL_MAP_HARD_PATH_DISTANCE_PCT,
+        ),
+        options.atrNoiseDistancePrice,
+      )
+    : [];
+  const outerCheckpoint = isPotentialPath
+    ? boundedPotentialPathLevels.find(
+        (level) => Math.abs(level.distancePct) > LEVEL_MAP_SOFT_PATH_DISTANCE_PCT,
+      ) ?? null
+    : null;
+  const selectableLevels = isPotentialPath
+    ? boundedPotentialPathLevels.filter(
+        (level) => Math.abs(level.distancePct) <= LEVEL_MAP_SOFT_PATH_DISTANCE_PCT,
+      )
+    : levels;
+  if (selectableLevels.length === 0) {
+    return appendPotentialPathOuterCheckpoint([], outerCheckpoint);
+  }
+
   if (options.preferStructuralLevels) {
-    const structuralLevels = levels.filter(isStructuralLevelMapLevel);
+    const structuralLevels = selectableLevels.filter(isStructuralLevelMapLevel);
     if (structuralLevels.length > 0) {
-      const nearbyTacticalLevels = levels
+      const nearbyTacticalLevels = selectableLevels
         .filter((level) =>
           isNearbyTacticalLevelMapLevel(level, currentPrice) &&
           !isExtremeGapSessionLandmark(level) &&
-          !structuralLevels.some((structuralLevel) => isStackedNearLevel(level, structuralLevel)),
+          !structuralLevels.some((structuralLevel) =>
+            isStackedNearLevel(level, structuralLevel, options.atrNoiseDistancePrice),
+          ),
         )
         .slice(0, LEVEL_MAP_MAX_TACTICAL_LEVELS_PER_SIDE);
-      const extremeGapSessionLandmarks = levels.filter((level) =>
+      const extremeGapSessionLandmarks = selectableLevels.filter((level) =>
         isExtremeGapSessionLandmark(level) &&
-        !structuralLevels.some((structuralLevel) => isStackedNearLevel(level, structuralLevel)),
+        !structuralLevels.some((structuralLevel) =>
+          isStackedNearLevel(level, structuralLevel, options.atrNoiseDistancePrice),
+        ),
       );
-      const preferredLevels = levels.filter((level) =>
+      const preferredLevels = selectableLevels.filter((level) =>
         structuralLevels.includes(level) ||
         nearbyTacticalLevels.includes(level) ||
         extremeGapSessionLandmarks.includes(level),
       );
-      return selectDisplayedLevelMapLevels(preferredLevels, currentPrice, {
+      const selectedPreferredLevels = selectDisplayedLevelMapLevels(preferredLevels, currentPrice, {
         selectionMode: options.selectionMode,
+        atrNoiseDistancePrice: options.atrNoiseDistancePrice,
       });
+      return appendPotentialPathOuterCheckpoint(selectedPreferredLevels, outerCheckpoint);
     }
   }
 
   if (options.selectionMode === "full_context" || options.selectionMode === "trade_setup") {
-    const nearestLevels = levels.slice(0, LEVEL_MAP_FULL_CONTEXT_NEAREST_LEVELS_PER_SIDE);
-    const deeperStructuralLevels = levels
+    const nearestLevels = selectableLevels.slice(0, LEVEL_MAP_FULL_CONTEXT_NEAREST_LEVELS_PER_SIDE);
+    const deeperStructuralLevels = selectableLevels
       .slice(LEVEL_MAP_FULL_CONTEXT_NEAREST_LEVELS_PER_SIDE)
       .filter(isMeaningfulBeyondSoftPathLevel);
     for (const anchor of [deeperStructuralLevels[0], deeperStructuralLevels.at(-1)]) {
@@ -715,57 +752,12 @@ function selectDisplayedLevelMapLevels(
     );
   }
 
-  const clusteredLevels = clusterPotentialPathLevels(levels);
-  const inBandLevels = clusteredLevels.filter(
-    (level) =>
-      Math.abs(level.distancePct) <= LEVEL_MAP_SOFT_PATH_DISTANCE_PCT ||
-      (
-        isExtremeGapSessionLandmark(level) &&
-        Math.abs(level.distancePct) <= LEVEL_MAP_EXTREME_GAP_SESSION_EXTENSION_PCT
-      ),
+  const inBandLevels = clusterPotentialPathLevels(
+    selectableLevels,
+    options.atrNoiseDistancePrice,
   );
 
-  // A real price vacuum is still useful context: when nothing exists inside the
-  // soft band, keep the nearest mapped level and one additional meaningful
-  // checkpoint so the Potential Path does not collapse to a single row.
-  if (inBandLevels.length === 0) {
-    const nearest = clusteredLevels[0];
-    if (!nearest) {
-      return [];
-    }
-    const remainingLevels = clusteredLevels.slice(1);
-    const nextCheckpoint =
-      remainingLevels.find(isMeaningfulBeyondSoftPathLevel) ??
-      remainingLevels.find(isStructuralLevelMapLevel) ??
-      remainingLevels[0];
-    return nextCheckpoint ? [nearest, nextCheckpoint] : [nearest];
-  }
-
-  const nextMeaningfulBeyond = clusteredLevels.find(
-    (level) =>
-      Math.abs(level.distancePct) > LEVEL_MAP_SOFT_PATH_DISTANCE_PCT &&
-      isMeaningfulBeyondSoftPathLevel(level),
-  );
-  const hasMeaningfulStructuralCoverageInBand = inBandLevels.some(
-    isMeaningfulBeyondSoftPathLevel,
-  );
-  if (
-    nextMeaningfulBeyond &&
-    (
-      !hasMeaningfulStructuralCoverageInBand ||
-      isLogicalNextLevelBeyondSoftPath(inBandLevels, nextMeaningfulBeyond)
-    )
-  ) {
-    const selected = inBandLevels.slice(0, LEVEL_MAP_MAX_LEVELS_PER_SIDE - 1);
-    selected.push(nextMeaningfulBeyond);
-    return selected.sort(
-      (left, right) => Math.abs(left.distancePct) - Math.abs(right.distancePct),
-    );
-  }
-
-  return inBandLevels.slice(0, LEVEL_MAP_MAX_LEVELS_PER_SIDE).sort(
-    (left, right) => Math.abs(left.distancePct) - Math.abs(right.distancePct),
-  );
+  return appendPotentialPathOuterCheckpoint(inBandLevels, outerCheckpoint);
 }
 
 function isSameDisplayedLevelPrice(
@@ -823,6 +815,85 @@ function deriveRangeState(
   return "normal";
 }
 
+function buildLevelMapVolatilityContext(
+  currentPrice: number,
+  context: LevelMapRoleFlipContext | undefined,
+): NonNullable<LiveWatchlistLevelMap["volatilityContext"]> | null {
+  if (context?.atrReliability && context.atrReliability !== "reliable") {
+    return null;
+  }
+  const atr = typeof context?.atrValue === "number" && Number.isFinite(context.atrValue) && context.atrValue > 0
+    ? context.atrValue
+    : typeof context?.atrPct === "number" && Number.isFinite(context.atrPct) && context.atrPct > 0
+      ? context.atrPct * currentPrice
+      : null;
+  if (atr === null) {
+    return null;
+  }
+  const atrPct = typeof context?.atrPct === "number" && Number.isFinite(context.atrPct) && context.atrPct > 0
+    ? context.atrPct
+    : atr / currentPrice;
+  return {
+    atr: Number(atr.toFixed(6)),
+    atrPct: Number(atrPct.toFixed(6)),
+    period: typeof context?.atrPeriod === "number" && context.atrPeriod > 0
+      ? Math.floor(context.atrPeriod)
+      : 14,
+    timeframe: "5m",
+    completedCandleCount:
+      typeof context?.atrCompletedCandleCount === "number"
+        ? context.atrCompletedCandleCount
+        : null,
+    reliability: "reliable",
+  };
+}
+
+function levelDistanceFromPrice(level: LiveWatchlistLevelMapLevel, currentPrice: number): number {
+  const low = typeof level.lowPrice === "number" && Number.isFinite(level.lowPrice)
+    ? level.lowPrice
+    : level.price;
+  const high = typeof level.highPrice === "number" && Number.isFinite(level.highPrice)
+    ? level.highPrice
+    : level.price;
+  const zoneLow = Math.min(low, high);
+  const zoneHigh = Math.max(low, high);
+  if (currentPrice < zoneLow) {
+    return zoneLow - currentPrice;
+  }
+  if (currentPrice > zoneHigh) {
+    return currentPrice - zoneHigh;
+  }
+  return 0;
+}
+
+function atrDistanceState(distanceAtr: number): LiveWatchlistAtrDistanceState {
+  if (distanceAtr <= ATR_NORMAL_NOISE_MAX) return "inside_normal_noise";
+  if (distanceAtr < ATR_NEARBY_MAX) return "nearby";
+  if (distanceAtr < ATR_MEANINGFUL_MAX) return "meaningful";
+  return "substantial";
+}
+
+function addAtrDistance(
+  levels: LiveWatchlistLevelMapLevel[],
+  currentPrice: number,
+  volatilityContext: NonNullable<LiveWatchlistLevelMap["volatilityContext"]> | null,
+): LiveWatchlistLevelMapLevel[] {
+  if (!volatilityContext) {
+    return levels;
+  }
+  return levels.map((level) => {
+    const distanceAtr = Number(
+      (levelDistanceFromPrice(level, currentPrice) / volatilityContext.atr).toFixed(4),
+    );
+    const state = atrDistanceState(distanceAtr);
+    return {
+      ...level,
+      distanceAtr,
+      atrDistanceState: state,
+    };
+  });
+}
+
 export function buildLiveWatchlistLevelMap(args: {
   currentPrice: number;
   supportZones: LevelMapDisplayZone[];
@@ -855,6 +926,10 @@ export function buildLiveWatchlistLevelMap(args: {
       .map((zone): LevelMapInputZone => ({ ...zone, originalSide: "resistance" })),
   ];
   const roleFlipConfirmationPct = deriveRoleFlipConfirmationPct(args.currentPrice, args.roleFlipContext);
+  const isPotentialPath = args.selectionMode !== "full_context" && args.selectionMode !== "trade_setup";
+  const volatilityContext = isPotentialPath
+    ? buildLevelMapVolatilityContext(args.currentPrice, args.roleFlipContext)
+    : null;
   const levelOptions = {
     preferStructuralLevels: args.preferStructuralLevels,
     selectionMode: args.selectionMode,
@@ -865,13 +940,26 @@ export function buildLiveWatchlistLevelMap(args: {
           0.035,
           Math.max(LEVEL_MAP_STACKED_LEVEL_DISTANCE_PCT, roleFlipConfirmationPct * 1.5),
         ),
+    atrNoiseDistancePrice: volatilityContext
+      ? volatilityContext.atr * ATR_NORMAL_NOISE_MAX
+      : 0,
   };
   const rawSupportLevels = sortedLevelMapLevels(zones, args.currentPrice, "support", levelOptions);
   const rawResistanceLevels = sortedLevelMapLevels(zones, args.currentPrice, "resistance", levelOptions);
-  const { supportLevels, resistanceLevels } = removeCrossSideDuplicateLevelMapLevels(
+  const dedupedLevels = removeCrossSideDuplicateLevelMapLevels(
     rawSupportLevels,
     rawResistanceLevels,
     args.currentPrice,
+  );
+  const supportLevels = addAtrDistance(
+    dedupedLevels.supportLevels,
+    args.currentPrice,
+    volatilityContext,
+  );
+  const resistanceLevels = addAtrDistance(
+    dedupedLevels.resistanceLevels,
+    args.currentPrice,
+    volatilityContext,
   );
   const nearestSupport = supportLevels[0] ?? null;
   const nearestResistance = resistanceLevels[0] ?? null;
@@ -903,6 +991,7 @@ export function buildLiveWatchlistLevelMap(args: {
     },
     ...(args.dataQuality ? { dataQuality: args.dataQuality } : {}),
     ...(referenceLevels.length > 0 ? { referenceLevels } : {}),
+    ...(volatilityContext ? { volatilityContext } : {}),
   };
 }
 
@@ -937,10 +1026,10 @@ function buildLiveWatchlistReferenceLevels(
 function formatPotentialPathLevelsCardBody(levelMap: LiveWatchlistLevelMap): string {
   const supportPath = levelMap.supportLevels.length > 0
     ? levelMap.supportLevels.map((level) => `- ${level.label}`).join("\n")
-    : "- No mapped support available";
+    : "- No mapped support within 50%";
   const resistancePath = levelMap.resistanceLevels.length > 0
     ? levelMap.resistanceLevels.map((level) => `- ${level.label}`).join("\n")
-    : "- No mapped resistance available";
+    : "- No mapped resistance within 50%";
   return `Support path:\n${supportPath}\n\nResistance path:\n${resistancePath}`;
 }
 
@@ -1452,10 +1541,17 @@ export function buildLiveWatchlistSnapshotPatch(
             metadata: {
               nearestSupport: levelMap.nearestSupport?.price ?? null,
               nearestSupportDistancePct: levelMap.nearestSupport?.distancePct ?? null,
+              nearestSupportDistanceAtr: levelMap.nearestSupport?.distanceAtr ?? null,
+              nearestSupportAtrDistanceState: levelMap.nearestSupport?.atrDistanceState ?? null,
               nearestSupportLabel: levelMap.nearestSupport?.label ?? null,
               nearestResistance: levelMap.nearestResistance?.price ?? null,
               nearestResistanceDistancePct: levelMap.nearestResistance?.distancePct ?? null,
+              nearestResistanceDistanceAtr: levelMap.nearestResistance?.distanceAtr ?? null,
+              nearestResistanceAtrDistanceState: levelMap.nearestResistance?.atrDistanceState ?? null,
               nearestResistanceLabel: levelMap.nearestResistance?.label ?? null,
+              atr5m: levelMap.volatilityContext?.atr ?? null,
+              atr5mPct: levelMap.volatilityContext?.atrPct ?? null,
+              atrPeriod: levelMap.volatilityContext?.period ?? null,
               supportCount: closestSupportZones.length,
               resistanceCount: closestResistanceZones.length,
             },
@@ -1817,12 +1913,72 @@ export function buildLiveWatchlistStatusPatch(args: {
   status: LiveWatchlistStatus;
   updatedAt?: number;
   firstPostedAt?: number | null;
+  potentialGainCardVisible?: boolean;
 }): LiveWatchlistCardPatch {
   return {
     symbol: normalizeSymbol(args.symbol),
     status: args.status,
     updatedAt: args.updatedAt ?? Date.now(),
     ...(args.firstPostedAt !== undefined ? { firstPostedAt: args.firstPostedAt } : {}),
+    ...(args.potentialGainCardVisible !== undefined
+      ? { potentialGainCardVisible: args.potentialGainCardVisible }
+      : {}),
+    cards: {},
+  };
+}
+
+export function buildTradersLinkAiReadPatch(args: {
+  read: TradersLinkAiReadPayload;
+  visible?: boolean;
+}): LiveWatchlistCardPatch {
+  const { read } = args;
+  return {
+    symbol: normalizeSymbol(read.symbol),
+    status: "live",
+    updatedAt: read.generatedAt,
+    tradersLinkAiReadCardVisible: args.visible !== false,
+    cards: {
+      tradersLinkAiRead: buildCard({
+        title: "TradersLink AI Read",
+        body: JSON.stringify(read),
+        updatedAt: read.generatedAt,
+        priceWhenPosted: read.currentPrice,
+        source: read.usedWebSearch
+          ? "openai_responses_press_sec_database_web_search"
+          : "openai_responses_press_sec_database",
+        metadata: {
+          model: read.model,
+          externalResearchEnabled: read.externalResearchEnabled,
+          bias: read.bias,
+          confidence: read.confidence,
+          listingStatus: read.listingStatus.status,
+          listingImmediacy: read.listingStatus.immediacy,
+          sourceCount: read.sources.length,
+          databaseSourceCount: read.sources.filter(
+            (source) => source.sourceType === "press_release_sec_database",
+          ).length,
+          usedWebSearch: read.usedWebSearch,
+          webSearchCallCount: read.usage.webSearchCallCount,
+          inputTokens: read.usage.inputTokens,
+          outputTokens: read.usage.outputTokens,
+          estimatedCostUsd: read.usage.estimatedTotalCostUsd,
+          dataAsOf: read.dataAsOf,
+        },
+      }),
+    },
+  };
+}
+
+export function buildTradersLinkAiReadVisibilityPatch(args: {
+  symbol: string;
+  visible: boolean;
+  updatedAt?: number;
+}): LiveWatchlistCardPatch {
+  return {
+    symbol: normalizeSymbol(args.symbol),
+    status: "live",
+    updatedAt: args.updatedAt ?? Date.now(),
+    tradersLinkAiReadCardVisible: args.visible,
     cards: {},
   };
 }

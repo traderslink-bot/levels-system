@@ -47,6 +47,9 @@ export class WatchlistStore {
       ...(lastThreadPostKind !== undefined ? { lastThreadPostKind } : {}),
       ...(lastError !== undefined ? { lastError } : {}),
       ...(operationStatus !== undefined ? { operationStatus } : {}),
+      ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
+        ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
+        : {}),
     };
   }
 
@@ -80,6 +83,7 @@ export class WatchlistStore {
 
   upsertManualEntry(input: {
     symbol: string;
+    tags?: string[];
     note?: string;
     discordThreadId?: string | null;
     active: boolean;
@@ -94,6 +98,7 @@ export class WatchlistStore {
     refreshPending?: boolean;
     lastError?: string | null;
     operationStatus?: string | null;
+    tradersLinkAiReadCardVisible?: boolean;
   }): WatchlistEntry {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.entries.get(symbol);
@@ -102,7 +107,11 @@ export class WatchlistStore {
       symbol,
       active: input.active,
       priority: existing?.priority ?? this.getNextPriority(),
-      tags: existing?.tags ? [...existing.tags] : ["manual"],
+      tags: input.tags
+        ? [...new Set(input.tags.map((tag) => tag.trim()).filter(Boolean))]
+        : existing?.tags
+          ? [...existing.tags]
+          : ["manual"],
       note:
         typeof input.note === "string" && input.note.trim().length > 0
           ? input.note.trim()
@@ -141,6 +150,10 @@ export class WatchlistStore {
         input.operationStatus !== undefined
           ? input.operationStatus?.trim() || undefined
           : existing?.operationStatus,
+      tradersLinkAiReadCardVisible:
+        typeof input.tradersLinkAiReadCardVisible === "boolean"
+          ? input.tradersLinkAiReadCardVisible
+          : existing?.tradersLinkAiReadCardVisible,
     };
 
     this.entries.set(symbol, entry);

@@ -94,7 +94,7 @@ describe("level-ranker bucket ownership", () => {
     assert.equal(result.intradayResistance.length, 1);
   });
 
-  it("does not surface resistance beyond the practical forward planning range when reference price is available", () => {
+  it("retains farther structural resistance for downstream Full Ladder selection", () => {
     const nearZone = makeZone({
       id: "near",
       representativePrice: 11.5,
@@ -129,10 +129,10 @@ describe("level-ranker bucket ownership", () => {
     ];
 
     assert.ok(surfacedIds.includes("near"));
-    assert.ok(!surfacedIds.includes("too-far"));
+    assert.ok(surfacedIds.includes("too-far"));
   });
 
-  it("does not surface support or resistance on the wrong side of the live reference price", () => {
+  it("retains actionable crossed resistance for downstream role-flip evaluation", () => {
     const supportBelow = makeZone({
       id: "support-below",
       kind: "support",
@@ -190,6 +190,6 @@ describe("level-ranker bucket ownership", () => {
     assert.ok(surfacedSupportIds.includes("support-below"));
     assert.ok(!surfacedSupportIds.includes("support-above"));
     assert.ok(surfacedResistanceIds.includes("resistance-above"));
-    assert.ok(!surfacedResistanceIds.includes("resistance-below"));
+    assert.ok(surfacedResistanceIds.includes("resistance-below"));
   });
 });

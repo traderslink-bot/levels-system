@@ -12,6 +12,8 @@ import {
   formatLevelSnapshotMessage,
   formatMarketStructureUpdateAsPayload,
   formatSymbolRecapAsPayload,
+  isWatchlistTraderReadAiEnabled,
+  WATCHLIST_TRADER_READ_AI_ENABLED_ENV,
 } from "../lib/alerts/alert-router.js";
 import type {
   AlertPayload,
@@ -1846,15 +1848,18 @@ test("formatLevelSnapshotMessage uses deterministic formatting", () => {
       "Level context: the nearby ladder is thin, so the strongest areas matter more than every small level.",
       "",
       "Trade map:",
-      "Current structure: ALBT is range-bound between heavy support 2.40 and major resistance 2.58-2.62 area.",
-      "Main resistance: major resistance 2.58-2.62 area is the upside area that needs acceptance.",
-      "Main support: heavy support 2.40 is the area buyers need to keep holding for the range to stay constructive.",
-      "Small pushes inside this band can be noise; the cleaner read comes from expansion above resistance or a clean loss of support.",
-      "Cleaner above: acceptance above major resistance 2.58-2.62 area (+2.8% to +4.4%) would shift attention toward moderate resistance 2.75 (+9.6%).",
-      "Support that matters: heavy support 2.40 (-4.4%) is the first practical area buyers need to keep defending.",
-      "Broader support: a clean loss of heavy support 2.40 as a whole area would shift attention toward light support 2.20-2.28 area (-12.4% to -9.2%).",
-      "Short-term momentum support: light support 2.20-2.28 area (-12.4% to -9.2%).",
-      "Setup quality: mixed and range-bound; better information comes from a clean expansion or a clean support failure.",
+      "Current Read: ALBT is range-bound between heavy support 2.40 and major resistance 2.58-2.62 area; the better information comes from expansion above resistance or a clean support failure.",
+      "",
+      "Breakout Area To Watch: major resistance 2.58-2.62 area (+2.8% to +4.4%) is a nearby gate, not the material target; higher resistance needs a fresh level check before treating the path as open.",
+      "",
+      "Pullback Zones:",
+      "- Nearby support gate: heavy support 2.40 (-4.4%); this is not a material small-cap pullback zone by itself.",
+      "",
+      "Continuation Path: above major resistance 2.58-2.62 area, higher resistance needs a fresh level check before the move can be treated as open.",
+      "",
+      "Setup Weakens If: price loses heavy support 2.40 as a whole area and cannot reclaim it. Below that, the next map area is light support 2.20-2.28 area (-12.4% to -9.2%).",
+      "",
+      "Quality / Caution: range-bound; small pushes inside the band can be noise.",
       "",
       "Closest levels to watch:",
       "Resistance:",
@@ -2435,7 +2440,8 @@ test("formatLevelSnapshotMessage can include a first-post trade plan without cha
   });
 
   assert.match(message, /Trade plan:\nPrimary read: PLAN is a breakout watch/);
-  assert.match(message, /Trade map:\nCurrent structure: PLAN is trading between/);
+  assert.match(message, /Trade map:\nCurrent Read: PLAN is trading between/);
+  assert.match(message, /Breakout Area To Watch: heavy resistance 1\.24/);
   assert.doesNotMatch(message, /\bbuy\b|\bsell\b|best entry|should enter/i);
 });
 
@@ -2484,9 +2490,36 @@ test("formatLevelSnapshotMessage treats low-priced dense overhead as one practic
 
   const closestSection = message.split("\n\nMore support and resistance:")[0] ?? message;
   assert.match(message, /1\.37-1\.42 zone \(\+0\.7% to \+4\.4%, heavy, clustered levels\)/);
-  assert.match(message, /ATLN is range-bound between moderate support 1\.32-1\.34 area and heavy resistance 1\.37-1\.42 area/);
+  assert.match(message, /ATLN is inside a tight nearby level cluster from moderate support 1\.32-1\.34 area to heavy resistance 1\.37-1\.42 area/);
   assert.doesNotMatch(message, /1\.36 \(\+0\.0%/);
   assert.doesNotMatch(closestSection, /1\.40 \(\+2\.9%/);
+});
+
+test("formatLevelSnapshotMessage does not turn tight nearby clutter and deep support into a pullback plan", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "SDOT",
+    currentPrice: 23.47,
+    supportZones: [
+      { representativePrice: 23.13, strengthLabel: "moderate", sourceLabel: "4h structure" },
+      { representativePrice: 20.41, strengthLabel: "major", sourceLabel: "daily structure" },
+      { representativePrice: 20.0, strengthLabel: "major", sourceLabel: "daily structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 23.86, strengthLabel: "major", sourceLabel: "4h structure" },
+      { representativePrice: 26.1, strengthLabel: "major", sourceLabel: "daily structure" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message, /Current Read: SDOT is inside a tight nearby level cluster from moderate support 23\.13 to major resistance 23\.86/);
+  assert.match(message, /small pushes inside that band are noise/);
+  assert.doesNotMatch(message, /range-bound between moderate support 23\.13 and major resistance 23\.86/);
+  assert.match(message, /Breakout Area To Watch: major resistance 23\.86 \(\+1\.7%\) is a nearby gate, not the material target; the first material upside map area is major resistance 26\.10 \(\+11\.2%\)\./);
+  assert.match(message, /- Nearby support gate: moderate support 23\.13 \(-1\.4%\); this is not a material small-cap pullback zone by itself\./);
+  assert.match(message, /- First real support below that is major support 20\.41 \(-13\.0%\); that is a deeper reset area, not a routine pullback zone\./);
+  assert.doesNotMatch(message, /First pullback area: major support 20\.41/);
+  assert.match(message, /Quality \/ Caution: tight nearby level cluster; small pushes inside the band can be noise\./);
+  assert.doesNotMatch(message, /\bbuy\b|\bsell\b|best entry|should enter|price target/i);
 });
 
 test("formatLevelSnapshotMessage keeps resistance visible until at least thirty percent overhead", () => {
@@ -2639,12 +2672,12 @@ test("formatLevelSnapshotMessage uses practical small-cap zones instead of penny
     timestamp: 1,
   });
 
-  assert.match(message, /Current structure: CYCU is range-bound between major support 0\.9898-1\.02 area and moderate resistance 1\.06/);
-  assert.match(message, /Small pushes inside this band can be noise; the cleaner read comes from expansion above resistance or a clean loss of support\./);
-  assert.match(message, /Support that matters: major support 0\.9898-1\.02 area \(-3\.9% to -1\.0%\) is the first practical area buyers need to keep defending\./);
-  assert.match(message, /Broader support: a clean loss of major support 0\.9898-1\.02 area as a whole area would shift attention toward major support 0\.9522 \(-7\.6%\)\./);
-  assert.match(message, /Setup quality: mixed and range-bound; better information comes from a clean expansion or a clean support failure\./);
-  assert.doesNotMatch(message, /If 1\.02 fails|If 1\.01 fails|risk opens toward 1\.00|\btarget\b|\bbuy\b|\bsell\b|stop loss/i);
+  assert.match(message, /Current Read: CYCU is inside a tight nearby level cluster from major support 0\.9898-1\.02 area to moderate resistance 1\.06/);
+  assert.match(message, /Breakout Area To Watch: moderate resistance 1\.06 \(\+2\.9%\) is a nearby gate, not the material target/);
+  assert.match(message, /- Nearby support gate: major support 0\.9898-1\.02 area \(-3\.9% to -1\.0%\); this is not a material small-cap pullback zone by itself\./);
+  assert.match(message, /Setup Weakens If: price loses major support 0\.9898-1\.02 area as a whole area and cannot reclaim it\./);
+  assert.match(message, /Quality \/ Caution: tight nearby level cluster; small pushes inside the band can be noise\./);
+  assert.doesNotMatch(message, /If 1\.02 fails|If 1\.01 fails|risk opens toward 1\.00|\bbuy\b|\bsell\b|stop loss/i);
 });
 
 test("formatLevelSnapshotMessage treats close small-cap support levels as one practical support area in the trade map", () => {
@@ -2665,12 +2698,94 @@ test("formatLevelSnapshotMessage treats close small-cap support levels as one pr
 
   assert.match(
     message,
-    /Support that matters: major support 1\.00-1\.02 area \(-4\.8% to -2\.9%\) is the first practical area buyers need to keep defending\./,
+    /- First pullback area: moderate support 0\.9400 \(-10\.5%\)\./,
   );
-  assert.match(message, /Broader support: a clean loss of major support 1\.00-1\.02 area as a whole area would shift attention toward moderate support 0\.9400/);
+  assert.match(message, /Setup Weakens If: price loses major support 1\.00-1\.02 area as a whole area and cannot reclaim it\. Below that, the next map area is moderate support 0\.9400/);
   assert.match(message, /Closest levels to watch:[\s\S]*Support:\n1\.02 .*\n1\.00 .*\n0\.9400/);
   assert.doesNotMatch(message, /More support and resistance/);
   assert.doesNotMatch(message, /risk opens toward 1\.00|If 1\.02 fails/i);
+});
+
+test("formatLevelSnapshotMessage frames a close resistance test as a breakout-watch setup", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "BOUT",
+    currentPrice: 7.25,
+    supportZones: [
+      { representativePrice: 6.1, strengthLabel: "moderate", sourceLabel: "daily structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 7.45, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      { representativePrice: 7.58, strengthLabel: "moderate", sourceLabel: "4h structure" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message, /Current Read: BOUT is a breakout-watch setup against moderate resistance 7\.45/);
+  assert.match(message, /Breakout Area To Watch: moderate resistance 7\.45 \(\+2\.8%\) is a nearby gate, not the material target/);
+  assert.match(message, /Continuation Path: above moderate resistance 7\.45, higher resistance needs a fresh level check before the move can be treated as open/);
+  assert.doesNotMatch(message, /\bbuy\b|\bsell\b|best entry|should enter|price target/i);
+});
+
+test("formatLevelSnapshotMessage does not treat far lower support as a clean pullback zone", () => {
+  const message = formatLevelSnapshotMessage({
+    symbol: "FAR",
+    currentPrice: 7.25,
+    supportZones: [
+      { representativePrice: 4.7, strengthLabel: "moderate", sourceLabel: "daily structure" },
+    ],
+    resistanceZones: [
+      { representativePrice: 8.14, strengthLabel: "weak", sourceLabel: "fresh intraday" },
+    ],
+    timestamp: 1,
+  });
+
+  assert.match(message, /Current Read: FAR is extended from the nearest support/);
+  assert.match(message, /Pullback Zones:\n- Nearest support is moderate support 4\.70 \(-35\.2%\), but it is too far from price to call a clean pullback zone\./);
+  assert.doesNotMatch(message, /First pullback area: moderate support 4\.70/);
+  assert.doesNotMatch(message, /Below that, the next map area is moderate support 4\.70/);
+  assert.doesNotMatch(message, /\bbuy\b|\bsell\b|best entry|should enter|price target/i);
+});
+
+test("watchlist trader read AI flag defaults off and recognizes opt-in values", () => {
+  assert.equal(isWatchlistTraderReadAiEnabled({}), false);
+  assert.equal(isWatchlistTraderReadAiEnabled({ [WATCHLIST_TRADER_READ_AI_ENABLED_ENV]: "false" }), false);
+  assert.equal(isWatchlistTraderReadAiEnabled({ [WATCHLIST_TRADER_READ_AI_ENABLED_ENV]: "true" }), true);
+  assert.equal(isWatchlistTraderReadAiEnabled({ [WATCHLIST_TRADER_READ_AI_ENABLED_ENV]: "on" }), true);
+});
+
+test("formatLevelSnapshotMessage keeps deterministic output when the AI flag is enabled before AI exists", () => {
+  const previous = process.env[WATCHLIST_TRADER_READ_AI_ENABLED_ENV];
+  const previousWarn = console.warn;
+  const warnings: string[] = [];
+  process.env[WATCHLIST_TRADER_READ_AI_ENABLED_ENV] = "true";
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.map(String).join(" "));
+  };
+
+  try {
+    const message = formatLevelSnapshotMessage({
+      symbol: "NOAI",
+      currentPrice: 2,
+      supportZones: [
+        { representativePrice: 1.9, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      ],
+      resistanceZones: [
+        { representativePrice: 2.1, strengthLabel: "moderate", sourceLabel: "fresh intraday" },
+      ],
+      timestamp: 1,
+    });
+
+    assert.match(message, /Current Read:/);
+    assert.doesNotMatch(message, /AI note|OpenAI|generated by AI/i);
+    assert.ok(warnings.some((line) => line.includes(WATCHLIST_TRADER_READ_AI_ENABLED_ENV)));
+  } finally {
+    console.warn = previousWarn;
+    if (previous === undefined) {
+      delete process.env[WATCHLIST_TRADER_READ_AI_ENABLED_ENV];
+    } else {
+      process.env[WATCHLIST_TRADER_READ_AI_ENABLED_ENV] = previous;
+    }
+  }
 });
 
 test("formatLevelSnapshotMessage keeps current no-level wording trader-facing", () => {

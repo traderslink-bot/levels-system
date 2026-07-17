@@ -431,17 +431,130 @@ describe("live watchlist publisher", () => {
         { representativePrice: 0.72, strengthLabel: "major", freshness: "stale", sourceLabel: "daily confluence" },
       ],
       resistanceZones: [
-        { representativePrice: 1.48, strengthLabel: "strong", freshness: "fresh", sourceLabel: "4h structure" },
+        { representativePrice: 1.28, strengthLabel: "strong", freshness: "fresh", sourceLabel: "4h structure" },
       ],
     });
 
     const pathLevelsBody = patch.cards.nearestSupportResistance?.body ?? "";
 
-    assert.match(pathLevelsBody, /1\.48 \(\+48\.0%, strong, 4h structure\)/);
+    assert.match(pathLevelsBody, /1\.28 \(\+28\.0%, strong, 4h structure\)/);
     assert.match(pathLevelsBody, /0\.7200 \(-28\.0%, major, daily confluence\)/);
     assert.doesNotMatch(pathLevelsBody, /fresh reaction|aging context|older context/);
     assert.equal(patch.levelMap?.resistanceLevels[0]?.freshness, "fresh");
     assert.equal(patch.levelMap?.supportLevels[0]?.freshness, "stale");
+  });
+
+  it("keeps reliable 5m ATR classification internal for every Potential Path level", () => {
+    const patch = buildLiveWatchlistSnapshotPatch({
+      symbol: "ATRX",
+      currentPrice: 10,
+      timestamp: 1_000,
+      supportZones: [
+        { representativePrice: 9.9, strengthLabel: "strong", sourceLabel: "4h structure" },
+        { representativePrice: 9, strengthLabel: "strong", sourceLabel: "daily structure" },
+      ],
+      resistanceZones: [
+        { representativePrice: 10.75, strengthLabel: "strong", sourceLabel: "daily structure" },
+        { representativePrice: 11.5, strengthLabel: "strong", sourceLabel: "4h structure" },
+      ],
+      roleFlipContext: {
+        atrPct: 0.05,
+        atrValue: 0.5,
+        atrPeriod: 14,
+        atrTimeframe: "5m",
+        atrCompletedCandleCount: 30,
+        atrReliability: "reliable",
+      },
+    }, { pullbackReadEnabled: false });
+
+    assert.equal(patch.levelMap?.nearestSupport?.distanceAtr, 0.2);
+    assert.equal(patch.levelMap?.nearestSupport?.atrDistanceState, "inside_normal_noise");
+    assert.equal(patch.levelMap?.nearestResistance?.distanceAtr, 1.5);
+    assert.equal(patch.levelMap?.nearestResistance?.atrDistanceState, "meaningful");
+    const allPotentialPathLevels = [
+      ...(patch.levelMap?.supportLevels ?? []),
+      ...(patch.levelMap?.resistanceLevels ?? []),
+    ];
+    assert.deepEqual(
+      allPotentialPathLevels.map((level) => level.distanceAtr),
+      [0.2, 2, 1.5, 3],
+    );
+    assert.ok(allPotentialPathLevels.every((level) => Boolean(level.atrDistanceState)));
+    assert.ok(
+      allPotentialPathLevels.every(
+        (level) => !/ATR|normal 5m movement|meaningful room|meaningful separation/i.test(level.label),
+      ),
+    );
+    assert.doesNotMatch(
+      patch.cards.nearestSupportResistance?.body ?? "",
+      /ATR|normal 5m movement|meaningful room|meaningful separation/i,
+    );
+    assert.equal(patch.cards.nearestSupportResistance?.metadata?.atr5m, 0.5);
+    assert.equal(patch.cards.nearestSupportResistance?.metadata?.nearestSupportDistanceAtr, 0.2);
+  });
+
+  it("suppresses ATR level wording when the ATR window is unstable", () => {
+    const levelMap = buildLiveWatchlistLevelMap({
+      currentPrice: 10,
+      supportZones: [{ representativePrice: 9.9, strengthLabel: "strong" }],
+      resistanceZones: [{ representativePrice: 10.75, strengthLabel: "strong" }],
+      roleFlipContext: {
+        atrPct: 0.05,
+        atrValue: 0.5,
+        atrReliability: "unstable",
+      },
+    });
+
+    assert.equal(levelMap?.volatilityContext, undefined);
+    assert.equal(levelMap?.nearestSupport?.distanceAtr, undefined);
+    assert.doesNotMatch(levelMap?.nearestSupport?.label ?? "", /ATR|normal 5m movement/);
+  });
+
+  it("uses ATR clustering on Potential Path while keeping the Full Ladder complete", () => {
+    const payload: LevelSnapshotPayload = {
+      symbol: "ATRP",
+      currentPrice: 10,
+      timestamp: 1_000,
+      supportZones: [{ representativePrice: 9, strengthLabel: "strong", sourceLabel: "daily structure" }],
+      resistanceZones: [
+        { representativePrice: 10.1, strengthLabel: "weak", sourceLabel: "intraday" },
+        { representativePrice: 10.4, strengthLabel: "strong", sourceLabel: "daily structure" },
+        { representativePrice: 11.2, strengthLabel: "strong", sourceLabel: "4h structure" },
+      ],
+      roleFlipContext: {
+        atrPct: 0.1,
+        atrValue: 1,
+        atrPeriod: 14,
+        atrTimeframe: "5m",
+        atrCompletedCandleCount: 30,
+        atrReliability: "reliable",
+      },
+    };
+
+    const patch = buildLiveWatchlistSnapshotPatch(payload, { pullbackReadEnabled: false });
+    const pathBody = patch.cards.nearestSupportResistance?.body ?? "";
+    const fullLadderBody = patch.cards.fullLadder?.body ?? "";
+
+    assert.deepEqual(
+      patch.levelMap?.resistanceLevels.map((level) => level.price),
+      [10.4, 11.2],
+    );
+    assert.doesNotMatch(pathBody, /10\.10/);
+    assert.match(pathBody, /10\.40/);
+    assert.match(fullLadderBody, /10\.10/);
+    assert.match(fullLadderBody, /10\.40/);
+
+    const fullContextMap = buildLiveWatchlistLevelMap({
+      currentPrice: payload.currentPrice,
+      supportZones: payload.supportZones,
+      resistanceZones: payload.resistanceZones,
+      preferStructuralLevels: true,
+      roleFlipContext: payload.roleFlipContext,
+      selectionMode: "full_context",
+    });
+    assert.equal(fullContextMap?.volatilityContext, undefined);
+    assert.equal(fullContextMap?.resistanceLevels.some((level) => level.price === 10.1), true);
+    assert.equal(fullContextMap?.resistanceLevels.some((level) => level.price === 10.4), true);
   });
 
   it("keeps tight level clutter and deep reset support out of the fallback trader read plan", () => {
@@ -635,7 +748,7 @@ describe("live watchlist publisher", () => {
       ],
     });
 
-    assert.deepEqual(levelMap?.supportLevels.map((level) => level.price), [9.5, 8.5, 7.5, 7]);
+    assert.deepEqual(levelMap?.supportLevels.map((level) => level.price), [9.5, 8.5, 7.5, 7, 6]);
     assert.deepEqual(levelMap?.resistanceLevels.map((level) => level.price), [10.5, 11.5, 12.5, 13]);
     assert.equal(levelMap?.nextStrongSupport?.price, 8.5);
     assert.equal(levelMap?.nextStrongResistance?.price, 11.5);
@@ -685,7 +798,7 @@ describe("live watchlist publisher", () => {
     assert.match(patch.cards.fullLadder?.body ?? "", /2\.95/);
   });
 
-  it("shows the nearest and next meaningful far levels when a side has a real vacuum inside 30 percent", () => {
+  it("does not escape the 50 percent Potential Path cap when a side has a real vacuum", () => {
     const levelMap = buildLiveWatchlistLevelMap({
       currentPrice: 10,
       supportZones: [
@@ -695,11 +808,10 @@ describe("live watchlist publisher", () => {
       resistanceZones: [],
     });
 
-    assert.deepEqual(levelMap?.supportLevels.map((level) => level.price), [3.6, 2.5]);
-    assert.equal(levelMap?.supportLevels[0]?.distancePct, -0.64);
+    assert.deepEqual(levelMap?.supportLevels.map((level) => level.price), []);
   });
 
-  it("keeps a second structural checkpoint in a real vacuum even when both levels are weak", () => {
+  it("keeps only the nearest detected checkpoint between 30 and 50 percent", () => {
     const levelMap = buildLiveWatchlistLevelMap({
       currentPrice: 15.74,
       supportZones: [],
@@ -710,7 +822,7 @@ describe("live watchlist publisher", () => {
       ],
     });
 
-    assert.deepEqual(levelMap?.resistanceLevels.map((level) => level.price), [20.89, 21.95]);
+    assert.deepEqual(levelMap?.resistanceLevels.map((level) => level.price), [20.89]);
   });
 
   it("uses market-data confirmation time to choose between stacked equal-quality levels", () => {
@@ -742,7 +854,7 @@ describe("live watchlist publisher", () => {
     assert.deepEqual(levelMap?.resistanceLevels.map((level) => level.price), [1.115]);
   });
 
-  it("consolidates stacked small-cap steps while keeping a logical meaningful level beyond 30 percent", () => {
+  it("consolidates stacked small-cap steps and keeps one checkpoint between 30 and 50 percent", () => {
     const levelMap = buildLiveWatchlistLevelMap({
       currentPrice: 0.64,
       supportZones: [],
@@ -765,7 +877,7 @@ describe("live watchlist publisher", () => {
     assert.equal(levelMap?.resistanceLevels.some((level) => level.price === 0.7432), false);
   });
 
-  it("reserves a Potential Path slot for a meaningful outer resistance when eight closer levels exist", () => {
+  it("reserves one Potential Path slot for the nearest checkpoint over 30 percent", () => {
     const levelMap = buildLiveWatchlistLevelMap({
       currentPrice: 10,
       supportZones: [],
@@ -798,11 +910,36 @@ describe("live watchlist publisher", () => {
 
     assert.deepEqual(
       levelMap?.resistanceLevels.map((level) => level.price),
-      [10.3, 10.6, 10.9, 11.2, 11.5, 11.8, 12.1, 14.2],
+      [10.3, 10.6, 10.9, 11.2, 11.5, 11.8, 12.1, 13.5],
     );
   });
 
-  it("keeps strong daily confluence in live ticker updates instead of a weaker no-source level near 30 percent", () => {
+  it("keeps TGHL-style strong resistance near 88 percent in Full Ladder only", () => {
+    const payload: LevelSnapshotPayload = {
+      symbol: "TGHL",
+      currentPrice: 1.32,
+      timestamp: 1_000,
+      supportZones: [],
+      resistanceZones: [
+        { representativePrice: 1.43, strengthLabel: "moderate", sourceLabel: "4h structure" },
+        { representativePrice: 1.5, strengthLabel: "moderate", sourceLabel: "daily structure" },
+        { representativePrice: 1.65, strengthLabel: "moderate", sourceLabel: "daily structure" },
+        { representativePrice: 1.71, strengthLabel: "moderate", sourceLabel: "4h structure" },
+        { representativePrice: 2.48, strengthLabel: "strong", sourceLabel: "daily confluence" },
+      ],
+    };
+
+    const patch = buildLiveWatchlistSnapshotPatch(payload, { pullbackReadEnabled: false });
+
+    assert.deepEqual(
+      patch.levelMap?.resistanceLevels.map((level) => level.price),
+      [1.43, 1.5, 1.65, 1.71],
+    );
+    assert.doesNotMatch(patch.cards.nearestSupportResistance?.body ?? "", /2\.48/);
+    assert.match(patch.cards.fullLadder?.body ?? "", /2\.48/);
+  });
+
+  it("keeps one strong daily confluence checkpoint just beyond 30 percent", () => {
     const patch = buildLiveWatchlistTickerDataPatch({
       symbol: "ZBAO",
       lastPrice: 0.4215,
@@ -849,13 +986,13 @@ describe("live watchlist publisher", () => {
     assert.ok(patch?.levelMap);
     assert.deepEqual(
       patch.levelMap.supportLevels.map((level) => level.price),
-      [0.41, 0.4],
+      [0.41, 0.4, 0.291],
     );
     assert.equal(
       patch.levelMap.supportLevels.some((level) => level.price === 0.296),
       false,
     );
-    assert.equal(patch.levelMap.supportLevels.some((level) => level.price === 0.291), false);
+    assert.equal(patch.levelMap.supportLevels.some((level) => level.price === 0.291), true);
   });
 
   it("builds a usable level map when one side is missing", () => {
@@ -894,7 +1031,7 @@ describe("live watchlist publisher", () => {
     assert.equal("nearestOverhead" in levelMap, false);
     assert.equal("overheadLevels" in levelMap, false);
     assert.deepEqual(levelMap?.supportLevels.map((level) => level.price), [20.39, 19.31]);
-    assert.deepEqual(levelMap?.resistanceLevels.map((level) => level.price), [22.89, 26.01, 26.6]);
+    assert.deepEqual(levelMap?.resistanceLevels.map((level) => level.price), [22.89, 26.01, 26.6, 27.5]);
     assert.equal(levelMap?.supportLevels[1]?.roleFlipFromSide, "resistance");
   });
 
@@ -1442,6 +1579,7 @@ describe("live watchlist publisher", () => {
       patch.cards.nearestSupportResistance?.body ?? "",
       /5\.70 .*daily confluence/,
     );
+    assert.match(patch.cards.fullLadder?.body ?? "", /5\.70 .*daily confluence/);
     assert.match(
       patch.cards.nearestSupportResistance?.body ?? "",
       /4\.31 .*session low risk boundary/,
@@ -1503,7 +1641,7 @@ describe("live watchlist publisher", () => {
     assert.equal(patch.levelMap?.nearestResistance?.roleFlipFromSide, "support");
     assert.deepEqual(
       patch.levelMap?.resistanceLevels.map((level) => level.price),
-      [3.82, 4, 5.01, 5.7],
+      [3.82, 4, 5.01],
     );
     assert.match(
       patch.cards.nearestSupportResistance?.body ?? "",

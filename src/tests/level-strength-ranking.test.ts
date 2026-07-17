@@ -193,6 +193,30 @@ test("non reactive contacts do not inflate meaningfulTouchCount and stronger rea
   assert.equal(ranked.supports[0]?.id, "strong");
 });
 
+test("a persistent move beyond a broken zone counts one break transition instead of one touch per candle", () => {
+  const baseTimestamp = Date.parse("2026-07-16T13:30:00Z");
+  const analysis = analyzeLevelTouches(
+    { price: 10, type: "resistance", zoneLow: 9.98, zoneHigh: 10.02 },
+    [
+      { timestamp: baseTimestamp, open: 9.8, high: 9.9, low: 9.7, close: 9.85, volume: 1000 },
+      { timestamp: baseTimestamp + 60_000, open: 9.95, high: 10.25, low: 9.94, close: 10.2, volume: 1600 },
+      { timestamp: baseTimestamp + 120_000, open: 10.2, high: 10.4, low: 10.15, close: 10.3, volume: 1400 },
+      { timestamp: baseTimestamp + 180_000, open: 10.3, high: 10.5, low: 10.2, close: 10.4, volume: 1300 },
+      { timestamp: baseTimestamp + 240_000, open: 9.9, high: 9.92, low: 9.7, close: 9.8, volume: 1700 },
+      { timestamp: baseTimestamp + 300_000, open: 9.8, high: 9.9, low: 9.7, close: 9.75, volume: 1100 },
+    ],
+    "5m",
+  );
+
+  assert.equal(analysis.touchCount, 2);
+  assert.equal(analysis.cleanBreakCount, 1);
+  assert.equal(analysis.reclaimCount, 1);
+  assert.deepEqual(
+    analysis.touches.map((touch) => touch.reactionType),
+    ["clean_break", "reclaim"],
+  );
+});
+
 test("tight repeated reaction zone scores higher than messy wide zone", () => {
   const clean = computeStructuralStrengthScore(
     makeLevel({ cleanlinessStdDevPct: 0.0008 }),

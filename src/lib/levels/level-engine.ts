@@ -330,6 +330,7 @@ export class LevelEngine {
       metadata,
       specialLevels: special.summary,
       runtimeBucketOwnership: "surfaced",
+      legacyRuntimeBuckets: oldOutput,
       legacyExtensionLevels: oldOutput.extensionLevels,
     });
 

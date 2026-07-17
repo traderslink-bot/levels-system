@@ -1574,7 +1574,7 @@ test("new projection can reuse low-price runner extension ladder for practical c
   );
 });
 
-test("new projected strength-label mapping is deterministic and documented", async () => {
+test("new projected strength labels use structural score and preserve safe legacy matches", async () => {
   const shadowCase = buildDefaultSurfacedShadowCases().find(
     (item) => item.caseId === "broken-level-exclusion",
   );
@@ -1605,16 +1605,81 @@ test("new projected strength-label mapping is deterministic and documented", asy
 
   const firstProjection = buildNewRuntimeCompatibleLevelOutput(projectionInput);
   const secondProjection = buildNewRuntimeCompatibleLevelOutput(projectionInput);
+  const firstRuntimeZones = allRuntimeZones(firstProjection.output);
   const firstLabels = allRuntimeZones(firstProjection.output).map((zone) => `${zone.id}:${zone.strengthLabel}`);
   const secondLabels = allRuntimeZones(secondProjection.output).map((zone) => `${zone.id}:${zone.strengthLabel}`);
 
   assert.deepEqual(firstLabels, secondLabels);
   assert.ok(firstLabels.length > 0);
+  for (const zone of firstRuntimeZones) {
+    assert.ok(zone.enrichedAnalysis);
+    assert.equal(
+      zone.strengthScore,
+      Number(zone.enrichedAnalysis.structuralStrengthScore.toFixed(2)),
+    );
+    assert.ok(
+      zone.notes.includes("strength_label_source=projected_structural_strength"),
+    );
+  }
+
+  const projectedZone = firstRuntimeZones[0];
+  assert.ok(projectedZone);
+  const legacyLabelZone: FinalLevelZone = {
+    ...projectedZone,
+    id: "legacy-strength-match",
+    strengthScore: 27.16,
+    strengthLabel: "strong",
+    notes: [],
+    enrichedAnalysis: undefined,
+  };
+  const legacyRuntimeBuckets = {
+    majorSupport: projectedZone.kind === "support" ? [legacyLabelZone] : [],
+    majorResistance: projectedZone.kind === "resistance" ? [legacyLabelZone] : [],
+    intermediateSupport: [],
+    intermediateResistance: [],
+    intradaySupport: [],
+    intradayResistance: [],
+  };
+  const legacyMatchedProjection = buildNewRuntimeCompatibleLevelOutput({
+    ...projectionInput,
+    runtimeBucketOwnership: "surfaced",
+    legacyRuntimeBuckets,
+  });
+  const legacyMatchedZone = allRuntimeZones(legacyMatchedProjection.output).find(
+    (zone) => zone.id === projectedZone.id,
+  );
+
+  assert.ok(legacyMatchedZone);
+  assert.equal(legacyMatchedZone.strengthScore, 27.16);
+  assert.equal(legacyMatchedZone.strengthLabel, "strong");
+  assert.ok(
+    legacyMatchedZone.notes.includes("legacy_strength_label_match=legacy-strength-match"),
+  );
   assert.ok(
     firstProjection.mappingNotes.some((note) =>
       note.includes("Runtime buckets are owned by the projected surfaced selection"),
     ),
   );
+});
+
+test("LevelEngine new mode preserves legacy strength values for matched projected zones", async () => {
+  const { oldOutput, newOutput } = await generateRuntimeFixtureOutputs("LPAR");
+  const oldZonesById = new Map(allRuntimeZones(oldOutput).map((zone) => [zone.id, zone]));
+  const matchedZones = allRuntimeZones(newOutput).filter((zone) =>
+    zone.notes.some((note) => note.startsWith("legacy_strength_label_match=")),
+  );
+
+  assert.ok(matchedZones.length > 0);
+  for (const zone of matchedZones) {
+    const matchNote = zone.notes.find((note) =>
+      note.startsWith("legacy_strength_label_match="),
+    );
+    assert.ok(matchNote);
+    const legacyZone = oldZonesById.get(matchNote.slice("legacy_strength_label_match=".length));
+    assert.ok(legacyZone);
+    assert.equal(zone.strengthScore, legacyZone.strengthScore);
+    assert.equal(zone.strengthLabel, legacyZone.strengthLabel);
+  }
 });
 
 test("LevelEngineOutput JSON serialization and LevelStore storage remain compatible for old and new outputs", async () => {
