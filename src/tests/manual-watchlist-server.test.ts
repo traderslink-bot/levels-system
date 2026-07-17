@@ -143,10 +143,13 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.match(MANUAL_WATCHLIST_PAGE, /Refresh AI Read/);
   assert.match(MANUAL_WATCHLIST_PAGE, /AI Card: Shown/);
   assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-cost-grid/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Optional Daily AI Spend Guard/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-cost-budget-toggle/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Automatic Low-Float Selection/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-external-research/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-cost-budget/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-visibility/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-refresh/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /tradersLinkAiReadCostLedger\.summarize\(\)/);

@@ -33,6 +33,12 @@ function normalizeAiReadBoundaryState(
     currentPrice: value.currentPrice,
     upperBoundary: boundary(value.upperBoundary),
     lowerBoundary: boundary(value.lowerBoundary),
+    lastAutomaticRefreshRegime:
+      typeof value.lastAutomaticRefreshRegime === "string" &&
+      value.lastAutomaticRefreshRegime.length > 0 &&
+      value.lastAutomaticRefreshRegime.length <= 160
+        ? value.lastAutomaticRefreshRegime
+        : null,
   };
 }
 

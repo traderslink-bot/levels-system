@@ -804,6 +804,8 @@ describe("OpenAITradersLinkAiReadService", () => {
     const service = createTradersLinkAiReadServiceFromEnv({ OPENAI_API_KEY: "test-key" });
     assert.ok(service);
     assert.equal(service.isExternalResearchEnabled(), false);
+    assert.equal(service.getConfiguredModel(), "gpt-5.6-luna");
+    assert.equal(service.getReasoningEffort(), "medium");
     const enabledService = createTradersLinkAiReadServiceFromEnv({
       OPENAI_API_KEY: "test-key",
       TRADERSLINK_AI_READ_WEB_SEARCH_ENABLED: "true",

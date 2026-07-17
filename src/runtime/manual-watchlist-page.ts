@@ -245,6 +245,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         </div>
         <div class="inline-status" id="ai-read-external-research-status"></div>
       </div>
+      <div class="provider-control">
+        <label for="ai-read-cost-budget-toggle">Optional Daily AI Spend Guard</label>
+        <div class="inline-control">
+          <label class="toggle-switch">
+            <input id="ai-read-cost-budget-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="ai-read-cost-budget-label">Off</span>
+          </label>
+          <input id="ai-read-cost-budget-usd" type="number" min="0.01" max="10000" step="0.01" value="1.00" aria-label="Daily AI spend budget in US dollars" />
+          <button id="ai-read-cost-budget-apply" type="button">Apply Budget</button>
+        </div>
+        <div class="inline-status" id="ai-read-cost-budget-status"></div>
+      </div>
       <div class="health-grid" id="ai-read-cost-grid"></div>
       <ul class="activity-list" id="ai-read-cost-list"></ul>
     </section>
@@ -335,6 +348,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const aiReadExternalResearchToggleEl = document.getElementById("ai-read-external-research-toggle");
     const aiReadExternalResearchLabelEl = document.getElementById("ai-read-external-research-label");
     const aiReadExternalResearchStatusEl = document.getElementById("ai-read-external-research-status");
+    const aiReadCostBudgetToggleEl = document.getElementById("ai-read-cost-budget-toggle");
+    const aiReadCostBudgetLabelEl = document.getElementById("ai-read-cost-budget-label");
+    const aiReadCostBudgetUsdEl = document.getElementById("ai-read-cost-budget-usd");
+    const aiReadCostBudgetApplyEl = document.getElementById("ai-read-cost-budget-apply");
+    const aiReadCostBudgetStatusEl = document.getElementById("ai-read-cost-budget-status");
     const aiReadCostGridEl = document.getElementById("ai-read-cost-grid");
     const aiReadCostListEl = document.getElementById("ai-read-cost-list");
     const autoSelectorEnabledToggleEl = document.getElementById("auto-selector-enabled-toggle");
@@ -410,6 +428,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     let aiReadConfigured = null;
     let aiReadExternalResearchEnabled = false;
     let aiReadExternalResearchInFlight = false;
+    let aiReadCostBudgetEnabled = false;
+    let aiReadCostBudgetInFlight = false;
     let autoSelectorEnabled = false;
     let autoSelectorSettingsDirty = false;
     let autoSelectorRequestInFlight = false;
@@ -903,6 +923,34 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           : "External web research is off. AI reads still use the local press-release/SEC database as their first research source."
         : "TradersLink AI Read is unavailable because its OpenAI service or live website publisher is not configured.";
 
+      const budget = status.aiReadDailyCostBudget || {};
+      const budgetStatus = status.aiReadDailyCostBudgetStatus || {};
+      if (!aiReadCostBudgetInFlight) {
+        aiReadCostBudgetEnabled = budget.enabled === true;
+        const dailyLimitUsd = Number(budget.dailyLimitUsd);
+        if (Number.isFinite(dailyLimitUsd) && dailyLimitUsd > 0) {
+          aiReadCostBudgetUsdEl.value = dailyLimitUsd.toFixed(2);
+        }
+      }
+      aiReadCostBudgetToggleEl.checked = aiReadCostBudgetEnabled;
+      aiReadCostBudgetToggleEl.disabled = !aiReadConfigured || aiReadCostBudgetInFlight;
+      aiReadCostBudgetUsdEl.disabled = !aiReadConfigured || aiReadCostBudgetInFlight;
+      aiReadCostBudgetApplyEl.disabled = !aiReadConfigured || aiReadCostBudgetInFlight;
+      aiReadCostBudgetLabelEl.textContent = aiReadCostBudgetEnabled ? "On" : "Off";
+      if (!aiReadConfigured) {
+        aiReadCostBudgetStatusEl.textContent = "Configure the TradersLink AI Read service before using the budget guard.";
+      } else if (!aiReadCostBudgetEnabled) {
+        aiReadCostBudgetStatusEl.textContent =
+          "Off. This does not limit AI Reads. Set a dollar amount and turn it on whenever you want a daily preflight guard.";
+      } else {
+        const spent = formatAiReadCost(budgetStatus.spentUsd);
+        const remaining = formatAiReadCost(budgetStatus.remainingUsd);
+        const reserve = formatAiReadCost(budgetStatus.projectedNextRequestUsd);
+        aiReadCostBudgetStatusEl.textContent = budgetStatus.canStartRequest === false
+          ? "Guard is holding new reads: " + String(budgetStatus.blockReason || "daily budget reached.")
+          : "On. Today: " + spent + " spent, " + remaining + " remaining; " + reserve + " is reserved before a new read starts.";
+      }
+
       const summary = status.aiReadCostSummary || {};
       const windows = summary.windows || {};
       const today = windows.today || {};
@@ -914,6 +962,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const cards = [
         ["Today", formatAiReadCost(today.estimatedTotalCostUsd)],
         ["Today Requests", String(today.requestCount || 0)],
+        ["AI Model", String(status.aiReadModel || "not configured")],
+        ["Reasoning", String(status.aiReadReasoningEffort || "not configured")],
+        ["Daily Guard", aiReadCostBudgetEnabled ? formatAiReadCost(budget.dailyLimitUsd) : "Off"],
         ["Last 7 Days", formatAiReadCost(last7Days.estimatedTotalCostUsd)],
         ["Last 30 Days", formatAiReadCost(last30Days.estimatedTotalCostUsd)],
         ["All Time", formatAiReadCost(allTime.estimatedTotalCostUsd)],
@@ -954,6 +1005,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           String(ticker.lastTrigger || "unknown");
         body.appendChild(detail);
         item.appendChild(body);
+        aiReadCostListEl.appendChild(item);
+      }
+
+      const byModel = Array.isArray(summary.byModel) ? summary.byModel : [];
+      for (const model of byModel) {
+        const item = document.createElement("li");
+        item.className = "activity-detail";
+        item.textContent =
+          "Model " + String(model.model || "unknown") + ": " +
+          formatAiReadCost(model.totals?.estimatedTotalCostUsd) + " across " +
+          String(model.totals?.requestCount || 0) + " recorded request(s).";
         aiReadCostListEl.appendChild(item);
       }
     }
@@ -1804,6 +1866,51 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyAiReadCostBudget() {
+      const dailyLimitUsd = Number(aiReadCostBudgetUsdEl.value);
+      if (!Number.isFinite(dailyLimitUsd) || dailyLimitUsd < 0.01 || dailyLimitUsd > 10000) {
+        setStatus("AI Read daily budget must be between $0.01 and $10,000.00.", true);
+        return;
+      }
+      const requestedEnabled = aiReadCostBudgetToggleEl.checked;
+      aiReadCostBudgetInFlight = true;
+      aiReadCostBudgetToggleEl.disabled = true;
+      aiReadCostBudgetUsdEl.disabled = true;
+      aiReadCostBudgetApplyEl.disabled = true;
+      setStatus("Saving AI Read daily spend guard...");
+      try {
+        const response = await fetch("/api/runtime/ai-read-cost-budget", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: requestedEnabled, dailyLimitUsd }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "AI Read daily budget update failed", true);
+          return;
+        }
+        aiReadCostBudgetEnabled = payload.budget?.enabled === true;
+        aiReadCostBudgetUsdEl.value = Number(payload.budget?.dailyLimitUsd || dailyLimitUsd).toFixed(2);
+        setStatus(
+          aiReadCostBudgetEnabled
+            ? "AI Read daily spend guard enabled."
+            : "AI Read daily spend guard disabled.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        aiReadCostBudgetInFlight = false;
+        renderAiReadControls({
+          aiReadConfigured,
+          aiReadDailyCostBudget: {
+            enabled: aiReadCostBudgetEnabled,
+            dailyLimitUsd: Number(aiReadCostBudgetUsdEl.value) || 1,
+          },
+        });
+      }
+    }
+
     function readAutoSelectorNumber(key, multiplier) {
       const value = Number(autoSelectorInputEls[key].value);
       if (!Number.isFinite(value)) {
@@ -2001,6 +2108,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     liveTraderReadVisibleToggleEl.addEventListener("change", applyLiveTraderReadVisibilitySelection);
     potentialGainVisibleToggleEl.addEventListener("change", applyPotentialGainVisibilitySelection);
     aiReadExternalResearchToggleEl.addEventListener("change", applyAiReadExternalResearchSelection);
+    aiReadCostBudgetToggleEl.addEventListener("change", applyAiReadCostBudget);
+    aiReadCostBudgetApplyEl.addEventListener("click", applyAiReadCostBudget);
     autoSelectorEnabledToggleEl.addEventListener("change", applyAutoSelectorToggle);
     autoSelectorApplyButtonEl.addEventListener("click", applyAutoSelectorSettings);
     autoSelectorPreviewButtonEl.addEventListener("click", previewAutoSelector);

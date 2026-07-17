@@ -826,12 +826,18 @@ async function main(): Promise<void> {
     persistedTradersLinkAiReadSettings?.externalResearchEnabled ??
     tradersLinkAiReadService?.isExternalResearchEnabled() ??
     false;
+  let aiReadDailyCostBudget = {
+    enabled: persistedTradersLinkAiReadSettings?.dailyCostBudgetEnabled ?? false,
+    dailyLimitUsd: persistedTradersLinkAiReadSettings?.dailyCostBudgetUsd ?? 1,
+  };
   tradersLinkAiReadService?.setExternalResearchEnabled(aiReadExternalResearchEnabled);
   if (!persistedTradersLinkAiReadSettings) {
     tradersLinkAiReadSettingsPersistence.save({
       externalResearchEnabled: aiReadExternalResearchEnabled,
       liveTraderReadCardVisible: true,
       potentialGainCardVisible: true,
+      dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+      dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
     });
   }
   const tradersLinkAiReadCostLedger = new TradersLinkAiReadCostLedger({
@@ -869,6 +875,7 @@ async function main(): Promise<void> {
     liveWatchlistPublisher,
     tradersLinkAiReadService,
     tradersLinkAiReadCostLedger,
+    initialTradersLinkAiReadDailyCostBudget: aiReadDailyCostBudget,
     tradersLinkAiReadStartupRefreshEnabled: isTruthyEnv(
       process.env.TRADERSLINK_AI_READ_STARTUP_REFRESH_ENABLED,
     ),
@@ -1037,6 +1044,10 @@ async function main(): Promise<void> {
         aiCommentaryEnabled: aiCommentaryService !== null,
         aiReadConfigured: manager.isTradersLinkAiReadConfigured(),
         aiReadExternalResearchEnabled,
+        aiReadModel: tradersLinkAiReadService?.getConfiguredModel() ?? null,
+        aiReadReasoningEffort: tradersLinkAiReadService?.getReasoningEffort() ?? null,
+        aiReadDailyCostBudget: manager.getTradersLinkAiReadDailyCostBudget(),
+        aiReadDailyCostBudgetStatus: manager.getTradersLinkAiReadDailyCostBudgetStatus(),
         aiReadCostSummary: tradersLinkAiReadCostLedger.summarize(),
         runtimeConfig: {
           bindHost: LOCAL_BIND_HOST,
@@ -1098,6 +1109,8 @@ async function main(): Promise<void> {
           externalResearchEnabled: body.enabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
         aiReadExternalResearchEnabled = body.enabled;
         tradersLinkAiReadService?.setExternalResearchEnabled(body.enabled);
@@ -1113,6 +1126,42 @@ async function main(): Promise<void> {
         }
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-cost-budget") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.enabled !== "boolean") {
+          sendJson(response, 400, { error: "Boolean enabled value is required." });
+          return;
+        }
+        const dailyLimitUsd = typeof body.dailyLimitUsd === "number" ? body.dailyLimitUsd : Number.NaN;
+        aiReadDailyCostBudget = manager.setTradersLinkAiReadDailyCostBudget({
+          enabled: body.enabled,
+          dailyLimitUsd,
+        });
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          budget: aiReadDailyCostBudget,
+          status: manager.getTradersLinkAiReadDailyCostBudgetStatus(),
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 400, { error: message });
       }
       return;
     }
@@ -1390,6 +1439,8 @@ async function main(): Promise<void> {
           externalResearchEnabled: aiReadExternalResearchEnabled,
           liveTraderReadCardVisible: result.visible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
         publishLiveWatchlistHealth({
           publisher: liveWatchlistHealthPublisher,
@@ -1441,6 +1492,8 @@ async function main(): Promise<void> {
           externalResearchEnabled: aiReadExternalResearchEnabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: result.visible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
         sendJson(response, 200, {
           ok: true,

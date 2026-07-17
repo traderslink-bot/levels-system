@@ -67,6 +67,12 @@ function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundary
     currentPrice: value.currentPrice,
     upperBoundary: normalizeBoundary(value.upperBoundary),
     lowerBoundary: normalizeBoundary(value.lowerBoundary),
+    lastAutomaticRefreshRegime:
+      typeof value.lastAutomaticRefreshRegime === "string" &&
+      value.lastAutomaticRefreshRegime.length > 0 &&
+      value.lastAutomaticRefreshRegime.length <= 160
+        ? value.lastAutomaticRefreshRegime
+        : null,
   };
 }
 

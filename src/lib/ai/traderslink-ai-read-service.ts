@@ -21,8 +21,10 @@ import type {
   TradersLinkAiReadUsage,
 } from "../live-watchlist/live-watchlist-types.js";
 
-const DEFAULT_MODEL = "gpt-5.6-terra";
-const DEFAULT_FALLBACK_MODEL = "gpt-5.4";
+// Luna is the lower-cost primary model for high-frequency trader-read work.  Terra
+// stays available as the automatic compatibility fallback and as an explicit env override.
+const DEFAULT_MODEL = "gpt-5.6-luna";
+const DEFAULT_FALLBACK_MODEL = "gpt-5.6-terra";
 const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 8_000;
 const DEFAULT_WEB_SEARCH_PRICE_PER_1K_CALLS = 10;
@@ -121,6 +123,8 @@ export type TradersLinkAiReadService = {
   generate(input: TradersLinkAiReadGenerationInput): Promise<TradersLinkAiReadPayload>;
   isExternalResearchEnabled(): boolean;
   setExternalResearchEnabled(enabled: boolean): void;
+  getConfiguredModel(): string;
+  getReasoningEffort(): NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
 };
 
 export type OpenAITradersLinkAiReadServiceOptions = {
@@ -1239,7 +1243,7 @@ function buildRequestBody(args: {
     : [];
   return {
     model: args.model,
-    reasoning: { effort: args.reasoningEffort ?? "high" },
+    reasoning: { effort: args.reasoningEffort ?? "medium" },
     max_output_tokens: args.maxOutputTokens,
     ...(args.webSearchEnabled ? { tools: [{ type: "web_search" }] } : {}),
     ...(args.webSearchEnabled ? { include: ["web_search_call.action.sources"] } : {}),
@@ -1300,7 +1304,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
   private readonly timeoutMs: number;
   private readonly maxOutputTokens: number;
   private webSearchEnabled: boolean;
-  private readonly reasoningEffort: OpenAITradersLinkAiReadServiceOptions["reasoningEffort"];
+  private readonly reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
 
   constructor(private readonly options: OpenAITradersLinkAiReadServiceOptions) {
     this.model = options.model?.trim() || DEFAULT_MODEL;
@@ -1309,7 +1313,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxOutputTokens = options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
     this.webSearchEnabled = options.webSearchEnabled === true;
-    this.reasoningEffort = options.reasoningEffort ?? "high";
+    this.reasoningEffort = options.reasoningEffort ?? "medium";
   }
 
   isExternalResearchEnabled(): boolean {
@@ -1318,6 +1322,14 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
 
   setExternalResearchEnabled(enabled: boolean): void {
     this.webSearchEnabled = enabled;
+  }
+
+  getConfiguredModel(): string {
+    return this.model;
+  }
+
+  getReasoningEffort(): NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]> {
+    return this.reasoningEffort;
   }
 
   private async request(
@@ -1577,7 +1589,9 @@ export function createTradersLinkAiReadServiceFromEnv(
   }
   const effort = env.TRADERSLINK_AI_READ_REASONING_EFFORT?.trim().toLowerCase();
   const reasoningEffort =
-    effort === "low" || effort === "medium" || effort === "xhigh" ? effort : "high";
+    effort === "low" || effort === "medium" || effort === "high" || effort === "xhigh"
+      ? effort
+      : "medium";
   return new OpenAITradersLinkAiReadService({
     apiKey,
     model: env.TRADERSLINK_AI_READ_MODEL?.trim() || DEFAULT_MODEL,

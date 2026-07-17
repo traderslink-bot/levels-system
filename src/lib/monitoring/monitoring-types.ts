@@ -257,6 +257,12 @@ export type TradersLinkAiReadBoundaryState = {
   currentPrice: number;
   upperBoundary: number | null;
   lowerBoundary: number | null;
+  /**
+   * The exact automatic range-edge/boundary event already serviced by this map.
+   * Keeping it with the published map prevents a stale re-cross from buying a
+   * duplicate read after price whipsaws back through an old boundary.
+   */
+  lastAutomaticRefreshRegime?: string | null;
 };
 
 export type WatchlistEntry = {

@@ -74,6 +74,16 @@ export type TradersLinkAiReadCostSummary = {
   byModel: Array<{ model: string; totals: TradersLinkAiReadCostTotals }>;
 };
 
+export type TradersLinkAiReadDailyCostBudgetStatus = {
+  enabled: boolean;
+  dailyLimitUsd: number;
+  spentUsd: number;
+  projectedNextRequestUsd: number;
+  remainingUsd: number;
+  canStartRequest: boolean;
+  blockReason: string | null;
+};
+
 export type TradersLinkAiReadCostLedgerOptions = {
   filePath?: string;
 };
@@ -84,6 +94,8 @@ const DEFAULT_LEDGER_FILE = resolve(
   "traderslink-ai-read-costs.jsonl",
 );
 const DAY_MS = 24 * 60 * 60 * 1_000;
+const DEFAULT_NEXT_REQUEST_RESERVE_USD = 0.1;
+const RECENT_REQUEST_RESERVE_SAMPLE_SIZE = 8;
 
 function roundUsd(value: number): number {
   return Math.round(value * 100_000_000) / 100_000_000;
@@ -372,6 +384,57 @@ export class TradersLinkAiReadCostLedger {
       byModel: [...grouped((entry) => entry.model).entries()]
         .map(([model, modelEntries]) => ({ model, totals: totalsFor(modelEntries) }))
         .sort((a, b) => b.totals.estimatedTotalCostUsd - a.totals.estimatedTotalCostUsd),
+    };
+  }
+
+  getDailyCostBudgetStatus(args: {
+    enabled: boolean;
+    dailyLimitUsd: number;
+    now?: number;
+  }): TradersLinkAiReadDailyCostBudgetStatus {
+    const now = args.now ?? Date.now();
+    const dailyLimitUsd = roundUsd(Math.max(0, args.dailyLimitUsd));
+    const summary = this.summarize(now);
+    const spentUsd = summary.windows.today.estimatedTotalCostUsd;
+    const recentSuccessfulCosts = this.load()
+      .filter((entry) =>
+        entry.generatedAt <= now &&
+        easternDateKey(entry.generatedAt) === easternDateKey(now) &&
+        entry.status !== "publish_error" &&
+        entry.usage.estimatedTotalCostUsd !== null,
+      )
+      .sort((left, right) => right.generatedAt - left.generatedAt)
+      .slice(0, RECENT_REQUEST_RESERVE_SAMPLE_SIZE)
+      .map((entry) => entry.usage.estimatedTotalCostUsd ?? 0)
+      .filter((cost) => cost > 0);
+    const projectedNextRequestUsd = roundUsd(
+      recentSuccessfulCosts.length > 0
+        ? Math.max(
+            0.01,
+            recentSuccessfulCosts.reduce((sum, cost) => sum + cost, 0) /
+              recentSuccessfulCosts.length,
+          )
+        : DEFAULT_NEXT_REQUEST_RESERVE_USD,
+    );
+    const remainingUsd = roundUsd(Math.max(0, dailyLimitUsd - spentUsd));
+    let blockReason: string | null = null;
+    if (args.enabled && !summary.accountingHealth.healthy) {
+      blockReason = "Expense ledger is unhealthy, so the budget guard cannot safely estimate today's spend.";
+    } else if (args.enabled && summary.windows.today.unpricedRequestCount > 0) {
+      blockReason = "At least one AI request today is unpriced, so the budget guard cannot safely estimate today's spend.";
+    } else if (args.enabled && dailyLimitUsd <= 0) {
+      blockReason = "A positive daily budget is required when the budget guard is enabled.";
+    } else if (args.enabled && spentUsd + projectedNextRequestUsd > dailyLimitUsd) {
+      blockReason = "Today's recorded spend plus the next-request reserve would exceed the daily budget.";
+    }
+    return {
+      enabled: args.enabled,
+      dailyLimitUsd,
+      spentUsd,
+      projectedNextRequestUsd,
+      remainingUsd,
+      canStartRequest: !args.enabled || blockReason === null,
+      blockReason,
     };
   }
 }

@@ -145,4 +145,33 @@ describe("TradersLinkAiReadCostLedger", () => {
       rmSync(directory, { recursive: true, force: true });
     }
   });
+
+  it("uses a recent-request reserve to stop new reads before an enabled daily budget is exhausted", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-budget-"));
+    try {
+      const ledger = new TradersLinkAiReadCostLedger({ filePath: join(directory, "costs.jsonl") });
+      const now = Date.parse("2026-07-17T18:00:00.000Z");
+      ledger.record({ read: read("TGHL", now - 60_000, 0.025), trigger: "manual" });
+      ledger.record({ read: read("BIYA", now - 2 * 60_000, 0.02), trigger: "activation" });
+
+      const allowed = ledger.getDailyCostBudgetStatus({
+        enabled: true,
+        dailyLimitUsd: 0.1,
+        now,
+      });
+      assert.equal(allowed.spentUsd, 0.045);
+      assert.equal(allowed.projectedNextRequestUsd, 0.0225);
+      assert.equal(allowed.canStartRequest, true);
+
+      const blocked = ledger.getDailyCostBudgetStatus({
+        enabled: true,
+        dailyLimitUsd: 0.05,
+        now,
+      });
+      assert.equal(blocked.canStartRequest, false);
+      assert.match(blocked.blockReason ?? "", /reserve/i);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });

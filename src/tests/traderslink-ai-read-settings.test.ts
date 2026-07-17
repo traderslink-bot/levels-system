@@ -25,13 +25,41 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
       externalResearchEnabled: false,
       liveTraderReadCardVisible: false,
       potentialGainCardVisible: true,
+      dailyCostBudgetEnabled: false,
+      dailyCostBudgetUsd: 1,
     });
     assert.deepEqual(persistence.load(), {
-      version: 2,
+      version: 3,
       lastUpdated: persistence.load()?.lastUpdated,
       externalResearchEnabled: false,
       liveTraderReadCardVisible: false,
       potentialGainCardVisible: true,
+      dailyCostBudgetEnabled: false,
+      dailyCostBudgetUsd: 1,
+    });
+  });
+
+  it("migrates earlier settings with the daily cost guard safely off", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-settings-migration-"));
+    tempDirectories.push(directory);
+    const filePath = join(directory, "settings.json");
+    writeFileSync(filePath, JSON.stringify({
+      version: 2,
+      lastUpdated: 123,
+      externalResearchEnabled: false,
+      liveTraderReadCardVisible: true,
+      potentialGainCardVisible: true,
+    }));
+
+    const loaded = new TradersLinkAiReadSettingsPersistence({ filePath }).load();
+    assert.deepEqual(loaded, {
+      version: 3,
+      lastUpdated: 123,
+      externalResearchEnabled: false,
+      liveTraderReadCardVisible: true,
+      potentialGainCardVisible: true,
+      dailyCostBudgetEnabled: false,
+      dailyCostBudgetUsd: 1,
     });
   });
 

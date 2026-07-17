@@ -77,7 +77,11 @@ describe("TradersLink AI Read refresh decisions", () => {
       allowInitialGeneration: false,
     });
 
-    assert.deepEqual(decision, { shouldRefresh: false, trigger: "startup" });
+    assert.deepEqual(decision, {
+      shouldRefresh: false,
+      trigger: "startup",
+      automaticRefreshRegime: null,
+    });
   });
 
   it("still allows an explicitly requested initial read", () => {
@@ -90,7 +94,11 @@ describe("TradersLink AI Read refresh decisions", () => {
       allowInitialGeneration: false,
     });
 
-    assert.deepEqual(decision, { shouldRefresh: true, trigger: "manual" });
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "manual",
+      automaticRefreshRegime: null,
+    });
   });
 
   it("refreshes immediately when price exits above the outer upside target", () => {
@@ -102,7 +110,11 @@ describe("TradersLink AI Read refresh decisions", () => {
       requestedTrigger: "automatic",
     });
 
-    assert.deepEqual(decision, { shouldRefresh: true, trigger: "boundary_cross" });
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "boundary_cross",
+      automaticRefreshRegime: "upper:2",
+    });
   });
 
   it("refreshes immediately when price exits below the outer downside checkpoint", () => {
@@ -114,7 +126,11 @@ describe("TradersLink AI Read refresh decisions", () => {
       requestedTrigger: "automatic",
     });
 
-    assert.deepEqual(decision, { shouldRefresh: true, trigger: "boundary_cross" });
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "boundary_cross",
+      automaticRefreshRegime: "lower:1.05",
+    });
   });
 
   it("refreshes near the upside edge before the old map runs out", () => {
@@ -129,7 +145,11 @@ describe("TradersLink AI Read refresh decisions", () => {
       requestedTrigger: "automatic",
     });
 
-    assert.deepEqual(decision, { shouldRefresh: true, trigger: "range_edge" });
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "range_edge",
+      automaticRefreshRegime: "upper:2",
+    });
   });
 
   it("refreshes near the downside edge before the old map runs out", () => {
@@ -144,7 +164,11 @@ describe("TradersLink AI Read refresh decisions", () => {
       requestedTrigger: "automatic",
     });
 
-    assert.deepEqual(decision, { shouldRefresh: true, trigger: "range_edge" });
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "range_edge",
+      automaticRefreshRegime: "lower:1.05",
+    });
   });
 
   it("does not refresh for a routine five-percent small-cap move inside the analyzed range", () => {
@@ -156,7 +180,11 @@ describe("TradersLink AI Read refresh decisions", () => {
       requestedTrigger: "automatic",
     });
 
-    assert.deepEqual(decision, { shouldRefresh: false, trigger: "scheduled" });
+    assert.deepEqual(decision, {
+      shouldRefresh: false,
+      trigger: "scheduled",
+      automaticRefreshRegime: null,
+    });
   });
 
   it("does not spend on a time-only refresh while price remains inside the analyzed range", () => {
@@ -168,6 +196,29 @@ describe("TradersLink AI Read refresh decisions", () => {
       requestedTrigger: "automatic",
     });
 
-    assert.deepEqual(decision, { shouldRefresh: false, trigger: "scheduled" });
+    assert.deepEqual(decision, {
+      shouldRefresh: false,
+      trigger: "scheduled",
+      automaticRefreshRegime: null,
+    });
+  });
+
+  it("does not buy a second automatic read for a boundary regime the published map already serviced", () => {
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: {
+        ...state(),
+        lastAutomaticRefreshRegime: "upper:2",
+      },
+      currentPrice: 2.01,
+      dataAsOf: GENERATED_AT + 10 * 60_000,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+
+    assert.deepEqual(decision, {
+      shouldRefresh: false,
+      trigger: "boundary_cross",
+      automaticRefreshRegime: "upper:2",
+    });
   });
 });

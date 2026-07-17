@@ -231,6 +231,10 @@ export type ManualWatchlistRuntimeManagerOptions = {
   liveWatchlistPublisher?: LiveWatchlistPublisher | null;
   tradersLinkAiReadService?: TradersLinkAiReadService | null;
   tradersLinkAiReadCostLedger?: TradersLinkAiReadCostLedger | null;
+  initialTradersLinkAiReadDailyCostBudget?: {
+    enabled: boolean;
+    dailyLimitUsd: number;
+  };
   tradersLinkAiReadStartupRefreshEnabled?: boolean;
   initialLiveTraderReadCardVisible?: boolean;
   initialPotentialGainCardVisible?: boolean;
@@ -252,6 +256,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
 };
 
 const TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS = 0.85;
+const DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 1;
 export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "automatic";
 
 export type TradersLinkAiReadRefreshState = TradersLinkAiReadBoundaryState;
@@ -346,12 +351,17 @@ export function decideTradersLinkAiReadRefresh(args: {
   force: boolean;
   requestedTrigger: TradersLinkAiReadRequestedTrigger;
   allowInitialGeneration?: boolean;
-}): { shouldRefresh: boolean; trigger: TradersLinkAiReadCostTrigger } {
+}): {
+  shouldRefresh: boolean;
+  trigger: TradersLinkAiReadCostTrigger;
+  automaticRefreshRegime: string | null;
+} {
   const previous = args.previous;
   if (!previous) {
     return {
       shouldRefresh: args.force || args.allowInitialGeneration !== false,
       trigger: args.requestedTrigger === "automatic" ? "startup" : args.requestedTrigger,
+      automaticRefreshRegime: null,
     };
   }
   const crossedUpperBoundary =
@@ -382,9 +392,21 @@ export function decideTradersLinkAiReadRefresh(args: {
         ? "range_edge"
         : "scheduled"
     : args.requestedTrigger;
+  const automaticRefreshRegime = args.requestedTrigger === "automatic" &&
+    (crossedAnalysisBoundary || reachedRangeEdge)
+    ? crossedUpperBoundary || (reachedRangeEdge && upperProgress >= TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS)
+      ? `upper:${previous.upperBoundary ?? "none"}`
+      : `lower:${previous.lowerBoundary ?? "none"}`
+    : null;
+  const alreadyServedSameRegime =
+    !args.force &&
+    automaticRefreshRegime !== null &&
+    previous.lastAutomaticRefreshRegime === automaticRefreshRegime;
   return {
-    shouldRefresh: args.force || reachedRangeEdge || crossedAnalysisBoundary,
+    shouldRefresh:
+      args.force || ((!alreadyServedSameRegime) && (reachedRangeEdge || crossedAnalysisBoundary)),
     trigger,
+    automaticRefreshRegime,
   };
 }
 
@@ -2301,6 +2323,10 @@ export class ManualWatchlistRuntimeManager {
   private readonly aiReadInFlight = new Set<string>();
   private readonly aiReadState = new Map<string, TradersLinkAiReadRefreshState>();
   private readonly aiReadInitialGenerationSuppressedSymbols = new Set<string>();
+  private tradersLinkAiReadDailyCostBudget = {
+    enabled: false,
+    dailyLimitUsd: DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD,
+  };
   private readonly levelSeedStats = {
     attempts: 0,
     successes: 0,
@@ -2385,6 +2411,11 @@ export class ManualWatchlistRuntimeManager {
       options.initialLiveTraderReadCardVisible ?? resolveInitialLiveTraderReadCardVisible();
     this.potentialGainCardVisible =
       options.initialPotentialGainCardVisible ?? resolveInitialPotentialGainCardVisible();
+    if (options.initialTradersLinkAiReadDailyCostBudget) {
+      this.setTradersLinkAiReadDailyCostBudget(
+        options.initialTradersLinkAiReadDailyCostBudget,
+      );
+    }
     this.marketStructureStoryMemoryPath = options.marketStructureStoryMemoryPath?.trim() || null;
     this.marketStructureStandalonePostMode = resolveMarketStructureStandalonePostMode(
       options.marketStructureStandalonePostMode,
@@ -2634,6 +2665,41 @@ export class ManualWatchlistRuntimeManager {
     );
   }
 
+  getTradersLinkAiReadDailyCostBudget(): { enabled: boolean; dailyLimitUsd: number } {
+    return { ...this.tradersLinkAiReadDailyCostBudget };
+  }
+
+  setTradersLinkAiReadDailyCostBudget(input: {
+    enabled: boolean;
+    dailyLimitUsd: number;
+  }): { enabled: boolean; dailyLimitUsd: number } {
+    if (!Number.isFinite(input.dailyLimitUsd) || input.dailyLimitUsd < 0.01 || input.dailyLimitUsd > 10_000) {
+      throw new Error("The TradersLink AI Read daily budget must be between $0.01 and $10,000.00.");
+    }
+    this.tradersLinkAiReadDailyCostBudget = {
+      enabled: input.enabled === true,
+      dailyLimitUsd: Math.round(input.dailyLimitUsd * 100) / 100,
+    };
+    return this.getTradersLinkAiReadDailyCostBudget();
+  }
+
+  getTradersLinkAiReadDailyCostBudgetStatus() {
+    const ledger = this.options.tradersLinkAiReadCostLedger;
+    if (!ledger) {
+      return {
+        ...this.tradersLinkAiReadDailyCostBudget,
+        spentUsd: 0,
+        projectedNextRequestUsd: 0,
+        remainingUsd: this.tradersLinkAiReadDailyCostBudget.dailyLimitUsd,
+        canStartRequest: !this.tradersLinkAiReadDailyCostBudget.enabled,
+        blockReason: this.tradersLinkAiReadDailyCostBudget.enabled
+          ? "Expense ledger is unavailable, so the budget guard cannot safely estimate today's spend."
+          : null,
+      };
+    }
+    return ledger.getDailyCostBudgetStatus(this.tradersLinkAiReadDailyCostBudget);
+  }
+
   private async buildTradersLinkAiReadPriceActionContext(
     symbolInput: string,
     dataAsOf: number,
@@ -2796,6 +2862,14 @@ export class ManualWatchlistRuntimeManager {
       return null;
     }
 
+    const budgetStatus = this.getTradersLinkAiReadDailyCostBudgetStatus();
+    if (!budgetStatus.canStartRequest) {
+      console.warn(
+        `[TradersLinkAiRead] Skipped ${symbol}: ${budgetStatus.blockReason ?? "daily budget guard blocked the new request"}`,
+      );
+      return null;
+    }
+
     this.aiReadInFlight.add(symbol);
     try {
       const priceActionPromise = this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
@@ -2853,7 +2927,10 @@ export class ManualWatchlistRuntimeManager {
         });
         throw error;
       }
-      const nextRefreshState = buildTradersLinkAiReadRefreshState(read);
+      const nextRefreshState = {
+        ...buildTradersLinkAiReadRefreshState(read),
+        lastAutomaticRefreshRegime: refreshDecision.automaticRefreshRegime,
+      };
       this.aiReadState.set(symbol, nextRefreshState);
       this.watchlistStore.patchEntry(symbol, {
         tradersLinkAiReadBoundaryState: nextRefreshState,
