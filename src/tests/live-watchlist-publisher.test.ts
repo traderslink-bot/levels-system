@@ -6,6 +6,8 @@ import {
   buildLiveWatchlistSnapshotPatch,
   buildLiveWatchlistStatusPatch,
   buildLiveWatchlistTickerDataPatch,
+  buildTradersLinkAiReadPatch,
+  buildTradersLinkAiReadVisibilityPatch,
   LiveWatchlistHttpPublisher,
 } from "../lib/live-watchlist/live-watchlist-publisher.js";
 import {
@@ -14,6 +16,7 @@ import {
 } from "../lib/live-watchlist/recent-website-articles.js";
 import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import type { MonitoringEvent } from "../lib/monitoring/monitoring-types.js";
+import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchlist-types.js";
 
 function testMonitoringEvent(symbol = "EXMP", timestamp = 2000): MonitoringEvent {
   return {
@@ -546,5 +549,97 @@ describe("live watchlist publisher", () => {
 
     assert.equal(publishCount, 0);
     assert.match(warning, /lookup failed/);
+  });
+
+  it("builds a structured TradersLink AI Read card and an independent visibility patch", () => {
+    const read: TradersLinkAiReadPayload = {
+      version: 2,
+      symbol: "TGHL",
+      generatedAt: 3_000,
+      dataAsOf: 2_900,
+      currentPrice: 1.36,
+      marketSession: "postmarket",
+      bias: "bullish",
+      confidence: "medium",
+      currentRead: "Constructive while support holds.",
+      needsToHold: { label: "Support", price: 1.25, rationale: "Preserves structure." },
+      cautionBelow: { label: "Caution", price: 1.25, rationale: "Momentum starts to weaken." },
+      momentumFailure: { label: "Failure", price: 1.2, rationale: "Exposes lower support." },
+      mustClear: { label: "Breakout", price: 1.5, rationale: "Confirms continuation." },
+      breakoutContinuation: { label: "Continuation", price: 1.68, rationale: "Opens higher targets." },
+      targets: [{ label: "Target one", price: 1.8, condition: "After acceptance." }],
+      downsideCheckpoints: [
+        { label: "Lower support", price: 1.05, condition: "If momentum failure cannot reclaim." },
+      ],
+      catalystRealityCheck: {
+        status: "conditional",
+        summary: "A recent filing is the primary catalyst context.",
+        dayTradeRelevance: "Momentum still needs confirmation.",
+        sourceUrls: ["https://www.sec.gov/Archives/example"],
+      },
+      dilutionRisk: {
+        level: "high",
+        summary: "The transaction contemplates substantial share issuance.",
+        dayTradeRelevance: "Watch supply into spikes.",
+        sourceUrls: ["https://www.sec.gov/Archives/example"],
+        canCompanyIssueToday: false,
+        companyIssuance: {
+          status: "conditional",
+          earliestDate: null,
+          trigger: "merger_closing",
+          summary: "Issuance requires the transaction to close.",
+        },
+        publicResale: {
+          status: "conditional",
+          earliestDate: null,
+          trigger: "resale_registration",
+          summary: "Public resale requires registration or an exemption.",
+        },
+      },
+      listingStatus: {
+        status: "hearing_pending",
+        immediacy: "monitor",
+        summary: "The appeal is pending under an interim stay.",
+        dayTradeRelevance: "Background headline risk while trading remains active.",
+        sourceUrls: ["https://www.sec.gov/Archives/example"],
+      },
+      riskSummary: ["Thin liquidity."],
+      sources: [{
+        title: "Current report",
+        url: "https://www.sec.gov/Archives/example",
+        sourceType: "press_release_sec_database",
+      }],
+      model: "test-model",
+      usedWebSearch: true,
+      usage: {
+        inputTokens: 2_000,
+        cachedInputTokens: 200,
+        outputTokens: 500,
+        totalTokens: 2_500,
+        webSearchCallCount: 1,
+        tokenCostUsd: 0.01205,
+        webSearchCostUsd: 0.01,
+        estimatedTotalCostUsd: 0.02205,
+        pricing: {
+          source: "env_override",
+          inputPer1M: 2.5,
+          cachedInputPer1M: 0.25,
+          outputPer1M: 15,
+          webSearchPer1KCalls: 10,
+        },
+      },
+    };
+
+    const patch = buildTradersLinkAiReadPatch({ read, visible: true });
+    assert.equal(patch.symbol, "TGHL");
+    assert.equal(patch.tradersLinkAiReadCardVisible, true);
+    assert.deepEqual(JSON.parse(patch.cards.tradersLinkAiRead?.body ?? "{}"), read);
+    assert.equal(patch.cards.tradersLinkAiRead?.metadata?.model, "test-model");
+    assert.equal(patch.cards.tradersLinkAiRead?.metadata?.listingImmediacy, "monitor");
+
+    const visibility = buildTradersLinkAiReadVisibilityPatch({ symbol: "tghl", visible: false });
+    assert.equal(visibility.symbol, "TGHL");
+    assert.equal(visibility.tradersLinkAiReadCardVisible, false);
+    assert.deepEqual(visibility.cards, {});
   });
 });

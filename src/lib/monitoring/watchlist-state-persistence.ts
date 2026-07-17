@@ -88,6 +88,14 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     return null;
   }
 
+  if (
+    value.tradersLinkAiReadCardVisible !== undefined &&
+    value.tradersLinkAiReadCardVisible !== null &&
+    typeof value.tradersLinkAiReadCardVisible !== "boolean"
+  ) {
+    return null;
+  }
+
   return {
     symbol: value.symbol.trim().toUpperCase(),
     active: value.active,
@@ -111,6 +119,9 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     lastLevelPostAt: normalizeOptionalTimestamp(value.lastLevelPostAt),
     lastExtensionPostAt: normalizeOptionalTimestamp(value.lastExtensionPostAt),
     refreshPending: typeof value.refreshPending === "boolean" ? value.refreshPending : false,
+    ...(typeof value.tradersLinkAiReadCardVisible === "boolean"
+      ? { tradersLinkAiReadCardVisible: value.tradersLinkAiReadCardVisible }
+      : {}),
   };
 }
 
@@ -164,6 +175,9 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
       lastLevelPostAt: normalizeOptionalTimestamp(entry.lastLevelPostAt),
       lastExtensionPostAt: normalizeOptionalTimestamp(entry.lastExtensionPostAt),
       refreshPending: entry.refreshPending ?? false,
+      ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
+        ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
+        : {}),
     })),
   };
 }

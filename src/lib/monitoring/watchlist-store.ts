@@ -29,6 +29,9 @@ export class WatchlistStore {
       discordThreadId: entry.discordThreadId?.trim() || null,
       lifecycle,
       refreshPending: entry.refreshPending ?? false,
+      ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
+        ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
+        : {}),
       ...(activatedAt !== undefined ? { activatedAt } : {}),
       ...(lastLevelPostAt !== undefined ? { lastLevelPostAt } : {}),
       ...(lastExtensionPostAt !== undefined ? { lastExtensionPostAt } : {}),
@@ -73,6 +76,7 @@ export class WatchlistStore {
     lastLevelPostAt?: number;
     lastExtensionPostAt?: number;
     refreshPending?: boolean;
+    tradersLinkAiReadCardVisible?: boolean;
   }): WatchlistEntry {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.entries.get(symbol);
@@ -100,6 +104,12 @@ export class WatchlistStore {
       lastExtensionPostAt:
         normalizeFiniteTimestamp(input.lastExtensionPostAt) ?? existing?.lastExtensionPostAt,
       refreshPending: input.refreshPending ?? existing?.refreshPending ?? false,
+      ...(typeof (input.tradersLinkAiReadCardVisible ?? existing?.tradersLinkAiReadCardVisible) === "boolean"
+        ? {
+            tradersLinkAiReadCardVisible:
+              input.tradersLinkAiReadCardVisible ?? existing?.tradersLinkAiReadCardVisible,
+          }
+        : {}),
     };
 
     this.entries.set(symbol, entry);
