@@ -79,6 +79,55 @@ test("auto selector strongly favors known low float and rejects oversized share 
   assert.match(tooLarge.rejectionReasons.join(" "), /shares outstanding must be at most 60M/);
 });
 
+test("low-priced candidates can pass a dollar-float exception without outranking a true low float", () => {
+  const lowFloat = scoreAutoWatchlistCandidate({
+    candidate: {
+      ...BASE_CANDIDATE,
+      price: 0.3,
+      volume: 1_000_000,
+    },
+    floatShares: 10_000_000,
+  });
+  const normalized = scoreAutoWatchlistCandidate({
+    candidate: {
+      ...BASE_CANDIDATE,
+      price: 0.3,
+      volume: 1_000_000,
+    },
+    floatShares: 100_000_000,
+  });
+  const oversizedDollarFloat = scoreAutoWatchlistCandidate({
+    candidate: {
+      ...BASE_CANDIDATE,
+      price: 0.3,
+      volume: 1_000_000,
+    },
+    floatShares: 200_000_000,
+  });
+
+  assert.equal(normalized.qualified, true);
+  assert.equal(normalized.lowPriceFloatNormalized, true);
+  assert.equal(normalized.floatDollarValue, 30_000_000);
+  assert.ok(lowFloat.score > normalized.score);
+  assert.equal(oversizedDollarFloat.qualified, false);
+  assert.match(oversizedDollarFloat.rejectionReasons.join(" "), /low-price dollar float/i);
+});
+
+test("the low-price dollar-float exception never relaxes the fallback outstanding-share cap", () => {
+  const result = scoreAutoWatchlistCandidate({
+    candidate: {
+      ...BASE_CANDIDATE,
+      price: 0.3,
+      volume: 1_000_000,
+    },
+    finnhubSharesOutstanding: 60_000_001,
+  });
+
+  assert.equal(result.qualified, false);
+  assert.equal(result.lowPriceFloatNormalized, false);
+  assert.match(result.rejectionReasons.join(" "), /shares outstanding must be at most 60M/);
+});
+
 test("auto selector rejects candidates over the $100M default market-cap ceiling", () => {
   const result = scoreAutoWatchlistCandidate({
     candidate: {

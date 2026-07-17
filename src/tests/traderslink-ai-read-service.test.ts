@@ -751,10 +751,11 @@ describe("OpenAITradersLinkAiReadService", () => {
 
   it("drops duplicate scenario checkpoints instead of paying for a correction", async () => {
     const duplicateCheckpointRead = modelRead();
+    const duplicateMomentumFailure = duplicateCheckpointRead.momentumFailure as { price: number };
     duplicateCheckpointRead.downsideCheckpoints = [
       {
         label: "Duplicate failure reference",
-        price: duplicateCheckpointRead.momentumFailure.price,
+        price: duplicateMomentumFailure.price,
         condition: "The prior regular session low becomes the same failure reference.",
       },
       {

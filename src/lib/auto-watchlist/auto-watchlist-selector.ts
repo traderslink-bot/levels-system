@@ -34,6 +34,9 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxMarketCap: 100_000_000,
   maxFloatShares: 50_000_000,
   maxSharesOutstanding: 60_000_000,
+  lowPriceFloatNormalizationEnabled: true,
+  lowPriceFloatNormalizationMaxPrice: 0.5,
+  lowPriceFloatNormalizationMaxDollarValue: 50_000_000,
   requireShareData: true,
   minPrice: 0.25,
   maxPrice: 20,
@@ -87,6 +90,14 @@ export type AutoWatchlistSelectorThresholds = {
   maxMarketCap: number;
   maxFloatShares: number;
   maxSharesOutstanding: number;
+  /**
+   * Allows a known float above maxFloatShares only when a sub-dollar ticker's
+   * float value remains under the dollar ceiling. This is deliberately not a
+   * replacement for the share-count cap on normal-priced names.
+   */
+  lowPriceFloatNormalizationEnabled: boolean;
+  lowPriceFloatNormalizationMaxPrice: number;
+  lowPriceFloatNormalizationMaxDollarValue: number;
   requireShareData: boolean;
   minPrice: number;
   maxPrice: number;
@@ -157,6 +168,8 @@ export type AutoWatchlistCandidateDecision = AutoWatchlistDiscoveryCandidate & {
   sharesOutstanding: number | null;
   effectiveShares: number | null;
   effectiveSharesSource: "yahoo_float" | "yahoo_outstanding" | "finnhub_outstanding" | null;
+  floatDollarValue: number | null;
+  lowPriceFloatNormalized: boolean;
   session: AutoWatchlistSession;
   sessionVolume: number | null;
   sessionDollarVolume: number | null;
@@ -363,6 +376,7 @@ const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "maxMarketCap",
   "maxFloatShares",
   "maxSharesOutstanding",
+  "lowPriceFloatNormalizationMaxDollarValue",
   "minVolume",
   "minDollarVolume",
   "minimumScore",
@@ -411,6 +425,7 @@ export function resolveAutoWatchlistSelectorThresholds(
   ]>) {
     if (
       key === "requireShareData" ||
+      key === "lowPriceFloatNormalizationEnabled" ||
       key === "catalystRankingEnabled" ||
       key === "premarketEnabled" ||
       key === "regularHoursEnabled" ||
@@ -433,6 +448,13 @@ export function resolveAutoWatchlistSelectorThresholds(
   }
   if (resolved.maxMarketCap <= 0 || resolved.maxFloatShares <= 0 || resolved.maxSharesOutstanding <= 0) {
     throw new Error("Market-cap and share ceilings must be greater than zero.");
+  }
+  if (
+    resolved.lowPriceFloatNormalizationMaxPrice <= 0 ||
+    resolved.lowPriceFloatNormalizationMaxPrice > resolved.maxPrice ||
+    resolved.lowPriceFloatNormalizationMaxDollarValue <= 0
+  ) {
+    throw new Error("Low-price float normalization limits must be positive and inside the price range.");
   }
   if (resolved.minPrice <= 0 || resolved.maxPrice <= resolved.minPrice) {
     throw new Error("maxPrice must be greater than minPrice, and both must be positive.");
@@ -799,6 +821,18 @@ export function scoreAutoWatchlistCandidate(input: {
   const session = input.session ?? "regular";
   const activity = input.activity ?? null;
   const requiredRecentDollarVolume = minimumRecentDollarVolume(session, thresholds);
+  const floatDollarValue = floatShares && candidate.price
+    ? floatShares * candidate.price
+    : null;
+  const lowPriceFloatNormalized = Boolean(
+    thresholds.lowPriceFloatNormalizationEnabled &&
+    floatShares &&
+    candidate.price &&
+    candidate.price <= thresholds.lowPriceFloatNormalizationMaxPrice &&
+    floatShares > thresholds.maxFloatShares &&
+    floatDollarValue !== null &&
+    floatDollarValue <= thresholds.lowPriceFloatNormalizationMaxDollarValue,
+  );
 
   if (input.session && session === "closed") {
     rejectionReasons.push("the market session is closed");
@@ -846,8 +880,19 @@ export function scoreAutoWatchlistCandidate(input: {
   }
   if (!effectiveShares && thresholds.requireShareData) {
     rejectionReasons.push("float or shares outstanding must be available");
-  } else if (floatShares && floatShares > thresholds.maxFloatShares) {
-    rejectionReasons.push(`float must be at most ${Math.round(thresholds.maxFloatShares / 1_000_000)}M shares`);
+  } else if (floatShares && floatShares > thresholds.maxFloatShares && !lowPriceFloatNormalized) {
+    if (
+      thresholds.lowPriceFloatNormalizationEnabled &&
+      candidate.price &&
+      candidate.price <= thresholds.lowPriceFloatNormalizationMaxPrice &&
+      floatDollarValue !== null
+    ) {
+      rejectionReasons.push(
+        `float must be at most ${Math.round(thresholds.maxFloatShares / 1_000_000)}M shares or have at most $${Math.round(thresholds.lowPriceFloatNormalizationMaxDollarValue / 1_000_000)}M low-price dollar float`,
+      );
+    } else {
+      rejectionReasons.push(`float must be at most ${Math.round(thresholds.maxFloatShares / 1_000_000)}M shares`);
+    }
   } else if (!floatShares && sharesOutstanding && sharesOutstanding > thresholds.maxSharesOutstanding) {
     rejectionReasons.push(`shares outstanding must be at most ${Math.round(thresholds.maxSharesOutstanding / 1_000_000)}M`);
   }
@@ -901,6 +946,11 @@ export function scoreAutoWatchlistCandidate(input: {
     } else if (floatShares <= thresholds.maxFloatShares) {
       score += 10;
       reasons.push(`float at or below ${Math.round(thresholds.maxFloatShares / 1_000_000)}M`);
+    } else if (lowPriceFloatNormalized && floatDollarValue !== null) {
+      score += 5;
+      reasons.push(
+        `$${(floatDollarValue / 1_000_000).toFixed(1)}M dollar float meets the low-price limit`,
+      );
     }
   } else if (sharesOutstanding) {
     if (sharesOutstanding <= 10_000_000) {
@@ -938,6 +988,8 @@ export function scoreAutoWatchlistCandidate(input: {
     sharesOutstanding,
     effectiveShares,
     effectiveSharesSource,
+    floatDollarValue,
+    lowPriceFloatNormalized,
     reasons,
     rejectionReasons,
   };
