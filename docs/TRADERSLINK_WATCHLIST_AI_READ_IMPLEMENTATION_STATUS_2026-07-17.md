@@ -3,7 +3,7 @@
 **Last verified:** 2026-07-17  
 **Implementation branch:** `codex/watchlist-ai-audit-remediation-20260717`  
 **Original outside audit:** `docs/TRADERSLINK_WATCHLIST_AI_READ_QA_AUDIT_2026-07-17.md`  
-**Status:** Code remediation is complete. The remaining gates are production deployment/authentication verification and an optional, separately authorized live-model sampleâ€”not unresolved source defects.
+**Status:** Code remediation and the guarded production rollout are complete. The remaining items are optional quality enrichment and a separately authorized paid live-model sampleâ€”not unresolved source defects.
 
 ## What was completed
 
@@ -67,21 +67,29 @@ npm run check
 
 The broader audit remediation command results and the five-symbol fixture evidence are retained in the original audit document.
 
-## Remaining release gates
+## Release verification completed
+
+- The Levels Desktop-BAT runtime was restarted on the remediation commit after the website deployment reached Ready. It reports `startupState: ready`, `gpt-5.6-luna`, medium reasoning, external research disabled, and three active symbols.
+- The website change merged through PR [#99](https://github.com/traderslink-bot/traderslink-trader-improvement-system/pull/99) with a successful `test-and-verify` check, then deployed from clean `main` to `https://traderslink.pro`.
+- An authenticated publish health request received HTTP 200 after the deployment. The protected live watchlist smoke check showed `Live Data: ON`, three current ticker rows, and current price/update timestamps. BIYA's protected detail page rendered the complete TradersLink AI Read card: trade summary, needs-to-hold, caution, momentum failure, must-clear, continuation, upside targets, downside checkpoints, and risk checks.
+- The selector's non-mutating Preview Scan completed with the real configured providers: 50 candidates, 12 evaluated, 6 qualified, no additions, and the cached EODHD common-equity security master available with no error. The active count remained three.
+
+During rollout, the Levels runtime was first restarted before the compatible website deployment was Ready and received HTTP 400 responses from the prior ingest contract. The website was then deployed, a real authenticated health patch returned HTTP 200, and the runtime was restarted cleanly. The final runtime and UI smoke checks above are the release evidence. Future coordinated releases must deploy the website ingest contract before restarting a runtime that publishes the newer payload.
+
+## Optional follow-up work
 
 These are intentional, explicitly tracked audit gaps—not hidden failures:
 
-| Finding / gate | Why it remains open |
+| Item | Why it remains open |
 |---|---|
 | Upstream filing text enrichment | The runtime accepts source summaries/excerpts when the press-release lookup provides them; its current title fallback is correctly labelled and scope-bounded. Adding parsed SEC excerpts is an enrichment improvement, not a release blocker. |
-| Authorized authenticated production verification | Signed-in watchlist/detail routes, production publication-recovery behavior, and per-symbol stale-state display need a permitted live verification session. |
-| Live sampled-model AI review | The committed five-symbol audit is deterministic and does not spend API money. It does not replace a separately authorized live/model sample or authenticated production-card review. |
+| Paid five-symbol live-model review | The committed five-symbol audit is deterministic and does not spend API money. A new paid sample is intentionally deferred until separately authorized so the daily cost target remains under the operator's control. |
 
 ## Release position
 
-- **Watchlist:** code remediation is complete. Deployment requires merging the website branch through the guarded production flow and authenticated production verification.
-- **TradersLink AI Read:** code-level post-change gate passes, including the reproducible five-symbol fixture audit. It is not yet a live-production quality pass because no paid live-model sample or authenticated production-card verification was authorized.
+- **Watchlist:** remediation, website deployment, runtime rollout, real provider preview, and authenticated production smoke verification are complete.
+- **TradersLink AI Read:** code-level post-change gate passes, including the reproducible five-symbol fixture audit and an authenticated live-card render. A paid five-symbol live-model review remains optional and is deliberately not run without explicit cost authorization.
 
 ## Deployment state
 
-The cost-control release (`e68a118`) was fast-forwarded into the Desktop-BAT runtime checkout and the normal watchlist runtime was restarted on 2026-07-17. The live runtime reports `gpt-5.6-luna`, `medium` reasoning, and the optional spend guard disabled at its default $1.00 threshold. The later calendar, evidence, security-master, and website reconciliation commits remain on remediation branches pending the guarded website merge/deploy and the next runtime rollout.
+The cost-control release (`e68a118`) was fast-forwarded into the Desktop-BAT runtime checkout and the normal watchlist runtime was restarted on 2026-07-17. The live runtime reports `gpt-5.6-luna`, `medium` reasoning, external research disabled, and the optional spend guard disabled at its default $1.00 threshold. The later calendar, evidence, security-master, and website reconciliation commits were rolled out later the same day. Website PR #99 is merged and deployed; the runtime now runs the Levels remediation head `061db96`.
