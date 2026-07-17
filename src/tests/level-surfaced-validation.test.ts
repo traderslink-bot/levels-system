@@ -232,7 +232,7 @@ test("first interaction alignment is scored correctly", () => {
   assert.ok(result.newSystem.metrics.firstInteractionAlignmentScore >= result.oldSystem.metrics.firstInteractionAlignmentScore);
 });
 
-test("deeper anchor is evaluated separately from near price actionable levels", () => {
+test("deeper structural support remains available in the broad surfaced ladder", () => {
   const result = validateSurfacedOutputs(
     makeValidationInput({
       caseId: "anchor",
@@ -242,7 +242,24 @@ test("deeper anchor is evaluated separately from near price actionable levels", 
       ],
       newCandidates: [
         makeNewCandidate("ANCH", { id: "anch-new-s1", symbol: "ANCH", type: "support", price: 9.9 }),
-        makeNewCandidate("ANCH", { id: "anch-new-s2", symbol: "ANCH", type: "support", price: 8.7, strongestReactionMovePct: 0.08, averageReactionMovePct: 0.05 }),
+        makeNewCandidate("ANCH", {
+          id: "anch-new-s2",
+          symbol: "ANCH",
+          type: "support",
+          price: 8.7,
+          sourceTimeframes: ["daily", "4h", "5m"],
+          touches: [
+            makeTouch({ timeframe: "daily", reactionMovePct: 0.1, volumeRatio: 2.4 }),
+            makeTouch({ timeframe: "4h", reactionMovePct: 0.09, volumeRatio: 2.1 }),
+            makeTouch({ timeframe: "5m", reactionMovePct: 0.08, volumeRatio: 1.9 }),
+          ],
+          strongestReactionMovePct: 0.1,
+          averageReactionMovePct: 0.09,
+          bestVolumeRatio: 2.4,
+          averageVolumeRatio: 2.13,
+          ageInBars: 4,
+          barsSinceLastReaction: 1,
+        }),
         makeNewCandidate("ANCH", { id: "anch-new-r1", symbol: "ANCH", type: "resistance", price: 10.18 }),
       ],
       forwardCandles: buildForwardCandles(Date.parse("2026-04-17T14:30:00Z"), [
@@ -253,7 +270,11 @@ test("deeper anchor is evaluated separately from near price actionable levels", 
     }),
   );
 
-  assert.ok(result.newSystem.metrics.anchorCount > 0);
+  assert.ok(
+    result.newSystem.surfacedLevels.some(
+      (level) => level.side === "support" && level.price === 8.7,
+    ),
+  );
   assert.ok(result.newSystem.metrics.anchorUsefulnessScore >= 3);
 });
 

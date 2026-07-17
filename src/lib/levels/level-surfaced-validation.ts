@@ -919,7 +919,20 @@ function summarizeSystem(
   };
 }
 
-function winnerForScores(oldScore: number, newScore: number): SurfacedValidationWinner {
+function winnerForScores(
+  oldScore: number,
+  newScore: number,
+  hasForwardInteractionEvidence: boolean,
+): SurfacedValidationWinner {
+  // A structural-score difference alone is not enough to declare a winner.
+  // This validator is intended to compare trader-facing usefulness against the
+  // same forward window, so when neither surfaced set was actually tested by
+  // price, retain the case as evidence still needed rather than promoting a
+  // static ranking advantage into a migration decision.
+  if (!hasForwardInteractionEvidence) {
+    return "inconclusive";
+  }
+
   const delta = Number((newScore - oldScore).toFixed(2));
   if (Math.abs(delta) < 4) {
     if (oldScore < 55 && newScore < 55) {
@@ -1005,7 +1018,15 @@ export function validateSurfacedOutputs(
   const references = findReferenceFirstInteractions([...oldLevels, ...newLevels], input.forwardCandles);
   const oldSystem = summarizeSystem("old", oldNormalized, oldLevels, input, references);
   const newSystem = summarizeSystem("new", newNormalized, newLevels, input, references);
-  const winner = winnerForScores(oldSystem.metrics.validationScore, newSystem.metrics.validationScore);
+  const hasForwardInteractionEvidence = [
+    ...oldSystem.metrics.interactionResults,
+    ...newSystem.metrics.interactionResults,
+  ].some((result) => result.touched);
+  const winner = winnerForScores(
+    oldSystem.metrics.validationScore,
+    newSystem.metrics.validationScore,
+    hasForwardInteractionEvidence,
+  );
   const { summary, notableDifferences } = buildComparisonSummary(winner, oldSystem, newSystem);
 
   return {
