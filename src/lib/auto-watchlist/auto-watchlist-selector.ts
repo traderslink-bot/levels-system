@@ -1472,6 +1472,66 @@ export class AutoWatchlistSelector {
     return true;
   }
 
+  private async restoreManagedEntryAfterFailedReplacement(
+    entry: AutoWatchlistManagedEntry,
+    timestamp: number,
+    challengerSymbol: string,
+  ): Promise<boolean> {
+    try {
+      await this.options.activateSymbol({
+        symbol: entry.symbol,
+        source: "auto",
+        autoSession: entry.lastSession === "closed" ? "regular" : entry.lastSession,
+        note: `Auto-restored after ${challengerSymbol} failed to complete replacement activation.`,
+      });
+    } catch (error) {
+      this.lastActivationErrors.push({
+        symbol: entry.symbol,
+        error: `automatic replacement restore failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      entry.statusReason = `replacement by ${challengerSymbol} failed and incumbent restore failed`;
+      this.managedEntries.set(entry.symbol, entry);
+      this.persistConfig();
+      return false;
+    }
+
+    entry.state = "active";
+    entry.lastActivatedAt = timestamp;
+    entry.standbyAt = null;
+    entry.statusReason = `restored after ${challengerSymbol} failed replacement activation`;
+    this.managedEntries.set(entry.symbol, entry);
+    this.persistConfig();
+    return true;
+  }
+
+  private async replaceManagedDecision(
+    challenger: AutoWatchlistCandidateDecision,
+    incumbent: AutoWatchlistManagedEntry,
+    bucket: AutoWatchlistBucket,
+    timestamp: number,
+    reason: string,
+  ): Promise<boolean> {
+    const incumbentBeforeReplacement = { ...incumbent };
+    if (!await this.moveManagedEntryToStandby(
+      incumbent,
+      timestamp,
+      `replacement pending for ${challenger.symbol}`,
+    )) {
+      return false;
+    }
+
+    if (await this.activateManagedDecision(challenger, bucket, timestamp, reason)) {
+      return true;
+    }
+
+    await this.restoreManagedEntryAfterFailedReplacement(
+      incumbentBeforeReplacement,
+      timestamp,
+      challenger.symbol,
+    );
+    return false;
+  }
+
   private recordReplacement(
     bucket: AutoWatchlistBucket,
     incoming: AutoWatchlistCandidateDecision | null,
@@ -1832,7 +1892,10 @@ export class AutoWatchlistSelector {
           volume: finitePositive(row.volume),
           averageVolume: null,
           marketCap: finitePositive(row.marketCap),
-          quoteTime: Math.floor(this.now() / 1000),
+          // The screener response does not expose an actual trade timestamp.
+          // Session activity or a timestamped quote may fill this later, but
+          // fetch time must never masquerade as market-event time.
+          quoteTime: null,
           sourceScreens: ["live_exchange_gainers"],
         }))
         .filter((candidate) =>
@@ -1855,8 +1918,26 @@ export class AutoWatchlistSelector {
         ] as const) {
           for (const row of rows) {
             const symbol = normalizeSymbol(String(row.symbol ?? ""));
-            const base = marketMoversBySymbol.get(symbol) ?? commonBySymbol.get(symbol);
-            if (!base) continue;
+            const existing = marketMoversBySymbol.get(symbol) ?? commonBySymbol.get(symbol);
+            const identity = normalizeNasdaqRow({
+              symbol,
+              name: row.name,
+              // Market-mover rows do not contain market cap. Use a positive
+              // sentinel only for the existing name/symbol security-type
+              // classifier; enrichment still owns the real market-cap value.
+              marketCap: 1,
+            });
+            if (!existing && !identity.isLikelyCommonEquity) continue;
+            const base: AutoWatchlistDiscoveryCandidate = existing ?? {
+              symbol,
+              price: null,
+              gainPct: null,
+              volume: null,
+              averageVolume: null,
+              marketCap: null,
+              quoteTime: null,
+              sourceScreens: [],
+            };
             const moverPrice = finitePositive(Number(String(row.lastSalePrice ?? "").replace(/[^0-9.-]/g, "")));
             const moverGain = source === "nasdaq_live_most_advanced"
               ? finiteNumber(Number(String(row.change ?? "").replace(/[^0-9.-]/g, "")))
@@ -2026,11 +2107,11 @@ export class AutoWatchlistSelector {
       candidate: {
         ...candidate,
         marketCap:
-          candidate.marketCap ??
           finitePositive(yahoo?.marketCap) ??
           (finitePositive(finnhub?.marketCapitalization)
             ? finnhub!.marketCapitalization! * 1_000_000
-            : null),
+            : null) ??
+          candidate.marketCap,
       },
       floatShares: yahoo?.floatShares,
       yahooSharesOutstanding: yahoo?.sharesOutstanding,
@@ -2374,21 +2455,13 @@ export class AutoWatchlistSelector {
               continue;
             }
             const reason = `stronger sustained runner over at-risk ${incumbent.symbol}`;
-            if (!await this.activateManagedDecision(challenger, bucket, scanStartedAt, reason)) continue;
-            if (!await this.moveManagedEntryToStandby(
+            if (!await this.replaceManagedDecision(
+              challenger,
               incumbent,
+              bucket,
               scanStartedAt,
-              `replaced by stronger sustained runner ${challenger.symbol}`,
-            )) {
-              await this.options.deactivateSymbol?.(challenger.symbol);
-              const activatedEntry = this.managedEntries.get(challenger.symbol);
-              if (activatedEntry) {
-                activatedEntry.state = "standby";
-                activatedEntry.standbyAt = scanStartedAt;
-                activatedEntry.statusReason = `rollback: could not retire ${incumbent.symbol}`;
-              }
-              continue;
-            }
+              reason,
+            )) continue;
             this.recordReplacement(
               bucket,
               challenger,
@@ -2420,21 +2493,13 @@ export class AutoWatchlistSelector {
               continue;
             }
             const reason = `obvious-runner override over ${incumbent.symbol}`;
-            if (!await this.activateManagedDecision(challenger, bucket, scanStartedAt, reason)) continue;
-            if (!await this.moveManagedEntryToStandby(
+            if (!await this.replaceManagedDecision(
+              challenger,
               incumbent,
+              bucket,
               scanStartedAt,
-              `replaced by obvious runner ${challenger.symbol}`,
-            )) {
-              await this.options.deactivateSymbol?.(challenger.symbol);
-              const activatedEntry = this.managedEntries.get(challenger.symbol);
-              if (activatedEntry) {
-                activatedEntry.state = "standby";
-                activatedEntry.standbyAt = scanStartedAt;
-                activatedEntry.statusReason = `rollback: could not retire ${incumbent.symbol}`;
-              }
-              continue;
-            }
+              reason,
+            )) continue;
             this.recordReplacement(
               bucket,
               challenger,

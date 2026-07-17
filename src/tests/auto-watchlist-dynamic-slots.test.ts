@@ -436,6 +436,7 @@ test("an obvious runner replaces a healthy auto incumbent after one scan but lea
     { symbol: "PIN", tags: ["manual"], note: "manual", activatedAt: NOW - 7_200_000 },
     automaticRuntimeEntry("OLD"),
   ];
+  let maximumConcurrentAutomaticEntries = 1;
   const selector = new AutoWatchlistSelector({
     yahooClient: null,
     finnhubClient: FINNHUB,
@@ -448,7 +449,13 @@ test("an obvious runner replaces a healthy auto incumbent after one scan but lea
     getActiveSymbols: () => activeEntries.map((entry) => entry.symbol),
     getActiveEntries: () => activeEntries,
     isRuntimeReady: () => true,
-    activateSymbol: async ({ symbol, note }) => activeEntries.push({ ...automaticRuntimeEntry(symbol), note }),
+    activateSymbol: async ({ symbol, note }) => {
+      activeEntries.push({ ...automaticRuntimeEntry(symbol), note });
+      maximumConcurrentAutomaticEntries = Math.max(
+        maximumConcurrentAutomaticEntries,
+        activeEntries.filter((entry) => entry.tags.includes("auto")).length,
+      );
+    },
     deactivateSymbol: async (symbol) => {
       const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
       if (index >= 0) activeEntries.splice(index, 1);
@@ -487,7 +494,96 @@ test("an obvious runner replaces a healthy auto incumbent after one scan but lea
   try {
     const status = await selector.runNow({ activate: true });
     assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["NEW", "PIN"]);
+    assert.equal(maximumConcurrentAutomaticEntries, 1);
     assert.match(status.recentReplacements[0]?.reason ?? "", /obvious runner/);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a failed full-slot challenger restores the incumbent without exceeding the automatic ceiling", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-replacement-rollback-"));
+  const configPath = join(directory, "config.json");
+  writeConfig(configPath, {
+    symbols: ["OLD"],
+    thresholds: {
+      consecutivePassesRequired: 1,
+      maxActiveMainSessionTickers: 1,
+      minimumAutoHoldMinutes: 0,
+      regularOpenProtectionMinutes: 0,
+      obviousRunnerOverrideEnabled: true,
+      obviousRunnerRecentDollarVolumeMultiplier: 1,
+      obviousRunnerMinVolumeAcceleration: 1,
+      obviousRunnerReplacementMargin: 1,
+    },
+  });
+  const activeEntries = [automaticRuntimeEntry("OLD")];
+  const activationAttempts: string[] = [];
+  let maximumConcurrentAutomaticEntries = 1;
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: FINNHUB,
+    fetchImpl: async () => screenerResponse([
+      { symbol: "OLD", gain: 10 },
+      { symbol: "NEW", gain: 60, volume: 3_000_000 },
+    ]),
+    configPath,
+    now: () => NOW,
+    getActiveSymbols: () => activeEntries.map((entry) => entry.symbol),
+    getActiveEntries: () => activeEntries,
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => {
+      activationAttempts.push(symbol);
+      if (symbol === "NEW") throw new Error("challenger readiness failed");
+      activeEntries.push(automaticRuntimeEntry(symbol));
+      maximumConcurrentAutomaticEntries = Math.max(
+        maximumConcurrentAutomaticEntries,
+        activeEntries.length,
+      );
+    },
+    deactivateSymbol: async (symbol) => {
+      const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
+      if (index >= 0) activeEntries.splice(index, 1);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: async ({ symbols, session }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, symbol === "NEW" ? {
+        symbol,
+        session,
+        price: 3,
+        gainPct: 60,
+        sessionVolume: 3_000_000,
+        sessionDollarVolume: 9_000_000,
+        recent15mVolume: 300_000,
+        recent15mDollarVolume: 900_000,
+        volumeAcceleration: 3,
+        quoteTime: Math.floor(NOW / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      } : {
+        symbol,
+        session,
+        price: 2,
+        gainPct: 10,
+        sessionVolume: 500_000,
+        sessionDollarVolume: 1_000_000,
+        recent15mVolume: 20_000,
+        recent15mDollarVolume: 40_000,
+        volumeAcceleration: 0.5,
+        quoteTime: Math.floor(NOW / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    assert.deepEqual(activationAttempts, ["NEW", "OLD"]);
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["OLD"]);
+    assert.equal(maximumConcurrentAutomaticEntries, 1);
+    assert.deepEqual(status.activeMainSessionSymbols, ["OLD"]);
+    assert.match(status.lastActivationErrors[0]?.error ?? "", /challenger readiness failed/);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });

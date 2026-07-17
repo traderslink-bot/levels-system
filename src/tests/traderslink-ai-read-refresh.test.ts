@@ -158,4 +158,16 @@ describe("TradersLink AI Read refresh decisions", () => {
 
     assert.deepEqual(decision, { shouldRefresh: false, trigger: "scheduled" });
   });
+
+  it("does not spend on a time-only refresh while price remains inside the analyzed range", () => {
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: state(1.5),
+      currentPrice: 1.52,
+      dataAsOf: GENERATED_AT + 6 * 60 * 60_000,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+
+    assert.deepEqual(decision, { shouldRefresh: false, trigger: "scheduled" });
+  });
 });

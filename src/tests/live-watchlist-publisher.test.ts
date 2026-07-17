@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
@@ -10,6 +13,7 @@ import {
   buildLiveWatchlistTickerDataPatch,
   LiveWatchlistHttpPublisher,
 } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import { DurableLiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-publish-outbox.js";
 import {
   buildRecentWebsiteArticlesPatch,
   deriveRecentWebsiteArticleCatalystFreshness,
@@ -19,6 +23,35 @@ import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import type { TechnicalContext } from "../lib/technical-context/technical-context-types.js";
 
 describe("live watchlist publisher", () => {
+  it("durably replays an unacknowledged payload after publisher recovery", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "live-watchlist-outbox-"));
+    const filePath = join(directory, "outbox.json");
+    try {
+      const failing = new DurableLiveWatchlistPublisher({
+        async publish() {
+          throw new Error("ingest unavailable");
+        },
+      }, filePath);
+      await assert.rejects(
+        failing.publish({ symbol: "RETRY", updatedAt: 1, cards: {} }),
+        /ingest unavailable/,
+      );
+      assert.equal(failing.pendingCount(), 1);
+
+      const published: string[] = [];
+      const recovered = new DurableLiveWatchlistPublisher({
+        async publish(patch) {
+          published.push(patch.symbol);
+        },
+      }, filePath);
+      await recovered.replayPending();
+      assert.deepEqual(published, ["RETRY"]);
+      assert.equal(recovered.pendingCount(), 0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   const readyTechnicalContext: TechnicalContext = {
     source: "levels_system_intraday",
     sourceTimeframe: "5m",
@@ -1188,7 +1221,7 @@ describe("live watchlist publisher", () => {
     assert.equal(patch?.cards.companyInfo?.priceWhenPosted, 1.23);
   });
 
-  it("does not throw when onError handles publish failures", async () => {
+  it("reports terminal publish failures and still rejects the caller", async () => {
     let handled = false;
     const publisher = new LiveWatchlistHttpPublisher({
       ingestUrl: "https://example.invalid/ingest",
@@ -1200,11 +1233,14 @@ describe("live watchlist publisher", () => {
       },
     });
 
-    await publisher.publish({
-      symbol: "FAIL",
-      updatedAt: 1,
-      cards: {},
-    });
+    await assert.rejects(
+      publisher.publish({
+        symbol: "FAIL",
+        updatedAt: 1,
+        cards: {},
+      }),
+      /failed with 500/,
+    );
 
     assert.equal(handled, true);
   });

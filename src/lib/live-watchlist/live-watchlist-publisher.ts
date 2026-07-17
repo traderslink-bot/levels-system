@@ -22,6 +22,10 @@ import {
   DEFAULT_LIVE_WATCHLIST_AUDIT_ARCHIVE_FILE,
   LiveWatchlistAuditArchivePersistence,
 } from "./live-watchlist-audit-archive.js";
+import {
+  DEFAULT_LIVE_WATCHLIST_PUBLISH_OUTBOX_FILE,
+  DurableLiveWatchlistPublisher,
+} from "./live-watchlist-publish-outbox.js";
 import type {
   LiveWatchlistExtendedQuote,
   LiveWatchlistCardContent,
@@ -1831,6 +1835,7 @@ export function buildLiveWatchlistTickerDataPatch(args: {
   symbol: string;
   lastPrice: number;
   timestamp: number;
+  marketDataRevision?: number;
   supportZones: LevelMapDisplayZone[];
   resistanceZones: LevelMapDisplayZone[];
   volume?: number | null;
@@ -1885,6 +1890,10 @@ export function buildLiveWatchlistTickerDataPatch(args: {
     symbol: normalizeSymbol(args.symbol),
     status: "live",
     updatedAt: args.timestamp,
+    marketDataObservedAt: args.timestamp,
+    ...(args.marketDataRevision !== undefined
+      ? { marketDataRevision: args.marketDataRevision }
+      : {}),
     latestPrice: args.lastPrice,
     nearestSupport: nearestSupport?.price ?? null,
     nearestResistance: nearestResistance?.price ?? null,
@@ -2040,9 +2049,7 @@ export class LiveWatchlistHttpPublisher implements LiveWatchlistPublisher {
     }
 
     this.options.onError?.(lastError, patch);
-    if (!this.options.onError) {
-      throw lastError instanceof Error ? lastError : new Error(String(lastError));
-    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 }
 
@@ -2055,7 +2062,7 @@ export function createLiveWatchlistPublisherFromEnv(
     return null;
   }
 
-  const publisher = new LiveWatchlistHttpPublisher({
+  const httpPublisher = new LiveWatchlistHttpPublisher({
     ingestUrl,
     token,
     timeoutMs: Number(env.TRADERSLINK_WATCHLIST_PUBLISH_TIMEOUT_MS ?? "") || undefined,
@@ -2068,6 +2075,15 @@ export function createLiveWatchlistPublisherFromEnv(
         `[LiveWatchlistPublisher] Failed to publish ${payloadLabel}: ${message}`,
       );
     },
+  });
+  const publisher = new DurableLiveWatchlistPublisher(
+    httpPublisher,
+    env.LIVE_WATCHLIST_PUBLISH_OUTBOX_PATH?.trim() ||
+      DEFAULT_LIVE_WATCHLIST_PUBLISH_OUTBOX_FILE,
+  );
+  void publisher.replayPending().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[LiveWatchlistPublisher] Pending outbox replay remains queued: ${message}`);
   });
 
   if (env.LIVE_WATCHLIST_AUDIT_ARCHIVE_DISABLED === "1") {

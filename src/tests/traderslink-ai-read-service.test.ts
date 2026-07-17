@@ -10,6 +10,7 @@ import {
   buildTradersLinkAiCompletedSessionWindow,
   buildTradersLinkAiPriceActionPacket,
   mergeTradersLinkAiIntradayCandles,
+  resolveTradersLinkAiReadReferenceQuote,
   type TradersLinkAiReadPriceActionContext,
 } from "../lib/ai/traderslink-ai-read-price-action.js";
 
@@ -92,8 +93,8 @@ function modelRead(): Record<string, unknown> {
     breakoutContinuation: { label: "Range-high continuation", price: 1.68, rationale: "Acceptance above the postmarket range high opens the extension targets." },
     targets: [{ label: "First continuation area", price: 1.8, condition: "Only after $1.68 holds as support." }],
     downsideCheckpoints: [
-      { label: "First lower support", price: 1.2, condition: "Exposed after momentum failure." },
-      { label: "Outer lower support", price: 1.05, condition: "Next structural area if $1.20 fails." },
+      { label: "First lower support", price: 1.12, condition: "Exposed if the prior regular session low loses acceptance." },
+      { label: "Outer lower support", price: 1.05, condition: "Next daily range low if $1.12 fails." },
     ],
     catalystRealityCheck: {
       status: "conditional",
@@ -135,6 +136,25 @@ function modelRead(): Record<string, unknown> {
 }
 
 describe("TradersLink AI price-action volume quality", () => {
+  it("uses the candle observation time and rejects a stale intraday close as the current quote", () => {
+    const freshContext = priceAction();
+    const latest = freshContext.intradayCandles.at(-1)!;
+    const fresh = resolveTradersLinkAiReadReferenceQuote(freshContext, 1.7, DATA_AS_OF);
+    assert.equal(fresh.price, latest.close);
+    assert.equal(fresh.dataAsOf, latest.timestamp);
+
+    const staleContext = priceAction();
+    staleContext.fetchedAt = DATA_AS_OF;
+    staleContext.intradayCandles = staleContext.intradayCandles.map((candle) => ({
+      ...candle,
+      timestamp: candle.timestamp - 24 * 60 * 60_000,
+    }));
+    const stale = resolveTradersLinkAiReadReferenceQuote(staleContext, 1.7, DATA_AS_OF);
+    assert.equal(stale.price, 1.7);
+    assert.equal(stale.dataAsOf, DATA_AS_OF);
+    assert.equal(stale.source, "runtime live-price fallback");
+  });
+
   it("replaces completed-session Yahoo bars with EODHD while keeping today's Yahoo bars", () => {
     const priorOpen = Date.parse("2026-07-16T20:00:00.000Z");
     const priorClose = Date.parse("2026-07-16T23:55:00.000Z");
@@ -277,7 +297,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(read.sources.filter((source) => source.sourceType === "web_search").length, 1);
     assert.equal(read.version, 2);
     assert.equal(read.breakoutContinuation.price, 1.68);
-    assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), [1.2, 1.05]);
+    assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), [1.12, 1.05]);
     assert.deepEqual(read.catalystRealityCheck.sourceUrls, [
       "https://www.sec.gov/Archives/example",
       "https://example.com/listing-source",
@@ -530,14 +550,23 @@ describe("OpenAITradersLinkAiReadService", () => {
       }), { status: 200, headers: { "Content-Type": "application/json" } }),
     });
 
+    const attempts: Array<{ attemptType: string; status: string }> = [];
     await assert.rejects(
       service.generate({
         snapshot: snapshot(),
         priceAction: priceAction(),
         research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+        onAttempt: (attempt) => attempts.push({
+          attemptType: attempt.attemptType,
+          status: attempt.status,
+        }),
       }),
       /invalid tactical trade map.*needsToHold/i,
     );
+    assert.deepEqual(attempts, [
+      { attemptType: "primary", status: "invalid_output" },
+      { attemptType: "correction", status: "invalid_output" },
+    ]);
   });
 
   it("rejects a caution threshold above the stated needs-to-hold boundary", async () => {
@@ -607,15 +636,21 @@ describe("OpenAITradersLinkAiReadService", () => {
           }],
           usage: requestNumber === 1
             ? { input_tokens: 100, output_tokens: 20, total_tokens: 120 }
-            : { input_tokens: 200, output_tokens: 30, total_tokens: 230 },
+            : { input_tokens: 200, output_tokens: 30 },
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       },
     });
 
+    const attempts: Array<{ attemptType: string; status: string; totalTokens: number }> = [];
     const read = await service.generate({
       snapshot: snapshot(),
       priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      onAttempt: (attempt) => attempts.push({
+        attemptType: attempt.attemptType,
+        status: attempt.status,
+        totalTokens: attempt.usage.totalTokens,
+      }),
     });
 
     assert.equal(requestBodies.length, 2);
@@ -629,6 +664,10 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(read.usage.inputTokens, 300);
     assert.equal(read.usage.outputTokens, 50);
     assert.equal(read.usage.totalTokens, 350);
+    assert.deepEqual(attempts, [
+      { attemptType: "primary", status: "invalid_output", totalTokens: 120 },
+      { attemptType: "correction", status: "success", totalTokens: 230 },
+    ]);
   });
 
   it("uses the existing API key by default and honors the global off switch", () => {

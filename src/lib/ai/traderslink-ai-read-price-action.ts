@@ -260,10 +260,11 @@ export function resolveTradersLinkAiReadReferenceQuote(
     Math.max(fallbackDataAsOf, context.fetchedAt),
   );
   const latest = intraday.at(-1);
-  if (latest && context.fetchedAt - latest.timestamp <= 24 * 60 * 60 * 1_000) {
+  const referenceTime = Math.max(fallbackDataAsOf, context.fetchedAt);
+  if (latest && referenceTime - latest.timestamp <= 30 * 60 * 1_000) {
     return {
       price: latest.close,
-      dataAsOf: context.fetchedAt,
+      dataAsOf: latest.timestamp,
       source: `${context.source} latest 5-minute close`,
     };
   }

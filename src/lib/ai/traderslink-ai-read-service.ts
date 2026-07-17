@@ -64,6 +64,7 @@ type ResponsesApiOutputItem = {
 };
 
 type ResponsesApiResponse = {
+  id?: string;
   output_text?: string;
   output?: ResponsesApiOutputItem[];
   incomplete_details?: { reason?: string } | null;
@@ -98,6 +99,22 @@ export type TradersLinkAiReadGenerationInput = {
   research: RecentWebsiteArticleLookupResult;
   priceAction: TradersLinkAiReadPriceActionContext;
   dataAsOf?: number;
+  onAttempt?: (attempt: TradersLinkAiReadAttempt) => void;
+};
+
+export type TradersLinkAiReadAttempt = {
+  generationId: string;
+  requestId: string;
+  symbol: string;
+  attemptType: "primary" | "correction" | "fallback";
+  status: "success" | "invalid_output" | "transport_error";
+  model: string;
+  dataAsOf: number;
+  marketSession: TradersLinkAiReadMarketSession;
+  usedWebSearch: boolean;
+  usage: TradersLinkAiReadUsage;
+  receivedAt: number;
+  error: string | null;
 };
 
 export type TradersLinkAiReadService = {
@@ -693,12 +710,22 @@ function normalizeModelRead(value: unknown, sources: TradersLinkAiReadSource[]):
   };
 }
 
-function assertTradersLinkAiTradeMap(read: ModelRead, currentPrice: number): void {
+function assertTradersLinkAiTradeMap(
+  read: ModelRead,
+  currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext,
+): void {
   const tolerance = Math.max(currentPrice * 0.005, 0.0001);
+  const recentBars = priceAction.intradayCandles.slice(-24);
+  const averageTrueRange = recentBars.length > 0
+    ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) /
+      recentBars.length
+    : 0;
+  const tacticalSpacing = Math.max(tolerance, averageTrueRange * 0.25);
   const unsupportedAnalysisLanguage =
     /\b(?:4h|four[- ]hour|confluence|supplied (?:level|support|resistance)|support stack|resistance stack|next level)\b/i;
   const tapeEvidenceLanguage =
-    /\b(?:premarket|postmarket|after[- ]hours|regular session|opening range|session (?:high|low|open)|prior close|daily (?:high|low|range)|consolidation|shelf|base|rejection|rejected|acceptance|reclaim|failed spike|range (?:high|low|ceiling|floor)|volume|vwap|wick|tested|tests?|held|holding|higher low|lower high|whole-dollar|half-dollar|psychological)\b/i;
+    /\b(?:premarket|postmarket|after[- ]hours|regular session|opening range|session (?:high|low|open)|prior close|daily (?:high|low|range)|consolidation|shelf|base|rejection|rejected|acceptance|reclaim|failed spike|range (?:high|low|ceiling|floor)|volume|vwap|wick|tested|tests?|holds?|held|holding|higher low|lower high|whole-dollar|half-dollar|psychological)\b/i;
   const unsupportedZeroVolumeClaim =
     /\b(?:reported\s+)?(?:extended[- ]hours|premarket|postmarket|after[- ]hours|session|bar)?\s*volume\s+(?:was|is|reported(?:\s+as)?)?\s*zero\b|\bzero\s+(?:reported\s+)?volume\b/i;
   const fail = (message: string): never => {
@@ -784,7 +811,10 @@ function assertTradersLinkAiTradeMap(read: ModelRead, currentPrice: number): voi
     if (target.price === null) {
       continue;
     }
-    if (!isAbove(target.price, previousUpside)) {
+    if (!tapeEvidenceLanguage.test(`${target.label} ${target.condition}`)) {
+      fail(`upside target ${target.price} does not cite observable price-action evidence`);
+    }
+    if (target.price - previousUpside < tacticalSpacing) {
       fail(`upside target ${target.price} is not above the prior continuation boundary ${previousUpside}`);
     }
     previousUpside = target.price;
@@ -795,7 +825,10 @@ function assertTradersLinkAiTradeMap(read: ModelRead, currentPrice: number): voi
     if (checkpoint.price === null) {
       continue;
     }
-    if (isAbove(checkpoint.price, previousDownside)) {
+    if (!tapeEvidenceLanguage.test(`${checkpoint.label} ${checkpoint.condition}`)) {
+      fail(`downside checkpoint ${checkpoint.price} does not cite observable price-action evidence`);
+    }
+    if (previousDownside - checkpoint.price < tacticalSpacing) {
       fail(`downside checkpoint ${checkpoint.price} is above the prior failure boundary ${previousDownside}`);
     }
     previousDownside = checkpoint.price;
@@ -1266,6 +1299,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       if (!response.ok) {
         const error = new Error(payload.error?.message ?? response.statusText);
         (error as Error & { status?: number }).status = response.status;
+        (error as Error & { responsePayload?: ResponsesApiResponse }).responsePayload = payload;
         throw error;
       }
       return payload;
@@ -1282,6 +1316,33 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       fallbackDataAsOf,
     );
     const dataAsOf = referenceQuote.dataAsOf;
+    const symbol = normalizeSymbol(input.snapshot.symbol);
+    const generationId = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    let attemptSequence = 0;
+    const recordAttempt = (
+      attemptType: TradersLinkAiReadAttempt["attemptType"],
+      status: TradersLinkAiReadAttempt["status"],
+      attemptModel: string,
+      attemptResponse: ResponsesApiResponse | null,
+      error: unknown = null,
+    ): void => {
+      attemptSequence += 1;
+      const usage = buildUsage(attemptResponse ?? {}, attemptModel, this.options.pricing);
+      input.onAttempt?.({
+        generationId,
+        requestId: attemptResponse?.id ?? `${generationId}-${attemptSequence}`,
+        symbol,
+        attemptType,
+        status,
+        model: attemptModel,
+        dataAsOf,
+        marketSession: marketSessionAt(dataAsOf),
+        usedWebSearch: usage.webSearchCallCount > 0,
+        usage,
+        receivedAt: Date.now(),
+        error: error === null ? null : error instanceof Error ? error.message : String(error),
+      });
+    };
     if (!hasUsableTradersLinkAiPriceAction(input.priceAction, dataAsOf)) {
       throw new Error(
         "TradersLink AI Read generation stopped because recent full-session price action was unavailable.",
@@ -1298,12 +1359,33 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         this.fallbackModel !== this.model &&
         (status === 400 || status === 404) &&
         (message.includes("model") || message.includes("not found") || message.includes("access"));
+      recordAttempt(
+        "primary",
+        "transport_error",
+        model,
+        (error as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
+        error,
+      );
       if (!canFallback) {
         throw error;
       }
       model = this.fallbackModel;
-      response = await this.request(model, input, dataAsOf);
+      try {
+        response = await this.request(model, input, dataAsOf);
+      } catch (fallbackError) {
+        recordAttempt(
+          "fallback",
+          "transport_error",
+          model,
+          (fallbackError as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
+          fallbackError,
+        );
+        throw fallbackError;
+      }
     }
+
+    const initialAttemptType: TradersLinkAiReadAttempt["attemptType"] =
+      model === this.model ? "primary" : "fallback";
 
     const responses = [response];
     let text = extractResponseText(response);
@@ -1326,7 +1408,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         throw new Error("OpenAI returned invalid TradersLink AI Read JSON.");
       }
       const normalized = normalizeModelRead(parsed, availableSources);
-      assertTradersLinkAiTradeMap(normalized, referenceQuote.price);
+      assertTradersLinkAiTradeMap(normalized, referenceQuote.price, input.priceAction);
       return normalized;
     };
     let availableSources = dedupeSources([
@@ -1335,22 +1417,47 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     ]);
     try {
       read = parseAndValidate(text, availableSources);
+      recordAttempt(initialAttemptType, "success", model, response);
     } catch (error) {
       validationError = error instanceof Error ? error : new Error(String(error));
+      recordAttempt(initialAttemptType, "invalid_output", model, response, validationError);
     }
 
     if (!read && validationError) {
-      response = await this.request(model, input, dataAsOf, {
-        validationError: validationError.message,
-        rejectedDraft: text,
-      });
+      try {
+        response = await this.request(model, input, dataAsOf, {
+          validationError: validationError.message,
+          rejectedDraft: text,
+        });
+      } catch (correctionError) {
+        recordAttempt(
+          "correction",
+          "transport_error",
+          model,
+          (correctionError as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
+          correctionError,
+        );
+        throw correctionError;
+      }
       responses.push(response);
       text = extractResponseText(response);
       availableSources = dedupeSources([
         ...availableSources,
         ...extractWebSources(response),
       ]);
-      read = parseAndValidate(text, availableSources);
+      try {
+        read = parseAndValidate(text, availableSources);
+        recordAttempt("correction", "success", model, response);
+      } catch (correctionValidationError) {
+        recordAttempt(
+          "correction",
+          "invalid_output",
+          model,
+          response,
+          correctionValidationError,
+        );
+        throw correctionValidationError;
+      }
     }
 
     if (!read) {
@@ -1364,7 +1471,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       usage: {
         input_tokens: responses.reduce((sum, item) => sum + finiteNonNegative(item.usage?.input_tokens), 0),
         output_tokens: responses.reduce((sum, item) => sum + finiteNonNegative(item.usage?.output_tokens), 0),
-        total_tokens: responses.reduce((sum, item) => sum + finiteNonNegative(item.usage?.total_tokens), 0),
+        total_tokens: responses.reduce((sum, item) => {
+          const reported = finiteNonNegative(item.usage?.total_tokens);
+          return sum + (reported ||
+            finiteNonNegative(item.usage?.input_tokens) + finiteNonNegative(item.usage?.output_tokens));
+        }, 0),
         input_tokens_details: {
           cached_tokens: responses.reduce(
             (sum, item) => sum + finiteNonNegative(item.usage?.input_tokens_details?.cached_tokens),
@@ -1376,7 +1487,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     const usage = buildUsage(combinedUsageResponse, model, this.options.pricing);
     return {
       version: 2,
-      symbol: normalizeSymbol(input.snapshot.symbol),
+      symbol,
       generatedAt,
       dataAsOf,
       currentPrice: referenceQuote.price,

@@ -232,6 +232,8 @@ export type ManualWatchlistRuntimeManagerOptions = {
   tradersLinkAiReadService?: TradersLinkAiReadService | null;
   tradersLinkAiReadCostLedger?: TradersLinkAiReadCostLedger | null;
   tradersLinkAiReadStartupRefreshEnabled?: boolean;
+  initialLiveTraderReadCardVisible?: boolean;
+  initialPotentialGainCardVisible?: boolean;
   levelProvenanceMode?: LiveWatchlistLevelProvenanceMode | string | null;
   pullbackReadEnabled?: boolean;
   pullbackReadPollIntervalMs?: number;
@@ -249,7 +251,6 @@ export type ManualWatchlistRuntimeManagerOptions = {
   } | void>) | null;
 };
 
-const TRADERSLINK_AI_READ_AUTO_REFRESH_MIN_MS = 60 * 60 * 1_000;
 const TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS = 0.85;
 export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "automatic";
 
@@ -374,8 +375,6 @@ export function decideTradersLinkAiReadRefresh(args: {
     !crossedAnalysisBoundary &&
     (upperProgress >= TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS ||
       lowerProgress >= TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS);
-  const timerElapsed =
-    args.dataAsOf - previous.generatedAt >= TRADERSLINK_AI_READ_AUTO_REFRESH_MIN_MS;
   const trigger: TradersLinkAiReadCostTrigger = args.requestedTrigger === "automatic"
     ? crossedAnalysisBoundary
       ? "boundary_cross"
@@ -384,7 +383,7 @@ export function decideTradersLinkAiReadRefresh(args: {
         : "scheduled"
     : args.requestedTrigger;
   return {
-    shouldRefresh: args.force || timerElapsed || reachedRangeEdge || crossedAnalysisBoundary,
+    shouldRefresh: args.force || reachedRangeEdge || crossedAnalysisBoundary,
     trigger,
   };
 }
@@ -2339,6 +2338,7 @@ export class ManualWatchlistRuntimeManager {
   private lastPriceUpdateSymbol: string | null = null;
   private lastPriceUpdatePersistAt: number | null = null;
   private readonly lastWebsiteTickerDataPublishAt = new Map<string, number>();
+  private readonly lastWebsiteTickerDataRevision = new Map<string, number>();
   private readonly lastWebsiteTechnicalContextPublishAt = new Map<string, number>();
   private readonly lastWebsiteTechnicalContextStateKey = new Map<string, string>();
   private readonly lastWebsitePullbackReadPublishAt = new Map<string, number>();
@@ -2381,6 +2381,10 @@ export class ManualWatchlistRuntimeManager {
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
+    this.liveTraderReadCardVisible =
+      options.initialLiveTraderReadCardVisible ?? resolveInitialLiveTraderReadCardVisible();
+    this.potentialGainCardVisible =
+      options.initialPotentialGainCardVisible ?? resolveInitialPotentialGainCardVisible();
     this.marketStructureStoryMemoryPath = options.marketStructureStoryMemoryPath?.trim() || null;
     this.marketStructureStandalonePostMode = resolveMarketStructureStandalonePostMode(
       options.marketStructureStandalonePostMode,
@@ -2815,16 +2819,40 @@ export class ManualWatchlistRuntimeManager {
       }
 
       const priceAction = await priceActionPromise;
-      const read = await service.generate({ snapshot, research, priceAction, dataAsOf });
-      this.options.tradersLinkAiReadCostLedger?.record({
-        read,
-        trigger: refreshDecision.trigger,
+      let recordedAttemptCount = 0;
+      const read = await service.generate({
+        snapshot,
+        research,
+        priceAction,
+        dataAsOf,
+        onAttempt: (attempt) => {
+          this.options.tradersLinkAiReadCostLedger?.recordAttempt({
+            attempt,
+            trigger: refreshDecision.trigger,
+          });
+          recordedAttemptCount += 1;
+        },
       });
+      if (recordedAttemptCount === 0) {
+        this.options.tradersLinkAiReadCostLedger?.record({
+          read,
+          trigger: refreshDecision.trigger,
+        });
+      }
       const latestEntry = this.watchlistStore.getEntry(symbol);
       if (!latestEntry?.active || latestEntry.tradersLinkAiReadCardVisible === false) {
         return null;
       }
-      await publisher.publish(buildTradersLinkAiReadPatch({ read, visible: true }));
+      try {
+        await publisher.publish(buildTradersLinkAiReadPatch({ read, visible: true }));
+      } catch (error) {
+        this.options.tradersLinkAiReadCostLedger?.recordPublishFailure({
+          read,
+          trigger: refreshDecision.trigger,
+          error,
+        });
+        throw error;
+      }
       const nextRefreshState = buildTradersLinkAiReadRefreshState(read);
       this.aiReadState.set(symbol, nextRefreshState);
       this.watchlistStore.patchEntry(symbol, {
@@ -2953,7 +2981,36 @@ export class ManualWatchlistRuntimeManager {
 
   private isEntryActive(symbol: string): boolean {
     const entry = this.watchlistStore.getEntry(symbol);
-    return Boolean(entry?.active && entry.lifecycle !== "inactive");
+    return Boolean(entry?.active && entry.lifecycle !== "inactive" && entry.lifecycle !== "activation_failed");
+  }
+
+  private isEntryAvailableForActivationWork(symbol: string): boolean {
+    const entry = this.watchlistStore.getEntry(symbol);
+    return Boolean(
+      entry &&
+      (this.isEntryActive(symbol) ||
+        (!entry.active && entry.lifecycle === "activating")),
+    );
+  }
+
+  private markSnapshotReady(symbol: string, timestamp?: number): void {
+    const entry = this.watchlistStore.getEntry(symbol);
+    const pendingActivation = entry?.active === false && entry.lifecycle === "activating";
+    this.watchlistStore.patchEntry(symbol, pendingActivation
+      ? {
+          ...(timestamp !== undefined ? { lastLevelPostAt: timestamp } : {}),
+          refreshPending: true,
+          lastError: null,
+          operationStatus: "snapshot ready; preparing live monitoring",
+        }
+      : {
+          active: true,
+          lifecycle: "active",
+          ...(timestamp !== undefined ? { lastLevelPostAt: timestamp } : {}),
+          refreshPending: false,
+          lastError: null,
+          operationStatus: "monitoring live price",
+        });
   }
 
   private nextActivationEpoch(symbol: string): number {
@@ -2972,7 +3029,12 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    if (!this.isActivationCurrent(symbol, epoch) || !this.isEntryActive(symbol)) {
+    const entry = this.watchlistStore.getEntry(symbol);
+    if (
+      !this.isActivationCurrent(symbol, epoch) ||
+      !entry ||
+      entry.lifecycle === "inactive"
+    ) {
       throw new ActivationCancelledError(symbol);
     }
   }
@@ -3285,8 +3347,12 @@ export class ManualWatchlistRuntimeManager {
     threadId: string,
     timestamp: number,
     referencePriceOverride?: number,
+    allowPendingActivation = false,
   ): Promise<LevelSnapshotPayload | null> {
-    if (!this.isEntryActive(symbol)) {
+    if (
+      !this.isEntryActive(symbol) &&
+      !(allowPendingActivation && this.isEntryAvailableForActivationWork(symbol))
+    ) {
       return null;
     }
 
@@ -3331,12 +3397,7 @@ export class ManualWatchlistRuntimeManager {
         lastExtensionPostTimestamp: null,
         extensionPostInFlightKey: null,
       });
-      this.watchlistStore.patchEntry(symbol, {
-        lifecycle: "active",
-        refreshPending: false,
-        lastError: null,
-        operationStatus: "monitoring live price",
-      });
+      this.markSnapshotReady(symbol);
       this.emitLifecycle("alert_suppressed", {
         symbol,
         threadId,
@@ -3353,7 +3414,10 @@ export class ManualWatchlistRuntimeManager {
     }
 
     if (existingState?.lastSnapshot === snapshotKey) {
-      if (!this.isEntryActive(symbol)) {
+      if (
+        !this.isEntryActive(symbol) &&
+        !(allowPendingActivation && this.isEntryAvailableForActivationWork(symbol))
+      ) {
         return null;
       }
       this.activeSnapshotState.set(symbol, {
@@ -3364,18 +3428,15 @@ export class ManualWatchlistRuntimeManager {
         displayedSupportZones: payload.supportZones,
         displayedResistanceZones: payload.resistanceZones,
       });
-      this.watchlistStore.patchEntry(symbol, {
-        lifecycle: "active",
-        lastLevelPostAt: timestamp,
-        refreshPending: false,
-        lastError: null,
-        operationStatus: "monitoring live price",
-      });
+      this.markSnapshotReady(symbol, timestamp);
       return payload;
     }
 
     await this.options.discordAlertRouter.routeLevelSnapshot(threadId, payload);
-    if (!this.isEntryActive(symbol)) {
+    if (
+      !this.isEntryActive(symbol) &&
+      !(allowPendingActivation && this.isEntryAvailableForActivationWork(symbol))
+    ) {
       return null;
     }
     this.recordLiveThreadPost({
@@ -3419,12 +3480,7 @@ export class ManualWatchlistRuntimeManager {
       lastExtensionPostTimestamp: null,
       extensionPostInFlightKey: null,
     });
-    this.watchlistStore.patchEntry(symbol, {
-      lifecycle: "active",
-      lastLevelPostAt: timestamp,
-      refreshPending: false,
-      operationStatus: "monitoring live price",
-    });
+    this.markSnapshotReady(symbol, timestamp);
     return payload;
   }
 
@@ -8767,6 +8823,44 @@ export class ManualWatchlistRuntimeManager {
     await restartTask;
   }
 
+  private async restartMonitoringForPreparedActivation(entry: WatchlistEntry): Promise<void> {
+    const restartTask = this.monitoringRestartQueue
+      .catch(() => undefined)
+      .then(async () => {
+        await this.options.monitor.stop();
+        const activeEntries = await this.ensureLevelsForActiveEntries(
+          this.watchlistStore.getActiveEntries(),
+          { seedMissingLevels: true },
+        );
+        const preparedEntry: WatchlistEntry = {
+          ...entry,
+          active: true,
+          lifecycle: "active",
+          refreshPending: false,
+          operationStatus: "monitoring live price",
+        };
+        const startableEntries = [
+          ...activeEntries.filter((candidate) => candidate.symbol !== preparedEntry.symbol),
+          preparedEntry,
+        ];
+        await this.options.monitor.start(
+          startableEntries,
+          this.handleMonitoringEvent,
+          this.handlePriceUpdate,
+        );
+        this.emitLifecycle("monitor_restart_completed", {
+          symbol: preparedEntry.symbol,
+          details: {
+            activeSymbolCount: activeEntries.length,
+            startableSymbolCount: startableEntries.length,
+            preparedActivation: true,
+          },
+        });
+      });
+    this.monitoringRestartQueue = restartTask;
+    await restartTask;
+  }
+
   private async restartMonitoringWithReadyEntriesOnly(): Promise<void> {
     const restartTask = this.monitoringRestartQueue
       .catch(() => undefined)
@@ -8881,6 +8975,34 @@ export class ManualWatchlistRuntimeManager {
       this.watchlistStore.setEntries(persistedEntries);
     }
 
+    for (const entry of this.watchlistStore.getEntries()) {
+      if (entry.lifecycle !== "activating" && entry.lifecycle !== "activation_failed") {
+        continue;
+      }
+      const interrupted = entry.lifecycle === "activating";
+      this.watchlistStore.patchEntry(entry.symbol, {
+        active: false,
+        lifecycle: "activation_failed",
+        refreshPending: false,
+        lastError: interrupted
+          ? entry.lastError ?? "Activation was interrupted before readiness acknowledgement."
+          : entry.lastError,
+        operationStatus: interrupted
+          ? "activation interrupted; retry required"
+          : entry.operationStatus ?? "activation failed",
+      });
+      this.emitLifecycle("restore_skipped", {
+        symbol: entry.symbol,
+        threadId: entry.discordThreadId ?? null,
+        details: {
+          error: interrupted
+            ? entry.lastError ?? "Activation was interrupted before readiness acknowledgement."
+            : entry.lastError ?? "Activation failed before restart. Retry manually to restore.",
+          source: "startup",
+        },
+      });
+    }
+
     const activeEntries = this.watchlistStore.getActiveEntries();
     this.restoreTradersLinkAiReadRefreshStates(activeEntries);
     if (!this.options.tradersLinkAiReadStartupRefreshEnabled) {
@@ -8889,18 +9011,6 @@ export class ManualWatchlistRuntimeManager {
       }
     }
     for (const entry of activeEntries) {
-      if (entry.lifecycle === "activation_failed") {
-        this.emitLifecycle("restore_skipped", {
-          symbol: entry.symbol,
-          threadId: entry.discordThreadId ?? null,
-          details: {
-            error: entry.lastError ?? "Activation failed before restart. Retry manually to restore.",
-            source: "startup",
-          },
-        });
-        continue;
-      }
-
       const thread = await this.options.discordAlertRouter.ensureThread(
         entry.symbol,
         entry.discordThreadId,
@@ -9163,7 +9273,7 @@ export class ManualWatchlistRuntimeManager {
     const pendingActivationCount = [...this.pendingActivations.entries()].filter(
       ([symbol, pending]) =>
         this.isActivationCurrent(symbol, pending.epoch) &&
-        this.watchlistStore.getEntry(symbol)?.active,
+        this.watchlistStore.getEntry(symbol)?.lifecycle === "activating",
     ).length;
 
     return {
@@ -9418,7 +9528,7 @@ export class ManualWatchlistRuntimeManager {
       } else {
         await this.seedLevelsForSymbol(symbol);
       }
-      if (preparedThread && !this.isEntryActive(symbol)) {
+      if (preparedThread && !this.isEntryAvailableForActivationWork(symbol)) {
         throw new ActivationCancelledError(symbol);
       }
       this.assertActivationCurrent(symbol, activationEpoch);
@@ -9448,50 +9558,66 @@ export class ManualWatchlistRuntimeManager {
         tags: watchlistTagsForActivation(input),
         note: input.note,
         discordThreadId: threadId,
-        active: true,
+        active: false,
         lifecycle: "activating",
         activatedAt: Date.now(),
         refreshPending: true,
         lastError: null,
         operationStatus: "posting level snapshot",
       });
-      this.publishWebsiteTickerStatus(symbol, "live", entry.activatedAt ?? null);
 
       let snapshotPayload: LevelSnapshotPayload | null = null;
       try {
-        snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now());
+        snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now(), undefined, true);
       } catch (error) {
         if (preparedThread) {
           throw error;
         }
 
         await delay(INITIAL_SNAPSHOT_RETRY_DELAY_MS);
-        snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now());
+        snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now(), undefined, true);
       }
+      this.assertActivationCurrent(symbol, activationEpoch);
+      this.persistWatchlist();
+      const preparedEntry = this.watchlistStore.getEntry(symbol) ?? entry;
+      await this.restartMonitoringForPreparedActivation(preparedEntry);
+      this.assertActivationCurrent(symbol, activationEpoch);
+      await this.publishActivationWebsiteSnapshot(symbol, Date.now());
+      this.assertActivationCurrent(symbol, activationEpoch);
+      const activatedEntry = this.watchlistStore.patchEntry(symbol, {
+        active: true,
+        lifecycle: "active",
+        refreshPending: false,
+        lastError: null,
+        operationStatus: "monitoring live price",
+      }) ?? preparedEntry;
+      this.persistWatchlist();
+      this.emitLifecycle("activation_completed", {
+        symbol,
+        threadId,
+      });
       this.triggerAutoCleanRead({
         symbol,
         threadId,
         payload: snapshotPayload,
       });
-      this.assertActivationCurrent(symbol, activationEpoch);
-      this.persistWatchlist();
-      await this.restartMonitoring();
-      this.emitLifecycle("activation_completed", {
-        symbol,
-        threadId,
-      });
       this.publishRecentWebsiteArticles(symbol);
       if (this.isTradersLinkAiReadConfigured() && this.liveWatchlistPublisher) {
-        const latestEntry = this.watchlistStore.getEntry(symbol) ?? entry;
-        await this.liveWatchlistPublisher.publish(
+        const latestEntry = this.watchlistStore.getEntry(symbol) ?? activatedEntry;
+        void this.liveWatchlistPublisher.publish(
           buildTradersLinkAiReadVisibilityPatch({
             symbol,
             visible: latestEntry.tradersLinkAiReadCardVisible !== false,
           }),
-        );
+        ).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `[ManualWatchlistRuntimeManager] Failed to publish AI Read visibility for ${symbol}: ${message}`,
+          );
+        });
       }
       this.scheduleTradersLinkAiRead(symbol, true, "activation");
-      return this.watchlistStore.getEntry(symbol) ?? entry;
+      return this.watchlistStore.getEntry(symbol) ?? activatedEntry;
     } catch (error) {
       if (error instanceof ActivationCancelledError) {
         this.persistWatchlist();
@@ -9516,6 +9642,12 @@ export class ManualWatchlistRuntimeManager {
       this.priorRegularCloseBySymbol.delete(symbol);
       this.priorRegularCloseRefreshInFlight.delete(symbol);
       this.lastPriorRegularCloseRefreshAt.delete(symbol);
+      await this.restartMonitoring().catch((restartError) => {
+        const restartMessage = restartError instanceof Error ? restartError.message : String(restartError);
+        console.error(
+          `[ManualWatchlistRuntimeManager] Failed to remove incomplete activation ${symbol} from monitoring: ${restartMessage}`,
+        );
+      });
       const message = error instanceof Error ? error.message : String(error);
       if (preparedThread) {
         this.watchlistStore.upsertManualEntry({
@@ -9523,7 +9655,7 @@ export class ManualWatchlistRuntimeManager {
           tags: watchlistTagsForActivation(input),
           note: input.note,
           discordThreadId: preparedThread.threadId,
-          active: true,
+          active: false,
           lifecycle: "activation_failed",
           activatedAt: Date.now(),
           refreshPending: false,
@@ -9645,6 +9777,19 @@ export class ManualWatchlistRuntimeManager {
         `[ManualWatchlistRuntimeManager] Failed to publish catalyst-aware website snapshot for ${symbol}: ${message}`,
       );
     });
+  }
+
+  private async publishActivationWebsiteSnapshot(symbol: string, timestamp: number): Promise<void> {
+    if (!this.liveWatchlistPublisher || !this.options.levelStore.getLevels(symbol)) {
+      return;
+    }
+    const patch = this.applyLiveTraderReadCardVisibility(
+      buildLiveWatchlistSnapshotPatch(
+        this.buildLevelSnapshotPayload(symbol, timestamp),
+        { pullbackReadEnabled: this.options.pullbackReadEnabled },
+      ),
+    );
+    await this.liveWatchlistPublisher.publish(patch);
   }
 
   private applyLiveTraderReadCardVisibility(patch: LiveWatchlistCardPatch): LiveWatchlistCardPatch {
@@ -10039,10 +10184,17 @@ export class ManualWatchlistRuntimeManager {
       ? refreshTechnicalContextForPrice(storedTechnicalContext, update.lastPrice)
       : null;
     const roleFlipCandles = this.technicalContextCandleStore.getCandles(update.symbol);
+    const previousMarketDataRevision = this.lastWebsiteTickerDataRevision.get(update.symbol) ?? -1;
+    const observedAtRevisionBase = Math.max(0, Math.trunc(update.timestamp)) * 1_000;
+    const marketDataRevision = Math.max(
+      observedAtRevisionBase,
+      previousMarketDataRevision + 1,
+    );
     const patch = buildLiveWatchlistTickerDataPatch({
       symbol: update.symbol,
       lastPrice: update.lastPrice,
       timestamp: update.timestamp,
+      marketDataRevision,
       supportZones: this.getWebsiteTickerSupportReferences(update.symbol, snapshotState),
       resistanceZones: this.getWebsiteTickerResistanceReferences(update.symbol, snapshotState),
       volume: update.volume,
@@ -10068,6 +10220,7 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.lastWebsiteTickerDataPublishAt.set(update.symbol, update.timestamp);
+    this.lastWebsiteTickerDataRevision.set(update.symbol, marketDataRevision);
     this.publishWebsiteTechnicalContext(update);
     const technicalContext = this.technicalContextBySymbol.get(update.symbol);
     if (technicalContext) {
@@ -10137,7 +10290,7 @@ export class ManualWatchlistRuntimeManager {
           tags: watchlistTagsForActivation(input),
           note: input.note,
           discordThreadId: thread.threadId,
-          active: true,
+          active: false,
           lifecycle: "activation_failed",
           activatedAt: this.watchlistStore.getEntry(symbol)?.activatedAt ?? Date.now(),
           refreshPending: false,
@@ -10166,7 +10319,7 @@ export class ManualWatchlistRuntimeManager {
           tags: watchlistTagsForActivation(input),
           note: input.note,
           discordThreadId: thread.threadId,
-          active: true,
+          active: false,
           lifecycle: "activating",
           activatedAt: this.watchlistStore.getEntry(symbol)?.activatedAt ?? Date.now(),
           refreshPending: true,
@@ -10189,14 +10342,14 @@ export class ManualWatchlistRuntimeManager {
     const existing = this.watchlistStore.getEntry(symbol);
     const pending = this.pendingActivations.get(symbol);
 
-    if (pending && existing?.active && this.isActivationCurrent(symbol, pending.epoch)) {
+    if (pending && existing?.lifecycle === "activating" && this.isActivationCurrent(symbol, pending.epoch)) {
       return (
         existing ??
         this.watchlistStore.upsertManualEntry({
           symbol,
           tags: watchlistTagsForActivation(input),
           note: input.note,
-          active: true,
+          active: false,
           lifecycle: "activating",
           activatedAt: Date.now(),
           refreshPending: true,
@@ -10238,7 +10391,7 @@ export class ManualWatchlistRuntimeManager {
       tags: watchlistTagsForActivation(input),
       note: input.note,
       discordThreadId: thread.threadId,
-      active: true,
+      active: false,
       lifecycle: "activating",
       activatedAt: Date.now(),
       refreshPending: true,
@@ -10256,21 +10409,28 @@ export class ManualWatchlistRuntimeManager {
       rollbackEntries,
       thread,
       activationEpoch,
-    )
-      .then(() => undefined)
-      .catch((error) => {
+    ).finally(() => {
+      if (this.pendingActivations.get(symbol)?.epoch === activationEpoch) {
+        this.pendingActivations.delete(symbol);
+      }
+    });
+
+    this.pendingActivations.set(symbol, { promise: activationTask, epoch: activationEpoch });
+    if (input.source === "auto") {
+      await activationTask;
+      const activatedEntry = this.watchlistStore.getEntry(symbol);
+      if (!activatedEntry?.active || activatedEntry.lifecycle !== "active") {
+        throw new Error(`${symbol} activation did not reach ready state.`);
+      }
+      return activatedEntry;
+    }
+
+    void activationTask.catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         console.error(
           `[ManualWatchlistRuntimeManager] Background activation failed for ${symbol}: ${message}`,
         );
-      })
-      .finally(() => {
-        if (this.pendingActivations.get(symbol)?.epoch === activationEpoch) {
-          this.pendingActivations.delete(symbol);
-        }
       });
-
-    this.pendingActivations.set(symbol, { promise: activationTask, epoch: activationEpoch });
     return queuedEntry;
   }
 

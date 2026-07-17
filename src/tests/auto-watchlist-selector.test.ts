@@ -785,6 +785,104 @@ test("premarket discovery prioritizes current market movers that stale regular-s
   );
 });
 
+test("Nasdaq movers are independently evaluated when the bulk screener omits them", async () => {
+  const cases = [
+    { label: "premarket", now: Date.parse("2026-07-17T12:30:00Z") },
+    { label: "regular", now: Date.parse("2026-07-17T15:00:00Z") },
+    { label: "postmarket", now: Date.parse("2026-07-17T21:30:00Z") },
+  ] as const;
+
+  for (const scenario of cases) {
+    const actualTradeTime = Math.floor((scenario.now - 30_000) / 1000);
+    const fetchImpl: typeof fetch = async (input) => {
+      if (String(input).includes("/api/marketmovers")) {
+        return new Response(JSON.stringify({
+          data: {
+            STOCKS: {
+              MostAdvanced: {
+                table: {
+                  rows: [{
+                    symbol: "NEWA",
+                    name: "New Arrival Corporation Common Stock",
+                    lastSalePrice: "$1.50",
+                    lastSaleChange: "+0.50",
+                    change: "+50.00%",
+                    deltaIndicator: "up",
+                  }, {
+                    symbol: "BADW",
+                    name: "Bad Security Warrant",
+                    lastSalePrice: "$1.50",
+                    lastSaleChange: "+0.50",
+                    change: "+50.00%",
+                    deltaIndicator: "up",
+                  }],
+                },
+              },
+              MostActiveByShareVolume: {
+                table: {
+                  rows: [{
+                    symbol: "NEWA",
+                    name: "New Arrival Corporation Common Stock",
+                    lastSalePrice: "$1.50",
+                    lastSaleChange: "+0.50",
+                    change: "2500000",
+                    deltaIndicator: "up",
+                  }],
+                },
+              },
+            },
+          },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: { rows: [] } }), { status: 200 });
+    };
+    const selector = new AutoWatchlistSelector({
+      yahooClient: null,
+      finnhubClient: {
+        getCompanyProfile: async (symbol: string) => ({
+          ticker: symbol,
+          marketCapitalization: 25,
+          shareOutstanding: 10,
+        }),
+      } as unknown as FinnhubClient,
+      fetchImpl,
+      configPath: join(tmpdir(), `auto-watchlist-independent-mover-${scenario.label}.json`),
+      thresholds: { enrichmentLimit: 10 },
+      now: () => scenario.now,
+      getActiveSymbols: () => [],
+      isRuntimeReady: () => true,
+      activateSymbol: async () => undefined,
+      catalystLookup: NO_CATALYST_LOOKUP,
+      sessionActivityLookup: async ({ symbols, session }) => Object.fromEntries(
+        symbols.map((symbol) => [symbol, {
+          symbol,
+          session,
+          price: 1.5,
+          gainPct: 50,
+          sessionVolume: 2_500_000,
+          sessionDollarVolume: 3_750_000,
+          recent15mVolume: 250_000,
+          recent15mDollarVolume: 375_000,
+          sessionElapsedMinutes: 30,
+          volumeAcceleration: 2,
+          quoteTime: actualTradeTime,
+          quoteAgeMinutes: 0.5,
+          available: true,
+        }]),
+      ),
+    });
+
+    const preview = await selector.previewScan();
+    const decision = preview.recentDecisions.find((candidate) => candidate.symbol === "NEWA");
+    assert.ok(decision, `${scenario.label} should independently evaluate NEWA`);
+    assert.equal(decision.quoteTime, actualTradeTime);
+    assert.equal(decision.qualified, true);
+    assert.equal(decision.sourceScreens.includes("nasdaq_live_most_advanced"), true);
+    assert.equal(decision.sourceScreens.includes("nasdaq_live_most_active"), true);
+    assert.equal(preview.recentDecisions.some((candidate) => candidate.symbol === "BADW"), false);
+  }
+});
+
 test("regular-hours discovery uses live market movers when the downloadable screener is stale", async () => {
   const fetchImpl: typeof fetch = async (input) => {
     if (String(input).includes("/api/marketmovers")) {

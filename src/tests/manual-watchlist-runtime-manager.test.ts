@@ -230,6 +230,12 @@ class FakeLiveWatchlistPublisher implements LiveWatchlistPublisher {
   }
 }
 
+class FailingLiveWatchlistPublisher extends FakeLiveWatchlistPublisher {
+  override async publish(): Promise<void> {
+    throw new Error("website ingest unavailable");
+  }
+}
+
 class DelayedExtensionDiscordAlertRouter extends FakeDiscordAlertRouter {
   constructor(private readonly delayMs: number) {
     super();
@@ -522,8 +528,8 @@ test("ManualWatchlistRuntimeManager blends EODHD completed sessions with Yahoo c
       generatedAt: Date.now(),
       series: [{
         timeframe,
-        provider: "eodhd",
-        selectionReason: "historical_or_daily_window",
+        provider: "eodhd" as const,
+        selectionReason: "historical_or_daily_window" as const,
         requestedStartTimestamp: request.fromTimeMs,
         requestedEndTimestamp: request.toTimeMs,
         candles,
@@ -538,7 +544,7 @@ test("ManualWatchlistRuntimeManager blends EODHD completed sessions with Yahoo c
     discordAlertRouter: new FakeDiscordAlertRouter() as any,
     opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
     recentIntradayCandleFetchService: new StaticRecentIntradayCandleFetchService() as any,
-    tradersLinkAiReadHistoricalCandleLoader: historicalLoader,
+    tradersLinkAiReadHistoricalCandleLoader: historicalLoader as any,
   });
 
   const context = await (manager as any).buildTradersLinkAiReadPriceActionContext(
@@ -2120,7 +2126,9 @@ test("ManualWatchlistRuntimeManager preserves activation failures across startup
   assert.deepEqual(discordAlertRouter.levelSnapshots.map((entry) => entry.payload.symbol), ["CANG"]);
   assert.deepEqual(monitor.startCalls.at(-1)?.map((entry) => entry.symbol), ["CANG"]);
 
-  const failedEntry = manager.getActiveEntries().find((entry) => entry.symbol === "UCAR");
+  const failedEntry = (manager as any).watchlistStore.getEntry("UCAR") as WatchlistEntry | undefined;
+  assert.equal(failedEntry?.active, false);
+  assert.equal(manager.getActiveEntries().some((entry) => entry.symbol === "UCAR"), false);
   assert.equal(failedEntry?.lifecycle, "activation_failed");
   assert.equal(failedEntry?.refreshPending, false);
   assert.equal(failedEntry?.lastError, "Level seeding timed out for UCAR after 225000ms.");
@@ -3765,11 +3773,10 @@ test("ManualWatchlistRuntimeManager queues activation immediately, creates the t
   const queued = await manager.queueActivation({ symbol: "BMGL", note: "slow seed" });
   assert.equal(queued.symbol, "BMGL");
   assert.equal(queued.lifecycle, "activating");
+  assert.equal(queued.active, false);
   assert.equal(queued.refreshPending, true);
   assert.equal(queued.discordThreadId, "thread-BMGL");
-  assert.equal(manager.getActiveEntries()[0]?.symbol, "BMGL");
-  assert.equal(manager.getActiveEntries()[0]?.lifecycle, "activating");
-  assert.equal(manager.getActiveEntries()[0]?.discordThreadId, "thread-BMGL");
+  assert.equal(manager.getActiveEntries().length, 0);
   assert.equal(discordAlertRouter.ensured.length, 1);
   assert.equal(discordAlertRouter.ensured[0]?.symbol, "BMGL");
 
@@ -3783,6 +3790,36 @@ test("ManualWatchlistRuntimeManager queues activation immediately, creates the t
   assert.equal(activated?.lifecycle, "active");
   assert.equal(activated?.refreshPending, false);
   assert.equal(discordAlertRouter.levelSnapshots[0]?.threadId, "thread-BMGL");
+});
+
+test("ManualWatchlistRuntimeManager does not activate a ticker when the website snapshot is not acknowledged", async () => {
+  const levelStore = new LevelStore();
+  const persistence = new FakeWatchlistStatePersistence();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher: new FailingLiveWatchlistPublisher(),
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.queueActivation({ symbol: "NOACK" });
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+
+  const failed = (manager as any).watchlistStore.getEntry("NOACK") as WatchlistEntry | undefined;
+  assert.equal(failed?.active, false);
+  assert.equal(failed?.lifecycle, "activation_failed");
+  assert.match(failed?.lastError ?? "", /website ingest unavailable/);
+  assert.equal(manager.getActiveEntries().some((entry) => entry.symbol === "NOACK"), false);
 });
 
 test("ManualWatchlistRuntimeManager posts stock context into a newly created thread before the level snapshot", async () => {
@@ -4006,7 +4043,9 @@ test("ManualWatchlistRuntimeManager marks a hung queued activation failed instea
   await waitForAsyncWork();
   await new Promise((resolve) => setTimeout(resolve, 120));
 
-  const failedEntry = manager.getActiveEntries().find((entry) => entry.symbol === "INTC");
+  const failedEntry = (manager as any).watchlistStore.getEntry("INTC") as WatchlistEntry | undefined;
+  assert.equal(failedEntry?.active, false);
+  assert.equal(manager.getActiveEntries().some((entry) => entry.symbol === "INTC"), false);
   assert.equal(failedEntry?.lifecycle, "activation_failed");
   assert.equal(failedEntry?.refreshPending, false);
   assert.match(failedEntry?.lastError ?? "", /timed out/);
@@ -7525,10 +7564,10 @@ test("ManualWatchlistRuntimeManager fills a runner resistance path when only one
   assert.match(pathLevelsBody, /24\.00/);
   assert.match(pathLevelsBody, /25\.00/);
   assert.match(pathLevelsBody, /27\.50/);
-  assert.doesNotMatch(pathLevelsBody, /30\.00/);
+  assert.match(pathLevelsBody, /30\.00/);
   assert.deepEqual(
     liveWatchlistPublisher.cardPatches.at(-1)?.levelMap?.resistanceLevels.map((level) => level.price),
-    [23.051, 24, 25, 27.5],
+    [23.051, 24, 25, 27.5, 30],
   );
 });
 

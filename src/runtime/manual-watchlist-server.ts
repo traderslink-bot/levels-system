@@ -437,7 +437,7 @@ function publishLiveWatchlistHealth(args: {
     .publishHealth({
       type: "health",
       marketDataStatus,
-      marketDataUpdatedAt: Date.now(),
+      marketDataUpdatedAt: health.lastPriceUpdateAt,
     })
     .catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -828,7 +828,11 @@ async function main(): Promise<void> {
     false;
   tradersLinkAiReadService?.setExternalResearchEnabled(aiReadExternalResearchEnabled);
   if (!persistedTradersLinkAiReadSettings) {
-    tradersLinkAiReadSettingsPersistence.save(aiReadExternalResearchEnabled);
+    tradersLinkAiReadSettingsPersistence.save({
+      externalResearchEnabled: aiReadExternalResearchEnabled,
+      liveTraderReadCardVisible: true,
+      potentialGainCardVisible: true,
+    });
   }
   const tradersLinkAiReadCostLedger = new TradersLinkAiReadCostLedger({
     ...(process.env.TRADERSLINK_AI_READ_COST_LEDGER_FILE?.trim()
@@ -868,6 +872,10 @@ async function main(): Promise<void> {
     tradersLinkAiReadStartupRefreshEnabled: isTruthyEnv(
       process.env.TRADERSLINK_AI_READ_STARTUP_REFRESH_ENABLED,
     ),
+    initialLiveTraderReadCardVisible:
+      persistedTradersLinkAiReadSettings?.liveTraderReadCardVisible,
+    initialPotentialGainCardVisible:
+      persistedTradersLinkAiReadSettings?.potentialGainCardVisible,
     pullbackReadEnabled,
     recentIntradayCandleFetchService,
     tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
@@ -1085,7 +1093,12 @@ async function main(): Promise<void> {
           sendJson(response, 400, { error: "Boolean enabled value is required." });
           return;
         }
-        tradersLinkAiReadSettingsPersistence.save(body.enabled);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: body.enabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+        });
         aiReadExternalResearchEnabled = body.enabled;
         tradersLinkAiReadService?.setExternalResearchEnabled(body.enabled);
         sendJson(response, 200, {
@@ -1372,6 +1385,12 @@ async function main(): Promise<void> {
         }
 
         const result = await manager.setLiveTraderReadCardVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          liveTraderReadCardVisible: result.visible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+        });
         publishLiveWatchlistHealth({
           publisher: liveWatchlistHealthPublisher,
           manager,
@@ -1417,6 +1436,12 @@ async function main(): Promise<void> {
         }
 
         const result = await manager.setPotentialGainCardVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: result.visible,
+        });
         sendJson(response, 200, {
           ok: true,
           visible: result.visible,
@@ -1837,7 +1862,7 @@ async function main(): Promise<void> {
     await liveWatchlistHealthPublisher?.publishHealth?.({
       type: "health",
       marketDataStatus: "offline",
-      marketDataUpdatedAt: Date.now(),
+      marketDataUpdatedAt: manager.getRuntimeHealth().lastPriceUpdateAt,
     });
     if (signal) {
       console.log(`Received ${signal}. Shutting down manual watchlist server...`);

@@ -14,17 +14,25 @@ afterEach(() => {
   }
 });
 describe("TradersLinkAiReadSettingsPersistence", () => {
-  it("persists the external research switch across restarts", () => {
+  it("persists AI research and global card switches across restarts", () => {
     const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-settings-"));
     tempDirectories.push(directory);
     const filePath = join(directory, "settings.json");
     const persistence = new TradersLinkAiReadSettingsPersistence({ filePath });
 
     assert.equal(persistence.load(), null);
-    persistence.save(false);
-    assert.equal(persistence.load()?.externalResearchEnabled, false);
-    persistence.save(true);
-    assert.equal(persistence.load()?.externalResearchEnabled, true);
+    persistence.save({
+      externalResearchEnabled: false,
+      liveTraderReadCardVisible: false,
+      potentialGainCardVisible: true,
+    });
+    assert.deepEqual(persistence.load(), {
+      version: 2,
+      lastUpdated: persistence.load()?.lastUpdated,
+      externalResearchEnabled: false,
+      liveTraderReadCardVisible: false,
+      potentialGainCardVisible: true,
+    });
   });
 
   it("rejects malformed settings instead of enabling research", () => {

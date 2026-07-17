@@ -2,16 +2,18 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 export type TradersLinkAiReadSettings = {
-  version: 1;
+  version: 2;
   lastUpdated: number;
   externalResearchEnabled: boolean;
+  liveTraderReadCardVisible: boolean;
+  potentialGainCardVisible: boolean;
 };
 
 export type TradersLinkAiReadSettingsPersistenceOptions = {
   filePath?: string;
 };
 
-const SETTINGS_VERSION = 1;
+const SETTINGS_VERSION = 2;
 const DEFAULT_SETTINGS_FILE = resolve(
   process.cwd(),
   "artifacts",
@@ -24,7 +26,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
   if (
     !isRecord(value) ||
-    value.version !== SETTINGS_VERSION ||
+    (value.version !== 1 && value.version !== SETTINGS_VERSION) ||
     typeof value.lastUpdated !== "number" ||
     !Number.isFinite(value.lastUpdated) ||
     typeof value.externalResearchEnabled !== "boolean"
@@ -36,6 +38,14 @@ function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
     version: SETTINGS_VERSION,
     lastUpdated: value.lastUpdated,
     externalResearchEnabled: value.externalResearchEnabled,
+    liveTraderReadCardVisible:
+      typeof value.liveTraderReadCardVisible === "boolean"
+        ? value.liveTraderReadCardVisible
+        : true,
+    potentialGainCardVisible:
+      typeof value.potentialGainCardVisible === "boolean"
+        ? value.potentialGainCardVisible
+        : true,
   };
 }
 
@@ -71,11 +81,22 @@ export class TradersLinkAiReadSettingsPersistence {
     }
   }
 
-  save(externalResearchEnabled: boolean): TradersLinkAiReadSettings {
+  save(input: boolean | {
+    externalResearchEnabled: boolean;
+    liveTraderReadCardVisible: boolean;
+    potentialGainCardVisible: boolean;
+  }): TradersLinkAiReadSettings {
+    const values = typeof input === "boolean"
+      ? {
+          externalResearchEnabled: input,
+          liveTraderReadCardVisible: true,
+          potentialGainCardVisible: true,
+        }
+      : input;
     const settings: TradersLinkAiReadSettings = {
       version: SETTINGS_VERSION,
       lastUpdated: Date.now(),
-      externalResearchEnabled,
+      ...values,
     };
     const directory = dirname(this.filePath);
     const tempFilePath = `${this.filePath}.tmp`;

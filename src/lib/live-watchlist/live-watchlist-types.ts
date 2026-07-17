@@ -43,7 +43,7 @@ export type LiveWatchlistCardPatch = {
 export type LiveWatchlistHealthPatch = {
   type: "health";
   marketDataStatus: LiveWatchlistMarketDataStatus;
-  marketDataUpdatedAt: number;
+  marketDataUpdatedAt: number | null;
 };
 
 export type LiveWatchlistTickerDataPatch = {
@@ -51,6 +51,8 @@ export type LiveWatchlistTickerDataPatch = {
   symbol: string;
   status?: LiveWatchlistStatus;
   updatedAt: number;
+  marketDataObservedAt?: number;
+  marketDataRevision?: number;
   potentialGainCardVisible?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
   latestPrice: number;

@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import type { TradersLinkAiReadPayload, TradersLinkAiReadUsage } from "../live-watchlist/live-watchlist-types.js";
+import type { TradersLinkAiReadAttempt } from "./traderslink-ai-read-service.js";
 
 export type TradersLinkAiReadCostTrigger =
   | "activation"
@@ -14,7 +15,7 @@ export type TradersLinkAiReadCostTrigger =
   | "visibility_enabled";
 
 export type TradersLinkAiReadCostLedgerEntry = {
-  version: 1;
+  version: 1 | 2;
   symbol: string;
   generatedAt: number;
   dataAsOf: number;
@@ -23,6 +24,12 @@ export type TradersLinkAiReadCostLedgerEntry = {
   marketSession: TradersLinkAiReadPayload["marketSession"];
   usedWebSearch: boolean;
   usage: TradersLinkAiReadUsage;
+  generationId?: string;
+  requestId?: string;
+  attemptType?: TradersLinkAiReadAttempt["attemptType"] | "publication";
+  status?: TradersLinkAiReadAttempt["status"] | "publish_error";
+  receivedAt?: number;
+  error?: string | null;
 };
 
 export type TradersLinkAiReadCostTotals = {
@@ -97,7 +104,7 @@ function isUsage(value: unknown): value is TradersLinkAiReadUsage {
 function isEntry(value: unknown): value is TradersLinkAiReadCostLedgerEntry {
   return (
     isRecord(value) &&
-    value.version === 1 &&
+    (value.version === 1 || value.version === 2) &&
     typeof value.symbol === "string" &&
     value.symbol.length > 0 &&
     typeof value.generatedAt === "number" &&
@@ -127,12 +134,28 @@ function emptyTotals(): TradersLinkAiReadCostTotals {
   };
 }
 
+function emptyUsage(template: TradersLinkAiReadUsage): TradersLinkAiReadUsage {
+  return {
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    webSearchCallCount: 0,
+    tokenCostUsd: template.tokenCostUsd === null ? null : 0,
+    webSearchCostUsd: 0,
+    estimatedTotalCostUsd: template.estimatedTotalCostUsd === null ? null : 0,
+    pricing: template.pricing,
+  };
+}
+
 function totalsFor(entries: TradersLinkAiReadCostLedgerEntry[]): TradersLinkAiReadCostTotals {
   const totals = emptyTotals();
   const symbols = new Set<string>();
   for (const entry of entries) {
     const usage = entry.usage;
-    totals.requestCount += 1;
+    if (entry.status !== "publish_error") {
+      totals.requestCount += 1;
+    }
     symbols.add(entry.symbol);
     totals.webSearchCallCount += usage.webSearchCallCount;
     totals.inputTokens += usage.inputTokens;
@@ -188,13 +211,57 @@ export class TradersLinkAiReadCostLedger {
       usedWebSearch: args.read.usedWebSearch,
       usage: args.read.usage,
     };
-    try {
-      mkdirSync(dirname(this.filePath), { recursive: true });
-      appendFileSync(this.filePath, `${JSON.stringify(entry)}\n`, "utf8");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[TradersLinkAiReadCostLedger] Failed to record usage: ${message}`);
-    }
+    this.append(entry);
+  }
+
+  recordAttempt(args: {
+    attempt: TradersLinkAiReadAttempt;
+    trigger: TradersLinkAiReadCostTrigger;
+  }): void {
+    this.append({
+      version: 2,
+      symbol: args.attempt.symbol,
+      generatedAt: args.attempt.receivedAt,
+      dataAsOf: args.attempt.dataAsOf,
+      model: args.attempt.model,
+      trigger: args.trigger,
+      marketSession: args.attempt.marketSession,
+      usedWebSearch: args.attempt.usedWebSearch,
+      usage: args.attempt.usage,
+      generationId: args.attempt.generationId,
+      requestId: args.attempt.requestId,
+      attemptType: args.attempt.attemptType,
+      status: args.attempt.status,
+      receivedAt: args.attempt.receivedAt,
+      error: args.attempt.error,
+    });
+  }
+
+  recordPublishFailure(args: {
+    read: TradersLinkAiReadPayload;
+    trigger: TradersLinkAiReadCostTrigger;
+    error: unknown;
+  }): void {
+    this.append({
+      version: 2,
+      symbol: args.read.symbol,
+      generatedAt: Date.now(),
+      dataAsOf: args.read.dataAsOf,
+      model: args.read.model,
+      trigger: args.trigger,
+      marketSession: args.read.marketSession,
+      usedWebSearch: false,
+      usage: emptyUsage(args.read.usage),
+      attemptType: "publication",
+      status: "publish_error",
+      receivedAt: Date.now(),
+      error: args.error instanceof Error ? args.error.message : String(args.error),
+    });
+  }
+
+  private append(entry: TradersLinkAiReadCostLedgerEntry): void {
+    mkdirSync(dirname(this.filePath), { recursive: true });
+    appendFileSync(this.filePath, `${JSON.stringify(entry)}\n`, "utf8");
   }
 
   load(): TradersLinkAiReadCostLedgerEntry[] {
