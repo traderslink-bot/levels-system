@@ -3815,7 +3815,15 @@ export class ManualWatchlistRuntimeManager {
 
     try {
       const preview = await stockContextProvider.getThreadPreview(symbol);
-      const payload = buildFinnhubThreadPreviewPayload(preview);
+      // A provider quote timestamp can be the regular-session close while this
+      // context is being posted hours later in extended trading. The website
+      // treats the first stock-context patch as the ticker's Added time, so
+      // preserve the activation/posting timestamp here rather than the quote's
+      // last-trade timestamp.
+      const payload = {
+        ...buildFinnhubThreadPreviewPayload(preview),
+        timestamp,
+      };
       const currentPrice = resolveStockContextCurrentPrice(preview);
       const priorRegularClose = resolvePriorRegularCloseReference(preview);
       if (priorRegularClose) {

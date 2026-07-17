@@ -4056,6 +4056,7 @@ test("ManualWatchlistRuntimeManager records stock context without consuming trad
   await (manager as any).maybePostStockContext("EXMP", "thread-EXMP", 1_000);
 
   assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.messageKind, "stock_context");
+  assert.equal(discordAlertRouter.routed[0]?.payload.timestamp, 1_000);
   assert.equal(manager.getRuntimeHealth().lastThreadPostKind, "stock_context");
   assert.equal(manager.getRuntimeHealth().mondayReview.postsLast15m, 0);
 });
