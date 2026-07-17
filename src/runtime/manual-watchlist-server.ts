@@ -234,6 +234,8 @@ const AUTO_WATCHLIST_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresho
   "minRecentDollarVolume15mPremarket",
   "minRecentDollarVolume15mRegular",
   "minRecentDollarVolume15mPostmarket",
+  "postmarketPromotionMinGainPct",
+  "postmarketPromotionMinRecentDollarVolume",
   "requireRecentActivityData",
   "maxActivityQuoteAgeMinutes",
   "extendedSessionCandidateLimit",

@@ -71,6 +71,8 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   minRecentDollarVolume15mPremarket: 25_000,
   minRecentDollarVolume15mRegular: 50_000,
   minRecentDollarVolume15mPostmarket: 25_000,
+  postmarketPromotionMinGainPct: 10,
+  postmarketPromotionMinRecentDollarVolume: 75_000,
   requireRecentActivityData: true,
   maxActivityQuoteAgeMinutes: 10,
   extendedSessionCandidateLimit: 60,
@@ -132,6 +134,10 @@ export type AutoWatchlistSelectorThresholds = {
   minRecentDollarVolume15mPremarket: number;
   minRecentDollarVolume15mRegular: number;
   minRecentDollarVolume15mPostmarket: number;
+  /** Applies only when a post-market candidate would take a new automatic slot. */
+  postmarketPromotionMinGainPct: number;
+  /** Applies only when a post-market candidate would take a new automatic slot. */
+  postmarketPromotionMinRecentDollarVolume: number;
   requireRecentActivityData: boolean;
   maxActivityQuoteAgeMinutes: number;
   extendedSessionCandidateLimit: number;
@@ -163,6 +169,8 @@ export type AutoWatchlistCandidateDecision = AutoWatchlistDiscoveryCandidate & {
   score: number;
   rankingScore: number;
   qualified: boolean;
+  promotionReady: boolean;
+  promotionRejectionReasons: string[];
   consecutivePasses: number;
   floatShares: number | null;
   sharesOutstanding: number | null;
@@ -483,6 +491,7 @@ const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "minRecentDollarVolume15mPremarket",
   "minRecentDollarVolume15mRegular",
   "minRecentDollarVolume15mPostmarket",
+  "postmarketPromotionMinRecentDollarVolume",
   "maxActivityQuoteAgeMinutes",
   "extendedSessionCandidateLimit",
 ]);
@@ -579,6 +588,9 @@ export function resolveAutoWatchlistSelectorThresholds(
   if (resolved.maxActivityQuoteAgeMinutes < 1 || resolved.maxActivityQuoteAgeMinutes > 60) {
     throw new Error("maxActivityQuoteAgeMinutes must be between 1 and 60.");
   }
+  if (resolved.postmarketPromotionMinGainPct > 100) {
+    throw new Error("postmarketPromotionMinGainPct cannot exceed 100.");
+  }
   if (resolved.catalystLookbackDays > 30) {
     throw new Error("catalystLookbackDays cannot exceed 30.");
   }
@@ -658,6 +670,28 @@ function minimumRecentDollarVolume(
   if (session === "premarket") return thresholds.minRecentDollarVolume15mPremarket;
   if (session === "postmarket") return thresholds.minRecentDollarVolume15mPostmarket;
   return thresholds.minRecentDollarVolume15mRegular;
+}
+
+function postmarketPromotionRejectionReasons(input: {
+  qualified: boolean;
+  session: AutoWatchlistSession;
+  gainPct: number | null;
+  recent15mDollarVolume: number | null;
+  thresholds: AutoWatchlistSelectorThresholds;
+}): string[] {
+  if (!input.qualified || input.session !== "postmarket") return [];
+  const reasons: string[] = [];
+  if ((input.gainPct ?? 0) < input.thresholds.postmarketPromotionMinGainPct) {
+    reasons.push(
+      `post-market promotion gain must be at least ${input.thresholds.postmarketPromotionMinGainPct}%`,
+    );
+  }
+  if ((input.recent15mDollarVolume ?? 0) < input.thresholds.postmarketPromotionMinRecentDollarVolume) {
+    reasons.push(
+      `post-market promotion last-15m dollar volume must be at least $${Math.round(input.thresholds.postmarketPromotionMinRecentDollarVolume / 1_000).toLocaleString("en-US")}K`,
+    );
+  }
+  return reasons;
 }
 
 function elapsedSessionMinutes(timestamp: number, session: AutoWatchlistSession): number | null {
@@ -855,6 +889,8 @@ export function scoreAutoWatchlistCandidate(input: {
   activity?: AutoWatchlistSessionActivity | null;
 }): Omit<
   AutoWatchlistCandidateDecision,
+  | "promotionReady"
+  | "promotionRejectionReasons"
   | "consecutivePasses"
   | "rankingScore"
   | "catalystAgeDays"
@@ -2282,9 +2318,18 @@ export class AutoWatchlistSelector {
         (scored.price ?? 0) * (scored.volume ?? 0),
       thresholds: this.thresholds,
     });
+    const promotionRejectionReasons = postmarketPromotionRejectionReasons({
+      qualified: scored.qualified,
+      session,
+      gainPct: scored.gainPct,
+      recent15mDollarVolume: activity?.recent15mDollarVolume ?? null,
+      thresholds: this.thresholds,
+    });
     return {
       ...scored,
       ...ranking,
+      promotionReady: scored.qualified && promotionRejectionReasons.length === 0,
+      promotionRejectionReasons,
       session,
       sessionVolume: activity?.sessionVolume ?? null,
       sessionDollarVolume: activity?.sessionDollarVolume ?? null,
@@ -2483,6 +2528,7 @@ export class AutoWatchlistSelector {
         const eligibleChallengers = qualified.filter((decision) => {
           const activeSymbols = new Set(this.options.getActiveSymbols().map(normalizeSymbol));
           if (activeSymbols.has(decision.symbol)) return false;
+          if (!decision.promotionReady) return false;
           const requiredPasses = this.isObviousRunner(decision)
             ? 1
             : this.thresholds.consecutivePassesRequired;

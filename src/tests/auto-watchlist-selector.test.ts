@@ -844,7 +844,76 @@ test("post-market discovery can promote an active after-hours runner that was do
   assert.equal(preview.recentDecisions[0]?.symbol, "BIYA");
   assert.equal(preview.recentDecisions[0]?.session, "postmarket");
   assert.equal(preview.recentDecisions[0]?.qualified, true);
+  assert.equal(preview.recentDecisions[0]?.promotionReady, true);
   assert.equal(preview.recentDecisions.find((decision) => decision.symbol === "LGPS")?.qualified, false);
+});
+
+test("postmarket promotion holds a marginal pop even when acceleration would qualify it as an obvious runner", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-postmarket-promotion-"));
+  const activated: string[] = [];
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    data: {
+      rows: [{
+        symbol: "VIVK",
+        name: "Vivakor Inc. Common Stock",
+        lastsale: "$2.17",
+        pctchange: "1.2%",
+        volume: "180000",
+        marketCap: "2000000",
+      }],
+    },
+  }), { status: 200 });
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "VIVK",
+        marketCapitalization: 2,
+        floatingShare: 3.2,
+        shareOutstanding: 4,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath: join(directory, "config.json"),
+    thresholds: { extendedSessionCandidateLimit: 1, enrichmentLimit: 1 },
+    now: () => Date.parse("2026-07-17T22:30:00Z"),
+    getActiveSymbols: () => [...activated],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => {
+      activated.push(symbol);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session, now }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: 2.31,
+        gainPct: 6.2,
+        sessionVolume: 180_000,
+        sessionDollarVolume: 415_800,
+        recent15mVolume: 52_000,
+        recent15mDollarVolume: 120_000,
+        sessionElapsedMinutes: 150,
+        volumeAcceleration: 3.7,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const vivk = status.recentDecisions.find((decision) => decision.symbol === "VIVK");
+    assert.ok(vivk);
+    assert.equal(vivk.qualified, true);
+    assert.equal(vivk.promotionReady, false);
+    assert.match(vivk.promotionRejectionReasons.join(" "), /promotion gain must be at least 10%/i);
+    assert.deepEqual(activated, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("premarket discovery prioritizes current market movers that stale regular-session rankings would omit", async () => {
