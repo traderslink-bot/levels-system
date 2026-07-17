@@ -20,6 +20,8 @@ export type FinnhubCompanyProfile = {
   logo?: string;
   marketCapitalization?: number;
   name?: string;
+  /** Finnhub /stock/profile2 reports this value in millions of shares. */
+  floatingShare?: number;
   shareOutstanding?: number;
   ticker?: string;
   weburl?: string;

@@ -79,6 +79,34 @@ test("auto selector strongly favors known low float and rejects oversized share 
   assert.match(tooLarge.rejectionReasons.join(" "), /shares outstanding must be at most 60M/);
 });
 
+test("auto selector falls back to Finnhub float only when Yahoo float is unavailable", () => {
+  const candidate = {
+    ...BASE_CANDIDATE,
+    price: 0.35,
+    gainPct: 24,
+    volume: 25_000_000,
+    marketCap: 39_000_000,
+  };
+  const finnhubFallback = scoreAutoWatchlistCandidate({
+    candidate,
+    finnhubFloatShares: 77_820_000,
+    finnhubSharesOutstanding: 167_750_000,
+  });
+  const yahooPreferred = scoreAutoWatchlistCandidate({
+    candidate,
+    floatShares: 8_000_000,
+    finnhubFloatShares: 77_820_000,
+    finnhubSharesOutstanding: 167_750_000,
+  });
+
+  assert.equal(finnhubFallback.qualified, true);
+  assert.equal(finnhubFallback.floatShares, 77_820_000);
+  assert.equal(finnhubFallback.effectiveSharesSource, "finnhub_float");
+  assert.equal(finnhubFallback.lowPriceFloatNormalized, true);
+  assert.equal(yahooPreferred.floatShares, 8_000_000);
+  assert.equal(yahooPreferred.effectiveSharesSource, "yahoo_float");
+});
+
 test("low-priced candidates can pass a dollar-float exception without outranking a true low float", () => {
   const lowFloat = scoreAutoWatchlistCandidate({
     candidate: {

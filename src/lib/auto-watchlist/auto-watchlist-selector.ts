@@ -167,7 +167,12 @@ export type AutoWatchlistCandidateDecision = AutoWatchlistDiscoveryCandidate & {
   floatShares: number | null;
   sharesOutstanding: number | null;
   effectiveShares: number | null;
-  effectiveSharesSource: "yahoo_float" | "yahoo_outstanding" | "finnhub_outstanding" | null;
+  effectiveSharesSource:
+    | "yahoo_float"
+    | "finnhub_float"
+    | "yahoo_outstanding"
+    | "finnhub_outstanding"
+    | null;
   floatDollarValue: number | null;
   lowPriceFloatNormalized: boolean;
   session: AutoWatchlistSession;
@@ -772,6 +777,7 @@ export function isWithinAutoWatchlistScanWindow(
 export function scoreAutoWatchlistCandidate(input: {
   candidate: AutoWatchlistDiscoveryCandidate;
   floatShares?: number | null;
+  finnhubFloatShares?: number | null;
   yahooSharesOutstanding?: number | null;
   finnhubSharesOutstanding?: number | null;
   thresholds?: Partial<AutoWatchlistSelectorThresholds>;
@@ -803,18 +809,22 @@ export function scoreAutoWatchlistCandidate(input: {
 > {
   const thresholds = resolveAutoWatchlistSelectorThresholds(input.thresholds);
   const candidate = input.candidate;
-  const floatShares = finitePositive(input.floatShares);
+  const yahooFloatShares = finitePositive(input.floatShares);
+  const finnhubFloatShares = finitePositive(input.finnhubFloatShares);
+  const floatShares = yahooFloatShares ?? finnhubFloatShares;
   const yahooOutstanding = finitePositive(input.yahooSharesOutstanding);
   const finnhubOutstanding = finitePositive(input.finnhubSharesOutstanding);
   const sharesOutstanding = yahooOutstanding ?? finnhubOutstanding;
   const effectiveShares = floatShares ?? sharesOutstanding;
-  const effectiveSharesSource = floatShares
+  const effectiveSharesSource = yahooFloatShares
     ? "yahoo_float" as const
-    : yahooOutstanding
-      ? "yahoo_outstanding" as const
-      : finnhubOutstanding
-        ? "finnhub_outstanding" as const
-        : null;
+    : finnhubFloatShares
+      ? "finnhub_float" as const
+      : yahooOutstanding
+        ? "yahoo_outstanding" as const
+        : finnhubOutstanding
+          ? "finnhub_outstanding" as const
+          : null;
   const rejectionReasons: string[] = [];
   const reasons: string[] = [];
   let score = 0;
@@ -1480,7 +1490,11 @@ export class AutoWatchlistSelector {
     reason: string,
   ): Promise<boolean> {
     const sharesLabel = decision.effectiveShares
-      ? `${(decision.effectiveShares / 1_000_000).toFixed(1)}M ${decision.effectiveSharesSource === "yahoo_float" ? "float" : "shares outstanding"}`
+      ? `${(decision.effectiveShares / 1_000_000).toFixed(1)}M ${
+        decision.effectiveSharesSource === "yahoo_float" || decision.effectiveSharesSource === "finnhub_float"
+          ? "float"
+          : "shares outstanding"
+      }`
       : "share count unavailable";
     try {
       await this.options.activateSymbol({
@@ -2182,6 +2196,9 @@ export class AutoWatchlistSelector {
           candidate.marketCap,
       },
       floatShares: yahoo?.floatShares,
+      finnhubFloatShares: finitePositive(finnhub?.floatingShare)
+        ? finnhub!.floatingShare! * 1_000_000
+        : null,
       yahooSharesOutstanding: yahoo?.sharesOutstanding,
       finnhubSharesOutstanding: finitePositive(finnhub?.shareOutstanding)
         ? finnhub!.shareOutstanding! * 1_000_000
