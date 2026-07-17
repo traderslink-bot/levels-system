@@ -610,6 +610,7 @@ describe("live watchlist publisher", () => {
         sourceType: "press_release_sec_database",
       }],
       model: "test-model",
+      externalResearchEnabled: true,
       usedWebSearch: true,
       usage: {
         inputTokens: 2_000,

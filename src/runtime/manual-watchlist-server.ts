@@ -8,6 +8,7 @@ import { TradersLinkAiReadSettingsPersistence } from "../lib/ai/traderslink-ai-r
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { EodhdHistoricalCandleProvider } from "../lib/market-data/eodhd-historical-candle-provider.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
+import { YahooHistoricalCandleProvider } from "../lib/market-data/yahoo-historical-candle-provider.js";
 import { DiscordAlertRouter } from "../lib/alerts/alert-router.js";
 import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
 import { LocalDiscordThreadGateway } from "../lib/alerts/local-discord-thread-gateway.js";
@@ -651,6 +652,9 @@ async function main(): Promise<void> {
   const levelIntelligenceAlertPreviewDryRun = createLevelIntelligenceAlertPreviewDryRunOptions();
   const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
   const tradersLinkAiReadService = createTradersLinkAiReadServiceFromEnv();
+  const tradersLinkAiReadCandleFetchService = tradersLinkAiReadService
+    ? new CandleFetchService(new YahooHistoricalCandleProvider())
+    : null;
   const tradersLinkAiReadSettingsPersistence = new TradersLinkAiReadSettingsPersistence({
     ...(process.env.TRADERSLINK_AI_READ_SETTINGS_FILE?.trim()
       ? { filePath: process.env.TRADERSLINK_AI_READ_SETTINGS_FILE.trim() }
@@ -685,6 +689,7 @@ async function main(): Promise<void> {
     liveWatchlistPublisher,
     tradersLinkAiReadService,
     tradersLinkAiReadCostLedger,
+    tradersLinkAiReadCandleFetchService,
     tradersLinkAiReadStartupRefreshEnabled: resolveBoolean(
       process.env.TRADERSLINK_AI_READ_STARTUP_REFRESH_ENABLED,
       false,

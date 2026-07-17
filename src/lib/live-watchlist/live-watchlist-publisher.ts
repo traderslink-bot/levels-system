@@ -1069,6 +1069,7 @@ export function buildTradersLinkAiReadPatch(args: {
           : "openai_responses_press_sec_database",
         metadata: {
           model: read.model,
+          externalResearchEnabled: read.externalResearchEnabled,
           bias: read.bias,
           confidence: read.confidence,
           listingStatus: read.listingStatus.status,

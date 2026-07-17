@@ -1,6 +1,6 @@
 export type LevelQualityReviewCacheFingerprintTimeframe = "5m" | "15m" | "4h" | "daily";
 
-export type LevelQualityReviewCacheFingerprintProvider = "ibkr" | "eodhd" | "stub" | "twelve_data";
+export type LevelQualityReviewCacheFingerprintProvider = "ibkr" | "eodhd" | "yahoo" | "stub" | "twelve_data";
 
 export type LevelQualityReviewCacheFingerprintSafety = {
   rawCandlesIncluded: false;
@@ -66,6 +66,7 @@ const FINGERPRINT_SET_SCHEMA_VERSION = "level-quality-review-cache-fingerprint-s
 const PROVIDERS: readonly LevelQualityReviewCacheFingerprintProvider[] = [
   "ibkr",
   "eodhd",
+  "yahoo",
   "stub",
   "twelve_data",
 ];
