@@ -2,6 +2,9 @@ import "dotenv/config";
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
+import { createTradersLinkAiReadServiceFromEnv } from "../lib/ai/traderslink-ai-read-service.js";
+import { TradersLinkAiReadCostLedger } from "../lib/ai/traderslink-ai-read-cost-ledger.js";
+import { TradersLinkAiReadSettingsPersistence } from "../lib/ai/traderslink-ai-read-settings.js";
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { EodhdHistoricalCandleProvider } from "../lib/market-data/eodhd-historical-candle-provider.js";
 import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
@@ -36,7 +39,6 @@ import { createIbkrClient } from "../scripts/shared/ibkr-runtime.js";
 
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
 const LIVE_WATCHLIST_HEALTH_PUBLISH_INTERVAL_MS = 15_000;
-const WATCHLIST_TRADER_READ_AI_ENABLED_ENV = "WATCHLIST_TRADER_READ_AI_ENABLED";
 const HISTORICAL_PROVIDER_ENV = "LEVEL_HISTORICAL_CANDLE_PROVIDER";
 const LIVE_PRICE_PROVIDER_ENV = "LEVEL_LIVE_PRICE_PROVIDER";
 
@@ -44,6 +46,14 @@ type ManualWatchlistProviderName = "ibkr" | "eodhd";
 
 function resolveManualWatchlistProviderName(value: string | undefined): ManualWatchlistProviderName {
   return value?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
+}
+
+function resolveBoolean(value: string | undefined, fallback: boolean): boolean {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return fallback;
+  }
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
 }
 
 type DiscordRuntimeEnv = {
@@ -74,17 +84,12 @@ function logDiscordRuntimeDiagnostics(env: DiscordRuntimeEnv, mode: "real" | "fa
   );
 }
 
-function logTraderReadRuntimeMode(): void {
-  const aiEnabled =
-    process.env[WATCHLIST_TRADER_READ_AI_ENABLED_ENV]?.trim().toLowerCase() === "true";
-  if (aiEnabled) {
-    console.log(
-      "[ManualWatchlistRuntime] AI trader reads are not implemented in v2 yet; using deterministic watchlist trader reads.",
-    );
-    return;
-  }
-
-  console.log("[ManualWatchlistRuntime] Watchlist trader reads: deterministic mode.");
+function logTraderReadRuntimeMode(aiConfigured: boolean): void {
+  console.log(
+    aiConfigured
+      ? "[ManualWatchlistRuntime] TradersLink AI Read enabled; deterministic Trader Read remains available as the baseline."
+      : "[ManualWatchlistRuntime] TradersLink AI Read disabled; deterministic Trader Read remains available.",
+  );
 }
 
 function createDiscordAlertRouter(
@@ -160,17 +165,47 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
   <title>Manual Watchlist</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; background: #f5f7fb; color: #1f2937; }
-    main { max-width: 760px; margin: 0 auto; }
+    main { max-width: 1080px; margin: 0 auto; }
     form, section { background: #fff; border: 1px solid #d7dee8; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
     label { display: block; font-size: 14px; margin-bottom: 6px; }
     input { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
     button { padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; background: #1d4ed8; color: #fff; }
     ul { list-style: none; padding: 0; margin: 0; }
-    li { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-top: 1px solid #e5e7eb; padding: 12px 0; }
+    li { display: flex; justify-content: space-between; gap: 16px; align-items: center; border-top: 1px solid #e5e7eb; padding: 14px 0; }
     li:first-child { border-top: 0; }
     .meta { color: #4b5563; font-size: 13px; }
     .status { min-height: 20px; font-size: 14px; margin-bottom: 12px; color: #1d4ed8; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .secondary { background: #475569; }
+    .switch { display: inline-flex; align-items: center; gap: 8px; background: #475569; }
+    .switch[aria-checked="true"] { background: #047857; }
+    .switch-dot { width: 14px; height: 14px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.3); }
+    button:disabled { cursor: not-allowed; opacity: .5; }
     .danger { background: #b91c1c; }
+    .cost-note { color: #4b5563; font-size: 13px; line-height: 1.45; }
+    .control-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .control-row h2 { margin: 0 0 6px; }
+    .control-row p { margin: 0; }
+    .cost-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0 18px; }
+    .cost-metric { border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; padding: 12px; }
+    .cost-metric span { display: block; color: #64748b; font-size: 12px; }
+    .cost-metric strong { display: block; margin-top: 4px; font-size: 20px; }
+    .cost-metric small { color: #475569; font-size: 11px; }
+    .cost-table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-top: 1px solid #e5e7eb; padding: 9px 8px; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    .cost-breakdowns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+    .cost-breakdowns > div { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+    .cost-breakdowns h3 { margin: 0 0 6px; font-size: 14px; }
+    .cost-breakdowns p { margin: 4px 0; color: #475569; font-size: 12px; }
+    @media (max-width: 680px) {
+      li { align-items: flex-start; flex-direction: column; }
+      .actions { justify-content: flex-start; }
+      .control-row { align-items: flex-start; flex-direction: column; }
+      .cost-grid, .cost-breakdowns { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -190,6 +225,46 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       <h2>Active Tickers</h2>
       <ul id="active-list"></ul>
     </section>
+
+    <section>
+      <div class="control-row">
+        <div>
+          <h2>AI Research Controls</h2>
+          <p class="cost-note">External web research is optional and costs extra. Your local press-release/SEC database stays active either way. Changing this setting does not regenerate existing reads.</p>
+        </div>
+        <button id="external-research-toggle" type="button" class="switch" role="switch" aria-checked="false">
+          <span class="switch-dot" aria-hidden="true"></span>
+          <span id="external-research-label">External web research: Off</span>
+        </button>
+      </div>
+    </section>
+
+    <section>
+      <h2>TradersLink AI Read Expense Tracking</h2>
+      <p class="cost-note" id="cost-note">Loading estimated OpenAI usage...</p>
+      <div class="cost-grid" id="cost-grid"></div>
+      <div class="cost-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Reads</th>
+              <th>Web searches</th>
+              <th>Tokens</th>
+              <th>Total cost</th>
+              <th>Avg / read</th>
+              <th>Last reason</th>
+              <th>Last generated</th>
+            </tr>
+          </thead>
+          <tbody id="cost-ticker-body"></tbody>
+        </table>
+      </div>
+      <div class="cost-breakdowns">
+        <div><h3>Cost by refresh reason</h3><div id="cost-trigger-list"></div></div>
+        <div><h3>Cost by model</h3><div id="cost-model-list"></div></div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -198,13 +273,120 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const formEl = document.getElementById("watchlist-form");
     const symbolEl = document.getElementById("symbol");
     const noteEl = document.getElementById("note");
+    const costNoteEl = document.getElementById("cost-note");
+    const costGridEl = document.getElementById("cost-grid");
+    const costTickerBodyEl = document.getElementById("cost-ticker-body");
+    const costTriggerListEl = document.getElementById("cost-trigger-list");
+    const costModelListEl = document.getElementById("cost-model-list");
+    const externalResearchToggleEl = document.getElementById("external-research-toggle");
+    const externalResearchLabelEl = document.getElementById("external-research-label");
 
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
       statusEl.style.color = isError ? "#b91c1c" : "#1d4ed8";
     }
 
-    function renderEntries(entries) {
+    function formatUsd(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 6,
+      }).format(Number(value || 0));
+    }
+
+    function formatCount(value) {
+      return new Intl.NumberFormat("en-US").format(Number(value || 0));
+    }
+
+    function formatReason(value) {
+      return String(value || "unknown").replaceAll("_", " ");
+    }
+
+    function renderCostSummary(summary) {
+      if (!summary || !summary.windows) {
+        costNoteEl.textContent = "No expense summary is available.";
+        return;
+      }
+      costNoteEl.textContent = summary.estimateNotice;
+      costGridEl.innerHTML = "";
+      const windows = [
+        ["Today", summary.windows.today],
+        ["Last 7 days", summary.windows.last7Days],
+        ["Last 30 days", summary.windows.last30Days],
+        ["All time", summary.windows.allTime],
+      ];
+      for (const [label, totals] of windows) {
+        const metric = document.createElement("div");
+        metric.className = "cost-metric";
+        const title = document.createElement("span");
+        title.textContent = label;
+        const value = document.createElement("strong");
+        value.textContent = formatUsd(totals.estimatedTotalCostUsd);
+        const detail = document.createElement("small");
+        detail.textContent = formatCount(totals.requestCount) + " reads | " +
+          formatCount(totals.webSearchCallCount) + " searches" +
+          (totals.unpricedRequestCount ? " | " + totals.unpricedRequestCount + " unpriced" : "");
+        metric.append(title, value, detail);
+        costGridEl.appendChild(metric);
+      }
+
+      costTickerBodyEl.innerHTML = "";
+      if (!summary.perTicker.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 8;
+        cell.textContent = "No AI Read usage has been recorded yet.";
+        row.appendChild(cell);
+        costTickerBodyEl.appendChild(row);
+      }
+      for (const ticker of summary.perTicker) {
+        const row = document.createElement("tr");
+        const values = [
+          ticker.symbol,
+          formatCount(ticker.requestCount),
+          formatCount(ticker.webSearchCallCount),
+          formatCount(ticker.totalTokens),
+          formatUsd(ticker.estimatedTotalCostUsd),
+          formatUsd(ticker.averageCostPerRequestUsd),
+          formatReason(ticker.lastTrigger),
+          new Date(ticker.lastGeneratedAt).toLocaleString(),
+        ];
+        for (const value of values) {
+          const cell = document.createElement("td");
+          cell.textContent = value;
+          row.appendChild(cell);
+        }
+        costTickerBodyEl.appendChild(row);
+      }
+
+      const renderBreakdown = (element, items, labelKey) => {
+        element.innerHTML = "";
+        if (!items.length) {
+          const empty = document.createElement("p");
+          empty.textContent = "No usage yet.";
+          element.appendChild(empty);
+          return;
+        }
+        for (const item of items) {
+          const line = document.createElement("p");
+          line.textContent = formatReason(item[labelKey]) + ": " +
+            formatUsd(item.totals.estimatedTotalCostUsd) + " (" +
+            formatCount(item.totals.requestCount) + " reads)";
+          element.appendChild(line);
+        }
+      };
+      renderBreakdown(costTriggerListEl, summary.byTrigger, "trigger");
+      renderBreakdown(costModelListEl, summary.byModel, "model");
+    }
+
+    function renderExternalResearch(enabled) {
+      externalResearchToggleEl.setAttribute("aria-checked", enabled ? "true" : "false");
+      externalResearchLabelEl.textContent = "External web research: " + (enabled ? "On" : "Off");
+      externalResearchToggleEl.dataset.enabled = enabled ? "true" : "false";
+    }
+
+    function renderEntries(entries, aiReadConfigured) {
       listEl.innerHTML = "";
       if (entries.length === 0) {
         const empty = document.createElement("li");
@@ -216,10 +398,73 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       for (const entry of entries) {
         const item = document.createElement("li");
         const meta = document.createElement("div");
-        const noteText = entry.note ? " | note: " + entry.note : "";
-        meta.innerHTML = "<strong>" + entry.symbol + "</strong><div class=\\"meta\\">thread: " + (entry.discordThreadId || "none") + noteText + "</div>";
+        const symbol = document.createElement("strong");
+        symbol.textContent = entry.symbol;
+        const details = document.createElement("div");
+        details.className = "meta";
+        details.textContent = "thread: " + (entry.discordThreadId || "none") + (entry.note ? " | note: " + entry.note : "");
+        meta.appendChild(symbol);
+        meta.appendChild(details);
+
+        const actions = document.createElement("div");
+        actions.className = "actions";
+
+        const visible = entry.tradersLinkAiReadCardVisible !== false;
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "switch";
+        toggle.setAttribute("role", "switch");
+        toggle.setAttribute("aria-checked", visible ? "true" : "false");
+        toggle.setAttribute("aria-label", "Show TradersLink AI Read for " + entry.symbol);
+        const dot = document.createElement("span");
+        dot.className = "switch-dot";
+        dot.setAttribute("aria-hidden", "true");
+        const toggleLabel = document.createElement("span");
+        toggleLabel.textContent = "AI Read: " + (visible ? "Shown" : "Hidden");
+        toggle.appendChild(dot);
+        toggle.appendChild(toggleLabel);
+        toggle.addEventListener("click", async () => {
+          toggle.disabled = true;
+          const response = await fetch("/api/watchlist/ai-read-visibility", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol: entry.symbol, visible: !visible }),
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            toggle.disabled = false;
+            setStatus(payload.error || "AI Read visibility update failed", true);
+            return;
+          }
+          setStatus("TradersLink AI Read " + (!visible ? "shown" : "hidden") + " for " + entry.symbol);
+          await loadEntries();
+        });
+
+        const refresh = document.createElement("button");
+        refresh.type = "button";
+        refresh.className = "secondary";
+        refresh.textContent = "Refresh AI Read";
+        refresh.disabled = !aiReadConfigured || !visible;
+        refresh.title = aiReadConfigured ? "Generate a fresh read now" : "OpenAI is not configured";
+        refresh.addEventListener("click", async () => {
+          refresh.disabled = true;
+          setStatus("Refreshing TradersLink AI Read for " + entry.symbol + "...");
+          const response = await fetch("/api/watchlist/ai-read-refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol: entry.symbol }),
+          });
+          const payload = await response.json();
+          refresh.disabled = false;
+          if (!response.ok) {
+            setStatus(payload.error || "AI Read refresh failed", true);
+            return;
+          }
+          setStatus(payload.generated ? "Refreshed TradersLink AI Read for " + entry.symbol : "An AI Read refresh is already running for " + entry.symbol);
+        });
 
         const button = document.createElement("button");
+        button.type = "button";
         button.textContent = "Deactivate";
         button.className = "danger";
         button.addEventListener("click", async () => {
@@ -238,7 +483,10 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         });
 
         item.appendChild(meta);
-        item.appendChild(button);
+        actions.appendChild(toggle);
+        actions.appendChild(refresh);
+        actions.appendChild(button);
+        item.appendChild(actions);
         listEl.appendChild(item);
       }
     }
@@ -246,8 +494,31 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     async function loadEntries() {
       const response = await fetch("/api/watchlist");
       const payload = await response.json();
-      renderEntries(payload.activeEntries || []);
+      renderEntries(payload.activeEntries || [], payload.aiReadConfigured === true);
+      renderCostSummary(payload.aiReadCostSummary);
+      renderExternalResearch(payload.aiReadExternalResearchEnabled === true);
     }
+
+    externalResearchToggleEl.addEventListener("click", async () => {
+      const enabled = externalResearchToggleEl.dataset.enabled !== "true";
+      externalResearchToggleEl.disabled = true;
+      const response = await fetch("/api/watchlist/ai-read-external-research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      const payload = await response.json();
+      externalResearchToggleEl.disabled = false;
+      if (!response.ok) {
+        setStatus(payload.error || "External research update failed", true);
+        return;
+      }
+      renderExternalResearch(payload.enabled === true);
+      setStatus(
+        "External web research " + (payload.enabled ? "enabled" : "disabled") +
+        ". Local press-release/SEC research remains enabled.",
+      );
+    });
 
     formEl.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -378,8 +649,28 @@ async function main(): Promise<void> {
     adaptiveStatePersistence,
   });
   const levelIntelligenceAlertPreviewDryRun = createLevelIntelligenceAlertPreviewDryRunOptions();
-  logTraderReadRuntimeMode();
   const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
+  const tradersLinkAiReadService = createTradersLinkAiReadServiceFromEnv();
+  const tradersLinkAiReadSettingsPersistence = new TradersLinkAiReadSettingsPersistence({
+    ...(process.env.TRADERSLINK_AI_READ_SETTINGS_FILE?.trim()
+      ? { filePath: process.env.TRADERSLINK_AI_READ_SETTINGS_FILE.trim() }
+      : {}),
+  });
+  const persistedTradersLinkAiReadSettings = tradersLinkAiReadSettingsPersistence.load();
+  let aiReadExternalResearchEnabled =
+    persistedTradersLinkAiReadSettings?.externalResearchEnabled ??
+    tradersLinkAiReadService?.isExternalResearchEnabled() ??
+    false;
+  tradersLinkAiReadService?.setExternalResearchEnabled(aiReadExternalResearchEnabled);
+  if (!persistedTradersLinkAiReadSettings) {
+    tradersLinkAiReadSettingsPersistence.save(aiReadExternalResearchEnabled);
+  }
+  const tradersLinkAiReadCostLedger = new TradersLinkAiReadCostLedger({
+    ...(process.env.TRADERSLINK_AI_READ_COST_LEDGER_FILE?.trim()
+      ? { filePath: process.env.TRADERSLINK_AI_READ_COST_LEDGER_FILE.trim() }
+      : {}),
+  });
+  logTraderReadRuntimeMode(Boolean(tradersLinkAiReadService && liveWatchlistPublisher));
   console.log(
     `[ManualWatchlistRuntime] Live website watchlist publisher ${
       liveWatchlistPublisher ? "enabled" : "disabled"
@@ -392,6 +683,12 @@ async function main(): Promise<void> {
     discordAlertRouter: createDiscordAlertRouter(liveWatchlistPublisher),
     opportunityRuntimeController,
     liveWatchlistPublisher,
+    tradersLinkAiReadService,
+    tradersLinkAiReadCostLedger,
+    tradersLinkAiReadStartupRefreshEnabled: resolveBoolean(
+      process.env.TRADERSLINK_AI_READ_STARTUP_REFRESH_ENABLED,
+      false,
+    ),
     watchlistStatePersistence: new WatchlistStatePersistence(),
     ...(levelIntelligenceAlertPreviewDryRun
       ? { levelIntelligenceAlertPreviewDryRun }
@@ -443,7 +740,11 @@ async function main(): Promise<void> {
 
     if (request.method === "GET" && url.pathname === "/api/watchlist") {
       sendJson(response, 200, {
+        startupState,
         activeEntries: manager.getActiveEntries(),
+        aiReadConfigured: manager.isTradersLinkAiReadConfigured(),
+        aiReadExternalResearchEnabled,
+        aiReadCostSummary: tradersLinkAiReadCostLedger.summarize(),
       });
       return;
     }
@@ -485,6 +786,64 @@ async function main(): Promise<void> {
         }
 
         sendJson(response, 200, { entry });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/ai-read-visibility") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const visible = body.visible;
+        if (symbol.trim().length === 0 || typeof visible !== "boolean") {
+          sendJson(response, 400, { error: "Symbol and boolean visible value are required." });
+          return;
+        }
+        const entry = await manager.setTradersLinkAiReadCardVisible(symbol, visible);
+        if (!entry) {
+          sendJson(response, 404, { error: "Symbol was not found." });
+          return;
+        }
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/ai-read-external-research") {
+      try {
+        const body = await readJsonBody(request);
+        const enabled = body.enabled;
+        if (typeof enabled !== "boolean") {
+          sendJson(response, 400, { error: "Boolean enabled value is required." });
+          return;
+        }
+        tradersLinkAiReadSettingsPersistence.save(enabled);
+        aiReadExternalResearchEnabled = enabled;
+        tradersLinkAiReadService?.setExternalResearchEnabled(enabled);
+        sendJson(response, 200, { enabled });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/ai-read-refresh") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        if (symbol.trim().length === 0) {
+          sendJson(response, 400, { error: "Symbol is required." });
+          return;
+        }
+        const read = await manager.refreshTradersLinkAiRead(symbol);
+        sendJson(response, 200, { generated: Boolean(read), read });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });

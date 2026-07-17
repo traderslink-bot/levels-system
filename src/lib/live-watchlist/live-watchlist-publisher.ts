@@ -19,6 +19,7 @@ import type {
   LiveWatchlistPublisher,
   LiveWatchlistStatus,
   LiveWatchlistTickerDataPatch,
+  TradersLinkAiReadPayload,
 } from "./live-watchlist-types.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -1043,6 +1044,61 @@ export function buildLiveWatchlistStatusPatch(args: {
     symbol: normalizeSymbol(args.symbol),
     status: args.status,
     updatedAt: args.updatedAt ?? Date.now(),
+    cards: {},
+  };
+}
+
+export function buildTradersLinkAiReadPatch(args: {
+  read: TradersLinkAiReadPayload;
+  visible?: boolean;
+}): LiveWatchlistCardPatch {
+  const { read } = args;
+  return {
+    symbol: normalizeSymbol(read.symbol),
+    status: "live",
+    updatedAt: read.generatedAt,
+    tradersLinkAiReadCardVisible: args.visible !== false,
+    cards: {
+      tradersLinkAiRead: buildCard({
+        title: "TradersLink AI Read",
+        body: JSON.stringify(read),
+        updatedAt: read.generatedAt,
+        priceWhenPosted: read.currentPrice,
+        source: read.usedWebSearch
+          ? "openai_responses_press_sec_database_web_search"
+          : "openai_responses_press_sec_database",
+        metadata: {
+          model: read.model,
+          bias: read.bias,
+          confidence: read.confidence,
+          listingStatus: read.listingStatus.status,
+          listingImmediacy: read.listingStatus.immediacy,
+          sourceCount: read.sources.length,
+          databaseSourceCount: read.sources.filter(
+            (source) => source.sourceType === "press_release_sec_database",
+          ).length,
+          usedWebSearch: read.usedWebSearch,
+          webSearchCallCount: read.usage.webSearchCallCount,
+          inputTokens: read.usage.inputTokens,
+          outputTokens: read.usage.outputTokens,
+          estimatedCostUsd: read.usage.estimatedTotalCostUsd,
+          dataAsOf: read.dataAsOf,
+        },
+      }),
+    },
+  };
+}
+
+export function buildTradersLinkAiReadVisibilityPatch(args: {
+  symbol: string;
+  visible: boolean;
+  updatedAt?: number;
+}): LiveWatchlistCardPatch {
+  return {
+    symbol: normalizeSymbol(args.symbol),
+    status: "live",
+    updatedAt: args.updatedAt ?? Date.now(),
+    tradersLinkAiReadCardVisible: args.visible,
     cards: {},
   };
 }

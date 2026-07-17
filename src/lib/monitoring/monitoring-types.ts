@@ -89,6 +89,7 @@ export type WatchlistEntry = {
   lastLevelPostAt?: number;
   lastExtensionPostAt?: number;
   refreshPending?: boolean;
+  tradersLinkAiReadCardVisible?: boolean;
 };
 
 export type LivePriceUpdate = {
