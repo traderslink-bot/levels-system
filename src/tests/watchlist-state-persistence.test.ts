@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
+import { WatchlistStore } from "../lib/monitoring/watchlist-store.js";
 
 test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
   const tempDir = mkdtempSync(join(tmpdir(), "watchlist-state-"));
@@ -104,4 +105,34 @@ test("WatchlistStatePersistence discards invalid persisted state", () => {
 
   assert.equal(persistence.load(), null);
   rmSync(tempDir, { recursive: true, force: true });
+});
+
+test("WatchlistStore clears a published AI generation receipt explicitly", () => {
+  const store = new WatchlistStore();
+  const boundaryState = {
+    generatedAt: 1_000,
+    currentPrice: 1.25,
+    upperBoundary: 1.4,
+    lowerBoundary: 1.1,
+    boundaries: [{ role: "mustClear" as const, side: "upside" as const, impact: "improves" as const, price: 1.4 }],
+    lastAutomaticRefreshRegime: null,
+  };
+  store.upsertManualEntry({
+    symbol: "TLQA",
+    active: true,
+    tags: ["manual"],
+    pendingTradersLinkAiReadGeneration: {
+      generationId: "TLQA-test-generation",
+      createdAt: 1_001,
+      trigger: "activation",
+      boundaryState,
+    },
+  });
+
+  const updated = store.patchEntry("TLQA", {
+    pendingTradersLinkAiReadGeneration: null,
+  });
+
+  assert.ok(updated);
+  assert.equal(updated.pendingTradersLinkAiReadGeneration, undefined);
 });

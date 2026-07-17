@@ -294,6 +294,13 @@ export type TradersLinkAiReadBoundaryState = {
   lastAutomaticRefreshRegime?: string | null;
 };
 
+export type PendingTradersLinkAiReadGeneration = {
+  generationId: string;
+  createdAt: number;
+  trigger: string;
+  boundaryState: TradersLinkAiReadBoundaryState;
+};
+
 export type WatchlistEntry = {
   symbol: string;
   active: boolean;
@@ -315,6 +322,7 @@ export type WatchlistEntry = {
   refreshPending?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
+  pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration;
   lastError?: string;
   operationStatus?: string;
 };

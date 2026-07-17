@@ -2,6 +2,7 @@
 // In-memory watchlist store with manual activate/deactivate operations.
 
 import type {
+  PendingTradersLinkAiReadGeneration,
   TradersLinkAiReadBoundary,
   TradersLinkAiReadBoundaryState,
   WatchlistEntry,
@@ -59,6 +60,33 @@ function normalizeAiReadBoundaryState(
   };
 }
 
+function normalizePendingTradersLinkAiReadGeneration(
+  value: PendingTradersLinkAiReadGeneration | undefined,
+): PendingTradersLinkAiReadGeneration | undefined {
+  if (
+    !value ||
+    typeof value.generationId !== "string" ||
+    value.generationId.trim().length === 0 ||
+    value.generationId.length > 240 ||
+    !Number.isFinite(value.createdAt) ||
+    typeof value.trigger !== "string" ||
+    value.trigger.trim().length === 0 ||
+    value.trigger.length > 80
+  ) {
+    return undefined;
+  }
+  const boundaryState = normalizeAiReadBoundaryState(value.boundaryState);
+  if (!boundaryState) {
+    return undefined;
+  }
+  return {
+    generationId: value.generationId.trim(),
+    createdAt: value.createdAt,
+    trigger: value.trigger.trim(),
+    boundaryState,
+  };
+}
+
 export class WatchlistStore {
   private readonly entries = new Map<string, WatchlistEntry>();
 
@@ -78,6 +106,9 @@ export class WatchlistStore {
     const lastThreadPostKind = entry.lastThreadPostKind?.trim() || undefined;
     const tradersLinkAiReadBoundaryState = normalizeAiReadBoundaryState(
       entry.tradersLinkAiReadBoundaryState,
+    );
+    const pendingTradersLinkAiReadGeneration = normalizePendingTradersLinkAiReadGeneration(
+      entry.pendingTradersLinkAiReadGeneration,
     );
 
     return {
@@ -103,6 +134,9 @@ export class WatchlistStore {
         : {}),
       ...(tradersLinkAiReadBoundaryState
         ? { tradersLinkAiReadBoundaryState }
+        : {}),
+      ...(pendingTradersLinkAiReadGeneration
+        ? { pendingTradersLinkAiReadGeneration }
         : {}),
     };
   }
@@ -154,6 +188,7 @@ export class WatchlistStore {
     operationStatus?: string | null;
     tradersLinkAiReadCardVisible?: boolean;
     tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
+    pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration | null;
   }): WatchlistEntry {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.entries.get(symbol);
@@ -213,6 +248,10 @@ export class WatchlistStore {
         input.tradersLinkAiReadBoundaryState !== undefined
           ? input.tradersLinkAiReadBoundaryState
           : existing?.tradersLinkAiReadBoundaryState,
+      pendingTradersLinkAiReadGeneration:
+        input.pendingTradersLinkAiReadGeneration !== undefined
+          ? input.pendingTradersLinkAiReadGeneration ?? undefined
+          : existing?.pendingTradersLinkAiReadGeneration,
     };
 
     this.entries.set(symbol, entry);
@@ -221,7 +260,10 @@ export class WatchlistStore {
 
   patchEntry(
     symbol: string,
-    patch: Partial<Omit<WatchlistEntry, "lastError">> & { lastError?: string | null },
+    patch: Partial<Omit<WatchlistEntry, "lastError" | "pendingTradersLinkAiReadGeneration">> & {
+      lastError?: string | null;
+      pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration | null;
+    },
   ): WatchlistEntry | null {
     const normalizedSymbol = normalizeSymbol(symbol);
     const existing = this.entries.get(normalizedSymbol);
@@ -238,6 +280,10 @@ export class WatchlistStore {
         patch.lastError !== undefined
           ? patch.lastError?.trim() || undefined
           : existing.lastError,
+      pendingTradersLinkAiReadGeneration:
+        patch.pendingTradersLinkAiReadGeneration !== undefined
+          ? patch.pendingTradersLinkAiReadGeneration ?? undefined
+          : existing.pendingTradersLinkAiReadGeneration,
     };
     const updated = this.normalizeEntry(merged);
     this.entries.set(normalizedSymbol, updated);

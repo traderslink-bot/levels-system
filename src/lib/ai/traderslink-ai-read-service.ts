@@ -22,10 +22,10 @@ import type {
 } from "../live-watchlist/live-watchlist-types.js";
 import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 
-// Luna is the lower-cost primary model for high-frequency trader-read work.  Terra
-// stays available as the automatic compatibility fallback and as an explicit env override.
-const DEFAULT_MODEL = "gpt-5.6-luna";
-const DEFAULT_FALLBACK_MODEL = "gpt-5.6-terra";
+// Terra is the verified primary for production tactical reads. Luna remains the
+// compatibility fallback, but semantic guards prevent a weaker draft from publishing.
+const DEFAULT_MODEL = "gpt-5.6-terra";
+const DEFAULT_FALLBACK_MODEL = "gpt-5.6-luna";
 const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 8_000;
 const DEFAULT_WEB_SEARCH_PRICE_PER_1K_CALLS = 10;
@@ -102,12 +102,14 @@ export type TradersLinkAiReadGenerationInput = {
   research: RecentWebsiteArticleLookupResult;
   priceAction: TradersLinkAiReadPriceActionContext;
   dataAsOf?: number;
+  generationId?: string;
   onAttempt?: (attempt: TradersLinkAiReadAttempt) => void;
 };
 
 export type TradersLinkAiReadAttempt = {
   generationId: string;
   requestId: string;
+  clientRequestId: string;
   symbol: string;
   attemptType: "primary" | "correction" | "fallback";
   status: "success" | "invalid_output" | "transport_error";
@@ -117,7 +119,30 @@ export type TradersLinkAiReadAttempt = {
   usedWebSearch: boolean;
   usage: TradersLinkAiReadUsage;
   receivedAt: number;
+  startedAt: number;
+  durationMs: number;
+  timeoutMs: number;
+  timeoutOverrunMs: number;
   error: string | null;
+};
+
+type RequestTiming = {
+  clientRequestId: string;
+  startedAt: number;
+  completedAt: number;
+  durationMs: number;
+  timeoutMs: number;
+  timeoutOverrunMs: number;
+};
+
+type TimedResponsesApiResponse = ResponsesApiResponse & {
+  __tradersLinkRequestTiming?: RequestTiming;
+};
+
+type TimedRequestError = Error & {
+  status?: number;
+  responsePayload?: ResponsesApiResponse;
+  requestTiming?: RequestTiming;
 };
 
 export type TradersLinkAiReadService = {
@@ -900,6 +925,50 @@ function assertTradersLinkAiTradeMap(
   }
 }
 
+function pruneRedundantScenarioCheckpoints(
+  read: ModelRead,
+  currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext,
+): ModelRead {
+  const tolerance = Math.max(currentPrice * 0.005, 0.0001);
+  const recentBars = priceAction.intradayCandles.slice(-24);
+  const averageTrueRange = recentBars.length > 0
+    ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) /
+      recentBars.length
+    : 0;
+  const tacticalSpacing = Math.max(tolerance, averageTrueRange * 0.25);
+
+  let priorUpside = read.breakoutContinuation.price ?? currentPrice;
+  const targets = read.targets.filter((target) => {
+    if (target.price === null) {
+      return true;
+    }
+    if (target.price - priorUpside < tacticalSpacing) {
+      return false;
+    }
+    priorUpside = target.price;
+    return true;
+  });
+
+  let priorDownside = read.momentumFailure.price ?? currentPrice;
+  const downsideCheckpoints = read.downsideCheckpoints.filter((checkpoint) => {
+    if (checkpoint.price === null) {
+      return true;
+    }
+    if (priorDownside - checkpoint.price < tacticalSpacing) {
+      return false;
+    }
+    priorDownside = checkpoint.price;
+    return true;
+  });
+
+  return {
+    ...read,
+    targets,
+    downsideCheckpoints,
+  };
+}
+
 function extractResponseText(payload: ResponsesApiResponse): string | null {
   if (typeof payload.output_text === "string" && payload.output_text.trim()) {
     return payload.output_text.trim();
@@ -1352,12 +1421,14 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     model: string,
     input: TradersLinkAiReadGenerationInput,
     dataAsOf: number,
+    clientRequestId: string,
     correction?: {
       validationError: string;
       rejectedDraft: string | null;
     },
   ): Promise<ResponsesApiResponse> {
     const controller = new AbortController();
+    const startedAt = Date.now();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await this.fetchImpl("https://api.openai.com/v1/responses", {
@@ -1365,6 +1436,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.options.apiKey}`,
+          "X-Client-Request-Id": clientRequestId,
         },
         body: JSON.stringify(buildRequestBody({
           model,
@@ -1384,7 +1456,34 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         (error as Error & { responsePayload?: ResponsesApiResponse }).responsePayload = payload;
         throw error;
       }
+      (payload as TimedResponsesApiResponse).__tradersLinkRequestTiming = {
+        clientRequestId,
+        startedAt,
+        completedAt: Date.now(),
+        durationMs: Date.now() - startedAt,
+        timeoutMs: this.timeoutMs,
+        timeoutOverrunMs: Math.max(0, Date.now() - startedAt - this.timeoutMs),
+      };
       return payload;
+    } catch (error) {
+      const completedAt = Date.now();
+      const durationMs = completedAt - startedAt;
+      const timeoutOverrunMs = Math.max(0, durationMs - this.timeoutMs);
+      const timedError = error instanceof Error ? error as TimedRequestError : new Error(String(error)) as TimedRequestError;
+      timedError.requestTiming = {
+        clientRequestId,
+        startedAt,
+        completedAt,
+        durationMs,
+        timeoutMs: this.timeoutMs,
+        timeoutOverrunMs,
+      };
+      if (controller.signal.aborted) {
+        timedError.message = timeoutOverrunMs > 1_000
+          ? `OpenAI request timed out after ${durationMs}ms; local runtime delay postponed the ${this.timeoutMs}ms timeout by ${timeoutOverrunMs}ms.`
+          : `OpenAI request timed out after ${durationMs}ms.`;
+      }
+      throw timedError;
     } finally {
       clearTimeout(timeout);
     }
@@ -1399,8 +1498,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     );
     const dataAsOf = referenceQuote.dataAsOf;
     const symbol = normalizeSymbol(input.snapshot.symbol);
-    const generationId = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const generationId = input.generationId?.trim() ||
+      `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     let attemptSequence = 0;
+    let requestSequence = 0;
+    const nextClientRequestId = (): string => `${generationId}-request-${++requestSequence}`;
     const recordAttempt = (
       attemptType: TradersLinkAiReadAttempt["attemptType"],
       status: TradersLinkAiReadAttempt["status"],
@@ -1410,9 +1512,13 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     ): void => {
       attemptSequence += 1;
       const usage = buildUsage(attemptResponse ?? {}, attemptModel, this.options.pricing);
+      const timing = (attemptResponse as TimedResponsesApiResponse | null)?.__tradersLinkRequestTiming ??
+        (error as TimedRequestError | null)?.requestTiming;
+      const receivedAt = timing?.completedAt ?? Date.now();
       input.onAttempt?.({
         generationId,
         requestId: attemptResponse?.id ?? `${generationId}-${attemptSequence}`,
+        clientRequestId: timing?.clientRequestId ?? `${generationId}-request-${attemptSequence}`,
         symbol,
         attemptType,
         status,
@@ -1421,7 +1527,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         marketSession: marketSessionAt(dataAsOf),
         usedWebSearch: usage.webSearchCallCount > 0,
         usage,
-        receivedAt: Date.now(),
+        receivedAt,
+        startedAt: timing?.startedAt ?? receivedAt,
+        durationMs: timing?.durationMs ?? 0,
+        timeoutMs: timing?.timeoutMs ?? this.timeoutMs,
+        timeoutOverrunMs: timing?.timeoutOverrunMs ?? 0,
         error: error === null ? null : error instanceof Error ? error.message : String(error),
       });
     };
@@ -1433,7 +1543,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     let model = this.model;
     let response: ResponsesApiResponse;
     try {
-      response = await this.request(model, input, dataAsOf);
+      response = await this.request(model, input, dataAsOf, nextClientRequestId());
     } catch (error) {
       const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
       const status = (error as Error & { status?: number })?.status;
@@ -1453,7 +1563,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       }
       model = this.fallbackModel;
       try {
-        response = await this.request(model, input, dataAsOf);
+        response = await this.request(model, input, dataAsOf, nextClientRequestId());
       } catch (fallbackError) {
         recordAttempt(
           "fallback",
@@ -1489,7 +1599,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       } catch {
         throw new Error("OpenAI returned invalid TradersLink AI Read JSON.");
       }
-      const normalized = normalizeModelRead(parsed, availableSources);
+      const normalized = pruneRedundantScenarioCheckpoints(
+        normalizeModelRead(parsed, availableSources),
+        referenceQuote.price,
+        input.priceAction,
+      );
       assertTradersLinkAiTradeMap(normalized, referenceQuote.price, input.priceAction);
       return normalized;
     };
@@ -1511,7 +1625,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
 
     if (!read && validationError) {
       try {
-        response = await this.request(model, input, dataAsOf, {
+        response = await this.request(model, input, dataAsOf, nextClientRequestId(), {
           validationError: validationError.message,
           rejectedDraft: text,
         });
@@ -1577,6 +1691,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     const usage = buildUsage(combinedUsageResponse, model, this.options.pricing);
     return {
       version: 2,
+      generationId,
       symbol,
       generatedAt,
       dataAsOf,

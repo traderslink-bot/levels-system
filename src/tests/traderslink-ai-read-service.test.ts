@@ -749,6 +749,45 @@ describe("OpenAITradersLinkAiReadService", () => {
     ]);
   });
 
+  it("drops duplicate scenario checkpoints instead of paying for a correction", async () => {
+    const duplicateCheckpointRead = modelRead();
+    duplicateCheckpointRead.downsideCheckpoints = [
+      {
+        label: "Duplicate failure reference",
+        price: duplicateCheckpointRead.momentumFailure.price,
+        condition: "The prior regular session low becomes the same failure reference.",
+      },
+      {
+        label: "Lower daily range",
+        price: 1.05,
+        condition: "The recent daily range low is exposed if the regular-session floor fails.",
+      },
+    ];
+    let requestCount = 0;
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => {
+        requestCount += 1;
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(duplicateCheckpointRead) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(requestCount, 1);
+    assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), [1.05]);
+  });
+
   it("records an unavailable primary model and successful fallback as separate attempts", async () => {
     const requestedModels: string[] = [];
     const service = new OpenAITradersLinkAiReadService({
@@ -814,7 +853,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     const service = createTradersLinkAiReadServiceFromEnv({ OPENAI_API_KEY: "test-key" });
     assert.ok(service);
     assert.equal(service.isExternalResearchEnabled(), false);
-    assert.equal(service.getConfiguredModel(), "gpt-5.6-luna");
+    assert.equal(service.getConfiguredModel(), "gpt-5.6-terra");
     assert.equal(service.getReasoningEffort(), "medium");
     const enabledService = createTradersLinkAiReadServiceFromEnv({
       OPENAI_API_KEY: "test-key",

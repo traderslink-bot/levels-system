@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import type {
+  PendingTradersLinkAiReadGeneration,
   TradersLinkAiReadBoundary,
   TradersLinkAiReadBoundaryState,
   WatchlistEntry,
@@ -99,6 +100,31 @@ function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundary
         ? value.lastAutomaticRefreshRegime
         : null,
   };
+}
+
+function normalizePendingTradersLinkAiReadGeneration(
+  value: unknown,
+): PendingTradersLinkAiReadGeneration | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const generationId = typeof value.generationId === "string" ? value.generationId.trim() : "";
+  const trigger = typeof value.trigger === "string" ? value.trigger.trim() : "";
+  const createdAt = typeof value.createdAt === "number" && Number.isFinite(value.createdAt)
+    ? value.createdAt
+    : null;
+  const boundaryState = normalizeAiReadBoundaryState(value.boundaryState);
+  if (
+    !generationId ||
+    generationId.length > 240 ||
+    !trigger ||
+    trigger.length > 80 ||
+    createdAt === null ||
+    !boundaryState
+  ) {
+    return undefined;
+  }
+  return { generationId, trigger, createdAt, boundaryState };
 }
 
 function validateEntry(value: unknown): WatchlistEntry | null {
@@ -205,6 +231,9 @@ function validateEntry(value: unknown): WatchlistEntry | null {
   const tradersLinkAiReadBoundaryState = normalizeAiReadBoundaryState(
     value.tradersLinkAiReadBoundaryState,
   );
+  const pendingTradersLinkAiReadGeneration = normalizePendingTradersLinkAiReadGeneration(
+    value.pendingTradersLinkAiReadGeneration,
+  );
 
   return {
     symbol: value.symbol.trim().toUpperCase(),
@@ -242,6 +271,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
       ? { tradersLinkAiReadCardVisible: value.tradersLinkAiReadCardVisible }
       : {}),
     ...(tradersLinkAiReadBoundaryState ? { tradersLinkAiReadBoundaryState } : {}),
+    ...(pendingTradersLinkAiReadGeneration ? { pendingTradersLinkAiReadGeneration } : {}),
     ...(lastError !== undefined ? { lastError } : {}),
     ...(operationStatus !== undefined ? { operationStatus } : {}),
   };
@@ -309,6 +339,13 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
         : {}),
       ...(normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState)
         ? { tradersLinkAiReadBoundaryState: normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState) }
+        : {}),
+      ...(normalizePendingTradersLinkAiReadGeneration(entry.pendingTradersLinkAiReadGeneration)
+        ? {
+            pendingTradersLinkAiReadGeneration: normalizePendingTradersLinkAiReadGeneration(
+              entry.pendingTradersLinkAiReadGeneration,
+            ),
+          }
         : {}),
       lastError: entry.lastError?.trim() || undefined,
       operationStatus: entry.operationStatus?.trim() || undefined,

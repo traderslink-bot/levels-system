@@ -149,7 +149,7 @@ test("archived live watchlist publisher records successful website patches", asy
       },
     };
     const archive = new LiveWatchlistAuditArchivePersistence(filePath);
-    const publisher = new ArchivedLiveWatchlistPublisher(delegate, archive);
+    const publisher = new ArchivedLiveWatchlistPublisher(delegate, archive, 0);
 
     await publisher.publishTickerData({
       type: "tickerData",
@@ -163,6 +163,7 @@ test("archived live watchlist publisher records successful website patches", asy
       nearestResistanceLabel: "0.4400 (+4.8%, moderate, 4h structure)",
       levelMap,
     });
+    await publisher.flushPending();
 
     assert.equal(published.length, 1);
     const archivedSymbol = archive.load().symbols.find((symbol) => symbol.symbol === "ZBAO");

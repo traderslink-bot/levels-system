@@ -8,6 +8,7 @@ import type {
   LiveWatchlistHealthPatch,
   LiveWatchlistLevelMap,
   LiveWatchlistMarketDataStatus,
+  LiveWatchlistPublishedPatch,
   LiveWatchlistPublisher,
   LiveWatchlistStatus,
   LiveWatchlistTickerDataPatch,
@@ -405,6 +406,18 @@ export class LiveWatchlistAuditArchivePersistence {
     return archive;
   }
 
+  recordPatches(
+    patches: LiveWatchlistPatch[],
+    now = Date.now(),
+  ): LiveWatchlistAuditArchive {
+    let archive = this.load();
+    for (const patch of patches) {
+      archive = applyLiveWatchlistPatchToArchive(archive, patch, now);
+    }
+    this.save(archive);
+    return archive;
+  }
+
   recordPayload(payload: LiveWatchlistAuditArchivePayload, now = Date.now()): LiveWatchlistAuditArchive {
     const base: LiveWatchlistAuditArchive = {
       ...this.load(),
@@ -426,9 +439,14 @@ export class LiveWatchlistAuditArchivePersistence {
 }
 
 export class ArchivedLiveWatchlistPublisher implements LiveWatchlistPublisher {
+  private readonly pendingArchivePatches: LiveWatchlistPatch[] = [];
+  private archiveFlushTimer: NodeJS.Timeout | null = null;
+  private archiveFlushPromise: Promise<void> | null = null;
+
   constructor(
     private readonly delegate: LiveWatchlistPublisher,
     private readonly archive = new LiveWatchlistAuditArchivePersistence(),
+    private readonly archiveFlushDelayMs = 1_000,
   ) {}
 
   async publish(patch: LiveWatchlistCardPatch): Promise<void> {
@@ -452,12 +470,63 @@ export class ArchivedLiveWatchlistPublisher implements LiveWatchlistPublisher {
     this.recordPatch(patch);
   }
 
+  onPublished(listener: (patch: LiveWatchlistPublishedPatch) => void): () => void {
+    return this.delegate.onPublished?.(listener) ?? (() => undefined);
+  }
+
+  replayPending(): Promise<void> {
+    return this.delegate.replayPending?.() ?? Promise.resolve();
+  }
+
+  async flushPending(): Promise<void> {
+    if (this.archiveFlushTimer) {
+      clearTimeout(this.archiveFlushTimer);
+      this.archiveFlushTimer = null;
+    }
+    await this.flushArchivePatches();
+    await this.delegate.flushPending?.();
+  }
+
   private recordPatch(patch: LiveWatchlistPatch): void {
+    this.pendingArchivePatches.push(patch);
+    this.scheduleArchiveFlush();
+  }
+
+  private scheduleArchiveFlush(): void {
+    if (this.archiveFlushTimer || this.archiveFlushPromise) {
+      return;
+    }
+    this.archiveFlushTimer = setTimeout(() => {
+      this.archiveFlushTimer = null;
+      void this.flushArchivePatches();
+    }, Math.max(0, this.archiveFlushDelayMs));
+  }
+
+  private async flushArchivePatches(): Promise<void> {
+    if (this.archiveFlushPromise) {
+      await this.archiveFlushPromise;
+      return;
+    }
+    const patches = this.pendingArchivePatches.splice(0);
+    if (patches.length === 0) {
+      return;
+    }
+    this.archiveFlushPromise = Promise.resolve()
+      .then(() => {
+        this.archive.recordPatches(patches);
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[LiveWatchlistAuditArchive] Failed to archive website patches: ${message}`);
+      })
+      .finally(() => {
+        this.archiveFlushPromise = null;
+        this.scheduleArchiveFlush();
+      });
     try {
-      this.archive.recordPatch(patch);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[LiveWatchlistAuditArchive] Failed to archive website patch: ${message}`);
+      await this.archiveFlushPromise;
+    } finally {
+      // The promise's finally callback schedules the next coalesced write if one arrived mid-flush.
     }
   }
 }
