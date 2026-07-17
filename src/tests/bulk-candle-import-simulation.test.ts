@@ -27,6 +27,11 @@ test("bulk candle import simulation shows provider task savings from symbol/sess
   assert.equal(report.totals.plannedWarehouseTasks, 12);
   assert.equal(report.totals.missingWarehouseTasks, 12);
   assert.ok(report.plan.tasks.every((task) => task.lookbackBars > 0));
+  assert.deepEqual([...new Set(report.sampleTrades.map((trade) => trade.sessionDate))], [
+    "2026-05-01",
+    "2026-05-04",
+    "2026-05-05",
+  ]);
 });
 
 test("bulk candle import simulation writer creates JSON and markdown reports", async () => {

@@ -3,7 +3,7 @@
 **Last verified:** 2026-07-17  
 **Implementation branch:** `codex/watchlist-ai-audit-remediation-20260717`  
 **Original outside audit:** `docs/TRADERSLINK_WATCHLIST_AI_READ_QA_AUDIT_2026-07-17.md`  
-**Status:** Code remediation is substantially complete; the audit is **not fully closed** and is **not approved for a live-production release**.
+**Status:** Code remediation is complete. The remaining gates are production deployment/authentication verification and an optional, separately authorized live-model sampleâ€”not unresolved source defects.
 
 ## What was completed
 
@@ -31,6 +31,10 @@
 - External research can be disabled without disabling the database-first price-action trade plan or creating OpenAI web-search calls.
 - Global TradersLink AI Read and Potential Gain visibility controls persist across restart.
 - A sanitized deterministic five-symbol post-change fixture audit is committed at `src/tests/fixtures/traderslink-ai-read-post-change-fixtures.json` and exercises generation, validation, accounting, publication, persistence, and UI parsing without a paid OpenAI request.
+- Shared exchange-calendar classification covers recurring U.S. equity holidays, the named 2025 special closure, and early closes. Scanner, candle labels, AI Read market session, and grouping now use the same rule.
+- AI Read sources carry explicit evidence metadata: publication time, filing type, retrieval time, source excerpt/title, excerpt kind, and the lookup-window supersession status. A title fallback is visibly marked as title-level evidence rather than parsed filing text.
+- Automatic additions now use a cached EODHD `common_stock` security master. When EODHD is configured, an unverified or temporarily unavailable security master blocks automatic activation; manual additions are untouched.
+- The website treats EventSource as a latency hint. A stream ready/error immediately triggers canonical fetch, and revision/observation reconciliation prevents a late stream event or poll from overwriting a newer market state.
 
 ### Cost-control work completed
 
@@ -63,24 +67,21 @@ npm run check
 
 The broader audit remediation command results and the five-symbol fixture evidence are retained in the original audit document.
 
-## Work that remains open
+## Remaining release gates
 
 These are intentional, explicitly tracked audit gaps—not hidden failures:
 
 | Finding / gate | Why it remains open |
 |---|---|
-| P2-02 US exchange calendar | Session classification still uses a clock-only policy. Holiday, early-close, and special-session rules need an exchange calendar and fixtures. |
-| P2-07 complete claim evidence model | URL/topic checking is implemented, but parsed filing facts, short evidence excerpts, retrieval timestamps, and supersession tracking have not been added. |
-| P2-10 multi-instance stream recovery | Existing five-second polling converges clients, but there is no durable cross-instance pub/sub or explicit EventSource revision-gap recovery protocol. |
-| P3-01 security classification | Automatic rejection is improved but still uses heuristic common-equity filtering; an authoritative security-master source has not been integrated. |
+| Upstream filing text enrichment | The runtime accepts source summaries/excerpts when the press-release lookup provides them; its current title fallback is correctly labelled and scope-bounded. Adding parsed SEC excerpts is an enrichment improvement, not a release blocker. |
 | Authorized authenticated production verification | Signed-in watchlist/detail routes, production publication-recovery behavior, and per-symbol stale-state display need a permitted live verification session. |
 | Live sampled-model AI review | The committed five-symbol audit is deterministic and does not spend API money. It does not replace a separately authorized live/model sample or authenticated production-card review. |
 
 ## Release position
 
-- **Watchlist:** not approved for live deployment until the remaining exchange-calendar and multi-instance-delivery risks are resolved or explicitly accepted, and authenticated production verification is completed.
+- **Watchlist:** code remediation is complete. Deployment requires merging the website branch through the guarded production flow and authenticated production verification.
 - **TradersLink AI Read:** code-level post-change gate passes, including the reproducible five-symbol fixture audit. It is not yet a live-production quality pass because no paid live-model sample or authenticated production-card verification was authorized.
 
 ## Deployment state
 
-No deployment, production restart, merge, live-watchlist mutation, environment-variable change, or paid OpenAI request was made by this remediation work. The implementation branch is pushed to GitHub and remains separate from the running runtime.
+The cost-control release (`e68a118`) was fast-forwarded into the Desktop-BAT runtime checkout and the normal watchlist runtime was restarted on 2026-07-17. The live runtime reports `gpt-5.6-luna`, `medium` reasoning, and the optional spend guard disabled at its default $1.00 threshold. The later calendar, evidence, security-master, and website reconciliation commits remain on remediation branches pending the guarded website merge/deploy and the next runtime rollout.

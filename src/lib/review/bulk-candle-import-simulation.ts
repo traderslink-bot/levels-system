@@ -10,6 +10,7 @@ import {
   type CandleProviderName,
   type WarehouseMissingCandleBackfillPlan,
 } from "../support-resistance/index.js";
+import { getUsEquityTradingDay } from "../market-data/us-equity-exchange-calendar.js";
 
 export type BulkCandleImportSimulationOptions = {
   warehouseDirectoryPath?: string;
@@ -69,10 +70,16 @@ function sessionDates(startSessionDate: string, count: number): string[] {
   if (!Number.isFinite(start)) {
     throw new Error(`Invalid startSessionDate: ${startSessionDate}`);
   }
-  return Array.from({ length: count }, (_, index) => {
-    const date = new Date(start + index * 24 * 60 * 60_000);
-    return formatSessionDate(date);
-  });
+  const dates: string[] = [];
+  let cursor = start;
+  while (dates.length < count) {
+    const date = formatSessionDate(new Date(cursor));
+    if (getUsEquityTradingDay(date).isTradingDay) {
+      dates.push(date);
+    }
+    cursor += 24 * 60 * 60_000;
+  }
+  return dates;
 }
 
 function generatedSymbols(count: number): string[] {

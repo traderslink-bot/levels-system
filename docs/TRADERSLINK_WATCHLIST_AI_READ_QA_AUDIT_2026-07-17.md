@@ -36,25 +36,25 @@ The production watchlist redirected to Discord OAuth. Therefore, authenticated c
 
 | Finding | Status | Resolution evidence | Residual risk |
 |---|---|---|---|
-| P1-01 independent current movers | Fixed | Levels `835c9e1`; mover-only and quote-provenance regression coverage | Instrument classification is still heuristic (P3-01). |
+| P1-01 independent current movers | Fixed | Levels `835c9e1`; mover-only and quote-provenance regression coverage | Automatic additions now fail closed if the configured security master cannot verify common stock. |
 | P1-02 activation readiness | Fixed | Levels `835c9e1`; queued/failed entries stay inactive until snapshot, monitor, and website acknowledgement complete | Live production path still needs authorized authenticated verification. |
 | P1-03 hard active ceiling | Fixed | Levels `835c9e1`; incumbent retires before challenger becomes active and rollback is covered | External provider/runtime failure still needs operational monitoring. |
-| P1-04 monotonic website state | Fixed | Website `90914a89`; observation time plus per-symbol revision rejects stale/equal updates and accepts higher same-time revisions | Multi-instance stream delivery remains a design risk (P2-10). |
+| P1-04 monotonic website state | Fixed | Website `90914a89`, `9e23a242`; observation time plus per-symbol revision rejects stale/equal updates and canonical polling cannot overwrite a newer stream state | Authenticated UI verification remains pending. |
 | P1-05 truthful feed state | Fixed | Levels `835c9e1`, website `90914a89`; stale labels and real last-trade timing | Per-symbol production smoke check remains pending authorization. |
 | P1-06 publication acknowledgement/outbox | Fixed | Levels `835c9e1`; terminal failures reject, durable outbox replays ordered patches | Production recovery drill remains pending. |
 | P1-07 per-attempt cost accounting | Fixed | Levels `835c9e1`, `a5d8bde`; primary, correction, fallback, publish-error, write-failure, and corrupt-ledger tests | Invoice remains billing authority; ledger displays estimates. |
 | P2-01 market-cap authority | Fixed | Levels `835c9e1`, `a5d8bde`; current Yahoo/Finnhub enrichment wins over stale discovery cap | Provider disagreement without a current enrichment value remains correctly rejected/unknown. |
-| P2-02 exchange calendar | Present | Clock-only session classifier remains unchanged | Holiday and early-close handling needs a US exchange-calendar implementation and fixtures. |
+| P2-02 exchange calendar | Fixed | Levels `909ca46`; shared NYSE/Nasdaq holiday, special-closure, and early-close classifier is used by scanner, candles, AI Read, and grouping fixtures | Future exceptional exchange closures must be added to the explicit exception map. |
 | P2-03 ticker display timestamp | Fixed | Website `90914a89`; market-data observation/revision and state update timestamps are separated | Authenticated UI verification still pending. |
 | P2-04 stale five-minute price | Fixed | Levels `835c9e1`; source candle timestamp is preserved and stale close falls back to runtime quote | Feed freshness still depends on provider availability. |
 | P2-05 mechanical targets/checkpoints | Fixed | Levels `835c9e1`; all targets/checkpoints require tape language and ATR/range-aware spacing | This is validation, not a guarantee a model will choose the best discretionary level. |
 | P2-06 time-only refresh | Fixed | Levels `835c9e1`; no refresh for elapsed time alone while price remains within map boundaries | A material structural change without a price boundary crossing is not independently detected yet. |
-| P2-07 claim-to-source support | Changed / partially hardened | Levels `a5d8bde`; catalyst, dilution, and listing URLs must match topic-relevant source title/context, with downgrade tests | Parsed filing facts, excerpts, retrieval timestamps, and supersession tracking are still future hardening. |
+| P2-07 claim-to-source support | Changed / bounded | Levels `d298e32`; each selected source now carries publication/filing metadata, retrieval time, an explicit source excerpt/title, and bounded-window supersession status; source-topic enforcement remains active | The upstream lookup must provide parsed filing excerpts for more than title-level support; the current fallback is deliberately labelled as an article-title excerpt. |
 | P2-08 combined token totals | Fixed | Levels `835c9e1`; totals reconstruct missing `total_tokens` from input/output components | Provider-reported usage can still be delayed or absent. |
 | P2-09 global visibility persistence | Fixed | Levels `835c9e1`; Trader Read and Potential Gain settings persist and migrate | Runtime restart smoke check is included in focused tests, not a live restart. |
-| P2-10 multi-instance EventSource | Present | Five-second polling converges existing clients | No durable cross-instance pub/sub or explicit revision-gap protocol yet. |
+| P2-10 multi-instance EventSource | Fixed for state correctness | Website `9e23a242`; stream ready/error forces immediate canonical reconciliation, polling and stream updates are revision/observation guarded, and late responses cannot overwrite newer state | EventSource remains an opportunistic low-latency hint; canonical polling, rather than durable pub/sub, supplies cross-instance recovery. |
 | P2-11 reproducible five-symbol audit | Fixed | Levels `a5d8bde`; committed sanitized fixture pack and complete validation test | It is deterministic mocked-model evidence, not a new paid live-model sample. |
-| P3-01 common-equity heuristic | Present | No safe authoritative security-master source added | A novel non-common instrument can still evade name-based filters. |
+| P3-01 common-equity classification | Fixed for automatic additions | Levels `d298e32`; cached EODHD `common_stock` exchange-symbol master verifies new automatic symbols and fails closed on missing/unavailable records | Manual additions remain user-directed; EODHD unavailability deliberately blocks new automatic additions until the cached/remote master is available. |
 | P3-02 corrupt cost ledger | Fixed | Levels `a5d8bde`; summary exposes corrupt-line count and accounting-health warning | Corrupt bytes cannot be reconstructed automatically. |
 
 ## Post-change five-symbol AI Read audit evidence
@@ -1178,11 +1178,11 @@ The system is not ready until:
 
 ## Watchlist
 
-**NOT APPROVED FOR LIVE DEPLOYMENT YET.** The original P1 code findings are remediated and regression-covered on dedicated branches, including the website state branch. Remaining release gates are the exchange-calendar design risk, multi-instance EventSource design risk, and authorized authenticated production verification.
+**CODE REMEDIATION COMPLETE; AUTHENTICATED PRODUCTION VERIFICATION REMAINS.** The original P1 findings and the remaining calendar, automatic-security-master, and cross-instance reconciliation code paths are regression-covered. Production still requires the website branch to be merged/deployed through the guarded site flow and an authorized signed-in watchlist/detail and recovery smoke test.
 
 ## TradersLink AI Read
 
-**CODE-LEVEL POST-CHANGE GATE PASSED; NOT YET A LIVE-PRODUCTION PASS.** The required five-symbol reproducible audit now passes without paid generation, and the tactical-map, stale-price, quote-conflict, source-topic, publication, refresh, and attempt-cost protections are regression-covered. The remaining limitation is that the fixture uses deterministic mocked model drafts; it does not replace an operator-authorized paid/live sampled-model review or authenticated production card verification.
+**CODE-LEVEL POST-CHANGE GATE PASSED; NOT YET A LIVE-PRODUCTION QUALITY PASS.** The required five-symbol reproducible audit now passes without paid generation, and the tactical-map, stale-price, quote-conflict, source-topic, publication, refresh, cost, evidence-metadata, and automatic-security protections are regression-covered. The remaining limitation is that the fixture uses deterministic mocked model drafts; it does not replace an operator-authorized paid/live sampled-model review or authenticated production card verification.
 
 ---
 
