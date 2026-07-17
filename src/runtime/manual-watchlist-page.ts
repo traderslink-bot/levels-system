@@ -180,6 +180,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Premarket minimum last-15m dollar volume ($)<input id="auto-selector-premarket-recent-dollar-volume" type="number" min="0" step="5000" /></label>
           <label>Regular minimum last-15m dollar volume ($)<input id="auto-selector-regular-recent-dollar-volume" type="number" min="0" step="5000" /></label>
           <label>Post-market minimum last-15m dollar volume ($)<input id="auto-selector-postmarket-recent-dollar-volume" type="number" min="0" step="5000" /></label>
+          <label>Post-market promotion minimum gain (%)<input id="auto-selector-postmarket-promotion-min-gain" type="number" min="0" max="100" step="0.1" /></label>
+          <label>Post-market promotion minimum last-15m dollar volume ($)<input id="auto-selector-postmarket-promotion-recent-dollar-volume" type="number" min="0" step="5000" /></label>
           <label>Maximum latest-trade age (minutes)<input id="auto-selector-max-activity-age" type="number" min="1" max="60" step="1" /></label>
           <label>Extended-hours candidates checked<input id="auto-selector-extended-candidate-limit" type="number" min="1" max="200" step="1" /></label>
           <label>Catalyst lookback (days)<input id="auto-selector-catalyst-lookback" type="number" min="0" max="30" step="1" /></label>
@@ -413,6 +415,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       minRecentDollarVolume15mPremarket: document.getElementById("auto-selector-premarket-recent-dollar-volume"),
       minRecentDollarVolume15mRegular: document.getElementById("auto-selector-regular-recent-dollar-volume"),
       minRecentDollarVolume15mPostmarket: document.getElementById("auto-selector-postmarket-recent-dollar-volume"),
+      postmarketPromotionMinGainPct: document.getElementById("auto-selector-postmarket-promotion-min-gain"),
+      postmarketPromotionMinRecentDollarVolume: document.getElementById("auto-selector-postmarket-promotion-recent-dollar-volume"),
       maxActivityQuoteAgeMinutes: document.getElementById("auto-selector-max-activity-age"),
       extendedSessionCandidateLimit: document.getElementById("auto-selector-extended-candidate-limit"),
       catalystRankingEnabled: document.getElementById("auto-selector-catalyst-ranking"),
@@ -1097,6 +1101,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("minRecentDollarVolume15mPremarket", thresholds.minRecentDollarVolume15mPremarket);
         setAutoSelectorInputValue("minRecentDollarVolume15mRegular", thresholds.minRecentDollarVolume15mRegular);
         setAutoSelectorInputValue("minRecentDollarVolume15mPostmarket", thresholds.minRecentDollarVolume15mPostmarket);
+        setAutoSelectorInputValue("postmarketPromotionMinGainPct", thresholds.postmarketPromotionMinGainPct);
+        setAutoSelectorInputValue("postmarketPromotionMinRecentDollarVolume", thresholds.postmarketPromotionMinRecentDollarVolume);
         setAutoSelectorInputValue("maxActivityQuoteAgeMinutes", thresholds.maxActivityQuoteAgeMinutes);
         setAutoSelectorInputValue("extendedSessionCandidateLimit", thresholds.extendedSessionCandidateLimit);
         setAutoSelectorInputValue("catalystRankingEnabled", thresholds.catalystRankingEnabled);
@@ -1173,7 +1179,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       for (const decision of (selector.recentDecisions || [])) {
         const item = document.createElement("li");
         const title = document.createElement("strong");
-        title.textContent = decision.symbol + " — qualification " + decision.score + " — rank " + decision.rankingScore + (decision.qualified ? " — qualifies" : " — rejected");
+        title.textContent = decision.symbol + " — qualification " + decision.score + " — rank " + decision.rankingScore + (
+          decision.qualified
+            ? decision.promotionReady === false
+              ? " — qualifies, promotion held"
+              : " — qualifies, promotion-ready"
+            : " — rejected"
+        );
         const detail = document.createElement("div");
         detail.className = "activity-detail";
         const facts = [
@@ -1200,7 +1212,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         } else {
           facts.push("no recent catalyst");
         }
-        const explanation = decision.qualified ? decision.reasons : decision.rejectionReasons;
+        const explanation = decision.qualified
+          ? [...(decision.reasons || []), ...(decision.promotionRejectionReasons || [])]
+          : decision.rejectionReasons;
         const rankingExplanation = decision.rankingReasons || [];
         detail.textContent = facts.join(" | ")
           + (explanation?.length ? " | " + explanation.join("; ") : "")
@@ -1978,6 +1992,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         minRecentDollarVolume15mPremarket: Math.round(readAutoSelectorNumber("minRecentDollarVolume15mPremarket")),
         minRecentDollarVolume15mRegular: Math.round(readAutoSelectorNumber("minRecentDollarVolume15mRegular")),
         minRecentDollarVolume15mPostmarket: Math.round(readAutoSelectorNumber("minRecentDollarVolume15mPostmarket")),
+        postmarketPromotionMinGainPct: readAutoSelectorNumber("postmarketPromotionMinGainPct"),
+        postmarketPromotionMinRecentDollarVolume: Math.round(readAutoSelectorNumber("postmarketPromotionMinRecentDollarVolume")),
         maxActivityQuoteAgeMinutes: Math.round(readAutoSelectorNumber("maxActivityQuoteAgeMinutes")),
         extendedSessionCandidateLimit: Math.round(readAutoSelectorNumber("extendedSessionCandidateLimit")),
         catalystRankingEnabled: autoSelectorInputEls.catalystRankingEnabled.checked,
