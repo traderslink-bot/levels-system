@@ -28,6 +28,88 @@ The production watchlist redirected to Discord OAuth. Therefore, authenticated c
 
 ---
 
+# Remediation update — 2026-07-17
+
+**Scope:** Dedicated remediation branches only. No deployment, runtime restart, production mutation, live-watchlist change, or paid OpenAI request was made during this work.
+
+## Resolution tracking matrix
+
+| Finding | Status | Resolution evidence | Residual risk |
+|---|---|---|---|
+| P1-01 independent current movers | Fixed | Levels `835c9e1`; mover-only and quote-provenance regression coverage | Instrument classification is still heuristic (P3-01). |
+| P1-02 activation readiness | Fixed | Levels `835c9e1`; queued/failed entries stay inactive until snapshot, monitor, and website acknowledgement complete | Live production path still needs authorized authenticated verification. |
+| P1-03 hard active ceiling | Fixed | Levels `835c9e1`; incumbent retires before challenger becomes active and rollback is covered | External provider/runtime failure still needs operational monitoring. |
+| P1-04 monotonic website state | Fixed | Website `90914a89`; observation time plus per-symbol revision rejects stale/equal updates and accepts higher same-time revisions | Multi-instance stream delivery remains a design risk (P2-10). |
+| P1-05 truthful feed state | Fixed | Levels `835c9e1`, website `90914a89`; stale labels and real last-trade timing | Per-symbol production smoke check remains pending authorization. |
+| P1-06 publication acknowledgement/outbox | Fixed | Levels `835c9e1`; terminal failures reject, durable outbox replays ordered patches | Production recovery drill remains pending. |
+| P1-07 per-attempt cost accounting | Fixed | Levels `835c9e1`, `a5d8bde`; primary, correction, fallback, publish-error, write-failure, and corrupt-ledger tests | Invoice remains billing authority; ledger displays estimates. |
+| P2-01 market-cap authority | Fixed | Levels `835c9e1`, `a5d8bde`; current Yahoo/Finnhub enrichment wins over stale discovery cap | Provider disagreement without a current enrichment value remains correctly rejected/unknown. |
+| P2-02 exchange calendar | Present | Clock-only session classifier remains unchanged | Holiday and early-close handling needs a US exchange-calendar implementation and fixtures. |
+| P2-03 ticker display timestamp | Fixed | Website `90914a89`; market-data observation/revision and state update timestamps are separated | Authenticated UI verification still pending. |
+| P2-04 stale five-minute price | Fixed | Levels `835c9e1`; source candle timestamp is preserved and stale close falls back to runtime quote | Feed freshness still depends on provider availability. |
+| P2-05 mechanical targets/checkpoints | Fixed | Levels `835c9e1`; all targets/checkpoints require tape language and ATR/range-aware spacing | This is validation, not a guarantee a model will choose the best discretionary level. |
+| P2-06 time-only refresh | Fixed | Levels `835c9e1`; no refresh for elapsed time alone while price remains within map boundaries | A material structural change without a price boundary crossing is not independently detected yet. |
+| P2-07 claim-to-source support | Changed / partially hardened | Levels `a5d8bde`; catalyst, dilution, and listing URLs must match topic-relevant source title/context, with downgrade tests | Parsed filing facts, excerpts, retrieval timestamps, and supersession tracking are still future hardening. |
+| P2-08 combined token totals | Fixed | Levels `835c9e1`; totals reconstruct missing `total_tokens` from input/output components | Provider-reported usage can still be delayed or absent. |
+| P2-09 global visibility persistence | Fixed | Levels `835c9e1`; Trader Read and Potential Gain settings persist and migrate | Runtime restart smoke check is included in focused tests, not a live restart. |
+| P2-10 multi-instance EventSource | Present | Five-second polling converges existing clients | No durable cross-instance pub/sub or explicit revision-gap protocol yet. |
+| P2-11 reproducible five-symbol audit | Fixed | Levels `a5d8bde`; committed sanitized fixture pack and complete validation test | It is deterministic mocked-model evidence, not a new paid live-model sample. |
+| P3-01 common-equity heuristic | Present | No safe authoritative security-master source added | A novel non-common instrument can still evade name-based filters. |
+| P3-02 corrupt cost ledger | Fixed | Levels `a5d8bde`; summary exposes corrupt-line count and accounting-health warning | Corrupt bytes cannot be reconstructed automatically. |
+
+## Post-change five-symbol AI Read audit evidence
+
+`src/tests/fixtures/traderslink-ai-read-post-change-fixtures.json` commits five sanitized full-session five-minute packets, daily context, quote timestamps, research evidence, deterministic model drafts, and independent expected tactical ranges. The test `src/tests/traderslink-ai-read-post-change-fixtures.test.ts` executes the complete AI Read service validation path for:
+
+- `AURX` — premarket continuation;
+- `BPLN` — failed-bounce/shelf-risk setup;
+- `CRVM` — range reclaim;
+- `DLTX` — low-priced breakout with no verified catalyst;
+- `ESCR` — higher-priced continuation with conditional merger supply context.
+
+It verifies needs-to-hold, caution, failure, must-clear, continuation, targets, downside checkpoints, actual candle timestamp, evidence-backed research fields, zero web-search calls, and a five-attempt local cost ledger. It never sends the fixture key to OpenAI and never makes a paid request.
+
+## Verified commands
+
+```text
+npx tsx --test --test-timeout=90000 src/tests/traderslink-ai-read-post-change-fixtures.test.ts
+# 1 pass, 0 fail
+
+npx tsx --test --test-timeout=90000 src/tests/traderslink-ai-read-cost-ledger.test.ts src/tests/traderslink-ai-read-service.test.ts
+# 15 pass, 0 fail
+
+npx tsx --test --test-timeout=90000 src/tests/auto-watchlist-selector.test.ts
+# 29 pass, 0 fail
+
+npx tsc -p tsconfig.json --noEmit
+# pass
+
+npx tsx --test --test-timeout=90000 src/tests/manual-watchlist-runtime-manager.test.ts
+# 140 pass, 0 fail
+
+npx tsx --test --test-timeout=90000 \
+  src/tests/auto-watchlist-selector.test.ts \
+  src/tests/auto-watchlist-dynamic-slots.test.ts \
+  src/tests/live-watchlist-publisher.test.ts \
+  src/tests/traderslink-ai-read-refresh.test.ts \
+  src/tests/traderslink-ai-read-service.test.ts \
+  src/tests/traderslink-ai-read-cost-ledger.test.ts \
+  src/tests/traderslink-ai-read-settings.test.ts \
+  src/tests/traderslink-ai-read-post-change-fixtures.test.ts
+# 120 pass, 0 fail
+
+# in traderslink.pro remediation worktree
+npx vitest run src/lib/live-watchlist
+# 48 pass, 0 fail
+
+npx tsc --noEmit
+# pass
+```
+
+The release verdict is deliberately not upgraded to a live-production pass until authorized authenticated checks and the remaining exchange-calendar/EventSource risks are resolved or explicitly accepted.
+
+---
+
 # Critical AI Read scope caveat
 
 **This is the most important audit caveat and must remain attached to the findings.**
@@ -1092,21 +1174,15 @@ The system is not ready until:
 
 ---
 
-# Final release verdict
+# Updated release verdict
 
 ## Watchlist
 
-**NO-GO.**
-
-Discovery, activation, replacement, publication, ordering, and status invariants are not yet strong enough for a production small-cap watchlist.
+**NOT APPROVED FOR LIVE DEPLOYMENT YET.** The original P1 code findings are remediated and regression-covered on dedicated branches, including the website state branch. Remaining release gates are the exchange-calendar design risk, multi-instance EventSource design risk, and authorized authenticated production verification.
 
 ## TradersLink AI Read
 
-**NO-GO.**
-
-The prompt and market packet are directionally strong, but runtime validation, stale-data handling, refresh policy, source support, publication acknowledgement, and cost accounting remain incomplete.
-
-The AI Read is the key part of this audit. Because the reviewed tickers predate the latest changes, the current implementation is still **unverified by a post-change symbol sample**.
+**CODE-LEVEL POST-CHANGE GATE PASSED; NOT YET A LIVE-PRODUCTION PASS.** The required five-symbol reproducible audit now passes without paid generation, and the tactical-map, stale-price, quote-conflict, source-topic, publication, refresh, and attempt-cost protections are regression-covered. The remaining limitation is that the fixture uses deterministic mocked model drafts; it does not replace an operator-authorized paid/live sampled-model review or authenticated production card verification.
 
 ---
 
