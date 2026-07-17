@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import type {
+  TradersLinkAiReadBoundary,
   TradersLinkAiReadBoundaryState,
   WatchlistEntry,
   WatchlistLifecycleState,
@@ -62,11 +63,35 @@ function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundary
   }
   const normalizeBoundary = (price: unknown): number | null =>
     typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
+  const boundaries: TradersLinkAiReadBoundary[] = Array.isArray(value.boundaries)
+    ? value.boundaries.flatMap((candidate): TradersLinkAiReadBoundary[] => {
+        if (!isRecord(candidate)) {
+          return [];
+        }
+        const role = candidate.role;
+        const side = candidate.side;
+        const impact = candidate.impact;
+        const price = normalizeBoundary(candidate.price);
+        if (
+          (role !== "needsToHold" && role !== "cautionBelow" && role !== "momentumFailure" &&
+            role !== "mustClear" && role !== "breakoutContinuation" && role !== "upsideTarget" &&
+            role !== "downsideCheckpoint") ||
+          (side !== "upside" && side !== "downside") ||
+          (impact !== "hold" && impact !== "caution" && impact !== "invalidates" &&
+            impact !== "improves" && impact !== "exhausts") ||
+          price === null
+        ) {
+          return [];
+        }
+        return [{ role, side, impact, price }];
+      })
+    : [];
   return {
     generatedAt: value.generatedAt,
     currentPrice: value.currentPrice,
     upperBoundary: normalizeBoundary(value.upperBoundary),
     lowerBoundary: normalizeBoundary(value.lowerBoundary),
+    ...(boundaries.length > 0 ? { boundaries } : {}),
     lastAutomaticRefreshRegime:
       typeof value.lastAutomaticRefreshRegime === "string" &&
       value.lastAutomaticRefreshRegime.length > 0 &&

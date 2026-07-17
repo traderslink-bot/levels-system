@@ -252,11 +252,40 @@ export type MonitoringZoneContext = {
   lastRemappedAt?: number;
 };
 
+export type TradersLinkAiReadBoundaryRole =
+  | "needsToHold"
+  | "cautionBelow"
+  | "momentumFailure"
+  | "mustClear"
+  | "breakoutContinuation"
+  | "upsideTarget"
+  | "downsideCheckpoint";
+
+export type TradersLinkAiReadBoundaryImpact =
+  | "hold"
+  | "caution"
+  | "invalidates"
+  | "improves"
+  | "exhausts";
+
+export type TradersLinkAiReadBoundary = {
+  role: TradersLinkAiReadBoundaryRole;
+  side: "upside" | "downside";
+  price: number;
+  impact: TradersLinkAiReadBoundaryImpact;
+};
+
 export type TradersLinkAiReadBoundaryState = {
   generatedAt: number;
   currentPrice: number;
   upperBoundary: number | null;
   lowerBoundary: number | null;
+  /**
+   * The published tactical levels, kept independently from the outer map
+   * edges so a decisive internal invalidation cannot be hidden by a farther
+   * target or checkpoint.
+   */
+  boundaries?: TradersLinkAiReadBoundary[];
   /**
    * The exact automatic range-edge/boundary event already serviced by this map.
    * Keeping it with the published map prevents a stale re-cross from buying a

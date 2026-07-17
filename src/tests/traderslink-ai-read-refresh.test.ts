@@ -28,10 +28,25 @@ describe("TradersLink AI Read refresh decisions", () => {
         price: 4.2,
         rationale: "Acceptance confirms the setup.",
       },
+      needsToHold: {
+        label: "Needs to hold",
+        price: 3.9,
+        rationale: "The opening shelf needs to hold.",
+      },
+      cautionBelow: {
+        label: "Caution below",
+        price: 3.82,
+        rationale: "A loss weakens the shelf.",
+      },
       momentumFailure: {
         label: "Momentum failure",
         price: 3.77,
         rationale: "A loss invalidates the setup.",
+      },
+      mustClear: {
+        label: "Must clear",
+        price: 4.05,
+        rationale: "The intraday pivot needs acceptance.",
       },
       targets: [
         { label: "Where the trade could go", price: 4.43, condition: "Above continuation." },
@@ -46,6 +61,15 @@ describe("TradersLink AI Read refresh decisions", () => {
       currentPrice: 3.95,
       upperBoundary: 4.43,
       lowerBoundary: 3.5,
+      boundaries: [
+        { role: "needsToHold", side: "downside", price: 3.9, impact: "hold" },
+        { role: "cautionBelow", side: "downside", price: 3.82, impact: "caution" },
+        { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
+        { role: "mustClear", side: "upside", price: 4.05, impact: "improves" },
+        { role: "breakoutContinuation", side: "upside", price: 4.2, impact: "improves" },
+        { role: "upsideTarget", side: "upside", price: 4.43, impact: "exhausts" },
+        { role: "downsideCheckpoint", side: "downside", price: 3.5, impact: "exhausts" },
+      ],
     });
   });
 
@@ -64,6 +88,12 @@ describe("TradersLink AI Read refresh decisions", () => {
       currentPrice: 3.95,
       upperBoundary: 4.43,
       lowerBoundary: 3.5,
+      boundaries: [
+        { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
+        { role: "breakoutContinuation", side: "upside", price: 4.2, impact: "improves" },
+        { role: "upsideTarget", side: "upside", price: 4.43, impact: "exhausts" },
+        { role: "downsideCheckpoint", side: "downside", price: 3.5, impact: "exhausts" },
+      ],
     });
   });
 
@@ -130,6 +160,80 @@ describe("TradersLink AI Read refresh decisions", () => {
       shouldRefresh: true,
       trigger: "boundary_cross",
       automaticRefreshRegime: "lower:1.05",
+    });
+  });
+
+  it("refreshes when price accepts below momentum failure even with a lower downside checkpoint still mapped", () => {
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: {
+        generatedAt: GENERATED_AT,
+        currentPrice: 3.95,
+        upperBoundary: 4.43,
+        lowerBoundary: 3.5,
+        boundaries: [
+          { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
+          { role: "downsideCheckpoint", side: "downside", price: 3.5, impact: "exhausts" },
+        ],
+      },
+      currentPrice: 3.7,
+      dataAsOf: GENERATED_AT + 5 * 60_000,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "boundary_cross",
+      automaticRefreshRegime: "downside:momentumFailure:3.77",
+    });
+  });
+
+  it("does not refresh when price only touches and reclaims the momentum-failure boundary", () => {
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: {
+        generatedAt: GENERATED_AT,
+        currentPrice: 3.95,
+        upperBoundary: 4.43,
+        lowerBoundary: 3.5,
+        boundaries: [
+          { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
+        ],
+      },
+      currentPrice: 3.77,
+      dataAsOf: GENERATED_AT + 5 * 60_000,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+
+    assert.deepEqual(decision, {
+      shouldRefresh: false,
+      trigger: "scheduled",
+      automaticRefreshRegime: null,
+    });
+  });
+
+  it("does not buy a second automatic read for an already-served momentum-failure regime", () => {
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: {
+        generatedAt: GENERATED_AT,
+        currentPrice: 3.95,
+        upperBoundary: 4.43,
+        lowerBoundary: 3.5,
+        lastAutomaticRefreshRegime: "downside:momentumFailure:3.77",
+        boundaries: [
+          { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
+        ],
+      },
+      currentPrice: 3.7,
+      dataAsOf: GENERATED_AT + 5 * 60_000,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+
+    assert.deepEqual(decision, {
+      shouldRefresh: false,
+      trigger: "boundary_cross",
+      automaticRefreshRegime: "downside:momentumFailure:3.77",
     });
   });
 

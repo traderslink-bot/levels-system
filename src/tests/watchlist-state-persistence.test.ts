@@ -33,6 +33,9 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
         currentPrice: 3.95,
         upperBoundary: 4.2,
         lowerBoundary: 3.77,
+        boundaries: [
+          { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
+        ],
         lastAutomaticRefreshRegime: null,
       },
       operationStatus: "monitoring live price",
@@ -62,6 +65,9 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
         currentPrice: 3.95,
         upperBoundary: 4.2,
         lowerBoundary: 3.77,
+        boundaries: [
+          { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
+        ],
         lastAutomaticRefreshRegime: null,
       },
       operationStatus: "monitoring live price",
