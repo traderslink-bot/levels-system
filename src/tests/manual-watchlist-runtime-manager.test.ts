@@ -1710,7 +1710,7 @@ test("ManualWatchlistRuntimeManager restores the previous live provider when the
   ]);
 });
 
-test("ManualWatchlistRuntimeManager anchors queued activation snapshot to stock context current price", async () => {
+test("ManualWatchlistRuntimeManager keeps the last postmarket trade authoritative during a closed-market activation", async () => {
   const monitor = new FakeMonitor();
   const persistence = new FakeWatchlistStatePersistence();
   persistence.storedEntries = [];
@@ -1718,7 +1718,7 @@ test("ManualWatchlistRuntimeManager anchors queued activation snapshot to stock 
   const watchlistStore = new WatchlistStore();
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
-  const nowSeconds = Math.floor(Date.now() / 1000);
+  const completedPostmarketSeconds = Math.floor((Date.now() - 18 * 60 * 60 * 1000) / 1000);
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: {} as any,
     levelStore,
@@ -1747,8 +1747,10 @@ test("ManualWatchlistRuntimeManager anchors queued activation snapshot to stock 
             quote: {
               source: "Yahoo" as const,
               symbol,
-              preMarketPrice: 4.96,
-              preMarketTime: nowSeconds,
+              postMarketPrice: 5.5299,
+              postMarketTime: completedPostmarketSeconds,
+              regularMarketPrice: 4.139999,
+              regularMarketTime: completedPostmarketSeconds - 4 * 60 * 60,
             },
             errors: [],
           },
@@ -1797,17 +1799,17 @@ test("ManualWatchlistRuntimeManager anchors queued activation snapshot to stock 
   }
 
   const snapshot = discordAlertRouter.levelSnapshots[0]?.payload;
-  assert.equal(snapshot?.currentPrice, 4.96);
+  assert.equal(snapshot?.currentPrice, 5.5299);
   assert.equal(snapshot?.audit?.referencePriceSource, "live_price");
   assert.equal(snapshot?.audit?.metadataReferencePrice, 4.15);
-  assert.equal(watchlistStore.getEntry("DGXX")?.lastPrice, 4.96);
+  assert.equal(watchlistStore.getEntry("DGXX")?.lastPrice, 5.5299);
   assert.equal(
     liveWatchlistPublisher.tickerDataPatches.some(
-      (patch) => patch.symbol === "DGXX" && patch.latestPrice === 4.96,
+      (patch) => patch.symbol === "DGXX" && patch.latestPrice === 5.5299,
     ),
     true,
   );
-  assert.match(discordAlertRouter.routed[0]?.payload.body ?? "", /Current price: 4\.96 \(premarket\)/);
+  assert.match(discordAlertRouter.routed[0]?.payload.body ?? "", /Current price: 5\.53 \(postmarket\)/);
 });
 
 test("ManualWatchlistRuntimeManager skips a persisted symbol that cannot restore levels on startup", async () => {
@@ -3881,15 +3883,18 @@ test("ManualWatchlistRuntimeManager posts stock context into a newly created thr
 
   monitor.onPriceUpdate?.({
     symbol: "EXMP",
-    timestamp: 5_000,
+    timestamp: 1_700_000_100_000,
     lastPrice: 12.5,
   });
   await waitForAsyncWork();
 
-  assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.priorRegularClosePrice, 11.11);
-  assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.priorRegularCloseSource, "Finnhub regular close");
+  const liveUpdatePatch = liveWatchlistPublisher.tickerDataPatches.find(
+    (patch) => patch.latestPrice === 12.5,
+  );
+  assert.equal(liveUpdatePatch?.priorRegularClosePrice, 11.11);
+  assert.equal(liveUpdatePatch?.priorRegularCloseSource, "Finnhub regular close");
   assert.equal(
-    liveWatchlistPublisher.tickerDataPatches[0]?.moveFromPriorRegularClosePct,
+    liveUpdatePatch?.moveFromPriorRegularClosePct,
     ((12.5 - 11.11) / 11.11) * 100,
   );
 });

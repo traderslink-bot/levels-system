@@ -1144,7 +1144,6 @@ const SNAPSHOT_CONTINUATION_MAP_MIN_SUPPLEMENTAL_PRICE = 10;
 const SNAPSHOT_CONTINUATION_MAP_MAX_LEVELS = 4;
 const SNAPSHOT_CONTINUATION_MAP_MAX_CURRENT_PRICE = 50;
 const SNAPSHOT_CROSSED_RESISTANCE_SUPPORT_FLIP_MAX_DISTANCE_PCT = 0.3;
-const SNAPSHOT_LIVE_REFERENCE_MAX_AGE_MS = 30 * 60 * 1000;
 const EXTENSION_LIVE_REFERENCE_MAX_AGE_MS = 30 * 60 * 1000;
 const SYMBOL_RECAP_COOLDOWN_MS = 60 * 60 * 1000;
 const AI_SIGNAL_COMMENTARY_COOLDOWN_MS = 10 * 60 * 1000;
@@ -3316,14 +3315,16 @@ export class ManualWatchlistRuntimeManager {
       Number.isFinite(entry.lastPriceUpdateAt)
     ) {
       const livePriceAgeMs = Math.max(0, timestamp - entry.lastPriceUpdateAt);
-      if (livePriceAgeMs <= SNAPSHOT_LIVE_REFERENCE_MAX_AGE_MS) {
-        return {
-          price: entry.lastPrice,
-          source: "live_price",
-          livePriceAgeMs,
-          metadataReferencePrice,
-        };
-      }
+      // lastPrice is the newest timestamped quote selected by the stock-context
+      // resolver or live feed. Wall-clock age does not make a prior postmarket
+      // trade less current when no newer trade exists (for example, overnight
+      // or on a weekend).
+      return {
+        price: entry.lastPrice,
+        source: "live_price",
+        livePriceAgeMs,
+        metadataReferencePrice,
+      };
     }
 
     return {
@@ -5028,7 +5029,7 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
-  private resolveLevelSeedReferencePrice(symbol: string, timestamp: number): number | undefined {
+  private resolveLevelSeedReferencePrice(symbol: string): number | undefined {
     const entry = this.watchlistStore.getEntry(symbol);
     if (
       typeof entry?.lastPrice !== "number" ||
@@ -5040,8 +5041,11 @@ export class ManualWatchlistRuntimeManager {
       return undefined;
     }
 
-    const livePriceAgeMs = Math.max(0, timestamp - entry.lastPriceUpdateAt);
-    return livePriceAgeMs <= SNAPSHOT_LIVE_REFERENCE_MAX_AGE_MS ? entry.lastPrice : undefined;
+    // Seed against the latest known trade even when the quote belongs to the
+    // most recently completed extended-hours session. Falling back to a newer
+    // wall-clock calculation can otherwise replace Friday postmarket with the
+    // older Friday regular close during a weekend activation.
+    return entry.lastPrice;
   }
 
   private refreshPotentialMoveReadForSymbol(
@@ -5190,7 +5194,6 @@ export class ManualWatchlistRuntimeManager {
   private currentTechnicalContextPrice(
     symbol: string,
     fallback?: number | null,
-    referenceTimestamp?: number,
   ): number | null {
     const entry = this.watchlistStore.getEntry(symbol);
     const livePrice =
@@ -5200,19 +5203,10 @@ export class ManualWatchlistRuntimeManager {
         ? entry.lastPrice
         : null;
     if (livePrice !== null) {
-      if (typeof referenceTimestamp !== "number" || !Number.isFinite(referenceTimestamp)) {
-        return livePrice;
-      }
-
-      const hasLiveTimestamp =
-        typeof entry?.lastPriceUpdateAt === "number" &&
-        Number.isFinite(entry.lastPriceUpdateAt);
-      if (
-        hasLiveTimestamp &&
-        Math.max(0, referenceTimestamp - entry.lastPriceUpdateAt!) <= SNAPSHOT_LIVE_REFERENCE_MAX_AGE_MS
-      ) {
-        return livePrice;
-      }
+      // The quote resolver already chooses the newest available session by its
+      // market timestamp. Keep that price authoritative across closed periods;
+      // Evaluation time is not evidence of a newer trade.
+      return livePrice;
     }
 
     if (typeof fallback === "number" && Number.isFinite(fallback) && fallback > 0) {
@@ -5421,7 +5415,7 @@ export class ManualWatchlistRuntimeManager {
       this.technicalContextDataQualityFlagsBySymbol.set(symbol, dataQualityFlags);
       const candles = this.technicalContextCandleStore.setHistoricalCandles(symbol, fiveMinuteCandles);
       const latestCandle = candles.at(-1);
-      const currentPrice = this.currentTechnicalContextPrice(symbol, latestCandle?.close ?? null, endTimeMs);
+      const currentPrice = this.currentTechnicalContextPrice(symbol, latestCandle?.close ?? null);
       const context = this.rebuildTechnicalContextForSymbol({
         symbol,
         candles,
@@ -5520,7 +5514,7 @@ export class ManualWatchlistRuntimeManager {
           return;
         }
 
-        const referencePriceOverride = this.resolveLevelSeedReferencePrice(symbol, Date.now());
+        const referencePriceOverride = this.resolveLevelSeedReferencePrice(symbol);
         const { output, seriesMap } = await this.levelEngine.generateLevelsWithCandleSeries({
           symbol,
           historicalRequests: this.buildLevelSeedHistoricalRequests(symbol, this.options.candleFetchService),
@@ -5608,7 +5602,7 @@ export class ManualWatchlistRuntimeManager {
           symbol,
           this.options.startupCachedCandleFetchService ?? this.options.candleFetchService,
         ),
-        referencePriceOverride: this.resolveLevelSeedReferencePrice(symbol, Date.now()),
+        referencePriceOverride: this.resolveLevelSeedReferencePrice(symbol),
       });
       this.options.levelStore.setLevels(output);
       this.storeTechnicalContextForSymbol(symbol, output, seriesMap);
