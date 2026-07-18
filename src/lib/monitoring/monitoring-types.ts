@@ -321,6 +321,7 @@ export type WatchlistEntry = {
   lastTriggerPrice?: number;
   refreshPending?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
+  tradersLinkAiReadDipBuyPlanVisible?: boolean;
   tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
   pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration;
   lastError?: string;

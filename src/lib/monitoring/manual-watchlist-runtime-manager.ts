@@ -2998,7 +2998,11 @@ export class ManualWatchlistRuntimeManager {
       });
       this.persistWatchlist();
       try {
-        await publisher.publish(buildTradersLinkAiReadPatch({ read, visible: true }));
+        await publisher.publish(buildTradersLinkAiReadPatch({
+          read,
+          visible: true,
+          dipBuyPlanVisible: latestEntry.tradersLinkAiReadDipBuyPlanVisible !== false,
+        }));
       } catch (error) {
         this.options.tradersLinkAiReadCostLedger?.recordPublishFailure({
           read,
@@ -3132,6 +3136,26 @@ export class ManualWatchlistRuntimeManager {
     }
     if (visible) {
       this.scheduleTradersLinkAiRead(symbol, true, "visibility_enabled");
+    }
+    return entry;
+  }
+
+  async setTradersLinkAiReadDipBuyPlanVisible(
+    symbolInput: string,
+    visible: boolean,
+  ): Promise<WatchlistEntry | null> {
+    const symbol = normalizeSymbol(symbolInput);
+    const entry = this.watchlistStore.patchEntry(symbol, {
+      tradersLinkAiReadDipBuyPlanVisible: visible,
+    });
+    if (!entry) {
+      return null;
+    }
+    this.persistWatchlist();
+    if (this.liveWatchlistPublisher) {
+      await this.liveWatchlistPublisher.publish(
+        buildTradersLinkAiReadVisibilityPatch({ symbol, dipBuyPlanVisible: visible }),
+      );
     }
     return entry;
   }
@@ -9380,6 +9404,7 @@ export class ManualWatchlistRuntimeManager {
           buildTradersLinkAiReadVisibilityPatch({
             symbol: entry.symbol,
             visible: entry.tradersLinkAiReadCardVisible !== false,
+            dipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible !== false,
           }),
         );
         if (this.options.tradersLinkAiReadStartupRefreshEnabled) {
@@ -9846,6 +9871,7 @@ export class ManualWatchlistRuntimeManager {
           buildTradersLinkAiReadVisibilityPatch({
             symbol,
             visible: latestEntry.tradersLinkAiReadCardVisible !== false,
+            dipBuyPlanVisible: latestEntry.tradersLinkAiReadDipBuyPlanVisible !== false,
           }),
         ).catch((error) => {
           const message = error instanceof Error ? error.message : String(error);

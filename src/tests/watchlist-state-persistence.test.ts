@@ -29,6 +29,8 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       lastThreadPostAt: 900,
       lastThreadPostKind: "snapshot",
       refreshPending: false,
+      tradersLinkAiReadCardVisible: true,
+      tradersLinkAiReadDipBuyPlanVisible: false,
       tradersLinkAiReadBoundaryState: {
         generatedAt: 850,
         currentPrice: 3.95,
@@ -61,6 +63,8 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       lastThreadPostAt: 900,
       lastThreadPostKind: "snapshot",
       refreshPending: false,
+      tradersLinkAiReadCardVisible: true,
+      tradersLinkAiReadDipBuyPlanVisible: false,
       tradersLinkAiReadBoundaryState: {
         generatedAt: 850,
         currentPrice: 3.95,

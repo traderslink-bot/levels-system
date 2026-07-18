@@ -11,6 +11,7 @@ import {
   buildLiveWatchlistStatusPatch,
   buildLiveWatchlistTechnicalContextPatch,
   buildLiveWatchlistTickerDataPatch,
+  buildTradersLinkAiReadVisibilityPatch,
   LiveWatchlistHttpPublisher,
 } from "../lib/live-watchlist/live-watchlist-publisher.js";
 import { DurableLiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-publish-outbox.js";
@@ -24,6 +25,17 @@ import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import type { TechnicalContext } from "../lib/technical-context/technical-context-types.js";
 
 describe("live watchlist publisher", () => {
+  it("builds an independent dip-buy plan visibility patch", () => {
+    const patch = buildTradersLinkAiReadVisibilityPatch({
+      symbol: "tghl",
+      dipBuyPlanVisible: false,
+    });
+    assert.equal(patch.symbol, "TGHL");
+    assert.equal(patch.tradersLinkAiReadCardVisible, undefined);
+    assert.equal(patch.tradersLinkAiReadDipBuyPlanVisible, false);
+    assert.deepEqual(patch.cards, {});
+  });
+
   it("durably replays an unacknowledged payload after publisher recovery", async () => {
     const directory = mkdtempSync(join(tmpdir(), "live-watchlist-outbox-"));
     const filePath = join(directory, "outbox.json");

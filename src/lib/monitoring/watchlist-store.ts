@@ -132,6 +132,9 @@ export class WatchlistStore {
       ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
         ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
         : {}),
+      ...(typeof entry.tradersLinkAiReadDipBuyPlanVisible === "boolean"
+        ? { tradersLinkAiReadDipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible }
+        : {}),
       ...(tradersLinkAiReadBoundaryState
         ? { tradersLinkAiReadBoundaryState }
         : {}),
@@ -187,6 +190,7 @@ export class WatchlistStore {
     lastError?: string | null;
     operationStatus?: string | null;
     tradersLinkAiReadCardVisible?: boolean;
+    tradersLinkAiReadDipBuyPlanVisible?: boolean;
     tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
     pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration | null;
   }): WatchlistEntry {
@@ -244,6 +248,10 @@ export class WatchlistStore {
         typeof input.tradersLinkAiReadCardVisible === "boolean"
           ? input.tradersLinkAiReadCardVisible
           : existing?.tradersLinkAiReadCardVisible,
+      tradersLinkAiReadDipBuyPlanVisible:
+        typeof input.tradersLinkAiReadDipBuyPlanVisible === "boolean"
+          ? input.tradersLinkAiReadDipBuyPlanVisible
+          : existing?.tradersLinkAiReadDipBuyPlanVisible,
       tradersLinkAiReadBoundaryState:
         input.tradersLinkAiReadBoundaryState !== undefined
           ? input.tradersLinkAiReadBoundaryState

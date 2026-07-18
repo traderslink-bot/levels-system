@@ -181,6 +181,14 @@ function validateEntry(value: unknown): WatchlistEntry | null {
   }
 
   if (
+    value.tradersLinkAiReadDipBuyPlanVisible !== undefined &&
+    value.tradersLinkAiReadDipBuyPlanVisible !== null &&
+    typeof value.tradersLinkAiReadDipBuyPlanVisible !== "boolean"
+  ) {
+    return null;
+  }
+
+  if (
     value.lastError !== undefined &&
     value.lastError !== null &&
     typeof value.lastError !== "string"
@@ -270,6 +278,9 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     ...(typeof value.tradersLinkAiReadCardVisible === "boolean"
       ? { tradersLinkAiReadCardVisible: value.tradersLinkAiReadCardVisible }
       : {}),
+    ...(typeof value.tradersLinkAiReadDipBuyPlanVisible === "boolean"
+      ? { tradersLinkAiReadDipBuyPlanVisible: value.tradersLinkAiReadDipBuyPlanVisible }
+      : {}),
     ...(tradersLinkAiReadBoundaryState ? { tradersLinkAiReadBoundaryState } : {}),
     ...(pendingTradersLinkAiReadGeneration ? { pendingTradersLinkAiReadGeneration } : {}),
     ...(lastError !== undefined ? { lastError } : {}),
@@ -336,6 +347,9 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
       refreshPending: entry.refreshPending ?? false,
       ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
         ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
+        : {}),
+      ...(typeof entry.tradersLinkAiReadDipBuyPlanVisible === "boolean"
+        ? { tradersLinkAiReadDipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible }
         : {}),
       ...(normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState)
         ? { tradersLinkAiReadBoundaryState: normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState) }

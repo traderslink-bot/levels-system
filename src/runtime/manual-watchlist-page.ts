@@ -1545,6 +1545,49 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         });
         actions.appendChild(aiVisibilityButton);
 
+        const dipBuyPlanVisible = entry.tradersLinkAiReadDipBuyPlanVisible !== false;
+        const dipBuyPlanVisibilityButton = document.createElement("button");
+        dipBuyPlanVisibilityButton.type = "button";
+        dipBuyPlanVisibilityButton.setAttribute("role", "switch");
+        dipBuyPlanVisibilityButton.setAttribute(
+          "aria-checked",
+          dipBuyPlanVisible ? "true" : "false",
+        );
+        dipBuyPlanVisibilityButton.setAttribute(
+          "aria-label",
+          "Show Potential dip-buy plan for " + entry.symbol,
+        );
+        dipBuyPlanVisibilityButton.textContent = dipBuyPlanVisible
+          ? "Potential dip-buy plan: Shown"
+          : "Potential dip-buy plan: Hidden";
+        dipBuyPlanVisibilityButton.className = dipBuyPlanVisible ? "" : "secondary";
+        dipBuyPlanVisibilityButton.addEventListener("click", async () => {
+          dipBuyPlanVisibilityButton.disabled = true;
+          try {
+            const response = await fetch("/api/watchlist/ai-read-dip-buy-visibility", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ symbol: entry.symbol, visible: !dipBuyPlanVisible }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+              setStatus(payload.error || "Dip-buy plan visibility update failed", true);
+              return;
+            }
+            setStatus(
+              "Potential dip-buy plan " + (!dipBuyPlanVisible ? "shown" : "hidden") +
+              " for " + entry.symbol + ".",
+            );
+            await loadEntries();
+            await loadRuntimeStatus();
+          } catch (error) {
+            setStatus(String(error), true);
+          } finally {
+            dipBuyPlanVisibilityButton.disabled = false;
+          }
+        });
+        actions.appendChild(dipBuyPlanVisibilityButton);
+
         if (entry.lifecycle === "activation_failed") {
           const retryButton = document.createElement("button");
           retryButton.textContent = "Retry";

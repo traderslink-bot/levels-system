@@ -1794,6 +1794,28 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/api/watchlist/ai-read-dip-buy-visibility") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const visible = body.visible;
+        if (symbol.trim().length === 0 || typeof visible !== "boolean") {
+          sendJson(response, 400, { error: "Symbol and boolean visible value are required." });
+          return;
+        }
+        const entry = await manager.setTradersLinkAiReadDipBuyPlanVisible(symbol, visible);
+        if (!entry) {
+          sendJson(response, 404, { error: "Symbol was not found." });
+          return;
+        }
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/watchlist/ai-read-refresh") {
       try {
         const body = await readJsonBody(request);
