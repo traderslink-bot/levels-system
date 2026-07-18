@@ -32,6 +32,9 @@ export class WatchlistStore {
       ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
         ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
         : {}),
+      ...(typeof entry.tradersLinkAiReadDipBuyPlanVisible === "boolean"
+        ? { tradersLinkAiReadDipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible }
+        : {}),
       ...(activatedAt !== undefined ? { activatedAt } : {}),
       ...(lastLevelPostAt !== undefined ? { lastLevelPostAt } : {}),
       ...(lastExtensionPostAt !== undefined ? { lastExtensionPostAt } : {}),
@@ -77,6 +80,7 @@ export class WatchlistStore {
     lastExtensionPostAt?: number;
     refreshPending?: boolean;
     tradersLinkAiReadCardVisible?: boolean;
+    tradersLinkAiReadDipBuyPlanVisible?: boolean;
   }): WatchlistEntry {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.entries.get(symbol);
@@ -108,6 +112,12 @@ export class WatchlistStore {
         ? {
             tradersLinkAiReadCardVisible:
               input.tradersLinkAiReadCardVisible ?? existing?.tradersLinkAiReadCardVisible,
+          }
+        : {}),
+      ...(typeof (input.tradersLinkAiReadDipBuyPlanVisible ?? existing?.tradersLinkAiReadDipBuyPlanVisible) === "boolean"
+        ? {
+            tradersLinkAiReadDipBuyPlanVisible:
+              input.tradersLinkAiReadDipBuyPlanVisible ?? existing?.tradersLinkAiReadDipBuyPlanVisible,
           }
         : {}),
     };

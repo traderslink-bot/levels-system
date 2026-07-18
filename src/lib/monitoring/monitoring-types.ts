@@ -90,6 +90,7 @@ export type WatchlistEntry = {
   lastExtensionPostAt?: number;
   refreshPending?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
+  tradersLinkAiReadDipBuyPlanVisible?: boolean;
 };
 
 export type LivePriceUpdate = {

@@ -96,6 +96,14 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     return null;
   }
 
+  if (
+    value.tradersLinkAiReadDipBuyPlanVisible !== undefined &&
+    value.tradersLinkAiReadDipBuyPlanVisible !== null &&
+    typeof value.tradersLinkAiReadDipBuyPlanVisible !== "boolean"
+  ) {
+    return null;
+  }
+
   return {
     symbol: value.symbol.trim().toUpperCase(),
     active: value.active,
@@ -121,6 +129,9 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     refreshPending: typeof value.refreshPending === "boolean" ? value.refreshPending : false,
     ...(typeof value.tradersLinkAiReadCardVisible === "boolean"
       ? { tradersLinkAiReadCardVisible: value.tradersLinkAiReadCardVisible }
+      : {}),
+    ...(typeof value.tradersLinkAiReadDipBuyPlanVisible === "boolean"
+      ? { tradersLinkAiReadDipBuyPlanVisible: value.tradersLinkAiReadDipBuyPlanVisible }
       : {}),
   };
 }
@@ -177,6 +188,9 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
       refreshPending: entry.refreshPending ?? false,
       ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
         ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
+        : {}),
+      ...(typeof entry.tradersLinkAiReadDipBuyPlanVisible === "boolean"
+        ? { tradersLinkAiReadDipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible }
         : {}),
     })),
   };

@@ -440,6 +440,44 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           await loadEntries();
         });
 
+        const dipBuyPlanVisible = entry.tradersLinkAiReadDipBuyPlanVisible !== false;
+        const dipBuyPlanToggle = document.createElement("button");
+        dipBuyPlanToggle.type = "button";
+        dipBuyPlanToggle.className = "switch";
+        dipBuyPlanToggle.setAttribute("role", "switch");
+        dipBuyPlanToggle.setAttribute("aria-checked", dipBuyPlanVisible ? "true" : "false");
+        dipBuyPlanToggle.setAttribute(
+          "aria-label",
+          "Show Potential dip-buy plan for " + entry.symbol,
+        );
+        const dipBuyPlanDot = document.createElement("span");
+        dipBuyPlanDot.className = "switch-dot";
+        dipBuyPlanDot.setAttribute("aria-hidden", "true");
+        const dipBuyPlanLabel = document.createElement("span");
+        dipBuyPlanLabel.textContent =
+          "Potential dip-buy plan: " + (dipBuyPlanVisible ? "Shown" : "Hidden");
+        dipBuyPlanToggle.appendChild(dipBuyPlanDot);
+        dipBuyPlanToggle.appendChild(dipBuyPlanLabel);
+        dipBuyPlanToggle.addEventListener("click", async () => {
+          dipBuyPlanToggle.disabled = true;
+          const response = await fetch("/api/watchlist/ai-read-dip-buy-visibility", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol: entry.symbol, visible: !dipBuyPlanVisible }),
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            dipBuyPlanToggle.disabled = false;
+            setStatus(payload.error || "Dip-buy plan visibility update failed", true);
+            return;
+          }
+          setStatus(
+            "Potential dip-buy plan " + (!dipBuyPlanVisible ? "shown" : "hidden") +
+            " for " + entry.symbol,
+          );
+          await loadEntries();
+        });
+
         const refresh = document.createElement("button");
         refresh.type = "button";
         refresh.className = "secondary";
@@ -484,6 +522,7 @@ const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
         item.appendChild(meta);
         actions.appendChild(toggle);
+        actions.appendChild(dipBuyPlanToggle);
         actions.appendChild(refresh);
         actions.appendChild(button);
         item.appendChild(actions);
@@ -803,6 +842,28 @@ async function main(): Promise<void> {
           return;
         }
         const entry = await manager.setTradersLinkAiReadCardVisible(symbol, visible);
+        if (!entry) {
+          sendJson(response, 404, { error: "Symbol was not found." });
+          return;
+        }
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/ai-read-dip-buy-visibility") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const visible = body.visible;
+        if (symbol.trim().length === 0 || typeof visible !== "boolean") {
+          sendJson(response, 400, { error: "Symbol and boolean visible value are required." });
+          return;
+        }
+        const entry = await manager.setTradersLinkAiReadDipBuyPlanVisible(symbol, visible);
         if (!entry) {
           sendJson(response, 404, { error: "Symbol was not found." });
           return;

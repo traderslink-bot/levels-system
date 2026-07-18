@@ -630,9 +630,14 @@ describe("live watchlist publisher", () => {
       },
     };
 
-    const patch = buildTradersLinkAiReadPatch({ read, visible: true });
+    const patch = buildTradersLinkAiReadPatch({
+      read,
+      visible: true,
+      dipBuyPlanVisible: false,
+    });
     assert.equal(patch.symbol, "TGHL");
     assert.equal(patch.tradersLinkAiReadCardVisible, true);
+    assert.equal(patch.tradersLinkAiReadDipBuyPlanVisible, false);
     assert.deepEqual(JSON.parse(patch.cards.tradersLinkAiRead?.body ?? "{}"), read);
     assert.equal(patch.cards.tradersLinkAiRead?.metadata?.model, "test-model");
     assert.equal(patch.cards.tradersLinkAiRead?.metadata?.listingImmediacy, "monitor");
@@ -641,5 +646,14 @@ describe("live watchlist publisher", () => {
     assert.equal(visibility.symbol, "TGHL");
     assert.equal(visibility.tradersLinkAiReadCardVisible, false);
     assert.deepEqual(visibility.cards, {});
+
+    const dipBuyVisibility = buildTradersLinkAiReadVisibilityPatch({
+      symbol: "tghl",
+      dipBuyPlanVisible: false,
+    });
+    assert.equal(dipBuyVisibility.symbol, "TGHL");
+    assert.equal(dipBuyVisibility.tradersLinkAiReadCardVisible, undefined);
+    assert.equal(dipBuyVisibility.tradersLinkAiReadDipBuyPlanVisible, false);
+    assert.deepEqual(dipBuyVisibility.cards, {});
   });
 });

@@ -1051,6 +1051,7 @@ export function buildLiveWatchlistStatusPatch(args: {
 export function buildTradersLinkAiReadPatch(args: {
   read: TradersLinkAiReadPayload;
   visible?: boolean;
+  dipBuyPlanVisible?: boolean;
 }): LiveWatchlistCardPatch {
   const { read } = args;
   return {
@@ -1058,6 +1059,7 @@ export function buildTradersLinkAiReadPatch(args: {
     status: "live",
     updatedAt: read.generatedAt,
     tradersLinkAiReadCardVisible: args.visible !== false,
+    tradersLinkAiReadDipBuyPlanVisible: args.dipBuyPlanVisible !== false,
     cards: {
       tradersLinkAiRead: buildCard({
         title: "TradersLink AI Read",
@@ -1091,14 +1093,20 @@ export function buildTradersLinkAiReadPatch(args: {
 
 export function buildTradersLinkAiReadVisibilityPatch(args: {
   symbol: string;
-  visible: boolean;
+  visible?: boolean;
+  dipBuyPlanVisible?: boolean;
   updatedAt?: number;
 }): LiveWatchlistCardPatch {
   return {
     symbol: normalizeSymbol(args.symbol),
     status: "live",
     updatedAt: args.updatedAt ?? Date.now(),
-    tradersLinkAiReadCardVisible: args.visible,
+    ...(typeof args.visible === "boolean"
+      ? { tradersLinkAiReadCardVisible: args.visible }
+      : {}),
+    ...(typeof args.dipBuyPlanVisible === "boolean"
+      ? { tradersLinkAiReadDipBuyPlanVisible: args.dipBuyPlanVisible }
+      : {}),
     cards: {},
   };
 }

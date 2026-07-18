@@ -31,6 +31,7 @@ export type LiveWatchlistCardPatch = {
   status?: LiveWatchlistStatus;
   updatedAt: number;
   tradersLinkAiReadCardVisible?: boolean;
+  tradersLinkAiReadDipBuyPlanVisible?: boolean;
   cards: Partial<Record<LiveWatchlistCardKind, LiveWatchlistCardContent | null>>;
   levelMap?: LiveWatchlistLevelMap | null;
 };
@@ -47,6 +48,7 @@ export type LiveWatchlistTickerDataPatch = {
   status?: LiveWatchlistStatus;
   updatedAt: number;
   tradersLinkAiReadCardVisible?: boolean;
+  tradersLinkAiReadDipBuyPlanVisible?: boolean;
   latestPrice: number;
   nearestSupport: number | null;
   nearestResistance: number | null;

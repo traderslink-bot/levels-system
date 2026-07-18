@@ -25,6 +25,7 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       lastExtensionPostAt: 789,
       refreshPending: false,
       tradersLinkAiReadCardVisible: false,
+      tradersLinkAiReadDipBuyPlanVisible: false,
     },
   ]);
 
@@ -43,6 +44,7 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       lastExtensionPostAt: 789,
       refreshPending: false,
       tradersLinkAiReadCardVisible: false,
+      tradersLinkAiReadDipBuyPlanVisible: false,
     },
   ]);
 

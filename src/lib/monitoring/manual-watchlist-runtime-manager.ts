@@ -704,6 +704,7 @@ export class ManualWatchlistRuntimeManager {
       await publisher.publish(buildTradersLinkAiReadPatch({
         read,
         visible: true,
+        dipBuyPlanVisible: latestEntry.tradersLinkAiReadDipBuyPlanVisible !== false,
       }));
       this.aiReadState.set(symbol, {
         generatedAt: read.generatedAt,
@@ -772,6 +773,26 @@ export class ManualWatchlistRuntimeManager {
     }
     if (visible) {
       this.scheduleTradersLinkAiRead(symbol, true, "visibility_enabled");
+    }
+    return entry;
+  }
+
+  async setTradersLinkAiReadDipBuyPlanVisible(
+    symbolInput: string,
+    visible: boolean,
+  ): Promise<WatchlistEntry | null> {
+    const symbol = normalizeSymbol(symbolInput);
+    const entry = this.watchlistStore.patchEntry(symbol, {
+      tradersLinkAiReadDipBuyPlanVisible: visible,
+    });
+    if (!entry) {
+      return null;
+    }
+    this.persistWatchlist();
+    if (this.options.liveWatchlistPublisher) {
+      await this.options.liveWatchlistPublisher.publish(
+        buildTradersLinkAiReadVisibilityPatch({ symbol, dipBuyPlanVisible: visible }),
+      );
     }
     return entry;
   }
@@ -1698,6 +1719,7 @@ export class ManualWatchlistRuntimeManager {
           buildTradersLinkAiReadVisibilityPatch({
             symbol: entry.symbol,
             visible: entry.tradersLinkAiReadCardVisible !== false,
+            dipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible !== false,
           }),
         );
       }
@@ -1781,6 +1803,7 @@ export class ManualWatchlistRuntimeManager {
         buildTradersLinkAiReadVisibilityPatch({
           symbol,
           visible: entry.tradersLinkAiReadCardVisible !== false,
+          dipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible !== false,
         }),
       );
     }
