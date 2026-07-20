@@ -1075,7 +1075,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         body.textContent = ticker.symbol + " — " + formatAiReadCost(ticker.estimatedTotalCostUsd);
         detail.className = "activity-detail";
         detail.textContent =
-          String(ticker.requestCount || 0) + " request(s) | average " +
+          String(ticker.requestCount || 0) + " API call(s) across " +
+          String(ticker.planGenerationCount || ticker.requestCount || 0) + " plan generation(s) | average " +
           formatAiReadCost(ticker.averageCostPerRequestUsd) + " | web searches " +
           String(ticker.webSearchCallCount || 0) + " | last trigger " +
           String(ticker.lastTrigger || "unknown");

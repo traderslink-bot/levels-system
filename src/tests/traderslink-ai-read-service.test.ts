@@ -968,6 +968,38 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.doesNotMatch(read.currentRead, /no premarket volume/i);
   });
 
+  it("grounds a candle-matched checkpoint deterministically instead of buying a correction", async () => {
+    const draft = modelRead();
+    draft.downsideCheckpoints = [{
+      label: "Outer downside checkpoint",
+      price: 1.05,
+      condition: "Relevant only if the original setup fails.",
+    }];
+    let requestCount = 0;
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => {
+        requestCount += 1;
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(draft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(requestCount, 1);
+    assert.match(read.downsideCheckpoints[0]?.condition ?? "", /observed daily candle/i);
+  });
+
   it("drops duplicate scenario checkpoints instead of paying for a correction", async () => {
     const duplicateCheckpointRead = modelRead();
     const duplicateMomentumFailure = duplicateCheckpointRead.momentumFailure as { price: number };

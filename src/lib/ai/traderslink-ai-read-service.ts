@@ -855,6 +855,81 @@ function claimedCurrentPremarketHigh(text: string): number | null {
   return null;
 }
 
+const TAPE_EVIDENCE_LANGUAGE =
+  /\b(?:premarket|postmarket|after[- ]hours|regular session|opening range|session (?:high|low|open)|prior close|daily (?:high|low|range)|(?:intraday|daily) candle (?:high|low|open|close)|consolidation|shelf|base|rejection|rejected|acceptance|reclaim|failed spike|range (?:high|low|ceiling|floor)|volume|vwap|wick|tested|tests?|holds?|held|holding|higher low|lower high|whole-dollar|half-dollar|psychological)\b/i;
+
+function observableCandleEvidence(
+  price: number,
+  currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext,
+): string | null {
+  const nearestEvidence = (
+    candles: TradersLinkAiReadPriceActionContext["intradayCandles"],
+    label: "intraday" | "daily",
+    rangeWeight: number,
+  ): string | null => {
+    if (candles.length === 0) {
+      return null;
+    }
+    const averageRange = candles.reduce(
+      (sum, candle) => sum + Math.max(0, candle.high - candle.low),
+      0,
+    ) / candles.length;
+    const tolerance = Math.max(currentPrice * 0.005, averageRange * rangeWeight, 0.0001);
+    let nearest: { field: "high" | "low" | "open" | "close"; distance: number } | null = null;
+    for (const candle of candles) {
+      for (const field of ["high", "low", "open", "close"] as const) {
+        const distance = Math.abs(candle[field] - price);
+        if (distance <= tolerance && (!nearest || distance < nearest.distance)) {
+          nearest = { field, distance };
+        }
+      }
+    }
+    return nearest
+      ? `This price aligns with an observed ${label} candle ${nearest.field}.`
+      : null;
+  };
+
+  return nearestEvidence(priceAction.intradayCandles.slice(-48), "intraday", 0.35) ??
+    nearestEvidence(priceAction.dailyCandles, "daily", 0.1);
+}
+
+function normalizeObservableTapeEvidence(
+  read: ModelRead,
+  currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext,
+): ModelRead {
+  const appendEvidence = (text: string, price: number | null): string => {
+    if (price === null || TAPE_EVIDENCE_LANGUAGE.test(text)) {
+      return text;
+    }
+    const evidence = observableCandleEvidence(price, currentPrice, priceAction);
+    return evidence ? `${text.trim()} ${evidence}`.trim() : text;
+  };
+  const normalizeLevel = (level: ModelRead["needsToHold"]): ModelRead["needsToHold"] => ({
+    ...level,
+    rationale: appendEvidence(level.rationale, level.price),
+  });
+  const normalizeScenario = <T extends ModelRead["targets"][number]>(item: T): T => {
+    if (item.price === null || TAPE_EVIDENCE_LANGUAGE.test(`${item.label} ${item.condition}`)) {
+      return item;
+    }
+    const evidence = observableCandleEvidence(item.price, currentPrice, priceAction);
+    return evidence ? { ...item, condition: `${item.condition.trim()} ${evidence}`.trim() } : item;
+  };
+
+  return {
+    ...read,
+    needsToHold: normalizeLevel(read.needsToHold),
+    cautionBelow: normalizeLevel(read.cautionBelow),
+    momentumFailure: normalizeLevel(read.momentumFailure),
+    mustClear: normalizeLevel(read.mustClear),
+    breakoutContinuation: normalizeLevel(read.breakoutContinuation),
+    targets: read.targets.map(normalizeScenario),
+    downsideCheckpoints: read.downsideCheckpoints.map(normalizeScenario),
+  };
+}
+
 function assertTradersLinkAiTradeMap(
   read: ModelRead,
   currentPrice: number,
@@ -870,8 +945,6 @@ function assertTradersLinkAiTradeMap(
   const tacticalSpacing = Math.max(tolerance, averageTrueRange * 0.25);
   const unsupportedAnalysisLanguage =
     /\b(?:4h|four[- ]hour|confluence|supplied (?:level|support|resistance)|support stack|resistance stack|next level)\b/i;
-  const tapeEvidenceLanguage =
-    /\b(?:premarket|postmarket|after[- ]hours|regular session|opening range|session (?:high|low|open)|prior close|daily (?:high|low|range)|consolidation|shelf|base|rejection|rejected|acceptance|reclaim|failed spike|range (?:high|low|ceiling|floor)|volume|vwap|wick|tested|tests?|holds?|held|holding|higher low|lower high|whole-dollar|half-dollar|psychological)\b/i;
   const unsupportedZeroVolumeClaim =
     /\b(?:reported\s+)?(?:extended[- ]hours|premarket|postmarket|after[- ]hours|session|bar)?\s*volume\s+(?:was|is|reported(?:\s+as)?)?\s*zero\b|\bzero\s+(?:reported\s+)?volume\b/i;
   const unavailableVolumeCommentaryPatterns = [
@@ -930,7 +1003,7 @@ function assertTradersLinkAiTradeMap(
     if (unsupportedAnalysisLanguage.test(combinedText)) {
       fail(`${label} uses unsupported precomputed-level or timeframe language`);
     }
-    if (!tapeEvidenceLanguage.test(level.rationale)) {
+    if (!TAPE_EVIDENCE_LANGUAGE.test(level.rationale)) {
       fail(`${label} does not cite observable price-action evidence`);
     }
   }
@@ -979,7 +1052,7 @@ function assertTradersLinkAiTradeMap(
     if (target.price === null) {
       continue;
     }
-    if (!tapeEvidenceLanguage.test(`${target.label} ${target.condition}`)) {
+    if (!TAPE_EVIDENCE_LANGUAGE.test(`${target.label} ${target.condition}`)) {
       fail(`upside target ${target.price} does not cite observable price-action evidence`);
     }
     if (target.price - previousUpside < tacticalSpacing) {
@@ -993,7 +1066,7 @@ function assertTradersLinkAiTradeMap(
     if (checkpoint.price === null) {
       continue;
     }
-    if (!tapeEvidenceLanguage.test(`${checkpoint.label} ${checkpoint.condition}`)) {
+    if (!TAPE_EVIDENCE_LANGUAGE.test(`${checkpoint.label} ${checkpoint.condition}`)) {
       fail(`downside checkpoint ${checkpoint.price} does not cite observable price-action evidence`);
     }
     if (previousDownside - checkpoint.price < tacticalSpacing) {
@@ -1677,8 +1750,12 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       } catch {
         throw new Error("OpenAI returned invalid TradersLink AI Read JSON.");
       }
-      const normalized = pruneRedundantScenarioCheckpoints(
-        normalizeModelRead(parsed, availableSources),
+      const normalized = normalizeObservableTapeEvidence(
+        pruneRedundantScenarioCheckpoints(
+          normalizeModelRead(parsed, availableSources),
+          referenceQuote.price,
+          input.priceAction,
+        ),
         referenceQuote.price,
         input.priceAction,
       );

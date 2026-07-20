@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   buildTradersLinkAiReadRefreshState,
+  decideTradersLinkAiReadActivationSchedule,
   decideTradersLinkAiReadRefresh,
   parseArchivedTradersLinkAiReadRefreshState,
 } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
@@ -163,7 +164,7 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
   });
 
-  it("refreshes when price accepts below momentum failure even with a lower downside checkpoint still mapped", () => {
+  it("does not refresh at momentum failure while lower downside checkpoints remain mapped", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: {
         generatedAt: GENERATED_AT,
@@ -182,9 +183,9 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
 
     assert.deepEqual(decision, {
-      shouldRefresh: true,
-      trigger: "boundary_cross",
-      automaticRefreshRegime: "downside:momentumFailure:3.77",
+      shouldRefresh: false,
+      trigger: "scheduled",
+      automaticRefreshRegime: null,
     });
   });
 
@@ -212,19 +213,18 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
   });
 
-  it("does not buy a second automatic read for an already-served momentum-failure regime", () => {
+  it("does not refresh repeatedly while price remains between momentum failure and the outer downside checkpoint", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: {
         generatedAt: GENERATED_AT,
         currentPrice: 3.95,
         upperBoundary: 4.43,
         lowerBoundary: 3.5,
-        lastAutomaticRefreshRegime: "downside:momentumFailure:3.77",
         boundaries: [
           { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
         ],
       },
-      currentPrice: 3.7,
+      currentPrice: 3.6,
       dataAsOf: GENERATED_AT + 5 * 60_000,
       force: false,
       requestedTrigger: "automatic",
@@ -232,12 +232,12 @@ describe("TradersLink AI Read refresh decisions", () => {
 
     assert.deepEqual(decision, {
       shouldRefresh: false,
-      trigger: "boundary_cross",
-      automaticRefreshRegime: "downside:momentumFailure:3.77",
+      trigger: "scheduled",
+      automaticRefreshRegime: null,
     });
   });
 
-  it("refreshes near the upside edge before the old map runs out", () => {
+  it("does not refresh near the upside edge while price remains inside the published map", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: {
         ...state(1.36),
@@ -250,13 +250,13 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
 
     assert.deepEqual(decision, {
-      shouldRefresh: true,
-      trigger: "range_edge",
-      automaticRefreshRegime: "upper:2",
+      shouldRefresh: false,
+      trigger: "scheduled",
+      automaticRefreshRegime: null,
     });
   });
 
-  it("refreshes near the downside edge before the old map runs out", () => {
+  it("does not refresh near the downside edge while price remains inside the published map", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: {
         ...state(1.36),
@@ -269,9 +269,20 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
 
     assert.deepEqual(decision, {
-      shouldRefresh: true,
-      trigger: "range_edge",
-      automaticRefreshRegime: "lower:1.05",
+      shouldRefresh: false,
+      trigger: "scheduled",
+      automaticRefreshRegime: null,
+    });
+  });
+
+  it("reuses a persisted plan on reactivation and only schedules a boundary check", () => {
+    assert.deepEqual(decideTradersLinkAiReadActivationSchedule(state(1.5)), {
+      force: false,
+      trigger: "automatic",
+    });
+    assert.deepEqual(decideTradersLinkAiReadActivationSchedule(null), {
+      force: true,
+      trigger: "activation",
     });
   });
 
