@@ -25,11 +25,22 @@ import {
   type CommonEquitySecurityMasterLookup,
   type CommonEquitySecurityMasterStatus,
 } from "./eodhd-common-stock-security-master.js";
+import {
+  NasdaqTradingHaltService,
+  type NasdaqTradingHaltLookup,
+  type NasdaqTradingHaltRecord,
+  type NasdaqTradingHaltState,
+} from "./nasdaq-trading-halt-service.js";
 
 type FetchLike = typeof fetch;
 
 const CONFIG_VERSION = 1;
 const MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS = 3;
+const TOP_GAINER_SOURCE_SCREENS = new Set([
+  "live_exchange_gainers",
+  "nasdaq_live_most_advanced",
+  "small_cap_gainers",
+]);
 
 export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxMarketCap: 100_000_000,
@@ -87,6 +98,10 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   recentDollarVolumeRankFullScore: 1_000_000,
   volumeAccelerationRankMaxBoost: 10,
   volumeAccelerationRankFullScoreRatio: 3,
+  volumeDecelerationRankMaxPenalty: 12,
+  volumeDecelerationRankFullPenaltyRatio: 0.25,
+  topGainerQualificationScoreBoost: 5,
+  zeroRecentVolumeRetentionGraceMinutes: 15,
   shareTurnoverRankMaxBoost: 10,
   shareTurnoverRankFullScorePct: 100,
 } as const;
@@ -155,6 +170,10 @@ export type AutoWatchlistSelectorThresholds = {
   recentDollarVolumeRankFullScore: number;
   volumeAccelerationRankMaxBoost: number;
   volumeAccelerationRankFullScoreRatio: number;
+  volumeDecelerationRankMaxPenalty: number;
+  volumeDecelerationRankFullPenaltyRatio: number;
+  topGainerQualificationScoreBoost: number;
+  zeroRecentVolumeRetentionGraceMinutes: number;
   shareTurnoverRankMaxBoost: number;
   shareTurnoverRankFullScorePct: number;
 };
@@ -208,7 +227,12 @@ export type AutoWatchlistCandidateDecision = AutoWatchlistDiscoveryCandidate & {
   catalystRankBoost: number;
   recentDollarVolumeRankBoost: number;
   volumeAccelerationRankBoost: number;
+  volumeDecelerationRankPenalty: number;
   shareTurnoverRankBoost: number;
+  tradingHaltState: NasdaqTradingHaltState | "not_checked" | "unavailable";
+  tradingHaltReasonCode: string | null;
+  haltRetentionProtected: boolean;
+  haltRetentionProtectionReason: string | null;
   reasons: string[];
   rankingReasons: string[];
   rejectionReasons: string[];
@@ -226,6 +250,10 @@ export type AutoWatchlistManagedEntry = {
   lastSession: AutoWatchlistSession;
   lastRankingScore: number;
   lastSlotSurvivalScore: number;
+  admissionAt: number | null;
+  admissionQualificationScore: number | null;
+  admissionRankingScore: number | null;
+  admissionSlotSurvivalScore: number | null;
   lastQualifiedAt: number | null;
   retentionFailures: number;
   followupAt?: number | null;
@@ -276,6 +304,7 @@ export type AutoWatchlistSelectorStatus = {
     finnhubOutstandingAvailable: boolean;
     pressReleaseCatalystAvailable: boolean;
     sessionActivityAvailable: boolean;
+    tradingHaltFeedAvailable: boolean;
     commonEquitySecurityMasterEnabled: boolean;
     commonEquitySecurityMasterAvailable: boolean;
     commonEquitySecurityMasterCheckedAt: number | null;
@@ -293,6 +322,7 @@ export type AutoWatchlistSelectorStatus = {
   lastDiscoveryError: string | null;
   lastCatalystLookupError: string | null;
   lastActivityLookupError: string | null;
+  lastTradingHaltLookupError: string | null;
   lastSecurityMasterError: string | null;
   tradingDay: string | null;
   addedToday: string[];
@@ -356,6 +386,7 @@ type AutoWatchlistSelectorOptions = {
   now?: () => number;
   catalystLookup?: typeof lookupLocalPressReleaseCatalystArticles;
   sessionActivityLookup?: AutoWatchlistSessionActivityLookup;
+  tradingHaltLookup?: NasdaqTradingHaltLookup;
   securityMasterLookup?: CommonEquitySecurityMasterLookup;
   requireVerifiedCommonEquity?: boolean;
 };
@@ -487,6 +518,10 @@ function normalizeSymbol(value: unknown): string {
   return typeof value === "string" ? value.trim().toUpperCase() : "";
 }
 
+function isTopGainerCandidate(candidate: AutoWatchlistDiscoveryCandidate): boolean {
+  return candidate.sourceScreens.some((source) => TOP_GAINER_SOURCE_SCREENS.has(source));
+}
+
 const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "maxMarketCap",
   "maxFloatShares",
@@ -520,6 +555,9 @@ const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "recentDollarVolumeRankMaxBoost",
   "recentDollarVolumeRankFullScore",
   "volumeAccelerationRankMaxBoost",
+  "volumeDecelerationRankMaxPenalty",
+  "topGainerQualificationScoreBoost",
+  "zeroRecentVolumeRetentionGraceMinutes",
   "shareTurnoverRankMaxBoost",
   "shareTurnoverRankFullScorePct",
   "minRecentDollarVolume15mPremarket",
@@ -640,9 +678,11 @@ export function resolveAutoWatchlistSelectorThresholds(
   if (
     resolved.recentDollarVolumeRankMaxBoost > 100 ||
     resolved.volumeAccelerationRankMaxBoost > 100 ||
+    resolved.volumeDecelerationRankMaxPenalty > 100 ||
+    resolved.topGainerQualificationScoreBoost > 100 ||
     resolved.shareTurnoverRankMaxBoost > 100
   ) {
-    throw new Error("Activity and turnover ranking boosts cannot exceed 100.");
+    throw new Error("Activity ranking boosts, penalties, and turnover boosts cannot exceed 100.");
   }
   if (resolved.recentDollarVolumeRankFullScore <= 0) {
     throw new Error("recentDollarVolumeRankFullScore must be greater than zero.");
@@ -650,8 +690,17 @@ export function resolveAutoWatchlistSelectorThresholds(
   if (resolved.volumeAccelerationRankFullScoreRatio <= 1) {
     throw new Error("volumeAccelerationRankFullScoreRatio must be greater than 1.");
   }
+  if (
+    resolved.volumeDecelerationRankFullPenaltyRatio <= 0 ||
+    resolved.volumeDecelerationRankFullPenaltyRatio >= 1
+  ) {
+    throw new Error("volumeDecelerationRankFullPenaltyRatio must be greater than 0 and less than 1.");
+  }
   if (resolved.shareTurnoverRankFullScorePct <= 0) {
     throw new Error("shareTurnoverRankFullScorePct must be greater than zero.");
+  }
+  if (resolved.zeroRecentVolumeRetentionGraceMinutes > 60) {
+    throw new Error("zeroRecentVolumeRetentionGraceMinutes cannot exceed 60.");
   }
   if (resolved.scanIntervalMs < 30_000 || resolved.scanIntervalMs > 60 * 60 * 1000) {
     throw new Error("scanIntervalMs must be between 30000 and 3600000.");
@@ -710,6 +759,81 @@ function minimumRecentDollarVolume(
   if (session === "premarket") return thresholds.minRecentDollarVolume15mPremarket;
   if (session === "postmarket") return thresholds.minRecentDollarVolume15mPostmarket;
   return thresholds.minRecentDollarVolume15mRegular;
+}
+
+function activityNeedsTradingHaltCheck(
+  activity: AutoWatchlistSessionActivity | null | undefined,
+  session: AutoWatchlistSession,
+  thresholds: AutoWatchlistSelectorThresholds,
+): boolean {
+  if (!activity?.available) return true;
+  return (
+    (activity.quoteAgeMinutes ?? Number.POSITIVE_INFINITY) > thresholds.maxActivityQuoteAgeMinutes ||
+    (activity.recent15mDollarVolume ?? 0) < minimumRecentDollarVolume(session, thresholds)
+  );
+}
+
+function isRecentActivityRejection(reason: string): boolean {
+  return (
+    reason === "recent 15-minute activity data is unavailable" ||
+    /^latest (premarket|regular|postmarket) trade is too old$/.test(reason) ||
+    reason.startsWith("last 15m dollar volume must be at least ")
+  );
+}
+
+export function buildAutoWatchlistRetentionProtection(input: {
+  decision: Pick<
+    AutoWatchlistCandidateDecision,
+    | "score"
+    | "rejectionReasons"
+    | "tradingHaltState"
+    | "tradingHaltReasonCode"
+    | "recent15mDollarVolume"
+    | "sessionDollarVolume"
+    | "sessionVolume"
+  >;
+  entry: Pick<AutoWatchlistManagedEntry, "lastQualifiedAt">;
+  thresholds: AutoWatchlistSelectorThresholds;
+  now: number;
+}): {
+  protected: boolean;
+  kind: "confirmed_halt" | "zero_volume_data_gap" | null;
+  reason: string | null;
+} {
+  const activityOnlyFailure =
+    input.decision.rejectionReasons.length > 0 &&
+    input.decision.rejectionReasons.every(isRecentActivityRejection);
+  if (!activityOnlyFailure || input.decision.score < input.thresholds.minimumScore) {
+    return { protected: false, kind: null, reason: null };
+  }
+  if (input.decision.tradingHaltState === "halted") {
+    const reasonCode = input.decision.tradingHaltReasonCode
+      ? ` (${input.decision.tradingHaltReasonCode})`
+      : "";
+    return {
+      protected: true,
+      kind: "confirmed_halt",
+      reason: `retained: Nasdaq Trader confirms an active trading halt${reasonCode}`,
+    };
+  }
+  const lastQualifiedAt = input.entry.lastQualifiedAt;
+  const graceMs = input.thresholds.zeroRecentVolumeRetentionGraceMinutes * 60_000;
+  const strongPriorSession =
+    (input.decision.sessionVolume ?? 0) >= input.thresholds.minVolume &&
+    (input.decision.sessionDollarVolume ?? 0) >= Math.max(1_000_000, input.thresholds.minDollarVolume * 4);
+  if (
+    input.decision.recent15mDollarVolume === 0 &&
+    strongPriorSession &&
+    lastQualifiedAt !== null &&
+    input.now - lastQualifiedAt <= graceMs
+  ) {
+    return {
+      protected: true,
+      kind: "zero_volume_data_gap",
+      reason: `retained: exact zero recent volume treated as a data-gap/halt warning for up to ${input.thresholds.zeroRecentVolumeRetentionGraceMinutes} minutes`,
+    };
+  }
+  return { protected: false, kind: null, reason: null };
 }
 
 function postmarketPromotionRejectionReasons(input: {
@@ -793,6 +917,29 @@ function graduatedRankingBoost(args: {
   return Math.round(progress * args.maxBoost * 100) / 100;
 }
 
+export function buildVolumeDecelerationRankPenalty(args: {
+  volumeAcceleration: number | null | undefined;
+  fullPenaltyAtRatio: number;
+  maxPenalty: number;
+}): number {
+  if (
+    args.maxPenalty <= 0 ||
+    args.volumeAcceleration === null ||
+    args.volumeAcceleration === undefined ||
+    !Number.isFinite(args.volumeAcceleration) ||
+    args.volumeAcceleration >= 1 ||
+    args.fullPenaltyAtRatio <= 0 ||
+    args.fullPenaltyAtRatio >= 1
+  ) {
+    return 0;
+  }
+  const progress = Math.min(
+    1,
+    (1 - Math.max(0, args.volumeAcceleration)) / (1 - args.fullPenaltyAtRatio),
+  );
+  return Math.round(progress * args.maxPenalty * 100) / 100;
+}
+
 function rankingFields(args: {
   context: PressReleaseCatalystContext;
   referenceDate: string;
@@ -812,6 +959,7 @@ function rankingFields(args: {
   | "catalystRankBoost"
   | "recentDollarVolumeRankBoost"
   | "volumeAccelerationRankBoost"
+  | "volumeDecelerationRankPenalty"
   | "shareTurnoverRankBoost"
   | "shareTurnoverPct"
   | "rankingReasons"
@@ -841,6 +989,11 @@ function rankingFields(args: {
     floor: 1,
     fullScoreAt: args.thresholds.volumeAccelerationRankFullScoreRatio,
     maxBoost: args.thresholds.volumeAccelerationRankMaxBoost,
+  });
+  const volumeDecelerationRankPenalty = buildVolumeDecelerationRankPenalty({
+    volumeAcceleration: args.activity?.volumeAcceleration,
+    fullPenaltyAtRatio: args.thresholds.volumeDecelerationRankFullPenaltyRatio,
+    maxPenalty: args.thresholds.volumeDecelerationRankMaxPenalty,
   });
   const shareTurnoverPct = args.effectiveShares && args.activity?.sessionVolume
     ? (args.activity.sessionVolume / args.effectiveShares) * 100
@@ -878,6 +1031,9 @@ function rankingFields(args: {
   if (volumeAccelerationRankBoost > 0) {
     rankingReasons.push(`volume acceleration +${volumeAccelerationRankBoost} ranking points`);
   }
+  if (volumeDecelerationRankPenalty > 0) {
+    rankingReasons.push(`volume deceleration -${volumeDecelerationRankPenalty} ranking points`);
+  }
   if (shareTurnoverRankBoost > 0) {
     rankingReasons.push(`share turnover +${shareTurnoverRankBoost} ranking points`);
   }
@@ -885,13 +1041,14 @@ function rankingFields(args: {
     rankingReasons.push(`cumulative dollar volume +${supportingDollarVolumePoints} supporting points`);
   }
   return {
-    rankingScore: Math.round((
+    rankingScore: Math.max(0, Math.round((
       rankingBaseScore +
       catalystRankBoost +
       recentDollarVolumeRankBoost +
       volumeAccelerationRankBoost +
-      shareTurnoverRankBoost
-    ) * 100) / 100,
+      shareTurnoverRankBoost -
+      volumeDecelerationRankPenalty
+    ) * 100) / 100),
     catalystAgeDays,
     catalystTiming: args.context.timing,
     catalystPublishedAt: article?.publishedAt ?? null,
@@ -899,6 +1056,7 @@ function rankingFields(args: {
     catalystRankBoost,
     recentDollarVolumeRankBoost,
     volumeAccelerationRankBoost,
+    volumeDecelerationRankPenalty,
     shareTurnoverRankBoost,
     shareTurnoverPct,
     rankingReasons,
@@ -962,9 +1120,16 @@ export function scoreAutoWatchlistCandidate(input: {
   | "catalystRankBoost"
   | "recentDollarVolumeRankBoost"
   | "volumeAccelerationRankBoost"
+  | "volumeDecelerationRankPenalty"
   | "shareTurnoverRankBoost"
   | "shareTurnoverPct"
   | "rankingReasons"
+  | "slotSurvivalScore"
+  | "slotSurvivalReasons"
+  | "tradingHaltState"
+  | "tradingHaltReasonCode"
+  | "haltRetentionProtected"
+  | "haltRetentionProtectionReason"
   | "session"
   | "sessionVolume"
   | "sessionDollarVolume"
@@ -1086,6 +1251,11 @@ export function scoreAutoWatchlistCandidate(input: {
     reasons.push(`${thresholds.minGainPct}%+ gain`);
   }
 
+  if (isTopGainerCandidate(candidate) && thresholds.topGainerQualificationScoreBoost > 0) {
+    score += thresholds.topGainerQualificationScoreBoost;
+    reasons.push(`top-gainers list +${thresholds.topGainerQualificationScoreBoost} qualification points`);
+  }
+
   if (dollarVolume >= 2_000_000) {
     score += 20;
     reasons.push("$2M+ dollar volume");
@@ -1193,6 +1363,26 @@ function isAutoWatchlistSession(value: unknown): value is AutoWatchlistSession {
   return value === "premarket" || value === "regular" || value === "postmarket" || value === "closed";
 }
 
+function admissionSnapshotFromNote(note: string | undefined): {
+  qualificationScore: number;
+  rankingScore: number;
+  slotSurvivalScore: number;
+} | null {
+  const match = /qualification score\s+([+-]?\d+(?:\.\d+)?)\s*;\s*(?:admission rank|rank)\s+([+-]?\d+(?:\.\d+)?)/i.exec(
+    note ?? "",
+  );
+  if (!match) return null;
+  const qualificationScore = finiteNumber(Number(match[1]));
+  const rankingScore = finiteNumber(Number(match[2]));
+  if (qualificationScore === null || rankingScore === null) return null;
+  const slotMatch = /(?:current|admission) slot(?: score)?\s+([+-]?\d+(?:\.\d+)?)/i.exec(note ?? "");
+  return {
+    qualificationScore,
+    rankingScore,
+    slotSurvivalScore: finiteNumber(Number(slotMatch?.[1])) ?? rankingScore,
+  };
+}
+
 function normalizeManagedEntry(value: unknown): AutoWatchlistManagedEntry | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Partial<AutoWatchlistManagedEntry>;
@@ -1219,6 +1409,10 @@ function normalizeManagedEntry(value: unknown): AutoWatchlistManagedEntry | null
     lastRankingScore: finiteNumber(candidate.lastRankingScore) ?? 0,
     lastSlotSurvivalScore:
       finiteNumber(candidate.lastSlotSurvivalScore) ?? finiteNumber(candidate.lastRankingScore) ?? 0,
+    admissionAt: finiteNumber(candidate.admissionAt),
+    admissionQualificationScore: finiteNumber(candidate.admissionQualificationScore),
+    admissionRankingScore: finiteNumber(candidate.admissionRankingScore),
+    admissionSlotSurvivalScore: finiteNumber(candidate.admissionSlotSurvivalScore),
     lastQualifiedAt: finiteNumber(candidate.lastQualifiedAt),
     retentionFailures: Math.max(0, Math.floor(finiteNumber(candidate.retentionFailures) ?? 0)),
     followupAt: finiteNumber(candidate.followupAt),
@@ -1276,6 +1470,7 @@ export class AutoWatchlistSelector {
   private readonly fetchImpl: FetchLike;
   private readonly catalystLookup: typeof lookupLocalPressReleaseCatalystArticles;
   private readonly sessionActivityLookup: AutoWatchlistSessionActivityLookup;
+  private readonly tradingHaltLookup: NasdaqTradingHaltLookup;
   private readonly securityMasterLookup: CommonEquitySecurityMasterLookup;
   private readonly requireVerifiedCommonEquity: boolean;
   private readonly configPath: string;
@@ -1300,6 +1495,8 @@ export class AutoWatchlistSelector {
   private pressReleaseCatalystAvailable = false;
   private sessionActivityAvailable = false;
   private lastActivityLookupError: string | null = null;
+  private tradingHaltFeedAvailable = false;
+  private lastTradingHaltLookupError: string | null = null;
   private commonEquitySecurityMasterAvailable = false;
   private commonEquitySecurityMasterCheckedAt: number | null = null;
   private commonEquitySecurityMasterCacheUsed: boolean | null = null;
@@ -1321,6 +1518,10 @@ export class AutoWatchlistSelector {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.catalystLookup = options.catalystLookup ?? lookupLocalPressReleaseCatalystArticles;
     this.sessionActivityLookup = options.sessionActivityLookup ?? ((input) => this.fetchNasdaqSessionActivities(input));
+    this.tradingHaltLookup = options.tradingHaltLookup ?? (() => {
+      const service = new NasdaqTradingHaltService({ fetchImpl: this.fetchImpl });
+      return service.lookup.bind(service);
+    })();
     this.configPath = options.configPath ?? join(process.cwd(), "artifacts", "auto-watchlist-selector-config.json");
     const persistedConfig = this.loadConfig();
     this.thresholds = resolveAutoWatchlistSelectorThresholds({
@@ -1526,6 +1727,7 @@ export class AutoWatchlistSelector {
         finnhubOutstandingAvailable: this.options.finnhubClient !== null,
         pressReleaseCatalystAvailable: this.pressReleaseCatalystAvailable,
         sessionActivityAvailable: this.sessionActivityAvailable,
+        tradingHaltFeedAvailable: this.tradingHaltFeedAvailable,
         commonEquitySecurityMasterEnabled: this.requireVerifiedCommonEquity,
         commonEquitySecurityMasterAvailable: this.commonEquitySecurityMasterAvailable,
         commonEquitySecurityMasterCheckedAt: this.commonEquitySecurityMasterCheckedAt,
@@ -1543,6 +1745,7 @@ export class AutoWatchlistSelector {
       lastDiscoveryError: this.lastDiscoveryError,
       lastCatalystLookupError: this.lastCatalystLookupError,
       lastActivityLookupError: this.lastActivityLookupError,
+      lastTradingHaltLookupError: this.lastTradingHaltLookupError,
       lastSecurityMasterError: this.lastSecurityMasterError,
       tradingDay: this.tradingDay,
       addedToday: [...this.mainSessionAddedToday, ...this.postmarketAddedToday],
@@ -1611,6 +1814,7 @@ export class AutoWatchlistSelector {
       const tags = new Set(runtimeEntry.tags ?? []);
       const legacyAutoNote = /^Auto-selected(?: during (premarket|regular|postmarket))?:/i.exec(runtimeEntry.note ?? "");
       const existing = this.managedEntries.get(runtimeEntry.symbol);
+      const noteAdmission = admissionSnapshotFromNote(runtimeEntry.note);
       const explicitlyManual = Boolean(this.options.getActiveEntries) &&
         tags.has("manual") &&
         !tags.has("auto") &&
@@ -1641,6 +1845,14 @@ export class AutoWatchlistSelector {
         lastSession: existing?.lastSession ?? session,
         lastRankingScore: existing?.lastRankingScore ?? 0,
         lastSlotSurvivalScore: existing?.lastSlotSurvivalScore ?? existing?.lastRankingScore ?? 0,
+        admissionAt: existing?.admissionAt ?? (
+          noteAdmission ? runtimeEntry.activatedAt ?? existing?.lastActivatedAt ?? timestamp : null
+        ),
+        admissionQualificationScore:
+          existing?.admissionQualificationScore ?? noteAdmission?.qualificationScore ?? null,
+        admissionRankingScore: existing?.admissionRankingScore ?? noteAdmission?.rankingScore ?? null,
+        admissionSlotSurvivalScore:
+          existing?.admissionSlotSurvivalScore ?? noteAdmission?.slotSurvivalScore ?? null,
         lastQualifiedAt: existing?.lastQualifiedAt ?? null,
         retentionFailures: existing?.retentionFailures ?? 0,
         followupAt: state === "followup" ? existing?.followupAt ?? timestamp : null,
@@ -1816,7 +2028,7 @@ export class AutoWatchlistSelector {
         symbol: decision.symbol,
         source: "auto",
         autoSession: decision.session === "closed" ? "regular" : decision.session,
-        note: `Auto-selected during ${decision.session}: qualification score ${decision.score}; admission rank ${decision.rankingScore}; current slot score ${decision.slotSurvivalScore}; ${(decision.gainPct ?? 0).toFixed(1)}% gain; $${Math.round((decision.recent15mDollarVolume ?? 0) / 1_000).toLocaleString("en-US")}K last-15m dollar volume; ${decision.volumeAcceleration ? `${decision.volumeAcceleration.toFixed(1)}x activity acceleration; ` : ""}${decision.shareTurnoverPct !== null ? `${decision.shareTurnoverPct.toFixed(1)}% share turnover; ` : ""}$${Math.round((decision.marketCap ?? 0) / 1_000_000)}M market cap; ${sharesLabel}; ranking: ${[...decision.rankingReasons, ...decision.slotSurvivalReasons].join(", ") || "base signals only"}; lifecycle: ${reason}.`,
+        note: `Auto-selected during ${decision.session}: qualification score ${decision.score}; admission rank ${decision.rankingScore}; admission slot score ${decision.slotSurvivalScore}; ${(decision.gainPct ?? 0).toFixed(1)}% gain; $${Math.round((decision.recent15mDollarVolume ?? 0) / 1_000).toLocaleString("en-US")}K last-15m dollar volume; ${decision.volumeAcceleration ? `${decision.volumeAcceleration.toFixed(1)}x activity acceleration; ` : ""}${decision.shareTurnoverPct !== null ? `${decision.shareTurnoverPct.toFixed(1)}% share turnover; ` : ""}$${Math.round((decision.marketCap ?? 0) / 1_000_000)}M market cap; ${sharesLabel}; ranking: ${[...decision.rankingReasons, ...decision.slotSurvivalReasons].join(", ") || "base signals only"}; lifecycle: ${reason}.`,
       });
     } catch (error) {
       this.lastActivationErrors.push({
@@ -1836,6 +2048,10 @@ export class AutoWatchlistSelector {
       lastSession: decision.session,
       lastRankingScore: decision.rankingScore,
       lastSlotSurvivalScore: decision.slotSurvivalScore,
+      admissionAt: timestamp,
+      admissionQualificationScore: decision.score,
+      admissionRankingScore: decision.rankingScore,
+      admissionSlotSurvivalScore: decision.slotSurvivalScore,
       lastQualifiedAt: timestamp,
       retentionFailures: 0,
       followupAt: null,
@@ -1894,11 +2110,43 @@ export class AutoWatchlistSelector {
     entry.lastQualifiedAt = timestamp;
     entry.lastRankingScore = decision.rankingScore;
     entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
+    entry.admissionAt = timestamp;
+    entry.admissionQualificationScore = decision.score;
+    entry.admissionRankingScore = decision.rankingScore;
+    entry.admissionSlotSurvivalScore = decision.slotSurvivalScore;
     entry.retentionFailures = 0;
     entry.followupAt = null;
     entry.vacatedSlotAt = null;
     entry.standbyAt = null;
     entry.statusReason = "returned from follow-up after renewed qualification";
+    this.managedEntries.set(entry.symbol, entry);
+    this.persistConfig();
+    return true;
+  }
+
+  private async restoreManagedFollowupAfterConfirmedHalt(
+    decision: AutoWatchlistCandidateDecision,
+    entry: AutoWatchlistManagedEntry,
+  ): Promise<boolean> {
+    if (!this.options.setSymbolFollowup) return false;
+    try {
+      await this.options.setSymbolFollowup(entry.symbol, false);
+    } catch (error) {
+      this.lastActivationErrors.push({
+        symbol: entry.symbol,
+        error: `automatic halt-protection restore failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      return false;
+    }
+    entry.state = "active";
+    entry.lastRankingScore = decision.rankingScore;
+    entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
+    entry.retentionFailures = 0;
+    entry.followupAt = null;
+    entry.vacatedSlotAt = null;
+    entry.standbyAt = null;
+    entry.statusReason = decision.haltRetentionProtectionReason ??
+      "restored from follow-up because Nasdaq Trader confirms an active trading halt";
     this.managedEntries.set(entry.symbol, entry);
     this.persistConfig();
     return true;
@@ -2305,6 +2553,26 @@ export class AutoWatchlistSelector {
     );
   }
 
+  private async lookupTradingHalts(
+    symbols: string[],
+    now: number,
+  ): Promise<Map<string, NasdaqTradingHaltRecord>> {
+    if (symbols.length === 0) return new Map();
+    try {
+      const result = await this.tradingHaltLookup({ symbols, now });
+      this.tradingHaltFeedAvailable = result.available;
+      this.lastTradingHaltLookupError = result.error;
+      return new Map(
+        Object.entries(result.bySymbol)
+          .filter((entry): entry is [string, NasdaqTradingHaltRecord] => entry[1].state !== "not_found"),
+      );
+    } catch (error) {
+      this.tradingHaltFeedAvailable = false;
+      this.lastTradingHaltLookupError = error instanceof Error ? error.message : String(error);
+      return new Map();
+    }
+  }
+
   private async fetchScreen(screenId: string): Promise<YahooScreenerQuote[]> {
     const url = new URL("https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved");
     url.searchParams.set("formatted", "false");
@@ -2591,6 +2859,8 @@ export class AutoWatchlistSelector {
     referenceDate: string,
     session: AutoWatchlistSession,
     activity: AutoWatchlistSessionActivity | null,
+    tradingHalt: NasdaqTradingHaltRecord | null,
+    tradingHaltChecked: boolean,
   ): Promise<AutoWatchlistCandidateDecision> {
     const [yahooResult, finnhubResult] = await Promise.allSettled([
       this.options.yahooClient?.getSummary(candidate.symbol) ?? Promise.resolve(null),
@@ -2673,8 +2943,26 @@ export class AutoWatchlistSelector {
       volumeAcceleration: activity?.volumeAcceleration ?? null,
       activityQuoteAgeMinutes: activity?.quoteAgeMinutes ?? null,
       activityDataAvailable: activity?.available === true,
+      tradingHaltState: tradingHalt?.state ?? (
+        tradingHaltChecked
+          ? this.tradingHaltFeedAvailable ? "not_found" : "unavailable"
+          : "not_checked"
+      ),
+      tradingHaltReasonCode: tradingHalt?.reasonCode ?? null,
+      haltRetentionProtected: false,
+      haltRetentionProtectionReason: null,
       consecutivePasses: nextPasses,
     };
+    const haltProtection = buildAutoWatchlistRetentionProtection({
+      decision,
+      entry: { lastQualifiedAt: null },
+      thresholds: this.thresholds,
+      now: this.now(),
+    });
+    decision.haltRetentionProtected = haltProtection.kind === "confirmed_halt";
+    decision.haltRetentionProtectionReason = decision.haltRetentionProtected
+      ? haltProtection.reason
+      : null;
     if (
       recordPassingObservation &&
       decision.promotionReady &&
@@ -2776,7 +3064,7 @@ export class AutoWatchlistSelector {
       const evaluatedSymbols = new Set(enrichmentCandidates.map((candidate) => candidate.symbol));
       const retainedEntries = [
         ...this.managedEntriesFor(bucket, "active"),
-        ...this.managedEntriesFor(bucket, "followup"),
+        ...this.managedEntriesFor(undefined, "followup"),
       ];
       for (const entry of retainedEntries) {
         if (evaluatedSymbols.has(entry.symbol)) continue;
@@ -2794,6 +3082,16 @@ export class AutoWatchlistSelector {
       }
       this.lastEvaluatedCount = enrichmentCandidates.length;
       const activities = await this.lookupSessionActivities(enrichmentCandidates, session, scanStartedAt);
+      const haltCheckSymbols = new Set(
+        retainedEntries
+          .filter((entry) => activityNeedsTradingHaltCheck(
+            activities.get(entry.symbol),
+            session,
+            this.thresholds,
+          ))
+          .map((entry) => entry.symbol),
+      );
+      const tradingHalts = await this.lookupTradingHalts([...haltCheckSymbols], scanStartedAt);
       const referenceDate = easternParts(scanStartedAt).date;
       const catalystContexts = await this.lookupCatalysts(enrichmentCandidates, referenceDate);
       const securityMasterBySymbol = new Map<string, CommonEquitySecurityMasterStatus>();
@@ -2851,6 +3149,8 @@ export class AutoWatchlistSelector {
           referenceDate,
           session,
           activity,
+          tradingHalts.get(candidate.symbol) ?? null,
+          haltCheckSymbols.has(candidate.symbol),
         ));
       }
       this.recentDecisions = decisions.sort(compareAutoWatchlistDecisions);
@@ -2870,13 +3170,24 @@ export class AutoWatchlistSelector {
         for (const entry of this.managedEntriesFor(bucket, "active")) {
           const current = this.managedEntries.get(entry.symbol)!;
           const decision = decisionBySymbol.get(entry.symbol);
+          const retentionProtection = decision
+            ? buildAutoWatchlistRetentionProtection({
+                decision,
+                entry: current,
+                thresholds: this.thresholds,
+                now: scanStartedAt,
+              })
+            : { protected: false, kind: null, reason: null } as const;
           current.lastSession = session;
-          if (decision?.qualified) {
+          if (decision?.qualified || retentionProtection.protected) {
             current.retentionFailures = 0;
-            current.lastQualifiedAt = scanStartedAt;
-            current.lastRankingScore = decision.rankingScore;
-            current.lastSlotSurvivalScore = decision.slotSurvivalScore;
-            current.statusReason = "retained: still meets automatic selection requirements";
+            if (decision) {
+              if (decision.qualified) current.lastQualifiedAt = scanStartedAt;
+              current.lastRankingScore = decision.rankingScore;
+              current.lastSlotSurvivalScore = decision.slotSurvivalScore;
+            }
+            current.statusReason = retentionProtection.reason ??
+              "retained: still meets automatic selection requirements";
           } else {
             current.retentionFailures += 1;
             if (decision) {
@@ -2887,9 +3198,23 @@ export class AutoWatchlistSelector {
           }
         }
 
+        for (const entry of this.managedEntriesFor(undefined, "followup")
+          .filter((candidate) => decisionBySymbol.get(candidate.symbol)?.haltRetentionProtected)
+          .sort((left, right) => right.lastSlotSurvivalScore - left.lastSlotSurvivalScore)) {
+          if (
+            this.managedEntriesFor(entry.bucket, "active").length >=
+            this.activeSlotLimit(entry.bucket)
+          ) continue;
+          const decision = decisionBySymbol.get(entry.symbol);
+          if (decision) {
+            await this.restoreManagedFollowupAfterConfirmedHalt(decision, entry);
+          }
+        }
+
         const eligibleChallengers = qualified.filter((decision) => {
           const activeSymbols = new Set(this.options.getActiveSymbols().map(normalizeSymbol));
           const managed = this.managedEntries.get(decision.symbol);
+          if (managed && managed.bucket !== bucket) return false;
           if (activeSymbols.has(decision.symbol) && managed?.state !== "followup") return false;
           if (!decision.promotionReady) return false;
           const requiredPasses = this.isFastTrackRunner(decision)

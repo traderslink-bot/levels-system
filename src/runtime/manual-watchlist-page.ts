@@ -199,6 +199,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Post-market promotion minimum gain (%)<input id="auto-selector-postmarket-promotion-min-gain" type="number" min="0" max="100" step="0.1" /></label>
           <label>Post-market promotion minimum last-15m dollar volume ($)<input id="auto-selector-postmarket-promotion-recent-dollar-volume" type="number" min="0" step="5000" /></label>
           <label>Maximum latest-trade age (minutes)<input id="auto-selector-max-activity-age" type="number" min="1" max="60" step="1" /></label>
+          <label>Exact-zero recent-volume grace (minutes)<input id="auto-selector-zero-volume-grace" type="number" min="0" max="60" step="1" /></label>
           <label>Extended-hours candidates checked<input id="auto-selector-extended-candidate-limit" type="number" min="1" max="200" step="1" /></label>
           <label>Catalyst lookback (days)<input id="auto-selector-catalyst-lookback" type="number" min="0" max="30" step="1" /></label>
           <label>Same-day catalyst rank boost<input id="auto-selector-catalyst-boost" type="number" min="0" max="100" step="1" /></label>
@@ -207,6 +208,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Recent 15m dollar volume for full boost ($)<input id="auto-selector-recent-volume-full-score" type="number" min="1" step="25000" /></label>
           <label>Volume acceleration maximum rank boost<input id="auto-selector-acceleration-rank-boost" type="number" min="0" max="100" step="1" /></label>
           <label>Acceleration ratio for full boost<input id="auto-selector-acceleration-full-score" type="number" min="1.1" step="0.1" /></label>
+          <label>Volume deceleration maximum rank penalty<input id="auto-selector-deceleration-rank-penalty" type="number" min="0" max="100" step="1" /></label>
+          <label>Acceleration ratio for full deceleration penalty<input id="auto-selector-deceleration-full-penalty" type="number" min="0.01" max="0.99" step="0.05" /></label>
+          <label>Top-gainers qualification score boost<input id="auto-selector-top-gainer-boost" type="number" min="0" max="100" step="1" /></label>
           <label>Share turnover maximum rank boost<input id="auto-selector-turnover-rank-boost" type="number" min="0" max="100" step="1" /></label>
           <label>Share turnover for full boost (%)<input id="auto-selector-turnover-full-score" type="number" min="1" step="5" /></label>
         </div>
@@ -251,7 +255,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             <span>Use recent press-release catalysts as a secondary ranking preference</span>
           </label>
         </div>
-        <div class="inline-status">Catalysts never bypass the price, gain, volume, market-cap, share-count, recent-activity, or base-score qualification rules. Activity and turnover bonuses affect admission rank; sustained gains above 20% add current slot-survival credit only. Set any maximum rank boost to 0 for no ranking effect.</div>
+        <div class="inline-status">Catalysts never bypass the price, gain, volume, market-cap, share-count, or recent-activity rules, and top-gainer credit cannot bypass them either. Exact-zero recent volume on a previously strong active ticker is treated as a short data-gap warning while the free Nasdaq Trader halt feed is checked. Confirmed halts freeze failed-retention counting until a resumption trade is posted. Activity, turnover, and deceleration affect the live rank; sustained gains above 20% add current slot-survival credit only. Admitted-at scores stay frozen while live rank and current slot continue to update.</div>
         <div class="selector-actions">
           <button id="auto-selector-apply-button" type="button">Apply Selection Settings</button>
           <button class="secondary" id="auto-selector-preview-button" type="button">Run Preview Only</button>
@@ -439,6 +443,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       postmarketPromotionMinGainPct: document.getElementById("auto-selector-postmarket-promotion-min-gain"),
       postmarketPromotionMinRecentDollarVolume: document.getElementById("auto-selector-postmarket-promotion-recent-dollar-volume"),
       maxActivityQuoteAgeMinutes: document.getElementById("auto-selector-max-activity-age"),
+      zeroRecentVolumeRetentionGraceMinutes: document.getElementById("auto-selector-zero-volume-grace"),
       extendedSessionCandidateLimit: document.getElementById("auto-selector-extended-candidate-limit"),
       catalystRankingEnabled: document.getElementById("auto-selector-catalyst-ranking"),
       catalystLookbackDays: document.getElementById("auto-selector-catalyst-lookback"),
@@ -448,6 +453,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       recentDollarVolumeRankFullScore: document.getElementById("auto-selector-recent-volume-full-score"),
       volumeAccelerationRankMaxBoost: document.getElementById("auto-selector-acceleration-rank-boost"),
       volumeAccelerationRankFullScoreRatio: document.getElementById("auto-selector-acceleration-full-score"),
+      volumeDecelerationRankMaxPenalty: document.getElementById("auto-selector-deceleration-rank-penalty"),
+      volumeDecelerationRankFullPenaltyRatio: document.getElementById("auto-selector-deceleration-full-penalty"),
+      topGainerQualificationScoreBoost: document.getElementById("auto-selector-top-gainer-boost"),
       shareTurnoverRankMaxBoost: document.getElementById("auto-selector-turnover-rank-boost"),
       shareTurnoverRankFullScorePct: document.getElementById("auto-selector-turnover-full-score"),
     };
@@ -1166,6 +1174,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("postmarketPromotionMinGainPct", thresholds.postmarketPromotionMinGainPct);
         setAutoSelectorInputValue("postmarketPromotionMinRecentDollarVolume", thresholds.postmarketPromotionMinRecentDollarVolume);
         setAutoSelectorInputValue("maxActivityQuoteAgeMinutes", thresholds.maxActivityQuoteAgeMinutes);
+        setAutoSelectorInputValue("zeroRecentVolumeRetentionGraceMinutes", thresholds.zeroRecentVolumeRetentionGraceMinutes);
         setAutoSelectorInputValue("extendedSessionCandidateLimit", thresholds.extendedSessionCandidateLimit);
         setAutoSelectorInputValue("catalystRankingEnabled", thresholds.catalystRankingEnabled);
         setAutoSelectorInputValue("catalystLookbackDays", thresholds.catalystLookbackDays);
@@ -1175,6 +1184,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("recentDollarVolumeRankFullScore", thresholds.recentDollarVolumeRankFullScore);
         setAutoSelectorInputValue("volumeAccelerationRankMaxBoost", thresholds.volumeAccelerationRankMaxBoost);
         setAutoSelectorInputValue("volumeAccelerationRankFullScoreRatio", thresholds.volumeAccelerationRankFullScoreRatio);
+        setAutoSelectorInputValue("volumeDecelerationRankMaxPenalty", thresholds.volumeDecelerationRankMaxPenalty);
+        setAutoSelectorInputValue("volumeDecelerationRankFullPenaltyRatio", thresholds.volumeDecelerationRankFullPenaltyRatio);
+        setAutoSelectorInputValue("topGainerQualificationScoreBoost", thresholds.topGainerQualificationScoreBoost);
         setAutoSelectorInputValue("shareTurnoverRankMaxBoost", thresholds.shareTurnoverRankMaxBoost);
         setAutoSelectorInputValue("shareTurnoverRankFullScorePct", thresholds.shareTurnoverRankFullScorePct);
       }
@@ -1208,9 +1220,15 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         );
       }
       if (Array.isArray(selector.activeMainSessionSymbols)) {
-        const activeScores = new Map((selector.managedEntries || []).map((entry) => [entry.symbol, entry.lastSlotSurvivalScore]));
+        const activeEntries = new Map((selector.managedEntries || []).map((entry) => [entry.symbol, entry]));
         pieces.push("Active main auto slots: " + (selector.activeMainSessionSymbols
-          .map((symbol) => symbol + (Number.isFinite(activeScores.get(symbol)) ? " (slot " + activeScores.get(symbol) + ")" : ""))
+          .map((symbol) => {
+            const entry = activeEntries.get(symbol);
+            const scores = [];
+            if (Number.isFinite(entry?.lastSlotSurvivalScore)) scores.push("slot " + entry.lastSlotSurvivalScore);
+            if (Number.isFinite(entry?.admissionRankingScore)) scores.push("admitted rank " + entry.admissionRankingScore);
+            return symbol + (scores.length ? " (" + scores.join("; ") + ")" : "");
+          })
           .join(", ") || "none") + ".");
       }
       if (Array.isArray(selector.activePostmarketSymbols)) {
@@ -1239,6 +1257,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       if (selector.lastActivityLookupError) {
         pieces.push("Recent activity lookup: " + selector.lastActivityLookupError + ".");
       }
+      if (selector.lastTradingHaltLookupError) {
+        pieces.push("Nasdaq halt lookup: " + selector.lastTradingHaltLookupError + ".");
+      }
       if (Array.isArray(selector.lastActivationErrors) && selector.lastActivationErrors.length > 0) {
         pieces.push(
           "Activation errors: " + selector.lastActivationErrors
@@ -1249,18 +1270,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       autoSelectorStatusEl.textContent = pieces.join(" ");
 
       autoSelectorDecisionsEl.innerHTML = "";
+      const managedBySymbol = new Map((selector.managedEntries || []).map((entry) => [entry.symbol, entry]));
       for (const decision of (selector.recentDecisions || [])) {
         const item = document.createElement("li");
         const title = document.createElement("strong");
-        title.textContent = decision.symbol + " — qualification " + decision.score + " — admission rank " + decision.rankingScore + " — current slot " + decision.slotSurvivalScore + (
+        title.textContent = decision.symbol + " — qualification " + decision.score + " — live rank " + decision.rankingScore + " — current slot " + decision.slotSurvivalScore + (
           decision.qualified
             ? decision.promotionReady === false
               ? " — qualifies, promotion held"
               : " — qualifies, promotion-ready"
-            : " — rejected"
+            : decision.haltRetentionProtected
+              ? " — confirmed halt, retention protected"
+              : " — rejected"
         );
         const detail = document.createElement("div");
         detail.className = "activity-detail";
+        const managed = managedBySymbol.get(decision.symbol);
         const facts = [
           decision.gainPct !== null ? Number(decision.gainPct).toFixed(1) + "% gain" : "gain unavailable",
           decision.marketCap ? "$" + Math.round(decision.marketCap / 1000000) + "M cap" : "cap unavailable",
@@ -1276,7 +1301,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           decision.shareTurnoverPct !== null
             ? Number(decision.shareTurnoverPct).toFixed(1) + "% share turnover"
             : "share turnover unavailable",
+          ...(Number.isFinite(managed?.admissionRankingScore)
+            ? [
+                "admitted at qualification " + managed.admissionQualificationScore +
+                ", rank " + managed.admissionRankingScore +
+                ", slot " + managed.admissionSlotSurvivalScore,
+              ]
+            : []),
           ...(decision.slotSurvivalReasons || []),
+          ...(decision.tradingHaltState === "halted"
+            ? ["Nasdaq-confirmed trading halt" + (decision.tradingHaltReasonCode ? " (" + decision.tradingHaltReasonCode + ")" : "")]
+            : []),
         ];
         if (decision.catalystPublishedAt) {
           facts.push(
@@ -1288,7 +1323,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         }
         const explanation = decision.qualified
           ? [...(decision.reasons || []), ...(decision.promotionRejectionReasons || [])]
-          : decision.rejectionReasons;
+          : decision.haltRetentionProtected
+            ? [decision.haltRetentionProtectionReason, ...(decision.rejectionReasons || [])].filter(Boolean)
+            : decision.rejectionReasons;
         const rankingExplanation = decision.rankingReasons || [];
         detail.textContent = facts.join(" | ")
           + (explanation?.length ? " | " + explanation.join("; ") : "")
@@ -2163,6 +2200,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         postmarketPromotionMinGainPct: readAutoSelectorNumber("postmarketPromotionMinGainPct"),
         postmarketPromotionMinRecentDollarVolume: Math.round(readAutoSelectorNumber("postmarketPromotionMinRecentDollarVolume")),
         maxActivityQuoteAgeMinutes: Math.round(readAutoSelectorNumber("maxActivityQuoteAgeMinutes")),
+        zeroRecentVolumeRetentionGraceMinutes: Math.round(readAutoSelectorNumber("zeroRecentVolumeRetentionGraceMinutes")),
         extendedSessionCandidateLimit: Math.round(readAutoSelectorNumber("extendedSessionCandidateLimit")),
         catalystRankingEnabled: autoSelectorInputEls.catalystRankingEnabled.checked,
         catalystLookbackDays: Math.round(readAutoSelectorNumber("catalystLookbackDays")),
@@ -2172,6 +2210,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         recentDollarVolumeRankFullScore: Math.round(readAutoSelectorNumber("recentDollarVolumeRankFullScore")),
         volumeAccelerationRankMaxBoost: Math.round(readAutoSelectorNumber("volumeAccelerationRankMaxBoost")),
         volumeAccelerationRankFullScoreRatio: readAutoSelectorNumber("volumeAccelerationRankFullScoreRatio"),
+        volumeDecelerationRankMaxPenalty: Math.round(readAutoSelectorNumber("volumeDecelerationRankMaxPenalty")),
+        volumeDecelerationRankFullPenaltyRatio: readAutoSelectorNumber("volumeDecelerationRankFullPenaltyRatio"),
+        topGainerQualificationScoreBoost: Math.round(readAutoSelectorNumber("topGainerQualificationScoreBoost")),
         shareTurnoverRankMaxBoost: Math.round(readAutoSelectorNumber("shareTurnoverRankMaxBoost")),
         shareTurnoverRankFullScorePct: Math.round(readAutoSelectorNumber("shareTurnoverRankFullScorePct")),
       };

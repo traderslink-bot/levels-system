@@ -247,6 +247,10 @@ const AUTO_WATCHLIST_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresho
   "recentDollarVolumeRankFullScore",
   "volumeAccelerationRankMaxBoost",
   "volumeAccelerationRankFullScoreRatio",
+  "volumeDecelerationRankMaxPenalty",
+  "volumeDecelerationRankFullPenaltyRatio",
+  "topGainerQualificationScoreBoost",
+  "zeroRecentVolumeRetentionGraceMinutes",
   "shareTurnoverRankMaxBoost",
   "shareTurnoverRankFullScorePct",
 ]);

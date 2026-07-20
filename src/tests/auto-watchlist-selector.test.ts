@@ -8,7 +8,9 @@ import test from "node:test";
 import {
   AutoWatchlistSelector,
   autoWatchlistSessionForTimestamp,
+  buildAutoWatchlistRetentionProtection,
   buildAutoWatchlistSlotSurvivalScore,
+  buildVolumeDecelerationRankPenalty,
   compareAutoWatchlistDecisions,
   DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   isWithinAutoWatchlistScanWindow,
@@ -72,6 +74,7 @@ test("auto selector strongly favors known low float and rejects oversized share 
   });
 
   assert.equal(lowFloat.qualified, true);
+  assert.match(lowFloat.reasons.join(" "), /top-gainers list \+5 qualification points/);
   assert.equal(lowFloat.effectiveSharesSource, "yahoo_float");
   assert.ok(lowFloat.score > largerFloat.score);
   assert.equal(fallbackOutstanding.qualified, true);
@@ -131,6 +134,38 @@ test("auto selector rejects an RPGL-like ticker with only about 300K session sha
 
   assert.equal(decision.qualified, false);
   assert.match(decision.rejectionReasons.join(" "), /volume must be at least 500,000/i);
+});
+
+test("exact zero recent volume gets a bounded data-gap grace after strong session activity", () => {
+  const now = Date.parse("2026-07-20T19:40:00Z");
+  const decision = {
+    score: 80,
+    rejectionReasons: [
+      "latest regular trade is too old",
+      "last 15m dollar volume must be at least $50K",
+    ],
+    tradingHaltState: "not_found" as const,
+    tradingHaltReasonCode: null,
+    recent15mDollarVolume: 0,
+    sessionDollarVolume: 150_000_000,
+    sessionVolume: 73_000_000,
+  };
+  const protectedGap = buildAutoWatchlistRetentionProtection({
+    decision,
+    entry: { lastQualifiedAt: now - 10 * 60_000 },
+    thresholds: { ...DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG },
+    now,
+  });
+  const expiredGap = buildAutoWatchlistRetentionProtection({
+    decision,
+    entry: { lastQualifiedAt: now - 16 * 60_000 },
+    thresholds: { ...DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG },
+    now,
+  });
+
+  assert.equal(protectedGap.kind, "zero_volume_data_gap");
+  assert.equal(protectedGap.protected, true);
+  assert.equal(expiredGap.protected, false);
 });
 
 test("auto selector falls back to Finnhub float only when Yahoo float is unavailable", () => {
@@ -436,6 +471,10 @@ test("admin threshold changes persist without enabling automatic additions", asy
         minimumScore: 55,
         recentDollarVolumeRankMaxBoost: 18,
         volumeAccelerationRankFullScoreRatio: 2.5,
+        volumeDecelerationRankMaxPenalty: 14,
+        volumeDecelerationRankFullPenaltyRatio: 0.2,
+        topGainerQualificationScoreBoost: 7,
+        zeroRecentVolumeRetentionGraceMinutes: 12,
         shareTurnoverRankFullScorePct: 80,
       },
     });
@@ -450,6 +489,10 @@ test("admin threshold changes persist without enabling automatic additions", asy
     assert.equal(restored.thresholds.minimumScore, 55);
     assert.equal(restored.thresholds.recentDollarVolumeRankMaxBoost, 18);
     assert.equal(restored.thresholds.volumeAccelerationRankFullScoreRatio, 2.5);
+    assert.equal(restored.thresholds.volumeDecelerationRankMaxPenalty, 14);
+    assert.equal(restored.thresholds.volumeDecelerationRankFullPenaltyRatio, 0.2);
+    assert.equal(restored.thresholds.topGainerQualificationScoreBoost, 7);
+    assert.equal(restored.thresholds.zeroRecentVolumeRetentionGraceMinutes, 12);
     assert.equal(restored.thresholds.shareTurnoverRankFullScorePct, 80);
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -467,6 +510,7 @@ test("selector requires two passing observations before activating and does not 
   }));
   const activated: string[] = [];
   const active = new Set<string>();
+  let currentVolumeAcceleration = 1;
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
     finance: {
       result: [{
@@ -512,7 +556,21 @@ test("selector requires two passing observations before activating and does not 
       active.add(symbol);
     },
     catalystLookup: NO_CATALYST_LOOKUP,
-    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+    sessionActivityLookup: async (input) => Object.fromEntries(
+      input.symbols.map((symbol) => [symbol, {
+        symbol,
+        session: input.session,
+        price: 2,
+        gainPct: 20,
+        sessionVolume: 1_000_000,
+        recent15mVolume: 100_000,
+        recent15mDollarVolume: 200_000,
+        volumeAcceleration: currentVolumeAcceleration,
+        quoteTime: Math.floor(input.now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
   });
 
   try {
@@ -527,9 +585,30 @@ test("selector requires two passing observations before activating and does not 
     const second = await selector.runNow({ activate: true });
     assert.deepEqual(activated, ["LOWF"]);
     assert.deepEqual(second.addedToday, ["LOWF"]);
+    const admitted = second.managedEntries.find((entry) => entry.symbol === "LOWF");
+    assert.equal(admitted?.admissionQualificationScore, second.recentDecisions[0]?.score);
+    assert.equal(admitted?.admissionRankingScore, second.recentDecisions[0]?.rankingScore);
+    assert.equal(admitted?.admissionSlotSurvivalScore, second.recentDecisions[0]?.slotSurvivalScore);
 
-    await selector.runNow({ activate: true });
+    currentVolumeAcceleration = 3;
+    const retained = await selector.runNow({ activate: true });
     assert.deepEqual(activated, ["LOWF"]);
+    const retainedEntry = retained.managedEntries.find((entry) => entry.symbol === "LOWF");
+    assert.ok((retainedEntry?.lastRankingScore ?? 0) > (retainedEntry?.admissionRankingScore ?? 0));
+    assert.equal(retainedEntry?.admissionRankingScore, admitted?.admissionRankingScore);
+
+    const restoredEntry = new AutoWatchlistSelector({
+      yahooClient,
+      finnhubClient,
+      fetchImpl,
+      configPath,
+      getActiveSymbols: () => [...active],
+      isRuntimeReady: () => true,
+      activateSymbol: async () => undefined,
+      catalystLookup: NO_CATALYST_LOOKUP,
+      sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+    }).getStatus().managedEntries.find((entry) => entry.symbol === "LOWF");
+    assert.equal(restoredEntry?.admissionRankingScore, admitted?.admissionRankingScore);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });
@@ -572,6 +651,62 @@ test("daily automatic-add limit survives a runtime restart", async () => {
     const status = await selector.runNow({ activate: true });
     assert.deepEqual(status.addedToday, ["FIRST"]);
     assert.deepEqual(activated, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("legacy runtime notes recover the frozen admission snapshot during migration", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-admission-migration-"));
+  const configPath = join(directory, "config.json");
+  const activatedAt = Date.parse("2026-07-20T13:28:49Z");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: false,
+    lastUpdated: activatedAt,
+    managedEntries: [{
+      symbol: "SKYQ",
+      bucket: "main",
+      state: "active",
+      firstAddedAt: activatedAt,
+      lastActivatedAt: activatedAt,
+      addedSession: "regular",
+      lastSession: "regular",
+      lastRankingScore: 95,
+      lastSlotSurvivalScore: 96,
+      lastQualifiedAt: activatedAt,
+      retentionFailures: 0,
+      standbyAt: null,
+      statusReason: "retained",
+    }],
+  }));
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath,
+    now: () => Date.parse("2026-07-20T19:00:00Z"),
+    getActiveSymbols: () => ["SKYQ"],
+    getActiveEntries: () => [{
+      symbol: "SKYQ",
+      tags: ["auto", "auto-main"],
+      activatedAt,
+      note: "Auto-selected during regular: qualification score 73; admission rank 81.21; current slot score 81.21; lifecycle: reactivated.",
+    }],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+
+  try {
+    selector.start();
+    const entry = selector.getStatus().managedEntries.find((item) => item.symbol === "SKYQ");
+    assert.equal(entry?.admissionAt, activatedAt);
+    assert.equal(entry?.admissionQualificationScore, 73);
+    assert.equal(entry?.admissionRankingScore, 81.21);
+    assert.equal(entry?.admissionSlotSurvivalScore, 81.21);
+    assert.equal(entry?.lastRankingScore, 95);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });
@@ -930,7 +1065,7 @@ test("press-release catalysts rerank only candidates that already pass the base 
 
   const preview = await selector.previewScan();
   assert.deepEqual(preview.recentDecisions.map((decision) => decision.symbol), ["SAME", "PRIOR", "OLDER", "NONE"]);
-  assert.deepEqual(preview.recentDecisions.map((decision) => decision.score), [63, 63, 63, 63]);
+  assert.deepEqual(preview.recentDecisions.map((decision) => decision.score), [68, 68, 68, 68]);
   assert.deepEqual(preview.recentDecisions.map((decision) => decision.catalystRankBoost), [12, 9, 3, 0]);
   assert.equal(preview.recentDecisions.every((decision) => decision.qualified), true);
 });
@@ -1000,6 +1135,81 @@ test("strong recent activity and acceleration can outrank a same-day catalyst", 
   assert.equal(preview.recentDecisions[0]?.volumeAccelerationRankBoost, 10);
   assert.equal(preview.recentDecisions[1]?.catalystRankBoost, 12);
   assert.ok((preview.recentDecisions[0]?.rankingScore ?? 0) > (preview.recentDecisions[1]?.rankingScore ?? 0));
+});
+
+test("decelerating SKYQ-like activity lowers live rank instead of leaving a misleading 95", async () => {
+  assert.equal(buildVolumeDecelerationRankPenalty({
+    volumeAcceleration: 0.625,
+    fullPenaltyAtRatio: 0.25,
+    maxPenalty: 12,
+  }), 6);
+  assert.equal(buildVolumeDecelerationRankPenalty({
+    volumeAcceleration: 0.2,
+    fullPenaltyAtRatio: 0.25,
+    maxPenalty: 12,
+  }), 12);
+
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-skyq-rank-"));
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "SKYQ",
+        marketCapitalization: 18.219654,
+        floatingShare: 4.14,
+        shareOutstanding: 4.79,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl: async () => new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "SKYQ",
+          name: "Sky Quarry Inc. Common Stock",
+          lastsale: "$4.725",
+          pctchange: "24.3421%",
+          volume: "13789966",
+          marketCap: "18219654",
+        }],
+      },
+    }), { status: 200 }),
+    configPath: join(directory, "config.json"),
+    now: () => Date.parse("2026-07-20T18:58:43Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ session, now }) => ({
+      SKYQ: {
+        symbol: "SKYQ",
+        session,
+        price: 4.725,
+        gainPct: 24.34210526315789,
+        sessionVolume: 13_789_966.495912,
+        sessionDollarVolume: 63_823_184.9025119,
+        recent15mVolume: 247_535.071818,
+        recent15mDollarVolume: 1_156_045.4149058545,
+        sessionElapsedMinutes: 328,
+        volumeAcceleration: 0.38141096455883716,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      },
+    }),
+  });
+
+  try {
+    const decision = (await selector.previewScan()).recentDecisions[0];
+    assert.ok(decision);
+    assert.equal(decision.score, 85);
+    assert.equal(decision.volumeDecelerationRankPenalty, 9.9);
+    assert.equal(decision.rankingScore, 90.1);
+    assert.equal(decision.slotSurvivalScore, 91.1);
+    assert.match(decision.rankingReasons.join(" "), /volume deceleration -9\.9 ranking points/);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("ranking ties resolve by recent activity, gain, turnover, then symbol", () => {

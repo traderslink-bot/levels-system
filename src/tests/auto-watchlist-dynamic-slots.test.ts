@@ -631,3 +631,179 @@ test("a failed full-slot challenger restores the incumbent without exceeding the
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("a Nasdaq-confirmed halt freezes failed-retention counting for an active runner", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-halt-retention-"));
+  const configPath = join(directory, "config.json");
+  writeConfig(configPath, {
+    symbols: ["ZYBT"],
+    thresholds: {
+      maxActiveMainSessionTickers: 1,
+      minimumAutoHoldMinutes: 0,
+      regularOpenProtectionMinutes: 0,
+      retentionFailureScansRequired: 1,
+    },
+  });
+  const activeEntries = [automaticRuntimeEntry("ZYBT")];
+  let resumed = false;
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: FINNHUB,
+    fetchImpl: async () => screenerResponse([{ symbol: "ZYBT", gain: 781, volume: 73_000_000 }]),
+    configPath,
+    now: () => NOW,
+    getActiveSymbols: () => activeEntries.map((entry) => entry.symbol),
+    getActiveEntries: () => activeEntries,
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    setSymbolFollowup: async (symbol, followup) => setRuntimeFollowup(activeEntries, symbol, followup),
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: async ({ symbols, session, now }) => Object.fromEntries(symbols.map((symbol) => [symbol, {
+      symbol,
+      session,
+      price: 6.15,
+      gainPct: 781,
+      sessionVolume: 73_000_000,
+      sessionDollarVolume: 150_000_000,
+      recent15mVolume: resumed ? 500_000 : 0,
+      recent15mDollarVolume: resumed ? 3_000_000 : 0,
+      volumeAcceleration: resumed ? 1.2 : null,
+      quoteTime: Math.floor((now - (resumed ? 0 : 20 * 60_000)) / 1000),
+      quoteAgeMinutes: resumed ? 0 : 20,
+      available: true,
+    }])),
+    tradingHaltLookup: async ({ symbols, now }) => ({
+      checkedAt: now,
+      available: true,
+      cacheAgeMs: 0,
+      error: null,
+      bySymbol: Object.fromEntries(symbols.map((symbol) => [symbol, {
+        symbol,
+        state: "halted" as const,
+        haltDate: "07/20/2026",
+        haltTime: "15:25:20.970",
+        reasonCode: "LUDP",
+        resumptionDate: "07/20/2026",
+        resumptionQuoteTime: "15:25:20",
+        resumptionTradeTime: null,
+        source: "nasdaq_trader_rss" as const,
+      }])),
+    }),
+  });
+  try {
+    const halted = await selector.runNow({ activate: true });
+    assert.deepEqual(halted.activeMainSessionSymbols, ["ZYBT"]);
+    assert.deepEqual(halted.followupSymbols, []);
+    assert.equal(halted.managedEntries[0]?.retentionFailures, 0);
+    assert.equal(halted.recentDecisions[0]?.haltRetentionProtected, true);
+    assert.match(halted.managedEntries[0]?.statusReason ?? "", /Nasdaq Trader confirms an active trading halt/);
+
+    resumed = true;
+    const tradingAgain = await selector.runNow({ activate: true });
+    assert.equal(tradingAgain.recentDecisions[0]?.qualified, true);
+    assert.equal(tradingAgain.recentDecisions[0]?.tradingHaltState, "not_checked");
+    assert.equal(tradingAgain.managedEntries[0]?.retentionFailures, 0);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a confirmed halt restores a recently demoted follow-up without rewriting admission evidence", async () => {
+  const postmarketNow = Date.parse("2026-07-16T20:09:00Z");
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-halt-restore-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: NOW,
+    tradingDay: "2026-07-16",
+    mainSessionAddedToday: ["ZYBT"],
+    thresholds: {
+      maxActiveMainSessionTickers: 1,
+      minimumAutoHoldMinutes: 0,
+      regularOpenProtectionMinutes: 0,
+      retentionFailureScansRequired: 1,
+    },
+    managedEntries: [{
+      symbol: "ZYBT",
+      bucket: "main",
+      state: "followup",
+      firstAddedAt: NOW - 3_600_000,
+      lastActivatedAt: NOW - 3_600_000,
+      addedSession: "regular",
+      lastSession: "regular",
+      lastRankingScore: 75,
+      lastSlotSurvivalScore: 105,
+      admissionAt: NOW - 3_600_000,
+      admissionQualificationScore: 75,
+      admissionRankingScore: 90,
+      admissionSlotSurvivalScore: 90,
+      lastQualifiedAt: NOW - 10 * 60_000,
+      retentionFailures: 3,
+      followupAt: NOW - 60_000,
+      vacatedSlotAt: NOW - 60_000,
+      standbyAt: null,
+      statusReason: "moved to follow-up after 3 failed retention scans",
+    }],
+  }));
+  const activeEntries = [{ ...automaticRuntimeEntry("ZYBT"), tags: ["auto", "auto-main", "auto-followup"] }];
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: FINNHUB,
+    fetchImpl: async () => screenerResponse([{ symbol: "ZYBT", gain: 781, volume: 73_000_000 }]),
+    configPath,
+    now: () => postmarketNow,
+    getActiveSymbols: () => activeEntries.map((entry) => entry.symbol),
+    getActiveEntries: () => activeEntries,
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    setSymbolFollowup: async (symbol, followup) => setRuntimeFollowup(activeEntries, symbol, followup),
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: async ({ symbols, session, now }) => Object.fromEntries(symbols.map((symbol) => [symbol, {
+      symbol,
+      session,
+      price: 6.15,
+      gainPct: 781,
+      sessionVolume: 73_000_000,
+      sessionDollarVolume: 150_000_000,
+      recent15mVolume: 0,
+      recent15mDollarVolume: 0,
+      volumeAcceleration: null,
+      quoteTime: Math.floor((now - 20 * 60_000) / 1000),
+      quoteAgeMinutes: 20,
+      available: true,
+    }])),
+    tradingHaltLookup: async ({ symbols, now }) => ({
+      checkedAt: now,
+      available: true,
+      cacheAgeMs: 0,
+      error: null,
+      bySymbol: Object.fromEntries(symbols.map((symbol) => [symbol, {
+        symbol,
+        state: "halted" as const,
+        haltDate: "07/20/2026",
+        haltTime: "15:25:20.970",
+        reasonCode: "LUDP",
+        resumptionDate: "07/20/2026",
+        resumptionQuoteTime: "15:25:20",
+        resumptionTradeTime: null,
+        source: "nasdaq_trader_rss" as const,
+      }])),
+    }),
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const managed = status.managedEntries.find((entry) => entry.symbol === "ZYBT");
+    assert.deepEqual(status.activeMainSessionSymbols, ["ZYBT"]);
+    assert.deepEqual(status.followupSymbols, []);
+    assert.doesNotMatch(activeEntries[0]?.tags.join(" ") ?? "", /auto-followup/);
+    assert.equal(managed?.retentionFailures, 0);
+    assert.equal(managed?.admissionQualificationScore, 75);
+    assert.equal(managed?.admissionRankingScore, 90);
+    assert.equal(managed?.admissionSlotSurvivalScore, 90);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

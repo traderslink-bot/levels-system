@@ -180,9 +180,16 @@ test("manual watchlist admin exposes persisted automatic low-float selection con
   assert.match(MANUAL_WATCHLIST_PAGE, /Same-day catalyst rank boost/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Recent 15m activity maximum rank boost/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Volume acceleration maximum rank boost/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Volume deceleration maximum rank penalty/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Top-gainers qualification score boost/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Exact-zero recent-volume grace/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Confirmed halts freeze failed-retention counting/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Share turnover maximum rank boost/);
   assert.match(MANUAL_WATCHLIST_PAGE, /id="auto-selector-catalyst-ranking"/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Catalysts never bypass/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /live rank/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /admitted at qualification/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /confirmed halt, retention protected/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Allow premarket automatic additions/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Allow regular-hours automatic additions/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Allow post-market automatic additions/);
