@@ -833,6 +833,8 @@ async function main(): Promise<void> {
       : {}),
   });
   const persistedTradersLinkAiReadSettings = tradersLinkAiReadSettingsPersistence.load();
+  let liveTraderReadCardVisible =
+    persistedTradersLinkAiReadSettings?.liveTraderReadCardVisible ?? true;
   let aiReadExternalResearchEnabled =
     persistedTradersLinkAiReadSettings?.externalResearchEnabled ??
     tradersLinkAiReadService?.isExternalResearchEnabled() ??
@@ -871,7 +873,9 @@ async function main(): Promise<void> {
     startupCachedCandleFetchService,
     levelStore,
     monitor,
-    discordAlertRouter: createDiscordAlertRouter(),
+    discordAlertRouter: createDiscordAlertRouter({
+      isLiveTraderReadCardVisible: () => liveTraderReadCardVisible,
+    }),
     opportunityRuntimeController,
     historicalLookbackBars,
     aiCommentaryService,
@@ -891,8 +895,10 @@ async function main(): Promise<void> {
     tradersLinkAiReadStartupRefreshEnabled: isTruthyEnv(
       process.env.TRADERSLINK_AI_READ_STARTUP_REFRESH_ENABLED,
     ),
-    initialLiveTraderReadCardVisible:
-      persistedTradersLinkAiReadSettings?.liveTraderReadCardVisible,
+    initialLiveTraderReadCardVisible: liveTraderReadCardVisible,
+    liveTraderReadCardVisibilityListener: (visible) => {
+      liveTraderReadCardVisible = visible;
+    },
     initialPotentialGainCardVisible:
       persistedTradersLinkAiReadSettings?.potentialGainCardVisible,
     initialWatchlistLifecycleLabelsVisible:

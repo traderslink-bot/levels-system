@@ -45,6 +45,7 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
     private readonly options: {
       pullbackReadEnabled?: boolean;
       tradeSetupReadMode?: LiveWatchlistTradeSetupReadMode;
+      isLiveTraderReadCardVisible?: () => boolean;
     } = {},
   ) {}
 
@@ -115,8 +116,17 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
       return;
     }
 
+    const websitePatch = this.options.isLiveTraderReadCardVisible?.() === false
+      ? {
+          ...patch,
+          cards: {
+            ...patch.cards,
+            liveTraderRead: null,
+          },
+        }
+      : patch;
     let timeout: ReturnType<typeof setTimeout> | null = null;
-    const publishPromise = this.publisher.publish(patch).catch((error) => {
+    const publishPromise = this.publisher.publish(websitePatch).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[WebsitePublishingDiscordGateway] Live watchlist publish failed: ${message}`);
     });

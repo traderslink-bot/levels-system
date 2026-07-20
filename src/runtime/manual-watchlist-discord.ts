@@ -63,7 +63,9 @@ function createAuditedGateway(
   });
 }
 
-export function createDiscordAlertRouter(): DiscordAlertRouter {
+export function createDiscordAlertRouter(options: {
+  isLiveTraderReadCardVisible?: () => boolean;
+} = {}): DiscordAlertRouter {
   const env = readDiscordRuntimeEnv();
   const hasAnyDiscordConfig = Boolean(env.botToken || env.watchlistChannelId || env.guildId);
   const shouldUseRealDiscord = Boolean(env.botToken && env.watchlistChannelId);
@@ -117,7 +119,11 @@ export function createDiscordAlertRouter(): DiscordAlertRouter {
         ),
         liveWatchlistPublisher,
         undefined,
-        { pullbackReadEnabled, tradeSetupReadMode },
+        {
+          pullbackReadEnabled,
+          tradeSetupReadMode,
+          isLiveTraderReadCardVisible: options.isLiveTraderReadCardVisible,
+        },
       ),
     );
   }
@@ -131,7 +137,11 @@ export function createDiscordAlertRouter(): DiscordAlertRouter {
       createAuditedGateway("local", new LocalDiscordThreadGateway()),
       liveWatchlistPublisher,
       undefined,
-      { pullbackReadEnabled, tradeSetupReadMode },
+      {
+        pullbackReadEnabled,
+        tradeSetupReadMode,
+        isLiveTraderReadCardVisible: options.isLiveTraderReadCardVisible,
+      },
     ),
   );
 }
