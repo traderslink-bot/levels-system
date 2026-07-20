@@ -8,6 +8,7 @@ import test from "node:test";
 import {
   AutoWatchlistSelector,
   autoWatchlistSessionForTimestamp,
+  buildAutoWatchlistSlotSurvivalScore,
   compareAutoWatchlistDecisions,
   DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   isWithinAutoWatchlistScanWindow,
@@ -113,6 +114,23 @@ test("auto selector does not admit a SKYQ-like low-float ticker on a roughly 5% 
 
   assert.equal(decision.qualified, false);
   assert.match(decision.rejectionReasons.join(" "), /gain must be at least 10%/i);
+});
+
+test("auto selector rejects an RPGL-like ticker with only about 300K session shares", () => {
+  const decision = scoreAutoWatchlistCandidate({
+    candidate: {
+      ...BASE_CANDIDATE,
+      symbol: "RPGL",
+      gainPct: 12.3,
+      volume: 310_000,
+      marketCap: 2_000_000,
+    },
+    floatShares: 1_000_000,
+    session: "regular",
+  });
+
+  assert.equal(decision.qualified, false);
+  assert.match(decision.rejectionReasons.join(" "), /volume must be at least 500,000/i);
 });
 
 test("auto selector falls back to Finnhub float only when Yahoo float is unavailable", () => {
@@ -313,6 +331,7 @@ test("session dollar volume, not latest price times volume, drives dollar-volume
       marketCap: 10_000_000,
     },
     floatShares: 5_000_000,
+    thresholds: { minVolume: 100_000 },
     session: "postmarket",
     activity: {
       symbol: "LOWF",
@@ -1016,6 +1035,15 @@ test("ranking ties resolve by recent activity, gain, turnover, then symbol", () 
   );
 });
 
+test("slot-survival scoring keeps a dominant live runner ahead of a marginal lower-float ticker", () => {
+  const skyq = buildAutoWatchlistSlotSurvivalScore({ rankingScore: 95, gainPct: 22 });
+  const zybt = buildAutoWatchlistSlotSurvivalScore({ rankingScore: 90, gainPct: 169 });
+
+  assert.ok(zybt.slotSurvivalScore > skyq.slotSurvivalScore);
+  assert.equal(zybt.slotSurvivalScore, 120);
+  assert.match(zybt.slotSurvivalReasons[0] ?? "", /sustained runner gain/);
+});
+
 test("catalyst ranking has a true no-effect setting and lookup failures fail open", async () => {
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
     data: { rows: [{ symbol: "SAFE", name: "Safe Common Stock", lastsale: "$2.00", pctchange: "20%", volume: "1000000", marketCap: "30000000" }] },
@@ -1088,7 +1116,7 @@ test("post-market discovery can promote an active after-hours runner that was do
   assert.equal(preview.recentDecisions[0]?.session, "postmarket");
   assert.equal(preview.recentDecisions[0]?.qualified, true);
   assert.equal(preview.recentDecisions[0]?.promotionReady, true);
-  assert.equal(preview.recentDecisions.find((decision) => decision.symbol === "LGPS")?.qualified, false);
+  assert.equal(preview.recentDecisions.find((decision) => decision.symbol === "LGPS"), undefined);
 });
 
 test("postmarket promotion holds a marginal pop even when acceleration would qualify it as an obvious runner", async () => {
@@ -1118,7 +1146,12 @@ test("postmarket promotion holds a marginal pop even when acceleration would qua
     } as unknown as FinnhubClient,
     fetchImpl,
     configPath: join(directory, "config.json"),
-    thresholds: { extendedSessionCandidateLimit: 1, enrichmentLimit: 1, minGainPct: 5 },
+    thresholds: {
+      extendedSessionCandidateLimit: 1,
+      enrichmentLimit: 1,
+      minGainPct: 5,
+      minVolume: 100_000,
+    },
     now: () => Date.parse("2026-07-17T22:30:00Z"),
     getActiveSymbols: () => [...activated],
     isRuntimeReady: () => true,
