@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { LiveWatchlistLevelMap } from "../lib/live-watchlist/live-watchlist-types.js";
-import { deriveLiveWatchlistLifecycleRead } from "../lib/live-watchlist/watchlist-lifecycle-status.js";
+import {
+  deriveLiveWatchlistLifecycleRead,
+  type LiveWatchlistLifecycleEvidence,
+} from "../lib/live-watchlist/watchlist-lifecycle-status.js";
 
 const NOW = Date.parse("2026-07-20T12:00:00.000Z");
 
@@ -34,7 +37,10 @@ function levelMap(): LiveWatchlistLevelMap {
       label: "support",
     }],
     resistanceLevels: [],
-    referenceLevels: [{ key: "hod", label: "HOD", price: 1.2, kind: "session" }],
+    referenceLevels: [
+      { key: "hod", label: "HOD", price: 1.2, kind: "session" },
+      { key: "vwap", label: "VWAP", price: 0.985, kind: "dynamic" },
+    ],
     volatilityContext: {
       atr: 0.03,
       atrPct: 0.03,
@@ -43,6 +49,39 @@ function levelMap(): LiveWatchlistLevelMap {
       completedCandleCount: 14,
       reliability: "reliable",
     },
+  };
+}
+
+type FiveMinuteStructure = NonNullable<LiveWatchlistLifecycleEvidence["fiveMinuteStructure"]>;
+
+function pullbackStructure(overrides: Partial<FiveMinuteStructure> = {}): FiveMinuteStructure {
+  return {
+    state: "pullback_to_structure",
+    previousState: "higher_lows_intact",
+    structureKey: "pullback_to_structure|range:0.990-1.080",
+    materialChange: true,
+    confidence: "high",
+    materialityScore: 0.72,
+    rawState: "pullback_to_structure",
+    reason: "persistent_material_change",
+    candleCount: 48,
+    rawRunLength: 3,
+    trendDirection: "uptrend",
+    higherLowCount: 2,
+    lowerHighCount: 0,
+    higherHighCount: 1,
+    lowerLowCount: 0,
+    latestSwingLow: 0.99,
+    latestSwingHigh: 1.08,
+    priorSwingLow: 0.94,
+    priorSwingHigh: 1.02,
+    activeRangeLow: 0.99,
+    activeRangeHigh: 1.08,
+    activeRangeWidthPct: 0.0909,
+    activeRangeQuality: "clean",
+    pivotEventType: "none",
+    pivotEventTriggerPrice: null,
+    ...overrides,
   };
 }
 
@@ -70,7 +109,7 @@ test("watchlist lifecycle labels remain conservative when evidence is stale or i
   assert.equal(damagedWithoutMappedSupport.label, "Analysis Pending");
 });
 
-test("watchlist lifecycle labels distinguish momentum, pullback, recovery watch, recovery attempt, and confirmed fade", () => {
+test("watchlist lifecycle labels distinguish momentum, candle pullback, recovery watch, recovery attempt, and confirmed fade", () => {
   const base = {
     evaluatedAt: NOW,
     structureUpdatedAt: NOW,
@@ -84,12 +123,18 @@ test("watchlist lifecycle labels distinguish momentum, pullback, recovery watch,
   });
   assert.equal(momentumHolding.status, "active");
   assert.equal(momentumHolding.label, "Momentum Holding");
-  assert.equal(deriveLiveWatchlistLifecycleRead({
+
+  const pullbackWatch = deriveLiveWatchlistLifecycleRead({
     ...base,
     phase: "pullback_forming",
     volumeLabel: "fading",
     stableFiveMinuteState: "pullback_to_structure",
-  }).status, "pullback_watch");
+    fiveMinuteStructure: pullbackStructure(),
+  });
+  assert.equal(pullbackWatch.status, "pullback_watch");
+  assert.match(pullbackWatch.reason, /five-minute candles/i);
+  assert.doesNotMatch(pullbackWatch.reason, /HOD|percent|ATR/i);
+
   const recoveryWatch = deriveLiveWatchlistLifecycleRead({
     ...base,
     phase: "failed_move_risk",
@@ -98,6 +143,7 @@ test("watchlist lifecycle labels distinguish momentum, pullback, recovery watch,
   assert.equal(recoveryWatch.status, "recovery_watch");
   assert.equal(recoveryWatch.label, "Recovery Watch");
   assert.match(recoveryWatch.reason, /waiting for a five-minute reclaim attempt/i);
+
   const recoveryAttempt = deriveLiveWatchlistLifecycleRead({
     ...base,
     phase: "failed_move_risk",
@@ -107,6 +153,7 @@ test("watchlist lifecycle labels distinguish momentum, pullback, recovery watch,
   assert.equal(recoveryAttempt.status, "recovery_attempt");
   assert.equal(recoveryAttempt.label, "Recovery Attempt");
   assert.match(recoveryAttempt.reason, /attempting a reclaim/i);
+
   const confirmedReclaimStillRestoringMomentum = deriveLiveWatchlistLifecycleRead({
     ...base,
     phase: "failed_move_risk",
@@ -116,6 +163,7 @@ test("watchlist lifecycle labels distinguish momentum, pullback, recovery watch,
   assert.equal(confirmedReclaimStillRestoringMomentum.status, "recovery_attempt");
   assert.equal(confirmedReclaimStillRestoringMomentum.label, "Recovery Attempt");
   assert.match(confirmedReclaimStillRestoringMomentum.reason, /momentum still need to be restored/i);
+
   const setupFading = deriveLiveWatchlistLifecycleRead({
     ...base,
     phase: "failed_move_risk",
@@ -126,177 +174,116 @@ test("watchlist lifecycle labels distinguish momentum, pullback, recovery watch,
   assert.equal(setupFading.label, "Setup Fading");
 });
 
-test("Pullback Watch requires a confirmed and meaningful test of a qualified structural zone", () => {
+test("Pullback Watch requires the current candle state to confirm a constructive retracement", () => {
   const base = {
     evaluatedAt: NOW,
     structureUpdatedAt: NOW,
     phase: "pullback_forming" as const,
     technicalConfidence: "high" as const,
     volumeLabel: "normal" as const,
+    levelMap: levelMap(),
   };
 
-  const ema9DipOnly = deriveLiveWatchlistLifecycleRead({
-    ...base,
-    levelMap: levelMap(),
-  });
+  const ema9DipOnly = deriveLiveWatchlistLifecycleRead(base);
   assert.equal(ema9DipOnly.status, "monitoring");
-  assert.match(ema9DipOnly.reason, /confirmed five-minute structure/i);
+  assert.match(ema9DipOnly.reason, /current five-minute candles/i);
 
-  const gmmShallowDip = deriveLiveWatchlistLifecycleRead({
+  const staleStableState = deriveLiveWatchlistLifecycleRead({
     ...base,
     stableFiveMinuteState: "pullback_to_structure",
-    levelMap: {
-      ...levelMap(),
-      currentPrice: 4.2189,
-      nearestSupport: {
-        side: "support",
-        price: 4.11,
-        distancePct: -0.0258,
-        distanceAtr: 1.1,
-        strengthLabel: "strong",
-        sourceLabel: "daily confluence",
-        label: "support",
-      },
-      supportLevels: [{
-        side: "support",
-        price: 4.11,
-        distancePct: -0.0258,
-        distanceAtr: 1.1,
-        strengthLabel: "strong",
-        sourceLabel: "daily confluence",
-        label: "support",
-      }],
-      referenceLevels: [{ key: "hod", label: "HOD", price: 4.42, kind: "session" }],
-      volatilityContext: {
-        atr: 0.098993,
-        atrPct: 0.0235,
-        period: 14,
-        timeframe: "5m",
-        completedCandleCount: 14,
-        reliability: "reliable",
-      },
-    },
+    fiveMinuteStructure: pullbackStructure({ rawState: "range_bound" }),
   });
-  assert.equal(gmmShallowDip.status, "monitoring");
-  assert.match(gmmShallowDip.reason, /not yet testing a qualified structural pullback area/i);
+  assert.equal(staleStableState.status, "monitoring");
+  assert.match(staleStableState.reason, /current five-minute candles/i);
 
-  const zybtNotAtZone = deriveLiveWatchlistLifecycleRead({
+  const nonConstructiveRange = deriveLiveWatchlistLifecycleRead({
     ...base,
     stableFiveMinuteState: "pullback_to_structure",
-    levelMap: {
-      ...levelMap(),
-      currentPrice: 3.2987,
-      nearestSupport: {
-        side: "support",
-        price: 3.22,
-        distancePct: -0.0239,
-        distanceAtr: 0.6893,
-        strengthLabel: "moderate",
-        sourceLabel: "daily structure",
-        label: "support",
-      },
-      supportLevels: [{
-        side: "support",
-        price: 3.22,
-        distancePct: -0.0239,
-        distanceAtr: 0.6893,
-        strengthLabel: "moderate",
-        sourceLabel: "daily structure",
-        label: "support",
-      }],
-      referenceLevels: [{ key: "hod", label: "HOD", price: 3.79, kind: "session" }],
-      volatilityContext: {
-        atr: 0.114171,
-        atrPct: 0.0346,
-        period: 14,
-        timeframe: "5m",
-        completedCandleCount: 14,
-        reliability: "reliable",
-      },
-    },
+    fiveMinuteStructure: pullbackStructure({
+      trendDirection: "range",
+      higherLowCount: 0,
+      higherHighCount: 0,
+    }),
   });
-  assert.equal(zybtNotAtZone.status, "monitoring");
-  assert.match(zybtNotAtZone.reason, /not yet testing a qualified structural pullback area/i);
+  assert.equal(nonConstructiveRange.status, "monitoring");
+  assert.match(nonConstructiveRange.reason, /higher-high and higher-low impulse/i);
+});
 
-  const qualifiedTest = deriveLiveWatchlistLifecycleRead({
-    ...base,
-    stableFiveMinuteState: "pullback_to_structure",
+test("Pullback Watch rejects noisy, unconfirmed, or broken candle structure", () => {
+  const base = {
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "pullback_forming" as const,
+    technicalConfidence: "high" as const,
+    volumeLabel: "normal" as const,
     levelMap: levelMap(),
-  });
-  assert.equal(qualifiedTest.status, "pullback_watch");
-  assert.equal(qualifiedTest.label, "Pullback Watch");
-});
-
-test("Pullback Watch rejects a five-percent dip even when ATR and strong support tests pass", () => {
-  const map = levelMap();
-  const strongSupport = {
-    ...map.supportLevels[0]!,
-    price: 0.995,
-    distancePct: -0.005,
-    distanceAtr: 0.25,
-    strengthLabel: "strong" as const,
-    sourceLabel: "daily confluence",
+    stableFiveMinuteState: "pullback_to_structure",
   };
-  const result = deriveLiveWatchlistLifecycleRead({
-    evaluatedAt: NOW,
-    structureUpdatedAt: NOW,
-    phase: "pullback_forming",
-    technicalConfidence: "high",
-    volumeLabel: "normal",
-    stableFiveMinuteState: "pullback_to_structure",
-    levelMap: {
-      ...map,
-      nearestSupport: strongSupport,
-      supportLevels: [strongSupport],
-      referenceLevels: [{ key: "hod", label: "HOD", price: 1.06, kind: "session" }],
-      volatilityContext: {
-        ...map.volatilityContext!,
-        atr: 0.02,
-      },
-    },
+
+  const oneBarProbe = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    fiveMinuteStructure: pullbackStructure({ rawRunLength: 1 }),
   });
-  assert.equal(result.status, "monitoring");
-  assert.match(result.reason, /requires at least a 10% HOD reset/i);
+  assert.equal(oneBarProbe.status, "monitoring");
+  assert.match(oneBarProbe.reason, /not persisted/i);
+
+  const choppyRange = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    fiveMinuteStructure: pullbackStructure({ activeRangeQuality: "choppy" }),
+  });
+  assert.equal(choppyRange.status, "monitoring");
+  assert.match(choppyRange.reason, /clean active range low/i);
+
+  const brokenRange = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    levelMap: { ...levelMap(), currentPrice: 0.98 },
+    fiveMinuteStructure: pullbackStructure(),
+  });
+  assert.equal(brokenRange.status, "monitoring");
+  assert.match(brokenRange.reason, /not holding inside the candle-defined pullback range/i);
 });
 
-test("Pullback Watch requires a deeper HOD reset for ordinary moderate structure", () => {
+test("Pullback Watch requires VWAP to hold but does not use HOD percentage or mapped-level proximity", () => {
   const map = levelMap();
-  const result = deriveLiveWatchlistLifecycleRead({
-    evaluatedAt: NOW,
-    structureUpdatedAt: NOW,
-    phase: "pullback_forming",
-    technicalConfidence: "high",
-    volumeLabel: "normal",
-    stableFiveMinuteState: "pullback_to_structure",
-    levelMap: {
-      ...map,
-      referenceLevels: [{ key: "hod", label: "HOD", price: 1.14, kind: "session" }],
-    },
-  });
-  assert.equal(result.status, "monitoring");
-  assert.match(result.reason, /requires at least a 15% HOD reset/i);
-});
-
-test("Pullback Watch rejects weak or unconfirmed nearby support", () => {
-  const map = levelMap();
-  const weakSupport = map.supportLevels.map((level) => ({
-    ...level,
+  const weakDistantSupport = {
+    ...map.supportLevels[0]!,
+    price: 0.8,
+    distancePct: -0.2,
+    distanceAtr: 6.67,
     strengthLabel: "weak" as const,
     sourceLabel: "fresh intraday",
-  }));
-  const result = deriveLiveWatchlistLifecycleRead({
+  };
+  const candleDefinedPullback = deriveLiveWatchlistLifecycleRead({
     evaluatedAt: NOW,
     structureUpdatedAt: NOW,
     phase: "pullback_forming",
     technicalConfidence: "high",
     volumeLabel: "normal",
     stableFiveMinuteState: "pullback_to_structure",
+    fiveMinuteStructure: pullbackStructure(),
     levelMap: {
       ...map,
-      nearestSupport: weakSupport[0] ?? null,
-      supportLevels: weakSupport,
+      nearestSupport: weakDistantSupport,
+      supportLevels: [weakDistantSupport],
+      referenceLevels: [{ key: "vwap", label: "VWAP", price: 0.985, kind: "dynamic" }],
     },
   });
-  assert.equal(result.status, "monitoring");
-  assert.match(result.reason, /nearby support alone is not enough/i);
+  assert.equal(candleDefinedPullback.status, "pullback_watch");
+
+  const belowVwap = deriveLiveWatchlistLifecycleRead({
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "pullback_forming",
+    technicalConfidence: "high",
+    volumeLabel: "normal",
+    stableFiveMinuteState: "pullback_to_structure",
+    fiveMinuteStructure: pullbackStructure(),
+    levelMap: {
+      ...map,
+      currentPrice: 1,
+      referenceLevels: [{ key: "vwap", label: "VWAP", price: 1.01, kind: "dynamic" }],
+    },
+  });
+  assert.equal(belowVwap.status, "monitoring");
+  assert.match(belowVwap.reason, /not holding VWAP/i);
 });

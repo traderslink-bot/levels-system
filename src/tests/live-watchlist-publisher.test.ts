@@ -261,6 +261,68 @@ describe("live watchlist publisher", () => {
     assert.match(visible?.watchlistLifecycle?.reason ?? "", /VWAP and EMA9/i);
   });
 
+  it("derives Pullback Watch from five-minute candle structure and VWAP rather than HOD distance", () => {
+    const patch = buildLiveWatchlistPullbackReadPatch({
+      symbol: "CANDLE",
+      timestamp: 1_000,
+      currentPrice: 1.92,
+      supportZones: [{ representativePrice: 1.4, strengthLabel: "weak", sourceLabel: "intraday" }],
+      resistanceZones: [{ representativePrice: 2.3, strengthLabel: "major", sourceLabel: "daily" }],
+      technicalContext: {
+        ...readyTechnicalContext,
+        currentPrice: 1.92,
+        vwap: 1.9,
+        ema9: 1.95,
+        ema20: 1.8,
+        priceVsVwapPct: 1.05,
+        priceVsEma9Pct: -1.54,
+        priceVsEma20Pct: 6.67,
+        aboveVwap: true,
+        aboveEma9: false,
+        aboveEma20: true,
+      },
+      marketStructure: {
+        timeframes: {
+          "5m": {
+            stable: {
+              state: "pullback_to_structure",
+              previousState: "higher_lows_intact",
+              structureKey: "pullback_to_structure|range:1.900-2.150",
+              materialChange: true,
+              confidence: "high",
+              materialityScore: 0.72,
+              rawState: "pullback_to_structure",
+              reason: "persistent_material_change",
+              candleCount: 48,
+              rawRunLength: 3,
+              trendDirection: "uptrend",
+              higherLowCount: 2,
+              lowerHighCount: 0,
+              higherHighCount: 1,
+              lowerLowCount: 0,
+              latestSwingLow: 1.9,
+              latestSwingHigh: 2.15,
+              priorSwingLow: 1.72,
+              priorSwingHigh: 2.04,
+              activeRangeLow: 1.9,
+              activeRangeHigh: 2.15,
+              activeRangeWidthPct: 0.1316,
+              activeRangeQuality: "clean",
+              pivotEventType: "none",
+              pivotEventTriggerPrice: null,
+            },
+          },
+        },
+      },
+      pullbackReadEnabled: true,
+      includeLifecycle: true,
+    });
+
+    assert.equal(patch?.watchlistLifecycle?.status, "pullback_watch");
+    assert.match(patch?.watchlistLifecycle?.reason ?? "", /five-minute candles/i);
+    assert.doesNotMatch(patch?.watchlistLifecycle?.reason ?? "", /HOD|percent|ATR/i);
+  });
+
   it("includes chart thesis context in the live trader read card", () => {
     const payload: LevelSnapshotPayload = {
       symbol: "ABCD",

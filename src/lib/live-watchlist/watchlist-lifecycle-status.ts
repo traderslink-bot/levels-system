@@ -1,8 +1,8 @@
+import type { StableMarketStructureRuntimeContext } from "../monitoring/monitoring-types.js";
 import type { TechnicalContextConfidence } from "../technical-context/technical-context-types.js";
 import type {
   LiveWatchlistLifecycleRead,
   LiveWatchlistLevelMap,
-  LiveWatchlistLevelMapLevel,
 } from "./live-watchlist-types.js";
 import type {
   LiveWatchlistPullbackReadPhase,
@@ -10,10 +10,6 @@ import type {
 } from "./pullback-read.js";
 
 const MAX_STRUCTURE_AGE_MS = 20 * 60 * 1_000;
-const MIN_HIGH_QUALITY_PULLBACK_FROM_HOD_PCT = 0.1;
-const MIN_ORDINARY_PULLBACK_FROM_HOD_PCT = 0.15;
-const MIN_PULLBACK_FROM_HOD_ATR = 2;
-const MAX_PULLBACK_ZONE_DISTANCE_ATR = 0.35;
 const LIQUID_VOLUME_LABELS = new Set<LiveWatchlistPullbackVolumeLabel>([
   "strong",
   "expanding",
@@ -33,6 +29,7 @@ export type LiveWatchlistLifecycleEvidence = {
   tradeSetupState?: string | null;
   tradeSetupStateBeforeBlockers?: string | null;
   stableFiveMinuteState?: string | null;
+  fiveMinuteStructure?: StableMarketStructureRuntimeContext | null;
 };
 
 function read(
@@ -50,81 +47,60 @@ function hasMappedSupport(levelMap: LiveWatchlistLevelMap | null): boolean {
     (levelMap.nearestSupport?.price ?? Number.POSITIVE_INFINITY) < levelMap.currentPrice;
 }
 
-function strengthRank(value: LiveWatchlistLevelMapLevel["strengthLabel"]): number {
-  if (value === "major") return 4;
-  if (value === "strong") return 3;
-  if (value === "moderate") return 2;
-  if (value === "weak") return 1;
-  return 0;
-}
-
-function isQualifiedPullbackSupport(level: LiveWatchlistLevelMapLevel): boolean {
-  if (
-    level.side !== "support" ||
-    level.roleFlipState === "testing" ||
-    strengthRank(level.strengthLabel) < strengthRank("moderate")
-  ) {
-    return false;
-  }
-  return (
-    strengthRank(level.strengthLabel) >= strengthRank("strong") ||
-    /daily|4h|confluence|structure|opening range|session low|gap floor/i.test(level.sourceLabel ?? "")
-  );
-}
-
-function minimumPullbackFromHighPct(level: LiveWatchlistLevelMapLevel): number {
-  return strengthRank(level.strengthLabel) >= strengthRank("strong")
-    ? MIN_HIGH_QUALITY_PULLBACK_FROM_HOD_PCT
-    : MIN_ORDINARY_PULLBACK_FROM_HOD_PCT;
-}
-
 function pullbackQualificationReason(
   levelMap: LiveWatchlistLevelMap | null,
-  stableFiveMinuteState: string | null | undefined,
+  structure: StableMarketStructureRuntimeContext | null | undefined,
 ): string | null {
-  if (stableFiveMinuteState !== "pullback_to_structure") {
-    return "Momentum has cooled, but confirmed five-minute structure is not yet testing a pullback area.";
+  if (
+    structure?.state !== "pullback_to_structure" ||
+    structure.rawState !== "pullback_to_structure"
+  ) {
+    return "Momentum has cooled, but the current five-minute candles have not confirmed a pullback into structure.";
   }
   if (!levelMap) {
-    return "Momentum has cooled, but a valid structural pullback area is not yet confirmed.";
+    return "Momentum has cooled, but current price and VWAP context are not available to confirm the pullback.";
+  }
+  if (
+    structure.confidence === "low" ||
+    structure.candleCount < 12 ||
+    (structure.rawRunLength ?? 0) < 2
+  ) {
+    return "The five-minute pullback read has not persisted with enough reliable candle evidence yet.";
+  }
+  if (
+    structure.trendDirection !== "uptrend" ||
+    (structure.higherLowCount ?? 0) < 2 ||
+    (structure.higherHighCount ?? 0) < 1
+  ) {
+    return "The five-minute candles do not show a constructive higher-high and higher-low impulse preceding this retracement.";
+  }
+  if (
+    structure.activeRangeQuality === "choppy" ||
+    typeof structure.activeRangeLow !== "number" ||
+    !Number.isFinite(structure.activeRangeLow) ||
+    typeof structure.activeRangeHigh !== "number" ||
+    !Number.isFinite(structure.activeRangeHigh) ||
+    structure.activeRangeHigh <= structure.activeRangeLow
+  ) {
+    return "The five-minute candles do not have a clean active range low to define the pullback area.";
   }
 
   const currentPrice = levelMap.currentPrice;
-  const atr = levelMap.volatilityContext?.atr;
-  const highOfDay = levelMap.referenceLevels?.find((level) => level.key === "hod")?.price;
   if (
     !Number.isFinite(currentPrice) ||
-    currentPrice <= 0 ||
-    typeof atr !== "number" ||
-    !Number.isFinite(atr) ||
-    atr <= 0 ||
-    typeof highOfDay !== "number" ||
-    !Number.isFinite(highOfDay) ||
-    highOfDay <= currentPrice
+    currentPrice < structure.activeRangeLow ||
+    currentPrice > structure.activeRangeHigh
   ) {
-    return "Waiting for reliable high-of-day and five-minute ATR context before confirming a pullback area.";
+    return "Price is not holding inside the candle-defined pullback range.";
   }
 
-  const testedSupport = levelMap.supportLevels.find((level) =>
-    level.price < currentPrice &&
-    typeof level.distanceAtr === "number" &&
-    Number.isFinite(level.distanceAtr) &&
-    level.distanceAtr <= MAX_PULLBACK_ZONE_DISTANCE_ATR &&
-    isQualifiedPullbackSupport(level),
-  );
-  if (!testedSupport) {
-    return "Price is not yet testing a qualified structural pullback area; nearby support alone is not enough.";
-  }
-
-  const retreatFromHighPct = (highOfDay - currentPrice) / highOfDay;
-  const retreatFromHighAtr = (highOfDay - currentPrice) / atr;
-  const requiredRetreatPct = minimumPullbackFromHighPct(testedSupport);
+  const vwap = levelMap.referenceLevels?.find((level) => level.key === "vwap")?.price;
   if (
-    retreatFromHighPct < requiredRetreatPct ||
-    retreatFromHighAtr < MIN_PULLBACK_FROM_HOD_ATR
+    typeof vwap !== "number" ||
+    !Number.isFinite(vwap) ||
+    currentPrice < vwap
   ) {
-    const requiredPercent = Math.round(requiredRetreatPct * 100);
-    return `Price has only eased from the high; this pullback area requires at least a ${requiredPercent}% HOD reset plus meaningful ATR distance.`;
+    return "The candle pullback is not holding VWAP, so it remains an unconfirmed or damaged setup.";
   }
   return null;
 }
@@ -155,14 +131,14 @@ export function deriveLiveWatchlistLifecycleRead(
   if (evidence.phase === "pullback_forming") {
     const qualificationFailure = pullbackQualificationReason(
       evidence.levelMap,
-      evidence.stableFiveMinuteState,
+      evidence.fiveMinuteStructure,
     );
     return qualificationFailure
       ? read("monitoring", "Analysis Pending", qualificationFailure, evidence.evaluatedAt)
       : read(
           "pullback_watch",
           "Pullback Watch",
-          "A meaningful retreat from the high is testing confirmed five-minute structure at a qualified pullback area.",
+          "Five-minute candles show a persistent higher-high and higher-low retracement into the active range low while price holds VWAP.",
           evidence.evaluatedAt,
         );
   }

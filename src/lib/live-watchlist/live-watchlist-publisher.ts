@@ -1678,9 +1678,10 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
         bidPrice: args.roleFlipContext?.bidPrice,
         askPrice: args.roleFlipContext?.askPrice,
       });
-  const stableFiveMinuteState = args.marketStructure?.timeframes?.["5m"]?.stable?.state ??
-    args.marketStructure?.stable?.state ??
+  const fiveMinuteStructure = args.marketStructure?.timeframes?.["5m"]?.stable ??
+    args.marketStructure?.stable ??
     null;
+  const stableFiveMinuteState = fiveMinuteStructure?.state ?? null;
   const watchlistLifecycle = args.includeLifecycle
     ? deriveLiveWatchlistLifecycleRead({
         evaluatedAt: args.timestamp,
@@ -1695,6 +1696,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
             ? tradeSetupRead.metadata.tradeSetupStateBeforeBlockers
             : null,
         stableFiveMinuteState,
+        fiveMinuteStructure,
       })
     : null;
   if (!pullbackRead && !(tradeSetupReadMode === "active" && tradeSetupRead) && !watchlistLifecycle) {
