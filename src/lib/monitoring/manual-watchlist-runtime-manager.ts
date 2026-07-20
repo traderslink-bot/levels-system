@@ -259,7 +259,6 @@ export type ManualWatchlistRuntimeManagerOptions = {
   } | void>) | null;
 };
 
-const TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS = 0.85;
 const TRADERSLINK_AI_READ_AUTOMATIC_SCHEDULE_COALESCE_MS = 250;
 const DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 1;
 export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "automatic";
@@ -407,13 +406,6 @@ export function decideTradersLinkAiReadRefresh(args: {
       automaticRefreshRegime: null,
     };
   }
-  const crossedTypedInvalidation = (previous.boundaries ?? []).find(
-    (boundary) =>
-      boundary.impact === "invalidates" &&
-      boundary.side === "downside" &&
-      previous.currentPrice >= boundary.price &&
-      args.currentPrice < boundary.price,
-  ) ?? null;
   const crossedUpperBoundary =
     previous.upperBoundary !== null &&
     previous.currentPrice <= previous.upperBoundary &&
@@ -422,32 +414,15 @@ export function decideTradersLinkAiReadRefresh(args: {
     previous.lowerBoundary !== null &&
     previous.currentPrice >= previous.lowerBoundary &&
     args.currentPrice < previous.lowerBoundary;
-  const crossedAnalysisBoundary =
-    crossedTypedInvalidation !== null || crossedUpperBoundary || crossedLowerBoundary;
-  const upperProgress = previous.upperBoundary !== null && previous.upperBoundary > previous.currentPrice
-    ? (args.currentPrice - previous.currentPrice) /
-      (previous.upperBoundary - previous.currentPrice)
-    : Number.NEGATIVE_INFINITY;
-  const lowerProgress = previous.lowerBoundary !== null && previous.lowerBoundary < previous.currentPrice
-    ? (previous.currentPrice - args.currentPrice) /
-      (previous.currentPrice - previous.lowerBoundary)
-    : Number.NEGATIVE_INFINITY;
-  const reachedRangeEdge =
-    !crossedAnalysisBoundary &&
-    (upperProgress >= TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS ||
-      lowerProgress >= TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS);
+  const crossedAnalysisBoundary = crossedUpperBoundary || crossedLowerBoundary;
   const trigger: TradersLinkAiReadCostTrigger = args.requestedTrigger === "automatic"
     ? crossedAnalysisBoundary
       ? "boundary_cross"
-      : reachedRangeEdge
-        ? "range_edge"
-        : "scheduled"
+      : "scheduled"
     : args.requestedTrigger;
   const automaticRefreshRegime = args.requestedTrigger === "automatic" &&
-    (crossedAnalysisBoundary || reachedRangeEdge)
-    ? crossedTypedInvalidation
-      ? `${crossedTypedInvalidation.side}:${crossedTypedInvalidation.role}:${crossedTypedInvalidation.price}`
-      : crossedUpperBoundary || (reachedRangeEdge && upperProgress >= TRADERSLINK_AI_READ_RANGE_EDGE_PROGRESS)
+    crossedAnalysisBoundary
+    ? crossedUpperBoundary
       ? `upper:${previous.upperBoundary ?? "none"}`
       : `lower:${previous.lowerBoundary ?? "none"}`
     : null;
@@ -457,10 +432,21 @@ export function decideTradersLinkAiReadRefresh(args: {
     previous.lastAutomaticRefreshRegime === automaticRefreshRegime;
   return {
     shouldRefresh:
-      args.force || ((!alreadyServedSameRegime) && (reachedRangeEdge || crossedAnalysisBoundary)),
+      args.force || ((!alreadyServedSameRegime) && crossedAnalysisBoundary),
     trigger,
     automaticRefreshRegime,
   };
+}
+
+export function decideTradersLinkAiReadActivationSchedule(
+  previous: TradersLinkAiReadRefreshState | null,
+): {
+  force: boolean;
+  trigger: TradersLinkAiReadRequestedTrigger;
+} {
+  return previous
+    ? { force: false, trigger: "automatic" }
+    : { force: true, trigger: "activation" };
 }
 
 export type ManualWatchlistAutoCleanReadInput = {
@@ -2945,6 +2931,21 @@ export class ManualWatchlistRuntimeManager {
       return null;
     }
 
+    if (refreshDecision.automaticRefreshRegime !== null) {
+      const previousState = this.aiReadState.get(symbol);
+      if (previousState) {
+        const attemptedState = {
+          ...previousState,
+          lastAutomaticRefreshRegime: refreshDecision.automaticRefreshRegime,
+        };
+        this.aiReadState.set(symbol, attemptedState);
+        this.watchlistStore.patchEntry(symbol, {
+          tradersLinkAiReadBoundaryState: attemptedState,
+        });
+        this.persistWatchlist();
+      }
+    }
+
     this.aiReadInFlight.add(symbol);
     try {
       const priceActionPromise = this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
@@ -2970,20 +2971,28 @@ export class ManualWatchlistRuntimeManager {
       const priceAction = await priceActionPromise;
       let recordedAttemptCount = 0;
       const generationId = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      const read = await service.generate({
-        snapshot,
-        research,
-        priceAction,
-        dataAsOf,
-        generationId,
-        onAttempt: (attempt) => {
-          this.options.tradersLinkAiReadCostLedger?.recordAttempt({
-            attempt,
-            trigger: refreshDecision.trigger,
-          });
-          recordedAttemptCount += 1;
-        },
-      });
+      let read: TradersLinkAiReadPayload;
+      try {
+        read = await service.generate({
+          snapshot,
+          research,
+          priceAction,
+          dataAsOf,
+          generationId,
+          onAttempt: (attempt) => {
+            this.options.tradersLinkAiReadCostLedger?.recordAttempt({
+              attempt,
+              trigger: refreshDecision.trigger,
+            });
+            recordedAttemptCount += 1;
+          },
+        });
+      } catch (error) {
+        if (!this.aiReadState.has(symbol)) {
+          this.aiReadInitialGenerationSuppressedSymbols.add(symbol);
+        }
+        throw error;
+      }
       if (recordedAttemptCount === 0) {
         this.options.tradersLinkAiReadCostLedger?.record({
           read,
@@ -9877,7 +9886,7 @@ export class ManualWatchlistRuntimeManager {
       !existing?.active &&
       Boolean(existing?.discordThreadId) &&
       isSameNewYorkTradingDate(input.preservedActivatedAt ?? existing?.activatedAt, Date.now());
-    if (reuseExistingSameDayContext && existing?.tradersLinkAiReadBoundaryState) {
+    if (existing?.tradersLinkAiReadBoundaryState) {
       this.aiReadState.set(symbol, existing.tradersLinkAiReadBoundaryState);
     }
 
@@ -10025,7 +10034,14 @@ export class ManualWatchlistRuntimeManager {
           );
         });
       }
-      this.scheduleTradersLinkAiRead(symbol, !reuseExistingSameDayContext, "activation");
+      const activationAiReadSchedule = decideTradersLinkAiReadActivationSchedule(
+        this.aiReadState.get(symbol) ?? null,
+      );
+      this.scheduleTradersLinkAiRead(
+        symbol,
+        activationAiReadSchedule.force,
+        activationAiReadSchedule.trigger,
+      );
       return this.watchlistStore.getEntry(symbol) ?? activatedEntry;
     } catch (error) {
       if (error instanceof ActivationCancelledError) {

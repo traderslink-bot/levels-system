@@ -100,6 +100,7 @@ describe("TradersLinkAiReadCostLedger", () => {
       assert.equal(summary.windows.allTime.webSearchCallCount, 3);
       assert.equal(summary.perTicker[0]?.symbol, "TGHL");
       assert.equal(summary.perTicker[0]?.requestCount, 2);
+      assert.equal(summary.perTicker[0]?.planGenerationCount, 2);
       assert.equal(summary.perTicker[0]?.averageCostPerRequestUsd, 0.0225);
       assert.equal(summary.byTrigger.find((item) => item.trigger === "manual")?.totals.requestCount, 1);
       assert.equal(summary.byModel[0]?.model, "gpt-5.6-terra");

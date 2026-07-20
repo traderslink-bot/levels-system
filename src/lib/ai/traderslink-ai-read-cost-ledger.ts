@@ -53,6 +53,7 @@ export type TradersLinkAiReadCostTotals = {
 
 export type TradersLinkAiReadTickerCostSummary = TradersLinkAiReadCostTotals & {
   symbol: string;
+  planGenerationCount: number;
   averageCostPerRequestUsd: number;
   lastGeneratedAt: number;
   lastTrigger: TradersLinkAiReadCostTrigger;
@@ -196,6 +197,12 @@ function totalsFor(entries: TradersLinkAiReadCostLedgerEntry[]): TradersLinkAiRe
   totals.webSearchCostUsd = roundUsd(totals.webSearchCostUsd);
   totals.estimatedTotalCostUsd = roundUsd(totals.tokenCostUsd + totals.webSearchCostUsd);
   return totals;
+}
+
+function planGenerationCountFor(entries: TradersLinkAiReadCostLedgerEntry[]): number {
+  return new Set(entries.map((entry, index) =>
+    entry.generationId ?? `legacy:${entry.generatedAt}:${entry.trigger}:${index}`
+  )).size;
 }
 
 function easternDateKey(timestamp: number): string {
@@ -364,6 +371,7 @@ export class TradersLinkAiReadCostLedger {
       return {
         symbol,
         ...totals,
+        planGenerationCount: planGenerationCountFor(chronological),
         averageCostPerRequestUsd: totals.requestCount > 0
           ? roundUsd(totals.estimatedTotalCostUsd / totals.requestCount)
           : 0,
