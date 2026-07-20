@@ -231,7 +231,8 @@ test("EODHD corpus is sanitized, offline-only, and preserves provider quality me
 });
 
 for (const fixtureCase of corpus.cases) {
-  test(`EODHD corpus locks the compact ${fixtureCase.symbol} chart read`, async () => {
+  test(`EODHD corpus locks the compact ${fixtureCase.symbol} chart read`, async (context) => {
+    context.mock.method(Date, "now", () => corpus.endTimeMs);
     const provider = new EodhdCorpusProvider();
     const engine = new LevelEngine(new CandleFetchService(provider), undefined, {
       runtimeMode: "compare",
