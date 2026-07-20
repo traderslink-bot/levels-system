@@ -2589,6 +2589,7 @@ test("ManualWatchlistRuntimeManager can hide and restore the live website Trader
   const persistence = new FakeWatchlistStatePersistence();
   const levelStore = new LevelStore();
   const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const visibilityChanges: boolean[] = [];
   persistence.storedEntries = [];
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: {} as any,
@@ -2599,6 +2600,7 @@ test("ManualWatchlistRuntimeManager can hide and restore the live website Trader
     watchlistStore: new WatchlistStore(),
     watchlistStatePersistence: persistence as any,
     liveWatchlistPublisher,
+    liveTraderReadCardVisibilityListener: (visible) => visibilityChanges.push(visible),
     seedSymbolLevels: async (symbol: string) => {
       levelStore.setLevels(buildLevelOutput(symbol, {
         intradaySupport: [
@@ -2631,6 +2633,7 @@ test("ManualWatchlistRuntimeManager can hide and restore the live website Trader
   assert.equal(hiddenResult.visible, false);
   assert.deepEqual(hiddenResult.refreshedSymbols, ["CAST"]);
   assert.equal(manager.getRuntimeHealth().liveTraderReadCardVisible, false);
+  assert.deepEqual(visibilityChanges, [false]);
   assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
   assert.equal(liveWatchlistPublisher.cardPatches[0]?.cards.liveTraderRead, null);
 
@@ -2641,6 +2644,7 @@ test("ManualWatchlistRuntimeManager can hide and restore the live website Trader
   assert.equal(visibleResult.visible, true);
   assert.deepEqual(visibleResult.refreshedSymbols, ["CAST"]);
   assert.equal(manager.getRuntimeHealth().liveTraderReadCardVisible, true);
+  assert.deepEqual(visibilityChanges, [false, true]);
   assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
   assert.equal(liveWatchlistPublisher.cardPatches[0]?.cards.liveTraderRead?.source, "level_snapshot");
 });

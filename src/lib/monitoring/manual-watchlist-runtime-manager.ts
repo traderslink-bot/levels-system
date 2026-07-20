@@ -240,6 +240,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   };
   tradersLinkAiReadStartupRefreshEnabled?: boolean;
   initialLiveTraderReadCardVisible?: boolean;
+  liveTraderReadCardVisibilityListener?: (visible: boolean) => void;
   initialPotentialGainCardVisible?: boolean;
   levelProvenanceMode?: LiveWatchlistLevelProvenanceMode | string | null;
   pullbackReadEnabled?: boolean;
@@ -9457,6 +9458,7 @@ export class ManualWatchlistRuntimeManager {
     refreshedSymbols: string[];
   }> {
     this.liveTraderReadCardVisible = visible;
+    this.options.liveTraderReadCardVisibilityListener?.(visible);
     const refreshedSymbols = this.watchlistStore.getActiveEntries().map((entry) => entry.symbol);
     const timestamp = Date.now();
 

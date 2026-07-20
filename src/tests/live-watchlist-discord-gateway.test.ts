@@ -128,4 +128,53 @@ describe("website publishing Discord gateway", () => {
 
     assert.deepEqual(events, ["website:ABCD", "website:ABCD"]);
   });
+
+  it("keeps the website Trader Read card removed from snapshots and alerts while visibility is off", async () => {
+    const patches: LiveWatchlistCardPatch[] = [];
+    let liveTraderReadCardVisible = false;
+    const publisher: LiveWatchlistPublisher = {
+      async publish(patch: LiveWatchlistCardPatch): Promise<void> {
+        patches.push(patch);
+      },
+    };
+    const gateway = new WebsitePublishingDiscordGateway(
+      new RecordingDiscordGateway([]),
+      publisher,
+      undefined,
+      {
+        pullbackReadEnabled: true,
+        isLiveTraderReadCardVisible: () => liveTraderReadCardVisible,
+      },
+    );
+
+    await gateway.sendLevelSnapshot("thread-1", {
+      symbol: "HIDE",
+      currentPrice: 1.23,
+      supportZones: [{ representativePrice: 1.1 }],
+      resistanceZones: [{ representativePrice: 1.4 }],
+      timestamp: 1000,
+    });
+    await gateway.sendMessage("thread-1", {
+      title: "HIDE trader read",
+      body: "Holding above support.",
+      symbol: "HIDE",
+      timestamp: 2000,
+      metadata: { messageKind: "intelligent_alert" },
+    });
+
+    assert.equal(patches.length, 2);
+    assert.equal(patches[0]?.cards.liveTraderRead, null);
+    assert.equal(patches[1]?.cards.liveTraderRead, null);
+
+    liveTraderReadCardVisible = true;
+    await gateway.sendLevelSnapshot("thread-1", {
+      symbol: "HIDE",
+      currentPrice: 1.23,
+      supportZones: [{ representativePrice: 1.1 }],
+      resistanceZones: [{ representativePrice: 1.4 }],
+      timestamp: 3000,
+    });
+
+    assert.equal(patches[2]?.cards.liveTraderRead?.source, "level_snapshot");
+  });
 });
