@@ -749,6 +749,36 @@ describe("OpenAITradersLinkAiReadService", () => {
     ]);
   });
 
+  it("keeps operational volume availability out of the user-facing AI Read", async () => {
+    const invalidRead = modelRead();
+    invalidRead.currentRead =
+      "Price is holding the premarket shelf. Premarket volume is unavailable from the provider.";
+    let requestNumber = 0;
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => {
+        requestNumber += 1;
+        const draft = requestNumber === 1 ? invalidRead : modelRead();
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(draft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(requestNumber, 2);
+    assert.doesNotMatch(read.currentRead, /volume.*unavailable/i);
+  });
+
   it("drops duplicate scenario checkpoints instead of paying for a correction", async () => {
     const duplicateCheckpointRead = modelRead();
     const duplicateMomentumFailure = duplicateCheckpointRead.momentumFailure as { price: number };

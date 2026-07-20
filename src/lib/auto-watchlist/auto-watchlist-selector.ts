@@ -51,6 +51,8 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxActivePostmarketTickers: 3,
   maxMainSessionReplacementsPerTradingDay: 7,
   maxPostmarketReplacementsPerTradingDay: 5,
+  lateMainSessionAdmissionReserve: 3,
+  lateMainSessionAdmissionUnlockHourEastern: 9,
   dynamicReplacementEnabled: true,
   minimumAutoHoldMinutes: 30,
   retentionFailureScansRequired: 3,
@@ -114,6 +116,9 @@ export type AutoWatchlistSelectorThresholds = {
   maxActivePostmarketTickers: number;
   maxMainSessionReplacementsPerTradingDay: number;
   maxPostmarketReplacementsPerTradingDay: number;
+  /** Shared late-session capacity for main-bucket additions and replacements after the normal quota is exhausted. */
+  lateMainSessionAdmissionReserve: number;
+  lateMainSessionAdmissionUnlockHourEastern: number;
   dynamicReplacementEnabled: boolean;
   minimumAutoHoldMinutes: number;
   retentionFailureScansRequired: number;
@@ -274,6 +279,9 @@ export type AutoWatchlistSelectorStatus = {
   addedToday: string[];
   mainSessionAddedToday: string[];
   postmarketAddedToday: string[];
+  lateMainSessionAdmissionReserveUsed: number;
+  lateMainSessionAdmissionReserveAvailable: number;
+  lateMainSessionAdmissionReserveUnlocked: boolean;
   activeMainSessionSymbols: string[];
   activePostmarketSymbols: string[];
   pendingReplacementSymbols: string[];
@@ -292,6 +300,7 @@ type PersistedConfig = {
   addedToday?: string[];
   mainSessionAddedToday?: string[];
   postmarketAddedToday?: string[];
+  lateMainSessionAdmissionReserveUsed?: number;
   managedEntries?: AutoWatchlistManagedEntry[];
   replacementHistory?: AutoWatchlistReplacementEvent[];
 };
@@ -470,6 +479,8 @@ const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "maxActivePostmarketTickers",
   "maxMainSessionReplacementsPerTradingDay",
   "maxPostmarketReplacementsPerTradingDay",
+  "lateMainSessionAdmissionReserve",
+  "lateMainSessionAdmissionUnlockHourEastern",
   "minimumAutoHoldMinutes",
   "retentionFailureScansRequired",
   "replacementRankingMargin",
@@ -566,6 +577,12 @@ export function resolveAutoWatchlistSelectorThresholds(
     resolved.maxPostmarketReplacementsPerTradingDay > 50
   ) {
     throw new Error("Daily automatic replacement limits cannot exceed 50.");
+  }
+  if (resolved.lateMainSessionAdmissionReserve > 20) {
+    throw new Error("lateMainSessionAdmissionReserve cannot exceed 20.");
+  }
+  if (resolved.lateMainSessionAdmissionUnlockHourEastern > 23) {
+    throw new Error("lateMainSessionAdmissionUnlockHourEastern must be between 0 and 23.");
   }
   if (resolved.retentionFailureScansRequired < 1 || resolved.retentionFailureScansRequired > 10) {
     throw new Error("retentionFailureScansRequired must be between 1 and 10.");
@@ -1209,6 +1226,7 @@ export class AutoWatchlistSelector {
   private tradingDay: string | null = null;
   private readonly mainSessionAddedToday = new Set<string>();
   private readonly postmarketAddedToday = new Set<string>();
+  private lateMainSessionAdmissionReserveUsed = 0;
   private readonly managedEntries = new Map<string, AutoWatchlistManagedEntry>();
   private replacementHistory: AutoWatchlistReplacementEvent[] = [];
   private recentDecisions: AutoWatchlistCandidateDecision[] = [];
@@ -1253,6 +1271,10 @@ export class AutoWatchlistSelector {
         this.postmarketAddedToday.add(normalized);
       }
     }
+    this.lateMainSessionAdmissionReserveUsed = Math.min(
+      persistedConfig?.lateMainSessionAdmissionReserveUsed ?? 0,
+      this.thresholds.lateMainSessionAdmissionReserve,
+    );
     for (const entry of persistedConfig?.managedEntries ?? []) {
       const normalized = normalizeManagedEntry(entry);
       if (normalized) {
@@ -1291,6 +1313,10 @@ export class AutoWatchlistSelector {
         postmarketAddedToday: Array.isArray(parsed.postmarketAddedToday)
           ? parsed.postmarketAddedToday.filter((symbol): symbol is string => typeof symbol === "string")
           : [],
+        lateMainSessionAdmissionReserveUsed: Math.max(
+          0,
+          Math.floor(finiteNumber(parsed.lateMainSessionAdmissionReserveUsed) ?? 0),
+        ),
         managedEntries: Array.isArray(parsed.managedEntries)
           ? parsed.managedEntries.map(normalizeManagedEntry).filter((entry): entry is AutoWatchlistManagedEntry => entry !== null)
           : [],
@@ -1319,6 +1345,7 @@ export class AutoWatchlistSelector {
       addedToday: [...this.mainSessionAddedToday, ...this.postmarketAddedToday],
       mainSessionAddedToday: [...this.mainSessionAddedToday],
       postmarketAddedToday: [...this.postmarketAddedToday],
+      lateMainSessionAdmissionReserveUsed: this.lateMainSessionAdmissionReserveUsed,
       managedEntries: [...this.managedEntries.values()],
       replacementHistory: this.replacementHistory.slice(-50),
     }, null, 2)}\n`, "utf8");
@@ -1425,6 +1452,15 @@ export class AutoWatchlistSelector {
       addedToday: [...this.mainSessionAddedToday, ...this.postmarketAddedToday],
       mainSessionAddedToday: [...this.mainSessionAddedToday],
       postmarketAddedToday: [...this.postmarketAddedToday],
+      lateMainSessionAdmissionReserveUsed: this.lateMainSessionAdmissionReserveUsed,
+      lateMainSessionAdmissionReserveAvailable: Math.max(
+        0,
+        this.thresholds.lateMainSessionAdmissionReserve - this.lateMainSessionAdmissionReserveUsed,
+      ),
+      lateMainSessionAdmissionReserveUnlocked: this.isLateMainSessionAdmissionReserveUnlocked(
+        "main",
+        this.now(),
+      ),
       activeMainSessionSymbols: this.managedEntriesFor("main", "active").map((entry) => entry.symbol),
       activePostmarketSymbols: this.managedEntriesFor("postmarket", "active").map((entry) => entry.symbol),
       pendingReplacementSymbols: [
@@ -1571,6 +1607,41 @@ export class AutoWatchlistSelector {
     return bucket === "postmarket"
       ? this.thresholds.maxPostmarketReplacementsPerTradingDay
       : this.thresholds.maxMainSessionReplacementsPerTradingDay;
+  }
+
+  private isLateMainSessionAdmissionReserveUnlocked(
+    bucket: AutoWatchlistBucket,
+    timestamp: number,
+  ): boolean {
+    return (
+      bucket === "main" &&
+      easternParts(timestamp).hour >= this.thresholds.lateMainSessionAdmissionUnlockHourEastern
+    );
+  }
+
+  private lateMainSessionAdmissionReserveAvailable(
+    bucket: AutoWatchlistBucket,
+    timestamp: number,
+  ): boolean {
+    return (
+      this.isLateMainSessionAdmissionReserveUnlocked(bucket, timestamp) &&
+      this.lateMainSessionAdmissionReserveUsed < this.thresholds.lateMainSessionAdmissionReserve
+    );
+  }
+
+  private consumeLateMainSessionAdmissionReserve(): void {
+    this.lateMainSessionAdmissionReserveUsed += 1;
+    this.persistConfig();
+  }
+
+  private replacementAdmissionCapacityAvailable(
+    bucket: AutoWatchlistBucket,
+    timestamp: number,
+  ): boolean {
+    return (
+      this.replacementCount(bucket) < this.replacementLimit(bucket) ||
+      this.lateMainSessionAdmissionReserveAvailable(bucket, timestamp)
+    );
   }
 
   private activeSlotLimit(bucket: AutoWatchlistBucket): number {
@@ -1782,6 +1853,7 @@ export class AutoWatchlistSelector {
     this.tradingDay = nextTradingDay;
     this.mainSessionAddedToday.clear();
     this.postmarketAddedToday.clear();
+    this.lateMainSessionAdmissionReserveUsed = 0;
     for (const [symbol, entry] of this.managedEntries) {
       if (entry.state === "standby") {
         this.managedEntries.delete(symbol);
@@ -2591,18 +2663,22 @@ export class AutoWatchlistSelector {
           const resolvedDepartureIndex = departureIndex >= 0 ? departureIndex : 0;
           const departure = availableReplacementDepartures.splice(resolvedDepartureIndex, 1)[0];
           const isReplacement = Boolean(departure);
-          if (
+          const normalInitialAdditionLimitReached =
             !alreadyAdded &&
             !isReplacement &&
-            this.sessionAddedSet(bucket).size >= this.initialAdditionLimit(bucket)
-          ) {
-            continue;
-          }
-          if (
+            this.sessionAddedSet(bucket).size >= this.initialAdditionLimit(bucket);
+          const normalReplacementLimitReached =
             isReplacement &&
-            this.replacementCount(bucket) >= this.replacementLimit(bucket)
+            this.replacementCount(bucket) >= this.replacementLimit(bucket);
+          const usesLateMainSessionAdmissionReserve =
+            normalInitialAdditionLimitReached || normalReplacementLimitReached;
+          if (
+            usesLateMainSessionAdmissionReserve &&
+            !this.lateMainSessionAdmissionReserveAvailable(bucket, scanStartedAt)
           ) {
-            availableReplacementDepartures.splice(resolvedDepartureIndex, 0, departure!);
+            if (departure) {
+              availableReplacementDepartures.splice(resolvedDepartureIndex, 0, departure);
+            }
             continue;
           }
           const reason = departure
@@ -2615,6 +2691,9 @@ export class AutoWatchlistSelector {
               availableReplacementDepartures.splice(resolvedDepartureIndex, 0, departure);
             }
             continue;
+          }
+          if (usesLateMainSessionAdmissionReserve) {
+            this.consumeLateMainSessionAdmissionReserve();
           }
           usedChallengers.add(decision.symbol);
           activeManagedCount += 1;
@@ -2643,7 +2722,7 @@ export class AutoWatchlistSelector {
         if (
           this.thresholds.dynamicReplacementEnabled &&
           activeManagedCount >= this.activeSlotLimit(bucket) &&
-          this.replacementCount(bucket) < this.replacementLimit(bucket)
+          this.replacementAdmissionCapacityAvailable(bucket, scanStartedAt)
         ) {
           for (const challenger of eligibleChallengers.filter((decision) =>
             !usedChallengers.has(decision.symbol) && !this.isObviousRunner(decision),
@@ -2665,6 +2744,8 @@ export class AutoWatchlistSelector {
               continue;
             }
             const reason = `stronger sustained runner over at-risk ${incumbent.symbol}`;
+            const usesLateMainSessionAdmissionReserve =
+              this.replacementCount(bucket) >= this.replacementLimit(bucket);
             if (!await this.replaceManagedDecision(
               challenger,
               incumbent,
@@ -2672,6 +2753,9 @@ export class AutoWatchlistSelector {
               scanStartedAt,
               reason,
             )) continue;
+            if (usesLateMainSessionAdmissionReserve) {
+              this.consumeLateMainSessionAdmissionReserve();
+            }
             this.recordReplacement(
               bucket,
               challenger,
@@ -2687,7 +2771,7 @@ export class AutoWatchlistSelector {
         if (
           this.thresholds.dynamicReplacementEnabled &&
           activeManagedCount >= this.activeSlotLimit(bucket) &&
-          this.replacementCount(bucket) < this.replacementLimit(bucket)
+          this.replacementAdmissionCapacityAvailable(bucket, scanStartedAt)
         ) {
           for (const challenger of eligibleChallengers.filter((decision) =>
             !usedChallengers.has(decision.symbol) && this.isObviousRunner(decision),
@@ -2703,6 +2787,8 @@ export class AutoWatchlistSelector {
               continue;
             }
             const reason = `obvious-runner override over ${incumbent.symbol}`;
+            const usesLateMainSessionAdmissionReserve =
+              this.replacementCount(bucket) >= this.replacementLimit(bucket);
             if (!await this.replaceManagedDecision(
               challenger,
               incumbent,
@@ -2710,6 +2796,9 @@ export class AutoWatchlistSelector {
               scanStartedAt,
               reason,
             )) continue;
+            if (usesLateMainSessionAdmissionReserve) {
+              this.consumeLateMainSessionAdmissionReserve();
+            }
             this.recordReplacement(
               bucket,
               challenger,

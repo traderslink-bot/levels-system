@@ -9225,6 +9225,20 @@ export class ManualWatchlistRuntimeManager {
       this.watchlistStore.setEntries(persistedEntries);
     }
     await this.liveWatchlistPublisher?.replayPending?.();
+    const orphanedAiReadGenerations = this.watchlistStore
+      .getEntries()
+      .filter((entry) => entry.pendingTradersLinkAiReadGeneration);
+    for (const entry of orphanedAiReadGenerations) {
+      this.watchlistStore.patchEntry(entry.symbol, {
+        pendingTradersLinkAiReadGeneration: null,
+      });
+      console.warn(
+        `[TradersLinkAiRead] Cleared interrupted ${entry.symbol} generation after the publish outbox was replayed.`,
+      );
+    }
+    if (orphanedAiReadGenerations.length > 0) {
+      this.persistWatchlist();
+    }
 
     for (const entry of this.watchlistStore.getEntries()) {
       if (entry.lifecycle !== "activating" && entry.lifecycle !== "activation_failed") {
@@ -10047,7 +10061,10 @@ export class ManualWatchlistRuntimeManager {
         { pullbackReadEnabled: this.options.pullbackReadEnabled },
       ),
     );
-    await this.liveWatchlistPublisher.publish(patch);
+    await this.liveWatchlistPublisher.publish({
+      ...patch,
+      firstPostedAt: this.watchlistStore.getEntry(symbol)?.activatedAt ?? timestamp,
+    });
   }
 
   private applyLiveTraderReadCardVisibility(patch: LiveWatchlistCardPatch): LiveWatchlistCardPatch {

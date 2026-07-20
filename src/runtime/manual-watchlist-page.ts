@@ -165,6 +165,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Initial post-market automatic additions per day<input id="auto-selector-max-postmarket-adds" type="number" min="1" max="20" step="1" /></label>
           <label>Main-session automatic replacements per day<input id="auto-selector-max-main-replacements" type="number" min="0" max="50" step="1" /></label>
           <label>Post-market automatic replacements per day<input id="auto-selector-max-postmarket-replacements" type="number" min="0" max="50" step="1" /></label>
+          <label>Late main-session admission reserve<input id="auto-selector-late-main-reserve" type="number" min="0" max="20" step="1" /></label>
+          <label>Late reserve unlock hour ET<input id="auto-selector-late-main-unlock-hour" type="number" min="0" max="23" step="1" /></label>
           <label>Minimum hold after auto add (minutes)<input id="auto-selector-min-hold" type="number" min="0" max="240" step="1" /></label>
           <label>Failed scans before standby<input id="auto-selector-retention-failures" type="number" min="1" max="10" step="1" /></label>
           <label>Normal replacement rank advantage<input id="auto-selector-replacement-margin" type="number" min="0" max="100" step="1" /></label>
@@ -394,6 +396,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       maxPostmarketAddsPerTradingDay: document.getElementById("auto-selector-max-postmarket-adds"),
       maxMainSessionReplacementsPerTradingDay: document.getElementById("auto-selector-max-main-replacements"),
       maxPostmarketReplacementsPerTradingDay: document.getElementById("auto-selector-max-postmarket-replacements"),
+      lateMainSessionAdmissionReserve: document.getElementById("auto-selector-late-main-reserve"),
+      lateMainSessionAdmissionUnlockHourEastern: document.getElementById("auto-selector-late-main-unlock-hour"),
       dynamicReplacementEnabled: document.getElementById("auto-selector-dynamic-replacement"),
       minimumAutoHoldMinutes: document.getElementById("auto-selector-min-hold"),
       retentionFailureScansRequired: document.getElementById("auto-selector-retention-failures"),
@@ -501,6 +505,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       return value >= 1 ? value.toFixed(2) : value.toFixed(4);
     }
 
+    function formatShareVolume(value) {
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+        return "unavailable";
+      }
+      return Math.round(value).toLocaleString() + " shares";
+    }
+
     function providerLabel(value) {
       if (value === "eodhd") {
         return "EODHD";
@@ -571,6 +582,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       appendMetaValue(details, "last snapshot", lastPostText);
       appendMetaValue(details, "last price", lastLiveText);
       appendMetaValue(details, "price", formatNumber(entry.lastPrice));
+      const selectorActivity = entry.selectorSessionActivity;
+      const sessionVolumeLabel = selectorActivity?.session
+        ? lifecycleLabel(selectorActivity.session) + " volume"
+        : "session volume";
+      appendMetaValue(
+        details,
+        sessionVolumeLabel,
+        selectorActivity?.dataAvailable === true
+          ? formatShareVolume(selectorActivity.volume)
+          : "unavailable",
+      );
       appendMetaValue(details, "price age", priceFreshness);
       appendMetaValue(details, "last post", lastThreadPostText);
       appendMetaValue(details, "post type", entry.lastThreadPostKind);
@@ -1080,6 +1102,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("maxPostmarketAddsPerTradingDay", thresholds.maxPostmarketAddsPerTradingDay);
         setAutoSelectorInputValue("maxMainSessionReplacementsPerTradingDay", thresholds.maxMainSessionReplacementsPerTradingDay);
         setAutoSelectorInputValue("maxPostmarketReplacementsPerTradingDay", thresholds.maxPostmarketReplacementsPerTradingDay);
+        setAutoSelectorInputValue("lateMainSessionAdmissionReserve", thresholds.lateMainSessionAdmissionReserve);
+        setAutoSelectorInputValue("lateMainSessionAdmissionUnlockHourEastern", thresholds.lateMainSessionAdmissionUnlockHourEastern);
         setAutoSelectorInputValue("dynamicReplacementEnabled", thresholds.dynamicReplacementEnabled);
         setAutoSelectorInputValue("minimumAutoHoldMinutes", thresholds.minimumAutoHoldMinutes);
         setAutoSelectorInputValue("retentionFailureScansRequired", thresholds.retentionFailureScansRequired);
@@ -1136,6 +1160,14 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
       if (Array.isArray(selector.postmarketAddedToday) && selector.postmarketAddedToday.length > 0) {
         pieces.push("Post-market added today: " + selector.postmarketAddedToday.join(", ") + ".");
+      }
+      if (Number.isFinite(selector.lateMainSessionAdmissionReserveAvailable)) {
+        pieces.push(
+          "Late main-session reserve: " +
+          String(selector.lateMainSessionAdmissionReserveAvailable) + " available, " +
+          String(selector.lateMainSessionAdmissionReserveUsed || 0) + " used; " +
+          (selector.lateMainSessionAdmissionReserveUnlocked ? "unlocked" : "locked") + ".",
+        );
       }
       if (Array.isArray(selector.activeMainSessionSymbols)) {
         pieces.push("Active main auto slots: " + (selector.activeMainSessionSymbols.join(", ") || "none") + ".");
@@ -2014,6 +2046,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         maxPostmarketAddsPerTradingDay: Math.round(readAutoSelectorNumber("maxPostmarketAddsPerTradingDay")),
         maxMainSessionReplacementsPerTradingDay: Math.round(readAutoSelectorNumber("maxMainSessionReplacementsPerTradingDay")),
         maxPostmarketReplacementsPerTradingDay: Math.round(readAutoSelectorNumber("maxPostmarketReplacementsPerTradingDay")),
+        lateMainSessionAdmissionReserve: Math.round(readAutoSelectorNumber("lateMainSessionAdmissionReserve")),
+        lateMainSessionAdmissionUnlockHourEastern: Math.round(readAutoSelectorNumber("lateMainSessionAdmissionUnlockHourEastern")),
         dynamicReplacementEnabled: autoSelectorInputEls.dynamicReplacementEnabled.checked,
         minimumAutoHoldMinutes: Math.round(readAutoSelectorNumber("minimumAutoHoldMinutes")),
         retentionFailureScansRequired: Math.round(readAutoSelectorNumber("retentionFailureScansRequired")),

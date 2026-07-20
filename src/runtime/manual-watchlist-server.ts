@@ -1033,8 +1033,19 @@ async function main(): Promise<void> {
     }
 
     if (request.method === "GET" && url.pathname === "/api/watchlist") {
+      const selectorStatus = autoWatchlistSelector.getStatus();
+      const activityBySymbol = new Map(
+        selectorStatus.recentDecisions.map((decision) => [decision.symbol, {
+          session: decision.session,
+          volume: decision.sessionVolume,
+          dataAvailable: decision.activityDataAvailable,
+        }]),
+      );
       sendJson(response, 200, {
-        activeEntries: manager.getActiveEntries(),
+        activeEntries: manager.getActiveEntries().map((entry) => ({
+          ...entry,
+          selectorSessionActivity: activityBySymbol.get(entry.symbol) ?? null,
+        })),
         startupState,
         startupError,
       });

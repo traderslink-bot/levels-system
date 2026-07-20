@@ -153,6 +153,9 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-visibility/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-refresh/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /tradersLinkAiReadCostLedger\.summarize\(\)/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /selectorSessionActivity/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /formatShareVolume/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /session volume/);
 });
 
 test("manual watchlist admin exposes persisted automatic low-float selection controls", () => {

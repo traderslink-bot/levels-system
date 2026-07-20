@@ -3824,6 +3824,62 @@ test("ManualWatchlistRuntimeManager does not activate a ticker when the website 
   assert.equal(manager.getActiveEntries().some((entry) => entry.symbol === "NOACK"), false);
 });
 
+test("ManualWatchlistRuntimeManager clears an orphaned AI Read generation after startup replay", async () => {
+  const levelStore = new LevelStore();
+  levelStore.setLevels(buildLevelOutput("ORPH"));
+  const persistence = new FakeWatchlistStatePersistence();
+  persistence.storedEntries = [{
+    symbol: "ORPH",
+    active: true,
+    priority: 1,
+    tags: ["manual"],
+    lifecycle: "active",
+    refreshPending: false,
+    lastPrice: 1.25,
+    lastPriceUpdateAt: 1_001,
+    pendingTradersLinkAiReadGeneration: {
+      generationId: "ORPH-interrupted-generation",
+      createdAt: 1_001,
+      trigger: "activation",
+      boundaryState: {
+        generatedAt: 1_000,
+        currentPrice: 1.25,
+        upperBoundary: 1.4,
+        lowerBoundary: 1.1,
+        boundaries: [{
+          role: "mustClear",
+          side: "upside",
+          impact: "improves",
+          price: 1.4,
+        }],
+        lastAutomaticRefreshRegime: null,
+      },
+    },
+  }];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher: new FakeLiveWatchlistPublisher(),
+  });
+
+  await manager.start();
+  try {
+    const restored = (manager as any).watchlistStore.getEntry("ORPH") as WatchlistEntry | undefined;
+    assert.equal(restored?.pendingTradersLinkAiReadGeneration, undefined);
+    assert.equal(
+      persistence.storedEntries[0]?.pendingTradersLinkAiReadGeneration,
+      undefined,
+    );
+  } finally {
+    await manager.stop();
+  }
+});
+
 test("ManualWatchlistRuntimeManager posts stock context into a newly created thread before the level snapshot", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
@@ -3880,6 +3936,13 @@ test("ManualWatchlistRuntimeManager posts stock context into a newly created thr
   assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.messageKind, "stock_context");
   assert.equal(discordAlertRouter.routed[0]?.payload.title, "");
   assert.equal(discordAlertRouter.levelSnapshots.length >= 1, true);
+  const activationWebsiteSnapshot = liveWatchlistPublisher.cardPatches.find(
+    (patch) => patch.cards.nearestSupportResistance,
+  );
+  assert.equal(
+    activationWebsiteSnapshot?.firstPostedAt,
+    manager.getActiveEntries()[0]?.activatedAt,
+  );
 
   monitor.onPriceUpdate?.({
     symbol: "EXMP",

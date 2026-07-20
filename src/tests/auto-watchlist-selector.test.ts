@@ -504,7 +504,7 @@ test("daily automatic-add limit survives a runtime restart", async () => {
     finnhubClient,
     fetchImpl,
     configPath,
-    now: () => Date.parse("2026-07-16T15:00:00Z"),
+    now: () => Date.parse("2026-07-16T12:00:00Z"),
     getActiveSymbols: () => [],
     isRuntimeReady: () => true,
     activateSymbol: async ({ symbol }) => {
@@ -517,6 +517,211 @@ test("daily automatic-add limit survives a runtime restart", async () => {
     const status = await selector.runNow({ activate: true });
     assert.deepEqual(status.addedToday, ["FIRST"]);
     assert.deepEqual(activated, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("the 9:00 ET main-session reserve admits only three late tickers and survives restart", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-late-reserve-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: Date.now(),
+    thresholds: {
+      maxAddsPerTradingDay: 1,
+      lateMainSessionAdmissionReserve: 3,
+      lateMainSessionAdmissionUnlockHourEastern: 9,
+      consecutivePassesRequired: 1,
+      dynamicReplacementEnabled: false,
+      maxActiveMainSessionTickers: 10,
+    },
+    tradingDay: "2026-07-16",
+    mainSessionAddedToday: ["FIRST"],
+  }));
+  let now = Date.parse("2026-07-16T12:59:00Z");
+  let candidateSymbol = "EARLY";
+  const active = new Set<string>();
+  const activated: string[] = [];
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    data: {
+      rows: [{
+        symbol: candidateSymbol,
+        name: `${candidateSymbol} Common Stock`,
+        lastsale: "$2.00",
+        pctchange: "20%",
+        volume: "1000000",
+        marketCap: "30000000",
+      }],
+    },
+  }), { status: 200 });
+  const finnhubClient = {
+    getCompanyProfile: async (symbol: string) => ({
+      ticker: symbol,
+      marketCapitalization: 30,
+      shareOutstanding: 15,
+    }),
+  } as unknown as FinnhubClient;
+  const options = {
+    yahooClient: null,
+    finnhubClient,
+    fetchImpl,
+    configPath,
+    now: () => now,
+    getActiveSymbols: () => [...active],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }: { symbol: string }) => {
+      activated.push(symbol);
+      active.add(symbol);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  };
+  const selector = new AutoWatchlistSelector(options);
+  try {
+    const beforeUnlock = await selector.runNow({ activate: true });
+    assert.deepEqual(activated, []);
+    assert.equal(beforeUnlock.lateMainSessionAdmissionReserveUnlocked, false);
+
+    now = Date.parse("2026-07-16T13:00:00Z");
+    for (const symbol of ["LATE1", "LATE2", "LATE3", "LATE4"]) {
+      candidateSymbol = symbol;
+      await selector.runNow({ activate: true });
+    }
+    const exhausted = selector.getStatus();
+    assert.deepEqual(activated, ["LATE1", "LATE2", "LATE3"]);
+    assert.equal(exhausted.lateMainSessionAdmissionReserveUnlocked, true);
+    assert.equal(exhausted.lateMainSessionAdmissionReserveUsed, 3);
+    assert.equal(exhausted.lateMainSessionAdmissionReserveAvailable, 0);
+
+    selector.stop();
+    candidateSymbol = "LATE5";
+    const restored = new AutoWatchlistSelector(options);
+    try {
+      await restored.runNow({ activate: true });
+      assert.deepEqual(activated, ["LATE1", "LATE2", "LATE3"]);
+      assert.equal(restored.getStatus().lateMainSessionAdmissionReserveUsed, 3);
+    } finally {
+      restored.stop();
+    }
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("the late main-session reserve also extends an exhausted replacement quota", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-late-replacement-"));
+  const configPath = join(directory, "config.json");
+  const now = Date.parse("2026-07-16T13:00:00Z");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: now,
+    thresholds: {
+      maxActiveMainSessionTickers: 1,
+      maxMainSessionReplacementsPerTradingDay: 0,
+      lateMainSessionAdmissionReserve: 3,
+      lateMainSessionAdmissionUnlockHourEastern: 9,
+      consecutivePassesRequired: 1,
+      minimumAutoHoldMinutes: 0,
+      retentionFailureScansRequired: 1,
+    },
+    tradingDay: "2026-07-16",
+    mainSessionAddedToday: ["OLD"],
+    lateMainSessionAdmissionReserveUsed: 2,
+    managedEntries: [{
+      symbol: "OLD",
+      bucket: "main",
+      state: "active",
+      firstAddedAt: now - 60_000,
+      lastActivatedAt: now - 60_000,
+      addedSession: "premarket",
+      lastSession: "premarket",
+      lastRankingScore: 40,
+      lastQualifiedAt: now - 60_000,
+      retentionFailures: 0,
+      standbyAt: null,
+      statusReason: "active before late replacement",
+    }],
+  }));
+  const active = new Set(["OLD"]);
+  const activated: string[] = [];
+  const deactivated: string[] = [];
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    data: {
+      rows: [{
+        symbol: "NEW",
+        name: "New Common Stock",
+        lastsale: "$2.00",
+        pctchange: "20%",
+        volume: "1000000",
+        marketCap: "30000000",
+      }],
+    },
+  }), { status: 200 });
+  const finnhubClient = {
+    getCompanyProfile: async (symbol: string) => ({
+      ticker: symbol,
+      marketCapitalization: 30,
+      shareOutstanding: 15,
+    }),
+  } as unknown as FinnhubClient;
+  const sessionActivityLookup: AutoWatchlistSessionActivityLookup = async (input) =>
+    Object.fromEntries(input.symbols.map((symbol) => [symbol, symbol === "OLD"
+      ? {
+          symbol,
+          session: input.session,
+          price: null,
+          gainPct: null,
+          sessionVolume: null,
+          recent15mVolume: null,
+          recent15mDollarVolume: null,
+          quoteTime: null,
+          quoteAgeMinutes: null,
+          available: false,
+        }
+      : {
+          symbol,
+          session: input.session,
+          price: 2,
+          gainPct: 20,
+          sessionVolume: 1_000_000,
+          recent15mVolume: 100_000,
+          recent15mDollarVolume: 200_000,
+          quoteTime: Math.floor(input.now / 1000),
+          quoteAgeMinutes: 0,
+          available: true,
+        }]));
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient,
+    fetchImpl,
+    configPath,
+    now: () => now,
+    getActiveSymbols: () => [...active],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => {
+      activated.push(symbol);
+      active.add(symbol);
+    },
+    deactivateSymbol: async (symbol) => {
+      deactivated.push(symbol);
+      active.delete(symbol);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup,
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    assert.deepEqual(deactivated, ["OLD"]);
+    assert.deepEqual(activated, ["NEW"]);
+    assert.equal(status.lateMainSessionAdmissionReserveUsed, 3);
+    assert.equal(status.lateMainSessionAdmissionReserveAvailable, 0);
+    assert.equal(status.recentReplacements[0]?.incomingSymbol, "NEW");
+    assert.equal(status.recentReplacements[0]?.outgoingSymbol, "OLD");
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });
