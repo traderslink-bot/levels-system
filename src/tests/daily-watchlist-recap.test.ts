@@ -29,31 +29,42 @@ function ticker(
 }
 
 test("daily recap formatting filters 5 percent, sorts gains, and includes requested fields", () => {
-  const [message] = buildDailyWatchlistRecapMessages("2026-07-20", [
+  const messages = buildDailyWatchlistRecapMessages("2026-07-20", [
     ticker("LOW", 5),
-    ticker("MID", 12, 0.5, 0.56),
+    ticker("FOURTH", 11),
+    ticker("SECOND", 30, 0.5, 0.65),
     ticker("TOP", 40, 1, 1.4),
+    ticker("THIRD", 20),
   ]);
+  const [message] = messages;
 
+  assert.equal(messages.length, 1);
   assert.ok(message);
   assert.match(message, /^@everyone\n/);
-  assert.match(message, /A solid day for the live watchlist alerts/);
+  assert.match(message, /Today's Top Watchlist Alerts/);
+  assert.match(message, /today's strongest gainers/);
   assert.doesNotMatch(message, /LOW/);
-  assert.ok(message.indexOf("TOP") < message.indexOf("MID"));
+  assert.doesNotMatch(message, /FOURTH/);
+  assert.ok(message.indexOf("TOP") < message.indexOf("SECOND"));
+  assert.ok(message.indexOf("SECOND") < message.indexOf("THIRD"));
   assert.match(message, /\*\*TOP — \+40\.00%\*\*/);
   assert.match(message, /Starting price: \$1\.00/);
   assert.match(message, /Highest after added: \$1\.40/);
   assert.match(message, /Starting price: \$0\.5000/);
+});
 
-  const splitMessages = buildDailyWatchlistRecapMessages(
-    "2026-07-20",
-    Array.from({ length: 60 }, (_, index) => ticker(`T${index}`, 100 - index)),
-  );
-  assert.ok(splitMessages.length > 1);
-  assert.match(splitMessages[0] ?? "", /^@everyone\n/);
-  for (const continuation of splitMessages.slice(1)) {
-    assert.doesNotMatch(continuation, /@everyone/);
-  }
+test("daily recap shows one or two tickers when fewer than three qualify", () => {
+  const [twoTickerMessage] = buildDailyWatchlistRecapMessages("2026-07-20", [
+    ticker("ONE", 18),
+    ticker("TWO", 9),
+  ]);
+  assert.match(twoTickerMessage ?? "", /ONE/);
+  assert.match(twoTickerMessage ?? "", /TWO/);
+
+  const [oneTickerMessage] = buildDailyWatchlistRecapMessages("2026-07-20", [
+    ticker("ONLY", 8),
+  ]);
+  assert.match(oneTickerMessage ?? "", /ONLY/);
 });
 
 test("daily recap service posts once during the weekday 3:55 ET window", async () => {
@@ -66,7 +77,13 @@ test("daily recap service posts once during the weekday 3:55 ET window", async (
     if (url.startsWith("https://example.test/api/live-watchlist/recap")) {
       return Response.json({
         date: "2026-07-20",
-        tickers: [ticker("TOP", 40, 1, 1.4), ticker("MID", 12, 0.5, 0.56)],
+        tickers: [
+          ticker("FOURTH", 11),
+          ticker("TOP", 40, 1, 1.4),
+          ticker("SECOND", 30, 0.5, 0.65),
+          ticker("FIFTH", 8),
+          ticker("THIRD", 20),
+        ],
       });
     }
     return Response.json({ id: "discord-message" });
@@ -93,11 +110,15 @@ test("daily recap service posts once during the weekday 3:55 ET window", async (
     allowed_mentions: { parse: string[] };
   };
   assert.match(discordPayload.content, /^@everyone\n/);
+  assert.match(discordPayload.content, /TOP/);
+  assert.match(discordPayload.content, /SECOND/);
+  assert.match(discordPayload.content, /THIRD/);
+  assert.doesNotMatch(discordPayload.content, /FOURTH|FIFTH/);
   assert.deepEqual(discordPayload.allowed_mentions, { parse: ["everyone"] });
   assert.deepEqual(JSON.parse(readFileSync(receiptPath, "utf8")), {
     lastCompletedDate: "2026-07-20",
     completedAt: Date.parse("2026-07-20T19:55:00Z"),
-    postedTickerCount: 2,
+    postedTickerCount: 3,
   });
 });
 
