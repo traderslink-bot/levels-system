@@ -13,6 +13,7 @@ import { DiscordAlertRouter } from "../lib/alerts/alert-router.js";
 import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
 import { LocalDiscordThreadGateway } from "../lib/alerts/local-discord-thread-gateway.js";
 import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import { createDailyWatchlistRecapServiceFromEnv } from "../lib/live-watchlist/daily-watchlist-recap.js";
 import type {
   LiveWatchlistMarketDataStatus,
   LiveWatchlistPublisher,
@@ -651,6 +652,7 @@ async function main(): Promise<void> {
   });
   const levelIntelligenceAlertPreviewDryRun = createLevelIntelligenceAlertPreviewDryRunOptions();
   const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
+  const dailyWatchlistRecapService = createDailyWatchlistRecapServiceFromEnv();
   const tradersLinkAiReadService = createTradersLinkAiReadServiceFromEnv();
   const tradersLinkAiReadCandleFetchService = tradersLinkAiReadService
     ? new CandleFetchService(new YahooHistoricalCandleProvider())
@@ -717,6 +719,7 @@ async function main(): Promise<void> {
     );
     console.log(`[ManualWatchlistRuntime] Live price provider path: ${liveProviderName}`);
     await manager.start();
+    dailyWatchlistRecapService?.start();
     startupState = "ready";
     publishLiveWatchlistHealth({
       publisher: liveWatchlistPublisher,
@@ -867,6 +870,7 @@ async function main(): Promise<void> {
 
     shuttingDown = true;
     clearInterval(liveWatchlistHealthTimer);
+    dailyWatchlistRecapService?.stop();
     await liveWatchlistPublisher?.publishHealth?.({
       type: "health",
       marketDataStatus: "offline",

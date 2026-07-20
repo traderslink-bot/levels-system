@@ -106,6 +106,13 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     });
   }
 
+  async announceTickerAdded(name: string): Promise<void> {
+    await this.postMessage(
+      this.watchlistChannelId,
+      buildWatchlistDiscordLinkMessage(name),
+    );
+  }
+
   async getThreadById(threadId: string): Promise<DiscordThread | null> {
     try {
       const channel = await this.request<DiscordChannelResponse>(`/channels/${threadId}`);
