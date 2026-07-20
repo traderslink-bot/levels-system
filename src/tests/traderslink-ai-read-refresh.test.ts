@@ -74,6 +74,43 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
   });
 
+  it("falls back to the outermost usable mapped levels when targets are missing", () => {
+    const refreshState = buildTradersLinkAiReadRefreshState({
+      generatedAt: GENERATED_AT,
+      currentPrice: 1.6289,
+      breakoutContinuation: {
+        label: "Breakout continuation",
+        price: null,
+        rationale: "No separate continuation level.",
+      },
+      needsToHold: {
+        label: "Needs to hold",
+        price: 1.5,
+        rationale: "The shelf needs to hold.",
+      },
+      cautionBelow: {
+        label: "Caution below",
+        price: 1.4,
+        rationale: "A loss weakens the shelf.",
+      },
+      momentumFailure: {
+        label: "Momentum failure",
+        price: 1.19,
+        rationale: "A loss invalidates the setup.",
+      },
+      mustClear: {
+        label: "Must clear",
+        price: 1.79,
+        rationale: "The pivot needs acceptance.",
+      },
+      targets: [],
+      downsideCheckpoints: [],
+    });
+
+    assert.equal(refreshState.upperBoundary, 1.79);
+    assert.equal(refreshState.lowerBoundary, 1.19);
+  });
+
   it("recovers the same outer boundaries from an already-published AI card", () => {
     const recovered = parseArchivedTradersLinkAiReadRefreshState(JSON.stringify({
       generatedAt: GENERATED_AT,
@@ -132,7 +169,7 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
   });
 
-  it("refreshes immediately when price exits above the outer upside target", () => {
+  it("holds a small upside boundary poke pending instead of refreshing immediately", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: state(),
       currentPrice: 2.01,
@@ -142,13 +179,23 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
 
     assert.deepEqual(decision, {
-      shouldRefresh: true,
+      shouldRefresh: false,
       trigger: "boundary_cross",
       automaticRefreshRegime: "upper:2",
+      pendingBoundaryCross: {
+        regime: "upper:2",
+        direction: "upper",
+        boundary: 2,
+        firstObservedAt: GENERATED_AT + 5 * 60_000,
+        lastObservedAt: GENERATED_AT + 5 * 60_000,
+        observationCount: 1,
+        furthestPrice: 2.01,
+        confirmationBufferPct: 0.01,
+      },
     });
   });
 
-  it("refreshes immediately when price exits below the outer downside checkpoint", () => {
+  it("holds a small downside boundary poke pending instead of refreshing immediately", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: state(1.06),
       currentPrice: 1.04,
@@ -158,9 +205,139 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
 
     assert.deepEqual(decision, {
-      shouldRefresh: true,
+      shouldRefresh: false,
       trigger: "boundary_cross",
       automaticRefreshRegime: "lower:1.05",
+      pendingBoundaryCross: {
+        regime: "lower:1.05",
+        direction: "lower",
+        boundary: 1.05,
+        firstObservedAt: GENERATED_AT + 5 * 60_000,
+        lastObservedAt: GENERATED_AT + 5 * 60_000,
+        observationCount: 1,
+        furthestPrice: 1.04,
+        confirmationBufferPct: 0.01,
+      },
+    });
+  });
+
+  it("confirms a sustained small cross after two observations spanning thirty seconds", () => {
+    const firstObservedAt = GENERATED_AT + 5 * 60_000;
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: {
+        ...state(),
+        pendingAutomaticBoundaryCross: {
+          regime: "upper:2",
+          direction: "upper",
+          boundary: 2,
+          firstObservedAt,
+          lastObservedAt: firstObservedAt,
+          observationCount: 1,
+          furthestPrice: 2.01,
+          confirmationBufferPct: 0.01,
+        },
+      },
+      currentPrice: 2.012,
+      dataAsOf: firstObservedAt + 30_000,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "boundary_cross",
+      automaticRefreshRegime: "upper:2",
+      pendingBoundaryCross: null,
+      confirmedPriorBoundary: {
+        direction: "upper",
+        price: 2,
+        priorPlanGeneratedAt: GENERATED_AT,
+      },
+    });
+  });
+
+  it("cancels a pending cross when price quickly returns inside the prior plan", () => {
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: {
+        ...state(),
+        pendingAutomaticBoundaryCross: {
+          regime: "upper:2",
+          direction: "upper",
+          boundary: 2,
+          firstObservedAt: GENERATED_AT + 5 * 60_000,
+          lastObservedAt: GENERATED_AT + 5 * 60_000,
+          observationCount: 1,
+          furthestPrice: 2.01,
+          confirmationBufferPct: 0.01,
+        },
+      },
+      currentPrice: 1.99,
+      dataAsOf: GENERATED_AT + 5 * 60_000 + 10_000,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+
+    assert.deepEqual(decision, {
+      shouldRefresh: false,
+      trigger: "scheduled",
+      automaticRefreshRegime: null,
+      pendingBoundaryCross: null,
+    });
+  });
+
+  it("refreshes immediately for a decisive excursion beyond the adaptive buffer", () => {
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: state(),
+      currentPrice: 2.1,
+      dataAsOf: GENERATED_AT + 5 * 60_000,
+      force: false,
+      requestedTrigger: "automatic",
+      atrPct: 0.1,
+      tickSize: 0.01,
+    });
+
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "boundary_cross",
+      automaticRefreshRegime: "upper:2",
+      pendingBoundaryCross: null,
+      confirmedPriorBoundary: {
+        direction: "upper",
+        price: 2,
+        priorPlanGeneratedAt: GENERATED_AT,
+      },
+    });
+  });
+
+  it("repairs a persisted null upper boundary from the outermost mapped upside level", () => {
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: {
+        generatedAt: GENERATED_AT,
+        currentPrice: 1.6289,
+        upperBoundary: null,
+        lowerBoundary: 0.698,
+        boundaries: [
+          { role: "mustClear", side: "upside", price: 1.79, impact: "improves" },
+          { role: "momentumFailure", side: "downside", price: 1.19, impact: "invalidates" },
+          { role: "downsideCheckpoint", side: "downside", price: 0.698, impact: "exhausts" },
+        ],
+      },
+      currentPrice: 2.6406,
+      dataAsOf: GENERATED_AT + 5 * 60_000,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "boundary_cross",
+      automaticRefreshRegime: "upper:1.79",
+      pendingBoundaryCross: null,
+      confirmedPriorBoundary: {
+        direction: "upper",
+        price: 1.79,
+        priorPlanGeneratedAt: GENERATED_AT,
+      },
     });
   });
 

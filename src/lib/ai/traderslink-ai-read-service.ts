@@ -102,6 +102,11 @@ export type TradersLinkAiReadGenerationInput = {
   snapshot: LevelSnapshotPayload;
   research: RecentWebsiteArticleLookupResult;
   priceAction: TradersLinkAiReadPriceActionContext;
+  priorPlanBoundary?: {
+    direction: "upper" | "lower";
+    price: number;
+    priorPlanGeneratedAt: number;
+  };
   dataAsOf?: number;
   generationId?: string;
   onAttempt?: (attempt: TradersLinkAiReadAttempt) => void;
@@ -371,6 +376,7 @@ Interpretation contract:
 - Prefer trader-usable zones and psychologically meaningful prices over false precision. For prices at or above $1, use cents unless a finer tick is essential; below $1, use no more than four decimals.
 - The required downside ordering is currentPrice >= needsToHold >= cautionBelow >= momentumFailure. Equal prices are allowed when one tape boundary serves two roles; null is better than inventing a second boundary. For example, never return needsToHold at $3.85 and cautionBelow at $3.95. momentumFailure is the decisive failure level that exposes lower support. mustClear is the first resistance/pivot needed to improve the setup, and breakoutContinuation is the meaningfully higher confirmation pivot that opens the listed targets.
 - targets are ordered upside continuation checkpoints after breakout confirmation. downsideCheckpoints are ordered lower structural areas exposed after momentumFailure. Include the meaningful lower areas a day trader would need if the long thesis fails, such as $1.20 then $1.05; do not bury those prices only in prose. These are scenario checkpoints, not predictions. The final upside target should be above the supplied current price and the final downside checkpoint below it whenever evidence supports a usable mapped range; do not return an already-crossed price as the outer edge of a fresh map.
+- When confirmedPriorPlanBoundary is supplied, price has already confirmed an exit from the prior published map. Build one new plan for the current regime; do not recreate or switch back to the old plan. Preserve that prior boundary as useful retest/reclaim context in the new plan when it remains relevant: an upper exit normally turns the old ceiling into a downside hold/retest reference, while a lower exit normally turns the old floor into an upside reclaim reference. Do not relabel it as the current session high/low or force it into a role contradicted by the new tape.
 - Compare the current-session high with material highs and supply from the immediately preceding regular and after-hours sessions. Do not automatically stop the upside map at today's premarket high when a recent prior-session high remains a practical outer checkpoint, and do not mechanically include an obsolete isolated spike. If the nearer current-session high is the better final target, explain from the tape why the higher prior-session boundary is not presently actionable.
 - Any number described as today's, current, premarket, or session high must exactly match the supplied session summary. A separate breakout-continuation boundary or prior-session resistance must never be relabeled as the current high.
 - The session-phase summary high is authoritative. If a raw five-minute bar contains a higher unconfirmed extended-hours wick, do not relabel that raw wick as the session high.
@@ -395,6 +401,43 @@ Interpretation contract:
 
 function normalizeSymbol(value: string): string {
   return value.trim().toUpperCase();
+}
+
+function applyPriorPlanBoundaryContext(
+  read: ModelRead,
+  priorPlanBoundary: TradersLinkAiReadGenerationInput["priorPlanBoundary"],
+): ModelRead {
+  if (
+    !priorPlanBoundary ||
+    !Number.isFinite(priorPlanBoundary.price) ||
+    priorPlanBoundary.price <= 0
+  ) {
+    return read;
+  }
+  const tolerance = Math.max(priorPlanBoundary.price * 0.005, 0.0001);
+  const mappedPrices = [
+    read.needsToHold.price,
+    read.cautionBelow.price,
+    read.momentumFailure.price,
+    read.mustClear.price,
+    read.breakoutContinuation.price,
+    ...read.targets.map((target) => target.price),
+    ...read.downsideCheckpoints.map((checkpoint) => checkpoint.price),
+  ];
+  if (mappedPrices.some((price) =>
+    typeof price === "number" && Math.abs(price - priorPlanBoundary.price) <= tolerance
+  )) {
+    return read;
+  }
+  const precision = priorPlanBoundary.price < 1 ? 4 : 2;
+  const formattedPrice = priorPlanBoundary.price.toFixed(precision).replace(/\.?0+$/, "");
+  const contextSentence = priorPlanBoundary.direction === "upper"
+    ? `The prior plan boundary near $${formattedPrice} remains the breakout-retest reference; losing it would put the new plan's lower checkpoints back in focus.`
+    : `The prior plan boundary near $${formattedPrice} remains the first reclaim reference; staying below it keeps the former long structure broken.`;
+  return {
+    ...read,
+    riskSummary: [...read.riskSummary.slice(0, 5), contextSentence],
+  };
 }
 
 function normalizeText(value: unknown, fallback: string): string {
@@ -1506,6 +1549,7 @@ function buildRequestBody(args: {
               args.input.priceAction,
               args.dataAsOf,
             ),
+            confirmedPriorPlanBoundary: args.input.priorPlanBoundary ?? null,
             primaryCatalystResearch: compactResearch(args.input.research),
           }),
         }],
@@ -1822,6 +1866,8 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     if (!read) {
       throw validationError ?? new Error("OpenAI returned no valid TradersLink AI Read.");
     }
+
+    read = applyPriorPlanBoundaryContext(read, input.priorPlanBoundary);
 
     const sources = selectPayloadSources(availableSources, read);
     const generatedAt = Date.now();

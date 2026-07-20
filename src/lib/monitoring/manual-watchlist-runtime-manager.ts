@@ -112,6 +112,7 @@ import type {
   RuntimeMarketStructureSnapshot,
   TradersLinkAiReadBoundary,
   TradersLinkAiReadBoundaryState,
+  TradersLinkAiReadPendingBoundaryCross,
   WatchlistEntry,
   WatchlistLifecycleState,
 } from "./monitoring-types.js";
@@ -260,6 +261,11 @@ export type ManualWatchlistRuntimeManagerOptions = {
 };
 
 const TRADERSLINK_AI_READ_AUTOMATIC_SCHEDULE_COALESCE_MS = 250;
+const TRADERSLINK_AI_READ_BOUNDARY_CONFIRMATION_MS = 30_000;
+const TRADERSLINK_AI_READ_MIN_BOUNDARY_BUFFER_PCT = 0.01;
+const TRADERSLINK_AI_READ_MAX_BOUNDARY_BUFFER_PCT = 0.05;
+const TRADERSLINK_AI_READ_ATR_BUFFER_MULTIPLIER = 0.2;
+const TRADERSLINK_AI_READ_TICK_BUFFER_MULTIPLIER = 3;
 const DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 1;
 export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "automatic";
 
@@ -281,14 +287,6 @@ export function buildTradersLinkAiReadRefreshState(
 ): TradersLinkAiReadRefreshState {
   const positivePrice = (price: number | null): number | null =>
     typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
-  const upsidePrices = [
-    read.breakoutContinuation.price,
-    ...read.targets.map((target) => target.price),
-  ].map(positivePrice).filter((price): price is number => price !== null);
-  const downsidePrices = [
-    read.momentumFailure.price,
-    ...read.downsideCheckpoints.map((checkpoint) => checkpoint.price),
-  ].map(positivePrice).filter((price): price is number => price !== null);
   const normalizeBoundary = (
     boundary: Omit<TradersLinkAiReadBoundary, "price"> & { price: number | null },
   ): TradersLinkAiReadBoundary[] => {
@@ -320,6 +318,12 @@ export function buildTradersLinkAiReadRefreshState(
       price: checkpoint.price,
     })),
   ];
+  const upsidePrices = boundaries
+    .filter((boundary) => boundary.side === "upside" && boundary.price > read.currentPrice)
+    .map((boundary) => boundary.price);
+  const downsidePrices = boundaries
+    .filter((boundary) => boundary.side === "downside" && boundary.price < read.currentPrice)
+    .map((boundary) => boundary.price);
   return {
     generatedAt: read.generatedAt,
     currentPrice: read.currentPrice,
@@ -364,13 +368,11 @@ export function parseArchivedTradersLinkAiReadRefreshState(
       !Number.isFinite(parsed.generatedAt) ||
       typeof parsed.currentPrice !== "number" ||
       !Number.isFinite(parsed.currentPrice) ||
-      parsed.currentPrice <= 0 ||
-      typeof breakoutContinuation.price !== "number" ||
-      typeof momentumFailure.price !== "number"
+      parsed.currentPrice <= 0
     ) {
       return null;
     }
-    return buildTradersLinkAiReadRefreshState({
+    const recovered = buildTradersLinkAiReadRefreshState({
       generatedAt: parsed.generatedAt,
       currentPrice: parsed.currentPrice,
       needsToHold: archivedLevel(parsed.needsToHold, "Archived needs-to-hold"),
@@ -381,6 +383,9 @@ export function parseArchivedTradersLinkAiReadRefreshState(
       targets: archivedTargets(targets),
       downsideCheckpoints: archivedTargets(downsideCheckpoints),
     });
+    return recovered.upperBoundary !== null || recovered.lowerBoundary !== null
+      ? recovered
+      : null;
   } catch {
     return null;
   }
@@ -393,10 +398,18 @@ export function decideTradersLinkAiReadRefresh(args: {
   force: boolean;
   requestedTrigger: TradersLinkAiReadRequestedTrigger;
   allowInitialGeneration?: boolean;
+  atrPct?: number | null;
+  tickSize?: number | null;
 }): {
   shouldRefresh: boolean;
   trigger: TradersLinkAiReadCostTrigger;
   automaticRefreshRegime: string | null;
+  pendingBoundaryCross?: TradersLinkAiReadPendingBoundaryCross | null;
+  confirmedPriorBoundary?: {
+    direction: "upper" | "lower";
+    price: number;
+    priorPlanGeneratedAt: number;
+  };
 } {
   const previous = args.previous;
   if (!previous) {
@@ -406,14 +419,28 @@ export function decideTradersLinkAiReadRefresh(args: {
       automaticRefreshRegime: null,
     };
   }
-  const crossedUpperBoundary =
-    previous.upperBoundary !== null &&
-    previous.currentPrice <= previous.upperBoundary &&
-    args.currentPrice > previous.upperBoundary;
-  const crossedLowerBoundary =
-    previous.lowerBoundary !== null &&
-    previous.currentPrice >= previous.lowerBoundary &&
-    args.currentPrice < previous.lowerBoundary;
+  if (args.force) {
+    return {
+      shouldRefresh: true,
+      trigger: args.requestedTrigger === "automatic" ? "boundary_cross" : args.requestedTrigger,
+      automaticRefreshRegime: null,
+    };
+  }
+
+  const mappedUpsidePrices = (previous.boundaries ?? [])
+    .filter((boundary) => boundary.side === "upside" && boundary.price > previous.currentPrice)
+    .map((boundary) => boundary.price);
+  const mappedDownsidePrices = (previous.boundaries ?? [])
+    .filter((boundary) => boundary.side === "downside" && boundary.price < previous.currentPrice)
+    .map((boundary) => boundary.price);
+  const effectiveUpperBoundary = previous.upperBoundary ??
+    (mappedUpsidePrices.length > 0 ? Math.max(...mappedUpsidePrices) : null);
+  const effectiveLowerBoundary = previous.lowerBoundary ??
+    (mappedDownsidePrices.length > 0 ? Math.min(...mappedDownsidePrices) : null);
+  const crossedUpperBoundary = effectiveUpperBoundary !== null &&
+    args.currentPrice > effectiveUpperBoundary;
+  const crossedLowerBoundary = effectiveLowerBoundary !== null &&
+    args.currentPrice < effectiveLowerBoundary;
   const crossedAnalysisBoundary = crossedUpperBoundary || crossedLowerBoundary;
   const trigger: TradersLinkAiReadCostTrigger = args.requestedTrigger === "automatic"
     ? crossedAnalysisBoundary
@@ -423,18 +450,88 @@ export function decideTradersLinkAiReadRefresh(args: {
   const automaticRefreshRegime = args.requestedTrigger === "automatic" &&
     crossedAnalysisBoundary
     ? crossedUpperBoundary
-      ? `upper:${previous.upperBoundary ?? "none"}`
-      : `lower:${previous.lowerBoundary ?? "none"}`
+      ? `upper:${effectiveUpperBoundary ?? "none"}`
+      : `lower:${effectiveLowerBoundary ?? "none"}`
     : null;
   const alreadyServedSameRegime =
-    !args.force &&
     automaticRefreshRegime !== null &&
     previous.lastAutomaticRefreshRegime === automaticRefreshRegime;
+  if (!crossedAnalysisBoundary || automaticRefreshRegime === null) {
+    return {
+      shouldRefresh: false,
+      trigger,
+      automaticRefreshRegime: null,
+      ...(previous.pendingAutomaticBoundaryCross
+        ? { pendingBoundaryCross: null }
+        : {}),
+    };
+  }
+  if (alreadyServedSameRegime) {
+    return {
+      shouldRefresh: false,
+      trigger,
+      automaticRefreshRegime,
+      ...(previous.pendingAutomaticBoundaryCross
+        ? { pendingBoundaryCross: null }
+        : {}),
+    };
+  }
+
+  const direction = crossedUpperBoundary ? "upper" : "lower";
+  const boundary = direction === "upper"
+    ? effectiveUpperBoundary!
+    : effectiveLowerBoundary!;
+  const atrComponent = typeof args.atrPct === "number" &&
+    Number.isFinite(args.atrPct) && args.atrPct > 0
+    ? args.atrPct * TRADERSLINK_AI_READ_ATR_BUFFER_MULTIPLIER
+    : 0;
+  const tickComponent = typeof args.tickSize === "number" &&
+    Number.isFinite(args.tickSize) && args.tickSize > 0
+    ? args.tickSize / boundary * TRADERSLINK_AI_READ_TICK_BUFFER_MULTIPLIER
+    : 0;
+  const confirmationBufferPct = Math.min(
+    TRADERSLINK_AI_READ_MAX_BOUNDARY_BUFFER_PCT,
+    Math.max(TRADERSLINK_AI_READ_MIN_BOUNDARY_BUFFER_PCT, atrComponent, tickComponent),
+  );
+  const excursionPct = Math.abs(args.currentPrice - boundary) / boundary;
+  const existingPending = previous.pendingAutomaticBoundaryCross?.regime === automaticRefreshRegime
+    ? previous.pendingAutomaticBoundaryCross
+    : null;
+  const isNewObservation = !existingPending || args.dataAsOf > existingPending.lastObservedAt;
+  const pendingBoundaryCross: TradersLinkAiReadPendingBoundaryCross = {
+    regime: automaticRefreshRegime,
+    direction,
+    boundary,
+    firstObservedAt: existingPending?.firstObservedAt ?? args.dataAsOf,
+    lastObservedAt: isNewObservation ? args.dataAsOf : existingPending!.lastObservedAt,
+    observationCount: existingPending
+      ? existingPending.observationCount + (isNewObservation ? 1 : 0)
+      : 1,
+    furthestPrice: direction === "upper"
+      ? Math.max(existingPending?.furthestPrice ?? args.currentPrice, args.currentPrice)
+      : Math.min(existingPending?.furthestPrice ?? args.currentPrice, args.currentPrice),
+    confirmationBufferPct: existingPending?.confirmationBufferPct ?? confirmationBufferPct,
+  };
+  const sustainedOutside =
+    pendingBoundaryCross.observationCount >= 2 &&
+    pendingBoundaryCross.lastObservedAt - pendingBoundaryCross.firstObservedAt >=
+      TRADERSLINK_AI_READ_BOUNDARY_CONFIRMATION_MS;
+  const materiallyOutside = excursionPct >= pendingBoundaryCross.confirmationBufferPct;
+  const confirmed = sustainedOutside || materiallyOutside;
   return {
-    shouldRefresh:
-      args.force || ((!alreadyServedSameRegime) && crossedAnalysisBoundary),
+    shouldRefresh: confirmed,
     trigger,
     automaticRefreshRegime,
+    pendingBoundaryCross: confirmed ? null : pendingBoundaryCross,
+    ...(confirmed
+      ? {
+          confirmedPriorBoundary: {
+            direction,
+            price: boundary,
+            priorPlanGeneratedAt: previous.generatedAt,
+          },
+        }
+      : {}),
   };
 }
 
@@ -2918,7 +3015,25 @@ export class ManualWatchlistRuntimeManager {
       force,
       requestedTrigger,
       allowInitialGeneration: !this.aiReadInitialGenerationSuppressedSymbols.has(symbol),
+      atrPct: snapshot.roleFlipContext?.atrPct,
+      tickSize: snapshot.roleFlipContext?.tickSize,
     });
+    if (refreshDecision.pendingBoundaryCross !== undefined) {
+      const previousState = this.aiReadState.get(symbol);
+      if (previousState) {
+        const updatedState = { ...previousState };
+        if (refreshDecision.pendingBoundaryCross === null) {
+          delete updatedState.pendingAutomaticBoundaryCross;
+        } else {
+          updatedState.pendingAutomaticBoundaryCross = refreshDecision.pendingBoundaryCross;
+        }
+        this.aiReadState.set(symbol, updatedState);
+        this.watchlistStore.patchEntry(symbol, {
+          tradersLinkAiReadBoundaryState: updatedState,
+        });
+        this.persistWatchlist();
+      }
+    }
     if (!refreshDecision.shouldRefresh) {
       return null;
     }
@@ -2979,6 +3094,9 @@ export class ManualWatchlistRuntimeManager {
           priceAction,
           dataAsOf,
           generationId,
+          ...(refreshDecision.confirmedPriorBoundary
+            ? { priorPlanBoundary: refreshDecision.confirmedPriorBoundary }
+            : {}),
           onAttempt: (attempt) => {
             this.options.tradersLinkAiReadCostLedger?.recordAttempt({
               attempt,

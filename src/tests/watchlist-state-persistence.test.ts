@@ -40,6 +40,16 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
         boundaries: [
           { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
         ],
+        pendingAutomaticBoundaryCross: {
+          regime: "upper:4.2",
+          direction: "upper",
+          boundary: 4.2,
+          firstObservedAt: 810,
+          lastObservedAt: 840,
+          observationCount: 2,
+          furthestPrice: 4.23,
+          confirmationBufferPct: 0.02,
+        },
         lastAutomaticRefreshRegime: null,
       },
       operationStatus: "monitoring live price",
@@ -75,6 +85,16 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
         boundaries: [
           { role: "momentumFailure", side: "downside", price: 3.77, impact: "invalidates" },
         ],
+        pendingAutomaticBoundaryCross: {
+          regime: "upper:4.2",
+          direction: "upper",
+          boundary: 4.2,
+          firstObservedAt: 810,
+          lastObservedAt: 840,
+          observationCount: 2,
+          furthestPrice: 4.23,
+          confirmationBufferPct: 0.02,
+        },
         lastAutomaticRefreshRegime: null,
       },
       operationStatus: "monitoring live price",

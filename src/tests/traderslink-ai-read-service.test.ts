@@ -399,6 +399,11 @@ describe("OpenAITradersLinkAiReadService", () => {
       snapshot: snapshot(),
       priceAction: priceAction(),
       dataAsOf: DATA_AS_OF,
+      priorPlanBoundary: {
+        direction: "upper",
+        price: 1.42,
+        priorPlanGeneratedAt: DATA_AS_OF - 60_000,
+      },
       research: {
         ticker: "TGHL",
         businessDays: 5,
@@ -486,6 +491,11 @@ describe("OpenAITradersLinkAiReadService", () => {
         supportLevels?: unknown;
         resistanceLevels?: unknown;
       };
+      confirmedPriorPlanBoundary: {
+        direction: "upper" | "lower";
+        price: number;
+        priorPlanGeneratedAt: number;
+      } | null;
       primaryCatalystResearch: { source: string; articles: unknown[] };
     };
     assert.equal(packet.marketPacket.currentPrice, priceAction().intradayCandles.at(-1)!.close);
@@ -499,10 +509,16 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(packet.marketPacket.priceAction.includesRegularHours, true);
     assert.equal(packet.marketPacket.supportLevels, undefined);
     assert.equal(packet.marketPacket.resistanceLevels, undefined);
+    assert.deepEqual(packet.confirmedPriorPlanBoundary, {
+      direction: "upper",
+      price: 1.42,
+      priorPlanGeneratedAt: DATA_AS_OF - 60_000,
+    });
     assert.equal(packet.primaryCatalystResearch.source, "TradersLink press-release/SEC database");
     assert.equal(packet.primaryCatalystResearch.articles.length, 1);
     assert.equal(read.dilutionRisk.canCompanyIssueToday, false);
     assert.equal(read.dilutionRisk.companyIssuance.earliestDate, "2026-07-18");
+    assert.match(read.riskSummary.join(" "), /prior plan boundary near \$1\.42/i);
   });
 
   it("keeps external web research off by default and allows the admin setting to change it", async () => {

@@ -275,6 +275,17 @@ export type TradersLinkAiReadBoundary = {
   impact: TradersLinkAiReadBoundaryImpact;
 };
 
+export type TradersLinkAiReadPendingBoundaryCross = {
+  regime: string;
+  direction: "upper" | "lower";
+  boundary: number;
+  firstObservedAt: number;
+  lastObservedAt: number;
+  observationCount: number;
+  furthestPrice: number;
+  confirmationBufferPct: number;
+};
+
 export type TradersLinkAiReadBoundaryState = {
   generatedAt: number;
   currentPrice: number;
@@ -287,7 +298,12 @@ export type TradersLinkAiReadBoundaryState = {
    */
   boundaries?: TradersLinkAiReadBoundary[];
   /**
-   * The exact automatic range-edge/boundary event already serviced by this map.
+   * A small move outside the map waits here for either a material excursion or
+   * sustained confirmation. Re-entry clears it without buying another read.
+   */
+  pendingAutomaticBoundaryCross?: TradersLinkAiReadPendingBoundaryCross;
+  /**
+   * The exact automatic boundary event already serviced by this map.
    * Keeping it with the published map prevents a stale re-cross from buying a
    * duplicate read after price whipsaws back through an old boundary.
    */
