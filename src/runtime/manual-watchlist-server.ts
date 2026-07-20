@@ -916,6 +916,7 @@ async function main(): Promise<void> {
     isRuntimeReady: () => startupState === "ready" && manager.getRuntimeHealth().isStarted,
     activateSymbol: (input) => manager.queueActivation(input),
     deactivateSymbol: (symbol) => manager.deactivateSymbol(symbol),
+    setSymbolFollowup: (symbol, followup) => manager.setAutoWatchlistFollowup(symbol, followup),
   });
   const liveWatchlistHealthPublisher = liveWatchlistPublisher;
   const liveWatchlistHealthTimer = setInterval(() => {

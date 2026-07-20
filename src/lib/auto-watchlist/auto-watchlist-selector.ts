@@ -29,6 +29,7 @@ import {
 type FetchLike = typeof fetch;
 
 const CONFIG_VERSION = 1;
+const MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS = 3;
 
 export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxMarketCap: 100_000_000,
@@ -216,7 +217,7 @@ export type AutoWatchlistBucket = "main" | "postmarket";
 export type AutoWatchlistManagedEntry = {
   symbol: string;
   bucket: AutoWatchlistBucket;
-  state: "active" | "standby";
+  state: "active" | "followup" | "standby";
   firstAddedAt: number;
   lastActivatedAt: number;
   addedSession: AutoWatchlistSession;
@@ -224,6 +225,8 @@ export type AutoWatchlistManagedEntry = {
   lastRankingScore: number;
   lastQualifiedAt: number | null;
   retentionFailures: number;
+  followupAt?: number | null;
+  vacatedSlotAt?: number | null;
   standbyAt: number | null;
   statusReason: string;
 };
@@ -284,6 +287,7 @@ export type AutoWatchlistSelectorStatus = {
   lateMainSessionAdmissionReserveUnlocked: boolean;
   activeMainSessionSymbols: string[];
   activePostmarketSymbols: string[];
+  followupSymbols: string[];
   pendingReplacementSymbols: string[];
   standbyToday: AutoWatchlistManagedEntry[];
   managedEntries: AutoWatchlistManagedEntry[];
@@ -324,6 +328,7 @@ type AutoWatchlistSelectorOptions = {
     autoSession?: Exclude<AutoWatchlistSession, "closed">;
   }) => Promise<unknown>;
   deactivateSymbol?: (symbol: string) => Promise<unknown>;
+  setSymbolFollowup?: (symbol: string, followup: boolean) => Promise<unknown>;
   getActiveSymbols: () => string[];
   getActiveEntries?: () => AutoWatchlistRuntimeEntry[];
   isRuntimeReady: () => boolean;
@@ -1155,7 +1160,7 @@ function normalizeManagedEntry(value: unknown): AutoWatchlistManagedEntry | null
   if (
     !symbol ||
     (candidate.bucket !== "main" && candidate.bucket !== "postmarket") ||
-    (candidate.state !== "active" && candidate.state !== "standby") ||
+    (candidate.state !== "active" && candidate.state !== "followup" && candidate.state !== "standby") ||
     !isAutoWatchlistSession(candidate.addedSession) ||
     !isAutoWatchlistSession(candidate.lastSession)
   ) {
@@ -1174,6 +1179,8 @@ function normalizeManagedEntry(value: unknown): AutoWatchlistManagedEntry | null
     lastRankingScore: finiteNumber(candidate.lastRankingScore) ?? 0,
     lastQualifiedAt: finiteNumber(candidate.lastQualifiedAt),
     retentionFailures: Math.max(0, Math.floor(finiteNumber(candidate.retentionFailures) ?? 0)),
+    followupAt: finiteNumber(candidate.followupAt),
+    vacatedSlotAt: finiteNumber(candidate.vacatedSlotAt),
     standbyAt: finiteNumber(candidate.standbyAt),
     statusReason: typeof candidate.statusReason === "string" ? candidate.statusReason : "restored",
   };
@@ -1463,6 +1470,7 @@ export class AutoWatchlistSelector {
       ),
       activeMainSessionSymbols: this.managedEntriesFor("main", "active").map((entry) => entry.symbol),
       activePostmarketSymbols: this.managedEntriesFor("postmarket", "active").map((entry) => entry.symbol),
+      followupSymbols: this.managedEntriesFor(undefined, "followup").map((entry) => entry.symbol),
       pendingReplacementSymbols: [
         ...this.pendingReplacementDepartures("main"),
         ...this.pendingReplacementDepartures("postmarket"),
@@ -1529,10 +1537,12 @@ export class AutoWatchlistSelector {
           ? "premarket"
           : "regular";
       const bucket = autoWatchlistBucketForSession(inferredSession);
+      const runtimeFollowup = tags.has("auto-followup");
+      const state = runtimeFollowup || existing?.state === "followup" ? "followup" : "active";
       this.managedEntries.set(runtimeEntry.symbol, {
         symbol: runtimeEntry.symbol,
         bucket,
-        state: "active",
+        state,
         firstAddedAt: existing?.firstAddedAt ?? runtimeEntry.activatedAt ?? timestamp,
         lastActivatedAt: existing?.lastActivatedAt ?? runtimeEntry.activatedAt ?? timestamp,
         addedSession: existing?.addedSession ?? inferredSession,
@@ -1540,13 +1550,17 @@ export class AutoWatchlistSelector {
         lastRankingScore: existing?.lastRankingScore ?? 0,
         lastQualifiedAt: existing?.lastQualifiedAt ?? null,
         retentionFailures: existing?.retentionFailures ?? 0,
+        followupAt: state === "followup" ? existing?.followupAt ?? timestamp : null,
+        vacatedSlotAt: state === "followup" ? existing?.vacatedSlotAt ?? timestamp : null,
         standbyAt: null,
         statusReason: existing?.statusReason ?? "recognized active automatic entry",
       });
     }
     for (const entry of this.managedEntries.values()) {
-      if (entry.state === "active" && !runtimeSymbols.has(entry.symbol)) {
+      if ((entry.state === "active" || entry.state === "followup") && !runtimeSymbols.has(entry.symbol)) {
         entry.state = "standby";
+        entry.followupAt = null;
+        entry.vacatedSlotAt = null;
         entry.standbyAt = timestamp;
         entry.statusReason = "removed outside automatic replacement";
       }
@@ -1586,6 +1600,15 @@ export class AutoWatchlistSelector {
 
   private pendingReplacementDepartures(bucket: AutoWatchlistBucket): AutoWatchlistManagedEntry[] {
     const pendingBySymbol = new Map<string, number>();
+    for (const entry of this.managedEntries.values()) {
+      if (
+        entry.bucket === bucket &&
+        (entry.state === "followup" || entry.state === "standby") &&
+        typeof entry.vacatedSlotAt === "number"
+      ) {
+        pendingBySymbol.set(entry.symbol, entry.vacatedSlotAt);
+      }
+    }
     for (const event of this.replacementHistory) {
       if (event.bucket !== bucket) continue;
       if (event.incomingSymbol === null) {
@@ -1598,7 +1621,7 @@ export class AutoWatchlistSelector {
       .sort((left, right) => left[1] - right[1] || left[0].localeCompare(right[0]))
       .map(([symbol]) => this.managedEntries.get(symbol))
       .filter((entry): entry is AutoWatchlistManagedEntry =>
-        entry?.bucket === bucket && entry.state === "standby",
+        entry?.bucket === bucket && (entry.state === "followup" || entry.state === "standby"),
       )
       .map((entry) => ({ ...entry }));
   }
@@ -1699,11 +1722,67 @@ export class AutoWatchlistSelector {
       lastRankingScore: decision.rankingScore,
       lastQualifiedAt: timestamp,
       retentionFailures: 0,
+      followupAt: null,
+      vacatedSlotAt: null,
       standbyAt: null,
       statusReason: reason,
     });
     this.sessionAddedSet(bucket).add(decision.symbol);
     this.lastAddedSymbols.push(decision.symbol);
+    this.persistConfig();
+    return true;
+  }
+
+  private async moveManagedEntryToFollowup(
+    entry: AutoWatchlistManagedEntry,
+    timestamp: number,
+    reason: string,
+  ): Promise<boolean> {
+    if (!this.options.setSymbolFollowup) return false;
+    try {
+      await this.options.setSymbolFollowup(entry.symbol, true);
+    } catch (error) {
+      this.lastActivationErrors.push({
+        symbol: entry.symbol,
+        error: `automatic follow-up transition failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      return false;
+    }
+    entry.state = "followup";
+    entry.followupAt = timestamp;
+    entry.vacatedSlotAt = timestamp;
+    entry.standbyAt = null;
+    entry.statusReason = reason;
+    this.managedEntries.set(entry.symbol, entry);
+    this.persistConfig();
+    return true;
+  }
+
+  private async promoteManagedFollowupDecision(
+    decision: AutoWatchlistCandidateDecision,
+    entry: AutoWatchlistManagedEntry,
+    timestamp: number,
+  ): Promise<boolean> {
+    if (!this.options.setSymbolFollowup) return false;
+    try {
+      await this.options.setSymbolFollowup(entry.symbol, false);
+    } catch (error) {
+      this.lastActivationErrors.push({
+        symbol: entry.symbol,
+        error: `automatic follow-up promotion failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      return false;
+    }
+    entry.state = "active";
+    entry.lastActivatedAt = timestamp;
+    entry.lastQualifiedAt = timestamp;
+    entry.lastRankingScore = decision.rankingScore;
+    entry.retentionFailures = 0;
+    entry.followupAt = null;
+    entry.vacatedSlotAt = null;
+    entry.standbyAt = null;
+    entry.statusReason = "returned from follow-up after renewed qualification";
+    this.managedEntries.set(entry.symbol, entry);
     this.persistConfig();
     return true;
   }
@@ -1724,6 +1803,7 @@ export class AutoWatchlistSelector {
       return false;
     }
     entry.state = "standby";
+    entry.followupAt = null;
     entry.standbyAt = timestamp;
     entry.statusReason = reason;
     this.managedEntries.set(entry.symbol, entry);
@@ -1736,6 +1816,23 @@ export class AutoWatchlistSelector {
     timestamp: number,
     challengerSymbol: string,
   ): Promise<boolean> {
+    if (entry.state === "active" && this.options.setSymbolFollowup) {
+      try {
+        await this.options.setSymbolFollowup(entry.symbol, false);
+        entry.followupAt = null;
+        entry.vacatedSlotAt = null;
+        entry.standbyAt = null;
+        entry.statusReason = `restored after ${challengerSymbol} failed replacement activation`;
+        this.managedEntries.set(entry.symbol, entry);
+        this.persistConfig();
+        return true;
+      } catch (error) {
+        this.lastActivationErrors.push({
+          symbol: entry.symbol,
+          error: `automatic replacement restore failed: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    }
     try {
       await this.options.activateSymbol({
         symbol: entry.symbol,
@@ -1756,6 +1853,8 @@ export class AutoWatchlistSelector {
 
     entry.state = "active";
     entry.lastActivatedAt = timestamp;
+    entry.followupAt = null;
+    entry.vacatedSlotAt = null;
     entry.standbyAt = null;
     entry.statusReason = `restored after ${challengerSymbol} failed replacement activation`;
     this.managedEntries.set(entry.symbol, entry);
@@ -1771,7 +1870,7 @@ export class AutoWatchlistSelector {
     reason: string,
   ): Promise<boolean> {
     const incumbentBeforeReplacement = { ...incumbent };
-    if (!await this.moveManagedEntryToStandby(
+    if (!await this.moveManagedEntryToFollowup(
       incumbent,
       timestamp,
       `replacement pending for ${challenger.symbol}`,
@@ -1779,7 +1878,18 @@ export class AutoWatchlistSelector {
       return false;
     }
 
-    if (await this.activateManagedDecision(challenger, bucket, timestamp, reason)) {
+    const managedChallenger = this.managedEntries.get(challenger.symbol);
+    const activated = managedChallenger?.state === "followup"
+      ? await this.promoteManagedFollowupDecision(challenger, managedChallenger, timestamp)
+      : await this.activateManagedDecision(challenger, bucket, timestamp, reason);
+    if (activated) {
+      const liveIncumbent = this.managedEntries.get(incumbent.symbol);
+      if (liveIncumbent) {
+        liveIncumbent.vacatedSlotAt = null;
+        liveIncumbent.statusReason = `${liveIncumbent.statusReason}; active slot filled by ${challenger.symbol}`;
+        this.managedEntries.set(liveIncumbent.symbol, liveIncumbent);
+        this.persistConfig();
+      }
       return true;
     }
 
@@ -1809,6 +1919,35 @@ export class AutoWatchlistSelector {
     });
     this.replacementHistory = this.replacementHistory.slice(-50);
     this.persistConfig();
+  }
+
+  private async trimFollowupShelf(timestamp: number): Promise<void> {
+    const tradingDay = easternParts(timestamp).date;
+    const expired = this.managedEntriesFor(undefined, "followup").filter((entry) =>
+      typeof entry.followupAt === "number" && easternParts(entry.followupAt).date !== tradingDay,
+    );
+    for (const entry of expired) {
+      await this.moveManagedEntryToStandby(
+        entry,
+        timestamp,
+        "moved to standby when the prior-session follow-up window expired",
+      );
+    }
+
+    const currentFollowups = this.managedEntriesFor(undefined, "followup")
+      .sort((left, right) =>
+        left.lastRankingScore - right.lastRankingScore ||
+        right.retentionFailures - left.retentionFailures ||
+        (left.followupAt ?? 0) - (right.followupAt ?? 0),
+      );
+    const overflow = Math.max(0, currentFollowups.length - MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS);
+    for (const entry of currentFollowups.slice(0, overflow)) {
+      await this.moveManagedEntryToStandby(
+        entry,
+        timestamp,
+        `moved to standby because the follow-up shelf is capped at ${MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS} tickers`,
+      );
+    }
   }
 
   async previewScan(): Promise<AutoWatchlistSelectorStatus> {
@@ -2492,7 +2631,11 @@ export class AutoWatchlistSelector {
       this.lastScanCandidateCount = discovered.length;
       const enrichmentCandidates = discovered.slice(0, this.thresholds.enrichmentLimit);
       const evaluatedSymbols = new Set(enrichmentCandidates.map((candidate) => candidate.symbol));
-      for (const entry of this.managedEntriesFor(bucket, "active")) {
+      const retainedEntries = [
+        ...this.managedEntriesFor(bucket, "active"),
+        ...this.managedEntriesFor(bucket, "followup"),
+      ];
+      for (const entry of retainedEntries) {
         if (evaluatedSymbols.has(entry.symbol)) continue;
         enrichmentCandidates.push({
           symbol: entry.symbol,
@@ -2502,7 +2645,7 @@ export class AutoWatchlistSelector {
           averageVolume: null,
           marketCap: null,
           quoteTime: null,
-          sourceScreens: ["active_auto_retention_check"],
+          sourceScreens: [entry.state === "followup" ? "followup_auto_retention_check" : "active_auto_retention_check"],
         });
         evaluatedSymbols.add(entry.symbol);
       }
@@ -2593,13 +2736,14 @@ export class AutoWatchlistSelector {
           } else {
             current.retentionFailures += 1;
             if (decision) current.lastRankingScore = decision.rankingScore;
-            current.statusReason = `at risk ${current.retentionFailures}/${this.thresholds.retentionFailureScansRequired}: ${decision?.rejectionReasons.join("; ") || "no current activity evidence"}`;
+            current.statusReason = `retention warning ${current.retentionFailures}/${this.thresholds.retentionFailureScansRequired}: ${decision?.rejectionReasons.join("; ") || "no current activity evidence"}`;
           }
         }
 
         const eligibleChallengers = qualified.filter((decision) => {
           const activeSymbols = new Set(this.options.getActiveSymbols().map(normalizeSymbol));
-          if (activeSymbols.has(decision.symbol)) return false;
+          const managed = this.managedEntries.get(decision.symbol);
+          if (activeSymbols.has(decision.symbol) && managed?.state !== "followup") return false;
           if (!decision.promotionReady) return false;
           const requiredPasses = this.isObviousRunner(decision)
             ? 1
@@ -2625,7 +2769,7 @@ export class AutoWatchlistSelector {
             }
           }
         }
-        const fadedDepartures: AutoWatchlistManagedEntry[] = [];
+        const fadedFollowups: AutoWatchlistManagedEntry[] = [];
         if (this.thresholds.dynamicReplacementEnabled) {
           const faded = this.managedEntriesFor(bucket, "active")
             .filter((entry) =>
@@ -2637,9 +2781,9 @@ export class AutoWatchlistSelector {
               left.lastRankingScore - right.lastRankingScore,
             );
           for (const entry of faded) {
-            const reason = `moved to standby after ${entry.retentionFailures} failed retention scans`;
-            if (await this.moveManagedEntryToStandby(entry, scanStartedAt, reason)) {
-              fadedDepartures.push(entry);
+            const reason = `moved to follow-up after ${entry.retentionFailures} failed retention scans`;
+            if (await this.moveManagedEntryToFollowup(entry, scanStartedAt, reason)) {
+              fadedFollowups.push(entry);
             }
           }
         }
@@ -2647,21 +2791,21 @@ export class AutoWatchlistSelector {
         const pendingDepartures = this.pendingReplacementDepartures(bucket);
         const availableReplacementDepartures = [
           ...pendingDepartures,
-          ...fadedDepartures.filter((departure) =>
+          ...fadedFollowups.filter((departure) =>
             !pendingDepartures.some((pending) => pending.symbol === departure.symbol),
           ),
         ];
-        const newlyFadedSymbols = new Set(fadedDepartures.map((departure) => departure.symbol));
         const usedChallengers = new Set<string>();
         let activeManagedCount = this.managedEntriesFor(bucket, "active").length;
         for (const decision of eligibleChallengers) {
           if (activeManagedCount >= this.activeSlotLimit(bucket)) break;
           const alreadyAdded = this.sessionAddedSet(bucket).has(decision.symbol);
           const departureIndex = availableReplacementDepartures.findIndex(
-            (candidate) => candidate.symbol === decision.symbol,
+            (candidate) => candidate.symbol !== decision.symbol,
           );
-          const resolvedDepartureIndex = departureIndex >= 0 ? departureIndex : 0;
-          const departure = availableReplacementDepartures.splice(resolvedDepartureIndex, 1)[0];
+          const departure = departureIndex >= 0
+            ? availableReplacementDepartures.splice(departureIndex, 1)[0]
+            : undefined;
           const isReplacement = Boolean(departure);
           const normalInitialAdditionLimitReached =
             !alreadyAdded &&
@@ -2677,18 +2821,24 @@ export class AutoWatchlistSelector {
             !this.lateMainSessionAdmissionReserveAvailable(bucket, scanStartedAt)
           ) {
             if (departure) {
-              availableReplacementDepartures.splice(resolvedDepartureIndex, 0, departure);
+              availableReplacementDepartures.splice(departureIndex, 0, departure);
             }
             continue;
           }
+          const managedChallenger = this.managedEntries.get(decision.symbol);
           const reason = departure
             ? `replaced ${departure.symbol} after confirmed fading`
-            : alreadyAdded
-              ? "reactivated from standby after renewed qualification"
-              : "filled an available automatic slot";
-          if (!await this.activateManagedDecision(decision, bucket, scanStartedAt, reason)) {
+            : managedChallenger?.state === "followup"
+              ? "returned from follow-up after renewed qualification"
+              : alreadyAdded
+                ? "reactivated from standby after renewed qualification"
+                : "filled an available automatic slot";
+          const activated = managedChallenger?.state === "followup"
+            ? await this.promoteManagedFollowupDecision(decision, managedChallenger, scanStartedAt)
+            : await this.activateManagedDecision(decision, bucket, scanStartedAt, reason);
+          if (!activated) {
             if (departure) {
-              availableReplacementDepartures.splice(resolvedDepartureIndex, 0, departure);
+              availableReplacementDepartures.splice(departureIndex, 0, departure);
             }
             continue;
           }
@@ -2698,6 +2848,12 @@ export class AutoWatchlistSelector {
           usedChallengers.add(decision.symbol);
           activeManagedCount += 1;
           if (departure) {
+            const liveDeparture = this.managedEntries.get(departure.symbol);
+            if (liveDeparture) {
+              liveDeparture.vacatedSlotAt = null;
+              liveDeparture.statusReason = `${liveDeparture.statusReason}; active slot filled by ${decision.symbol}`;
+              this.managedEntries.set(liveDeparture.symbol, liveDeparture);
+            }
             this.recordReplacement(
               bucket,
               decision,
@@ -2705,18 +2861,8 @@ export class AutoWatchlistSelector {
               scanStartedAt,
               `${decision.symbol} replaced ${departure.symbol}: challenger rank ${decision.rankingScore.toFixed(1)}; incumbent failed retention ${departure.retentionFailures} scans.`,
             );
+            this.persistConfig();
           }
-        }
-        for (const departure of availableReplacementDepartures.filter((entry) =>
-          newlyFadedSymbols.has(entry.symbol),
-        )) {
-          this.recordReplacement(
-            bucket,
-            null,
-            departure,
-            scanStartedAt,
-            `${departure.symbol} moved to standby after ${departure.retentionFailures} failed retention scans; no qualified replacement was admitted.`,
-          );
         }
 
         if (
@@ -2809,6 +2955,7 @@ export class AutoWatchlistSelector {
             break;
           }
         }
+        await this.trimFollowupShelf(scanStartedAt);
         this.persistConfig();
       }
       this.lastScanCompletedAt = this.now();

@@ -84,6 +84,14 @@ function automaticRuntimeEntry(symbol: string): RuntimeEntry {
   };
 }
 
+function setRuntimeFollowup(entries: RuntimeEntry[], symbol: string, followup: boolean): void {
+  const entry = entries.find((candidate) => candidate.symbol === symbol);
+  if (!entry) return;
+  entry.tags = followup
+    ? [...new Set([...entry.tags, "auto-followup"])]
+    : entry.tags.filter((tag) => tag !== "auto-followup");
+}
+
 test("startup migrates both legacy main-session and session-labelled automatic notes", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-legacy-notes-"));
   const activeEntries: RuntimeEntry[] = [
@@ -132,7 +140,7 @@ test("startup migrates both legacy main-session and session-labelled automatic n
   }
 });
 
-test("a faded incumbent moves to standby and frees a full slot for a sustained runner", async () => {
+test("a faded incumbent moves to follow-up and frees a full slot for a sustained runner", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-fade-"));
   const configPath = join(directory, "config.json");
   writeConfig(configPath, {
@@ -195,6 +203,9 @@ test("a faded incumbent moves to standby and frees a full slot for a sustained r
       const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
       if (index >= 0) activeEntries.splice(index, 1);
     },
+    setSymbolFollowup: async (symbol, followup) => {
+      setRuntimeFollowup(activeEntries, symbol, followup);
+    },
     catalystLookup: NO_CATALYST_LOOKUP,
     sessionActivityLookup: activityLookup,
   });
@@ -203,9 +214,9 @@ test("a faded incumbent moves to standby and frees a full slot for a sustained r
     await selector.runNow({ activate: true });
     assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["OLD"]);
     const status = await selector.runNow({ activate: true });
-    assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["NEW"]);
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["OLD", "NEW"]);
     assert.deepEqual(status.activeMainSessionSymbols, ["NEW"]);
-    assert.equal(status.standbyToday.find((entry) => entry.symbol === "OLD")?.state, "standby");
+    assert.deepEqual(status.followupSymbols, ["OLD"]);
     assert.match(status.recentReplacements[0]?.reason ?? "", /NEW replaced OLD/);
   } finally {
     selector.stop();
@@ -275,6 +286,9 @@ test("an unfilled faded slot remains a replacement opening across later scans an
       const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
       if (index >= 0) activeEntries.splice(index, 1);
     },
+    setSymbolFollowup: async (symbol: string, followup: boolean) => {
+      setRuntimeFollowup(activeEntries, symbol, followup);
+    },
     catalystLookup: NO_CATALYST_LOOKUP,
     sessionActivityLookup: activityLookup,
   });
@@ -283,15 +297,17 @@ test("an unfilled faded slot remains a replacement opening across later scans an
     const firstSelector = new AutoWatchlistSelector(options());
     const faded = await firstSelector.runNow({ activate: true });
     firstSelector.stop();
-    assert.equal(activeEntries.length, 0);
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["OLD"]);
+    assert.deepEqual(faded.followupSymbols, ["OLD"]);
     assert.deepEqual(faded.pendingReplacementSymbols, ["OLD"]);
-    assert.equal(faded.recentReplacements[0]?.incomingSymbol, null);
+    assert.equal(faded.recentReplacements.length, 0);
 
     discoverySymbol = "NEW";
     const restartedSelector = new AutoWatchlistSelector(options());
     const replaced = await restartedSelector.runNow({ activate: true });
     restartedSelector.stop();
-    assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["NEW"]);
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["OLD", "NEW"]);
+    assert.deepEqual(replaced.followupSymbols, ["OLD"]);
     assert.deepEqual(replaced.mainSessionAddedToday.sort(), ["NEW", "OLD"]);
     assert.deepEqual(replaced.pendingReplacementSymbols, []);
     assert.equal(replaced.recentReplacements[0]?.incomingSymbol, "NEW");
@@ -384,6 +400,9 @@ test("lowering the automatic slot count retires the weakest excess incumbent", a
       const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
       if (index >= 0) activeEntries.splice(index, 1);
     },
+    setSymbolFollowup: async (symbol, followup) => {
+      setRuntimeFollowup(activeEntries, symbol, followup);
+    },
     catalystLookup: NO_CATALYST_LOOKUP,
     sessionActivityLookup: async ({ symbols: requested, session }) => Object.fromEntries(
       requested.map((symbol) => [symbol, {
@@ -460,6 +479,9 @@ test("an obvious runner replaces a healthy auto incumbent after one scan but lea
       const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
       if (index >= 0) activeEntries.splice(index, 1);
     },
+    setSymbolFollowup: async (symbol, followup) => {
+      setRuntimeFollowup(activeEntries, symbol, followup);
+    },
     catalystLookup: NO_CATALYST_LOOKUP,
     sessionActivityLookup: async ({ symbols, session }) => Object.fromEntries(
       symbols.map((symbol) => [symbol, symbol === "NEW" ? {
@@ -493,8 +515,10 @@ test("an obvious runner replaces a healthy auto incumbent after one scan but lea
   });
   try {
     const status = await selector.runNow({ activate: true });
-    assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["NEW", "PIN"]);
-    assert.equal(maximumConcurrentAutomaticEntries, 1);
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["NEW", "OLD", "PIN"]);
+    assert.deepEqual(status.activeMainSessionSymbols, ["NEW"]);
+    assert.deepEqual(status.followupSymbols, ["OLD"]);
+    assert.equal(maximumConcurrentAutomaticEntries, 2);
     assert.match(status.recentReplacements[0]?.reason ?? "", /obvious runner/);
   } finally {
     selector.stop();
@@ -546,6 +570,9 @@ test("a failed full-slot challenger restores the incumbent without exceeding the
       const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
       if (index >= 0) activeEntries.splice(index, 1);
     },
+    setSymbolFollowup: async (symbol, followup) => {
+      setRuntimeFollowup(activeEntries, symbol, followup);
+    },
     catalystLookup: NO_CATALYST_LOOKUP,
     sessionActivityLookup: async ({ symbols, session }) => Object.fromEntries(
       symbols.map((symbol) => [symbol, symbol === "NEW" ? {
@@ -579,7 +606,7 @@ test("a failed full-slot challenger restores the incumbent without exceeding the
   });
   try {
     const status = await selector.runNow({ activate: true });
-    assert.deepEqual(activationAttempts, ["NEW", "OLD"]);
+    assert.deepEqual(activationAttempts, ["NEW"]);
     assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["OLD"]);
     assert.equal(maximumConcurrentAutomaticEntries, 1);
     assert.deepEqual(status.activeMainSessionSymbols, ["OLD"]);

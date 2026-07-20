@@ -18,6 +18,7 @@ export type LiveWatchlistCardKind =
   | "extendedQuote";
 
 export type LiveWatchlistStatus = "live" | "stale" | "deactivated";
+export type LiveWatchlistSlotState = "active" | "followup";
 export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting";
 export type LiveWatchlistLifecycleStatus =
   | "monitoring"
@@ -48,6 +49,8 @@ export type LiveWatchlistCardPatch = {
   status?: LiveWatchlistStatus;
   updatedAt: number;
   firstPostedAt?: number | null;
+  watchlistSlotState?: LiveWatchlistSlotState;
+  preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
@@ -70,6 +73,7 @@ export type LiveWatchlistTickerDataPatch = {
   updatedAt: number;
   marketDataObservedAt?: number;
   marketDataRevision?: number;
+  watchlistSlotState?: LiveWatchlistSlotState;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
