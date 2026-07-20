@@ -341,6 +341,35 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
   });
 
+  it("carries a crossed prior boundary into an explicit manual refresh", () => {
+    const decision = decideTradersLinkAiReadRefresh({
+      previous: {
+        generatedAt: GENERATED_AT,
+        currentPrice: 1.6289,
+        upperBoundary: null,
+        lowerBoundary: 0.698,
+        boundaries: [
+          { role: "mustClear", side: "upside", price: 1.79, impact: "improves" },
+        ],
+      },
+      currentPrice: 2.9355,
+      dataAsOf: GENERATED_AT + 5 * 60_000,
+      force: true,
+      requestedTrigger: "manual",
+    });
+
+    assert.deepEqual(decision, {
+      shouldRefresh: true,
+      trigger: "manual",
+      automaticRefreshRegime: null,
+      confirmedPriorBoundary: {
+        direction: "upper",
+        price: 1.79,
+        priorPlanGeneratedAt: GENERATED_AT,
+      },
+    });
+  });
+
   it("does not refresh at momentum failure while lower downside checkpoints remain mapped", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: {

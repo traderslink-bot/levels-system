@@ -419,14 +419,6 @@ export function decideTradersLinkAiReadRefresh(args: {
       automaticRefreshRegime: null,
     };
   }
-  if (args.force) {
-    return {
-      shouldRefresh: true,
-      trigger: args.requestedTrigger === "automatic" ? "boundary_cross" : args.requestedTrigger,
-      automaticRefreshRegime: null,
-    };
-  }
-
   const mappedUpsidePrices = (previous.boundaries ?? [])
     .filter((boundary) => boundary.side === "upside" && boundary.price > previous.currentPrice)
     .map((boundary) => boundary.price);
@@ -442,6 +434,28 @@ export function decideTradersLinkAiReadRefresh(args: {
   const crossedLowerBoundary = effectiveLowerBoundary !== null &&
     args.currentPrice < effectiveLowerBoundary;
   const crossedAnalysisBoundary = crossedUpperBoundary || crossedLowerBoundary;
+  if (args.force) {
+    const direction = crossedUpperBoundary ? "upper" : crossedLowerBoundary ? "lower" : null;
+    const boundary = direction === "upper"
+      ? effectiveUpperBoundary
+      : direction === "lower"
+        ? effectiveLowerBoundary
+        : null;
+    return {
+      shouldRefresh: true,
+      trigger: args.requestedTrigger === "automatic" ? "boundary_cross" : args.requestedTrigger,
+      automaticRefreshRegime: null,
+      ...(direction && boundary !== null
+        ? {
+            confirmedPriorBoundary: {
+              direction,
+              price: boundary,
+              priorPlanGeneratedAt: previous.generatedAt,
+            },
+          }
+        : {}),
+    };
+  }
   const trigger: TradersLinkAiReadCostTrigger = args.requestedTrigger === "automatic"
     ? crossedAnalysisBoundary
       ? "boundary_cross"
