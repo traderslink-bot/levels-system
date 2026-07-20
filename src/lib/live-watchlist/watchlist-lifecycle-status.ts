@@ -15,7 +15,7 @@ const LIQUID_VOLUME_LABELS = new Set<LiveWatchlistPullbackVolumeLabel>([
   "normal",
 ]);
 const FADING_VOLUME_LABELS = new Set<LiveWatchlistPullbackVolumeLabel>(["thin", "fading"]);
-const RECOVERY_STRUCTURE_STATES = new Set(["reclaim_confirmed", "higher_lows_intact"]);
+const RECOVERY_ATTEMPT_STRUCTURE_STATES = new Set(["reclaim_attempt", "reclaim_confirmed"]);
 const BROKEN_STRUCTURE_STATES = new Set(["pivot_lost", "trend_damaged", "failed_breakout"]);
 
 export type LiveWatchlistLifecycleEvidence = {
@@ -61,7 +61,7 @@ export function deriveLiveWatchlistLifecycleRead(
   ) {
     return read(
       "monitoring",
-      "Monitoring",
+      "Analysis Pending",
       "Waiting for fresh, reliable 5-minute structure before assigning a lifecycle state.",
       evidence.evaluatedAt,
     );
@@ -78,7 +78,7 @@ export function deriveLiveWatchlistLifecycleRead(
         )
       : read(
           "monitoring",
-          "Monitoring",
+          "Analysis Pending",
           "Momentum has cooled, but a valid structural pullback area is not yet confirmed.",
           evidence.evaluatedAt,
         );
@@ -86,18 +86,24 @@ export function deriveLiveWatchlistLifecycleRead(
 
   if (evidence.phase === "failed_move_risk") {
     const stableState = evidence.stableFiveMinuteState ?? "";
-    const recoveryEvidence = RECOVERY_STRUCTURE_STATES.has(stableState) ||
-      [evidence.tradeSetupState, evidence.tradeSetupStateBeforeBlockers]
-        .some((state) => state === "armed" || state === "forming");
     if (
       mappedSupport &&
-      LIQUID_VOLUME_LABELS.has(evidence.volumeLabel) &&
-      recoveryEvidence
+      LIQUID_VOLUME_LABELS.has(evidence.volumeLabel)
     ) {
+      if (RECOVERY_ATTEMPT_STRUCTURE_STATES.has(stableState)) {
+        return read(
+          "recovery_attempt",
+          "Recovery Attempt",
+          stableState === "reclaim_confirmed"
+            ? "Five-minute structure has confirmed a reclaim, but core VWAP and EMA9 momentum still need to be restored."
+            : "Five-minute structure is attempting a reclaim while mapped support and participation remain usable.",
+          evidence.evaluatedAt,
+        );
+      }
       return read(
         "recovery_watch",
         "Recovery Watch",
-        "The prior momentum structure failed, but participation and base/reclaim evidence remain usable.",
+        "The prior momentum structure failed, but mapped support and participation remain usable while waiting for a five-minute reclaim attempt.",
         evidence.evaluatedAt,
       );
     }
@@ -114,7 +120,7 @@ export function deriveLiveWatchlistLifecycleRead(
     }
     return read(
       "monitoring",
-      "Monitoring",
+      "Analysis Pending",
       "The prior setup is damaged; waiting for either a base-and-reclaim or confirmed participation fade.",
       evidence.evaluatedAt,
     );
@@ -123,15 +129,15 @@ export function deriveLiveWatchlistLifecycleRead(
   if (FADING_VOLUME_LABELS.has(evidence.volumeLabel)) {
     return read(
       "monitoring",
-      "Monitoring",
-      "Price structure remains constructive, but participation is not strong enough for an Active label.",
+      "Analysis Pending",
+      "Price structure remains constructive, but participation is not strong enough for a Momentum Holding label.",
       evidence.evaluatedAt,
     );
   }
 
   return read(
     "active",
-    "Active",
+    "Momentum Holding",
     "Price remains above the core VWAP and EMA9 momentum structure.",
     evidence.evaluatedAt,
   );

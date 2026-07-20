@@ -29,45 +29,71 @@ test("watchlist lifecycle labels remain conservative when evidence is stale or i
     levelMap: levelMap(),
   });
   assert.equal(stale.status, "monitoring");
+  assert.equal(stale.label, "Analysis Pending");
 
-  const damagedButAmbiguous = deriveLiveWatchlistLifecycleRead({
+  const damagedWithoutMappedSupport = deriveLiveWatchlistLifecycleRead({
     evaluatedAt: NOW,
     structureUpdatedAt: NOW,
     phase: "failed_move_risk",
     technicalConfidence: "medium",
     volumeLabel: "normal",
-    levelMap: levelMap(),
+    levelMap: null,
   });
-  assert.equal(damagedButAmbiguous.status, "monitoring");
+  assert.equal(damagedWithoutMappedSupport.status, "monitoring");
+  assert.equal(damagedWithoutMappedSupport.label, "Analysis Pending");
 });
 
-test("watchlist lifecycle labels distinguish active, pullback, recovery, and confirmed fade", () => {
+test("watchlist lifecycle labels distinguish momentum, pullback, recovery watch, recovery attempt, and confirmed fade", () => {
   const base = {
     evaluatedAt: NOW,
     structureUpdatedAt: NOW,
     technicalConfidence: "high" as const,
     levelMap: levelMap(),
   };
-  assert.equal(deriveLiveWatchlistLifecycleRead({
+  const momentumHolding = deriveLiveWatchlistLifecycleRead({
     ...base,
     phase: "continuation_watch",
     volumeLabel: "expanding",
-  }).status, "active");
+  });
+  assert.equal(momentumHolding.status, "active");
+  assert.equal(momentumHolding.label, "Momentum Holding");
   assert.equal(deriveLiveWatchlistLifecycleRead({
     ...base,
     phase: "pullback_forming",
     volumeLabel: "fading",
   }).status, "pullback_watch");
-  assert.equal(deriveLiveWatchlistLifecycleRead({
+  const recoveryWatch = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    phase: "failed_move_risk",
+    volumeLabel: "normal",
+  });
+  assert.equal(recoveryWatch.status, "recovery_watch");
+  assert.equal(recoveryWatch.label, "Recovery Watch");
+  assert.match(recoveryWatch.reason, /waiting for a five-minute reclaim attempt/i);
+  const recoveryAttempt = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    phase: "failed_move_risk",
+    volumeLabel: "normal",
+    stableFiveMinuteState: "reclaim_attempt",
+  });
+  assert.equal(recoveryAttempt.status, "recovery_attempt");
+  assert.equal(recoveryAttempt.label, "Recovery Attempt");
+  assert.match(recoveryAttempt.reason, /attempting a reclaim/i);
+  const confirmedReclaimStillRestoringMomentum = deriveLiveWatchlistLifecycleRead({
     ...base,
     phase: "failed_move_risk",
     volumeLabel: "normal",
     stableFiveMinuteState: "reclaim_confirmed",
-  }).status, "recovery_watch");
-  assert.equal(deriveLiveWatchlistLifecycleRead({
+  });
+  assert.equal(confirmedReclaimStillRestoringMomentum.status, "recovery_attempt");
+  assert.equal(confirmedReclaimStillRestoringMomentum.label, "Recovery Attempt");
+  assert.match(confirmedReclaimStillRestoringMomentum.reason, /momentum still need to be restored/i);
+  const setupFading = deriveLiveWatchlistLifecycleRead({
     ...base,
     phase: "failed_move_risk",
     volumeLabel: "thin",
     stableFiveMinuteState: "trend_damaged",
-  }).status, "setup_fading");
+  });
+  assert.equal(setupFading.status, "setup_fading");
+  assert.equal(setupFading.label, "Setup Fading");
 });

@@ -25,12 +25,13 @@ export type LiveWatchlistLifecycleStatus =
   | "active"
   | "pullback_watch"
   | "recovery_watch"
+  | "recovery_attempt"
   | "setup_fading"
   | "standby";
 
 export type LiveWatchlistLifecycleRead = {
   status: LiveWatchlistLifecycleStatus;
-  label: "Monitoring" | "Active" | "Pullback Watch" | "Recovery Watch" | "Setup Fading" | "Standby";
+  label: "Analysis Pending" | "Momentum Holding" | "Pullback Watch" | "Recovery Watch" | "Recovery Attempt" | "Setup Fading" | "Standby";
   reason: string;
   updatedAt: number;
 };
