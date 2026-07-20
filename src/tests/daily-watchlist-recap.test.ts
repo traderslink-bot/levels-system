@@ -36,6 +36,7 @@ test("daily recap formatting filters 5 percent, sorts gains, and includes reques
   ]);
 
   assert.ok(message);
+  assert.match(message, /^@everyone\n/);
   assert.match(message, /A solid day for the live watchlist alerts/);
   assert.doesNotMatch(message, /LOW/);
   assert.ok(message.indexOf("TOP") < message.indexOf("MID"));
@@ -43,6 +44,16 @@ test("daily recap formatting filters 5 percent, sorts gains, and includes reques
   assert.match(message, /Starting price: \$1\.00/);
   assert.match(message, /Highest after added: \$1\.40/);
   assert.match(message, /Starting price: \$0\.5000/);
+
+  const splitMessages = buildDailyWatchlistRecapMessages(
+    "2026-07-20",
+    Array.from({ length: 60 }, (_, index) => ticker(`T${index}`, 100 - index)),
+  );
+  assert.ok(splitMessages.length > 1);
+  assert.match(splitMessages[0] ?? "", /^@everyone\n/);
+  for (const continuation of splitMessages.slice(1)) {
+    assert.doesNotMatch(continuation, /@everyone/);
+  }
 });
 
 test("daily recap service posts once during the weekday 3:55 ET window", async () => {
@@ -77,6 +88,12 @@ test("daily recap service posts once during the weekday 3:55 ET window", async (
   assert.equal(calls[0]?.init?.headers && (calls[0].init.headers as Record<string, string>).Authorization, "Bearer publisher-token");
   assert.match(calls[1]?.url ?? "", /wait=true/);
   assert.doesNotMatch(JSON.stringify(calls[1]?.init), /publisher-token/);
+  const discordPayload = JSON.parse(String(calls[1]?.init?.body)) as {
+    content: string;
+    allowed_mentions: { parse: string[] };
+  };
+  assert.match(discordPayload.content, /^@everyone\n/);
+  assert.deepEqual(discordPayload.allowed_mentions, { parse: ["everyone"] });
   assert.deepEqual(JSON.parse(readFileSync(receiptPath, "utf8")), {
     lastCompletedDate: "2026-07-20",
     completedAt: Date.parse("2026-07-20T19:55:00Z"),

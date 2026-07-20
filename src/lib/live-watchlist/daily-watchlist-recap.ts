@@ -142,6 +142,7 @@ function recapIntro(dateKey: string, continuation = false): string {
         "More follow-through from tickers alerted to the live watchlist:",
       ].join("\n")
     : [
+        "@everyone",
         `**TradersLink Live Watchlist Recap — ${dateKey}**`,
         "A solid day for the live watchlist alerts. These tickers gained more than 5% after we added them:",
       ].join("\n");
@@ -343,7 +344,7 @@ export class DailyWatchlistRecapService {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             content,
-            allowed_mentions: { parse: [] },
+            allowed_mentions: { parse: ["everyone"] },
           }),
         },
         DISCORD_WEBHOOK_TIMEOUT_MS,
