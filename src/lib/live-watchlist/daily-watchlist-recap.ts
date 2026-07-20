@@ -14,8 +14,8 @@ export const DEFAULT_DAILY_WATCHLIST_RECAP_RECEIPT_FILE = resolve(
 const DEFAULT_POST_MINUTES_EASTERN = 15 * 60 + 55;
 const DEFAULT_CATCH_UP_WINDOW_MINUTES = 20;
 const DEFAULT_POLL_INTERVAL_MS = 30_000;
-const DISCORD_MESSAGE_MAX_LENGTH = 2_000;
 const MINIMUM_GAIN_PCT_EXCLUSIVE = 5;
+const MAX_RECAP_TICKERS = 3;
 const WATCHLIST_RECAP_SOURCE_TIMEOUT_MS = 15_000;
 const DISCORD_WEBHOOK_TIMEOUT_MS = 15_000;
 
@@ -135,49 +135,32 @@ function tickerBlock(ticker: DailyWatchlistRecapTicker): string {
   ].join("\n");
 }
 
-function recapIntro(dateKey: string, continuation = false): string {
-  return continuation
-    ? [
-        `**TradersLink Live Watchlist Recap — ${dateKey} (continued)**`,
-        "More follow-through from tickers alerted to the live watchlist:",
-      ].join("\n")
-    : [
-        "@everyone",
-        `**TradersLink Live Watchlist Recap — ${dateKey}**`,
-        "A solid day for the live watchlist alerts. These tickers gained more than 5% after we added them:",
-      ].join("\n");
+function recapIntro(dateKey: string): string {
+  return [
+    "@everyone",
+    `**Today's Top Watchlist Alerts — ${dateKey}**`,
+    "These were today's strongest gainers after we alerted them to the TradersLink Live Watchlist:",
+  ].join("\n");
 }
 
 export function buildDailyWatchlistRecapMessages(
   dateKey: string,
   tickers: DailyWatchlistRecapTicker[],
 ): string[] {
-  const sorted = tickers
+  const topTickers = tickers
     .map(normalizeTicker)
     .filter((ticker): ticker is DailyWatchlistRecapTicker => Boolean(ticker))
     .sort(
       (left, right) =>
         right.potentialGainPct - left.potentialGainPct ||
         left.symbol.localeCompare(right.symbol),
-    );
-  if (sorted.length === 0) {
+    )
+    .slice(0, MAX_RECAP_TICKERS);
+  if (topTickers.length === 0) {
     return [];
   }
 
-  const messages: string[] = [];
-  let current = recapIntro(dateKey);
-  for (const ticker of sorted) {
-    const block = tickerBlock(ticker);
-    const candidate = `${current}\n\n${block}`;
-    if (candidate.length <= DISCORD_MESSAGE_MAX_LENGTH) {
-      current = candidate;
-      continue;
-    }
-    messages.push(current);
-    current = `${recapIntro(dateKey, true)}\n\n${block}`;
-  }
-  messages.push(current);
-  return messages;
+  return [[recapIntro(dateKey), ...topTickers.map(tickerBlock)].join("\n\n")];
 }
 
 export function deriveDailyWatchlistRecapSourceUrl(ingestUrl: string): string {
@@ -354,13 +337,17 @@ export class DailyWatchlistRecapService {
       }
     }
 
+    const postedTickerCount = Math.min(
+      qualifyingTickers.length,
+      MAX_RECAP_TICKERS,
+    );
     saveReceipt(this.receiptPath, {
       lastCompletedDate: clock.dateKey,
       completedAt: timestamp,
-      postedTickerCount: qualifyingTickers.length,
+      postedTickerCount,
     });
     this.logger.log(
-      `[DailyWatchlistRecap] Posted ${qualifyingTickers.length} ticker(s) for ${clock.dateKey}.`,
+      `[DailyWatchlistRecap] Posted ${postedTickerCount} ticker(s) for ${clock.dateKey}.`,
     );
     return "posted";
   }
