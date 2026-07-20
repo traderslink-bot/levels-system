@@ -34,7 +34,7 @@ function levelMap(): LiveWatchlistLevelMap {
       label: "support",
     }],
     resistanceLevels: [],
-    referenceLevels: [{ key: "hod", label: "HOD", price: 1.1, kind: "session" }],
+    referenceLevels: [{ key: "hod", label: "HOD", price: 1.2, kind: "session" }],
     volatilityContext: {
       atr: 0.03,
       atrPct: 0.03,
@@ -178,7 +178,7 @@ test("Pullback Watch requires a confirmed and meaningful test of a qualified str
     },
   });
   assert.equal(gmmShallowDip.status, "monitoring");
-  assert.match(gmmShallowDip.reason, /not made a meaningful small-cap pullback/i);
+  assert.match(gmmShallowDip.reason, /not yet testing a qualified structural pullback area/i);
 
   const zybtNotAtZone = deriveLiveWatchlistLifecycleRead({
     ...base,
@@ -225,6 +225,56 @@ test("Pullback Watch requires a confirmed and meaningful test of a qualified str
   });
   assert.equal(qualifiedTest.status, "pullback_watch");
   assert.equal(qualifiedTest.label, "Pullback Watch");
+});
+
+test("Pullback Watch rejects a five-percent dip even when ATR and strong support tests pass", () => {
+  const map = levelMap();
+  const strongSupport = {
+    ...map.supportLevels[0]!,
+    price: 0.995,
+    distancePct: -0.005,
+    distanceAtr: 0.25,
+    strengthLabel: "strong" as const,
+    sourceLabel: "daily confluence",
+  };
+  const result = deriveLiveWatchlistLifecycleRead({
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "pullback_forming",
+    technicalConfidence: "high",
+    volumeLabel: "normal",
+    stableFiveMinuteState: "pullback_to_structure",
+    levelMap: {
+      ...map,
+      nearestSupport: strongSupport,
+      supportLevels: [strongSupport],
+      referenceLevels: [{ key: "hod", label: "HOD", price: 1.06, kind: "session" }],
+      volatilityContext: {
+        ...map.volatilityContext!,
+        atr: 0.02,
+      },
+    },
+  });
+  assert.equal(result.status, "monitoring");
+  assert.match(result.reason, /requires at least a 10% HOD reset/i);
+});
+
+test("Pullback Watch requires a deeper HOD reset for ordinary moderate structure", () => {
+  const map = levelMap();
+  const result = deriveLiveWatchlistLifecycleRead({
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "pullback_forming",
+    technicalConfidence: "high",
+    volumeLabel: "normal",
+    stableFiveMinuteState: "pullback_to_structure",
+    levelMap: {
+      ...map,
+      referenceLevels: [{ key: "hod", label: "HOD", price: 1.14, kind: "session" }],
+    },
+  });
+  assert.equal(result.status, "monitoring");
+  assert.match(result.reason, /requires at least a 15% HOD reset/i);
 });
 
 test("Pullback Watch rejects weak or unconfirmed nearby support", () => {

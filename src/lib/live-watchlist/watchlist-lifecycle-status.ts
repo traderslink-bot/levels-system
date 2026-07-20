@@ -10,7 +10,8 @@ import type {
 } from "./pullback-read.js";
 
 const MAX_STRUCTURE_AGE_MS = 20 * 60 * 1_000;
-const MIN_PULLBACK_FROM_HOD_PCT = 0.05;
+const MIN_HIGH_QUALITY_PULLBACK_FROM_HOD_PCT = 0.1;
+const MIN_ORDINARY_PULLBACK_FROM_HOD_PCT = 0.15;
 const MIN_PULLBACK_FROM_HOD_ATR = 2;
 const MAX_PULLBACK_ZONE_DISTANCE_ATR = 0.35;
 const LIQUID_VOLUME_LABELS = new Set<LiveWatchlistPullbackVolumeLabel>([
@@ -71,6 +72,12 @@ function isQualifiedPullbackSupport(level: LiveWatchlistLevelMapLevel): boolean 
   );
 }
 
+function minimumPullbackFromHighPct(level: LiveWatchlistLevelMapLevel): number {
+  return strengthRank(level.strengthLabel) >= strengthRank("strong")
+    ? MIN_HIGH_QUALITY_PULLBACK_FROM_HOD_PCT
+    : MIN_ORDINARY_PULLBACK_FROM_HOD_PCT;
+}
+
 function pullbackQualificationReason(
   levelMap: LiveWatchlistLevelMap | null,
   stableFiveMinuteState: string | null | undefined,
@@ -98,15 +105,6 @@ function pullbackQualificationReason(
     return "Waiting for reliable high-of-day and five-minute ATR context before confirming a pullback area.";
   }
 
-  const retreatFromHighPct = (highOfDay - currentPrice) / highOfDay;
-  const retreatFromHighAtr = (highOfDay - currentPrice) / atr;
-  if (
-    retreatFromHighPct < MIN_PULLBACK_FROM_HOD_PCT ||
-    retreatFromHighAtr < MIN_PULLBACK_FROM_HOD_ATR
-  ) {
-    return "Price has only eased from the high; it has not made a meaningful small-cap pullback yet.";
-  }
-
   const testedSupport = levelMap.supportLevels.find((level) =>
     level.price < currentPrice &&
     typeof level.distanceAtr === "number" &&
@@ -116,6 +114,17 @@ function pullbackQualificationReason(
   );
   if (!testedSupport) {
     return "Price is not yet testing a qualified structural pullback area; nearby support alone is not enough.";
+  }
+
+  const retreatFromHighPct = (highOfDay - currentPrice) / highOfDay;
+  const retreatFromHighAtr = (highOfDay - currentPrice) / atr;
+  const requiredRetreatPct = minimumPullbackFromHighPct(testedSupport);
+  if (
+    retreatFromHighPct < requiredRetreatPct ||
+    retreatFromHighAtr < MIN_PULLBACK_FROM_HOD_ATR
+  ) {
+    const requiredPercent = Math.round(requiredRetreatPct * 100);
+    return `Price has only eased from the high; this pullback area requires at least a ${requiredPercent}% HOD reset plus meaningful ATR distance.`;
   }
   return null;
 }
