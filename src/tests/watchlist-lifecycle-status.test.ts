@@ -10,12 +10,39 @@ function levelMap(): LiveWatchlistLevelMap {
   return {
     currentPrice: 1,
     rangeState: "normal",
-    nearestSupport: { side: "support", price: 0.9, distancePct: 10, label: "support" },
+    nearestSupport: {
+      side: "support",
+      price: 0.99,
+      distancePct: -0.01,
+      distanceAtr: 0.33,
+      atrDistanceState: "inside_normal_noise",
+      strengthLabel: "moderate",
+      sourceLabel: "4h structure",
+      label: "support",
+    },
     nearestResistance: null,
     nextStrongSupport: null,
     nextStrongResistance: null,
-    supportLevels: [{ side: "support", price: 0.9, distancePct: 10, label: "support" }],
+    supportLevels: [{
+      side: "support",
+      price: 0.99,
+      distancePct: -0.01,
+      distanceAtr: 0.33,
+      atrDistanceState: "inside_normal_noise",
+      strengthLabel: "moderate",
+      sourceLabel: "4h structure",
+      label: "support",
+    }],
     resistanceLevels: [],
+    referenceLevels: [{ key: "hod", label: "HOD", price: 1.1, kind: "session" }],
+    volatilityContext: {
+      atr: 0.03,
+      atrPct: 0.03,
+      period: 14,
+      timeframe: "5m",
+      completedCandleCount: 14,
+      reliability: "reliable",
+    },
   };
 }
 
@@ -61,6 +88,7 @@ test("watchlist lifecycle labels distinguish momentum, pullback, recovery watch,
     ...base,
     phase: "pullback_forming",
     volumeLabel: "fading",
+    stableFiveMinuteState: "pullback_to_structure",
   }).status, "pullback_watch");
   const recoveryWatch = deriveLiveWatchlistLifecycleRead({
     ...base,
@@ -96,4 +124,129 @@ test("watchlist lifecycle labels distinguish momentum, pullback, recovery watch,
   });
   assert.equal(setupFading.status, "setup_fading");
   assert.equal(setupFading.label, "Setup Fading");
+});
+
+test("Pullback Watch requires a confirmed and meaningful test of a qualified structural zone", () => {
+  const base = {
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "pullback_forming" as const,
+    technicalConfidence: "high" as const,
+    volumeLabel: "normal" as const,
+  };
+
+  const ema9DipOnly = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    levelMap: levelMap(),
+  });
+  assert.equal(ema9DipOnly.status, "monitoring");
+  assert.match(ema9DipOnly.reason, /confirmed five-minute structure/i);
+
+  const gmmShallowDip = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    stableFiveMinuteState: "pullback_to_structure",
+    levelMap: {
+      ...levelMap(),
+      currentPrice: 4.2189,
+      nearestSupport: {
+        side: "support",
+        price: 4.11,
+        distancePct: -0.0258,
+        distanceAtr: 1.1,
+        strengthLabel: "strong",
+        sourceLabel: "daily confluence",
+        label: "support",
+      },
+      supportLevels: [{
+        side: "support",
+        price: 4.11,
+        distancePct: -0.0258,
+        distanceAtr: 1.1,
+        strengthLabel: "strong",
+        sourceLabel: "daily confluence",
+        label: "support",
+      }],
+      referenceLevels: [{ key: "hod", label: "HOD", price: 4.42, kind: "session" }],
+      volatilityContext: {
+        atr: 0.098993,
+        atrPct: 0.0235,
+        period: 14,
+        timeframe: "5m",
+        completedCandleCount: 14,
+        reliability: "reliable",
+      },
+    },
+  });
+  assert.equal(gmmShallowDip.status, "monitoring");
+  assert.match(gmmShallowDip.reason, /not made a meaningful small-cap pullback/i);
+
+  const zybtNotAtZone = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    stableFiveMinuteState: "pullback_to_structure",
+    levelMap: {
+      ...levelMap(),
+      currentPrice: 3.2987,
+      nearestSupport: {
+        side: "support",
+        price: 3.22,
+        distancePct: -0.0239,
+        distanceAtr: 0.6893,
+        strengthLabel: "moderate",
+        sourceLabel: "daily structure",
+        label: "support",
+      },
+      supportLevels: [{
+        side: "support",
+        price: 3.22,
+        distancePct: -0.0239,
+        distanceAtr: 0.6893,
+        strengthLabel: "moderate",
+        sourceLabel: "daily structure",
+        label: "support",
+      }],
+      referenceLevels: [{ key: "hod", label: "HOD", price: 3.79, kind: "session" }],
+      volatilityContext: {
+        atr: 0.114171,
+        atrPct: 0.0346,
+        period: 14,
+        timeframe: "5m",
+        completedCandleCount: 14,
+        reliability: "reliable",
+      },
+    },
+  });
+  assert.equal(zybtNotAtZone.status, "monitoring");
+  assert.match(zybtNotAtZone.reason, /not yet testing a qualified structural pullback area/i);
+
+  const qualifiedTest = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    stableFiveMinuteState: "pullback_to_structure",
+    levelMap: levelMap(),
+  });
+  assert.equal(qualifiedTest.status, "pullback_watch");
+  assert.equal(qualifiedTest.label, "Pullback Watch");
+});
+
+test("Pullback Watch rejects weak or unconfirmed nearby support", () => {
+  const map = levelMap();
+  const weakSupport = map.supportLevels.map((level) => ({
+    ...level,
+    strengthLabel: "weak" as const,
+    sourceLabel: "fresh intraday",
+  }));
+  const result = deriveLiveWatchlistLifecycleRead({
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "pullback_forming",
+    technicalConfidence: "high",
+    volumeLabel: "normal",
+    stableFiveMinuteState: "pullback_to_structure",
+    levelMap: {
+      ...map,
+      nearestSupport: weakSupport[0] ?? null,
+      supportLevels: weakSupport,
+    },
+  });
+  assert.equal(result.status, "monitoring");
+  assert.match(result.reason, /nearby support alone is not enough/i);
 });

@@ -2,6 +2,7 @@ import type { TechnicalContextConfidence } from "../technical-context/technical-
 import type {
   LiveWatchlistLifecycleRead,
   LiveWatchlistLevelMap,
+  LiveWatchlistLevelMapLevel,
 } from "./live-watchlist-types.js";
 import type {
   LiveWatchlistPullbackReadPhase,
@@ -9,6 +10,9 @@ import type {
 } from "./pullback-read.js";
 
 const MAX_STRUCTURE_AGE_MS = 20 * 60 * 1_000;
+const MIN_PULLBACK_FROM_HOD_PCT = 0.05;
+const MIN_PULLBACK_FROM_HOD_ATR = 2;
+const MAX_PULLBACK_ZONE_DISTANCE_ATR = 0.35;
 const LIQUID_VOLUME_LABELS = new Set<LiveWatchlistPullbackVolumeLabel>([
   "strong",
   "expanding",
@@ -45,6 +49,77 @@ function hasMappedSupport(levelMap: LiveWatchlistLevelMap | null): boolean {
     (levelMap.nearestSupport?.price ?? Number.POSITIVE_INFINITY) < levelMap.currentPrice;
 }
 
+function strengthRank(value: LiveWatchlistLevelMapLevel["strengthLabel"]): number {
+  if (value === "major") return 4;
+  if (value === "strong") return 3;
+  if (value === "moderate") return 2;
+  if (value === "weak") return 1;
+  return 0;
+}
+
+function isQualifiedPullbackSupport(level: LiveWatchlistLevelMapLevel): boolean {
+  if (
+    level.side !== "support" ||
+    level.roleFlipState === "testing" ||
+    strengthRank(level.strengthLabel) < strengthRank("moderate")
+  ) {
+    return false;
+  }
+  return (
+    strengthRank(level.strengthLabel) >= strengthRank("strong") ||
+    /daily|4h|confluence|structure|opening range|session low|gap floor/i.test(level.sourceLabel ?? "")
+  );
+}
+
+function pullbackQualificationReason(
+  levelMap: LiveWatchlistLevelMap | null,
+  stableFiveMinuteState: string | null | undefined,
+): string | null {
+  if (stableFiveMinuteState !== "pullback_to_structure") {
+    return "Momentum has cooled, but confirmed five-minute structure is not yet testing a pullback area.";
+  }
+  if (!levelMap) {
+    return "Momentum has cooled, but a valid structural pullback area is not yet confirmed.";
+  }
+
+  const currentPrice = levelMap.currentPrice;
+  const atr = levelMap.volatilityContext?.atr;
+  const highOfDay = levelMap.referenceLevels?.find((level) => level.key === "hod")?.price;
+  if (
+    !Number.isFinite(currentPrice) ||
+    currentPrice <= 0 ||
+    typeof atr !== "number" ||
+    !Number.isFinite(atr) ||
+    atr <= 0 ||
+    typeof highOfDay !== "number" ||
+    !Number.isFinite(highOfDay) ||
+    highOfDay <= currentPrice
+  ) {
+    return "Waiting for reliable high-of-day and five-minute ATR context before confirming a pullback area.";
+  }
+
+  const retreatFromHighPct = (highOfDay - currentPrice) / highOfDay;
+  const retreatFromHighAtr = (highOfDay - currentPrice) / atr;
+  if (
+    retreatFromHighPct < MIN_PULLBACK_FROM_HOD_PCT ||
+    retreatFromHighAtr < MIN_PULLBACK_FROM_HOD_ATR
+  ) {
+    return "Price has only eased from the high; it has not made a meaningful small-cap pullback yet.";
+  }
+
+  const testedSupport = levelMap.supportLevels.find((level) =>
+    level.price < currentPrice &&
+    typeof level.distanceAtr === "number" &&
+    Number.isFinite(level.distanceAtr) &&
+    level.distanceAtr <= MAX_PULLBACK_ZONE_DISTANCE_ATR &&
+    isQualifiedPullbackSupport(level),
+  );
+  if (!testedSupport) {
+    return "Price is not yet testing a qualified structural pullback area; nearby support alone is not enough.";
+  }
+  return null;
+}
+
 export function deriveLiveWatchlistLifecycleRead(
   evidence: LiveWatchlistLifecycleEvidence,
 ): LiveWatchlistLifecycleRead {
@@ -69,17 +144,16 @@ export function deriveLiveWatchlistLifecycleRead(
 
   const mappedSupport = hasMappedSupport(evidence.levelMap);
   if (evidence.phase === "pullback_forming") {
-    return mappedSupport
-      ? read(
+    const qualificationFailure = pullbackQualificationReason(
+      evidence.levelMap,
+      evidence.stableFiveMinuteState,
+    );
+    return qualificationFailure
+      ? read("monitoring", "Analysis Pending", qualificationFailure, evidence.evaluatedAt)
+      : read(
           "pullback_watch",
           "Pullback Watch",
-          "Momentum has cooled below EMA9 while price is still holding above VWAP and mapped support.",
-          evidence.evaluatedAt,
-        )
-      : read(
-          "monitoring",
-          "Analysis Pending",
-          "Momentum has cooled, but a valid structural pullback area is not yet confirmed.",
+          "A meaningful retreat from the high is testing confirmed five-minute structure at a qualified pullback area.",
           evidence.evaluatedAt,
         );
   }
