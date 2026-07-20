@@ -5,6 +5,7 @@ import type {
   PendingTradersLinkAiReadGeneration,
   TradersLinkAiReadBoundary,
   TradersLinkAiReadBoundaryState,
+  TradersLinkAiReadPendingBoundaryCross,
   WatchlistEntry,
   WatchlistLifecycleState,
   WatchlistTradersLinkAiReadConfidence,
@@ -92,12 +93,59 @@ function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundary
         return [{ role, side, impact, price }];
       })
     : [];
+  const normalizePendingBoundaryCross = (
+    candidate: unknown,
+  ): TradersLinkAiReadPendingBoundaryCross | undefined => {
+    if (!isRecord(candidate)) {
+      return undefined;
+    }
+    const regime = typeof candidate.regime === "string" ? candidate.regime.trim() : "";
+    const direction = candidate.direction;
+    const boundary = normalizeBoundary(candidate.boundary);
+    const firstObservedAt = normalizeOptionalTimestamp(candidate.firstObservedAt);
+    const lastObservedAt = normalizeOptionalTimestamp(candidate.lastObservedAt);
+    const observationCount = normalizeOptionalTimestamp(candidate.observationCount);
+    const furthestPrice = normalizeBoundary(candidate.furthestPrice);
+    const confirmationBufferPct = normalizeOptionalTimestamp(candidate.confirmationBufferPct);
+    if (
+      !regime ||
+      regime.length > 160 ||
+      (direction !== "upper" && direction !== "lower") ||
+      boundary === null ||
+      firstObservedAt === undefined ||
+      lastObservedAt === undefined ||
+      lastObservedAt < firstObservedAt ||
+      observationCount === undefined ||
+      !Number.isInteger(observationCount) ||
+      observationCount < 1 ||
+      furthestPrice === null ||
+      confirmationBufferPct === undefined ||
+      confirmationBufferPct <= 0 ||
+      confirmationBufferPct > 1
+    ) {
+      return undefined;
+    }
+    return {
+      regime,
+      direction,
+      boundary,
+      firstObservedAt,
+      lastObservedAt,
+      observationCount,
+      furthestPrice,
+      confirmationBufferPct,
+    };
+  };
+  const pendingAutomaticBoundaryCross = normalizePendingBoundaryCross(
+    value.pendingAutomaticBoundaryCross,
+  );
   return {
     generatedAt: value.generatedAt,
     currentPrice: value.currentPrice,
     upperBoundary: normalizeBoundary(value.upperBoundary),
     lowerBoundary: normalizeBoundary(value.lowerBoundary),
     ...(boundaries.length > 0 ? { boundaries } : {}),
+    ...(pendingAutomaticBoundaryCross ? { pendingAutomaticBoundaryCross } : {}),
     lastAutomaticRefreshRegime:
       typeof value.lastAutomaticRefreshRegime === "string" &&
       value.lastAutomaticRefreshRegime.length > 0 &&
