@@ -10,6 +10,7 @@ import {
   buildTradersLinkAiCompletedSessionWindow,
   buildTradersLinkAiPriceActionPacket,
   mergeTradersLinkAiIntradayCandles,
+  resolveTradersLinkAiCurrentPremarketHigh,
   resolveTradersLinkAiReadReferenceQuote,
   type TradersLinkAiReadPriceActionContext,
 } from "../lib/ai/traderslink-ai-read-price-action.js";
@@ -276,6 +277,75 @@ describe("TradersLink AI price-action volume quality", () => {
     );
     assert.ok(affectedSession);
     assert.equal(affectedSession.volume, null);
+  });
+
+  it("does not promote unreported NXXT or VMAR Yahoo opening wicks to the premarket session high", () => {
+    const context = premarketPriceAction();
+    const first = context.intradayCandles[0]!;
+    const second = context.intradayCandles[1]!;
+    first.open = 0.345;
+    first.high = 0.3658;
+    first.low = 0.316;
+    first.close = 0.3209;
+    first.volume = 0;
+    second.open = 0.3209;
+    second.high = 0.3633;
+    second.low = 0.3209;
+    second.close = 0.3367;
+    second.volume = 0;
+    for (const candle of context.intradayCandles) {
+      candle.volume = 0;
+    }
+
+    const packet = buildTradersLinkAiPriceActionPacket(
+      context,
+      context.intradayCandles.at(-1)!.close,
+      PREMARKET_DATA_AS_OF,
+    ) as { sessionPhaseSummaries: Array<{ session: string; high: number }> };
+    const premarket = packet.sessionPhaseSummaries.find((summary) => summary.session === "premarket");
+
+    assert.equal(premarket?.high, 0.3469);
+    assert.equal(
+      resolveTradersLinkAiCurrentPremarketHigh(context.intradayCandles, PREMARKET_DATA_AS_OF),
+      0.3469,
+    );
+
+    const vmar = premarketPriceAction();
+    for (const candle of vmar.intradayCandles) {
+      candle.open = 1.08;
+      candle.high = 1.1;
+      candle.low = 1.03;
+      candle.close = 1.07;
+      candle.volume = 0;
+    }
+    Object.assign(vmar.intradayCandles[0]!, {
+      open: 1.11,
+      high: 1.23,
+      low: 1.0201,
+      close: 1.0698,
+    });
+    Object.assign(vmar.intradayCandles[1]!, {
+      open: 1.0602,
+      high: 1.2,
+      low: 1.06,
+      close: 1.0902,
+    });
+    Object.assign(vmar.intradayCandles[10]!, {
+      open: 1.1011,
+      high: 1.16,
+      low: 1.07,
+      close: 1.15,
+    });
+    Object.assign(vmar.intradayCandles[11]!, {
+      open: 1.1598,
+      high: 1.16,
+      low: 1.1,
+      close: 1.13,
+    });
+    assert.equal(
+      resolveTradersLinkAiCurrentPremarketHigh(vmar.intradayCandles, PREMARKET_DATA_AS_OF),
+      1.16,
+    );
   });
 });
 

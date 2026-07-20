@@ -4,6 +4,7 @@ import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-c
 const RECENT_INTRADAY_BAR_LIMIT = 120;
 const RECENT_DAILY_BAR_LIMIT = 30;
 const VOLUME_LANDMARK_LIMIT = 8;
+const UNREPORTED_EXTENDED_WICK_CONFIRMATION_PCT = 0.03;
 
 export type TradersLinkAiReadPriceActionContext = {
   source: string;
@@ -137,6 +138,42 @@ function compactIntradayBar(candle: Candle): CompactPriceActionBar {
   };
 }
 
+function sessionSummaryHigh(bars: CompactPriceActionBar[]): number {
+  const rawHigh = Math.max(...bars.map((bar) => bar.high));
+  const isExtendedSession = bars[0]?.session === "premarket" || bars[0]?.session === "after_hours";
+  const hasReportedVolume = bars.some((bar) => bar.volume !== null);
+  if (!isExtendedSession || hasReportedVolume) {
+    return rawHigh;
+  }
+
+  // Yahoo commonly supplies extended-hours OHLC with zero-volume placeholders.
+  // Do not let an uncorroborated opening wick become the published session high.
+  // Keep the highest bar whose high stayed close to a traded bar body instead.
+  const highestBodyPrice = Math.max(...bars.flatMap((bar) => [bar.open, bar.close]));
+  const maximumConfirmedHigh = highestBodyPrice * (1 + UNREPORTED_EXTENDED_WICK_CONFIRMATION_PCT);
+  const confirmedHighs = bars
+    .map((bar) => bar.high)
+    .filter((high) => high <= maximumConfirmedHigh);
+  return confirmedHighs.length > 0 ? Math.max(...confirmedHighs) : highestBodyPrice;
+}
+
+export function resolveTradersLinkAiCurrentPremarketHigh(
+  candles: Candle[],
+  dataAsOf: number,
+): number | null {
+  const current = classifyIntradayCandleTimestamp(dataAsOf);
+  if (current.session !== "premarket") {
+    return null;
+  }
+  const bars = normalizeCandles(candles, dataAsOf)
+    .filter((candle) => {
+      const classified = classifyIntradayCandleTimestamp(candle.timestamp);
+      return classified.sessionDate === current.sessionDate && classified.session === "premarket";
+    })
+    .map(compactIntradayBar);
+  return bars.length > 0 ? roundPrice(sessionSummaryHigh(bars)) : null;
+}
+
 function summarizeSessionPhases(candles: Candle[]): SessionPhaseSummary[] {
   const grouped = new Map<string, CompactPriceActionBar[]>();
   for (const candle of candles) {
@@ -161,7 +198,7 @@ function summarizeSessionPhases(candles: Candle[]): SessionPhaseSummary[] {
       sessionDate: bars[0]!.sessionDate,
       session: bars[0]!.session,
       open: bars[0]!.open,
-      high: roundPrice(Math.max(...bars.map((bar) => bar.high))),
+      high: roundPrice(sessionSummaryHigh(bars)),
       low: roundPrice(Math.min(...bars.map((bar) => bar.low))),
       close: bars.at(-1)!.close,
       volume,

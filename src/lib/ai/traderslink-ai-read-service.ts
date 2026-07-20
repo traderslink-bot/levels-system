@@ -3,6 +3,7 @@ import type { RecentWebsiteArticleLookupResult } from "../live-watchlist/recent-
 import {
   buildTradersLinkAiPriceActionPacket,
   hasUsableTradersLinkAiPriceAction,
+  resolveTradersLinkAiCurrentPremarketHigh,
   resolveTradersLinkAiReadReferenceQuote,
   type TradersLinkAiReadPriceActionContext,
 } from "./traderslink-ai-read-price-action.js";
@@ -20,7 +21,6 @@ import type {
   TradersLinkAiReadTarget,
   TradersLinkAiReadUsage,
 } from "../live-watchlist/live-watchlist-types.js";
-import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-classifier.js";
 import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 
 // Terra is the verified primary for production tactical reads. Luna remains the
@@ -373,6 +373,7 @@ Interpretation contract:
 - targets are ordered upside continuation checkpoints after breakout confirmation. downsideCheckpoints are ordered lower structural areas exposed after momentumFailure. Include the meaningful lower areas a day trader would need if the long thesis fails, such as $1.20 then $1.05; do not bury those prices only in prose. These are scenario checkpoints, not predictions. The final upside target should be above the supplied current price and the final downside checkpoint below it whenever evidence supports a usable mapped range; do not return an already-crossed price as the outer edge of a fresh map.
 - Compare the current-session high with material highs and supply from the immediately preceding regular and after-hours sessions. Do not automatically stop the upside map at today's premarket high when a recent prior-session high remains a practical outer checkpoint, and do not mechanically include an obsolete isolated spike. If the nearer current-session high is the better final target, explain from the tape why the higher prior-session boundary is not presently actionable.
 - Any number described as today's, current, premarket, or session high must exactly match the supplied session summary. A separate breakout-continuation boundary or prior-session resistance must never be relabeled as the current high.
+- The session-phase summary high is authoritative. If a raw five-minute bar contains a higher unconfirmed extended-hours wick, do not relabel that raw wick as the session high.
 - Distinguish a real catalyst from catalyst-free momentum. Do not treat an announced transaction valuation as guaranteed value for current shares.
 - Separate Catalyst Reality Check, Dilution Risk, and Listing Status. Every material factual claim in those three objects must include the exact URL of at least one source actually used. The supplied database records include a source excerpt/title, publication metadata, retrieval time, and a limited-window supersession status: never claim facts beyond that record's explicit excerpt/title. If evidence is absent, mark it unverified or unknown instead of filling gaps.
 - For dilution research, prioritize current official SEC filings and issuer releases. Check, when relevant, recent 424B prospectuses, S-1/F-1 and S-3/F-3 registrations, EFFECT notices, 8-K/6-K reports, ATM or equity-line agreements, warrant and convertible terms, shareholder approvals, and merger closing conditions.
@@ -807,17 +808,7 @@ function currentPremarketHigh(
   priceAction: TradersLinkAiReadPriceActionContext,
   dataAsOf: number,
 ): number | null {
-  const current = classifyIntradayCandleTimestamp(dataAsOf);
-  if (current.session !== "premarket") {
-    return null;
-  }
-  const premarketCandles = priceAction.intradayCandles.filter((candle) => {
-    const classified = classifyIntradayCandleTimestamp(candle.timestamp);
-    return classified.sessionDate === current.sessionDate && classified.session === "premarket";
-  });
-  return premarketCandles.length > 0
-    ? Math.max(...premarketCandles.map((candle) => candle.high))
-    : null;
+  return resolveTradersLinkAiCurrentPremarketHigh(priceAction.intradayCandles, dataAsOf);
 }
 
 function claimedCurrentPremarketHigh(text: string): number | null {

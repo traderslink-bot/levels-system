@@ -79,6 +79,42 @@ test("auto selector strongly favors known low float and rejects oversized share 
   assert.match(tooLarge.rejectionReasons.join(" "), /shares outstanding must be at most 60M/);
 });
 
+test("auto selector does not admit a SKYQ-like low-float ticker on a roughly 5% premarket move", () => {
+  const decision = scoreAutoWatchlistCandidate({
+    candidate: {
+      symbol: "SKYQ",
+      price: 4.0185,
+      gainPct: 5.75,
+      volume: 219_144,
+      averageVolume: null,
+      marketCap: 18_219_654,
+      quoteTime: 1_784_552_040,
+      sourceScreens: ["live_exchange_gainers", "live_exchange_premarket_activity"],
+    },
+    finnhubFloatShares: 4_140_000,
+    finnhubSharesOutstanding: 4_790_000,
+    session: "premarket",
+    activity: {
+      symbol: "SKYQ",
+      session: "premarket",
+      price: 4.0185,
+      gainPct: 5.75,
+      sessionVolume: 219_144,
+      sessionDollarVolume: 854_902,
+      recent15mVolume: 33_886,
+      recent15mDollarVolume: 134_752,
+      sessionElapsedMinutes: 294,
+      volumeAcceleration: 3.4,
+      quoteTime: 1_784_552_040,
+      quoteAgeMinutes: 0.8,
+      available: true,
+    },
+  });
+
+  assert.equal(decision.qualified, false);
+  assert.match(decision.rejectionReasons.join(" "), /gain must be at least 10%/i);
+});
+
 test("auto selector falls back to Finnhub float only when Yahoo float is unavailable", () => {
   const candidate = {
     ...BASE_CANDIDATE,
@@ -1080,7 +1116,7 @@ test("postmarket promotion holds a marginal pop even when acceleration would qua
     } as unknown as FinnhubClient,
     fetchImpl,
     configPath: join(directory, "config.json"),
-    thresholds: { extendedSessionCandidateLimit: 1, enrichmentLimit: 1 },
+    thresholds: { extendedSessionCandidateLimit: 1, enrichmentLimit: 1, minGainPct: 5 },
     now: () => Date.parse("2026-07-17T22:30:00Z"),
     getActiveSymbols: () => [...activated],
     isRuntimeReady: () => true,

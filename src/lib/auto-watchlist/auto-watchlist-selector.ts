@@ -40,7 +40,7 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   requireShareData: true,
   minPrice: 0.25,
   maxPrice: 20,
-  minGainPct: 5,
+  minGainPct: 10,
   minVolume: 100_000,
   minDollarVolume: 250_000,
   minimumScore: 50,
