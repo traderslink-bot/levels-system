@@ -747,13 +747,15 @@ test("the late main-session reserve also extends an exhausted replacement quota"
       deactivated.push(symbol);
       active.delete(symbol);
     },
+    setSymbolFollowup: async () => undefined,
     catalystLookup: NO_CATALYST_LOOKUP,
     sessionActivityLookup,
   });
   try {
     const status = await selector.runNow({ activate: true });
-    assert.deepEqual(deactivated, ["OLD"]);
+    assert.deepEqual(deactivated, []);
     assert.deepEqual(activated, ["NEW"]);
+    assert.deepEqual(status.followupSymbols, ["OLD"]);
     assert.equal(status.lateMainSessionAdmissionReserveUsed, 3);
     assert.equal(status.lateMainSessionAdmissionReserveAvailable, 0);
     assert.equal(status.recentReplacements[0]?.incomingSymbol, "NEW");

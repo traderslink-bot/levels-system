@@ -2219,8 +2219,10 @@ test("ManualWatchlistRuntimeManager reuses entries on reactivation and does not 
 
   await manager.start();
   await manager.activateSymbol({ symbol: "albt", note: "first pass" });
+  await waitForAsyncWork();
   await manager.deactivateSymbol("ALBT");
   await manager.activateSymbol({ symbol: "ALBT" });
+  await waitForAsyncWork();
 
   assert.equal(manager.getActiveEntries().length, 1);
   assert.deepEqual(manager.getActiveEntries()[0], {
@@ -2240,7 +2242,7 @@ test("ManualWatchlistRuntimeManager reuses entries on reactivation and does not 
   });
   assert.equal(discordAlertRouter.ensured.length, 2);
   assert.equal(discordAlertRouter.ensured[1]?.storedThreadId, "thread-ALBT");
-  assert.equal(discordAlertRouter.levelSnapshots.length, 2);
+  assert.equal(discordAlertRouter.levelSnapshots.length, 1);
 });
 
 test("ManualWatchlistRuntimeManager treats adding an already-active ticker as an idempotent no-op", async () => {
@@ -2348,6 +2350,9 @@ test("ManualWatchlistRuntimeManager automatically generates an AI clean read aft
     symbol: "albt",
     note: "Only trust a clean read if volume expands.",
   });
+  await waitForAsyncWork();
+  await manager.deactivateSymbol("ALBT");
+  await manager.activateSymbol({ symbol: "ALBT" });
   await waitForAsyncWork();
 
   assert.equal(cleanReadInputs.length, 1);
@@ -2715,6 +2720,42 @@ test("ManualWatchlistRuntimeManager keeps lifecycle labels operator-controlled a
   assert.equal(hidden.visible, false);
   assert.equal(liveWatchlistPublisher.cardPatches[0]?.watchlistLifecycleLabelsVisible, false);
   assert.equal(watchlistStore.getEntry("LABEL")?.active, true);
+});
+
+test("ManualWatchlistRuntimeManager moves automatic tickers through follow-up without deactivating them", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({
+    symbol: "FOLLOW",
+    tags: ["auto", "auto-main"],
+    active: true,
+    lifecycle: "active",
+    activatedAt: 1000,
+  });
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+  });
+
+  const followup = await manager.setAutoWatchlistFollowup("FOLLOW", true);
+  assert.equal(followup.active, true);
+  assert.equal(followup.tags.includes("auto-followup"), true);
+  assert.equal(followup.operationStatus, "follow-up monitoring");
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.watchlistSlotState, "followup");
+
+  liveWatchlistPublisher.cardPatches = [];
+  const promoted = await manager.setAutoWatchlistFollowup("FOLLOW", false);
+  assert.equal(promoted.active, true);
+  assert.equal(promoted.tags.includes("auto-followup"), false);
+  assert.equal(promoted.operationStatus, "monitoring live price");
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.watchlistSlotState, "active");
 });
 
 test("ManualWatchlistRuntimeManager refreshes live trader read from same-day catalyst card context", async () => {
@@ -4089,7 +4130,7 @@ test("ManualWatchlistRuntimeManager preserves the source observation time when p
   assert.equal(patch?.marketDataRevision, observationTime * 1_000);
 });
 
-test("ManualWatchlistRuntimeManager posts stock context when reactivating a reused thread", async () => {
+test("ManualWatchlistRuntimeManager reuses same-day stock context when reactivating a thread", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const persistence = new FakeWatchlistStatePersistence();
@@ -4146,8 +4187,8 @@ test("ManualWatchlistRuntimeManager posts stock context when reactivating a reus
   const stockContextPosts = discordAlertRouter.routed.filter(
     (item) => item.payload.metadata?.messageKind === "stock_context",
   );
-  assert.equal(previewCalls, 2);
-  assert.equal(stockContextPosts.length, 2);
+  assert.equal(previewCalls, 1);
+  assert.equal(stockContextPosts.length, 1);
   assert.equal(discordAlertRouter.ensured[1]?.storedThreadId, "thread-EXMP");
   assert.equal(discordAlertRouter.ensured[1]?.symbol, "EXMP");
 });

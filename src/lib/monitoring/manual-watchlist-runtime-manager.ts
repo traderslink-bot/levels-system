@@ -486,7 +486,14 @@ export type ManualWatchlistActivationInput = {
   note?: string;
   source?: "manual" | "auto";
   autoSession?: "premarket" | "regular" | "postmarket";
+  reuseExistingSameDayContext?: boolean;
+  preservedActivatedAt?: number;
 };
+
+function isSameNewYorkTradingDate(left: number | undefined, right: number): boolean {
+  return typeof left === "number" &&
+    newYorkDateKeyForTimestamp(left) === newYorkDateKeyForTimestamp(right);
+}
 
 function watchlistTagsForActivation(input: ManualWatchlistActivationInput): string[] {
   if (input.source !== "auto") {
@@ -3728,6 +3735,33 @@ export class ManualWatchlistRuntimeManager {
     });
     this.activeSnapshotState.set(symbol, {
       lastSnapshot: snapshotKey,
+      highestResistance: payload.resistanceZones.at(-1)?.representativePrice ?? null,
+      lowestSupport: payload.supportZones.at(-1)?.representativePrice ?? null,
+      referencePrice: payload.currentPrice,
+      displayedSupportZones: payload.supportZones,
+      displayedResistanceZones: payload.resistanceZones,
+      lastRefreshTriggerResistance: null,
+      lastRefreshTriggerSupport: null,
+      lastRefreshTimestamp: timestamp,
+      lastExtensionPostKey: null,
+      lastExtensionPostTimestamp: null,
+      extensionPostInFlightKey: null,
+    });
+    this.markSnapshotReady(symbol, timestamp);
+    return payload;
+  }
+
+  private prepareLevelSnapshotForSameDayReactivation(
+    symbol: string,
+    timestamp: number,
+  ): LevelSnapshotPayload {
+    const payload = this.buildLevelSnapshotPayload(symbol, timestamp);
+    this.activeSnapshotState.set(symbol, {
+      lastSnapshot: JSON.stringify({
+        symbol: payload.symbol,
+        supportZones: payload.supportZones,
+        resistanceZones: payload.resistanceZones,
+      }),
       highestResistance: payload.resistanceZones.at(-1)?.representativePrice ?? null,
       lowestSupport: payload.supportZones.at(-1)?.representativePrice ?? null,
       referencePrice: payload.currentPrice,
@@ -9477,6 +9511,34 @@ export class ManualWatchlistRuntimeManager {
     return this.watchlistStore.getActiveEntries();
   }
 
+  async setAutoWatchlistFollowup(symbolInput: string, followup: boolean): Promise<WatchlistEntry> {
+    const symbol = normalizeSymbol(symbolInput);
+    const existing = this.watchlistStore.getEntry(symbol);
+    if (!existing?.active) {
+      throw new Error(`${symbol} is not active.`);
+    }
+    const tags = new Set(existing.tags);
+    if (followup) {
+      tags.add("auto-followup");
+    } else {
+      tags.delete("auto-followup");
+    }
+    const entry = this.watchlistStore.patchEntry(symbol, {
+      tags: [...tags],
+      operationStatus: followup ? "follow-up monitoring" : "monitoring live price",
+    }) ?? existing;
+    this.persistWatchlist();
+    if (this.liveWatchlistPublisher) {
+      await this.liveWatchlistPublisher.publish(buildLiveWatchlistStatusPatch({
+        symbol,
+        status: "live",
+        updatedAt: Date.now(),
+        watchlistSlotState: followup ? "followup" : "active",
+      }));
+    }
+    return entry;
+  }
+
   async setLiveTraderReadCardVisible(visible: boolean): Promise<{
     visible: boolean;
     refreshedSymbols: string[];
@@ -9807,13 +9869,20 @@ export class ManualWatchlistRuntimeManager {
     const symbol = normalizeSymbol(input.symbol);
     this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
     const existing = this.watchlistStore.getEntry(symbol);
+    const reuseExistingSameDayContext = input.reuseExistingSameDayContext !== false &&
+      !existing?.active &&
+      Boolean(existing?.discordThreadId) &&
+      isSameNewYorkTradingDate(input.preservedActivatedAt ?? existing?.activatedAt, Date.now());
+    if (reuseExistingSameDayContext && existing?.tradersLinkAiReadBoundaryState) {
+      this.aiReadState.set(symbol, existing.tradersLinkAiReadBoundaryState);
+    }
 
     try {
       this.emitLifecycle("activation_started", {
         symbol,
         threadId: preparedThread?.threadId ?? existing?.discordThreadId ?? null,
       });
-      if (preparedThread) {
+      if (preparedThread && !reuseExistingSameDayContext) {
         await this.maybePostStockContext(symbol, preparedThread.threadId, Date.now());
       }
       this.assertActivationCurrent(symbol, activationEpoch);
@@ -9886,29 +9955,33 @@ export class ManualWatchlistRuntimeManager {
         discordThreadId: threadId,
         active: false,
         lifecycle: "activating",
-        activatedAt: Date.now(),
+        activatedAt: input.preservedActivatedAt ?? Date.now(),
         refreshPending: true,
         lastError: null,
         operationStatus: "posting level snapshot",
       });
 
       let snapshotPayload: LevelSnapshotPayload | null = null;
-      try {
-        snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now(), undefined, true);
-      } catch (error) {
-        if (preparedThread) {
-          throw error;
-        }
+      if (reuseExistingSameDayContext) {
+        snapshotPayload = this.prepareLevelSnapshotForSameDayReactivation(symbol, Date.now());
+      } else {
+        try {
+          snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now(), undefined, true);
+        } catch (error) {
+          if (preparedThread) {
+            throw error;
+          }
 
-        await delay(INITIAL_SNAPSHOT_RETRY_DELAY_MS);
-        snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now(), undefined, true);
+          await delay(INITIAL_SNAPSHOT_RETRY_DELAY_MS);
+          snapshotPayload = await this.postLevelSnapshot(symbol, threadId, Date.now(), undefined, true);
+        }
       }
       this.assertActivationCurrent(symbol, activationEpoch);
       this.persistWatchlist();
       const preparedEntry = this.watchlistStore.getEntry(symbol) ?? entry;
       await this.restartMonitoringForPreparedActivation(preparedEntry);
       this.assertActivationCurrent(symbol, activationEpoch);
-      await this.publishActivationWebsiteSnapshot(symbol, Date.now());
+      await this.publishActivationWebsiteSnapshot(symbol, Date.now(), reuseExistingSameDayContext);
       this.assertActivationCurrent(symbol, activationEpoch);
       const activatedEntry = this.watchlistStore.patchEntry(symbol, {
         active: true,
@@ -9921,13 +9994,18 @@ export class ManualWatchlistRuntimeManager {
       this.emitLifecycle("activation_completed", {
         symbol,
         threadId,
+        details: {
+          reusedSameDayContext: reuseExistingSameDayContext,
+        },
       });
-      this.triggerAutoCleanRead({
-        symbol,
-        threadId,
-        payload: snapshotPayload,
-      });
-      this.publishRecentWebsiteArticles(symbol);
+      if (!reuseExistingSameDayContext) {
+        this.triggerAutoCleanRead({
+          symbol,
+          threadId,
+          payload: snapshotPayload,
+        });
+        this.publishRecentWebsiteArticles(symbol);
+      }
       if (this.isTradersLinkAiReadConfigured() && this.liveWatchlistPublisher) {
         const latestEntry = this.watchlistStore.getEntry(symbol) ?? activatedEntry;
         void this.liveWatchlistPublisher.publish(
@@ -9943,7 +10021,7 @@ export class ManualWatchlistRuntimeManager {
           );
         });
       }
-      this.scheduleTradersLinkAiRead(symbol, true, "activation");
+      this.scheduleTradersLinkAiRead(symbol, !reuseExistingSameDayContext, "activation");
       return this.watchlistStore.getEntry(symbol) ?? activatedEntry;
     } catch (error) {
       if (error instanceof ActivationCancelledError) {
@@ -10106,7 +10184,11 @@ export class ManualWatchlistRuntimeManager {
     });
   }
 
-  private async publishActivationWebsiteSnapshot(symbol: string, timestamp: number): Promise<void> {
+  private async publishActivationWebsiteSnapshot(
+    symbol: string,
+    timestamp: number,
+    preserveExistingOnReactivation = false,
+  ): Promise<void> {
     if (!this.liveWatchlistPublisher || !this.options.levelStore.getLevels(symbol)) {
       return;
     }
@@ -10119,6 +10201,8 @@ export class ManualWatchlistRuntimeManager {
     await this.liveWatchlistPublisher.publish({
       ...patch,
       firstPostedAt: this.watchlistStore.getEntry(symbol)?.activatedAt ?? timestamp,
+      watchlistSlotState: "active",
+      ...(preserveExistingOnReactivation ? { preserveExistingOnReactivation: true } : {}),
     });
   }
 
@@ -10688,6 +10772,21 @@ export class ManualWatchlistRuntimeManager {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.watchlistStore.getEntry(symbol);
     const pending = this.pendingActivations.get(symbol);
+    const queuedAt = Date.now();
+    const reuseExistingSameDayContext = Boolean(
+      existing &&
+      !existing.active &&
+      existing.discordThreadId &&
+      isSameNewYorkTradingDate(existing.activatedAt, queuedAt),
+    );
+    const activationInput: ManualWatchlistActivationInput = {
+      ...input,
+      symbol,
+      reuseExistingSameDayContext,
+      ...(reuseExistingSameDayContext && existing?.activatedAt !== undefined
+        ? { preservedActivatedAt: existing.activatedAt }
+        : {}),
+    };
 
     if (pending && existing?.lifecycle === "activating" && this.isActivationCurrent(symbol, pending.epoch)) {
       return (
@@ -10740,7 +10839,7 @@ export class ManualWatchlistRuntimeManager {
       discordThreadId: thread.threadId,
       active: false,
       lifecycle: "activating",
-      activatedAt: Date.now(),
+      activatedAt: activationInput.preservedActivatedAt ?? queuedAt,
       refreshPending: true,
       lastError: null,
       operationStatus: "queued for activation",
@@ -10752,7 +10851,7 @@ export class ManualWatchlistRuntimeManager {
     });
 
     const activationTask = this.runQueuedActivationWithRetry(
-      { ...input, symbol },
+      activationInput,
       rollbackEntries,
       thread,
       activationEpoch,
@@ -10840,9 +10939,6 @@ export class ManualWatchlistRuntimeManager {
   private prepareSymbolDeactivation(normalizedSymbol: string): WatchlistEntry | null {
     this.nextActivationEpoch(normalizedSymbol);
     this.pendingActivations.delete(normalizedSymbol);
-    this.watchlistStore.patchEntry(normalizedSymbol, {
-      tradersLinkAiReadBoundaryState: undefined,
-    });
     const entry = this.watchlistStore.deactivateSymbol(normalizedSymbol);
     if (!entry) {
       return null;
@@ -10860,7 +10956,6 @@ export class ManualWatchlistRuntimeManager {
       this.pendingFastLevelClearAlerts.delete(normalizedSymbol);
     }
     this.extensionRefreshInFlight.delete(normalizedSymbol);
-    this.aiReadState.delete(normalizedSymbol);
     this.aiReadInitialGenerationSuppressedSymbols.delete(normalizedSymbol);
     this.recapState.delete(normalizedSymbol);
     this.continuityState.delete(normalizedSymbol);

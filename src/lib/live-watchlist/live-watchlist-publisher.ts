@@ -1948,6 +1948,8 @@ export function buildLiveWatchlistStatusPatch(args: {
   status: LiveWatchlistStatus;
   updatedAt?: number;
   firstPostedAt?: number | null;
+  watchlistSlotState?: "active" | "followup";
+  preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
 }): LiveWatchlistCardPatch {
@@ -1956,6 +1958,10 @@ export function buildLiveWatchlistStatusPatch(args: {
     status: args.status,
     updatedAt: args.updatedAt ?? Date.now(),
     ...(args.firstPostedAt !== undefined ? { firstPostedAt: args.firstPostedAt } : {}),
+    ...(args.watchlistSlotState !== undefined ? { watchlistSlotState: args.watchlistSlotState } : {}),
+    ...(args.preserveExistingOnReactivation === true
+      ? { preserveExistingOnReactivation: true }
+      : {}),
     ...(args.potentialGainCardVisible !== undefined
       ? { potentialGainCardVisible: args.potentialGainCardVisible }
       : {}),
