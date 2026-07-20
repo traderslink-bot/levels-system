@@ -42,7 +42,7 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   minPrice: 0.25,
   maxPrice: 20,
   minGainPct: 10,
-  minVolume: 100_000,
+  minVolume: 500_000,
   minDollarVolume: 250_000,
   minimumScore: 50,
   consecutivePassesRequired: 2,
@@ -174,6 +174,8 @@ export type AutoWatchlistDiscoveryCandidate = {
 export type AutoWatchlistCandidateDecision = AutoWatchlistDiscoveryCandidate & {
   score: number;
   rankingScore: number;
+  slotSurvivalScore: number;
+  slotSurvivalReasons: string[];
   qualified: boolean;
   promotionReady: boolean;
   promotionRejectionReasons: string[];
@@ -223,12 +225,26 @@ export type AutoWatchlistManagedEntry = {
   addedSession: AutoWatchlistSession;
   lastSession: AutoWatchlistSession;
   lastRankingScore: number;
+  lastSlotSurvivalScore: number;
   lastQualifiedAt: number | null;
   retentionFailures: number;
   followupAt?: number | null;
   vacatedSlotAt?: number | null;
   standbyAt: number | null;
   statusReason: string;
+};
+
+export type AutoWatchlistFirstPassEvidence = {
+  symbol: string;
+  observedAt: number;
+  session: AutoWatchlistSession;
+  rankingScore: number;
+  slotSurvivalScore: number;
+  gainPct: number | null;
+  recent15mDollarVolume: number | null;
+  volumeAcceleration: number | null;
+  shareTurnoverPct: number | null;
+  sourceScreens: string[];
 };
 
 export type AutoWatchlistReplacementEvent = {
@@ -291,6 +307,7 @@ export type AutoWatchlistSelectorStatus = {
   pendingReplacementSymbols: string[];
   standbyToday: AutoWatchlistManagedEntry[];
   managedEntries: AutoWatchlistManagedEntry[];
+  firstPassEvidence: AutoWatchlistFirstPassEvidence[];
   recentReplacements: AutoWatchlistReplacementEvent[];
   recentDecisions: AutoWatchlistCandidateDecision[];
 };
@@ -306,6 +323,7 @@ type PersistedConfig = {
   postmarketAddedToday?: string[];
   lateMainSessionAdmissionReserveUsed?: number;
   managedEntries?: AutoWatchlistManagedEntry[];
+  firstPassEvidence?: AutoWatchlistFirstPassEvidence[];
   replacementHistory?: AutoWatchlistReplacementEvent[];
 };
 
@@ -887,6 +905,28 @@ function rankingFields(args: {
   };
 }
 
+export function buildAutoWatchlistSlotSurvivalScore(args: {
+  rankingScore: number;
+  gainPct: number | null;
+}): { slotSurvivalScore: number; slotSurvivalReasons: string[] } {
+  const gainFloorPct = 20;
+  const fullGainCreditPct = 150;
+  const maxContinuationBoost = 30;
+  const gainPct = finiteNumber(args.gainPct);
+  const continuationBoost = gainPct === null || gainPct <= gainFloorPct
+    ? 0
+    : Math.min(
+        maxContinuationBoost,
+        ((gainPct - gainFloorPct) / (fullGainCreditPct - gainFloorPct)) * maxContinuationBoost,
+      );
+  return {
+    slotSurvivalScore: Math.round((args.rankingScore + continuationBoost) * 100) / 100,
+    slotSurvivalReasons: continuationBoost > 0
+      ? [`sustained runner gain +${continuationBoost.toFixed(1)} slot points`]
+      : [],
+  };
+}
+
 export function isWithinAutoWatchlistScanWindow(
   timestamp: number,
   thresholds: AutoWatchlistSelectorThresholds,
@@ -1177,12 +1217,46 @@ function normalizeManagedEntry(value: unknown): AutoWatchlistManagedEntry | null
     addedSession: candidate.addedSession,
     lastSession: candidate.lastSession,
     lastRankingScore: finiteNumber(candidate.lastRankingScore) ?? 0,
+    lastSlotSurvivalScore:
+      finiteNumber(candidate.lastSlotSurvivalScore) ?? finiteNumber(candidate.lastRankingScore) ?? 0,
     lastQualifiedAt: finiteNumber(candidate.lastQualifiedAt),
     retentionFailures: Math.max(0, Math.floor(finiteNumber(candidate.retentionFailures) ?? 0)),
     followupAt: finiteNumber(candidate.followupAt),
     vacatedSlotAt: finiteNumber(candidate.vacatedSlotAt),
     standbyAt: finiteNumber(candidate.standbyAt),
     statusReason: typeof candidate.statusReason === "string" ? candidate.statusReason : "restored",
+  };
+}
+
+function normalizeFirstPassEvidence(value: unknown): AutoWatchlistFirstPassEvidence | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<AutoWatchlistFirstPassEvidence>;
+  const symbol = normalizeSymbol(candidate.symbol);
+  const observedAt = finiteNumber(candidate.observedAt);
+  const rankingScore = finiteNumber(candidate.rankingScore);
+  const slotSurvivalScore = finiteNumber(candidate.slotSurvivalScore);
+  if (
+    !symbol ||
+    observedAt === null ||
+    rankingScore === null ||
+    slotSurvivalScore === null ||
+    !isAutoWatchlistSession(candidate.session)
+  ) {
+    return null;
+  }
+  return {
+    symbol,
+    observedAt,
+    session: candidate.session,
+    rankingScore,
+    slotSurvivalScore,
+    gainPct: finiteNumber(candidate.gainPct),
+    recent15mDollarVolume: finiteNumber(candidate.recent15mDollarVolume),
+    volumeAcceleration: finiteNumber(candidate.volumeAcceleration),
+    shareTurnoverPct: finiteNumber(candidate.shareTurnoverPct),
+    sourceScreens: Array.isArray(candidate.sourceScreens)
+      ? candidate.sourceScreens.filter((source): source is string => typeof source === "string")
+      : [],
   };
 }
 
@@ -1235,6 +1309,7 @@ export class AutoWatchlistSelector {
   private readonly postmarketAddedToday = new Set<string>();
   private lateMainSessionAdmissionReserveUsed = 0;
   private readonly managedEntries = new Map<string, AutoWatchlistManagedEntry>();
+  private readonly firstPassEvidence = new Map<string, AutoWatchlistFirstPassEvidence>();
   private replacementHistory: AutoWatchlistReplacementEvent[] = [];
   private recentDecisions: AutoWatchlistCandidateDecision[] = [];
   private consecutivePasses = new Map<string, number>();
@@ -1288,6 +1363,12 @@ export class AutoWatchlistSelector {
         this.managedEntries.set(normalized.symbol, normalized);
       }
     }
+    for (const evidence of persistedConfig?.firstPassEvidence ?? []) {
+      const normalized = normalizeFirstPassEvidence(evidence);
+      if (normalized) {
+        this.firstPassEvidence.set(normalized.symbol, normalized);
+      }
+    }
     this.replacementHistory = (persistedConfig?.replacementHistory ?? [])
       .filter(isReplacementEvent)
       .slice(-50);
@@ -1327,6 +1408,11 @@ export class AutoWatchlistSelector {
         managedEntries: Array.isArray(parsed.managedEntries)
           ? parsed.managedEntries.map(normalizeManagedEntry).filter((entry): entry is AutoWatchlistManagedEntry => entry !== null)
           : [],
+        firstPassEvidence: Array.isArray(parsed.firstPassEvidence)
+          ? parsed.firstPassEvidence
+              .map(normalizeFirstPassEvidence)
+              .filter((entry): entry is AutoWatchlistFirstPassEvidence => entry !== null)
+          : [],
         replacementHistory: Array.isArray(parsed.replacementHistory)
           ? parsed.replacementHistory.filter(isReplacementEvent)
           : [],
@@ -1354,6 +1440,9 @@ export class AutoWatchlistSelector {
       postmarketAddedToday: [...this.postmarketAddedToday],
       lateMainSessionAdmissionReserveUsed: this.lateMainSessionAdmissionReserveUsed,
       managedEntries: [...this.managedEntries.values()],
+      firstPassEvidence: [...this.firstPassEvidence.values()]
+        .sort((left, right) => left.observedAt - right.observedAt)
+        .slice(-100),
       replacementHistory: this.replacementHistory.slice(-50),
     }, null, 2)}\n`, "utf8");
     renameSync(tempPath, this.configPath);
@@ -1477,6 +1566,9 @@ export class AutoWatchlistSelector {
       ].map((entry) => entry.symbol),
       standbyToday: this.managedEntriesFor(undefined, "standby"),
       managedEntries: this.managedEntriesFor(),
+      firstPassEvidence: [...this.firstPassEvidence.values()]
+        .sort((left, right) => right.observedAt - left.observedAt)
+        .map((entry) => ({ ...entry, sourceScreens: [...entry.sourceScreens] })),
       recentReplacements: this.replacementHistory.slice(-20).reverse(),
       recentDecisions: this.recentDecisions.map((decision) => ({
         ...decision,
@@ -1548,6 +1640,7 @@ export class AutoWatchlistSelector {
         addedSession: existing?.addedSession ?? inferredSession,
         lastSession: existing?.lastSession ?? session,
         lastRankingScore: existing?.lastRankingScore ?? 0,
+        lastSlotSurvivalScore: existing?.lastSlotSurvivalScore ?? existing?.lastRankingScore ?? 0,
         lastQualifiedAt: existing?.lastQualifiedAt ?? null,
         retentionFailures: existing?.retentionFailures ?? 0,
         followupAt: state === "followup" ? existing?.followupAt ?? timestamp : null,
@@ -1592,6 +1685,26 @@ export class AutoWatchlistSelector {
     );
   }
 
+  private isExtremeRunner(decision: AutoWatchlistCandidateDecision): boolean {
+    if (
+      !this.thresholds.obviousRunnerOverrideEnabled ||
+      !decision.qualified ||
+      !decision.promotionReady ||
+      (decision.gainPct ?? 0) < 50 ||
+      (decision.shareTurnoverPct ?? 0) < 50 ||
+      decision.sourceScreens.length < 2 ||
+      (this.requireVerifiedCommonEquity && decision.securityMasterStatus !== "verified_common_stock")
+    ) {
+      return false;
+    }
+    const requiredRecentDollarVolume = minimumRecentDollarVolume(decision.session, this.thresholds);
+    return (decision.recent15mDollarVolume ?? 0) >= Math.max(1_000_000, requiredRecentDollarVolume * 10);
+  }
+
+  private isFastTrackRunner(decision: AutoWatchlistCandidateDecision): boolean {
+    return this.isObviousRunner(decision) || this.isExtremeRunner(decision);
+  }
+
   private replacementCount(bucket: AutoWatchlistBucket): number {
     return this.replacementHistory.filter(
       (event) => event.bucket === bucket && event.incomingSymbol !== null,
@@ -1621,7 +1734,9 @@ export class AutoWatchlistSelector {
       .sort((left, right) => left[1] - right[1] || left[0].localeCompare(right[0]))
       .map(([symbol]) => this.managedEntries.get(symbol))
       .filter((entry): entry is AutoWatchlistManagedEntry =>
-        entry?.bucket === bucket && (entry.state === "followup" || entry.state === "standby"),
+        entry?.bucket === bucket &&
+        (entry.state === "followup" || entry.state === "standby") &&
+        typeof entry.vacatedSlotAt === "number",
       )
       .map((entry) => ({ ...entry }));
   }
@@ -1701,7 +1816,7 @@ export class AutoWatchlistSelector {
         symbol: decision.symbol,
         source: "auto",
         autoSession: decision.session === "closed" ? "regular" : decision.session,
-        note: `Auto-selected during ${decision.session}: qualification score ${decision.score}; rank ${decision.rankingScore}; ${(decision.gainPct ?? 0).toFixed(1)}% gain; $${Math.round((decision.recent15mDollarVolume ?? 0) / 1_000).toLocaleString("en-US")}K last-15m dollar volume; ${decision.volumeAcceleration ? `${decision.volumeAcceleration.toFixed(1)}x activity acceleration; ` : ""}${decision.shareTurnoverPct !== null ? `${decision.shareTurnoverPct.toFixed(1)}% share turnover; ` : ""}$${Math.round((decision.marketCap ?? 0) / 1_000_000)}M market cap; ${sharesLabel}; ranking: ${decision.rankingReasons.join(", ") || "base signals only"}; lifecycle: ${reason}.`,
+        note: `Auto-selected during ${decision.session}: qualification score ${decision.score}; admission rank ${decision.rankingScore}; current slot score ${decision.slotSurvivalScore}; ${(decision.gainPct ?? 0).toFixed(1)}% gain; $${Math.round((decision.recent15mDollarVolume ?? 0) / 1_000).toLocaleString("en-US")}K last-15m dollar volume; ${decision.volumeAcceleration ? `${decision.volumeAcceleration.toFixed(1)}x activity acceleration; ` : ""}${decision.shareTurnoverPct !== null ? `${decision.shareTurnoverPct.toFixed(1)}% share turnover; ` : ""}$${Math.round((decision.marketCap ?? 0) / 1_000_000)}M market cap; ${sharesLabel}; ranking: ${[...decision.rankingReasons, ...decision.slotSurvivalReasons].join(", ") || "base signals only"}; lifecycle: ${reason}.`,
       });
     } catch (error) {
       this.lastActivationErrors.push({
@@ -1720,6 +1835,7 @@ export class AutoWatchlistSelector {
       addedSession: existing?.addedSession ?? decision.session,
       lastSession: decision.session,
       lastRankingScore: decision.rankingScore,
+      lastSlotSurvivalScore: decision.slotSurvivalScore,
       lastQualifiedAt: timestamp,
       retentionFailures: 0,
       followupAt: null,
@@ -1777,6 +1893,7 @@ export class AutoWatchlistSelector {
     entry.lastActivatedAt = timestamp;
     entry.lastQualifiedAt = timestamp;
     entry.lastRankingScore = decision.rankingScore;
+    entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
     entry.retentionFailures = 0;
     entry.followupAt = null;
     entry.vacatedSlotAt = null;
@@ -1936,7 +2053,7 @@ export class AutoWatchlistSelector {
 
     const currentFollowups = this.managedEntriesFor(undefined, "followup")
       .sort((left, right) =>
-        left.lastRankingScore - right.lastRankingScore ||
+        left.lastSlotSurvivalScore - right.lastSlotSurvivalScore ||
         right.retentionFailures - left.retentionFailures ||
         (left.followupAt ?? 0) - (right.followupAt ?? 0),
       );
@@ -1999,6 +2116,7 @@ export class AutoWatchlistSelector {
       }
     }
     this.replacementHistory = [];
+    this.firstPassEvidence.clear();
     this.consecutivePasses.clear();
     this.consecutivePassSessions.clear();
     this.persistConfig();
@@ -2536,9 +2654,14 @@ export class AutoWatchlistSelector {
       recent15mDollarVolume: activity?.recent15mDollarVolume ?? null,
       thresholds: this.thresholds,
     });
-    return {
+    const slotSurvival = buildAutoWatchlistSlotSurvivalScore({
+      rankingScore: ranking.rankingScore,
+      gainPct: scored.gainPct,
+    });
+    const decision: AutoWatchlistCandidateDecision = {
       ...scored,
       ...ranking,
+      ...slotSurvival,
       promotionReady: scored.qualified && promotionRejectionReasons.length === 0,
       promotionRejectionReasons,
       session,
@@ -2552,6 +2675,26 @@ export class AutoWatchlistSelector {
       activityDataAvailable: activity?.available === true,
       consecutivePasses: nextPasses,
     };
+    if (
+      recordPassingObservation &&
+      decision.promotionReady &&
+      nextPasses === 1 &&
+      !this.firstPassEvidence.has(candidate.symbol)
+    ) {
+      this.firstPassEvidence.set(candidate.symbol, {
+        symbol: candidate.symbol,
+        observedAt: this.now(),
+        session,
+        rankingScore: decision.rankingScore,
+        slotSurvivalScore: decision.slotSurvivalScore,
+        gainPct: decision.gainPct,
+        recent15mDollarVolume: decision.recent15mDollarVolume,
+        volumeAcceleration: decision.volumeAcceleration,
+        shareTurnoverPct: decision.shareTurnoverPct,
+        sourceScreens: [...decision.sourceScreens],
+      });
+    }
+    return decision;
   }
 
   private async lookupCatalysts(
@@ -2732,10 +2875,14 @@ export class AutoWatchlistSelector {
             current.retentionFailures = 0;
             current.lastQualifiedAt = scanStartedAt;
             current.lastRankingScore = decision.rankingScore;
+            current.lastSlotSurvivalScore = decision.slotSurvivalScore;
             current.statusReason = "retained: still meets automatic selection requirements";
           } else {
             current.retentionFailures += 1;
-            if (decision) current.lastRankingScore = decision.rankingScore;
+            if (decision) {
+              current.lastRankingScore = decision.rankingScore;
+              current.lastSlotSurvivalScore = decision.slotSurvivalScore;
+            }
             current.statusReason = `retention warning ${current.retentionFailures}/${this.thresholds.retentionFailureScansRequired}: ${decision?.rejectionReasons.join("; ") || "no current activity evidence"}`;
           }
         }
@@ -2745,7 +2892,7 @@ export class AutoWatchlistSelector {
           const managed = this.managedEntries.get(decision.symbol);
           if (activeSymbols.has(decision.symbol) && managed?.state !== "followup") return false;
           if (!decision.promotionReady) return false;
-          const requiredPasses = this.isObviousRunner(decision)
+          const requiredPasses = this.isFastTrackRunner(decision)
             ? 1
             : this.thresholds.consecutivePassesRequired;
           return decision.consecutivePasses >= requiredPasses;
@@ -2757,15 +2904,17 @@ export class AutoWatchlistSelector {
         if (overflowCount > 0) {
           const overflowEntries = this.managedEntriesFor(bucket, "active")
             .sort((left, right) =>
+              left.lastSlotSurvivalScore - right.lastSlotSurvivalScore ||
               right.retentionFailures - left.retentionFailures ||
-              left.lastRankingScore - right.lastRankingScore ||
               (left.lastQualifiedAt ?? 0) - (right.lastQualifiedAt ?? 0),
             )
             .slice(0, overflowCount);
           for (const entry of overflowEntries) {
             const reason = `moved to standby because the active automatic slot limit was reduced to ${this.activeSlotLimit(bucket)}`;
             if (await this.moveManagedEntryToStandby(entry, scanStartedAt, reason)) {
-              this.recordReplacement(bucket, null, entry, scanStartedAt, reason);
+              entry.vacatedSlotAt = null;
+              this.managedEntries.set(entry.symbol, entry);
+              this.persistConfig();
             }
           }
         }
@@ -2778,7 +2927,7 @@ export class AutoWatchlistSelector {
             )
             .sort((left, right) =>
               right.retentionFailures - left.retentionFailures ||
-              left.lastRankingScore - right.lastRankingScore,
+              left.lastSlotSurvivalScore - right.lastSlotSurvivalScore,
             );
           for (const entry of faded) {
             const reason = `moved to follow-up after ${entry.retentionFailures} failed retention scans`;
@@ -2800,9 +2949,23 @@ export class AutoWatchlistSelector {
         for (const decision of eligibleChallengers) {
           if (activeManagedCount >= this.activeSlotLimit(bucket)) break;
           const alreadyAdded = this.sessionAddedSet(bucket).has(decision.symbol);
-          const departureIndex = availableReplacementDepartures.findIndex(
-            (candidate) => candidate.symbol !== decision.symbol,
-          );
+          for (let index = availableReplacementDepartures.length - 1; index >= 0; index -= 1) {
+            const live = this.managedEntries.get(availableReplacementDepartures[index]!.symbol);
+            if (
+              !live ||
+              live.state === "active" ||
+              typeof live.vacatedSlotAt !== "number"
+            ) {
+              availableReplacementDepartures.splice(index, 1);
+            } else {
+              availableReplacementDepartures[index] = live;
+            }
+          }
+          const departureIndex = alreadyAdded
+            ? -1
+            : availableReplacementDepartures.findIndex(
+                (candidate) => candidate.symbol !== decision.symbol,
+              );
           const departure = departureIndex >= 0
             ? availableReplacementDepartures.splice(departureIndex, 1)[0]
             : undefined;
@@ -2827,7 +2990,7 @@ export class AutoWatchlistSelector {
           }
           const managedChallenger = this.managedEntries.get(decision.symbol);
           const reason = departure
-            ? `replaced ${departure.symbol} after confirmed fading`
+            ? `filled the active slot vacated by ${departure.symbol} after confirmed fading`
             : managedChallenger?.state === "followup"
               ? "returned from follow-up after renewed qualification"
               : alreadyAdded
@@ -2859,7 +3022,7 @@ export class AutoWatchlistSelector {
               decision,
               departure,
               scanStartedAt,
-              `${decision.symbol} replaced ${departure.symbol}: challenger rank ${decision.rankingScore.toFixed(1)}; incumbent failed retention ${departure.retentionFailures} scans.`,
+              `${decision.symbol} filled the active slot vacated by ${departure.symbol}: challenger slot score ${decision.slotSurvivalScore.toFixed(1)}; former incumbent failed retention ${departure.retentionFailures} scans.`,
             );
             this.persistConfig();
           }
@@ -2871,7 +3034,7 @@ export class AutoWatchlistSelector {
           this.replacementAdmissionCapacityAvailable(bucket, scanStartedAt)
         ) {
           for (const challenger of eligibleChallengers.filter((decision) =>
-            !usedChallengers.has(decision.symbol) && !this.isObviousRunner(decision),
+            !usedChallengers.has(decision.symbol) && !this.isFastTrackRunner(decision),
           )) {
             const incumbent = this.managedEntriesFor(bucket, "active")
               .filter((entry) =>
@@ -2880,12 +3043,12 @@ export class AutoWatchlistSelector {
               )
               .sort((left, right) =>
                 right.retentionFailures - left.retentionFailures ||
-                left.lastRankingScore - right.lastRankingScore,
+                left.lastSlotSurvivalScore - right.lastSlotSurvivalScore,
               )[0];
             if (!incumbent) break;
             if (
-              challenger.rankingScore <
-              incumbent.lastRankingScore + this.thresholds.replacementRankingMargin
+              challenger.slotSurvivalScore <
+              incumbent.lastSlotSurvivalScore + this.thresholds.replacementRankingMargin
             ) {
               continue;
             }
@@ -2907,7 +3070,7 @@ export class AutoWatchlistSelector {
               challenger,
               incumbent,
               scanStartedAt,
-              `${challenger.symbol} replaced ${incumbent.symbol}: rank ${challenger.rankingScore.toFixed(1)} versus ${incumbent.lastRankingScore.toFixed(1)} after ${incumbent.retentionFailures} failed retention scan(s).`,
+              `${challenger.symbol} replaced ${incumbent.symbol}: slot score ${challenger.slotSurvivalScore.toFixed(1)} versus ${incumbent.lastSlotSurvivalScore.toFixed(1)} after ${incumbent.retentionFailures} failed retention scan(s).`,
             );
             usedChallengers.add(challenger.symbol);
             break;
@@ -2920,19 +3083,22 @@ export class AutoWatchlistSelector {
           this.replacementAdmissionCapacityAvailable(bucket, scanStartedAt)
         ) {
           for (const challenger of eligibleChallengers.filter((decision) =>
-            !usedChallengers.has(decision.symbol) && this.isObviousRunner(decision),
+            !usedChallengers.has(decision.symbol) && this.isFastTrackRunner(decision),
           )) {
             const incumbent = this.managedEntriesFor(bucket, "active")
               .filter((entry) => !this.isProtectedIncumbent(entry, scanStartedAt, session))
-              .sort((left, right) => left.lastRankingScore - right.lastRankingScore)[0];
+              .sort((left, right) => left.lastSlotSurvivalScore - right.lastSlotSurvivalScore)[0];
             if (!incumbent) break;
             if (
-              challenger.rankingScore <
-              incumbent.lastRankingScore + this.thresholds.obviousRunnerReplacementMargin
+              challenger.slotSurvivalScore <
+              incumbent.lastSlotSurvivalScore + this.thresholds.obviousRunnerReplacementMargin
             ) {
               continue;
             }
-            const reason = `obvious-runner override over ${incumbent.symbol}`;
+            const fastTrackLabel = this.isExtremeRunner(challenger)
+              ? "verified extreme runner"
+              : "obvious runner";
+            const reason = `${fastTrackLabel} override over ${incumbent.symbol}`;
             const usesLateMainSessionAdmissionReserve =
               this.replacementCount(bucket) >= this.replacementLimit(bucket);
             if (!await this.replaceManagedDecision(
@@ -2950,7 +3116,7 @@ export class AutoWatchlistSelector {
               challenger,
               incumbent,
               scanStartedAt,
-              `${challenger.symbol} replaced ${incumbent.symbol}: obvious runner rank ${challenger.rankingScore.toFixed(1)} versus ${incumbent.lastRankingScore.toFixed(1)}, with $${Math.round((challenger.recent15mDollarVolume ?? 0) / 1_000)}K last-15m dollar volume and ${(challenger.volumeAcceleration ?? 0).toFixed(1)}x acceleration.`,
+              `${challenger.symbol} replaced ${incumbent.symbol}: ${fastTrackLabel} slot score ${challenger.slotSurvivalScore.toFixed(1)} versus ${incumbent.lastSlotSurvivalScore.toFixed(1)}, with $${Math.round((challenger.recent15mDollarVolume ?? 0) / 1_000)}K last-15m dollar volume, ${(challenger.shareTurnoverPct ?? 0).toFixed(1)}% turnover${challenger.volumeAcceleration !== null ? `, and ${challenger.volumeAcceleration.toFixed(1)}x acceleration` : ""}.`,
             );
             break;
           }

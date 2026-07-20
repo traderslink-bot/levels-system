@@ -2356,6 +2356,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly alertIntelligenceEngine = new AlertIntelligenceEngine();
   private readonly activeSnapshotState = new Map<string, ActiveLevelSnapshotState>();
   private readonly pendingActivations = new Map<string, { promise: Promise<void>; epoch: number }>();
+  private readonly activationReservations = new Map<string, Promise<void>>();
   private readonly activationEpochs = new Map<string, number>();
   private readonly extensionRefreshInFlight = new Set<string>();
   private readonly recapState = new Map<string, SymbolRecapState>();
@@ -9867,8 +9868,11 @@ export class ManualWatchlistRuntimeManager {
     activationEpoch?: number,
   ): Promise<WatchlistEntry> {
     const symbol = normalizeSymbol(input.symbol);
-    this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
     const existing = this.watchlistStore.getEntry(symbol);
+    if (existing?.active && existing.lifecycle === "active") {
+      return existing;
+    }
+    this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
     const reuseExistingSameDayContext = input.reuseExistingSameDayContext !== false &&
       !existing?.active &&
       Boolean(existing?.discordThreadId) &&
@@ -10789,6 +10793,14 @@ export class ManualWatchlistRuntimeManager {
     };
 
     if (pending && existing?.lifecycle === "activating" && this.isActivationCurrent(symbol, pending.epoch)) {
+      if (input.source === "auto") {
+        await pending.promise;
+        const activatedEntry = this.watchlistStore.getEntry(symbol);
+        if (!activatedEntry?.active || activatedEntry.lifecycle !== "active") {
+          throw new Error(`${symbol} activation did not reach ready state.`);
+        }
+        return activatedEntry;
+      }
       return (
         existing ??
         this.watchlistStore.upsertManualEntry({
@@ -10816,12 +10828,24 @@ export class ManualWatchlistRuntimeManager {
       return existing;
     }
 
-    const activationEpoch = this.nextActivationEpoch(symbol);
-    const rollbackEntries = this.watchlistStore.getEntries();
-    const thread = await this.options.discordAlertRouter.ensureThread(
-      symbol,
-      existing?.discordThreadId,
-    );
+    const existingReservation = this.activationReservations.get(symbol);
+    if (existingReservation) {
+      await existingReservation;
+      return this.queueActivation(input);
+    }
+
+    let releaseReservation = (): void => undefined;
+    const reservation = new Promise<void>((resolve) => {
+      releaseReservation = resolve;
+    });
+    this.activationReservations.set(symbol, reservation);
+    try {
+      const activationEpoch = this.nextActivationEpoch(symbol);
+      const rollbackEntries = this.watchlistStore.getEntries();
+      const thread = await this.options.discordAlertRouter.ensureThread(
+        symbol,
+        existing?.discordThreadId,
+      );
     this.emitLifecycle("thread_ready", {
       symbol,
       threadId: thread.threadId,
@@ -10877,7 +10901,13 @@ export class ManualWatchlistRuntimeManager {
           `[ManualWatchlistRuntimeManager] Background activation failed for ${symbol}: ${message}`,
         );
       });
-    return queuedEntry;
+      return queuedEntry;
+    } finally {
+      if (this.activationReservations.get(symbol) === reservation) {
+        this.activationReservations.delete(symbol);
+      }
+      releaseReservation();
+    }
   }
 
   async refreshSymbolLevels(symbolInput: string): Promise<WatchlistEntry> {

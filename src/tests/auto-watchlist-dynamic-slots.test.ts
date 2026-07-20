@@ -217,7 +217,7 @@ test("a faded incumbent moves to follow-up and frees a full slot for a sustained
     assert.deepEqual(activeEntries.map((entry) => entry.symbol), ["OLD", "NEW"]);
     assert.deepEqual(status.activeMainSessionSymbols, ["NEW"]);
     assert.deepEqual(status.followupSymbols, ["OLD"]);
-    assert.match(status.recentReplacements[0]?.reason ?? "", /NEW replaced OLD/);
+    assert.match(status.recentReplacements[0]?.reason ?? "", /NEW filled the active slot vacated by OLD/);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });
@@ -383,13 +383,21 @@ test("lowering the automatic slot count retires the weakest excess incumbent", a
   const symbols = ["WEAK", "MID", "BEST"];
   writeConfig(configPath, {
     symbols,
-    thresholds: { maxActiveMainSessionTickers: 2, consecutivePassesRequired: 1 },
+    thresholds: {
+      maxActiveMainSessionTickers: 2,
+      maxAddsPerTradingDay: 3,
+      lateMainSessionAdmissionReserve: 0,
+      consecutivePassesRequired: 1,
+    },
   });
   const activeEntries = symbols.map(automaticRuntimeEntry);
   const selector = new AutoWatchlistSelector({
     yahooClient: null,
     finnhubClient: FINNHUB,
-    fetchImpl: async () => screenerResponse(symbols.map((symbol, index) => ({ symbol, gain: 10 + index * 15 }))),
+    fetchImpl: async () => screenerResponse([
+      ...symbols.map((symbol, index) => ({ symbol, gain: 10 + index * 15 })),
+      { symbol: "EXPAND", gain: 50, volume: 2_000_000 },
+    ]),
     configPath,
     now: () => NOW,
     getActiveSymbols: () => activeEntries.map((entry) => entry.symbol),
@@ -409,7 +417,7 @@ test("lowering the automatic slot count retires the weakest excess incumbent", a
         symbol,
         session,
         price: 2,
-        gainPct: symbol === "WEAK" ? 6 : symbol === "MID" ? 20 : 40,
+        gainPct: symbol === "WEAK" ? 6 : symbol === "MID" ? 20 : symbol === "BEST" ? 40 : 50,
         sessionVolume: symbol === "WEAK" ? 200_000 : 1_000_000,
         sessionDollarVolume: symbol === "WEAK" ? 400_000 : 2_000_000,
         recent15mVolume: symbol === "WEAK" ? 30_000 : 150_000,
@@ -429,6 +437,12 @@ test("lowering the automatic slot count retires the weakest excess incumbent", a
       status.standbyToday.find((entry) => entry.symbol === "WEAK")?.statusReason ?? "",
       /slot limit was reduced to 2/,
     );
+    const expanded = await selector.updateConfiguration({
+      enabled: true,
+      thresholds: { maxActiveMainSessionTickers: 3 },
+    });
+    assert.equal(activeEntries.some((entry) => entry.symbol === "EXPAND"), false);
+    assert.equal(expanded.recentReplacements.some((entry) => entry.incomingSymbol === "EXPAND"), false);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });
@@ -520,6 +534,7 @@ test("an obvious runner replaces a healthy auto incumbent after one scan but lea
     assert.deepEqual(status.followupSymbols, ["OLD"]);
     assert.equal(maximumConcurrentAutomaticEntries, 2);
     assert.match(status.recentReplacements[0]?.reason ?? "", /obvious runner/);
+    assert.equal(status.firstPassEvidence.find((entry) => entry.symbol === "NEW")?.observedAt, NOW);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });

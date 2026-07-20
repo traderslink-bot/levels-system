@@ -173,9 +173,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Minimum dollar volume ($)<input id="auto-selector-min-dollar-volume" type="number" min="0" step="10000" /></label>
           <label>Minimum score (0-100)<input id="auto-selector-min-score" type="number" min="0" max="100" step="1" /></label>
           <label>Consecutive passing scans<input id="auto-selector-passes" type="number" min="1" max="10" step="1" /></label>
-          <label>Maximum active premarket/regular auto tickers<input id="auto-selector-max-active-main" type="number" min="1" max="20" step="1" /></label>
+          <label>Maximum active premarket/regular auto tickers (lowering keeps best current slot scores)<input id="auto-selector-max-active-main" type="number" min="1" max="20" step="1" /></label>
           <label>Maximum active post-market auto tickers<input id="auto-selector-max-active-postmarket" type="number" min="1" max="20" step="1" /></label>
-          <label>Initial main-session automatic additions per day<input id="auto-selector-max-adds" type="number" min="1" max="20" step="1" /></label>
+          <label>Initial main-session new-ticker quota per day (does not trim active slots)<input id="auto-selector-max-adds" type="number" min="1" max="20" step="1" /></label>
           <label>Initial post-market automatic additions per day<input id="auto-selector-max-postmarket-adds" type="number" min="1" max="20" step="1" /></label>
           <label>Main-session automatic replacements per day<input id="auto-selector-max-main-replacements" type="number" min="0" max="50" step="1" /></label>
           <label>Post-market automatic replacements per day<input id="auto-selector-max-postmarket-replacements" type="number" min="0" max="50" step="1" /></label>
@@ -251,7 +251,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             <span>Use recent press-release catalysts as a secondary ranking preference</span>
           </label>
         </div>
-        <div class="inline-status">Catalysts never bypass the price, gain, volume, market-cap, share-count, recent-activity, or base-score qualification rules. Activity and turnover bonuses are ranking-only. Set any maximum rank boost to 0 for no ranking effect.</div>
+        <div class="inline-status">Catalysts never bypass the price, gain, volume, market-cap, share-count, recent-activity, or base-score qualification rules. Activity and turnover bonuses affect admission rank; sustained gains above 20% add current slot-survival credit only. Set any maximum rank boost to 0 for no ranking effect.</div>
         <div class="selector-actions">
           <button id="auto-selector-apply-button" type="button">Apply Selection Settings</button>
           <button class="secondary" id="auto-selector-preview-button" type="button">Run Preview Only</button>
@@ -1207,7 +1207,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         );
       }
       if (Array.isArray(selector.activeMainSessionSymbols)) {
-        pieces.push("Active main auto slots: " + (selector.activeMainSessionSymbols.join(", ") || "none") + ".");
+        const activeScores = new Map((selector.managedEntries || []).map((entry) => [entry.symbol, entry.lastSlotSurvivalScore]));
+        pieces.push("Active main auto slots: " + (selector.activeMainSessionSymbols
+          .map((symbol) => symbol + (Number.isFinite(activeScores.get(symbol)) ? " (slot " + activeScores.get(symbol) + ")" : ""))
+          .join(", ") || "none") + ".");
       }
       if (Array.isArray(selector.activePostmarketSymbols)) {
         pieces.push("Active post-market auto slots: " + (selector.activePostmarketSymbols.join(", ") || "none") + ".");
@@ -1248,7 +1251,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       for (const decision of (selector.recentDecisions || [])) {
         const item = document.createElement("li");
         const title = document.createElement("strong");
-        title.textContent = decision.symbol + " — qualification " + decision.score + " — rank " + decision.rankingScore + (
+        title.textContent = decision.symbol + " — qualification " + decision.score + " — admission rank " + decision.rankingScore + " — current slot " + decision.slotSurvivalScore + (
           decision.qualified
             ? decision.promotionReady === false
               ? " — qualifies, promotion held"
@@ -1272,6 +1275,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           decision.shareTurnoverPct !== null
             ? Number(decision.shareTurnoverPct).toFixed(1) + "% share turnover"
             : "share turnover unavailable",
+          ...(decision.slotSurvivalReasons || []),
         ];
         if (decision.catalystPublishedAt) {
           facts.push(

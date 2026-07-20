@@ -2276,13 +2276,50 @@ test("ManualWatchlistRuntimeManager treats adding an already-active ticker as an
   });
   const persistedBeforeDuplicateAdd = structuredClone(persistence.storedEntries);
 
-  const existing = await manager.queueActivation({ symbol: "FTRK", note: "today add" });
+  const existing = await manager.queueActivation({ symbol: "FTRK", note: "today add", source: "auto" });
 
   assert.equal(manager.getActiveEntries().length, 1);
   assert.equal(existing.symbol, "FTRK");
   assert.equal(existing.activatedAt, oldActivatedAt);
   assert.equal(existing.note, "old test add");
   assert.deepEqual(persistence.storedEntries, persistedBeforeDuplicateAdd);
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 0);
+});
+
+test("manually pinning an active automatic ticker never runs a second enrichment activation", async () => {
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const persistence = new FakeWatchlistStatePersistence();
+  const watchlistStore = new WatchlistStore();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  watchlistStore.setEntries([{
+    symbol: "CROSS",
+    active: true,
+    priority: 1,
+    tags: ["auto", "auto-main"],
+    note: "automatic add",
+    discordThreadId: "thread-CROSS",
+    lifecycle: "active",
+    refreshPending: false,
+    activatedAt: Date.UTC(2026, 6, 20, 13, 30, 0),
+    operationStatus: "monitoring live price",
+  }]);
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+  });
+
+  const pinned = await manager.queueActivation({ symbol: "cross", source: "manual" });
+
+  assert.equal(manager.getActiveEntries().length, 1);
+  assert.deepEqual(pinned.tags, ["manual"]);
+  assert.equal(discordAlertRouter.ensured.length, 0);
+  assert.equal(discordAlertRouter.levelSnapshots.length, 0);
   assert.equal(liveWatchlistPublisher.cardPatches.length, 0);
 });
 
