@@ -55,6 +55,7 @@ import {
 } from "../scripts/shared/ibkr-runtime.js";
 import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
 import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import { createDailyWatchlistRecapServiceFromEnv } from "../lib/live-watchlist/daily-watchlist-recap.js";
 import { resolveLiveWatchlistPullbackReadEnabled } from "../lib/live-watchlist/pullback-read.js";
 import type {
   LiveWatchlistMarketDataStatus,
@@ -824,6 +825,7 @@ async function main(): Promise<void> {
     : null;
   const aiCleanReadService = createOpenAICleanReadServiceFromEnv();
   const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
+  const dailyWatchlistRecapService = createDailyWatchlistRecapServiceFromEnv();
   const tradersLinkAiReadService = createTradersLinkAiReadServiceFromEnv();
   const tradersLinkAiReadSettingsPersistence = new TradersLinkAiReadSettingsPersistence({
     ...(process.env.TRADERSLINK_AI_READ_SETTINGS_FILE?.trim()
@@ -992,6 +994,7 @@ async function main(): Promise<void> {
       );
       await manager.start();
       autoWatchlistSelector.start();
+      dailyWatchlistRecapService?.start();
       publishLiveWatchlistHealth({
         publisher: liveWatchlistHealthPublisher,
         manager,
@@ -2008,6 +2011,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     clearInterval(liveWatchlistHealthTimer);
     autoWatchlistSelector.stop();
+    dailyWatchlistRecapService?.stop();
     await liveWatchlistHealthPublisher?.publishHealth?.({
       type: "health",
       marketDataStatus: "offline",

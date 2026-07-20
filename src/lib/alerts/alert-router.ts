@@ -1707,6 +1707,11 @@ function normalizeSymbol(symbol: string): string {
 }
 
 export interface DiscordThreadGateway {
+  ensureSymbolRoute?(
+    symbol: string,
+    storedRouteId?: string | null,
+  ): Promise<DiscordThreadRoutingResult>;
+  announceTickerAdded?(symbol: string): Promise<void>;
   getThreadById(threadId: string): Promise<DiscordThread | null>;
   findThreadByName(name: string): Promise<DiscordThread | null>;
   createThread(name: string): Promise<DiscordThread>;
@@ -2878,6 +2883,10 @@ export class DiscordAlertRouter {
     storedThreadId?: string | null,
   ): Promise<DiscordThreadRoutingResult> {
     const normalizedSymbol = normalizeSymbol(symbol);
+
+    if (this.gateway.ensureSymbolRoute) {
+      return this.gateway.ensureSymbolRoute(normalizedSymbol, storedThreadId);
+    }
 
     if (storedThreadId) {
       const existingThread = await this.gateway.getThreadById(storedThreadId);

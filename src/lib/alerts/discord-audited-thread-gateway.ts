@@ -17,6 +17,7 @@ import {
 import { classifyLiveThreadMessage } from "../monitoring/live-thread-post-policy.js";
 
 export type DiscordDeliveryAuditOperation =
+  | "announce_ticker_added"
   | "create_thread"
   | "post_alert"
   | "post_level_snapshot"
@@ -476,6 +477,23 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
 
   async findThreadByName(name: string): Promise<DiscordThread | null> {
     return this.inner.findThreadByName(name);
+  }
+
+  async announceTickerAdded(name: string): Promise<void> {
+    try {
+      await this.inner.announceTickerAdded?.(name);
+      this.recordPosted("announce_ticker_added", {
+        symbol: name,
+        title: "watchlist_ticker_added",
+        bodyPreview: `Posted ${name} watchlist links without creating a thread`,
+      });
+    } catch (error) {
+      this.recordFailed("announce_ticker_added", error, {
+        symbol: name,
+        title: "watchlist_ticker_announcement_failed",
+        bodyPreview: `Failed to post ${name} watchlist links`,
+      });
+    }
   }
 
   async createThread(name: string): Promise<DiscordThread> {

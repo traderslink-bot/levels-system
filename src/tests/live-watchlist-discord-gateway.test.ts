@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { DiscordThreadGateway } from "../lib/alerts/alert-router.js";
+import {
+  DiscordAlertRouter,
+  type DiscordThreadGateway,
+} from "../lib/alerts/alert-router.js";
 import type {
   AlertPayload,
   DiscordThread,
@@ -26,7 +29,12 @@ class RecordingDiscordGateway implements DiscordThreadGateway {
   }
 
   async createThread(name: string): Promise<DiscordThread> {
+    this.events.push(`discord:thread:${name}`);
     return { id: name, name };
+  }
+
+  async announceTickerAdded(name: string): Promise<void> {
+    this.events.push(`discord:announcement:${name}`);
   }
 
   async sendMessage(_threadId: string, _payload: AlertPayload): Promise<void> {
@@ -49,6 +57,32 @@ class RecordingDiscordGateway implements DiscordThreadGateway {
 }
 
 describe("website publishing Discord gateway", () => {
+  it("announces new tickers in the watchlist channel without creating Discord threads", async () => {
+    const events: string[] = [];
+    const gateway = new WebsitePublishingDiscordGateway(
+      new RecordingDiscordGateway(events),
+      null,
+    );
+    const router = new DiscordAlertRouter(gateway);
+
+    const created = await router.ensureThread("abcd");
+    const migrated = await router.ensureThread("ABCD", "legacy-thread-id");
+
+    assert.deepEqual(created, {
+      threadId: "watchlist:ABCD",
+      reused: false,
+      recovered: false,
+      created: true,
+    });
+    assert.deepEqual(migrated, {
+      threadId: "watchlist:ABCD",
+      reused: true,
+      recovered: true,
+      created: false,
+    });
+    assert.deepEqual(events, ["discord:announcement:ABCD"]);
+  });
+
   it("publishes trader reads to the website without forwarding the content to Discord", async () => {
     const events: string[] = [];
     const publisher: LiveWatchlistPublisher = {

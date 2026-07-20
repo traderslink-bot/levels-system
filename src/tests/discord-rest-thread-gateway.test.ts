@@ -61,10 +61,35 @@ test("DiscordRestThreadGateway creates a symbol thread under the configured watc
     content: [
       "ALBT added to the watchlist.",
       "",
-      "View ALBT watchlist page: https://traderslink.pro/watchlist/ALBT",
+      "View the live watchlist: https://traderslink.pro/watchlist",
+      "View ALBT ticker page: https://traderslink.pro/watchlist/ALBT",
     ].join("\n"),
   });
   assert.match(String(calls[1]?.init?.body), /"name":"ALBT"/);
+  restoreEnv("TRADERSLINK_WATCHLIST_PUBLIC_URL", originalPublicUrl);
+});
+
+test("DiscordRestThreadGateway announces a ticker without creating a thread", async () => {
+  const originalPublicUrl = process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+  process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL = "https://traderslink.pro/watchlist";
+  const calls: Array<{ input: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return jsonResponse({ body: { id: "message-1" } });
+  };
+  const gateway = new DiscordRestThreadGateway({
+    botToken: "token",
+    watchlistChannelId: "watchlist-1",
+    fetchImpl,
+  });
+
+  await gateway.announceTickerAdded("ALBT");
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.input, "https://discord.com/api/v10/channels/watchlist-1/messages");
+  assert.doesNotMatch(calls[0]?.input ?? "", /threads/);
+  assert.match(String(calls[0]?.init?.body), /View the live watchlist/);
+  assert.match(String(calls[0]?.init?.body), /View ALBT ticker page/);
   restoreEnv("TRADERSLINK_WATCHLIST_PUBLIC_URL", originalPublicUrl);
 });
 

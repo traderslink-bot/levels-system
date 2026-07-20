@@ -24,6 +24,7 @@ export function buildWatchlistDiscordLinkMessage(symbol: string): string {
   return [
     `${normalizedSymbol} added to the watchlist.`,
     "",
-    `View ${normalizedSymbol} watchlist page: ${symbolUrl}`,
+    `View the live watchlist: ${watchlistUrl}`,
+    `View ${normalizedSymbol} ticker page: ${symbolUrl}`,
   ].join("\n");
 }
