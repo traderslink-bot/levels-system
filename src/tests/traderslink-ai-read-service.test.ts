@@ -15,6 +15,7 @@ import {
 } from "../lib/ai/traderslink-ai-read-price-action.js";
 
 const DATA_AS_OF = Date.parse("2026-07-15T20:30:00.000Z");
+const PREMARKET_DATA_AS_OF = Date.parse("2026-07-20T11:45:00.000Z");
 
 function snapshot(): LevelSnapshotPayload {
   return {
@@ -78,6 +79,69 @@ function priceAction(): TradersLinkAiReadPriceActionContext {
     priorRegularClose: 1.2,
     intradayCandles,
     dailyCandles,
+  };
+}
+
+function premarketPriceAction(): TradersLinkAiReadPriceActionContext {
+  const intradayCandles = Array.from({ length: 24 }, (_, index) => {
+    const timestamp = PREMARKET_DATA_AS_OF - (23 - index) * 5 * 60 * 1_000;
+    return {
+      timestamp,
+      open: 0.331,
+      high: index === 10 ? 0.3469 : 0.34,
+      low: 0.325,
+      close: index === 23 ? 0.3336 : 0.334,
+      volume: 75_000 + index * 2_000,
+    };
+  });
+  return {
+    source: "yahoo full-session OHLCV",
+    fetchedAt: PREMARKET_DATA_AS_OF,
+    priorRegularClose: 0.28,
+    intradayCandles,
+    dailyCandles: priceAction().dailyCandles,
+  };
+}
+
+function premarketModelRead(currentRead: string): Record<string, unknown> {
+  return {
+    ...modelRead(),
+    currentRead,
+    needsToHold: {
+      label: "Premarket shelf",
+      price: 0.32,
+      rationale: "Repeated premarket tests held the consolidation shelf.",
+    },
+    cautionBelow: {
+      label: "Premarket caution",
+      price: 0.312,
+      rationale: "A loss of the premarket higher-low base would weaken the rebound.",
+    },
+    momentumFailure: {
+      label: "Premarket failure",
+      price: 0.3,
+      rationale: "A clean loss of the premarket range low would invalidate the rebound.",
+    },
+    mustClear: {
+      label: "Premarket rejection zone",
+      price: 0.35,
+      rationale: "Repeated premarket rejection tests require sustained acceptance here.",
+    },
+    breakoutContinuation: {
+      label: "Prior-session continuation",
+      price: 0.3658,
+      rationale: "Acceptance above the prior regular-session range opens the continuation path.",
+    },
+    targets: [{
+      label: "Daily range objective",
+      price: 0.3851,
+      condition: "Only after the prior regular-session range holds as support.",
+    }],
+    downsideCheckpoints: [{
+      label: "Lower daily range",
+      price: 0.2446,
+      condition: "The recent daily range low is exposed if the premarket floor fails.",
+    }],
   };
 }
 
@@ -648,6 +712,61 @@ describe("OpenAITradersLinkAiReadService", () => {
     ]);
   });
 
+  it("rejects an AI Read that relabels a continuation level as the current premarket high", async () => {
+    for (const currentRead of [
+      "NXXT is holding above its premarket rebound shelf after rejecting the $0.3658 session high.",
+      "VMAR has built a premarket shelf around $0.32-$0.33 after rejecting the $0.3658 high.",
+    ]) {
+      const invalidRead = premarketModelRead(currentRead);
+      const service = new OpenAITradersLinkAiReadService({
+        apiKey: "test-key",
+        model: "test-model",
+        fetchImpl: async () => new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(invalidRead) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } }),
+      });
+
+      await assert.rejects(
+        service.generate({
+          snapshot: { ...snapshot(), timestamp: PREMARKET_DATA_AS_OF, currentPrice: 0.3336 },
+          dataAsOf: PREMARKET_DATA_AS_OF,
+          priceAction: premarketPriceAction(),
+          research: { ticker: "NXXT", businessDays: 5, count: 0, articles: [] },
+        }),
+        /current premarket high.*0\.3469/i,
+      );
+    }
+  });
+
+  it("allows a separate continuation level when the stated premarket high matches OHLCV", async () => {
+    const validRead = premarketModelRead(
+      "NXXT rejected the $0.3469 premarket high; $0.3658 remains a separate prior-session continuation boundary.",
+    );
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => new Response(JSON.stringify({
+        output: [{
+          type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(validRead) }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    });
+
+    const read = await service.generate({
+      snapshot: { ...snapshot(), timestamp: PREMARKET_DATA_AS_OF, currentPrice: 0.3336 },
+      dataAsOf: PREMARKET_DATA_AS_OF,
+      priceAction: premarketPriceAction(),
+      research: { ticker: "NXXT", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(read.breakoutContinuation.price, 0.3658);
+    assert.match(read.currentRead, /0\.3469 premarket high/i);
+  });
+
   it("rejects a caution threshold above the stated needs-to-hold boundary", async () => {
     const invalidRead = modelRead();
     invalidRead.needsToHold = {
@@ -752,7 +871,7 @@ describe("OpenAITradersLinkAiReadService", () => {
   it("keeps operational volume availability out of the user-facing AI Read", async () => {
     const invalidRead = modelRead();
     invalidRead.currentRead =
-      "Price is holding the premarket shelf. Premarket volume is unavailable from the provider.";
+      "Price is holding the premarket shelf. There is no premarket volume reported by the provider.";
     let requestNumber = 0;
     const service = new OpenAITradersLinkAiReadService({
       apiKey: "test-key",
@@ -776,7 +895,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     });
 
     assert.equal(requestNumber, 2);
-    assert.doesNotMatch(read.currentRead, /volume.*unavailable/i);
+    assert.doesNotMatch(read.currentRead, /no premarket volume/i);
   });
 
   it("drops duplicate scenario checkpoints instead of paying for a correction", async () => {

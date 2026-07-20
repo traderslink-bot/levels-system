@@ -12,6 +12,7 @@ import { refreshTechnicalContextForPrice } from "../technical-context/technical-
 import type { TechnicalContext } from "../technical-context/technical-context-types.js";
 import { formatPotentialMoveRead } from "../monitoring/potential-move-read.js";
 import { buildLiveWatchlistPullbackRead, type LiveWatchlistPullbackVolumeRead } from "./pullback-read.js";
+import { deriveLiveWatchlistLifecycleRead } from "./watchlist-lifecycle-status.js";
 import {
   buildLiveWatchlistTradeSetupRead,
   resolveLiveWatchlistTradeSetupReadMode,
@@ -1616,6 +1617,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
   marketStructure?: LevelSnapshotPayload["marketStructure"];
   tradeSetupReadMode?: LiveWatchlistTradeSetupReadMode;
   pullbackReadEnabled?: boolean;
+  includeLifecycle?: boolean;
   priorRegularClosePrice?: number | null;
 }): LiveWatchlistCardPatch | null {
   const levelMap = buildLiveWatchlistLevelMap({
@@ -1676,39 +1678,63 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
         bidPrice: args.roleFlipContext?.bidPrice,
         askPrice: args.roleFlipContext?.askPrice,
       });
-  if (!pullbackRead && !(tradeSetupReadMode === "active" && tradeSetupRead)) {
+  const stableFiveMinuteState = args.marketStructure?.timeframes?.["5m"]?.stable?.state ??
+    args.marketStructure?.stable?.state ??
+    null;
+  const watchlistLifecycle = args.includeLifecycle
+    ? deriveLiveWatchlistLifecycleRead({
+        evaluatedAt: args.timestamp,
+        structureUpdatedAt: technicalContext?.updatedAt ?? null,
+        phase: pullbackRead?.phase ?? null,
+        technicalConfidence: technicalContext?.confidence ?? null,
+        volumeLabel: args.volumeRead?.label ?? "unknown",
+        levelMap,
+        tradeSetupState: tradeSetupRead?.state ?? null,
+        tradeSetupStateBeforeBlockers:
+          typeof tradeSetupRead?.metadata.tradeSetupStateBeforeBlockers === "string"
+            ? tradeSetupRead.metadata.tradeSetupStateBeforeBlockers
+            : null,
+        stableFiveMinuteState,
+      })
+    : null;
+  if (!pullbackRead && !(tradeSetupReadMode === "active" && tradeSetupRead) && !watchlistLifecycle) {
     return null;
   }
   const body = tradeSetupReadMode === "active" && tradeSetupRead
     ? tradeSetupRead.body
-    : pullbackRead!.body;
+    : pullbackRead?.body ?? null;
 
   return {
     symbol: normalizeSymbol(args.symbol),
     status: "live",
     updatedAt: args.timestamp,
     levelMap,
+    ...(watchlistLifecycle ? { watchlistLifecycle } : {}),
     cards: {
-      liveTraderRead: buildCard({
-        title: "Live Trader Read",
-        body,
-        updatedAt: args.timestamp,
-        priceWhenPosted: args.currentPrice,
-        source: tradeSetupReadMode === "active" && tradeSetupRead
-          ? "trade_setup_read"
-          : "pullback_read",
-        metadata: {
-          headline: deriveTraderReadHeadline(body),
-          ...(pullbackRead?.metadata ?? {}),
-          ...(tradeSetupRead
-            ? {
-                tradeSetupReadMode,
-                tradeSetupThesisSource,
-                ...tradeSetupRead.metadata,
-              }
-            : {}),
-        },
-      }),
+      ...(body
+        ? {
+            liveTraderRead: buildCard({
+              title: "Live Trader Read",
+              body,
+              updatedAt: args.timestamp,
+              priceWhenPosted: args.currentPrice,
+              source: tradeSetupReadMode === "active" && tradeSetupRead
+                ? "trade_setup_read"
+                : "pullback_read",
+              metadata: {
+                headline: deriveTraderReadHeadline(body),
+                ...(pullbackRead?.metadata ?? {}),
+                ...(tradeSetupRead
+                  ? {
+                      tradeSetupReadMode,
+                      tradeSetupThesisSource,
+                      ...tradeSetupRead.metadata,
+                    }
+                  : {}),
+              },
+            }),
+          }
+        : {}),
     },
   };
 }
@@ -1923,6 +1949,7 @@ export function buildLiveWatchlistStatusPatch(args: {
   updatedAt?: number;
   firstPostedAt?: number | null;
   potentialGainCardVisible?: boolean;
+  watchlistLifecycleLabelsVisible?: boolean;
 }): LiveWatchlistCardPatch {
   return {
     symbol: normalizeSymbol(args.symbol),
@@ -1931,6 +1958,9 @@ export function buildLiveWatchlistStatusPatch(args: {
     ...(args.firstPostedAt !== undefined ? { firstPostedAt: args.firstPostedAt } : {}),
     ...(args.potentialGainCardVisible !== undefined
       ? { potentialGainCardVisible: args.potentialGainCardVisible }
+      : {}),
+    ...(args.watchlistLifecycleLabelsVisible !== undefined
+      ? { watchlistLifecycleLabelsVisible: args.watchlistLifecycleLabelsVisible }
       : {}),
     cards: {},
   };

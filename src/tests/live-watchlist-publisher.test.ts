@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import {
   buildLiveWatchlistAlertPatch,
   buildLiveWatchlistLevelMap,
+  buildLiveWatchlistPullbackReadPatch,
   buildLiveWatchlistSnapshotPatch,
   buildLiveWatchlistStatusPatch,
   buildLiveWatchlistTechnicalContextPatch,
@@ -239,6 +240,25 @@ describe("live watchlist publisher", () => {
 
     assert.doesNotMatch(patch.cards.liveTraderRead?.body ?? "", /Move phase:/);
     assert.equal(patch.cards.liveTraderRead?.metadata?.pullbackReadEnabled, undefined);
+  });
+
+  it("publishes a deterministic lifecycle read only when requested", () => {
+    const base = {
+      symbol: "ABCD",
+      timestamp: 1_000,
+      currentPrice: 2,
+      supportZones: [{ representativePrice: 1.8, strengthLabel: "major" as const }],
+      resistanceZones: [{ representativePrice: 2.3, strengthLabel: "major" as const }],
+      technicalContext: readyTechnicalContext,
+      pullbackReadEnabled: true,
+    };
+
+    const hidden = buildLiveWatchlistPullbackReadPatch(base);
+    const visible = buildLiveWatchlistPullbackReadPatch({ ...base, includeLifecycle: true });
+
+    assert.equal(hidden?.watchlistLifecycle, undefined);
+    assert.equal(visible?.watchlistLifecycle?.status, "active");
+    assert.match(visible?.watchlistLifecycle?.reason ?? "", /VWAP and EMA9/i);
   });
 
   it("includes chart thesis context in the live trader read card", () => {

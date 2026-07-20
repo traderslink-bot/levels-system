@@ -841,6 +841,7 @@ async function main(): Promise<void> {
       externalResearchEnabled: aiReadExternalResearchEnabled,
       liveTraderReadCardVisible: true,
       potentialGainCardVisible: true,
+      watchlistLifecycleLabelsVisible: false,
       dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
       dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
     });
@@ -888,6 +889,8 @@ async function main(): Promise<void> {
       persistedTradersLinkAiReadSettings?.liveTraderReadCardVisible,
     initialPotentialGainCardVisible:
       persistedTradersLinkAiReadSettings?.potentialGainCardVisible,
+    initialWatchlistLifecycleLabelsVisible:
+      persistedTradersLinkAiReadSettings?.watchlistLifecycleLabelsVisible,
     pullbackReadEnabled,
     recentIntradayCandleFetchService,
     tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
@@ -1125,6 +1128,7 @@ async function main(): Promise<void> {
           externalResearchEnabled: body.enabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1163,6 +1167,7 @@ async function main(): Promise<void> {
           externalResearchEnabled: aiReadExternalResearchEnabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1455,6 +1460,7 @@ async function main(): Promise<void> {
           externalResearchEnabled: aiReadExternalResearchEnabled,
           liveTraderReadCardVisible: result.visible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1508,6 +1514,7 @@ async function main(): Promise<void> {
           externalResearchEnabled: aiReadExternalResearchEnabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: result.visible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1524,6 +1531,52 @@ async function main(): Promise<void> {
         }
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[ManualWatchlistRuntime] Potential Gain card visibility change failed: ${message}`);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/watchlist-lifecycle-labels") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.visible !== "boolean") {
+          sendJson(response, 400, { error: "visible must be true or false." });
+          return;
+        }
+
+        const result = await manager.setWatchlistLifecycleLabelsVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: result.visible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          visible: result.visible,
+          refreshedSymbols: result.refreshedSymbols,
+          refreshedSymbolCount: result.refreshedSymbols.length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Watchlist lifecycle label visibility change failed: ${message}`);
         sendJson(response, 500, { error: message });
       }
       return;

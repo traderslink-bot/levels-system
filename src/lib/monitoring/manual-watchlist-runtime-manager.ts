@@ -241,6 +241,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   tradersLinkAiReadStartupRefreshEnabled?: boolean;
   initialLiveTraderReadCardVisible?: boolean;
   initialPotentialGainCardVisible?: boolean;
+  initialWatchlistLifecycleLabelsVisible?: boolean;
   levelProvenanceMode?: LiveWatchlistLevelProvenanceMode | string | null;
   pullbackReadEnabled?: boolean;
   pullbackReadPollIntervalMs?: number;
@@ -502,6 +503,7 @@ export type ManualWatchlistRuntimeHealth = {
   pendingActivationCount: number;
   liveTraderReadCardVisible: boolean;
   potentialGainCardVisible: boolean;
+  watchlistLifecycleLabelsVisible: boolean;
   lifecycleCounts: Record<WatchlistLifecycleState, number>;
   lastPriceUpdateAt: number | null;
   lastPriceUpdateSymbol: string | null;
@@ -2424,6 +2426,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly lastWebsitePullbackReadStateKey = new Map<string, string>();
   private liveTraderReadCardVisible = resolveInitialLiveTraderReadCardVisible();
   private potentialGainCardVisible = resolveInitialPotentialGainCardVisible();
+  private watchlistLifecycleLabelsVisible = false;
   private readonly technicalContextBySymbol = new Map<string, TechnicalContext>();
   private readonly potentialMoveReadBySymbol = new Map<string, PotentialMoveRead>();
   private readonly tradeSetupThesisReadBySymbol = new Map<string, PotentialMoveRead>();
@@ -2464,6 +2467,7 @@ export class ManualWatchlistRuntimeManager {
       options.initialLiveTraderReadCardVisible ?? resolveInitialLiveTraderReadCardVisible();
     this.potentialGainCardVisible =
       options.initialPotentialGainCardVisible ?? resolveInitialPotentialGainCardVisible();
+    this.watchlistLifecycleLabelsVisible = options.initialWatchlistLifecycleLabelsVisible ?? false;
     if (options.initialTradersLinkAiReadDailyCostBudget) {
       this.setTradersLinkAiReadDailyCostBudget(
         options.initialTradersLinkAiReadDailyCostBudget,
@@ -3033,6 +3037,7 @@ export class ManualWatchlistRuntimeManager {
     this.watchlistStore.patchEntry(read.symbol, {
       tradersLinkAiReadBoundaryState: pending.boundaryState,
       pendingTradersLinkAiReadGeneration: null,
+      ...(read.confidence ? { tradersLinkAiReadConfidence: read.confidence } : {}),
     });
     this.persistWatchlist();
     this.aiReadInitialGenerationSuppressedSymbols.delete(read.symbol);
@@ -3040,11 +3045,14 @@ export class ManualWatchlistRuntimeManager {
 
   private resolvePublishedTradersLinkAiRead(
     published: TradersLinkAiReadPayload | LiveWatchlistPublishedPatch,
-  ): Pick<TradersLinkAiReadPayload, "symbol" | "generationId"> | null {
+  ): Pick<TradersLinkAiReadPayload, "symbol" | "generationId"> & {
+    confidence?: TradersLinkAiReadPayload["confidence"];
+  } | null {
     if ("generationId" in published && typeof published.generationId === "string") {
       return {
         symbol: normalizeSymbol(published.symbol),
         generationId: published.generationId,
+        confidence: published.confidence,
       };
     }
     if (!("cards" in published)) {
@@ -3055,7 +3063,7 @@ export class ManualWatchlistRuntimeManager {
       return null;
     }
     try {
-      const body = JSON.parse(card.body) as { symbol?: unknown; generationId?: unknown };
+      const body = JSON.parse(card.body) as { symbol?: unknown; generationId?: unknown; confidence?: unknown };
       const generationId = typeof body.generationId === "string"
         ? body.generationId
         : typeof card.metadata?.generationId === "string"
@@ -3064,7 +3072,10 @@ export class ManualWatchlistRuntimeManager {
       if (!generationId || typeof body.symbol !== "string") {
         return null;
       }
-      return { symbol: normalizeSymbol(body.symbol), generationId };
+      const confidence = body.confidence === "low" || body.confidence === "medium" || body.confidence === "high"
+        ? body.confidence
+        : undefined;
+      return { symbol: normalizeSymbol(body.symbol), generationId, ...(confidence ? { confidence } : {}) };
     } catch {
       return null;
     }
@@ -9517,6 +9528,49 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
+  async setWatchlistLifecycleLabelsVisible(visible: boolean): Promise<{
+    visible: boolean;
+    refreshedSymbols: string[];
+  }> {
+    this.watchlistLifecycleLabelsVisible = visible;
+    const entries = this.watchlistStore.getActiveEntries();
+    const refreshedSymbols = entries.map((entry) => entry.symbol);
+    const timestamp = Date.now();
+
+    for (const entry of entries) {
+      if (!this.liveWatchlistPublisher) {
+        break;
+      }
+      await this.liveWatchlistPublisher.publish({
+        symbol: entry.symbol,
+        status: "live",
+        updatedAt: timestamp,
+        watchlistLifecycleLabelsVisible: visible,
+        cards: {},
+      });
+      this.lastWebsitePullbackReadPublishAt.delete(entry.symbol);
+      this.lastWebsitePullbackReadStateKey.delete(entry.symbol);
+      const technicalContext = this.technicalContextBySymbol.get(entry.symbol);
+      if (visible && technicalContext && typeof entry.lastPrice === "number" && entry.lastPrice > 0) {
+        this.publishWebsitePullbackTraderRead({
+          symbol: entry.symbol,
+          timestamp,
+          currentPrice: entry.lastPrice,
+          technicalContext: refreshTechnicalContextForPrice(technicalContext, entry.lastPrice),
+          volumeRead: buildPullbackVolumeRead(
+            this.technicalContextCandleStore.getCandles(entry.symbol),
+            { nowMs: timestamp },
+          ),
+        });
+      }
+    }
+
+    return {
+      visible: this.watchlistLifecycleLabelsVisible,
+      refreshedSymbols,
+    };
+  }
+
   getRecentActivity(limit = 30): ManualWatchlistActivityEntry[] {
     return this.recentActivity.slice(0, Math.max(0, limit));
   }
@@ -9552,6 +9606,7 @@ export class ManualWatchlistRuntimeManager {
       pendingActivationCount,
       liveTraderReadCardVisible: this.liveTraderReadCardVisible,
       potentialGainCardVisible: this.potentialGainCardVisible,
+      watchlistLifecycleLabelsVisible: this.watchlistLifecycleLabelsVisible,
       lifecycleCounts,
       lastPriceUpdateAt: this.lastPriceUpdateAt,
       lastPriceUpdateSymbol: this.lastPriceUpdateSymbol,
@@ -10071,6 +10126,7 @@ export class ManualWatchlistRuntimeManager {
     const websitePatch = {
       ...patch,
       potentialGainCardVisible: this.potentialGainCardVisible,
+      watchlistLifecycleLabelsVisible: this.watchlistLifecycleLabelsVisible,
     };
     if (this.liveTraderReadCardVisible) {
       return websitePatch;
@@ -10120,6 +10176,7 @@ export class ManualWatchlistRuntimeManager {
       status,
       firstPostedAt,
       potentialGainCardVisible: this.potentialGainCardVisible,
+      watchlistLifecycleLabelsVisible: this.watchlistLifecycleLabelsVisible,
     });
     void this.liveWatchlistPublisher.publish(patch).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -10262,6 +10319,8 @@ export class ManualWatchlistRuntimeManager {
   private pullbackReadStateKey(patch: NonNullable<ReturnType<typeof buildLiveWatchlistPullbackReadPatch>>): string {
     const metadata = patch.cards.liveTraderRead?.metadata ?? {};
     return [
+      patch.watchlistLifecycle?.status,
+      patch.watchlistLifecycle?.reason,
       metadata.pullbackPhase,
       metadata.pullbackConfidence,
       metadata.pullbackFallback1,
@@ -10314,7 +10373,7 @@ export class ManualWatchlistRuntimeManager {
     if (
       !this.liveWatchlistPublisher ||
       (!pullbackReadEnabled && tradeSetupReadMode === "off") ||
-      !this.liveTraderReadCardVisible
+      (!this.liveTraderReadCardVisible && !this.watchlistLifecycleLabelsVisible)
     ) {
       return;
     }
@@ -10347,6 +10406,7 @@ export class ManualWatchlistRuntimeManager {
       tradeSetupThesisRead: this.tradeSetupThesisReadBySymbol.get(args.symbol) ?? null,
       marketStructure: this.getMarketStructureSnapshot(args.symbol),
       pullbackReadEnabled,
+      includeLifecycle: this.watchlistLifecycleLabelsVisible,
       tradeSetupReadMode,
       specialLevels: this.resolveWebsiteSpecialLevels(args.symbol, levelsOutput),
       priorRegularClosePrice: priorRegularClose?.price ?? null,
@@ -10364,7 +10424,8 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
-    const stateKey = this.pullbackReadStateKey(patch);
+    const websitePatch = this.applyLiveTraderReadCardVisibility(patch);
+    const stateKey = this.pullbackReadStateKey(websitePatch);
     const previousStateKey = this.lastWebsitePullbackReadStateKey.get(args.symbol);
     const lastPublishedAt = this.lastWebsitePullbackReadPublishAt.get(args.symbol) ?? 0;
     if (
@@ -10376,7 +10437,7 @@ export class ManualWatchlistRuntimeManager {
 
     this.lastWebsitePullbackReadStateKey.set(args.symbol, stateKey);
     this.lastWebsitePullbackReadPublishAt.set(args.symbol, args.timestamp);
-    void this.liveWatchlistPublisher.publish(patch).catch((error) => {
+    void this.liveWatchlistPublisher.publish(websitePatch).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(
         `[ManualWatchlistRuntimeManager] Failed to publish pullback trader read for ${args.symbol}: ${message}`,
@@ -10526,6 +10587,7 @@ export class ManualWatchlistRuntimeManager {
     void this.liveWatchlistPublisher.publishTickerData({
       ...patch,
       potentialGainCardVisible: this.potentialGainCardVisible,
+      watchlistLifecycleLabelsVisible: this.watchlistLifecycleLabelsVisible,
     }).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(

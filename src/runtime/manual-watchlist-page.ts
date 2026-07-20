@@ -27,6 +27,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .badge-active { background: #dcfce7; color: #166534; }
     .badge-working { background: #fef3c7; color: #92400e; }
     .badge-failed { background: #fee2e2; color: #991b1b; }
+    .badge-confidence-high { background: #dcfce7; color: #166534; }
+    .badge-confidence-medium { background: #fef3c7; color: #92400e; }
+    .badge-confidence-low { background: #fee2e2; color: #991b1b; }
     .error-line { color: #991b1b; margin-top: 4px; overflow-wrap: anywhere; }
     .status { min-height: 20px; font-size: 14px; margin-bottom: 12px; color: #1d4ed8; }
     .runtime-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
@@ -135,6 +138,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           </label>
         </div>
         <div class="inline-status" id="potential-gain-visible-status"></div>
+      </div>
+      <div class="provider-control">
+        <label for="watchlist-lifecycle-labels-visible-toggle">Watchlist Lifecycle Labels</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="watchlist-lifecycle-labels-visible-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="watchlist-lifecycle-labels-visible-label">Hidden from users</span>
+          </label>
+        </div>
+        <div class="inline-status" id="watchlist-lifecycle-labels-visible-status"></div>
       </div>
       <div class="provider-control">
         <label for="auto-selector-enabled-toggle">Automatic Low-Float Selection</label>
@@ -359,6 +373,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const potentialGainVisibleToggleEl = document.getElementById("potential-gain-visible-toggle");
     const potentialGainVisibleLabelEl = document.getElementById("potential-gain-visible-label");
     const potentialGainVisibleStatusEl = document.getElementById("potential-gain-visible-status");
+    const watchlistLifecycleLabelsVisibleToggleEl = document.getElementById("watchlist-lifecycle-labels-visible-toggle");
+    const watchlistLifecycleLabelsVisibleLabelEl = document.getElementById("watchlist-lifecycle-labels-visible-label");
+    const watchlistLifecycleLabelsVisibleStatusEl = document.getElementById("watchlist-lifecycle-labels-visible-status");
     const aiReadExternalResearchToggleEl = document.getElementById("ai-read-external-research-toggle");
     const aiReadExternalResearchLabelEl = document.getElementById("ai-read-external-research-label");
     const aiReadExternalResearchStatusEl = document.getElementById("ai-read-external-research-status");
@@ -446,6 +463,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     let liveTraderReadVisibilityInFlight = false;
     let potentialGainVisible = true;
     let potentialGainVisibilityInFlight = false;
+    let watchlistLifecycleLabelsVisible = false;
+    let watchlistLifecycleLabelsVisibilityInFlight = false;
     let aiReadConfigured = null;
     let aiReadExternalResearchEnabled = false;
     let aiReadExternalResearchInFlight = false;
@@ -574,6 +593,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       title.textContent = entry.symbol;
       header.appendChild(title);
       header.appendChild(createBadge(lifecycleLabel(entry.lifecycle), lifecycleBadgeClass(entry.lifecycle)));
+      const aiConfidence = entry.tradersLinkAiReadConfidence;
+      header.appendChild(createBadge(
+        "AI confidence: " + (aiConfidence ? lifecycleLabel(aiConfidence) : "Pending"),
+        aiConfidence ? "badge badge-confidence-" + aiConfidence : "badge",
+      ));
 
       details.className = "meta";
       details.appendChild(
@@ -943,6 +967,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         : "Active ticker pages will hide the Potential Gain card.";
     }
 
+    function renderWatchlistLifecycleLabelsVisibilityControl(status, options) {
+      const visible = status.runtimeHealth?.watchlistLifecycleLabelsVisible === true;
+      if (!options?.keepPreviousState) {
+        watchlistLifecycleLabelsVisible = visible;
+      }
+      watchlistLifecycleLabelsVisibleToggleEl.checked = visible;
+      watchlistLifecycleLabelsVisibleToggleEl.disabled = watchlistLifecycleLabelsVisibilityInFlight;
+      watchlistLifecycleLabelsVisibleLabelEl.textContent = visible ? "Visible to users" : "Hidden from users";
+      watchlistLifecycleLabelsVisibleStatusEl.textContent = visible
+        ? "Main watchlist rows and ticker detail pages can show deterministic lifecycle labels."
+        : "Lifecycle labels are hidden; watchlist selection and replacement behavior is unchanged.";
+    }
+
     function formatAiReadCost(value) {
       const amount = Number(value || 0);
       return "$" + amount.toFixed(amount >= 1 ? 2 : 4);
@@ -1273,6 +1310,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderLiveProviderControl(config);
       renderLiveTraderReadVisibilityControl(status);
       renderPotentialGainVisibilityControl(status);
+      renderWatchlistLifecycleLabelsVisibilityControl(status);
       renderAiReadControls(status);
       renderAutoSelectorControl(status);
       aiNoticeEl.textContent =
@@ -1284,6 +1322,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Live Provider", config.liveProvider],
         ["Trader Read Card", health.liveTraderReadCardVisible === false ? "hidden" : "visible"],
         ["Potential Gain Card", health.potentialGainCardVisible === false ? "hidden" : "visible"],
+        ["Lifecycle Labels", health.watchlistLifecycleLabelsVisible === true ? "visible" : "hidden"],
         ["Automatic Selection", status.autoWatchlistSelector?.enabled ? "enabled" : "disabled"],
         ["TradersLink AI Read", status.aiReadConfigured ? "available" : "unavailable"],
         ["AI External Research", status.aiReadExternalResearchEnabled ? "enabled" : "disabled"],
@@ -1934,6 +1973,53 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyWatchlistLifecycleLabelsVisibilitySelection() {
+      const requestedVisible = watchlistLifecycleLabelsVisibleToggleEl.checked;
+      if (requestedVisible === watchlistLifecycleLabelsVisible) {
+        renderWatchlistLifecycleLabelsVisibilityControl({
+          runtimeHealth: { watchlistLifecycleLabelsVisible },
+        });
+        return;
+      }
+
+      watchlistLifecycleLabelsVisibilityInFlight = true;
+      renderWatchlistLifecycleLabelsVisibilityControl(
+        { runtimeHealth: { watchlistLifecycleLabelsVisible: requestedVisible } },
+        { keepPreviousState: true },
+      );
+      setStatus((requestedVisible ? "Showing" : "Hiding") + " watchlist lifecycle labels...");
+      try {
+        const response = await fetch("/api/runtime/watchlist-lifecycle-labels", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visible: requestedVisible }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          watchlistLifecycleLabelsVisibleToggleEl.checked = watchlistLifecycleLabelsVisible;
+          setStatus(payload.error || "Lifecycle label visibility change failed", true);
+          return;
+        }
+
+        watchlistLifecycleLabelsVisible = payload.visible === true;
+        setStatus(
+          (watchlistLifecycleLabelsVisible ? "Lifecycle labels visible" : "Lifecycle labels hidden") +
+            " on the live website. Refreshed " +
+            String(payload.refreshedSymbolCount || 0) +
+            " active ticker records.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        watchlistLifecycleLabelsVisibleToggleEl.checked = watchlistLifecycleLabelsVisible;
+        setStatus(String(error), true);
+      } finally {
+        watchlistLifecycleLabelsVisibilityInFlight = false;
+        renderWatchlistLifecycleLabelsVisibilityControl({
+          runtimeHealth: { watchlistLifecycleLabelsVisible },
+        });
+      }
+    }
+
     async function applyAiReadExternalResearchSelection() {
       const requestedEnabled = aiReadExternalResearchToggleEl.checked;
       if (requestedEnabled === aiReadExternalResearchEnabled) {
@@ -2219,6 +2305,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     applyLiveProviderButtonEl.addEventListener("click", applyLiveProviderSelection);
     liveTraderReadVisibleToggleEl.addEventListener("change", applyLiveTraderReadVisibilitySelection);
     potentialGainVisibleToggleEl.addEventListener("change", applyPotentialGainVisibilitySelection);
+    watchlistLifecycleLabelsVisibleToggleEl.addEventListener("change", applyWatchlistLifecycleLabelsVisibilitySelection);
     aiReadExternalResearchToggleEl.addEventListener("change", applyAiReadExternalResearchSelection);
     aiReadCostBudgetToggleEl.addEventListener("change", applyAiReadCostBudget);
     aiReadCostBudgetApplyEl.addEventListener("click", applyAiReadCostBudget);

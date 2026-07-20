@@ -31,6 +31,7 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       refreshPending: false,
       tradersLinkAiReadCardVisible: true,
       tradersLinkAiReadDipBuyPlanVisible: false,
+      tradersLinkAiReadConfidence: "high",
       tradersLinkAiReadBoundaryState: {
         generatedAt: 850,
         currentPrice: 3.95,
@@ -65,6 +66,7 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       refreshPending: false,
       tradersLinkAiReadCardVisible: true,
       tradersLinkAiReadDipBuyPlanVisible: false,
+      tradersLinkAiReadConfidence: "high",
       tradersLinkAiReadBoundaryState: {
         generatedAt: 850,
         currentPrice: 3.95,

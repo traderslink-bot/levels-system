@@ -20,6 +20,7 @@ import type {
   TradersLinkAiReadTarget,
   TradersLinkAiReadUsage,
 } from "../live-watchlist/live-watchlist-types.js";
+import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-classifier.js";
 import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 
 // Terra is the verified primary for production tactical reads. Luna remains the
@@ -371,6 +372,7 @@ Interpretation contract:
 - The required downside ordering is currentPrice >= needsToHold >= cautionBelow >= momentumFailure. Equal prices are allowed when one tape boundary serves two roles; null is better than inventing a second boundary. For example, never return needsToHold at $3.85 and cautionBelow at $3.95. momentumFailure is the decisive failure level that exposes lower support. mustClear is the first resistance/pivot needed to improve the setup, and breakoutContinuation is the meaningfully higher confirmation pivot that opens the listed targets.
 - targets are ordered upside continuation checkpoints after breakout confirmation. downsideCheckpoints are ordered lower structural areas exposed after momentumFailure. Include the meaningful lower areas a day trader would need if the long thesis fails, such as $1.20 then $1.05; do not bury those prices only in prose. These are scenario checkpoints, not predictions. The final upside target should be above the supplied current price and the final downside checkpoint below it whenever evidence supports a usable mapped range; do not return an already-crossed price as the outer edge of a fresh map.
 - Compare the current-session high with material highs and supply from the immediately preceding regular and after-hours sessions. Do not automatically stop the upside map at today's premarket high when a recent prior-session high remains a practical outer checkpoint, and do not mechanically include an obsolete isolated spike. If the nearer current-session high is the better final target, explain from the tape why the higher prior-session boundary is not presently actionable.
+- Any number described as today's, current, premarket, or session high must exactly match the supplied session summary. A separate breakout-continuation boundary or prior-session resistance must never be relabeled as the current high.
 - Distinguish a real catalyst from catalyst-free momentum. Do not treat an announced transaction valuation as guaranteed value for current shares.
 - Separate Catalyst Reality Check, Dilution Risk, and Listing Status. Every material factual claim in those three objects must include the exact URL of at least one source actually used. The supplied database records include a source excerpt/title, publication metadata, retrieval time, and a limited-window supersession status: never claim facts beyond that record's explicit excerpt/title. If evidence is absent, mark it unverified or unknown instead of filling gaps.
 - For dilution research, prioritize current official SEC filings and issuer releases. Check, when relevant, recent 424B prospectuses, S-1/F-1 and S-3/F-3 registrations, EFFECT notices, 8-K/6-K reports, ATM or equity-line agreements, warrant and convertible terms, shareholder approvals, and merger closing conditions.
@@ -801,10 +803,72 @@ function applyQuoteDisagreementGuard(
   };
 }
 
+function currentPremarketHigh(
+  priceAction: TradersLinkAiReadPriceActionContext,
+  dataAsOf: number,
+): number | null {
+  const current = classifyIntradayCandleTimestamp(dataAsOf);
+  if (current.session !== "premarket") {
+    return null;
+  }
+  const premarketCandles = priceAction.intradayCandles.filter((candle) => {
+    const classified = classifyIntradayCandleTimestamp(candle.timestamp);
+    return classified.sessionDate === current.sessionDate && classified.session === "premarket";
+  });
+  return premarketCandles.length > 0
+    ? Math.max(...premarketCandles.map((candle) => candle.high))
+    : null;
+}
+
+function claimedCurrentPremarketHigh(text: string): number | null {
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  for (const sentence of sentences) {
+    const namesCurrentHigh =
+      /\b(?:premarket|session)(?: range)? high\b|\b(?:today's|current) high\b/i.test(sentence);
+    const contextualBareHigh =
+      /\bpremarket\b/i.test(sentence) &&
+      /\b(?:reject(?:ed|ing|s)?|test(?:ed|ing|s)?|reach(?:ed|ing|es)?)\b/i.test(sentence);
+    if (!namesCurrentHigh && !contextualBareHigh) {
+      continue;
+    }
+    const highMatches = [...sentence.matchAll(/\bhigh\b/gi)];
+    const priceMatches = [...sentence.matchAll(/\$?\d+(?:\.\d+)?/g)]
+      .map((match) => ({
+        index: match.index ?? 0,
+        end: (match.index ?? 0) + match[0].length,
+        value: Number(match[0].replace("$", "")),
+      }))
+      .filter((match) => Number.isFinite(match.value) && match.value > 0);
+    for (const highMatch of highMatches) {
+      const highIndex = highMatch.index ?? 0;
+      const preceding = sentence.slice(Math.max(0, highIndex - 40), highIndex);
+      if (/\b(?:prior|previous|yesterday(?:'s)?|daily|regular(?: session)?|postmarket|after[- ]hours)\b/i.test(preceding)) {
+        continue;
+      }
+      const precedingPrice = priceMatches
+        .filter((match) => match.end <= highIndex)
+        .map((match) => ({ ...match, distance: highIndex - match.end }))
+        .sort((left, right) => left.distance - right.distance)[0];
+      const followingPrice = priceMatches
+        .filter((match) => match.index >= highIndex + highMatch[0].length)
+        .map((match) => ({ ...match, distance: match.index - highIndex - highMatch[0].length }))
+        .sort((left, right) => left.distance - right.distance)[0];
+      const nearestPrice = precedingPrice && precedingPrice.distance <= 45
+        ? precedingPrice
+        : followingPrice;
+      if (nearestPrice && nearestPrice.distance <= 45) {
+        return nearestPrice.value;
+      }
+    }
+  }
+  return null;
+}
+
 function assertTradersLinkAiTradeMap(
   read: ModelRead,
   currentPrice: number,
   priceAction: TradersLinkAiReadPriceActionContext,
+  dataAsOf: number,
 ): void {
   const tolerance = Math.max(currentPrice * 0.005, 0.0001);
   const recentBars = priceAction.intradayCandles.slice(-24);
@@ -819,8 +883,14 @@ function assertTradersLinkAiTradeMap(
     /\b(?:premarket|postmarket|after[- ]hours|regular session|opening range|session (?:high|low|open)|prior close|daily (?:high|low|range)|consolidation|shelf|base|rejection|rejected|acceptance|reclaim|failed spike|range (?:high|low|ceiling|floor)|volume|vwap|wick|tested|tests?|holds?|held|holding|higher low|lower high|whole-dollar|half-dollar|psychological)\b/i;
   const unsupportedZeroVolumeClaim =
     /\b(?:reported\s+)?(?:extended[- ]hours|premarket|postmarket|after[- ]hours|session|bar)?\s*volume\s+(?:was|is|reported(?:\s+as)?)?\s*zero\b|\bzero\s+(?:reported\s+)?volume\b/i;
-  const unavailableVolumeCommentary =
-    /\b(?:(?:premarket|postmarket|after[- ]hours|extended[- ]hours|session|bar|provider)\s+)?volume\s+(?:data\s+)?(?:is|was|remains|appears)?\s*(?:missing|unavailable|partial|not available|not reported|provider[- ]limited)\b|\b(?:missing|unavailable|partial|provider[- ]limited)\s+(?:premarket|postmarket|after[- ]hours|extended[- ]hours|session|bar)?\s*volume\b/i;
+  const unavailableVolumeCommentaryPatterns = [
+    /\b(?:(?:premarket|postmarket|after[- ]hours|extended[- ]hours|session|bar|provider)\s+)?volume\s+(?:data\s+)?(?:is|was|remains|appears)?\s*(?:missing|unavailable|partial|not available|not reported|provider[- ]limited)\b|\b(?:missing|unavailable|partial|provider[- ]limited)\s+(?:premarket|postmarket|after[- ]hours|extended[- ]hours|session|bar)?\s*volume\b/i,
+    /\b(?:there\s+(?:is|was)\s+)?no\s+(?:reliable\s+|reported\s+|available\s+)?(?:premarket|postmarket|after[- ]hours|extended[- ]hours|session|bar)?\s*volume(?:\s+data)?\b/i,
+    /\b(?:premarket|postmarket|after[- ]hours|extended[- ]hours|session|bar)\s+(?:has|had|shows?|reports?|provides?|returned?)\s+no\s+(?:reliable\s+|reported\s+|available\s+)?volume\b/i,
+    /\b(?:premarket|postmarket|after[- ]hours|extended[- ]hours|session|bar)\s+(?:lacks?|is\s+without|was\s+without)\s+(?:reliable\s+|reported\s+|available\s+)?volume\b/i,
+    /\b(?:provider|feed)\s+(?:did\s+not|does\s+not|didn't|doesn't)\s+(?:provide|report|return)\s+(?:reliable\s+|available\s+)?(?:premarket|postmarket|after[- ]hours|extended[- ]hours|session|bar)?\s*volume(?:\s+data)?\b/i,
+    /\bvolume(?:\s+data)?\s+(?:could\s+not|cannot|can't|wasn't|isn't)\s+(?:be\s+)?(?:confirmed|verified|obtained|found)\b/i,
+  ];
   const fail = (message: string): never => {
     throw new Error(`OpenAI returned an invalid tactical trade map: ${message}`);
   };
@@ -840,7 +910,18 @@ function assertTradersLinkAiTradeMap(
   if (unsupportedZeroVolumeClaim.test(allTradeText)) {
     fail("claims that unavailable provider volume means zero shares traded");
   }
-  if (unavailableVolumeCommentary.test(allTradeText)) {
+  const actualPremarketHigh = currentPremarketHigh(priceAction, dataAsOf);
+  const claimedPremarketHigh = claimedCurrentPremarketHigh(allTradeText);
+  if (
+    actualPremarketHigh !== null &&
+    claimedPremarketHigh !== null &&
+    Math.abs(claimedPremarketHigh - actualPremarketHigh) > tolerance
+  ) {
+    fail(
+      `describes ${claimedPremarketHigh} as the current premarket high, but full-session OHLCV shows ${Number(actualPremarketHigh.toFixed(actualPremarketHigh < 1 ? 4 : 2))}`,
+    );
+  }
+  if (unavailableVolumeCommentaryPatterns.some((pattern) => pattern.test(allTradeText))) {
     fail("exposes operational volume availability in the user-facing AI Read");
   }
 
@@ -1610,7 +1691,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         referenceQuote.price,
         input.priceAction,
       );
-      assertTradersLinkAiTradeMap(normalized, referenceQuote.price, input.priceAction);
+      assertTradersLinkAiTradeMap(normalized, referenceQuote.price, input.priceAction, dataAsOf);
       return normalized;
     };
     let availableSources = dedupeSources([

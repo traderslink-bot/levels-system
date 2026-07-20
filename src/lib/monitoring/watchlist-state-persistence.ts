@@ -7,6 +7,7 @@ import type {
   TradersLinkAiReadBoundaryState,
   WatchlistEntry,
   WatchlistLifecycleState,
+  WatchlistTradersLinkAiReadConfidence,
 } from "./monitoring-types.js";
 
 export type PersistedWatchlistState = {
@@ -45,6 +46,10 @@ function isLifecycle(value: unknown): value is WatchlistLifecycleState {
     value === "refresh_pending" ||
     value === "extension_pending"
   );
+}
+
+function normalizeAiReadConfidence(value: unknown): WatchlistTradersLinkAiReadConfidence | undefined {
+  return value === "low" || value === "medium" || value === "high" ? value : undefined;
 }
 
 function normalizeOptionalTimestamp(value: unknown): number | undefined {
@@ -189,6 +194,14 @@ function validateEntry(value: unknown): WatchlistEntry | null {
   }
 
   if (
+    value.tradersLinkAiReadConfidence !== undefined &&
+    value.tradersLinkAiReadConfidence !== null &&
+    normalizeAiReadConfidence(value.tradersLinkAiReadConfidence) === undefined
+  ) {
+    return null;
+  }
+
+  if (
     value.lastError !== undefined &&
     value.lastError !== null &&
     typeof value.lastError !== "string"
@@ -281,6 +294,9 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     ...(typeof value.tradersLinkAiReadDipBuyPlanVisible === "boolean"
       ? { tradersLinkAiReadDipBuyPlanVisible: value.tradersLinkAiReadDipBuyPlanVisible }
       : {}),
+    ...(normalizeAiReadConfidence(value.tradersLinkAiReadConfidence)
+      ? { tradersLinkAiReadConfidence: normalizeAiReadConfidence(value.tradersLinkAiReadConfidence) }
+      : {}),
     ...(tradersLinkAiReadBoundaryState ? { tradersLinkAiReadBoundaryState } : {}),
     ...(pendingTradersLinkAiReadGeneration ? { pendingTradersLinkAiReadGeneration } : {}),
     ...(lastError !== undefined ? { lastError } : {}),
@@ -350,6 +366,9 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
         : {}),
       ...(typeof entry.tradersLinkAiReadDipBuyPlanVisible === "boolean"
         ? { tradersLinkAiReadDipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible }
+        : {}),
+      ...(normalizeAiReadConfidence(entry.tradersLinkAiReadConfidence)
+        ? { tradersLinkAiReadConfidence: normalizeAiReadConfidence(entry.tradersLinkAiReadConfidence) }
         : {}),
       ...(normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState)
         ? { tradersLinkAiReadBoundaryState: normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState) }

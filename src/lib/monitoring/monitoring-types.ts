@@ -301,6 +301,8 @@ export type PendingTradersLinkAiReadGeneration = {
   boundaryState: TradersLinkAiReadBoundaryState;
 };
 
+export type WatchlistTradersLinkAiReadConfidence = "low" | "medium" | "high";
+
 export type WatchlistEntry = {
   symbol: string;
   active: boolean;
@@ -322,6 +324,7 @@ export type WatchlistEntry = {
   refreshPending?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
+  tradersLinkAiReadConfidence?: WatchlistTradersLinkAiReadConfidence;
   tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
   pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration;
   lastError?: string;

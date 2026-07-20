@@ -7,6 +7,7 @@ import type {
   TradersLinkAiReadBoundaryState,
   WatchlistEntry,
   WatchlistLifecycleState,
+  WatchlistTradersLinkAiReadConfidence,
 } from "./monitoring-types.js";
 
 function normalizeSymbol(symbol: string): string {
@@ -15,6 +16,10 @@ function normalizeSymbol(symbol: string): string {
 
 function normalizeFiniteTimestamp(value: number | undefined): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeAiReadConfidence(value: unknown): WatchlistTradersLinkAiReadConfidence | undefined {
+  return value === "low" || value === "medium" || value === "high" ? value : undefined;
 }
 
 function normalizeAiReadBoundaryState(
@@ -135,6 +140,9 @@ export class WatchlistStore {
       ...(typeof entry.tradersLinkAiReadDipBuyPlanVisible === "boolean"
         ? { tradersLinkAiReadDipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible }
         : {}),
+      ...(normalizeAiReadConfidence(entry.tradersLinkAiReadConfidence)
+        ? { tradersLinkAiReadConfidence: normalizeAiReadConfidence(entry.tradersLinkAiReadConfidence) }
+        : {}),
       ...(tradersLinkAiReadBoundaryState
         ? { tradersLinkAiReadBoundaryState }
         : {}),
@@ -191,6 +199,7 @@ export class WatchlistStore {
     operationStatus?: string | null;
     tradersLinkAiReadCardVisible?: boolean;
     tradersLinkAiReadDipBuyPlanVisible?: boolean;
+    tradersLinkAiReadConfidence?: WatchlistTradersLinkAiReadConfidence;
     tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
     pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration | null;
   }): WatchlistEntry {
@@ -252,6 +261,8 @@ export class WatchlistStore {
         typeof input.tradersLinkAiReadDipBuyPlanVisible === "boolean"
           ? input.tradersLinkAiReadDipBuyPlanVisible
           : existing?.tradersLinkAiReadDipBuyPlanVisible,
+      tradersLinkAiReadConfidence:
+        normalizeAiReadConfidence(input.tradersLinkAiReadConfidence) ?? existing?.tradersLinkAiReadConfidence,
       tradersLinkAiReadBoundaryState:
         input.tradersLinkAiReadBoundaryState !== undefined
           ? input.tradersLinkAiReadBoundaryState

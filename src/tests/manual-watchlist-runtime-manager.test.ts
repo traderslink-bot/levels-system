@@ -2681,6 +2681,42 @@ test("ManualWatchlistRuntimeManager can hide and restore the live website Potent
   assert.equal(liveWatchlistPublisher.cardPatches[0]?.potentialGainCardVisible, true);
 });
 
+test("ManualWatchlistRuntimeManager keeps lifecycle labels operator-controlled and display-only", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({
+    symbol: "LABEL",
+    active: true,
+    lifecycle: "active",
+    activatedAt: 1000,
+  });
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    initialWatchlistLifecycleLabelsVisible: false,
+  });
+
+  assert.equal(manager.getRuntimeHealth().watchlistLifecycleLabelsVisible, false);
+  const shown = await manager.setWatchlistLifecycleLabelsVisible(true);
+  assert.equal(shown.visible, true);
+  assert.deepEqual(shown.refreshedSymbols, ["LABEL"]);
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.watchlistLifecycleLabelsVisible, true);
+  assert.equal(watchlistStore.getEntry("LABEL")?.active, true);
+
+  liveWatchlistPublisher.cardPatches = [];
+  const hidden = await manager.setWatchlistLifecycleLabelsVisible(false);
+  assert.equal(hidden.visible, false);
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.watchlistLifecycleLabelsVisible, false);
+  assert.equal(watchlistStore.getEntry("LABEL")?.active, true);
+});
+
 test("ManualWatchlistRuntimeManager refreshes live trader read from same-day catalyst card context", async () => {
   const persistence = new FakeWatchlistStatePersistence();
   const watchlistStore = new WatchlistStore();
@@ -3878,6 +3914,43 @@ test("ManualWatchlistRuntimeManager clears an orphaned AI Read generation after 
   } finally {
     await manager.stop();
   }
+});
+
+test("ManualWatchlistRuntimeManager stores the published AI Read confidence for the admin ticker row", () => {
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({
+    symbol: "CONF",
+    active: true,
+    pendingTradersLinkAiReadGeneration: {
+      generationId: "CONF-generation",
+      createdAt: 1_001,
+      trigger: "manual",
+      boundaryState: {
+        generatedAt: 1_000,
+        currentPrice: 1.25,
+        upperBoundary: 1.4,
+        lowerBoundary: 1.1,
+        lastAutomaticRefreshRegime: null,
+      },
+    },
+  });
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+  });
+
+  (manager as any).acknowledgeTradersLinkAiReadPublication({
+    symbol: "CONF",
+    generationId: "CONF-generation",
+    confidence: "medium",
+  });
+
+  assert.equal(watchlistStore.getEntry("CONF")?.tradersLinkAiReadConfidence, "medium");
 });
 
 test("ManualWatchlistRuntimeManager posts stock context into a newly created thread before the level snapshot", async () => {

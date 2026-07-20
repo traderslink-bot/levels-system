@@ -19,6 +19,20 @@ export type LiveWatchlistCardKind =
 
 export type LiveWatchlistStatus = "live" | "stale" | "deactivated";
 export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting";
+export type LiveWatchlistLifecycleStatus =
+  | "monitoring"
+  | "active"
+  | "pullback_watch"
+  | "recovery_watch"
+  | "setup_fading"
+  | "standby";
+
+export type LiveWatchlistLifecycleRead = {
+  status: LiveWatchlistLifecycleStatus;
+  label: "Monitoring" | "Active" | "Pullback Watch" | "Recovery Watch" | "Setup Fading" | "Standby";
+  reason: string;
+  updatedAt: number;
+};
 
 export type LiveWatchlistCardContent = {
   title: string;
@@ -35,6 +49,8 @@ export type LiveWatchlistCardPatch = {
   updatedAt: number;
   firstPostedAt?: number | null;
   potentialGainCardVisible?: boolean;
+  watchlistLifecycleLabelsVisible?: boolean;
+  watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   levelMap?: LiveWatchlistLevelMap | null;
@@ -55,6 +71,8 @@ export type LiveWatchlistTickerDataPatch = {
   marketDataObservedAt?: number;
   marketDataRevision?: number;
   potentialGainCardVisible?: boolean;
+  watchlistLifecycleLabelsVisible?: boolean;
+  watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   latestPrice: number;
