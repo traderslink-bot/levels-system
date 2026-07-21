@@ -1188,6 +1188,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       autoSelectorEnabledToggleEl.disabled = autoSelectorRequestInFlight;
       autoSelectorEnabledLabelEl.textContent = autoSelectorEnabled ? "On" : "Off";
       autoSelectorApplyButtonEl.disabled = autoSelectorRequestInFlight || !autoSelectorSettingsDirty;
+      autoSelectorApplyButtonEl.textContent = autoSelectorRequestInFlight
+        ? "Saving..."
+        : autoSelectorSettingsDirty
+          ? "Apply Selection Settings"
+          : "Settings Saved";
       autoSelectorPreviewButtonEl.disabled = autoSelectorRequestInFlight || selector.running === true;
 
       if (!autoSelectorSettingsDirty) {
@@ -2399,7 +2404,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         autoSelectorRequestInFlight = false;
         delete autoSelectorApplyButtonEl.dataset.loading;
         autoSelectorApplyButtonEl.setAttribute("aria-busy", "false");
-        autoSelectorApplyButtonEl.textContent = "Apply Selection Settings";
+        autoSelectorApplyButtonEl.textContent = autoSelectorSettingsDirty
+          ? "Apply Selection Settings"
+          : "Settings Saved";
         autoSelectorApplyButtonEl.disabled = !autoSelectorSettingsDirty;
         autoSelectorPreviewButtonEl.disabled = false;
       }
@@ -2526,10 +2533,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     for (const input of Object.values(autoSelectorInputEls)) {
       input.addEventListener("input", () => {
         autoSelectorSettingsDirty = true;
+        autoSelectorApplyButtonEl.textContent = "Apply Selection Settings";
         autoSelectorApplyButtonEl.disabled = autoSelectorRequestInFlight;
       });
       input.addEventListener("change", () => {
         autoSelectorSettingsDirty = true;
+        autoSelectorApplyButtonEl.textContent = "Apply Selection Settings";
         autoSelectorApplyButtonEl.disabled = autoSelectorRequestInFlight;
       });
     }

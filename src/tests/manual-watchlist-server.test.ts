@@ -74,7 +74,11 @@ test("manual watchlist Apply button distinguishes saved state from an in-flight 
   assert.match(MANUAL_WATCHLIST_PAGE, /autoSelectorApplyButtonEl\.dataset\.loading = "true";/);
   assert.match(MANUAL_WATCHLIST_PAGE, /autoSelectorApplyButtonEl\.textContent = "Saving\.\.\.";/);
   assert.match(MANUAL_WATCHLIST_PAGE, /delete autoSelectorApplyButtonEl\.dataset\.loading;/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /autoSelectorApplyButtonEl\.textContent = "Apply Selection Settings";/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /: "Settings Saved";/);
+  assert.match(
+    MANUAL_WATCHLIST_PAGE,
+    /input\.addEventListener\("input", \(\) => \{\s+autoSelectorSettingsDirty = true;\s+autoSelectorApplyButtonEl\.textContent = "Apply Selection Settings";/,
+  );
 });
 
 test("manual watchlist page shows runtime status and separate review surfaces", () => {
