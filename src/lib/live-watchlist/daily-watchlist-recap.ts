@@ -130,7 +130,7 @@ function formatPrice(value: number): string {
 function tickerBlock(ticker: DailyWatchlistRecapTicker): string {
   return [
     `**${ticker.symbol} — +${ticker.potentialGainPct.toFixed(2)}%**`,
-    `Starting price: $${formatPrice(ticker.startingPrice)}`,
+    `Alerted: $${formatPrice(ticker.startingPrice)}`,
     `Highest after added: $${formatPrice(ticker.highPrice)}`,
   ].join("\n");
 }

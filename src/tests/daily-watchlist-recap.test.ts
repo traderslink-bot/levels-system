@@ -48,9 +48,9 @@ test("daily recap formatting filters 5 percent, sorts gains, and includes reques
   assert.ok(message.indexOf("TOP") < message.indexOf("SECOND"));
   assert.ok(message.indexOf("SECOND") < message.indexOf("THIRD"));
   assert.match(message, /\*\*TOP — \+40\.00%\*\*/);
-  assert.match(message, /Starting price: \$1\.00/);
+  assert.match(message, /Alerted: \$1\.00/);
   assert.match(message, /Highest after added: \$1\.40/);
-  assert.match(message, /Starting price: \$0\.5000/);
+  assert.match(message, /Alerted: \$0\.5000/);
 });
 
 test("daily recap shows one or two tickers when fewer than three qualify", () => {
