@@ -68,6 +68,15 @@ test("manual watchlist row actions recover their controls after request failures
   );
 });
 
+test("manual watchlist Apply button distinguishes saved state from an in-flight request", () => {
+  assert.match(MANUAL_WATCHLIST_PAGE, /button:disabled \{ cursor: not-allowed;/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /button\[data-loading="true"\] \{ cursor: wait;/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /autoSelectorApplyButtonEl\.dataset\.loading = "true";/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /autoSelectorApplyButtonEl\.textContent = "Saving\.\.\.";/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /delete autoSelectorApplyButtonEl\.dataset\.loading;/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /autoSelectorApplyButtonEl\.textContent = "Apply Selection Settings";/);
+});
+
 test("manual watchlist page shows runtime status and separate review surfaces", () => {
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Status/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);

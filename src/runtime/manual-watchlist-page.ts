@@ -12,7 +12,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     input, select, textarea { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
     textarea { min-height: 84px; resize: vertical; font-family: Arial, sans-serif; line-height: 1.35; }
     button { min-width: 94px; padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; background: #1d4ed8; color: #fff; white-space: nowrap; }
-    button:disabled { cursor: wait; opacity: 0.62; }
+    button:disabled { cursor: not-allowed; opacity: 0.62; }
+    button[data-loading="true"] { cursor: wait; }
     ul { list-style: none; padding: 0; margin: 0; }
     li { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-top: 1px solid #e5e7eb; padding: 12px 0; }
     li:first-child { border-top: 0; }
@@ -2372,6 +2373,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       autoSelectorRequestInFlight = true;
       autoSelectorEnabledToggleEl.disabled = true;
       autoSelectorApplyButtonEl.disabled = true;
+      autoSelectorApplyButtonEl.dataset.loading = "true";
+      autoSelectorApplyButtonEl.setAttribute("aria-busy", "true");
+      autoSelectorApplyButtonEl.textContent = "Saving...";
       autoSelectorPreviewButtonEl.disabled = true;
       setStatus(progressMessage);
       try {
@@ -2393,6 +2397,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setStatus(String(error), true);
       } finally {
         autoSelectorRequestInFlight = false;
+        delete autoSelectorApplyButtonEl.dataset.loading;
+        autoSelectorApplyButtonEl.setAttribute("aria-busy", "false");
+        autoSelectorApplyButtonEl.textContent = "Apply Selection Settings";
         autoSelectorApplyButtonEl.disabled = !autoSelectorSettingsDirty;
         autoSelectorPreviewButtonEl.disabled = false;
       }
