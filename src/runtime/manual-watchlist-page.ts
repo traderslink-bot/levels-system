@@ -93,7 +93,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <button class="danger" id="remove-postmarket-tickers-button" type="button">Remove Post-Market</button>
       </div>
       <div class="status" id="status"></div>
-      <label for="symbol">npm run watchlist:manual</label>
       <label for="symbol">Symbol</label>
       <input id="symbol" name="symbol" maxlength="10" required />
       <div class="field-hint">
@@ -151,6 +150,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <div class="inline-status" id="watchlist-lifecycle-labels-visible-status"></div>
       </div>
       <div class="provider-control">
+        <label for="reversal-watchlist-visible-toggle">Potential Reversal Watchlist</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="reversal-watchlist-visible-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="reversal-watchlist-visible-label">Visible to users</span>
+          </label>
+        </div>
+        <div class="inline-status" id="reversal-watchlist-visible-status"></div>
+      </div>
+      <div class="provider-control">
         <label for="auto-selector-enabled-toggle">Automatic Low-Float Selection</label>
         <div class="inline-control toggle-control">
           <label class="toggle-switch">
@@ -169,8 +179,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Minimum price ($)<input id="auto-selector-min-price" type="number" min="0.01" step="0.01" /></label>
           <label>Maximum price ($)<input id="auto-selector-max-price" type="number" min="0.02" step="0.01" /></label>
           <label>Minimum gain (%)<input id="auto-selector-min-gain" type="number" min="0" step="0.1" /></label>
-          <label>Minimum volume (shares)<input id="auto-selector-min-volume" type="number" min="0" step="1000" /></label>
-          <label>Minimum dollar volume ($)<input id="auto-selector-min-dollar-volume" type="number" min="0" step="10000" /></label>
+          <label>Premarket/regular minimum volume (shares)<input id="auto-selector-min-volume" type="number" min="0" step="1000" /></label>
+          <label>Premarket/regular minimum dollar volume ($)<input id="auto-selector-min-dollar-volume" type="number" min="0" step="10000" /></label>
+          <label>Post-market minimum session volume (shares)<input id="auto-selector-postmarket-min-volume" type="number" min="0" step="1000" /></label>
+          <label>Post-market minimum session dollar volume ($)<input id="auto-selector-postmarket-min-dollar-volume" type="number" min="0" step="5000" /></label>
           <label>Minimum score (0-100)<input id="auto-selector-min-score" type="number" min="0" max="100" step="1" /></label>
           <label>Consecutive passing scans<input id="auto-selector-passes" type="number" min="1" max="10" step="1" /></label>
           <label>Maximum active premarket/regular auto tickers (lowering keeps best current slot scores)<input id="auto-selector-max-active-main" type="number" min="1" max="20" step="1" /></label>
@@ -359,6 +371,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const aiNoticeEl = document.getElementById("ai-notice");
     const activityListEl = document.getElementById("activity-list");
     const formEl = document.getElementById("watchlist-form");
+    const activateButtonEl = formEl.querySelector('button[type="submit"]');
     const clearDiscordButtonEl = document.getElementById("clear-discord-button");
     const removeAllTickersButtonEl = document.getElementById("remove-all-tickers-button");
     const removeMainTickersButtonEl = document.getElementById("remove-main-tickers-button");
@@ -380,6 +393,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const watchlistLifecycleLabelsVisibleToggleEl = document.getElementById("watchlist-lifecycle-labels-visible-toggle");
     const watchlistLifecycleLabelsVisibleLabelEl = document.getElementById("watchlist-lifecycle-labels-visible-label");
     const watchlistLifecycleLabelsVisibleStatusEl = document.getElementById("watchlist-lifecycle-labels-visible-status");
+    const reversalWatchlistVisibleToggleEl = document.getElementById("reversal-watchlist-visible-toggle");
+    const reversalWatchlistVisibleLabelEl = document.getElementById("reversal-watchlist-visible-label");
+    const reversalWatchlistVisibleStatusEl = document.getElementById("reversal-watchlist-visible-status");
     const aiReadExternalResearchToggleEl = document.getElementById("ai-read-external-research-toggle");
     const aiReadExternalResearchLabelEl = document.getElementById("ai-read-external-research-label");
     const aiReadExternalResearchStatusEl = document.getElementById("ai-read-external-research-status");
@@ -409,6 +425,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       minGainPct: document.getElementById("auto-selector-min-gain"),
       minVolume: document.getElementById("auto-selector-min-volume"),
       minDollarVolume: document.getElementById("auto-selector-min-dollar-volume"),
+      minPostmarketVolume: document.getElementById("auto-selector-postmarket-min-volume"),
+      minPostmarketDollarVolume: document.getElementById("auto-selector-postmarket-min-dollar-volume"),
       minimumScore: document.getElementById("auto-selector-min-score"),
       consecutivePassesRequired: document.getElementById("auto-selector-passes"),
       maxActiveMainSessionTickers: document.getElementById("auto-selector-max-active-main"),
@@ -473,6 +491,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     let potentialGainVisibilityInFlight = false;
     let watchlistLifecycleLabelsVisible = false;
     let watchlistLifecycleLabelsVisibilityInFlight = false;
+    let reversalWatchlistVisible = true;
+    let reversalWatchlistVisibilityInFlight = false;
     let aiReadConfigured = null;
     let aiReadExternalResearchEnabled = false;
     let aiReadExternalResearchInFlight = false;
@@ -481,6 +501,35 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     let autoSelectorEnabled = false;
     let autoSelectorSettingsDirty = false;
     let autoSelectorRequestInFlight = false;
+    let runtimeStatusHydrated = false;
+    let dashboardRefreshTimer = null;
+    const DASHBOARD_REFRESH_INTERVAL_MS = 5000;
+    const runtimeSettingsControlEls = [
+      historicalProviderSelectEl,
+      applyHistoricalProviderButtonEl,
+      liveProviderSelectEl,
+      applyLiveProviderButtonEl,
+      liveTraderReadVisibleToggleEl,
+      potentialGainVisibleToggleEl,
+      watchlistLifecycleLabelsVisibleToggleEl,
+      reversalWatchlistVisibleToggleEl,
+      aiReadExternalResearchToggleEl,
+      aiReadCostBudgetToggleEl,
+      aiReadCostBudgetUsdEl,
+      aiReadCostBudgetApplyEl,
+      autoSelectorEnabledToggleEl,
+      autoSelectorApplyButtonEl,
+      autoSelectorPreviewButtonEl,
+      ...Object.values(autoSelectorInputEls),
+    ];
+    function setRuntimeStatusHydrated(hydrated) {
+      runtimeStatusHydrated = hydrated;
+      for (const control of runtimeSettingsControlEls) {
+        control.disabled = !runtimeStatusHydrated;
+      }
+      runtimeGridEl.setAttribute("aria-busy", String(!runtimeStatusHydrated));
+    }
+    setRuntimeStatusHydrated(false);
     const largeLiquidTickerSymbols = new Set([
       "AAPL",
       "MSFT",
@@ -988,6 +1037,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         : "Lifecycle labels are hidden; watchlist selection and replacement behavior is unchanged.";
     }
 
+    function renderReversalWatchlistVisibilityControl(status, options) {
+      const visible = status.runtimeHealth?.reversalWatchlistVisible !== false;
+      if (!options?.keepPreviousState) {
+        reversalWatchlistVisible = visible;
+      }
+      reversalWatchlistVisibleToggleEl.checked = visible;
+      reversalWatchlistVisibleToggleEl.disabled = reversalWatchlistVisibilityInFlight;
+      reversalWatchlistVisibleLabelEl.textContent = visible ? "Visible to users" : "Hidden from users";
+      reversalWatchlistVisibleStatusEl.textContent = visible
+        ? "Protected Main-session runners can appear below the Main Session list after a pullback."
+        : "The Potential Reversal Watchlist is hidden; ticker monitoring continues in the background.";
+    }
+
     function formatAiReadCost(value) {
       const amount = Number(value || 0);
       return "$" + amount.toFixed(amount >= 1 ? 2 : 4);
@@ -1068,14 +1130,14 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           String(accountingHealth.lastLoadError || "the usage ledger could not be read completely.");
         aiReadCostListEl.appendChild(warning);
       }
-      const perTicker = Array.isArray(summary.perTicker) ? summary.perTicker : [];
+      const perTicker = Array.isArray(summary.todayPerTicker) ? summary.todayPerTicker : [];
       if (perTicker.length === 0) {
         const empty = document.createElement("li");
-        empty.textContent = "No recorded TradersLink AI Read expense yet.";
+        empty.textContent = "No TradersLink AI Read API calls recorded today.";
         aiReadCostListEl.appendChild(empty);
         return;
       }
-      for (const ticker of perTicker.slice(0, 20)) {
+      for (const ticker of perTicker) {
         const item = document.createElement("li");
         const body = document.createElement("div");
         const detail = document.createElement("div");
@@ -1140,6 +1202,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("minGainPct", thresholds.minGainPct);
         setAutoSelectorInputValue("minVolume", thresholds.minVolume);
         setAutoSelectorInputValue("minDollarVolume", thresholds.minDollarVolume);
+        setAutoSelectorInputValue("minPostmarketVolume", thresholds.minPostmarketVolume);
+        setAutoSelectorInputValue("minPostmarketDollarVolume", thresholds.minPostmarketDollarVolume);
         setAutoSelectorInputValue("minimumScore", thresholds.minimumScore);
         setAutoSelectorInputValue("consecutivePassesRequired", thresholds.consecutivePassesRequired);
         setAutoSelectorInputValue("maxActiveMainSessionTickers", thresholds.maxActiveMainSessionTickers);
@@ -1308,6 +1372,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
                 ", slot " + managed.admissionSlotSurvivalScore,
               ]
             : []),
+          ...(Number.isFinite(managed?.holdProtectionEarnedAt)
+            ? ["30-minute hold earned: " + (managed.holdProtectionReason || "repeat qualification")]
+            : managed?.state === "active"
+              ? ["30-minute hold not earned yet"]
+              : []),
           ...(decision.slotSurvivalReasons || []),
           ...(decision.tradingHaltState === "halted"
             ? ["Nasdaq-confirmed trading halt" + (decision.tradingHaltReasonCode ? " (" + decision.tradingHaltReasonCode + ")" : "")]
@@ -1353,6 +1422,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderLiveTraderReadVisibilityControl(status);
       renderPotentialGainVisibilityControl(status);
       renderWatchlistLifecycleLabelsVisibilityControl(status);
+      renderReversalWatchlistVisibilityControl(status);
       renderAiReadControls(status);
       renderAutoSelectorControl(status);
       aiNoticeEl.textContent =
@@ -1365,6 +1435,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Trader Read Card", health.liveTraderReadCardVisible === false ? "hidden" : "visible"],
         ["Potential Gain Card", health.potentialGainCardVisible === false ? "hidden" : "visible"],
         ["Lifecycle Labels", health.watchlistLifecycleLabelsVisible === true ? "visible" : "hidden"],
+        ["Reversal Watchlist", health.reversalWatchlistVisible === false ? "hidden" : "visible"],
         ["Automatic Selection", status.autoWatchlistSelector?.enabled ? "enabled" : "disabled"],
         ["TradersLink AI Read", status.aiReadConfigured ? "available" : "unavailable"],
         ["AI External Research", status.aiReadExternalResearchEnabled ? "enabled" : "disabled"],
@@ -1495,44 +1566,54 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     }
 
     async function activateEntry(symbol, note, retry) {
-      const response = await fetch("/api/watchlist/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol, note }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setStatus(payload.error || "Activate failed", true);
+      try {
+        const response = await fetch("/api/watchlist/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol, note }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "Activate failed", true);
+          return false;
+        }
+
+        const thread = payload.entry.discordThreadId || "pending";
+        setStatus(
+          (retry ? "Retry started for " : "Activation started for ") +
+            payload.entry.symbol +
+            " in thread " +
+            thread +
+            ".",
+        );
+        return true;
+      } catch (error) {
+        setStatus("Activation request failed: " + String(error), true);
         return false;
       }
-
-      const thread = payload.entry.discordThreadId || "pending";
-      setStatus(
-        (retry ? "Retry started for " : "Activation started for ") +
-          payload.entry.symbol +
-          " in thread " +
-          thread +
-          ".",
-      );
-      return true;
     }
 
     async function postEntryAction(path, symbol, successPrefix) {
-      const response = await fetch(path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setStatus(payload.error || "Action failed", true);
+      try {
+        const response = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "Action failed", true);
+          return false;
+        }
+
+        setStatus(successPrefix + " " + payload.entry.symbol);
+        await loadEntries();
+        await loadRuntimeStatus();
+        return true;
+      } catch (error) {
+        setStatus("Action request failed for " + symbol + ": " + String(error), true);
         return false;
       }
-
-      setStatus(successPrefix + " " + payload.entry.symbol);
-      await loadEntries();
-      await loadRuntimeStatus();
-      return true;
     }
 
     async function copyThreadId(entry) {
@@ -1580,8 +1661,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           repostButton.className = "secondary";
           repostButton.addEventListener("click", async () => {
             repostButton.disabled = true;
-            await postEntryAction("/api/watchlist/repost-snapshot", entry.symbol, "Reposted snapshot for");
-            repostButton.disabled = false;
+            try {
+              await postEntryAction("/api/watchlist/repost-snapshot", entry.symbol, "Reposted snapshot for");
+            } finally {
+              repostButton.disabled = false;
+            }
           });
           actions.appendChild(repostButton);
 
@@ -1590,8 +1674,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           refreshButton.className = "secondary";
           refreshButton.addEventListener("click", async () => {
             refreshButton.disabled = true;
-            await postEntryAction("/api/watchlist/refresh-levels", entry.symbol, "Refreshed levels for");
-            refreshButton.disabled = false;
+            try {
+              await postEntryAction("/api/watchlist/refresh-levels", entry.symbol, "Refreshed levels for");
+            } finally {
+              refreshButton.disabled = false;
+            }
           });
           actions.appendChild(refreshButton);
 
@@ -1719,19 +1806,26 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         deactivateButton.textContent = entry.lifecycle === "activating" ? "Cancel" : "Deactivate";
         deactivateButton.className = "danger";
         deactivateButton.addEventListener("click", async () => {
-          const response = await fetch("/api/watchlist/deactivate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ symbol: entry.symbol }),
-          });
-          const payload = await response.json();
-          if (!response.ok) {
-            setStatus(payload.error || "Deactivate failed", true);
-            return;
+          deactivateButton.disabled = true;
+          try {
+            const response = await fetch("/api/watchlist/deactivate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ symbol: entry.symbol }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+              setStatus(payload.error || "Deactivate failed", true);
+              return;
+            }
+            setStatus("Deactivated " + payload.entry.symbol);
+            await loadEntries();
+            await loadRuntimeStatus();
+          } catch (error) {
+            setStatus("Deactivate request failed for " + entry.symbol + ": " + String(error), true);
+          } finally {
+            deactivateButton.disabled = false;
           }
-          setStatus("Deactivated " + payload.entry.symbol);
-          await loadEntries();
-          await loadRuntimeStatus();
         });
         actions.appendChild(deactivateButton);
 
@@ -1741,23 +1835,30 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
-    async function loadEntries() {
-      const response = await fetch("/api/watchlist");
+    async function fetchJson(url) {
+      const response = await fetch(url);
       const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Request failed with HTTP " + response.status + ".");
+      }
+      return payload;
+    }
+
+    async function loadEntries() {
+      const payload = await fetchJson("/api/watchlist");
       renderEntries(payload.activeEntries || []);
     }
 
     async function loadRuntimeStatus() {
-      const response = await fetch("/api/runtime/status");
-      const payload = await response.json();
+      const payload = await fetchJson("/api/runtime/status");
+      setRuntimeStatusHydrated(true);
       renderRuntimeStatus(payload);
       renderRuntimeConfig(payload);
       renderActivity(payload.recentActivity || []);
     }
 
     async function loadReviewArtifacts() {
-      const response = await fetch("/api/runtime/review-artifacts");
-      const payload = await response.json();
+      const payload = await fetchJson("/api/runtime/review-artifacts");
       renderReviewArtifacts(payload);
     }
 
@@ -2062,6 +2163,53 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyReversalWatchlistVisibilitySelection() {
+      const requestedVisible = reversalWatchlistVisibleToggleEl.checked;
+      if (requestedVisible === reversalWatchlistVisible) {
+        renderReversalWatchlistVisibilityControl({
+          runtimeHealth: { reversalWatchlistVisible },
+        });
+        return;
+      }
+
+      reversalWatchlistVisibilityInFlight = true;
+      renderReversalWatchlistVisibilityControl(
+        { runtimeHealth: { reversalWatchlistVisible: requestedVisible } },
+        { keepPreviousState: true },
+      );
+      setStatus((requestedVisible ? "Showing" : "Hiding") + " the Potential Reversal Watchlist...");
+      try {
+        const response = await fetch("/api/runtime/reversal-watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visible: requestedVisible }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          reversalWatchlistVisibleToggleEl.checked = reversalWatchlistVisible;
+          setStatus(payload.error || "Potential Reversal Watchlist visibility change failed", true);
+          return;
+        }
+
+        reversalWatchlistVisible = payload.visible !== false;
+        setStatus(
+          (reversalWatchlistVisible ? "Potential Reversal Watchlist visible" : "Potential Reversal Watchlist hidden") +
+            " on /watchlist. Refreshed " +
+            String(payload.refreshedSymbolCount || 0) +
+            " active ticker records.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        reversalWatchlistVisibleToggleEl.checked = reversalWatchlistVisible;
+        setStatus(String(error), true);
+      } finally {
+        reversalWatchlistVisibilityInFlight = false;
+        renderReversalWatchlistVisibilityControl({
+          runtimeHealth: { reversalWatchlistVisible },
+        });
+      }
+    }
+
     async function applyAiReadExternalResearchSelection() {
       const requestedEnabled = aiReadExternalResearchToggleEl.checked;
       if (requestedEnabled === aiReadExternalResearchEnabled) {
@@ -2166,6 +2314,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         minGainPct: readAutoSelectorNumber("minGainPct"),
         minVolume: Math.round(readAutoSelectorNumber("minVolume")),
         minDollarVolume: Math.round(readAutoSelectorNumber("minDollarVolume")),
+        minPostmarketVolume: Math.round(readAutoSelectorNumber("minPostmarketVolume")),
+        minPostmarketDollarVolume: Math.round(readAutoSelectorNumber("minPostmarketDollarVolume")),
         minimumScore: Math.round(readAutoSelectorNumber("minimumScore")),
         consecutivePassesRequired: Math.round(readAutoSelectorNumber("consecutivePassesRequired")),
         maxActiveMainSessionTickers: Math.round(readAutoSelectorNumber("maxActiveMainSessionTickers")),
@@ -2319,15 +2469,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           return;
         }
       }
-      const started = await activateEntry(symbolEl.value, noteEl.value, false);
-      if (!started) {
-        return;
+      activateButtonEl.disabled = true;
+      try {
+        const started = await activateEntry(symbolEl.value, noteEl.value, false);
+        if (!started) {
+          return;
+        }
+        symbolEl.value = "";
+        noteEl.value = "";
+        await loadEntries();
+        await loadRuntimeStatus();
+        await loadReviewArtifacts();
+      } catch (error) {
+        setStatus("Activation refresh failed: " + String(error), true);
+      } finally {
+        activateButtonEl.disabled = false;
       }
-      symbolEl.value = "";
-      noteEl.value = "";
-      await loadEntries();
-      await loadRuntimeStatus();
-      await loadReviewArtifacts();
     });
     clearDiscordButtonEl.addEventListener("click", clearDiscordPosts);
     removeAllTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("all", "all tickers"));
@@ -2352,6 +2509,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     liveTraderReadVisibleToggleEl.addEventListener("change", applyLiveTraderReadVisibilitySelection);
     potentialGainVisibleToggleEl.addEventListener("change", applyPotentialGainVisibilitySelection);
     watchlistLifecycleLabelsVisibleToggleEl.addEventListener("change", applyWatchlistLifecycleLabelsVisibilitySelection);
+    reversalWatchlistVisibleToggleEl.addEventListener("change", applyReversalWatchlistVisibilitySelection);
     aiReadExternalResearchToggleEl.addEventListener("change", applyAiReadExternalResearchSelection);
     aiReadCostBudgetToggleEl.addEventListener("change", applyAiReadCostBudget);
     aiReadCostBudgetApplyEl.addEventListener("click", applyAiReadCostBudget);
@@ -2369,14 +2527,20 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       });
     }
 
-    Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]).catch((error) => {
-      setStatus(String(error), true);
-    });
-    setInterval(() => {
-      Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]).catch((error) => {
+    async function refreshDashboard() {
+      if (dashboardRefreshTimer !== null) {
+        clearTimeout(dashboardRefreshTimer);
+        dashboardRefreshTimer = null;
+      }
+      try {
+        await Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]);
+      } catch (error) {
         setStatus(String(error), true);
-      });
-    }, 5000);
+      } finally {
+        dashboardRefreshTimer = setTimeout(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS);
+      }
+    }
+    void refreshDashboard();
   </script>
 </body>
 </html>

@@ -35,6 +35,39 @@ test("manual watchlist page builds entry metadata without innerHTML interpolatio
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /meta\.innerHTML/);
 });
 
+test("manual watchlist page hydrates settings before enabling controls and avoids overlapping polls", () => {
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /<label for="symbol">npm run watchlist:manual<\/label>/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /let runtimeStatusHydrated = false/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /control\.disabled = !runtimeStatusHydrated/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /setRuntimeStatusHydrated\(false\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /setRuntimeStatusHydrated\(true\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /if \(!response\.ok\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /await Promise\.all\(\[loadEntries\(\), loadRuntimeStatus\(\), loadReviewArtifacts\(\)\]\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /setTimeout\(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS\)/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /setInterval\(\(\) => \{\s+Promise\.all\(\[loadEntries/);
+});
+
+test("manual watchlist row actions recover their controls after request failures", () => {
+  assert.match(MANUAL_WATCHLIST_PAGE, /Activation request failed:/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Action request failed for/);
+  assert.match(
+    MANUAL_WATCHLIST_PAGE,
+    /repostButton\.disabled = true;\s+try \{[\s\S]*?finally \{\s+repostButton\.disabled = false;/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_PAGE,
+    /refreshButton\.disabled = true;\s+try \{[\s\S]*?finally \{\s+refreshButton\.disabled = false;/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_PAGE,
+    /deactivateButton\.disabled = true;[\s\S]*?finally \{\s+deactivateButton\.disabled = false;/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_PAGE,
+    /activateButtonEl\.disabled = true;[\s\S]*?finally \{\s+activateButtonEl\.disabled = false;/,
+  );
+});
+
 test("manual watchlist page shows runtime status and separate review surfaces", () => {
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Status/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);
@@ -71,8 +104,8 @@ test("manual watchlist page shows runtime status and separate review surfaces", 
   assert.match(MANUAL_WATCHLIST_PAGE, /discord-delivery-audit\.jsonl/);
   assert.match(MANUAL_WATCHLIST_PAGE, /thread-summaries\.json/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Discord thread ID/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /fetch\("\/api\/runtime\/status"\)/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /fetch\("\/api\/runtime\/review-artifacts"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /fetchJson\("\/api\/runtime\/status"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /fetchJson\("\/api\/runtime\/review-artifacts"\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /renderReviewArtifacts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /renderMondayReview/);
   assert.match(MANUAL_WATCHLIST_PAGE, /renderProviderHealth/);
@@ -146,6 +179,9 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-cost-grid/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Optional Daily AI Spend Guard/);
   assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-cost-budget-toggle/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /summary\.todayPerTicker/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /No TradersLink AI Read API calls recorded today/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /perTicker\.slice\(0, 20\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Automatic Low-Float Selection/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
@@ -153,12 +189,35 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-cost-budget/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-visibility/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-refresh/);
-  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /tradersLinkAiReadCostLedger\.summarize\(\)/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /manager\.getTradersLinkAiReadCostSnapshot\(\)/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /selectorSessionActivity/);
   assert.match(MANUAL_WATCHLIST_PAGE, /formatShareVolume/);
   assert.match(MANUAL_WATCHLIST_PAGE, /session volume/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Watchlist Lifecycle Labels/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/watchlist-lifecycle-labels/);
+});
+
+test("legacy OpenAI routes are opt-in and remain separate from website TradersLink AI Read", () => {
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /LEGACY_OPENAI_FEATURES_ENV = "LEVEL_LEGACY_OPENAI_FEATURES_ENABLED"/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /aiCommentaryEnabled = legacyOpenAiFeaturesEnabled && aiCommentaryRequested/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /aiCleanReadService = legacyOpenAiFeaturesEnabled\s+\? createOpenAICleanReadServiceFromEnv\(\)\s+: null/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /tradersLinkAiReadService = createTradersLinkAiReadServiceFromEnv\(\)/,
+  );
+  assert.doesNotMatch(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /legacyOpenAiFeaturesEnabled\s+\? createTradersLinkAiReadServiceFromEnv/,
+  );
 });
 
 test("manual watchlist admin exposes persisted automatic low-float selection controls", () => {
@@ -167,11 +226,15 @@ test("manual watchlist admin exposes persisted automatic low-float selection con
   assert.match(MANUAL_WATCHLIST_PAGE, /Maximum market cap \(\$M\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Maximum float \(M shares\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Maximum outstanding \(M shares\)/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /Minimum dollar volume/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /minimum dollar volume/i);
   assert.match(MANUAL_WATCHLIST_PAGE, /Consecutive passing scans/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Maximum active premarket\/regular auto tickers/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Maximum active post-market auto tickers/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /Initial main-session automatic additions per day/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Post-market minimum session volume/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Post-market minimum session dollar volume/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Late main-session admission reserve/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Late reserve unlock hour ET/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Initial main-session new-ticker quota per day/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Main-session automatic replacements per day/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Continuously replace faded auto tickers/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Allow obvious-runner fast replacement/);
@@ -199,6 +262,10 @@ test("manual watchlist admin exposes persisted automatic low-float selection con
   assert.match(MANUAL_WATCHLIST_PAGE, /collectAutoSelectorThresholds/);
   assert.match(MANUAL_WATCHLIST_PAGE, /\/api\/runtime\/auto-watchlist-selector\/preview/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /new AutoWatchlistSelector/);
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /Object\.keys\(DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG\)/,
+  );
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /autoWatchlistSelector: autoWatchlistSelector\.getStatus\(\)/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/auto-watchlist-selector"/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/auto-watchlist-selector\/preview"/);

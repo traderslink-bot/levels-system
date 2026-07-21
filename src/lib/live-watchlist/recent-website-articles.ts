@@ -24,6 +24,7 @@ export type RecentWebsiteArticle = {
   sourceUrl?: string;
   observedAt?: string;
   summary?: string;
+  sourceKind?: "traderslink_press_release_sec_database" | "stocktitan_rss";
 };
 
 export type RecentWebsiteArticleLookupResult = {
@@ -84,6 +85,7 @@ function normalizeArticle(value: unknown, fallbackTicker: string): RecentWebsite
     sourceUrl: normalizeOptionalString(candidate.sourceUrl),
     observedAt: normalizeOptionalString(candidate.observedAt),
     summary: normalizeOptionalString(candidate.summary),
+    sourceKind: "traderslink_press_release_sec_database",
   };
 }
 

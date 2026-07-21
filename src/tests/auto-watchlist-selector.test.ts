@@ -15,9 +15,11 @@ import {
   DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   isWithinAutoWatchlistScanWindow,
   normalizeNasdaqChartTimestamp,
+  parseStockAnalysisAfterhoursGainers,
   scoreAutoWatchlistCandidate,
   type AutoWatchlistDiscoveryCandidate,
   type AutoWatchlistCandidateDecision,
+  type AutoWatchlistManagedEntry,
   type AutoWatchlistSessionActivityLookup,
 } from "../lib/auto-watchlist/auto-watchlist-selector.js";
 import { derivePressReleaseCatalystContext } from "../lib/catalysts/press-release-catalyst-context.js";
@@ -230,6 +232,25 @@ test("low-priced candidates can pass a dollar-float exception without outranking
   assert.match(oversizedDollarFloat.rejectionReasons.join(" "), /low-price dollar float/i);
 });
 
+test("sub-dollar candidates do not hit an arbitrary 50-cent float-normalization cliff", () => {
+  const result = scoreAutoWatchlistCandidate({
+    candidate: {
+      ...BASE_CANDIDATE,
+      symbol: "RCON",
+      price: 0.504,
+      gainPct: 29,
+      volume: 18_600_000,
+      marketCap: 28_000_000,
+    },
+    finnhubFloatShares: 65_690_000,
+    finnhubSharesOutstanding: 90_630_000,
+  });
+
+  assert.equal(result.qualified, true);
+  assert.equal(result.lowPriceFloatNormalized, true);
+  assert.equal(result.floatDollarValue, 33_107_760);
+});
+
 test("the low-price dollar-float exception never relaxes the fallback outstanding-share cap", () => {
   const result = scoreAutoWatchlistCandidate({
     candidate: {
@@ -386,6 +407,124 @@ test("session dollar volume, not latest price times volume, drives dollar-volume
   assert.equal(result.qualified, true);
   assert.match(result.reasons.join(" "), /\$2M\+ dollar volume/);
   assert.doesNotMatch(result.rejectionReasons.join(" "), /dollar volume must/);
+});
+
+test("postmarket uses thinner-session volume gates without relaxing regular-hours qualification", () => {
+  const candidate: AutoWatchlistDiscoveryCandidate = {
+    ...BASE_CANDIDATE,
+    gainPct: 12,
+    volume: 150_000,
+    averageVolume: null,
+  };
+  const activity = {
+    symbol: candidate.symbol,
+    price: 2,
+    gainPct: 12,
+    sessionVolume: 150_000,
+    sessionDollarVolume: 300_000,
+    recent15mVolume: 40_000,
+    recent15mDollarVolume: 80_000,
+    sessionElapsedMinutes: 5,
+    volumeAcceleration: null,
+    quoteTime: 1_784_231_610,
+    quoteAgeMinutes: 1,
+    available: true,
+  } as const;
+
+  const postmarket = scoreAutoWatchlistCandidate({
+    candidate,
+    floatShares: 15_000_000,
+    session: "postmarket",
+    activity: { ...activity, session: "postmarket" },
+  });
+  const regular = scoreAutoWatchlistCandidate({
+    candidate,
+    floatShares: 15_000_000,
+    session: "regular",
+    activity: { ...activity, session: "regular" },
+  });
+
+  assert.equal(postmarket.qualified, true);
+  assert.equal(regular.qualified, false);
+  assert.doesNotMatch(postmarket.rejectionReasons.join(" "), /volume must be at least/i);
+  assert.match(regular.rejectionReasons.join(" "), /volume must be at least 500,000/i);
+});
+
+test("postmarket dollar-volume scoring scales to the thinner session", () => {
+  const result = scoreAutoWatchlistCandidate({
+    candidate: {
+      ...BASE_CANDIDATE,
+      price: 4.5,
+      gainPct: 10,
+      volume: 100_000,
+      averageVolume: null,
+      marketCap: 80_000_000,
+    },
+    floatShares: 45_000_000,
+    session: "postmarket",
+    activity: {
+      symbol: "LOWF",
+      session: "postmarket",
+      price: 4.5,
+      gainPct: 10,
+      sessionVolume: 100_000,
+      sessionDollarVolume: 1_100_000,
+      recent15mVolume: 20_000,
+      recent15mDollarVolume: 90_000,
+      sessionElapsedMinutes: 20,
+      volumeAcceleration: null,
+      quoteTime: 1_784_231_610,
+      quoteAgeMinutes: 1,
+      available: true,
+    },
+  });
+
+  assert.equal(result.qualified, true);
+  assert.match(result.reasons.join(" "), /\$1M\+ dollar volume/);
+});
+
+test("postmarket rejects a NEXR-shaped marginal admission at the restored dollar-quality floor", () => {
+  const candidate: AutoWatchlistDiscoveryCandidate = {
+    ...BASE_CANDIDATE,
+    symbol: "NEXR",
+    price: 0.445,
+    gainPct: 12.06,
+    volume: 290_339,
+    marketCap: 2_846_976,
+  };
+  const activity = {
+    symbol: "NEXR",
+    session: "postmarket" as const,
+    price: 0.445,
+    gainPct: 12.06,
+    sessionVolume: 290_339,
+    sessionDollarVolume: 125_036,
+    recent15mVolume: 205_333,
+    recent15mDollarVolume: 91_524,
+    sessionElapsedMinutes: 63,
+    volumeAcceleration: 7.73,
+    quoteTime: 1_784_581_440,
+    quoteAgeMinutes: 0,
+    available: true,
+  };
+
+  const tightened = scoreAutoWatchlistCandidate({
+    candidate,
+    floatShares: 6_100_000,
+    session: "postmarket",
+    activity,
+  });
+  const formerFloor = scoreAutoWatchlistCandidate({
+    candidate,
+    floatShares: 6_100_000,
+    thresholds: { minPostmarketDollarVolume: 100_000 },
+    session: "postmarket",
+    activity,
+  });
+
+  assert.equal(tightened.qualified, false);
+  assert.match(tightened.rejectionReasons.join(" "), /post-market dollar volume must be at least \$250K/i);
+  assert.equal(formerFloor.qualified, true);
 });
 
 test("non-press-release ingest events cannot become catalyst boosts", () => {
@@ -920,6 +1059,84 @@ test("the late main-session reserve also extends an exhausted replacement quota"
   }
 });
 
+test("automatic replacement rejects the same symbol before changing lifecycle state", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-self-replacement-"));
+  const now = Date.parse("2026-07-20T13:00:00Z");
+  let lifecycleCalls = 0;
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath: join(directory, "config.json"),
+    now: () => now,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => {
+      lifecycleCalls += 1;
+    },
+    setSymbolFollowup: async () => {
+      lifecycleCalls += 1;
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+  const incumbent: AutoWatchlistManagedEntry = {
+    symbol: "SAME",
+    bucket: "main",
+    state: "active",
+    firstAddedAt: now - 60_000,
+    lastActivatedAt: now - 60_000,
+    addedSession: "regular",
+    lastSession: "regular",
+    lastRankingScore: 50,
+    lastSlotSurvivalScore: 50,
+    admissionAt: now - 60_000,
+    admissionQualificationScore: 50,
+    admissionRankingScore: 50,
+    admissionSlotSurvivalScore: 50,
+    lastQualifiedAt: now - 60_000,
+    holdProtectionEarnedAt: now - 60_000,
+    holdProtectionReason: "test",
+    reversalWatchQualifiedAt: null,
+    reversalWatchQualificationReason: null,
+    peakGainPct: null,
+    peakGainAt: null,
+    lastObservedGainPct: null,
+    lastObservedAt: null,
+    topFiveGainerFirstObservedAt: null,
+    topFiveGainerLastObservedAt: null,
+    topFiveGainerObservationCount: 0,
+    topFiveGainerConsecutiveObservations: 0,
+    retentionFailures: 3,
+    followupAt: null,
+    vacatedSlotAt: null,
+    standbyAt: null,
+    statusReason: "active",
+  };
+  try {
+    const replaced = await (selector as unknown as {
+      replaceManagedDecision: (
+        challenger: AutoWatchlistCandidateDecision,
+        incumbent: AutoWatchlistManagedEntry,
+        bucket: "main",
+        timestamp: number,
+        reason: string,
+      ) => Promise<boolean>;
+    }).replaceManagedDecision(
+      { symbol: "SAME" } as AutoWatchlistCandidateDecision,
+      incumbent,
+      "main",
+      now,
+      "self replacement regression",
+    );
+    assert.equal(replaced, false);
+    assert.equal(lifecycleCalls, 0);
+    assert.equal(selector.getStatus().recentReplacements.length, 0);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("a full main-session allowance does not block the separate post-market allowance", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-postmarket-limit-"));
   const configPath = join(directory, "config.json");
@@ -948,7 +1165,9 @@ test("a full main-session allowance does not block the separate post-market allo
     finnhubClient,
     fetchImpl,
     configPath,
-    now: () => Date.parse("2026-07-16T22:00:00Z"),
+    // A rolling recent-activity window can qualify before 4:15 p.m.; it does
+    // not require a completed 15-minute candle.
+    now: () => Date.parse("2026-07-16T20:05:00Z"),
     getActiveSymbols: () => [],
     isRuntimeReady: () => true,
     activateSymbol: async ({ symbol }) => activated.push(symbol),
@@ -1004,9 +1223,15 @@ test("live exchange discovery surfaces current day-trader leaders and ignores wa
   });
 
   const preview = await selector.previewScan();
-  assert.equal(preview.lastDiscoverySources[0], "live_exchange_gainers");
+  assert.equal(preview.lastDiscoverySources[0], "live_exchange_screener");
   assert.deepEqual(preview.recentDecisions.map((decision) => decision.symbol), ["ATPC", "TGHL"]);
   assert.equal(preview.recentDecisions.every((decision) => decision.qualified), true);
+  assert.equal(
+    preview.recentDecisions.every((decision) =>
+      !decision.reasons.some((reason) => reason.includes("top-gainers list"))
+    ),
+    true,
+  );
   assert.doesNotMatch(JSON.stringify(preview.recentDecisions), /EVLVW/);
 });
 
@@ -1065,7 +1290,7 @@ test("press-release catalysts rerank only candidates that already pass the base 
 
   const preview = await selector.previewScan();
   assert.deepEqual(preview.recentDecisions.map((decision) => decision.symbol), ["SAME", "PRIOR", "OLDER", "NONE"]);
-  assert.deepEqual(preview.recentDecisions.map((decision) => decision.score), [68, 68, 68, 68]);
+  assert.deepEqual(preview.recentDecisions.map((decision) => decision.score), [63, 63, 63, 63]);
   assert.deepEqual(preview.recentDecisions.map((decision) => decision.catalystRankBoost), [12, 9, 3, 0]);
   assert.equal(preview.recentDecisions.every((decision) => decision.qualified), true);
 });
@@ -1201,10 +1426,10 @@ test("decelerating SKYQ-like activity lowers live rank instead of leaving a misl
   try {
     const decision = (await selector.previewScan()).recentDecisions[0];
     assert.ok(decision);
-    assert.equal(decision.score, 85);
+    assert.equal(decision.score, 80);
     assert.equal(decision.volumeDecelerationRankPenalty, 9.9);
-    assert.equal(decision.rankingScore, 90.1);
-    assert.equal(decision.slotSurvivalScore, 91.1);
+    assert.equal(decision.rankingScore, 85.1);
+    assert.equal(decision.slotSurvivalScore, 86.1);
     assert.match(decision.rankingReasons.join(" "), /volume deceleration -9\.9 ranking points/);
   } finally {
     selector.stop();
@@ -1400,6 +1625,401 @@ test("postmarket promotion holds a marginal pop even when acceleration would qua
     selector.stop();
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("a NEXR-shaped postmarket candidate cannot bypass repeat confirmation as an obvious runner", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-nexr-fast-track-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
+  const activated: string[] = [];
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    data: {
+      rows: [{
+        symbol: "NEXR",
+        name: "Nexera Technologies Ltd Ordinary Shares",
+        lastsale: "$0.387",
+        pctchange: "-17%",
+        volume: "12000000",
+        marketCap: "2846976",
+      }],
+    },
+  }), { status: 200 });
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "NEXR",
+        marketCapitalization: 2.846976,
+        floatingShare: 6.1,
+        shareOutstanding: 6.1,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath,
+    thresholds: {
+      extendedSessionCandidateLimit: 1,
+      enrichmentLimit: 1,
+      minPostmarketDollarVolume: 100_000,
+      consecutivePassesRequired: 2,
+    },
+    now: () => Date.parse("2026-07-20T21:04:30Z"),
+    getActiveSymbols: () => [...activated],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => activated.push(symbol),
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session, now }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: 0.445,
+        gainPct: 12.06,
+        sessionVolume: 290_339,
+        sessionDollarVolume: 125_036,
+        recent15mVolume: 205_333,
+        recent15mDollarVolume: 91_524,
+        sessionElapsedMinutes: 64,
+        volumeAcceleration: 7.73,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const nexr = status.recentDecisions.find((decision) => decision.symbol === "NEXR");
+    assert.ok(nexr);
+    assert.equal(nexr.qualified, true);
+    assert.equal(nexr.promotionReady, true);
+    assert.equal(nexr.consecutivePasses, 1, JSON.stringify(nexr));
+    assert.deepEqual(activated, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("final activation revalidation blocks a candidate that fades after discovery", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-final-revalidation-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
+  const activated: string[] = [];
+  let activityCalls = 0;
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    data: {
+      rows: [{
+        symbol: "FADE",
+        name: "Fade Corporation Common Stock",
+        lastsale: "$1.00",
+        pctchange: "25%",
+        volume: "1000000",
+        marketCap: "10000000",
+      }],
+    },
+  }), { status: 200 });
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "FADE",
+        marketCapitalization: 10,
+        floatingShare: 5,
+        shareOutstanding: 8,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath,
+    thresholds: {
+      consecutivePassesRequired: 1,
+      extendedSessionCandidateLimit: 1,
+      enrichmentLimit: 1,
+    },
+    now: () => Date.parse("2026-07-20T21:10:00Z"),
+    getActiveSymbols: () => [...activated],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => activated.push(symbol),
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session, now }) => {
+      activityCalls += 1;
+      const freshGain = activityCalls === 1 ? 25 : 4;
+      return Object.fromEntries(symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: freshGain === 25 ? 1.25 : 1.04,
+        gainPct: freshGain,
+        sessionVolume: 1_000_000,
+        sessionDollarVolume: 1_000_000,
+        recent15mVolume: 200_000,
+        recent15mDollarVolume: 250_000,
+        sessionElapsedMinutes: 70,
+        volumeAcceleration: 2,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]));
+    },
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const fade = status.recentDecisions.find((decision) => decision.symbol === "FADE");
+    assert.equal(activityCalls, 2, JSON.stringify(fade));
+    assert.ok(fade);
+    assert.equal(fade.gainPct, 4);
+    assert.equal(fade.promotionReady, false);
+    assert.match(fade.rejectionReasons.join(" "), /gain must be at least 10%/i);
+    assert.deepEqual(activated, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("the 30-minute hold is earned by proof instead of granted to every new addition", async () => {
+  const runScenario = async (input: {
+    symbol: string;
+    initialGainPct: number;
+    initialRecentDollarVolume: number;
+    initialAcceleration: number;
+    consecutivePassesRequired?: number;
+    extraQualifyingScans?: number;
+    sessionVolume?: number;
+    mainSessionVolume?: number;
+    mainSessionElapsedMinutes?: number;
+    marketMoverConfirmed?: boolean;
+    marketMoverRank?: number;
+    now?: number;
+    minimumAutoHoldMinutes?: number;
+    fadedGainPct?: number;
+    fadedRecentDollarVolume?: number;
+  }) => {
+    const directory = await mkdtemp(join(tmpdir(), `auto-watchlist-earned-hold-${input.symbol}-`));
+    const configPath = join(directory, "config.json");
+    writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
+    const active = new Set<string>();
+    let faded = false;
+    let reversalWatchEligible = false;
+    const scenarioNow = input.now ?? Date.parse("2026-07-20T15:00:00Z");
+    const fetchImpl: typeof fetch = async (request) => {
+      if (String(request).includes("/api/marketmovers")) {
+        return new Response(JSON.stringify({
+          data: {
+            STOCKS: input.marketMoverConfirmed
+              ? {
+                  MostAdvanced: {
+                    table: {
+                      rows: [
+                        ...Array.from(
+                          { length: Math.max(0, (input.marketMoverRank ?? 1) - 1) },
+                          (_, index) => ({
+                            symbol: `WRNT${index}`,
+                            name: `Placeholder ${index} Warrant`,
+                            lastSalePrice: "$1.00",
+                            change: `${100 - index}%`,
+                          }),
+                        ),
+                        {
+                          symbol: input.symbol,
+                          name: `${input.symbol} Corporation Common Stock`,
+                          lastSalePrice: "$3.20",
+                          change: `${input.initialGainPct}%`,
+                        },
+                      ],
+                    },
+                  },
+                }
+              : {},
+          },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        data: {
+          rows: [{
+            symbol: input.symbol,
+            name: `${input.symbol} Corporation Common Stock`,
+            lastsale: "$2.00",
+            pctchange: `${input.initialGainPct}%`,
+            volume: String(input.mainSessionVolume ?? input.sessionVolume ?? 1_000_000),
+            marketCap: "10000000",
+          }],
+        },
+      }), { status: 200 });
+    };
+    const selector = new AutoWatchlistSelector({
+      yahooClient: null,
+      finnhubClient: {
+        getCompanyProfile: async () => ({
+          ticker: input.symbol,
+          marketCapitalization: 10,
+          floatingShare: 5,
+          shareOutstanding: 8,
+        }),
+      } as unknown as FinnhubClient,
+      fetchImpl,
+      configPath,
+      thresholds: {
+        consecutivePassesRequired: input.consecutivePassesRequired ?? 1,
+        minimumAutoHoldMinutes: input.minimumAutoHoldMinutes ?? 30,
+        retentionFailureScansRequired: 1,
+        maxActiveMainSessionTickers: 1,
+        enrichmentLimit: 1,
+      },
+      now: () => scenarioNow,
+      getActiveSymbols: () => [...active],
+      isRuntimeReady: () => true,
+      activateSymbol: async ({ symbol }) => active.add(symbol),
+      setSymbolFollowup: async (_symbol, followup, options) => {
+        if (followup) reversalWatchEligible = options?.reversalWatchEligible === true;
+      },
+      catalystLookup: NO_CATALYST_LOOKUP,
+      requireVerifiedCommonEquity: false,
+      sessionActivityLookup: async ({ symbols, session, now }) => Object.fromEntries(
+        symbols.map((symbol) => [symbol, {
+          symbol,
+          session,
+          price: faded ? 2.08 : 2 * (1 + input.initialGainPct / 100),
+          gainPct: faded ? input.fadedGainPct ?? 4 : input.initialGainPct,
+          sessionVolume: input.sessionVolume ?? 1_000_000,
+          mainSessionVolume: input.mainSessionVolume ?? input.sessionVolume ?? 1_000_000,
+          sessionDollarVolume: 2_000_000,
+          recent15mVolume: 100_000,
+          recent15mDollarVolume: faded
+            ? input.fadedRecentDollarVolume ?? 60_000
+            : input.initialRecentDollarVolume,
+          sessionElapsedMinutes: 90,
+          mainSessionElapsedMinutes: input.mainSessionElapsedMinutes ?? 420,
+          volumeAcceleration: faded ? 0.5 : input.initialAcceleration,
+          quoteTime: Math.floor(now / 1000),
+          quoteAgeMinutes: 0,
+          available: true,
+        }]),
+      ),
+    });
+    try {
+      let admitted = selector.getStatus();
+      for (let pass = 0; pass < (input.consecutivePassesRequired ?? 1); pass += 1) {
+        admitted = await selector.runNow({ activate: true });
+      }
+      const admittedEntry = admitted.managedEntries.find((entry) => entry.symbol === input.symbol);
+      assert.ok(admittedEntry);
+      let beforeFade = admitted;
+      for (let pass = 0; pass < (input.extraQualifyingScans ?? 0); pass += 1) {
+        beforeFade = await selector.runNow({ activate: true });
+      }
+      const preFadeEntry = beforeFade.managedEntries.find((entry) => entry.symbol === input.symbol);
+      faded = true;
+      const afterFade = await selector.runNow({ activate: true });
+      return {
+        admittedEntry,
+        preFadeEntry,
+        fadedEntry: afterFade.managedEntries.find((entry) => entry.symbol === input.symbol),
+        reversalWatchEligible,
+      };
+    } finally {
+      selector.stop();
+      await rm(directory, { recursive: true, force: true });
+    }
+  };
+
+  const marginal = await runScenario({
+    symbol: "MARG",
+    initialGainPct: 12,
+    initialRecentDollarVolume: 80_000,
+    initialAcceleration: 1,
+  });
+  assert.equal(marginal.admittedEntry.holdProtectionEarnedAt, null);
+  assert.equal(marginal.fadedEntry?.state, "followup");
+
+  const proven = await runScenario({
+    symbol: "PROV",
+    initialGainPct: 25,
+    initialRecentDollarVolume: 400_000,
+    initialAcceleration: 2,
+  });
+  assert.ok(proven.admittedEntry.holdProtectionEarnedAt);
+  assert.match(proven.admittedEntry.holdProtectionReason ?? "", /earned immediately/i);
+  assert.equal(proven.fadedEntry?.state, "active");
+  assert.equal(proven.fadedEntry?.retentionFailures, 1);
+
+  const probationary = await runScenario({
+    symbol: "PROB",
+    initialGainPct: 12,
+    initialRecentDollarVolume: 80_000,
+    initialAcceleration: 1,
+    consecutivePassesRequired: 2,
+  });
+  assert.equal(probationary.admittedEntry.holdProtectionEarnedAt, null);
+  assert.equal(probationary.fadedEntry?.state, "followup");
+
+  const repeatProven = await runScenario({
+    symbol: "REPT",
+    initialGainPct: 12,
+    initialRecentDollarVolume: 80_000,
+    initialAcceleration: 1,
+    consecutivePassesRequired: 2,
+    extraQualifyingScans: 1,
+  });
+  assert.ok(repeatProven.preFadeEntry?.holdProtectionEarnedAt);
+  assert.match(repeatProven.preFadeEntry?.holdProtectionReason ?? "", /3 qualifying observations/i);
+  assert.equal(repeatProven.fadedEntry?.state, "active");
+
+  const lateLowVolumeRunner = await runScenario({
+    symbol: "LATELOW",
+    initialGainPct: 60,
+    initialRecentDollarVolume: 3_000_000,
+    initialAcceleration: 3,
+    sessionVolume: 10_000_000,
+    mainSessionVolume: 40_000_000,
+    mainSessionElapsedMinutes: 705,
+    marketMoverConfirmed: true,
+    minimumAutoHoldMinutes: 0,
+    fadedGainPct: 25,
+    fadedRecentDollarVolume: 10_000,
+    now: Date.parse("2026-07-20T19:45:00Z"),
+  });
+  assert.equal(lateLowVolumeRunner.admittedEntry.reversalWatchQualifiedAt, null);
+  assert.equal(lateLowVolumeRunner.reversalWatchEligible, false);
+
+  const highVolumeOutsideTopFive = await runScenario({
+    symbol: "RANKSIX",
+    initialGainPct: 80,
+    initialRecentDollarVolume: 3_000_000,
+    initialAcceleration: 3,
+    sessionVolume: 20_000_000,
+    mainSessionVolume: 60_000_000,
+    mainSessionElapsedMinutes: 705,
+    marketMoverConfirmed: true,
+    marketMoverRank: 6,
+    minimumAutoHoldMinutes: 0,
+    fadedGainPct: 25,
+    fadedRecentDollarVolume: 10_000,
+    now: Date.parse("2026-07-20T19:45:00Z"),
+  });
+  assert.equal(highVolumeOutsideTopFive.admittedEntry.reversalWatchQualifiedAt, null);
+  assert.equal(highVolumeOutsideTopFive.reversalWatchEligible, false);
+
+  const lateVerifiedTopRunner = await runScenario({
+    symbol: "LATETOP",
+    initialGainPct: 60,
+    initialRecentDollarVolume: 3_000_000,
+    initialAcceleration: 3,
+    sessionVolume: 20_000_000,
+    mainSessionVolume: 60_000_000,
+    mainSessionElapsedMinutes: 705,
+    marketMoverConfirmed: true,
+    minimumAutoHoldMinutes: 0,
+    extraQualifyingScans: 1,
+    fadedGainPct: 25,
+    fadedRecentDollarVolume: 10_000,
+    now: Date.parse("2026-07-20T19:45:00Z"),
+  });
+  assert.ok(lateVerifiedTopRunner.preFadeEntry?.reversalWatchQualifiedAt);
+  assert.match(
+    lateVerifiedTopRunner.preFadeEntry?.reversalWatchQualificationReason ?? "",
+    /verified top runner/i,
+  );
+  assert.equal(lateVerifiedTopRunner.reversalWatchEligible, true);
 });
 
 test("premarket discovery prioritizes current market movers that stale regular-session rankings would omit", async () => {
@@ -1604,6 +2224,91 @@ test("postmarket discovery probes liquid names even when Nasdaq movers would oth
   assert.equal(advb.qualified, true);
   assert.equal(advb.gainPct, 40.16);
   assert.equal(advb.sourceScreens.includes("live_exchange_postmarket_activity"), true);
+});
+
+test("direct afterhours gainers discovery puts an RCON-shaped runner into the probe universe", async () => {
+  const html = `<script>const rows=[{no:1,s:"RCON",n:"Recon Technology, Ltd.",postmarketChangePercent:53.98,postmarketDate:"2026-07-20",postmarketPrice:.60,postClose:.3905,marketCap:35390010}]</script>`;
+  const parsed = parseStockAnalysisAfterhoursGainers(html);
+  assert.equal(parsed[0]?.symbol, "RCON");
+  assert.equal(parsed[0]?.gainPct, 53.98);
+
+  const regularLeaders = Array.from({ length: 8 }, (_, index) => ({
+    symbol: `OLD${index}`,
+    name: `Old Leader ${index} Common Stock`,
+    lastsale: "$2.00",
+    pctchange: `${30 - index}%`,
+    volume: String(5_000_000 - index * 100_000),
+    marketCap: "10000000",
+  }));
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("stockanalysis.com/markets/afterhours/gainers")) {
+      return new Response(html, { status: 200, headers: { "Content-Type": "text/html" } });
+    }
+    if (url.includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        rows: [
+          ...regularLeaders,
+          {
+            symbol: "RCON",
+            name: "Recon Technology Ltd Class A Ordinary Shares",
+            lastsale: "$0.3905",
+            pctchange: "0%",
+            volume: "8791894",
+            marketCap: "11960010",
+          },
+        ],
+      },
+    }), { status: 200 });
+  };
+  let lookedUpSymbols: string[] = [];
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async (symbol: string) => ({
+        ticker: symbol,
+        marketCapitalization: symbol === "RCON" ? 11.96 : 10,
+        shareOutstanding: 10,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-direct-afterhours-rcon-test.json"),
+    thresholds: { extendedSessionCandidateLimit: 3, enrichmentLimit: 3 },
+    now: () => Date.parse("2026-07-20T21:10:00Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session, now }) => {
+      lookedUpSymbols = [...symbols];
+      return Object.fromEntries(symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: symbol === "RCON" ? 0.6 : 2,
+        gainPct: symbol === "RCON" ? 53.98 : 1,
+        sessionVolume: symbol === "RCON" ? 14_500_000 : 10_000,
+        sessionDollarVolume: symbol === "RCON" ? 8_000_000 : 20_000,
+        recent15mVolume: symbol === "RCON" ? 3_000_000 : 0,
+        recent15mDollarVolume: symbol === "RCON" ? 1_800_000 : 0,
+        sessionElapsedMinutes: 70,
+        volumeAcceleration: symbol === "RCON" ? 3 : null,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]));
+    },
+  });
+
+  const preview = await selector.previewScan();
+  const rcon = preview.recentDecisions.find((decision) => decision.symbol === "RCON");
+  assert.equal(lookedUpSymbols.includes("RCON"), true);
+  assert.ok(rcon);
+  assert.equal(rcon.qualified, true);
+  assert.equal(rcon.sourceScreens.includes("stockanalysis_live_afterhours_gainers"), true);
 });
 
 test("Nasdaq movers are independently evaluated when the bulk screener omits them", async () => {

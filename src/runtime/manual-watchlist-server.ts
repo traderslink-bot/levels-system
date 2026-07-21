@@ -87,6 +87,7 @@ import {
 import { resolveLiveThreadPostingProfile } from "../lib/monitoring/live-thread-post-policy.js";
 import {
   AutoWatchlistSelector,
+  DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   type AutoWatchlistSelectorThresholds,
 } from "../lib/auto-watchlist/auto-watchlist-selector.js";
 
@@ -96,6 +97,7 @@ const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
 const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
 const AI_MODEL_ENV = "LEVEL_AI_MODEL";
 const AI_CLEAN_READ_MODEL_ENV = "LEVEL_CLEAN_READ_AI_MODEL";
+const LEGACY_OPENAI_FEATURES_ENV = "LEVEL_LEGACY_OPENAI_FEATURES_ENABLED";
 const MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV = "MANUAL_WATCHLIST_IBKR_TIMEOUT_MS";
 const MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_ENV = "MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS";
 const MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_ENV = "MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS";
@@ -194,67 +196,9 @@ const DISCORD_CLEANUP_RETRY_DELAY_MS = 1000;
 const RUNTIME_HISTORICAL_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
 const RUNTIME_LIVE_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
 const PROVIDER_CONFIG_VERSION = 1;
-const AUTO_WATCHLIST_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
-  "maxMarketCap",
-  "maxFloatShares",
-  "maxSharesOutstanding",
-  "lowPriceFloatNormalizationEnabled",
-  "lowPriceFloatNormalizationMaxPrice",
-  "lowPriceFloatNormalizationMaxDollarValue",
-  "requireShareData",
-  "minPrice",
-  "maxPrice",
-  "minGainPct",
-  "minVolume",
-  "minDollarVolume",
-  "minimumScore",
-  "consecutivePassesRequired",
-  "maxAddsPerTradingDay",
-  "maxPostmarketAddsPerTradingDay",
-  "maxActiveMainSessionTickers",
-  "maxActivePostmarketTickers",
-  "maxMainSessionReplacementsPerTradingDay",
-  "maxPostmarketReplacementsPerTradingDay",
-  "dynamicReplacementEnabled",
-  "minimumAutoHoldMinutes",
-  "retentionFailureScansRequired",
-  "replacementRankingMargin",
-  "obviousRunnerOverrideEnabled",
-  "obviousRunnerRecentDollarVolumeMultiplier",
-  "obviousRunnerMinVolumeAcceleration",
-  "obviousRunnerReplacementMargin",
-  "regularOpenProtectionMinutes",
-  "enrichmentLimit",
-  "scanIntervalMs",
-  "scanStartHourEastern",
-  "scanEndHourEastern",
-  "scanEndMinuteEastern",
-  "premarketEnabled",
-  "regularHoursEnabled",
-  "postmarketEnabled",
-  "minRecentDollarVolume15mPremarket",
-  "minRecentDollarVolume15mRegular",
-  "minRecentDollarVolume15mPostmarket",
-  "postmarketPromotionMinGainPct",
-  "postmarketPromotionMinRecentDollarVolume",
-  "requireRecentActivityData",
-  "maxActivityQuoteAgeMinutes",
-  "extendedSessionCandidateLimit",
-  "catalystRankingEnabled",
-  "catalystLookbackDays",
-  "catalystSameDayRankBoost",
-  "catalystDailyRankDecay",
-  "recentDollarVolumeRankMaxBoost",
-  "recentDollarVolumeRankFullScore",
-  "volumeAccelerationRankMaxBoost",
-  "volumeAccelerationRankFullScoreRatio",
-  "volumeDecelerationRankMaxPenalty",
-  "volumeDecelerationRankFullPenaltyRatio",
-  "topGainerQualificationScoreBoost",
-  "zeroRecentVolumeRetentionGraceMinutes",
-  "shareTurnoverRankMaxBoost",
-  "shareTurnoverRankFullScorePct",
-]);
+const AUTO_WATCHLIST_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>(
+  Object.keys(DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG) as Array<keyof AutoWatchlistSelectorThresholds>,
+);
 
 type RuntimeHistoricalProviderName = (typeof RUNTIME_HISTORICAL_PROVIDER_OPTIONS)[number];
 
@@ -398,7 +342,7 @@ function resolveMarketDataStatus(args: {
   startupState: "booting" | "ready" | "error";
   ibkrConnected: boolean;
   ibkrReconnecting: boolean;
-  priceFeedStatus?: "live" | "stale" | "waiting";
+  priceFeedStatus?: "live" | "stale" | "waiting" | "closed";
 }): LiveWatchlistMarketDataStatus {
   if (args.startupState === "error") {
     return "offline";
@@ -408,6 +352,10 @@ function resolveMarketDataStatus(args: {
   }
 
   if (args.liveProviderName === "eodhd") {
+    if (args.priceFeedStatus === "closed") {
+      // The session ended normally; keep the external provider-health contract healthy.
+      return "live";
+    }
     if (args.priceFeedStatus === "live" || args.priceFeedStatus === "stale") {
       return args.priceFeedStatus;
     }
@@ -768,7 +716,11 @@ async function main(): Promise<void> {
     adaptiveScoringEngine,
     adaptiveStatePersistence,
   });
-  const aiCommentaryEnabled = isTruthyEnv(process.env[AI_COMMENTARY_ENV]);
+  const legacyOpenAiFeaturesEnabled = isTruthyEnv(
+    process.env[LEGACY_OPENAI_FEATURES_ENV],
+  );
+  const aiCommentaryRequested = isTruthyEnv(process.env[AI_COMMENTARY_ENV]);
+  const aiCommentaryEnabled = legacyOpenAiFeaturesEnabled && aiCommentaryRequested;
   const aiCommentaryModel = process.env[AI_MODEL_ENV]?.trim() || "gpt-5-mini";
   const aiCleanReadModel =
     process.env[AI_CLEAN_READ_MODEL_ENV]?.trim() || DEFAULT_AI_CLEAN_READ_MODEL;
@@ -823,7 +775,9 @@ async function main(): Promise<void> {
   const aiCommentaryService = aiCommentaryEnabled
     ? createOpenAITraderCommentaryServiceFromEnv()
     : null;
-  const aiCleanReadService = createOpenAICleanReadServiceFromEnv();
+  const aiCleanReadService = legacyOpenAiFeaturesEnabled
+    ? createOpenAICleanReadServiceFromEnv()
+    : null;
   const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
   const dailyWatchlistRecapService = createDailyWatchlistRecapServiceFromEnv();
   const tradersLinkAiReadService = createTradersLinkAiReadServiceFromEnv();
@@ -850,6 +804,7 @@ async function main(): Promise<void> {
       liveTraderReadCardVisible: true,
       potentialGainCardVisible: true,
       watchlistLifecycleLabelsVisible: false,
+      reversalWatchlistVisible: true,
       dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
       dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
     });
@@ -903,6 +858,8 @@ async function main(): Promise<void> {
       persistedTradersLinkAiReadSettings?.potentialGainCardVisible,
     initialWatchlistLifecycleLabelsVisible:
       persistedTradersLinkAiReadSettings?.watchlistLifecycleLabelsVisible,
+    initialReversalWatchlistVisible:
+      persistedTradersLinkAiReadSettings?.reversalWatchlistVisible,
     pullbackReadEnabled,
     recentIntradayCandleFetchService,
     tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
@@ -928,7 +885,8 @@ async function main(): Promise<void> {
     isRuntimeReady: () => startupState === "ready" && manager.getRuntimeHealth().isStarted,
     activateSymbol: (input) => manager.queueActivation(input),
     deactivateSymbol: (symbol) => manager.deactivateSymbol(symbol),
-    setSymbolFollowup: (symbol, followup) => manager.setAutoWatchlistFollowup(symbol, followup),
+    setSymbolFollowup: (symbol, followup, options) =>
+      manager.setAutoWatchlistFollowup(symbol, followup, options),
   });
   const liveWatchlistHealthPublisher = liveWatchlistPublisher;
   const liveWatchlistHealthTimer = setInterval(() => {
@@ -991,6 +949,10 @@ async function main(): Promise<void> {
         console.log(
           `[ManualWatchlistRuntime] AI commentary ${aiCommentaryService ? "enabled" : "requested but OPENAI_API_KEY is missing"}.`,
         );
+      } else if (aiCommentaryRequested) {
+        console.log(
+          `[ManualWatchlistRuntime] Legacy Discord AI commentary disabled; ${LEGACY_OPENAI_FEATURES_ENV}=1 is required to re-enable it.`,
+        );
       }
       console.log(
         `[ManualWatchlistRuntime] Finnhub stock context ${finnhubClient ? "enabled" : "disabled (FINNHUB_API_KEY missing)"}.`,
@@ -1000,6 +962,28 @@ async function main(): Promise<void> {
       );
       await manager.start();
       autoWatchlistSelector.start();
+      void (async () => {
+        const deadline = Date.now() + 120_000;
+        while (Date.now() < deadline) {
+          const health = manager.getRuntimeHealth();
+          const restoreCount =
+            health.lifecycleCounts.restoring + health.lifecycleCounts.activating;
+          if (health.pendingActivationCount === 0 && restoreCount === 0) break;
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        for (const entry of autoWatchlistSelector.getStatus().managedEntries) {
+          if (entry.state !== "followup") continue;
+          await manager.setAutoWatchlistFollowup(entry.symbol, true, {
+            reversalWatchEligible:
+              false,
+          });
+        }
+      })().catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[ManualWatchlistRuntime] Failed to restore follow-up publishing state: ${message}`,
+        );
+      });
       dailyWatchlistRecapService?.start();
       publishLiveWatchlistHealth({
         publisher: liveWatchlistHealthPublisher,
@@ -1071,6 +1055,7 @@ async function main(): Promise<void> {
 
     if (request.method === "GET" && url.pathname === "/api/runtime/status") {
       const runtimeHealth = manager.getRuntimeHealth();
+      const aiReadCostSnapshot = manager.getTradersLinkAiReadCostSnapshot();
       sendJson(response, 200, {
         providerName: candleService.getProviderName(),
         diagnosticsEnabled: monitoringEventDiagnosticsEnabled,
@@ -1080,8 +1065,8 @@ async function main(): Promise<void> {
         aiReadModel: tradersLinkAiReadService?.getConfiguredModel() ?? null,
         aiReadReasoningEffort: tradersLinkAiReadService?.getReasoningEffort() ?? null,
         aiReadDailyCostBudget: manager.getTradersLinkAiReadDailyCostBudget(),
-        aiReadDailyCostBudgetStatus: manager.getTradersLinkAiReadDailyCostBudgetStatus(),
-        aiReadCostSummary: tradersLinkAiReadCostLedger.summarize(),
+        aiReadDailyCostBudgetStatus: aiReadCostSnapshot.dailyCostBudgetStatus,
+        aiReadCostSummary: aiReadCostSnapshot.summary,
         runtimeConfig: {
           bindHost: LOCAL_BIND_HOST,
           port: PORT,
@@ -1108,14 +1093,19 @@ async function main(): Promise<void> {
           marketStructureLifecyclePath,
           marketStructureStoryMemoryPath,
           monitoringDiagnosticsRequested: monitoringEventDiagnosticsEnabled,
-          aiCommentaryRequested: aiCommentaryEnabled,
+          legacyOpenAiFeaturesEnabled,
+          aiCommentaryRequested,
           aiCommentaryServiceAvailable: aiCommentaryService !== null,
           aiCommentaryModel,
           openAiApiKeyPresent,
-          aiCommentaryRoute: "symbol recaps and live alert AI reads",
+          aiCommentaryRoute: legacyOpenAiFeaturesEnabled
+            ? "symbol recaps and live alert AI reads"
+            : "disabled legacy Discord route",
           aiCleanReadModel,
           aiCleanReadReasoningEffort: AI_CLEAN_READ_REASONING_EFFORT,
-          aiCleanReadRoute: "automatic initial watchlist activation and manual clean-read UI",
+          aiCleanReadRoute: legacyOpenAiFeaturesEnabled
+            ? "automatic initial watchlist activation and manual clean-read UI"
+            : "disabled legacy local route",
         },
         activeSymbolCount: manager.getActiveEntries().length,
         ibkrConnected: isIbkrConnected(ib),
@@ -1143,6 +1133,7 @@ async function main(): Promise<void> {
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1182,6 +1173,7 @@ async function main(): Promise<void> {
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1475,6 +1467,7 @@ async function main(): Promise<void> {
           liveTraderReadCardVisible: result.visible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1529,6 +1522,7 @@ async function main(): Promise<void> {
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: result.visible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1575,6 +1569,7 @@ async function main(): Promise<void> {
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: result.visible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1591,6 +1586,41 @@ async function main(): Promise<void> {
         }
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[ManualWatchlistRuntime] Watchlist lifecycle label visibility change failed: ${message}`);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/reversal-watchlist") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.visible !== "boolean") {
+          sendJson(response, 400, { error: "Boolean visible value is required." });
+          return;
+        }
+        const result = await manager.setReversalWatchlistVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: result.visible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          visible: result.visible,
+          refreshedSymbols: result.refreshedSymbols,
+          refreshedSymbolCount: result.refreshedSymbols.length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
       }
       return;

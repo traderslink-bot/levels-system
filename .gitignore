@@ -1,6 +1,7 @@
 node_modules
 dist
 .env
+.env.pre-*
 ibkr_live_data_ts_fixes.zip
 artifacts
 .validation-cache

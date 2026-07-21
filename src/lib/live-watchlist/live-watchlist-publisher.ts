@@ -1916,7 +1916,6 @@ export function buildLiveWatchlistTickerDataPatch(args: {
   return {
     type: "tickerData",
     symbol: normalizeSymbol(args.symbol),
-    status: "live",
     updatedAt: args.timestamp,
     marketDataObservedAt: args.timestamp,
     ...(args.marketDataRevision !== undefined
@@ -1951,6 +1950,8 @@ export function buildLiveWatchlistStatusPatch(args: {
   updatedAt?: number;
   firstPostedAt?: number | null;
   watchlistSlotState?: "active" | "followup";
+  reversalWatchEligible?: boolean;
+  reversalWatchlistVisible?: boolean;
   preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
@@ -1961,6 +1962,12 @@ export function buildLiveWatchlistStatusPatch(args: {
     updatedAt: args.updatedAt ?? Date.now(),
     ...(args.firstPostedAt !== undefined ? { firstPostedAt: args.firstPostedAt } : {}),
     ...(args.watchlistSlotState !== undefined ? { watchlistSlotState: args.watchlistSlotState } : {}),
+    ...(args.reversalWatchEligible !== undefined
+      ? { reversalWatchEligible: args.reversalWatchEligible }
+      : {}),
+    ...(args.reversalWatchlistVisible !== undefined
+      ? { reversalWatchlistVisible: args.reversalWatchlistVisible }
+      : {}),
     ...(args.preserveExistingOnReactivation === true
       ? { preserveExistingOnReactivation: true }
       : {}),

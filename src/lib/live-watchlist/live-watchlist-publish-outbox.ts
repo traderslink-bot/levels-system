@@ -1,5 +1,7 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { writeFileAtomically } from "../persistence/atomic-file-write.js";
 
 import type {
   LiveWatchlistCardPatch,
@@ -18,6 +20,16 @@ type OutboxEntry = {
   id: string;
   queuedAt: number;
   payload: PublishPayload;
+};
+
+type PublishWaiter = {
+  resolve: () => void;
+  reject: (error: unknown) => void;
+};
+
+type PendingTickerDataPublication = {
+  payload: LiveWatchlistTickerDataPatch;
+  waiters: PublishWaiter[];
 };
 
 export const DEFAULT_LIVE_WATCHLIST_PUBLISH_OUTBOX_FILE = resolve(
@@ -73,6 +85,8 @@ function coalesceQueuedTickerData(
 
 export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
   private operationQueue: Promise<void> = Promise.resolve();
+  private readonly pendingTickerDataBySymbol = new Map<string, PendingTickerDataPublication>();
+  private tickerDataDrainScheduled = false;
   private sequence = 0;
   private readonly publishedListeners = new Set<(patch: LiveWatchlistPublishedPatch) => void>();
 
@@ -90,7 +104,7 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
   }
 
   publishTickerData(patch: LiveWatchlistTickerDataPatch): Promise<void> {
-    return this.enqueue(patch);
+    return this.enqueueTickerData(patch);
   }
 
   replayPending(): Promise<void> {
@@ -103,23 +117,69 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
   }
 
   pendingCount(): number {
-    return this.load().length;
+    return this.load().length + this.pendingTickerDataBySymbol.size;
   }
 
   private enqueue(payload: PublishPayload): Promise<void> {
-    return this.serialize(async () => {
-      const entries = this.load();
-      const now = Date.now();
-      if (!isTickerDataPayload(payload) || !coalesceQueuedTickerData(entries, payload)) {
-        entries.push({
-          id: `${now}-${process.pid}-${++this.sequence}`,
-          queuedAt: now,
+    return this.serialize(() => this.persistAndFlush(payload));
+  }
+
+  private enqueueTickerData(payload: LiveWatchlistTickerDataPatch): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const pending = this.pendingTickerDataBySymbol.get(payload.symbol);
+      if (pending) {
+        if (payload.updatedAt >= pending.payload.updatedAt) {
+          pending.payload = payload;
+        }
+        pending.waiters.push({ resolve, reject });
+      } else {
+        this.pendingTickerDataBySymbol.set(payload.symbol, {
           payload,
+          waiters: [{ resolve, reject }],
         });
       }
-      this.save(entries);
-      await this.flush(entries);
+      this.scheduleTickerDataDrain();
     });
+  }
+
+  private scheduleTickerDataDrain(): void {
+    if (this.tickerDataDrainScheduled || this.pendingTickerDataBySymbol.size === 0) {
+      return;
+    }
+    this.tickerDataDrainScheduled = true;
+    void this.serialize(async () => {
+      const batch = [...this.pendingTickerDataBySymbol.values()];
+      this.pendingTickerDataBySymbol.clear();
+      for (const item of batch) {
+        try {
+          await this.persistAndFlush(item.payload);
+          for (const waiter of item.waiters) {
+            waiter.resolve();
+          }
+        } catch (error) {
+          for (const waiter of item.waiters) {
+            waiter.reject(error);
+          }
+        }
+      }
+    }).finally(() => {
+      this.tickerDataDrainScheduled = false;
+      this.scheduleTickerDataDrain();
+    });
+  }
+
+  private async persistAndFlush(payload: PublishPayload): Promise<void> {
+    const entries = this.load();
+    const now = Date.now();
+    if (!isTickerDataPayload(payload) || !coalesceQueuedTickerData(entries, payload)) {
+      entries.push({
+        id: `${now}-${process.pid}-${++this.sequence}`,
+        queuedAt: now,
+        payload,
+      });
+    }
+    await this.save(entries);
+    await this.flush(entries);
   }
 
   private serialize(operation: () => Promise<void>): Promise<void> {
@@ -134,7 +194,7 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
       const next = entries[0]!;
       await this.publishPayload(next.payload);
       entries.shift();
-      this.save(entries);
+      await this.save(entries);
       for (const listener of this.publishedListeners) {
         try {
           listener(next.payload);
@@ -169,10 +229,7 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
     }
   }
 
-  private save(entries: OutboxEntry[]): void {
-    mkdirSync(dirname(this.filePath), { recursive: true });
-    const temporaryPath = `${this.filePath}.tmp`;
-    writeFileSync(temporaryPath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
-    renameSync(temporaryPath, this.filePath);
+  private save(entries: OutboxEntry[]): Promise<void> {
+    return writeFileAtomically(this.filePath, `${JSON.stringify(entries)}\n`);
   }
 }

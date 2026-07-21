@@ -34,16 +34,20 @@ type RuntimeEntry = {
 function writeConfig(path: string, input: {
   thresholds: Record<string, unknown>;
   symbols?: string[];
+  holdProtectedSymbols?: string[];
+  followupSymbols?: string[];
 }): void {
   const symbols = input.symbols ?? [];
+  const followupSymbols = input.followupSymbols ?? [];
   writeFileSync(path, JSON.stringify({
     version: 1,
     enabled: true,
     lastUpdated: NOW,
     tradingDay: "2026-07-16",
-    mainSessionAddedToday: symbols,
+    mainSessionAddedToday: [...symbols, ...followupSymbols],
     thresholds: input.thresholds,
-    managedEntries: symbols.map((symbol, index) => ({
+    managedEntries: [
+      ...symbols.map((symbol, index) => ({
       symbol,
       bucket: "main",
       state: "active",
@@ -53,10 +57,36 @@ function writeConfig(path: string, input: {
       lastSession: "regular",
       lastRankingScore: 50 + index * 10,
       lastQualifiedAt: NOW - 60_000,
+      holdProtectionEarnedAt: input.holdProtectedSymbols?.includes(symbol)
+        ? NOW - 3_600_000
+        : null,
+      holdProtectionReason: input.holdProtectedSymbols?.includes(symbol)
+        ? "earned during prior qualifying observations"
+        : null,
       retentionFailures: 0,
       standbyAt: null,
       statusReason: "restored",
-    })),
+      })),
+      ...followupSymbols.map((symbol, index) => ({
+        symbol,
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: NOW - (index + 5) * 3_600_000,
+        lastActivatedAt: NOW - 3_600_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        lastRankingScore: 30 + index,
+        lastSlotSurvivalScore: 30 + index,
+        lastQualifiedAt: NOW - 3_600_000,
+        holdProtectionEarnedAt: null,
+        holdProtectionReason: null,
+        retentionFailures: 3,
+        followupAt: NOW - (index + 1) * 60_000,
+        vacatedSlotAt: NOW - (index + 1) * 60_000,
+        standbyAt: null,
+        statusReason: "ordinary follow-up",
+      })),
+    ],
   }));
 }
 
@@ -449,14 +479,18 @@ test("lowering the automatic slot count retires the weakest excess incumbent", a
   }
 });
 
-test("an obvious runner replaces a healthy auto incumbent after one scan but leaves manual entries alone", async () => {
+test("an obvious runner bypasses an exhausted replacement cap and leaves manual entries alone", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-obvious-"));
   const configPath = join(directory, "config.json");
   writeConfig(configPath, {
     symbols: ["OLD"],
+    holdProtectedSymbols: ["OLD"],
+    followupSymbols: ["F1", "F2", "F3"],
     thresholds: {
       consecutivePassesRequired: 2,
       maxActiveMainSessionTickers: 1,
+      maxMainSessionReplacementsPerTradingDay: 0,
+      lateMainSessionAdmissionReserve: 0,
       minimumAutoHoldMinutes: 0,
       regularOpenProtectionMinutes: 0,
       obviousRunnerOverrideEnabled: true,
@@ -468,8 +502,16 @@ test("an obvious runner replaces a healthy auto incumbent after one scan but lea
   const activeEntries: RuntimeEntry[] = [
     { symbol: "PIN", tags: ["manual"], note: "manual", activatedAt: NOW - 7_200_000 },
     automaticRuntimeEntry("OLD"),
+    ...["F1", "F2", "F3"].map((symbol) => ({
+      ...automaticRuntimeEntry(symbol),
+      tags: ["auto", "auto-main", "auto-followup"],
+    })),
   ];
   let maximumConcurrentAutomaticEntries = 1;
+  const followupTransitions: Array<{
+    symbol: string;
+    eligible: boolean;
+  }> = [];
   const selector = new AutoWatchlistSelector({
     yahooClient: null,
     finnhubClient: FINNHUB,
@@ -493,8 +535,14 @@ test("an obvious runner replaces a healthy auto incumbent after one scan but lea
       const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
       if (index >= 0) activeEntries.splice(index, 1);
     },
-    setSymbolFollowup: async (symbol, followup) => {
+    setSymbolFollowup: async (symbol, followup, options) => {
       setRuntimeFollowup(activeEntries, symbol, followup);
+      if (followup) {
+        followupTransitions.push({
+          symbol,
+          eligible: options?.reversalWatchEligible === true,
+        });
+      }
     },
     catalystLookup: NO_CATALYST_LOOKUP,
     sessionActivityLookup: async ({ symbols, session }) => Object.fromEntries(
@@ -529,10 +577,15 @@ test("an obvious runner replaces a healthy auto incumbent after one scan but lea
   });
   try {
     const status = await selector.runNow({ activate: true });
-    assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["NEW", "OLD", "PIN"]);
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["F2", "F3", "NEW", "OLD", "PIN"]);
     assert.deepEqual(status.activeMainSessionSymbols, ["NEW"]);
-    assert.deepEqual(status.followupSymbols, ["OLD"]);
-    assert.equal(maximumConcurrentAutomaticEntries, 2);
+    assert.deepEqual(status.followupSymbols.sort(), ["F2", "F3", "OLD"]);
+    assert.equal(maximumConcurrentAutomaticEntries, 5);
+    assert.equal(
+      followupTransitions.find((transition) => transition.symbol === "OLD")?.eligible,
+      false,
+    );
+    assert.equal(followupTransitions.every((transition) => transition.eligible === false), true);
     assert.match(status.recentReplacements[0]?.reason ?? "", /obvious runner/);
     assert.equal(status.firstPassEvidence.find((entry) => entry.symbol === "NEW")?.observedAt, NOW);
   } finally {

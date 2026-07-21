@@ -173,3 +173,45 @@ test("archived live watchlist publisher records successful website patches", asy
     cleanupTempArchive(directory);
   }
 });
+
+test("archived live watchlist publisher retries patches after a transient archive failure", async () => {
+  const { directory, filePath } = tempArchivePath();
+  class FailOnceArchive extends LiveWatchlistAuditArchivePersistence {
+    attempts = 0;
+
+    override async recordPatchesAsync(...args: Parameters<LiveWatchlistAuditArchivePersistence["recordPatchesAsync"]>) {
+      this.attempts += 1;
+      if (this.attempts === 1) {
+        throw new Error("transient archive write failure");
+      }
+      return super.recordPatchesAsync(...args);
+    }
+  }
+  try {
+    const delegate: LiveWatchlistPublisher = {
+      async publishTickerData(): Promise<void> {},
+      async publish(): Promise<void> {},
+    };
+    const archive = new FailOnceArchive(filePath);
+    const publisher = new ArchivedLiveWatchlistPublisher(delegate, archive, 60_000);
+    await publisher.publishTickerData({
+      type: "tickerData",
+      symbol: "RETRY",
+      status: "live",
+      updatedAt: 4000,
+      latestPrice: 1.25,
+      nearestSupport: null,
+      nearestResistance: null,
+    });
+
+    await publisher.flushPending();
+    assert.equal(archive.attempts, 1);
+    assert.equal(archive.load().symbols.length, 0);
+
+    await publisher.flushPending();
+    assert.equal(archive.attempts, 2);
+    assert.equal(archive.load().symbols[0]?.symbol, "RETRY");
+  } finally {
+    cleanupTempArchive(directory);
+  }
+});

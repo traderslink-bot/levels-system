@@ -114,6 +114,67 @@ describe("live watchlist publisher", () => {
     }
   });
 
+  it("coalesces in-memory ticker bursts while one website delivery is in flight", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "live-watchlist-outbox-memory-coalesce-"));
+    const filePath = join(directory, "outbox.json");
+    let releaseFirst!: () => void;
+    let markFirstStarted!: () => void;
+    const firstStarted = new Promise<void>((resolve) => {
+      markFirstStarted = resolve;
+    });
+    const firstRelease = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const delivered: LiveWatchlistTickerDataPatch[] = [];
+
+    try {
+      const publisher = new DurableLiveWatchlistPublisher({
+        async publish() {},
+        async publishTickerData(patch) {
+          delivered.push(patch);
+          if (delivered.length === 1) {
+            markFirstStarted();
+            await firstRelease;
+          }
+        },
+      }, filePath);
+      const tickerPatch = (
+        symbol: string,
+        updatedAt: number,
+        latestPrice: number,
+      ): LiveWatchlistTickerDataPatch => ({
+        type: "tickerData",
+        symbol,
+        updatedAt,
+        latestPrice,
+        nearestSupport: null,
+        nearestResistance: null,
+      });
+
+      const first = publisher.publishTickerData(tickerPatch("BURST", 1, 1));
+      await firstStarted;
+      const second = publisher.publishTickerData(tickerPatch("BURST", 2, 1.1));
+      const newest = publisher.publishTickerData(tickerPatch("BURST", 4, 1.4));
+      const stale = publisher.publishTickerData(tickerPatch("BURST", 3, 1.3));
+      const other = publisher.publishTickerData(tickerPatch("OTHER", 2, 5));
+      releaseFirst();
+
+      await Promise.all([first, second, newest, stale, other]);
+
+      assert.deepEqual(
+        delivered.map((patch) => [patch.symbol, patch.updatedAt, patch.latestPrice]),
+        [
+          ["BURST", 1, 1],
+          ["BURST", 4, 1.4],
+          ["OTHER", 2, 5],
+        ],
+      );
+      assert.equal(publisher.pendingCount(), 0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   const readyTechnicalContext: TechnicalContext = {
     source: "levels_system_intraday",
     sourceTimeframe: "5m",

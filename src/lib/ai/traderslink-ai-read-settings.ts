@@ -2,12 +2,13 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 export type TradersLinkAiReadSettings = {
-  version: 4;
+  version: 5;
   lastUpdated: number;
   externalResearchEnabled: boolean;
   liveTraderReadCardVisible: boolean;
   potentialGainCardVisible: boolean;
   watchlistLifecycleLabelsVisible: boolean;
+  reversalWatchlistVisible: boolean;
   dailyCostBudgetEnabled: boolean;
   dailyCostBudgetUsd: number;
 };
@@ -16,7 +17,7 @@ export type TradersLinkAiReadSettingsPersistenceOptions = {
   filePath?: string;
 };
 
-const SETTINGS_VERSION = 4;
+const SETTINGS_VERSION = 5;
 export const DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 1;
 const MIN_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 0.01;
 const MAX_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 10_000;
@@ -44,7 +45,7 @@ export function normalizeTradersLinkAiReadDailyCostBudgetUsd(
 function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
   if (
     !isRecord(value) ||
-    (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== SETTINGS_VERSION) ||
+    (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4 && value.version !== SETTINGS_VERSION) ||
     typeof value.lastUpdated !== "number" ||
     !Number.isFinite(value.lastUpdated) ||
     typeof value.externalResearchEnabled !== "boolean"
@@ -68,6 +69,10 @@ function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
       typeof value.watchlistLifecycleLabelsVisible === "boolean"
         ? value.watchlistLifecycleLabelsVisible
         : false,
+    reversalWatchlistVisible:
+      typeof value.reversalWatchlistVisible === "boolean"
+        ? value.reversalWatchlistVisible
+        : true,
     dailyCostBudgetEnabled:
       typeof value.dailyCostBudgetEnabled === "boolean"
         ? value.dailyCostBudgetEnabled
@@ -115,6 +120,7 @@ export class TradersLinkAiReadSettingsPersistence {
     liveTraderReadCardVisible: boolean;
     potentialGainCardVisible: boolean;
     watchlistLifecycleLabelsVisible: boolean;
+    reversalWatchlistVisible: boolean;
     dailyCostBudgetEnabled: boolean;
     dailyCostBudgetUsd: number;
   }): TradersLinkAiReadSettings {
@@ -124,6 +130,7 @@ export class TradersLinkAiReadSettingsPersistence {
           liveTraderReadCardVisible: true,
           potentialGainCardVisible: true,
           watchlistLifecycleLabelsVisible: false,
+          reversalWatchlistVisible: true,
           dailyCostBudgetEnabled: false,
           dailyCostBudgetUsd: DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD,
         }

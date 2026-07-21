@@ -1,5 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+import {
+  writeFileAtomically,
+  writeFileAtomicallySync,
+} from "../persistence/atomic-file-write.js";
 
 import type {
   LiveWatchlistCardContent,
@@ -392,12 +398,26 @@ export class LiveWatchlistAuditArchivePersistence {
     }
   }
 
+  async loadAsync(): Promise<LiveWatchlistAuditArchive> {
+    try {
+      const parsed = JSON.parse((await readFile(this.filePath, "utf8")).replace(/^\uFEFF/, "")) as unknown;
+      return normalizeArchive(parsed, Date.now()) ?? emptyArchive();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+        return emptyArchive();
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[LiveWatchlistAuditArchive] Failed to load ${this.filePath}: ${message}`);
+      return emptyArchive();
+    }
+  }
+
   save(archive: LiveWatchlistAuditArchive): void {
-    const directory = dirname(this.filePath);
-    const tempFilePath = `${this.filePath}.tmp`;
-    mkdirSync(directory, { recursive: true });
-    writeFileSync(tempFilePath, `${JSON.stringify(archive, null, 2)}\n`, "utf8");
-    renameSync(tempFilePath, this.filePath);
+    writeFileAtomicallySync(this.filePath, `${JSON.stringify(archive)}\n`);
+  }
+
+  async saveAsync(archive: LiveWatchlistAuditArchive): Promise<void> {
+    await writeFileAtomically(this.filePath, `${JSON.stringify(archive)}\n`);
   }
 
   recordPatch(patch: LiveWatchlistPatch, now = Date.now()): LiveWatchlistAuditArchive {
@@ -415,6 +435,18 @@ export class LiveWatchlistAuditArchivePersistence {
       archive = applyLiveWatchlistPatchToArchive(archive, patch, now);
     }
     this.save(archive);
+    return archive;
+  }
+
+  async recordPatchesAsync(
+    patches: LiveWatchlistPatch[],
+    now = Date.now(),
+  ): Promise<LiveWatchlistAuditArchive> {
+    let archive = await this.loadAsync();
+    for (const patch of patches) {
+      archive = applyLiveWatchlistPatchToArchive(archive, patch, now);
+    }
+    await this.saveAsync(archive);
     return archive;
   }
 
@@ -511,11 +543,10 @@ export class ArchivedLiveWatchlistPublisher implements LiveWatchlistPublisher {
     if (patches.length === 0) {
       return;
     }
-    this.archiveFlushPromise = Promise.resolve()
-      .then(() => {
-        this.archive.recordPatches(patches);
-      })
+    this.archiveFlushPromise = this.archive.recordPatchesAsync(patches)
+      .then(() => undefined)
       .catch((error) => {
+        this.pendingArchivePatches.unshift(...patches);
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[LiveWatchlistAuditArchive] Failed to archive website patches: ${message}`);
       })

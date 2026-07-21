@@ -51,6 +51,8 @@ export type LiveWatchlistCardPatch = {
   updatedAt: number;
   firstPostedAt?: number | null;
   watchlistSlotState?: LiveWatchlistSlotState;
+  reversalWatchEligible?: boolean;
+  reversalWatchlistVisible?: boolean;
   preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
@@ -75,6 +77,8 @@ export type LiveWatchlistTickerDataPatch = {
   marketDataObservedAt?: number;
   marketDataRevision?: number;
   watchlistSlotState?: LiveWatchlistSlotState;
+  reversalWatchEligible?: boolean;
+  reversalWatchlistVisible?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
@@ -164,7 +168,7 @@ export type TradersLinkAiReadSourceEvidence = {
 export type TradersLinkAiReadSource = {
   title: string;
   url: string;
-  sourceType: "press_release_sec_database" | "web_search";
+  sourceType: "press_release_sec_database" | "stocktitan_rss" | "web_search";
   evidence?: TradersLinkAiReadSourceEvidence;
 };
 

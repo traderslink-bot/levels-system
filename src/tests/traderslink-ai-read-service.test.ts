@@ -521,6 +521,98 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(read.riskSummary.join(" "), /prior plan boundary near \$1\.42/i);
   });
 
+  it("treats StockTitan RSS as title-only catalyst evidence without enabling web search", async () => {
+    const requestBodies: Record<string, unknown>[] = [];
+    const draft = modelRead() as any;
+    const stockTitanUrl = "https://www.stocktitan.net/news/PAPL/pineapple-financial-reports-results.html";
+    draft.catalystRealityCheck = {
+      status: "confirmed",
+      summary: "A same-day third-quarter results headline is present.",
+      dayTradeRelevance: "The title confirms a catalyst exists, but its strength remains unverified.",
+      sourceUrls: [stockTitanUrl],
+    };
+    draft.dilutionRisk = {
+      level: "unknown",
+      summary: "The title does not establish dilution terms.",
+      dayTradeRelevance: "Do not infer dilution from the RSS title.",
+      sourceUrls: [],
+      canCompanyIssueToday: null,
+      companyIssuance: {
+        status: "unknown",
+        earliestDate: null,
+        trigger: "unknown",
+        summary: "No issuance evidence is present in the title.",
+      },
+      publicResale: {
+        status: "unknown",
+        earliestDate: null,
+        trigger: "unknown",
+        summary: "No resale evidence is present in the title.",
+      },
+    };
+    draft.listingStatus = {
+      status: "unknown",
+      immediacy: "unknown",
+      summary: "The title does not establish listing status.",
+      dayTradeRelevance: "Do not infer listing risk from the RSS title.",
+      sourceUrls: [],
+    };
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async (_url, init) => {
+        requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(draft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      dataAsOf: DATA_AS_OF,
+      research: {
+        ticker: "PAPL",
+        businessDays: 5,
+        generatedAt: "2026-07-20T21:41:00.000Z",
+        count: 1,
+        articles: [{
+          ticker: "PAPL",
+          title: "Pineapple Financial Reports $25.3 Million in Third-Quarter Net Income",
+          url: stockTitanUrl,
+          publishedAt: "2026-07-20T21:19:00.000Z",
+          eventType: "stocktitan_rss_catalyst",
+          sourceKind: "stocktitan_rss",
+        }],
+      },
+    });
+
+    assert.equal(read.externalResearchEnabled, false);
+    assert.equal(read.usedWebSearch, false);
+    assert.equal(read.usage.webSearchCallCount, 0);
+    assert.equal(read.sources.length, 1);
+    assert.equal(read.sources[0]?.sourceType, "stocktitan_rss");
+    assert.equal(read.sources[0]?.evidence?.excerptKind, "article_title");
+    const requestBody = requestBodies[0]!;
+    assert.equal(requestBody.tools, undefined);
+    const input = requestBody.input as Array<{ role: string; content: Array<{ text: string }> }>;
+    assert.match(input[0]!.content[0]!.text, /title-only fallback/i);
+    assert.match(input[0]!.content[0]!.text, /Do not infer catalyst strength/i);
+    const packet = JSON.parse(input[1]!.content[0]!.text) as {
+      primaryCatalystResearch: {
+        source: string;
+        articles: Array<{ sourceKind: string; sourceSummary: string | null }>;
+      };
+    };
+    assert.equal(packet.primaryCatalystResearch.source, "StockTitan ticker RSS title fallback");
+    assert.equal(packet.primaryCatalystResearch.articles[0]?.sourceKind, "stocktitan_rss");
+    assert.equal(packet.primaryCatalystResearch.articles[0]?.sourceSummary, null);
+  });
+
   it("keeps external web research off by default and allows the admin setting to change it", async () => {
     const requestBodies: Record<string, unknown>[] = [];
     const readWithoutExternalUrls = modelRead();
@@ -1014,6 +1106,72 @@ describe("OpenAITradersLinkAiReadService", () => {
 
     assert.equal(requestCount, 1);
     assert.match(read.downsideCheckpoints[0]?.condition ?? "", /observed daily candle/i);
+  });
+
+  it("grounds a prior-close checkpoint deterministically instead of buying a correction", async () => {
+    const draft = modelRead();
+    draft.downsideCheckpoints = [{
+      label: "Outer downside checkpoint",
+      price: 0.8,
+      condition: "Relevant only if the original setup fails.",
+    }];
+    const tape = priceAction();
+    tape.priorRegularClose = 0.8;
+    let requestCount = 0;
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => {
+        requestCount += 1;
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(draft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: tape,
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(requestCount, 1);
+    assert.match(read.downsideCheckpoints[0]?.condition ?? "", /observed prior close/i);
+  });
+
+  it("drops an unsupported optional checkpoint instead of rejecting the complete AI Read", async () => {
+    const draft = modelRead();
+    draft.downsideCheckpoints = [{
+      label: "Unsupported outer checkpoint",
+      price: 0.7,
+      condition: "Relevant only if the original setup fails.",
+    }];
+    let requestCount = 0;
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => {
+        requestCount += 1;
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(draft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(requestCount, 1);
+    assert.deepEqual(read.downsideCheckpoints, []);
   });
 
   it("drops duplicate scenario checkpoints instead of paying for a correction", async () => {
