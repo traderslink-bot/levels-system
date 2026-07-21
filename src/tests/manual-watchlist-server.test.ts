@@ -81,6 +81,13 @@ test("manual watchlist Apply button distinguishes saved state from an in-flight 
   );
 });
 
+test("manual watchlist control page is not cached across runtime restarts", () => {
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /url\.pathname === "\/"[\s\S]*?response\.setHeader\("Cache-Control", "no-store"\);/,
+  );
+});
+
 test("manual watchlist page shows runtime status and separate review surfaces", () => {
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Status/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);

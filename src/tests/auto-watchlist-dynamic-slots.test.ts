@@ -479,6 +479,54 @@ test("lowering the automatic slot count retires the weakest excess incumbent", a
   }
 });
 
+test("lowering the main-session slot count during post-market reconciles main incumbents", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-postmarket-resize-"));
+  const configPath = join(directory, "config.json");
+  const postmarketNow = Date.parse("2026-07-16T22:15:00Z");
+  const symbols = ["WEAK", "MID", "BEST"];
+  writeConfig(configPath, {
+    symbols,
+    thresholds: {
+      maxActiveMainSessionTickers: 3,
+      maxAddsPerTradingDay: 3,
+      lateMainSessionAdmissionReserve: 0,
+    },
+  });
+  const activeEntries = symbols.map(automaticRuntimeEntry);
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: FINNHUB,
+    configPath,
+    now: () => postmarketNow,
+    getActiveSymbols: () => activeEntries.map((entry) => entry.symbol),
+    getActiveEntries: () => activeEntries,
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    deactivateSymbol: async (symbol) => {
+      const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
+      if (index >= 0) activeEntries.splice(index, 1);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+  });
+  try {
+    const saved = await selector.updateConfiguration({
+      thresholds: { maxActiveMainSessionTickers: 2 },
+    });
+    assert.equal(saved.thresholds.maxActiveMainSessionTickers, 2);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const reconciled = selector.getStatus();
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["BEST", "MID"]);
+    assert.deepEqual(reconciled.activeMainSessionSymbols.sort(), ["BEST", "MID"]);
+    assert.match(
+      reconciled.standbyToday.find((entry) => entry.symbol === "WEAK")?.statusReason ?? "",
+      /slot limit was reduced to 2/,
+    );
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("an obvious runner bypasses an exhausted replacement cap and leaves manual entries alone", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-obvious-"));
   const configPath = join(directory, "config.json");

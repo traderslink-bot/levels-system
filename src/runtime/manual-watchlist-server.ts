@@ -1015,6 +1015,7 @@ async function main(): Promise<void> {
     if (request.method === "GET" && url.pathname === "/") {
       response.statusCode = 200;
       response.setHeader("Content-Type", "text/html; charset=utf-8");
+      response.setHeader("Cache-Control", "no-store");
       response.end(MANUAL_WATCHLIST_PAGE);
       return;
     }

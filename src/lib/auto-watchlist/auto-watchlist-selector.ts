@@ -1697,6 +1697,7 @@ export class AutoWatchlistSelector {
   private prefetchedActivityBySymbol = new Map<string, AutoWatchlistSessionActivity>();
   private extendedSessionExplorationCursor = 0;
   private scanPromise: Promise<void> | null = null;
+  private activeSlotReconciliationPromise: Promise<void> | null = null;
 
   constructor(private readonly options: AutoWatchlistSelectorOptions) {
     this.fetchImpl = options.fetchImpl ?? fetch;
@@ -1874,6 +1875,8 @@ export class AutoWatchlistSelector {
     thresholds?: Partial<AutoWatchlistSelectorThresholds>;
   }): Promise<AutoWatchlistSelectorStatus> {
     const priorInterval = this.thresholds.scanIntervalMs;
+    const priorMainActiveLimit = this.thresholds.maxActiveMainSessionTickers;
+    const priorPostmarketActiveLimit = this.thresholds.maxActivePostmarketTickers;
     if (input.thresholds) {
       this.thresholds = resolveAutoWatchlistSelectorThresholds({
         ...this.thresholds,
@@ -1894,6 +1897,14 @@ export class AutoWatchlistSelector {
     }
     if (input.enabled === true) {
       await this.runImmediateEnabledScan();
+    } else if (
+      this.enabled &&
+      (
+        this.thresholds.maxActiveMainSessionTickers < priorMainActiveLimit ||
+        this.thresholds.maxActivePostmarketTickers < priorPostmarketActiveLimit
+      )
+    ) {
+      this.queueActiveSlotLimitReconciliation();
     }
     return this.getStatus();
   }
@@ -2325,6 +2336,60 @@ export class AutoWatchlistSelector {
     return bucket === "postmarket"
       ? this.thresholds.maxActivePostmarketTickers
       : this.thresholds.maxActiveMainSessionTickers;
+  }
+
+  private async enforceActiveSlotLimits(
+    timestamp: number,
+    buckets: AutoWatchlistBucket[] = ["main", "postmarket"],
+  ): Promise<void> {
+    for (const bucket of buckets) {
+      const overflowCount = Math.max(
+        0,
+        this.managedEntriesFor(bucket, "active").length - this.activeSlotLimit(bucket),
+      );
+      if (overflowCount === 0) continue;
+      const overflowEntries = this.managedEntriesFor(bucket, "active")
+        .sort((left, right) =>
+          left.lastSlotSurvivalScore - right.lastSlotSurvivalScore ||
+          right.retentionFailures - left.retentionFailures ||
+          (left.lastQualifiedAt ?? 0) - (right.lastQualifiedAt ?? 0),
+        )
+        .slice(0, overflowCount);
+      for (const entry of overflowEntries) {
+        const reason = `moved to standby because the active automatic slot limit was reduced to ${this.activeSlotLimit(bucket)}`;
+        if (await this.moveManagedEntryToStandby(entry, timestamp, reason)) {
+          entry.vacatedSlotAt = null;
+          this.managedEntries.set(entry.symbol, entry);
+          this.persistConfig();
+        }
+      }
+    }
+  }
+
+  private queueActiveSlotLimitReconciliation(): void {
+    if (this.activeSlotReconciliationPromise) return;
+    const pendingScan = this.scanPromise;
+    let reconciliationPromise: Promise<void>;
+    reconciliationPromise = Promise.resolve()
+      .then(async () => {
+        if (pendingScan) await pendingScan;
+        if (!this.enabled) return;
+        const timestamp = this.now();
+        this.syncManagedEntriesFromRuntime(autoWatchlistSessionForTimestamp(timestamp), timestamp);
+        await this.enforceActiveSlotLimits(timestamp);
+        this.persistConfig();
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.lastError = `Active slot reconciliation failed: ${message}`;
+        console.error(`[AutoWatchlistSelector] ${this.lastError}`);
+      })
+      .finally(() => {
+        if (this.activeSlotReconciliationPromise === reconciliationPromise) {
+          this.activeSlotReconciliationPromise = null;
+        }
+      });
+    this.activeSlotReconciliationPromise = reconciliationPromise;
   }
 
   private sessionAddedSet(bucket: AutoWatchlistBucket): Set<string> {
@@ -3611,6 +3676,7 @@ export class AutoWatchlistSelector {
       const bucket = autoWatchlistBucketForSession(session);
       if (activate) {
         this.syncManagedEntriesFromRuntime(session, scanStartedAt);
+        await this.enforceActiveSlotLimits(scanStartedAt);
       }
       const discovered = await this.discoverCandidates();
       this.lastScanCandidateCount = discovered.length;
@@ -3837,27 +3903,6 @@ export class AutoWatchlistSelector {
             : this.thresholds.consecutivePassesRequired;
           return decision.consecutivePasses >= requiredPasses;
         });
-        const overflowCount = Math.max(
-          0,
-          this.managedEntriesFor(bucket, "active").length - this.activeSlotLimit(bucket),
-        );
-        if (overflowCount > 0) {
-          const overflowEntries = this.managedEntriesFor(bucket, "active")
-            .sort((left, right) =>
-              left.lastSlotSurvivalScore - right.lastSlotSurvivalScore ||
-              right.retentionFailures - left.retentionFailures ||
-              (left.lastQualifiedAt ?? 0) - (right.lastQualifiedAt ?? 0),
-            )
-            .slice(0, overflowCount);
-          for (const entry of overflowEntries) {
-            const reason = `moved to standby because the active automatic slot limit was reduced to ${this.activeSlotLimit(bucket)}`;
-            if (await this.moveManagedEntryToStandby(entry, scanStartedAt, reason)) {
-              entry.vacatedSlotAt = null;
-              this.managedEntries.set(entry.symbol, entry);
-              this.persistConfig();
-            }
-          }
-        }
         const fadedFollowups: AutoWatchlistManagedEntry[] = [];
         if (this.thresholds.dynamicReplacementEnabled) {
           const faded = this.managedEntriesFor(bucket, "active")
