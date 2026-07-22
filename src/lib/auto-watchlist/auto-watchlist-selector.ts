@@ -36,6 +36,7 @@ type FetchLike = typeof fetch;
 
 const CONFIG_VERSION = 1;
 const MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS = 3;
+const CONSECUTIVE_PASS_MAX_GAP_MS = 15 * 60 * 1000;
 const REVERSAL_WATCH_FULL_MAIN_SESSION_VOLUME = 50_000_000;
 const MAIN_WATCH_WINDOW_MINUTES = 12 * 60;
 const NASDAQ_TOP_FIVE_GAINER_SOURCE = "nasdaq_live_most_advanced_top5";
@@ -76,6 +77,7 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxActivePostmarketTickers: 3,
   maxMainSessionReplacementsPerTradingDay: 7,
   maxPostmarketReplacementsPerTradingDay: 5,
+  maxPostmarketExtremeRunnerOverridesPerTradingDay: 1,
   lateMainSessionAdmissionReserve: 3,
   lateMainSessionAdmissionUnlockHourEastern: 9,
   dynamicReplacementEnabled: true,
@@ -149,6 +151,8 @@ export type AutoWatchlistSelectorThresholds = {
   maxActivePostmarketTickers: number;
   maxMainSessionReplacementsPerTradingDay: number;
   maxPostmarketReplacementsPerTradingDay: number;
+  /** Break-glass replacements after the normal post-market replacement allowance is exhausted. */
+  maxPostmarketExtremeRunnerOverridesPerTradingDay: number;
   /** Shared late-session capacity for main-bucket additions and replacements after the normal quota is exhausted. */
   lateMainSessionAdmissionReserve: number;
   lateMainSessionAdmissionUnlockHourEastern: number;
@@ -306,6 +310,13 @@ export type AutoWatchlistFirstPassEvidence = {
   sourceScreens: string[];
 };
 
+export type AutoWatchlistConsecutivePassEvidence = {
+  symbol: string;
+  count: number;
+  session: AutoWatchlistSession;
+  observedAt: number;
+};
+
 export type AutoWatchlistReplacementEvent = {
   timestamp: number;
   bucket: AutoWatchlistBucket;
@@ -314,6 +325,7 @@ export type AutoWatchlistReplacementEvent = {
   incomingRankingScore: number | null;
   outgoingRankingScore: number;
   reason: string;
+  exceptionKind?: "postmarket_extreme_runner";
 };
 
 export type AutoWatchlistRuntimeEntry = {
@@ -362,6 +374,8 @@ export type AutoWatchlistSelectorStatus = {
   lateMainSessionAdmissionReserveUsed: number;
   lateMainSessionAdmissionReserveAvailable: number;
   lateMainSessionAdmissionReserveUnlocked: boolean;
+  postmarketExtremeRunnerOverridesUsed: number;
+  postmarketExtremeRunnerOverridesAvailable: number;
   activeMainSessionSymbols: string[];
   activePostmarketSymbols: string[];
   followupSymbols: string[];
@@ -369,6 +383,7 @@ export type AutoWatchlistSelectorStatus = {
   standbyToday: AutoWatchlistManagedEntry[];
   managedEntries: AutoWatchlistManagedEntry[];
   firstPassEvidence: AutoWatchlistFirstPassEvidence[];
+  consecutivePassEvidence: AutoWatchlistConsecutivePassEvidence[];
   recentReplacements: AutoWatchlistReplacementEvent[];
   recentDecisions: AutoWatchlistCandidateDecision[];
 };
@@ -385,6 +400,7 @@ type PersistedConfig = {
   lateMainSessionAdmissionReserveUsed?: number;
   managedEntries?: AutoWatchlistManagedEntry[];
   firstPassEvidence?: AutoWatchlistFirstPassEvidence[];
+  consecutivePassEvidence?: AutoWatchlistConsecutivePassEvidence[];
   replacementHistory?: AutoWatchlistReplacementEvent[];
 };
 
@@ -645,6 +661,7 @@ const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "maxActivePostmarketTickers",
   "maxMainSessionReplacementsPerTradingDay",
   "maxPostmarketReplacementsPerTradingDay",
+  "maxPostmarketExtremeRunnerOverridesPerTradingDay",
   "lateMainSessionAdmissionReserve",
   "lateMainSessionAdmissionUnlockHourEastern",
   "minimumAutoHoldMinutes",
@@ -743,9 +760,10 @@ export function resolveAutoWatchlistSelectorThresholds(
   }
   if (
     resolved.maxMainSessionReplacementsPerTradingDay > 50 ||
-    resolved.maxPostmarketReplacementsPerTradingDay > 50
+    resolved.maxPostmarketReplacementsPerTradingDay > 50 ||
+    resolved.maxPostmarketExtremeRunnerOverridesPerTradingDay > 10
   ) {
-    throw new Error("Daily automatic replacement limits cannot exceed 50.");
+    throw new Error("Daily automatic replacement limits are too large.");
   }
   if (resolved.lateMainSessionAdmissionReserve > 20) {
     throw new Error("lateMainSessionAdmissionReserve cannot exceed 20.");
@@ -1637,6 +1655,27 @@ function normalizeFirstPassEvidence(value: unknown): AutoWatchlistFirstPassEvide
   };
 }
 
+function normalizeConsecutivePassEvidence(
+  value: unknown,
+): AutoWatchlistConsecutivePassEvidence | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<AutoWatchlistConsecutivePassEvidence>;
+  const symbol = normalizeSymbol(candidate.symbol);
+  const count = finiteNumber(candidate.count);
+  const observedAt = finiteNumber(candidate.observedAt);
+  if (
+    !symbol ||
+    count === null ||
+    count < 1 ||
+    !Number.isInteger(count) ||
+    observedAt === null ||
+    !isAutoWatchlistSession(candidate.session)
+  ) {
+    return null;
+  }
+  return { symbol, count, session: candidate.session, observedAt };
+}
+
 function isReplacementEvent(value: unknown): value is AutoWatchlistReplacementEvent {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<AutoWatchlistReplacementEvent>;
@@ -1645,7 +1684,11 @@ function isReplacementEvent(value: unknown): value is AutoWatchlistReplacementEv
     (candidate.bucket === "main" || candidate.bucket === "postmarket") &&
     typeof candidate.outgoingSymbol === "string" &&
     (candidate.incomingSymbol === null || typeof candidate.incomingSymbol === "string") &&
-    typeof candidate.reason === "string"
+    typeof candidate.reason === "string" &&
+    (
+      candidate.exceptionKind === undefined ||
+      candidate.exceptionKind === "postmarket_extreme_runner"
+    )
   );
 }
 
@@ -1694,6 +1737,7 @@ export class AutoWatchlistSelector {
   private recentDecisions: AutoWatchlistCandidateDecision[] = [];
   private consecutivePasses = new Map<string, number>();
   private consecutivePassSessions = new Map<string, AutoWatchlistSession>();
+  private consecutivePassObservedAt = new Map<string, number>();
   private prefetchedActivityBySymbol = new Map<string, AutoWatchlistSessionActivity>();
   private extendedSessionExplorationCursor = 0;
   private scanPromise: Promise<void> | null = null;
@@ -1755,6 +1799,14 @@ export class AutoWatchlistSelector {
         this.firstPassEvidence.set(normalized.symbol, normalized);
       }
     }
+    for (const evidence of persistedConfig?.consecutivePassEvidence ?? []) {
+      const normalized = normalizeConsecutivePassEvidence(evidence);
+      if (normalized) {
+        this.consecutivePasses.set(normalized.symbol, normalized.count);
+        this.consecutivePassSessions.set(normalized.symbol, normalized.session);
+        this.consecutivePassObservedAt.set(normalized.symbol, normalized.observedAt);
+      }
+    }
     this.replacementHistory = (persistedConfig?.replacementHistory ?? [])
       .filter(isReplacementEvent)
       .slice(-50);
@@ -1799,6 +1851,11 @@ export class AutoWatchlistSelector {
               .map(normalizeFirstPassEvidence)
               .filter((entry): entry is AutoWatchlistFirstPassEvidence => entry !== null)
           : [],
+        consecutivePassEvidence: Array.isArray(parsed.consecutivePassEvidence)
+          ? parsed.consecutivePassEvidence
+              .map(normalizeConsecutivePassEvidence)
+              .filter((entry): entry is AutoWatchlistConsecutivePassEvidence => entry !== null)
+          : [],
         replacementHistory: Array.isArray(parsed.replacementHistory)
           ? parsed.replacementHistory.filter(isReplacementEvent)
           : [],
@@ -1827,6 +1884,21 @@ export class AutoWatchlistSelector {
       lateMainSessionAdmissionReserveUsed: this.lateMainSessionAdmissionReserveUsed,
       managedEntries: [...this.managedEntries.values()],
       firstPassEvidence: [...this.firstPassEvidence.values()]
+        .sort((left, right) => left.observedAt - right.observedAt)
+        .slice(-100),
+      consecutivePassEvidence: [...this.consecutivePasses.entries()]
+        .map(([symbol, count]) => ({
+          symbol,
+          count,
+          session: this.consecutivePassSessions.get(symbol),
+          observedAt: this.consecutivePassObservedAt.get(symbol),
+        }))
+        .filter((entry): entry is AutoWatchlistConsecutivePassEvidence =>
+          entry.count > 0 &&
+          isAutoWatchlistSession(entry.session) &&
+          typeof entry.observedAt === "number" &&
+          Number.isFinite(entry.observedAt),
+        )
         .sort((left, right) => left.observedAt - right.observedAt)
         .slice(-100),
       replacementHistory: this.replacementHistory.slice(-50),
@@ -1955,6 +2027,12 @@ export class AutoWatchlistSelector {
         "main",
         this.now(),
       ),
+      postmarketExtremeRunnerOverridesUsed: this.postmarketExtremeRunnerOverrideCount(),
+      postmarketExtremeRunnerOverridesAvailable: Math.max(
+        0,
+        this.thresholds.maxPostmarketExtremeRunnerOverridesPerTradingDay -
+          this.postmarketExtremeRunnerOverrideCount(),
+      ),
       activeMainSessionSymbols: this.managedEntriesFor("main", "active").map((entry) => entry.symbol),
       activePostmarketSymbols: this.managedEntriesFor("postmarket", "active").map((entry) => entry.symbol),
       followupSymbols: this.managedEntriesFor(undefined, "followup").map((entry) => entry.symbol),
@@ -1967,6 +2045,20 @@ export class AutoWatchlistSelector {
       firstPassEvidence: [...this.firstPassEvidence.values()]
         .sort((left, right) => right.observedAt - left.observedAt)
         .map((entry) => ({ ...entry, sourceScreens: [...entry.sourceScreens] })),
+      consecutivePassEvidence: [...this.consecutivePasses.entries()]
+        .map(([symbol, count]) => ({
+          symbol,
+          count,
+          session: this.consecutivePassSessions.get(symbol),
+          observedAt: this.consecutivePassObservedAt.get(symbol),
+        }))
+        .filter((entry): entry is AutoWatchlistConsecutivePassEvidence =>
+          entry.count > 0 &&
+          isAutoWatchlistSession(entry.session) &&
+          typeof entry.observedAt === "number" &&
+          Number.isFinite(entry.observedAt),
+        )
+        .sort((left, right) => right.observedAt - left.observedAt),
       recentReplacements: this.replacementHistory.slice(-20).reverse(),
       recentDecisions: this.recentDecisions.map((decision) => ({
         ...decision,
@@ -2125,15 +2217,20 @@ export class AutoWatchlistSelector {
     const hasTopGainerSource = decision.sourceScreens.some((source) =>
       TOP_GAINER_SOURCE_SCREENS.has(source)
     );
+    const hasVerifiedSessionVolume = decision.session === "postmarket"
+      ? (decision.sessionVolume ?? 0) > 0
+      : this.hasReversalWatchVolumePace(decision);
+    const hasVerifiedTopGainerRank = decision.session === "postmarket"
+      ? hasTopGainerSource
+      : decision.sourceScreens.includes(NASDAQ_TOP_FIVE_GAINER_SOURCE);
     if (
       !this.thresholds.obviousRunnerOverrideEnabled ||
       !decision.qualified ||
       !decision.promotionReady ||
       (decision.gainPct ?? 0) < 50 ||
-      !this.hasReversalWatchVolumePace(decision) ||
+      !hasVerifiedSessionVolume ||
       (decision.shareTurnoverPct ?? 0) < 50 ||
-      !hasTopGainerSource ||
-      !decision.sourceScreens.includes(NASDAQ_TOP_FIVE_GAINER_SOURCE) ||
+      !hasVerifiedTopGainerRank ||
       independentRunnerSourceCount < 2 ||
       (this.requireVerifiedCommonEquity && decision.securityMasterStatus !== "verified_common_stock")
     ) {
@@ -2259,6 +2356,21 @@ export class AutoWatchlistSelector {
     ).length;
   }
 
+  private postmarketExtremeRunnerOverrideCount(): number {
+    return this.replacementHistory.filter(
+      (event) => event.exceptionKind === "postmarket_extreme_runner",
+    ).length;
+  }
+
+  private postmarketExtremeRunnerOverrideAvailable(bucket: AutoWatchlistBucket): boolean {
+    return (
+      bucket === "postmarket" &&
+      this.replacementCount(bucket) >= this.replacementLimit(bucket) &&
+      this.postmarketExtremeRunnerOverrideCount() <
+        this.thresholds.maxPostmarketExtremeRunnerOverridesPerTradingDay
+    );
+  }
+
   private pendingReplacementDepartures(bucket: AutoWatchlistBucket): AutoWatchlistManagedEntry[] {
     const pendingBySymbol = new Map<string, number>();
     for (const entry of this.managedEntries.values()) {
@@ -2341,6 +2453,7 @@ export class AutoWatchlistSelector {
   private async enforceActiveSlotLimits(
     timestamp: number,
     buckets: AutoWatchlistBucket[] = ["main", "postmarket"],
+    decisionBySymbol: Map<string, AutoWatchlistCandidateDecision> = new Map(),
   ): Promise<void> {
     for (const bucket of buckets) {
       const overflowCount = Math.max(
@@ -2349,19 +2462,29 @@ export class AutoWatchlistSelector {
       );
       if (overflowCount === 0) continue;
       const overflowEntries = this.managedEntriesFor(bucket, "active")
-        .sort((left, right) =>
-          left.lastSlotSurvivalScore - right.lastSlotSurvivalScore ||
+        .sort((left, right) => {
+          const leftDecision = decisionBySymbol.get(left.symbol);
+          const rightDecision = decisionBySymbol.get(right.symbol);
+          return (
+          (leftDecision?.slotSurvivalScore ?? left.lastSlotSurvivalScore) -
+            (rightDecision?.slotSurvivalScore ?? right.lastSlotSurvivalScore) ||
           right.retentionFailures - left.retentionFailures ||
-          (left.lastQualifiedAt ?? 0) - (right.lastQualifiedAt ?? 0),
-        )
+          (left.lastQualifiedAt ?? 0) - (right.lastQualifiedAt ?? 0)
+          );
+        })
         .slice(0, overflowCount);
       for (const entry of overflowEntries) {
-        const reason = `moved to standby because the active automatic slot limit was reduced to ${this.activeSlotLimit(bucket)}`;
-        if (await this.moveManagedEntryToStandby(entry, timestamp, reason)) {
-          entry.vacatedSlotAt = null;
-          this.managedEntries.set(entry.symbol, entry);
-          this.persistConfig();
+        const decision = decisionBySymbol.get(entry.symbol);
+        if (decision) {
+          entry.lastRankingScore = decision.rankingScore;
+          entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
         }
+        await this.moveManagedEntryToFollowup(
+          entry,
+          timestamp,
+          `moved to follow-up because the active automatic slot limit was reduced to ${this.activeSlotLimit(bucket)}`,
+          decision,
+        );
       }
     }
   }
@@ -2378,6 +2501,7 @@ export class AutoWatchlistSelector {
         this.syncManagedEntriesFromRuntime(autoWatchlistSessionForTimestamp(timestamp), timestamp);
         await this.enforceActiveSlotLimits(timestamp);
         this.persistConfig();
+        await this.runImmediateEnabledScan();
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
@@ -2706,6 +2830,7 @@ export class AutoWatchlistSelector {
     outgoing: AutoWatchlistManagedEntry,
     timestamp: number,
     reason: string,
+    exceptionKind?: AutoWatchlistReplacementEvent["exceptionKind"],
   ): void {
     this.replacementHistory.push({
       timestamp,
@@ -2715,6 +2840,7 @@ export class AutoWatchlistSelector {
       incomingRankingScore: incoming?.rankingScore ?? null,
       outgoingRankingScore: outgoing.lastRankingScore,
       reason,
+      ...(exceptionKind ? { exceptionKind } : {}),
     });
     this.replacementHistory = this.replacementHistory.slice(-50);
     this.persistConfig();
@@ -2740,19 +2866,53 @@ export class AutoWatchlistSelector {
       .filter((entry) => {
         const currentDecision = decisionBySymbol.get(entry.symbol);
         return !this.isReversalWatchEligibleNow(entry, currentDecision);
-      })
-      .sort((left, right) =>
-        left.lastSlotSurvivalScore - right.lastSlotSurvivalScore ||
+      });
+    if (ordinaryFollowups.length <= MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS) return;
+
+    // A follow-up seat is a live tactical decision, not a reward for an old
+    // admission score. Rebalance only when every competing symbol has fresh
+    // activity data; otherwise preserve the shelf until a healthy scan can
+    // compare the entire pool without evicting a ticker on a provider gap.
+    const freshDecisionBySymbol = new Map<string, AutoWatchlistCandidateDecision>();
+    for (const entry of ordinaryFollowups) {
+      const decision = decisionBySymbol.get(entry.symbol);
+      if (
+        !decision?.activityDataAvailable ||
+        decision.activityQuoteAgeMinutes === null ||
+        decision.activityQuoteAgeMinutes > this.thresholds.maxActivityQuoteAgeMinutes
+      ) {
+        return;
+      }
+      freshDecisionBySymbol.set(entry.symbol, decision);
+      entry.lastRankingScore = decision.rankingScore;
+      entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
+      this.managedEntries.set(entry.symbol, entry);
+    }
+
+    ordinaryFollowups.sort((left, right) => {
+      const leftDecision = freshDecisionBySymbol.get(left.symbol)!;
+      const rightDecision = freshDecisionBySymbol.get(right.symbol)!;
+      return (
+        leftDecision.slotSurvivalScore - rightDecision.slotSurvivalScore ||
+        leftDecision.rankingScore - rightDecision.rankingScore ||
         right.retentionFailures - left.retentionFailures ||
-        (left.followupAt ?? 0) - (right.followupAt ?? 0),
+        (left.followupAt ?? 0) - (right.followupAt ?? 0)
       );
+    });
     const overflow = Math.max(0, ordinaryFollowups.length - MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS);
     for (const entry of ordinaryFollowups.slice(0, overflow)) {
+      const decision = freshDecisionBySymbol.get(entry.symbol)!;
       await this.moveManagedEntryToStandby(
         entry,
         timestamp,
-        `moved to standby because the follow-up shelf is capped at ${MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS} tickers`,
+        `moved to standby after fresh follow-up rebalance: current slot score ${decision.slotSurvivalScore.toFixed(2)} ranked outside the best ${MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS}`,
       );
+    }
+
+    for (const entry of ordinaryFollowups.slice(overflow)) {
+      const decision = freshDecisionBySymbol.get(entry.symbol)!;
+      entry.statusReason = `retained after fresh follow-up rebalance: current slot score ${decision.slotSurvivalScore.toFixed(2)} ranks in the best ${MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS}`;
+      this.managedEntries.set(entry.symbol, entry);
     }
   }
 
@@ -2808,6 +2968,7 @@ export class AutoWatchlistSelector {
     this.firstPassEvidence.clear();
     this.consecutivePasses.clear();
     this.consecutivePassSessions.clear();
+    this.consecutivePassObservedAt.clear();
     this.persistConfig();
   }
 
@@ -3507,10 +3668,16 @@ export class AutoWatchlistSelector {
       session,
       activity,
     });
+    const observationTimestamp = this.now();
     const priorPassSession = this.consecutivePassSessions.get(candidate.symbol);
+    const priorPassObservedAt = this.consecutivePassObservedAt.get(candidate.symbol);
     const canCarryPriorPasses =
-      priorPassSession === session ||
-      (priorPassSession === "premarket" && session === "regular");
+      priorPassObservedAt !== undefined &&
+      observationTimestamp - priorPassObservedAt <= CONSECUTIVE_PASS_MAX_GAP_MS &&
+      (
+        priorPassSession === session ||
+        (priorPassSession === "premarket" && session === "regular")
+      );
     const currentPasses = canCarryPriorPasses
       ? this.consecutivePasses.get(candidate.symbol) ?? 0
       : 0;
@@ -3520,8 +3687,15 @@ export class AutoWatchlistSelector {
         : 0
       : currentPasses;
     if (recordPassingObservation) {
-      this.consecutivePasses.set(candidate.symbol, nextPasses);
-      this.consecutivePassSessions.set(candidate.symbol, session);
+      if (nextPasses > 0) {
+        this.consecutivePasses.set(candidate.symbol, nextPasses);
+        this.consecutivePassSessions.set(candidate.symbol, session);
+        this.consecutivePassObservedAt.set(candidate.symbol, observationTimestamp);
+      } else {
+        this.consecutivePasses.delete(candidate.symbol);
+        this.consecutivePassSessions.delete(candidate.symbol);
+        this.consecutivePassObservedAt.delete(candidate.symbol);
+      }
     }
     const ranking = rankingFields({
       context: catalystContext,
@@ -3590,7 +3764,7 @@ export class AutoWatchlistSelector {
     ) {
       this.firstPassEvidence.set(candidate.symbol, {
         symbol: candidate.symbol,
-        observedAt: this.now(),
+        observedAt: observationTimestamp,
         session,
         rankingScore: decision.rankingScore,
         slotSurvivalScore: decision.slotSurvivalScore,
@@ -3676,7 +3850,6 @@ export class AutoWatchlistSelector {
       const bucket = autoWatchlistBucketForSession(session);
       if (activate) {
         this.syncManagedEntriesFromRuntime(session, scanStartedAt);
-        await this.enforceActiveSlotLimits(scanStartedAt);
       }
       const discovered = await this.discoverCandidates();
       this.lastScanCandidateCount = discovered.length;
@@ -3783,6 +3956,7 @@ export class AutoWatchlistSelector {
           if (!evaluatedDecisionSymbols.has(symbol)) {
             this.consecutivePasses.delete(symbol);
             this.consecutivePassSessions.delete(symbol);
+            this.consecutivePassObservedAt.delete(symbol);
           }
         }
       }
@@ -3790,6 +3964,7 @@ export class AutoWatchlistSelector {
       this.lastQualifiedCount = qualified.length;
       if (activate) {
         const decisionBySymbol = new Map(decisions.map((decision) => [decision.symbol, decision]));
+        await this.enforceActiveSlotLimits(scanStartedAt, ["main", "postmarket"], decisionBySymbol);
         for (const entry of [
           ...this.managedEntriesFor(undefined, "active"),
           ...this.managedEntriesFor(undefined, "followup"),
@@ -4070,18 +4245,30 @@ export class AutoWatchlistSelector {
           }
         }
 
+        const standardFastTrackCapacityAvailable = this.replacementAdmissionCapacityAvailable(
+          bucket,
+          scanStartedAt,
+          {
+            // The daily limit prevents ordinary list churn. It must not hide a
+            // verified late Main-session runner merely because earlier replacements used
+            // the normal allowance and late-session reserve.
+            allowMainSessionFastTrackOverride: true,
+          },
+        );
+        const postmarketExtremeOverrideAvailable =
+          this.postmarketExtremeRunnerOverrideAvailable(bucket);
         if (
           this.thresholds.dynamicReplacementEnabled &&
           activeManagedCount >= this.activeSlotLimit(bucket) &&
-          this.replacementAdmissionCapacityAvailable(bucket, scanStartedAt, {
-            // The daily limit prevents ordinary list churn. It must not hide a
-            // verified late runner merely because earlier replacements used
-            // the normal allowance and late-session reserve.
-            allowMainSessionFastTrackOverride: true,
-          })
+          (standardFastTrackCapacityAvailable || postmarketExtremeOverrideAvailable)
         ) {
           for (const challenger of eligibleChallengers.filter((decision) =>
-            !usedChallengers.has(decision.symbol) && this.isFastTrackRunner(decision),
+            !usedChallengers.has(decision.symbol) &&
+            this.isFastTrackRunner(decision) &&
+            (
+              standardFastTrackCapacityAvailable ||
+              (postmarketExtremeOverrideAvailable && this.isExtremeRunner(decision))
+            ),
           )) {
             const incumbent = this.managedEntriesFor(bucket, "active")
               .filter((entry) =>
@@ -4103,6 +4290,10 @@ export class AutoWatchlistSelector {
             const usesLateMainSessionAdmissionReserve =
               this.replacementCount(bucket) >= this.replacementLimit(bucket) &&
               this.lateMainSessionAdmissionReserveAvailable(bucket, scanStartedAt);
+            const usesPostmarketExtremeRunnerOverride =
+              bucket === "postmarket" &&
+              this.replacementCount(bucket) >= this.replacementLimit(bucket) &&
+              this.isExtremeRunner(challenger);
             if (!await this.replaceManagedDecision(
               challenger,
               incumbent,
@@ -4120,6 +4311,7 @@ export class AutoWatchlistSelector {
               incumbent,
               scanStartedAt,
               `${challenger.symbol} replaced ${incumbent.symbol}: ${fastTrackLabel} slot score ${challenger.slotSurvivalScore.toFixed(1)} versus ${incumbent.lastSlotSurvivalScore.toFixed(1)}, with $${Math.round((challenger.recent15mDollarVolume ?? 0) / 1_000)}K last-15m dollar volume, ${(challenger.shareTurnoverPct ?? 0).toFixed(1)}% turnover${challenger.volumeAcceleration !== null ? `, and ${challenger.volumeAcceleration.toFixed(1)}x acceleration` : ""}.`,
+              usesPostmarketExtremeRunnerOverride ? "postmarket_extreme_runner" : undefined,
             );
             break;
           }

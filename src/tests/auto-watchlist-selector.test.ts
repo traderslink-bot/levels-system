@@ -1059,6 +1059,186 @@ test("the late main-session reserve also extends an exhausted replacement quota"
   }
 });
 
+test("one verified extreme postmarket runner can bypass an exhausted replacement quota", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-postmarket-extreme-"));
+  const configPath = join(directory, "config.json");
+  let now = Date.parse("2026-07-21T23:04:00Z");
+  let candidateSymbol = "SNTG";
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: now,
+    thresholds: {
+      maxActivePostmarketTickers: 1,
+      maxPostmarketAddsPerTradingDay: 1,
+      maxPostmarketReplacementsPerTradingDay: 1,
+      maxPostmarketExtremeRunnerOverridesPerTradingDay: 1,
+      consecutivePassesRequired: 2,
+      minimumAutoHoldMinutes: 0,
+      enrichmentLimit: 2,
+      extendedSessionCandidateLimit: 2,
+    },
+    tradingDay: "2026-07-21",
+    postmarketAddedToday: ["OLD"],
+    managedEntries: [{
+      symbol: "OLD",
+      bucket: "postmarket",
+      state: "active",
+      firstAddedAt: now - 60 * 60_000,
+      lastActivatedAt: now - 60 * 60_000,
+      addedSession: "postmarket",
+      lastSession: "postmarket",
+      lastRankingScore: 40,
+      lastSlotSurvivalScore: 40,
+      lastQualifiedAt: now - 60_000,
+      retentionFailures: 0,
+      statusReason: "active before extreme-runner override",
+    }],
+    replacementHistory: [{
+      timestamp: now - 30 * 60_000,
+      bucket: "postmarket",
+      incomingSymbol: "OLD",
+      outgoingSymbol: "OLDER",
+      incomingRankingScore: 40,
+      outgoingRankingScore: 30,
+      reason: "normal postmarket replacement allowance already used",
+    }],
+  }));
+  const active = new Set(["OLD"]);
+  const activated: string[] = [];
+  const fetchImpl: typeof fetch = async (request) => {
+    if (String(request).includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({
+        data: {
+          STOCKS: {
+            MostAdvanced: {
+              table: {
+                rows: [
+                  {
+                    symbol: candidateSymbol,
+                    name: `${candidateSymbol} Common Stock`,
+                    lastSalePrice: "$3.80",
+                    change: "85%",
+                  },
+                  {
+                    symbol: "OLD",
+                    name: "Old Corporation Common Stock",
+                    lastSalePrice: "$2.40",
+                    change: "20%",
+                  },
+                ],
+              },
+            },
+          },
+        },
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        rows: [
+          {
+            symbol: candidateSymbol,
+            name: `${candidateSymbol} Common Stock`,
+            lastsale: "$3.80",
+            pctchange: "85%",
+            volume: "3000000",
+            marketCap: "10000000",
+          },
+          {
+            symbol: "OLD",
+            name: "Old Corporation Common Stock",
+            lastsale: "$2.40",
+            pctchange: "20%",
+            volume: "1000000",
+            marketCap: "10000000",
+          },
+        ],
+      },
+    }), { status: 200 });
+  };
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async (symbol: string) => ({
+        ticker: symbol,
+        marketCapitalization: 10,
+        floatingShare: 3,
+        shareOutstanding: 4,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath,
+    now: () => now,
+    getActiveSymbols: () => [...active],
+    getActiveEntries: () => [...active].map((symbol) => ({
+      symbol,
+      tags: ["auto", "auto-postmarket"],
+    })),
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => {
+      activated.push(symbol);
+      active.add(symbol);
+    },
+    setSymbolFollowup: async (symbol, followup) => {
+      if (followup) active.delete(symbol);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session, now: observedAt }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: symbol === "OLD" ? 2.4 : 3.8,
+        gainPct: symbol === "OLD" ? 20 : 85,
+        sessionVolume: symbol === "OLD" ? 1_000_000 : 3_000_000,
+        mainSessionVolume: 10_000,
+        sessionDollarVolume: symbol === "OLD" ? 2_000_000 : 9_000_000,
+        recent15mVolume: symbol === "OLD" ? 100_000 : 1_500_000,
+        recent15mDollarVolume: symbol === "OLD" ? 200_000 : 5_000_000,
+        sessionElapsedMinutes: 184,
+        mainSessionElapsedMinutes: 720,
+        volumeAcceleration: symbol === "OLD" ? 1 : 5,
+        quoteTime: Math.floor(observedAt / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+  try {
+    const before = selector.getStatus();
+    assert.equal(
+      before.postmarketExtremeRunnerOverridesAvailable,
+      1,
+      JSON.stringify({
+        active: before.activePostmarketSymbols,
+        replacements: before.recentReplacements,
+        thresholds: before.thresholds,
+      }),
+    );
+    const admitted = await selector.runNow({ activate: true });
+    assert.deepEqual(activated, ["SNTG"], JSON.stringify(admitted.recentDecisions));
+    assert.deepEqual(admitted.activePostmarketSymbols, ["SNTG"]);
+    assert.equal(
+      admitted.postmarketExtremeRunnerOverridesUsed,
+      1,
+      JSON.stringify(admitted.recentReplacements),
+    );
+    assert.equal(admitted.postmarketExtremeRunnerOverridesAvailable, 0);
+    assert.equal(admitted.recentReplacements[0]?.exceptionKind, "postmarket_extreme_runner");
+    assert.match(admitted.recentReplacements[0]?.reason ?? "", /verified extreme runner/i);
+
+    candidateSymbol = "SECOND";
+    now += 2 * 60_000;
+    const exhausted = await selector.runNow({ activate: true });
+    assert.deepEqual(activated, ["SNTG"]);
+    assert.deepEqual(exhausted.activePostmarketSymbols, ["SNTG"]);
+    assert.equal(exhausted.postmarketExtremeRunnerOverridesAvailable, 0);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("automatic replacement rejects the same symbol before changing lifecycle state", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-self-replacement-"));
   const now = Date.parse("2026-07-20T13:00:00Z");
@@ -1696,6 +1876,78 @@ test("a NEXR-shaped postmarket candidate cannot bypass repeat confirmation as an
     assert.deepEqual(activated, []);
   } finally {
     selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a recent qualifying pass survives a runtime restart", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-restart-pass-"));
+  const configPath = join(directory, "config.json");
+  let now = Date.parse("2026-07-21T17:00:00Z");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: now,
+    thresholds: {
+      consecutivePassesRequired: 2,
+      enrichmentLimit: 1,
+    },
+  }));
+  const active = new Set<string>();
+  const activated: string[] = [];
+  const options = {
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "KEEP",
+        marketCapitalization: 20,
+        floatingShare: 5,
+        shareOutstanding: 8,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl: async () => new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "KEEP",
+          name: "Keep Corporation Common Stock",
+          lastsale: "$2.00",
+          pctchange: "20%",
+          volume: "1000000",
+          marketCap: "20000000",
+        }],
+      },
+    }), { status: 200 }),
+    configPath,
+    now: () => now,
+    getActiveSymbols: () => [...active],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }: { symbol: string }) => {
+      activated.push(symbol);
+      active.add(symbol);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  };
+  const firstRuntime = new AutoWatchlistSelector(options);
+  try {
+    const firstPass = await firstRuntime.runNow({ activate: true });
+    assert.equal(firstPass.recentDecisions[0]?.consecutivePasses, 1);
+    assert.deepEqual(activated, []);
+    assert.equal(firstPass.consecutivePassEvidence[0]?.count, 1);
+    firstRuntime.stop();
+
+    now += 2 * 60_000;
+    const restartedRuntime = new AutoWatchlistSelector(options);
+    try {
+      const secondPass = await restartedRuntime.runNow({ activate: true });
+      assert.equal(secondPass.recentDecisions[0]?.consecutivePasses, 2);
+      assert.deepEqual(activated, ["KEEP"]);
+    } finally {
+      restartedRuntime.stop();
+    }
+  } finally {
+    firstRuntime.stop();
     await rm(directory, { recursive: true, force: true });
   }
 });

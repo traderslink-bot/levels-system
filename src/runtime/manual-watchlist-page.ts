@@ -192,6 +192,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Initial post-market automatic additions per day<input id="auto-selector-max-postmarket-adds" type="number" min="1" max="20" step="1" /></label>
           <label>Main-session automatic replacements per day<input id="auto-selector-max-main-replacements" type="number" min="0" max="50" step="1" /></label>
           <label>Post-market automatic replacements per day<input id="auto-selector-max-postmarket-replacements" type="number" min="0" max="50" step="1" /></label>
+          <label>Post-market extreme-runner overrides after replacement limit<input id="auto-selector-max-postmarket-extreme-overrides" type="number" min="0" max="10" step="1" /></label>
           <label>Late main-session admission reserve<input id="auto-selector-late-main-reserve" type="number" min="0" max="20" step="1" /></label>
           <label>Late reserve unlock hour ET<input id="auto-selector-late-main-unlock-hour" type="number" min="0" max="23" step="1" /></label>
           <label>Minimum hold after auto add (minutes)<input id="auto-selector-min-hold" type="number" min="0" max="240" step="1" /></label>
@@ -436,6 +437,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       maxPostmarketAddsPerTradingDay: document.getElementById("auto-selector-max-postmarket-adds"),
       maxMainSessionReplacementsPerTradingDay: document.getElementById("auto-selector-max-main-replacements"),
       maxPostmarketReplacementsPerTradingDay: document.getElementById("auto-selector-max-postmarket-replacements"),
+      maxPostmarketExtremeRunnerOverridesPerTradingDay: document.getElementById("auto-selector-max-postmarket-extreme-overrides"),
       lateMainSessionAdmissionReserve: document.getElementById("auto-selector-late-main-reserve"),
       lateMainSessionAdmissionUnlockHourEastern: document.getElementById("auto-selector-late-main-unlock-hour"),
       dynamicReplacementEnabled: document.getElementById("auto-selector-dynamic-replacement"),
@@ -650,7 +652,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       header.className = "entry-title";
       title.textContent = entry.symbol;
       header.appendChild(title);
-      header.appendChild(createBadge(lifecycleLabel(entry.lifecycle), lifecycleBadgeClass(entry.lifecycle)));
+      const selectorState = entry.selectorManagedState;
+      header.appendChild(createBadge(
+        selectorState === "followup"
+          ? "Follow-up — not on public watchlist"
+          : lifecycleLabel(entry.lifecycle),
+        selectorState === "followup" ? "badge badge-working" : lifecycleBadgeClass(entry.lifecycle),
+      ));
       const aiConfidence = entry.tradersLinkAiReadConfidence;
       header.appendChild(createBadge(
         "AI confidence: " + (aiConfidence ? lifecycleLabel(aiConfidence) : "Pending"),
@@ -682,6 +690,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       appendMetaValue(details, "trigger", formatNumber(entry.lastTriggerPrice));
       appendMetaValue(details, "levels age", levelFreshness);
       appendMetaValue(details, "OpenAI notes", entry.note);
+      if (selectorState === "followup") {
+        appendMetaValue(details, "follow-up score", formatNumber(entry.selectorCurrentSlotScore));
+        appendMetaValue(details, "follow-up reason", entry.selectorStatusReason);
+      }
 
       meta.appendChild(header);
       meta.appendChild(details);
@@ -1218,6 +1230,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("maxPostmarketAddsPerTradingDay", thresholds.maxPostmarketAddsPerTradingDay);
         setAutoSelectorInputValue("maxMainSessionReplacementsPerTradingDay", thresholds.maxMainSessionReplacementsPerTradingDay);
         setAutoSelectorInputValue("maxPostmarketReplacementsPerTradingDay", thresholds.maxPostmarketReplacementsPerTradingDay);
+        setAutoSelectorInputValue("maxPostmarketExtremeRunnerOverridesPerTradingDay", thresholds.maxPostmarketExtremeRunnerOverridesPerTradingDay);
         setAutoSelectorInputValue("lateMainSessionAdmissionReserve", thresholds.lateMainSessionAdmissionReserve);
         setAutoSelectorInputValue("lateMainSessionAdmissionUnlockHourEastern", thresholds.lateMainSessionAdmissionUnlockHourEastern);
         setAutoSelectorInputValue("dynamicReplacementEnabled", thresholds.dynamicReplacementEnabled);
@@ -1287,6 +1300,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           String(selector.lateMainSessionAdmissionReserveAvailable) + " available, " +
           String(selector.lateMainSessionAdmissionReserveUsed || 0) + " used; " +
           (selector.lateMainSessionAdmissionReserveUnlocked ? "unlocked" : "locked") + ".",
+        );
+      }
+      if (Number.isFinite(selector.postmarketExtremeRunnerOverridesAvailable)) {
+        pieces.push(
+          "Post-market extreme-runner override: " +
+          String(selector.postmarketExtremeRunnerOverridesAvailable) + " available, " +
+          String(selector.postmarketExtremeRunnerOverridesUsed || 0) + " used.",
         );
       }
       if (Array.isArray(selector.activeMainSessionSymbols)) {
@@ -2330,6 +2350,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         maxPostmarketAddsPerTradingDay: Math.round(readAutoSelectorNumber("maxPostmarketAddsPerTradingDay")),
         maxMainSessionReplacementsPerTradingDay: Math.round(readAutoSelectorNumber("maxMainSessionReplacementsPerTradingDay")),
         maxPostmarketReplacementsPerTradingDay: Math.round(readAutoSelectorNumber("maxPostmarketReplacementsPerTradingDay")),
+        maxPostmarketExtremeRunnerOverridesPerTradingDay: Math.round(readAutoSelectorNumber("maxPostmarketExtremeRunnerOverridesPerTradingDay")),
         lateMainSessionAdmissionReserve: Math.round(readAutoSelectorNumber("lateMainSessionAdmissionReserve")),
         lateMainSessionAdmissionUnlockHourEastern: Math.round(readAutoSelectorNumber("lateMainSessionAdmissionUnlockHourEastern")),
         dynamicReplacementEnabled: autoSelectorInputEls.dynamicReplacementEnabled.checked,
