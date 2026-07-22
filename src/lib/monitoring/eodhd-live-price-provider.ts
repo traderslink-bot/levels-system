@@ -1,5 +1,5 @@
 import type { LivePriceProvider, LivePriceListener } from "./live-price-types.js";
-import type { WatchlistEntry } from "./monitoring-types.js";
+import type { LivePriceUpdate, WatchlistEntry } from "./monitoring-types.js";
 
 type EodhdWebSocketLike = {
   readyState: number;
@@ -16,6 +16,7 @@ export type EodhdLivePriceProviderOptions = {
   endpointUrl?: string;
   maxSymbols?: number;
   reconnectDelayMs?: number;
+  dispatchIntervalMs?: number;
   socketFactory?: EodhdWebSocketFactory;
 };
 
@@ -31,6 +32,7 @@ type EodhdTradeMessage = {
 const DEFAULT_ENDPOINT_URL = "wss://ws.eodhistoricaldata.com/ws/us";
 const DEFAULT_MAX_SYMBOLS = 50;
 const DEFAULT_RECONNECT_DELAY_MS = 2_000;
+const DEFAULT_DISPATCH_INTERVAL_MS = 250;
 const OPEN_STATE = 1;
 
 function envText(...names: string[]): string | undefined {
@@ -73,12 +75,16 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
   private readonly endpointUrl: string;
   private readonly maxSymbols: number;
   private readonly reconnectDelayMs: number;
+  private readonly dispatchIntervalMs: number;
   private readonly socketFactory: EodhdWebSocketFactory;
   private activeSymbols: string[] = [];
   private activeSymbolByStreamSymbol = new Map<string, string>();
   private listener?: LivePriceListener;
   private socket?: EodhdWebSocketLike;
   private reconnectTimer?: NodeJS.Timeout;
+  private dispatchTimer?: NodeJS.Timeout;
+  private pendingUpdates = new Map<string, LivePriceUpdate>();
+  private lastDispatchedTimestampBySymbol = new Map<string, number>();
   private stopping = false;
 
   constructor(options: EodhdLivePriceProviderOptions = {}) {
@@ -96,6 +102,10 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
     this.reconnectDelayMs = options.reconnectDelayMs ?? positiveIntegerEnv(
       ["EODHD_WEBSOCKET_RECONNECT_DELAY_MS", "LEVEL_EODHD_WEBSOCKET_RECONNECT_DELAY_MS"],
       DEFAULT_RECONNECT_DELAY_MS,
+    );
+    this.dispatchIntervalMs = options.dispatchIntervalMs ?? positiveIntegerEnv(
+      ["EODHD_WEBSOCKET_DISPATCH_INTERVAL_MS", "LEVEL_EODHD_WEBSOCKET_DISPATCH_INTERVAL_MS"],
+      DEFAULT_DISPATCH_INTERVAL_MS,
     );
     this.socketFactory = resolveSocketFactory(options.socketFactory);
   }
@@ -135,6 +145,10 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
+    if (this.dispatchTimer) {
+      clearTimeout(this.dispatchTimer);
+      this.dispatchTimer = undefined;
+    }
     if (this.socket) {
       this.socket.close();
       this.socket = undefined;
@@ -142,6 +156,8 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
     this.listener = undefined;
     this.activeSymbols = [];
     this.activeSymbolByStreamSymbol = new Map();
+    this.pendingUpdates.clear();
+    this.lastDispatchedTimestampBySymbol.clear();
   }
 
   private connect(): void {
@@ -231,11 +247,64 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
       return;
     }
 
-    this.listener({
+    this.queueUpdate({
       symbol: watchlistSymbol,
       timestamp: parsePositiveNumber(message.t) ?? Date.now(),
       lastPrice,
       volume: parsePositiveNumber(message.v),
     });
+  }
+
+  private queueUpdate(update: LivePriceUpdate): void {
+    if (!this.listener) {
+      return;
+    }
+    if (this.dispatchIntervalMs <= 0) {
+      this.listener(update);
+      return;
+    }
+
+    const lastDispatchedAt = this.lastDispatchedTimestampBySymbol.get(update.symbol) ?? 0;
+    if (update.timestamp < lastDispatchedAt) {
+      return;
+    }
+
+    const pending = this.pendingUpdates.get(update.symbol);
+    const combinedVolume = (pending?.volume ?? 0) + (update.volume ?? 0);
+    if (!pending || update.timestamp >= pending.timestamp) {
+      this.pendingUpdates.set(update.symbol, {
+        ...update,
+        ...(combinedVolume > 0 ? { volume: combinedVolume } : {}),
+      });
+    } else if (combinedVolume > 0) {
+      this.pendingUpdates.set(update.symbol, {
+        ...pending,
+        volume: combinedVolume,
+      });
+    }
+
+    if (!this.dispatchTimer) {
+      this.dispatchTimer = setTimeout(() => this.flushPendingUpdates(), this.dispatchIntervalMs);
+    }
+  }
+
+  private flushPendingUpdates(): void {
+    this.dispatchTimer = undefined;
+    if (!this.listener || this.stopping) {
+      this.pendingUpdates.clear();
+      return;
+    }
+
+    const updates = [...this.pendingUpdates.values()]
+      .sort((left, right) => left.timestamp - right.timestamp || left.symbol.localeCompare(right.symbol));
+    this.pendingUpdates.clear();
+    for (const update of updates) {
+      const lastDispatchedAt = this.lastDispatchedTimestampBySymbol.get(update.symbol) ?? 0;
+      if (update.timestamp < lastDispatchedAt) {
+        continue;
+      }
+      this.lastDispatchedTimestampBySymbol.set(update.symbol, update.timestamp);
+      this.listener(update);
+    }
   }
 }

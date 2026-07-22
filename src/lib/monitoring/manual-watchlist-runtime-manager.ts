@@ -10741,6 +10741,10 @@ export class ManualWatchlistRuntimeManager {
     if (!this.liveWatchlistPublisher?.publishTickerData) {
       return;
     }
+    const watchlistEntry = this.watchlistStore.getEntry(update.symbol);
+    if (watchlistEntry?.lifecycle === "inactive") {
+      return;
+    }
 
     const lastPublishedAt = this.lastWebsiteTickerDataPublishAt.get(update.symbol) ?? 0;
     if (!options.force && update.timestamp - lastPublishedAt < WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS) {

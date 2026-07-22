@@ -1914,7 +1914,6 @@ export function buildLiveWatchlistTickerDataPatch(args: {
   return {
     type: "tickerData",
     symbol: normalizeSymbol(args.symbol),
-    status: "live",
     updatedAt: args.timestamp,
     marketDataObservedAt: args.timestamp,
     ...(args.marketDataRevision !== undefined

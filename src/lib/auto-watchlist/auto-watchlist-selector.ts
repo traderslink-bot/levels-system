@@ -30,6 +30,10 @@ type FetchLike = typeof fetch;
 
 const CONFIG_VERSION = 1;
 const MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS = 3;
+const MAIN_SESSION_BASELINE_QUALIFICATION_SCORE = 65;
+const MAIN_SESSION_STRONG_RUNNER_MIN_GAIN_PCT = 20;
+const MAIN_SESSION_STRONG_RUNNER_MIN_RECENT_DOLLAR_VOLUME = 250_000;
+const MAIN_SESSION_STRONG_RUNNER_MIN_VOLUME_ACCELERATION = 2;
 
 export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxMarketCap: 100_000_000,
@@ -734,6 +738,20 @@ function postmarketPromotionRejectionReasons(input: {
   return reasons;
 }
 
+export function meetsMainSessionBaselineAdmissionQuality(input: Pick<
+  AutoWatchlistCandidateDecision,
+  "score" | "gainPct" | "recent15mDollarVolume" | "volumeAcceleration"
+>): boolean {
+  return (
+    input.score >= MAIN_SESSION_BASELINE_QUALIFICATION_SCORE ||
+    (
+      (input.gainPct ?? 0) >= MAIN_SESSION_STRONG_RUNNER_MIN_GAIN_PCT &&
+      (input.recent15mDollarVolume ?? 0) >= MAIN_SESSION_STRONG_RUNNER_MIN_RECENT_DOLLAR_VOLUME &&
+      (input.volumeAcceleration ?? 0) >= MAIN_SESSION_STRONG_RUNNER_MIN_VOLUME_ACCELERATION
+    )
+  );
+}
+
 function elapsedSessionMinutes(timestamp: number, session: AutoWatchlistSession): number | null {
   const parts = easternParts(timestamp);
   const currentMinutes = parts.hour * 60 + parts.minute;
@@ -955,6 +973,8 @@ export function scoreAutoWatchlistCandidate(input: {
   | "promotionRejectionReasons"
   | "consecutivePasses"
   | "rankingScore"
+  | "slotSurvivalScore"
+  | "slotSurvivalReasons"
   | "catalystAgeDays"
   | "catalystTiming"
   | "catalystPublishedAt"
@@ -2897,6 +2917,9 @@ export class AutoWatchlistSelector {
             : this.thresholds.consecutivePassesRequired;
           return decision.consecutivePasses >= requiredPasses;
         });
+        const vacantSlotEligibleChallengers = eligibleChallengers.filter((decision) =>
+          bucket !== "main" || meetsMainSessionBaselineAdmissionQuality(decision)
+        );
         const overflowCount = Math.max(
           0,
           this.managedEntriesFor(bucket, "active").length - this.activeSlotLimit(bucket),
@@ -2946,7 +2969,7 @@ export class AutoWatchlistSelector {
         ];
         const usedChallengers = new Set<string>();
         let activeManagedCount = this.managedEntriesFor(bucket, "active").length;
-        for (const decision of eligibleChallengers) {
+        for (const decision of vacantSlotEligibleChallengers) {
           if (activeManagedCount >= this.activeSlotLimit(bucket)) break;
           const alreadyAdded = this.sessionAddedSet(bucket).has(decision.symbol);
           for (let index = availableReplacementDepartures.length - 1; index >= 0; index -= 1) {

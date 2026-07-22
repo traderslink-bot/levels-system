@@ -12,6 +12,7 @@ import {
   compareAutoWatchlistDecisions,
   DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   isWithinAutoWatchlistScanWindow,
+  meetsMainSessionBaselineAdmissionQuality,
   normalizeNasdaqChartTimestamp,
   scoreAutoWatchlistCandidate,
   type AutoWatchlistDiscoveryCandidate,
@@ -36,6 +37,22 @@ const ACTIVE_SESSION_LOOKUP: AutoWatchlistSessionActivityLookup = async (input) 
     sessionVolume: 1_000_000,
     recent15mVolume: 100_000,
     recent15mDollarVolume: 200_000,
+    quoteTime: Math.floor(input.now / 1000),
+    quoteAgeMinutes: 0,
+    available: true,
+  }]),
+);
+
+const STRONG_RUNNER_SESSION_LOOKUP: AutoWatchlistSessionActivityLookup = async (input) => Object.fromEntries(
+  input.symbols.map((symbol) => [symbol, {
+    symbol,
+    session: input.session,
+    price: 2,
+    gainPct: 20,
+    sessionVolume: 1_000_000,
+    recent15mVolume: 125_000,
+    recent15mDollarVolume: 250_000,
+    volumeAcceleration: 2,
     quoteTime: Math.floor(input.now / 1000),
     quoteAgeMinutes: 0,
     available: true,
@@ -536,6 +553,80 @@ test("selector requires two passing observations before activating and does not 
   }
 });
 
+test("a vacant Main slot remains empty when the best candidate fails baseline admission quality", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-vacant-slot-quality-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: Date.now(),
+    thresholds: {
+      consecutivePassesRequired: 1,
+      maxActiveMainSessionTickers: 5,
+    },
+  }));
+  const activated: string[] = [];
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    data: {
+      rows: [{
+        symbol: "VACANT",
+        name: "Vacant Slot Common Stock",
+        lastsale: "$2.00",
+        pctchange: "15%",
+        volume: "800000",
+        marketCap: "52000000",
+      }],
+    },
+  }), { status: 200 });
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "VACANT",
+        marketCapitalization: 52,
+        shareOutstanding: 10,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath,
+    now: () => Date.parse("2026-07-16T12:00:00Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => {
+      activated.push(symbol);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: async (input) => ({
+      VACANT: {
+        symbol: "VACANT",
+        session: input.session,
+        price: 2,
+        gainPct: 15,
+        sessionVolume: 800_000,
+        sessionDollarVolume: 1_600_000,
+        recent15mVolume: 44_500,
+        recent15mDollarVolume: 89_000,
+        volumeAcceleration: 0.6,
+        quoteTime: Math.floor(input.now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      },
+    }),
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const decision = status.recentDecisions.find((candidate) => candidate.symbol === "VACANT");
+    assert.ok(decision);
+    assert.equal(decision.qualified, true);
+    assert.equal(decision.promotionReady, true);
+    assert.deepEqual(activated, []);
+    assert.deepEqual(status.activeMainSessionSymbols, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("daily automatic-add limit survives a runtime restart", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-daily-limit-"));
   const configPath = join(directory, "config.json");
@@ -632,7 +723,7 @@ test("the 9:00 ET main-session reserve admits only three late tickers and surviv
       active.add(symbol);
     },
     catalystLookup: NO_CATALYST_LOOKUP,
-    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+    sessionActivityLookup: STRONG_RUNNER_SESSION_LOOKUP,
   };
   const selector = new AutoWatchlistSelector(options);
   try {
@@ -744,8 +835,9 @@ test("the late main-session reserve also extends an exhausted replacement quota"
           price: 2,
           gainPct: 20,
           sessionVolume: 1_000_000,
-          recent15mVolume: 100_000,
-          recent15mDollarVolume: 200_000,
+          recent15mVolume: 125_000,
+          recent15mDollarVolume: 250_000,
+          volumeAcceleration: 2,
           quoteTime: Math.floor(input.now / 1000),
           quoteAgeMinutes: 0,
           available: true,
@@ -1042,6 +1134,33 @@ test("slot-survival scoring keeps a dominant live runner ahead of a marginal low
   assert.ok(zybt.slotSurvivalScore > skyq.slotSurvivalScore);
   assert.equal(zybt.slotSurvivalScore, 120);
   assert.match(zybt.slotSurvivalReasons[0] ?? "", /sustained runner gain/);
+});
+
+test("vacant Main slots require independent baseline admission quality", () => {
+  assert.equal(meetsMainSessionBaselineAdmissionQuality({
+    score: 53,
+    gainPct: 15.6,
+    recent15mDollarVolume: 89_000,
+    volumeAcceleration: 0.6,
+  }), false);
+  assert.equal(meetsMainSessionBaselineAdmissionQuality({
+    score: 51,
+    gainPct: 11.9,
+    recent15mDollarVolume: 1_084_000,
+    volumeAcceleration: 104.8,
+  }), false);
+  assert.equal(meetsMainSessionBaselineAdmissionQuality({
+    score: 65,
+    gainPct: 10,
+    recent15mDollarVolume: 50_000,
+    volumeAcceleration: 1,
+  }), true);
+  assert.equal(meetsMainSessionBaselineAdmissionQuality({
+    score: 60,
+    gainPct: 20,
+    recent15mDollarVolume: 250_000,
+    volumeAcceleration: 2,
+  }), true);
 });
 
 test("catalyst ranking has a true no-effect setting and lookup failures fail open", async () => {

@@ -3123,6 +3123,43 @@ test("ManualWatchlistRuntimeManager publishes live volume in website ticker data
   assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.volume, 123_456);
 });
 
+test("ManualWatchlistRuntimeManager does not publish ticker data after a symbol is deactivated", async () => {
+  const monitor = new FakeMonitor();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const watchlistStore = new WatchlistStore();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "CAST" });
+  await manager.deactivateSymbol("CAST");
+  liveWatchlistPublisher.tickerDataPatches = [];
+
+  (manager as any).publishLiveTickerData({
+    symbol: "CAST",
+    timestamp: 4_000,
+    lastPrice: 2.15,
+    volume: 125_000,
+  });
+  await waitForAsyncWork();
+
+  assert.equal(watchlistStore.getEntry("CAST")?.active, false);
+  assert.equal(liveWatchlistPublisher.tickerDataPatches.length, 0);
+});
+
 test("ManualWatchlistRuntimeManager keeps stronger duplicate metadata in live website ticker levels", async () => {
   const monitor = new FakeMonitor();
   const persistence = new FakeWatchlistStatePersistence();
