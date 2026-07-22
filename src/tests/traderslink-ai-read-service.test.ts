@@ -514,6 +514,10 @@ describe("OpenAITradersLinkAiReadService", () => {
       input[0]!.content[0]!.text,
       /invalidationPrice < zoneLow <= zoneHigh < currentPrice/,
     );
+    assert.match(
+      input[0]!.content[0]!.text,
+      /recoveryZoneLow <= recoveryZoneHigh < firstReclaimPrice <= setupRestorePrice/,
+    );
     const pullbackPlansSchema = schema.properties.pullbackPlans as {
       properties: {
         shallow: {
@@ -524,6 +528,13 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(
       pullbackPlansSchema.properties.shallow.properties.invalidationPrice?.description ?? "",
       /strictly below zoneLow/i,
+    );
+    const failureRecoverySchema = schema.properties.failureRecovery as {
+      properties: Record<string, { description?: string }>;
+    };
+    assert.match(
+      failureRecoverySchema.properties.firstReclaimPrice?.description ?? "",
+      /strictly greater than recoveryZoneHigh/i,
     );
     const packet = JSON.parse(input[1]!.content[0]!.text) as {
       marketPacket: {
