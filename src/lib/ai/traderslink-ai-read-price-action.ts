@@ -8,6 +8,8 @@ const VOLUME_LANDMARK_LIMIT = 8;
 const UNREPORTED_EXTENDED_WICK_CONFIRMATION_PCT = 0.03;
 const MINIMUM_SIGNIFICANT_IMPULSE_GAIN_PCT = 5;
 const MAXIMUM_IMPULSE_DURATION_BARS = 45;
+const MINIMUM_BROADER_MOVE_GAIN_PCT = 10;
+const MINIMUM_BROADER_MOVE_DURATION_BARS = 15;
 
 export type TradersLinkAiReadPriceActionContext = {
   source: string;
@@ -25,6 +27,8 @@ export type TradersLinkAiReadPullbackCandidate = {
     | "breakout_shelf"
     | "first_consolidation"
     | "volume_shelf"
+    | "broader_move_origin"
+    | "one_minute_acceptance"
     | "five_minute_acceptance";
   zoneLow: number;
   zoneHigh: number;
@@ -207,11 +211,11 @@ function candidateFromCandles(args: {
 function materiallySeparatedCandidates(
   candidates: TradersLinkAiReadPullbackCandidate[],
 ): TradersLinkAiReadPullbackCandidate[] {
-  const output: TradersLinkAiReadPullbackCandidate[] = [];
+  const separated: TradersLinkAiReadPullbackCandidate[] = [];
   for (const candidate of candidates
     .filter((item) => item.zoneLow > 0 && item.zoneHigh >= item.zoneLow)
     .sort((left, right) => right.zoneHigh - left.zoneHigh)) {
-    const duplicate = output.some((existing) => {
+    const duplicate = separated.some((existing) => {
       if (existing.kind !== candidate.kind) {
         return false;
       }
@@ -224,7 +228,29 @@ function materiallySeparatedCandidates(
       return overlap / narrowerWidth >= 0.65;
     });
     if (!duplicate) {
+      separated.push(candidate);
+    }
+  }
+
+  // Preserve at least one candidate from every evidence type before allowing
+  // repeated acceptance shelves to consume the bounded model packet.
+  const output: TradersLinkAiReadPullbackCandidate[] = [];
+  const selectedIds = new Set<string>();
+  const representedKinds = new Set<TradersLinkAiReadPullbackCandidate["kind"]>();
+  for (const candidate of separated) {
+    if (!representedKinds.has(candidate.kind)) {
       output.push(candidate);
+      selectedIds.add(candidate.id);
+      representedKinds.add(candidate.kind);
+    }
+  }
+  for (const candidate of separated) {
+    if (output.length >= 8) {
+      break;
+    }
+    if (!selectedIds.has(candidate.id)) {
+      output.push(candidate);
+      selectedIds.add(candidate.id);
     }
   }
   return output.slice(0, 8);
@@ -267,6 +293,29 @@ function buildOneMinuteFacts(
     }
   }
 
+  const currentSessionDate = classifyIntradayCandleTimestamp(dataAsOf).sessionDate;
+  const sessionSearch = candles
+    .filter((candle) => classifyIntradayCandleTimestamp(candle.timestamp).sessionDate === currentSessionDate)
+    .slice(-600);
+  let broaderBest: { startIndex: number; endIndex: number; gainPct: number } | null = null;
+  for (let endIndex = MINIMUM_BROADER_MOVE_DURATION_BARS; endIndex < sessionSearch.length; endIndex += 1) {
+    for (let startIndex = 0; startIndex <= endIndex - MINIMUM_BROADER_MOVE_DURATION_BARS; startIndex += 1) {
+      const start = sessionSearch[startIndex]!;
+      const end = sessionSearch[endIndex]!;
+      const gainPct = (end.high - start.low) / start.low * 100;
+      if (gainPct < MINIMUM_BROADER_MOVE_GAIN_PCT) {
+        continue;
+      }
+      if (
+        !broaderBest ||
+        gainPct > broaderBest.gainPct ||
+        (gainPct === broaderBest.gainPct && startIndex < broaderBest.startIndex)
+      ) {
+        broaderBest = { startIndex, endIndex, gainPct };
+      }
+    }
+  }
+
   const recent = candles.slice(-RECENT_ONE_MINUTE_BAR_LIMIT);
   const sessionVwap = approximateVwap(candles);
   const ema9 = exponentialMovingAverage(recent, 9);
@@ -274,6 +323,7 @@ function buildOneMinuteFacts(
   const latest = candles.at(-1)!;
   const candidates: Array<TradersLinkAiReadPullbackCandidate | null> = [];
   let impulse: Record<string, unknown> | null = null;
+  let broaderSessionMove: Record<string, unknown> | null = null;
   let firstConsolidation: Record<string, unknown> | null = null;
 
   if (best) {
@@ -376,6 +426,80 @@ function buildOneMinuteFacts(
     }));
   }
 
+  if (broaderBest) {
+    const start = sessionSearch[broaderBest.startIndex]!;
+    const end = sessionSearch[broaderBest.endIndex]!;
+    const durationMinutes = Math.max(1, Math.round((end.timestamp - start.timestamp) / 60_000));
+    const latestImpulseStart = best ? search[best.startIndex]! : null;
+    const latestImpulseDuration = best
+      ? Math.max(1, Math.round((search[best.endIndex]!.timestamp - latestImpulseStart!.timestamp) / 60_000))
+      : 0;
+    const isDistinctBroaderMove = !latestImpulseStart ||
+      (start.low < latestImpulseStart.low * 0.97 && durationMinutes >= latestImpulseDuration + 5);
+    if (isDistinctBroaderMove) {
+      const anchorMidpoint = (start.open + start.close) / 2;
+      const originWindow = sessionSearch
+        .slice(Math.max(0, broaderBest.startIndex - 4), Math.min(sessionSearch.length, broaderBest.startIndex + 3))
+        .filter((candle) => {
+          const bodyLow = Math.min(candle.open, candle.close);
+          const bodyHigh = Math.max(candle.open, candle.close);
+          return bodyHigh >= anchorMidpoint * 0.97 && bodyLow <= anchorMidpoint * 1.03;
+        });
+      const originCandidate = candidateFromCandles({
+        id: "1m-broader-move-origin",
+        kind: "broader_move_origin",
+        candles: originWindow.length > 0 ? originWindow : [start],
+        bodyOnly: true,
+        rationale: "Observed one-minute bodies around the origin of the broader same-session expansion.",
+      });
+      candidates.push(originCandidate);
+      broaderSessionMove = {
+        originPrice: roundPrice(start.low),
+        startTime: start.timestamp,
+        startTimeIso: new Date(start.timestamp).toISOString(),
+        endPrice: roundPrice(end.high),
+        endTime: end.timestamp,
+        endTimeIso: new Date(end.timestamp).toISOString(),
+        gainPct: roundMetric(broaderBest.gainPct),
+        durationMinutes,
+        originCandidateId: originCandidate?.id ?? null,
+      };
+    }
+  }
+
+  for (let index = 0; index <= recent.length - 3; index += 1) {
+    const window = recent.slice(index, index + 3);
+    const classifications = window.map((candle) => classifyIntradayCandleTimestamp(candle.timestamp));
+    const sameSession = classifications.every((classification) =>
+      classification.session === classifications[0]!.session &&
+      classification.sessionDate === classifications[0]!.sessionDate
+    );
+    const consecutive = window.slice(1).every(
+      (candle, offset) => candle.timestamp - window[offset]!.timestamp <= 90_000,
+    );
+    const bodyLows = window.map((candle) => Math.min(candle.open, candle.close));
+    const bodyHighs = window.map((candle) => Math.max(candle.open, candle.close));
+    const overlappingBodyLow = Math.max(...bodyLows);
+    const overlappingBodyHigh = Math.min(...bodyHighs);
+    if (!sameSession || !consecutive || overlappingBodyLow > overlappingBodyHigh) {
+      continue;
+    }
+    const zone = candidateFromCandles({
+      id: `1m-acceptance-${window[0]!.timestamp}`,
+      kind: "one_minute_acceptance",
+      candles: window,
+      bodyOnly: true,
+      rationale: "Three consecutive one-minute candle bodies overlapped, showing repeated acceptance within observed prices.",
+    });
+    if (
+      zone &&
+      zone.zoneHigh - zone.zoneLow <= currentPrice * 0.025 &&
+      zone.zoneHigh < currentPrice - minimumReferenceSeparation
+    ) {
+      candidates.push(zone);
+    }
+  }
+
   const recentFiveMinute = normalizeCandles(fiveMinuteCandles, dataAsOf).slice(-24);
   for (let index = Math.max(0, recentFiveMinute.length - 12); index <= recentFiveMinute.length - 3; index += 3) {
     const window = recentFiveMinute.slice(index, index + 3);
@@ -404,6 +528,7 @@ function buildOneMinuteFacts(
     latestCandleAt: latest.timestamp,
     latestCandleAtIso: new Date(latest.timestamp).toISOString(),
     latestSignificantImpulse: impulse,
+    broaderSessionMove,
     firstConsolidation,
     currentDistances: {
       approximateVwap: sessionVwap === null ? null : roundPrice(sessionVwap),
