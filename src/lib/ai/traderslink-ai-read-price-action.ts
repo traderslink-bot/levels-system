@@ -236,6 +236,7 @@ function buildOneMinuteFacts(
   currentPrice: number,
   dataAsOf: number,
 ): Record<string, unknown> {
+  const minimumReferenceSeparation = Math.max(currentPrice * 0.005, 0.0001);
   const candles = normalizeCandles(rawCandles, dataAsOf);
   if (candles.length < 12) {
     return {
@@ -385,7 +386,7 @@ function buildOneMinuteFacts(
       bodyOnly: true,
       rationale: "Observed three-bar five-minute body acceptance shelf.",
     });
-    if (zone && zone.zoneHigh < currentPrice) {
+    if (zone && zone.zoneHigh < currentPrice - minimumReferenceSeparation) {
       candidates.push(zone);
     }
   }
@@ -420,7 +421,7 @@ function buildOneMinuteFacts(
     },
     pullbackCandidates: materiallySeparatedCandidates(
       candidates.filter((candidate): candidate is TradersLinkAiReadPullbackCandidate =>
-        candidate !== null && candidate.zoneHigh < currentPrice
+        candidate !== null && candidate.zoneHigh < currentPrice - minimumReferenceSeparation
       ),
     ),
     recentOneMinuteBars: recent.map(compactIntradayBar),

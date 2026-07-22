@@ -49,7 +49,7 @@ function fiveMinuteCandles(oneMinuteCandles: Candle[]): Candle[] {
   return output;
 }
 
-function evidence(oneMinuteCandles: Candle[]): Record<string, unknown> {
+function evidence(oneMinuteCandles: Candle[], currentPrice = 1.5): Record<string, unknown> {
   const intradayCandles = fiveMinuteCandles(oneMinuteCandles);
   while (intradayCandles.length < 12) {
     const last = intradayCandles.at(-1)!;
@@ -63,7 +63,7 @@ function evidence(oneMinuteCandles: Candle[]): Record<string, unknown> {
     oneMinuteCandles,
     intradayCandles,
     dailyCandles: [],
-  }, 1.5, dataAsOf);
+  }, currentPrice, dataAsOf);
   return packet.oneMinuteEvidence as Record<string, unknown>;
 }
 
@@ -87,6 +87,22 @@ describe("TradersLink AI one-minute evidence", () => {
     assert.ok(shallow);
     assert.ok(deep);
     assert.ok(Number(deep.zoneHigh) < Number(shallow.zoneLow));
+  });
+
+  it("does not offer a pullback candidate inside the reference-price validation buffer", () => {
+    const currentPrice = 1.455;
+    const facts = evidence(impulseCandles(5), currentPrice);
+    const candidates = facts.pullbackCandidates as Array<Record<string, number | string>>;
+    const minimumReferenceSeparation = Math.max(currentPrice * 0.005, 0.0001);
+
+    assert.ok(candidates.length > 0);
+    assert.ok(candidates.every(
+      (candidate) => Number(candidate.zoneHigh) < currentPrice - minimumReferenceSeparation,
+    ));
+    assert.equal(
+      candidates.some((candidate) => candidate.id === "1m-first-consolidation"),
+      false,
+    );
   });
 
   it("does not manufacture volume strength from zero-volume or malformed bars", () => {
