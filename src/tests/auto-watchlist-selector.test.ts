@@ -759,7 +759,6 @@ test("admin threshold changes persist without enabling automatic additions", asy
         maxMarketCap: 75_000_000,
         maxFloatShares: 20_000_000,
         maxSharesOutstanding: 35_000_000,
-        minimumScore: 55,
         recentDollarVolumeRankMaxBoost: 18,
         volumeAccelerationRankFullScoreRatio: 2.5,
         volumeDecelerationRankMaxPenalty: 14,
@@ -777,7 +776,6 @@ test("admin threshold changes persist without enabling automatic additions", asy
     assert.equal(restored.thresholds.maxMarketCap, 75_000_000);
     assert.equal(restored.thresholds.maxFloatShares, 20_000_000);
     assert.equal(restored.thresholds.maxSharesOutstanding, 35_000_000);
-    assert.equal(restored.thresholds.minimumScore, 55);
     assert.equal(restored.thresholds.recentDollarVolumeRankMaxBoost, 18);
     assert.equal(restored.thresholds.volumeAccelerationRankFullScoreRatio, 2.5);
     assert.equal(restored.thresholds.volumeDecelerationRankMaxPenalty, 14);

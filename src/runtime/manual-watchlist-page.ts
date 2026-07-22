@@ -180,7 +180,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Premarket/regular minimum dollar volume ($)<input id="auto-selector-min-dollar-volume" type="number" min="0" step="10000" /></label>
           <label>Post-market minimum session volume (shares)<input id="auto-selector-postmarket-min-volume" type="number" min="0" step="1000" /></label>
           <label>Post-market minimum session dollar volume ($)<input id="auto-selector-postmarket-min-dollar-volume" type="number" min="0" step="5000" /></label>
-          <label>Post-market minimum score (0-100; does not control Main)<input id="auto-selector-min-score" type="number" min="0" max="100" step="1" /></label>
           <label>Consecutive passing scans<input id="auto-selector-passes" type="number" min="1" max="10" step="1" /></label>
           <label>Maximum active premarket/regular auto tickers (lowering keeps best current slot scores)<input id="auto-selector-max-active-main" type="number" min="1" max="20" step="1" /></label>
           <label>Maximum active post-market auto tickers<input id="auto-selector-max-active-postmarket" type="number" min="1" max="20" step="1" /></label>
@@ -406,7 +405,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       minDollarVolume: document.getElementById("auto-selector-min-dollar-volume"),
       minPostmarketVolume: document.getElementById("auto-selector-postmarket-min-volume"),
       minPostmarketDollarVolume: document.getElementById("auto-selector-postmarket-min-dollar-volume"),
-      minimumScore: document.getElementById("auto-selector-min-score"),
       consecutivePassesRequired: document.getElementById("auto-selector-passes"),
       maxActiveMainSessionTickers: document.getElementById("auto-selector-max-active-main"),
       maxActivePostmarketTickers: document.getElementById("auto-selector-max-active-postmarket"),
@@ -1143,7 +1141,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("minDollarVolume", thresholds.minDollarVolume);
         setAutoSelectorInputValue("minPostmarketVolume", thresholds.minPostmarketVolume);
         setAutoSelectorInputValue("minPostmarketDollarVolume", thresholds.minPostmarketDollarVolume);
-        setAutoSelectorInputValue("minimumScore", thresholds.minimumScore);
         setAutoSelectorInputValue("consecutivePassesRequired", thresholds.consecutivePassesRequired);
         setAutoSelectorInputValue("maxActiveMainSessionTickers", thresholds.maxActiveMainSessionTickers);
         setAutoSelectorInputValue("maxActivePostmarketTickers", thresholds.maxActivePostmarketTickers);
@@ -2163,7 +2160,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         minDollarVolume: Math.round(readAutoSelectorNumber("minDollarVolume")),
         minPostmarketVolume: Math.round(readAutoSelectorNumber("minPostmarketVolume")),
         minPostmarketDollarVolume: Math.round(readAutoSelectorNumber("minPostmarketDollarVolume")),
-        minimumScore: Math.round(readAutoSelectorNumber("minimumScore")),
         consecutivePassesRequired: Math.round(readAutoSelectorNumber("consecutivePassesRequired")),
         maxActiveMainSessionTickers: Math.round(readAutoSelectorNumber("maxActiveMainSessionTickers")),
         maxActivePostmarketTickers: Math.round(readAutoSelectorNumber("maxActivePostmarketTickers")),
