@@ -17,6 +17,8 @@ import type {
   TradersLinkAiReadListingContext,
   TradersLinkAiReadMarketSession,
   TradersLinkAiReadPayload,
+  TradersLinkAiReadPullbackScenario,
+  TradersLinkAiReadFailureRecoveryPlan,
   TradersLinkAiReadSource,
   TradersLinkAiReadTarget,
   TradersLinkAiReadUsage,
@@ -92,6 +94,11 @@ type ModelRead = {
   breakoutContinuation: TradersLinkAiReadLevel;
   targets: TradersLinkAiReadTarget[];
   downsideCheckpoints: TradersLinkAiReadTarget[];
+  pullbackPlans: {
+    shallow: TradersLinkAiReadPullbackScenario | null;
+    deep: TradersLinkAiReadPullbackScenario | null;
+  };
+  failureRecovery: TradersLinkAiReadFailureRecoveryPlan | null;
   catalystRealityCheck: TradersLinkAiReadCatalystContext;
   dilutionRisk: TradersLinkAiReadDilutionRisk;
   listingStatus: TradersLinkAiReadListingContext;
@@ -191,6 +198,71 @@ const TARGET_SCHEMA = {
     condition: { type: "string" },
   },
   required: ["label", "price", "condition"],
+} as const;
+
+const EVIDENCE_IDS_SCHEMA = {
+  type: "array",
+  items: { type: "string" },
+  minItems: 1,
+  maxItems: 6,
+} as const;
+
+const PULLBACK_SCENARIO_SCHEMA = {
+  type: ["object", "null"],
+  additionalProperties: false,
+  properties: {
+    zoneLow: { type: "number" },
+    zoneHigh: { type: "number" },
+    confirmationPrice: { type: "number" },
+    confirmation: { type: "string" },
+    invalidationPrice: { type: "number" },
+    firstObjectivePrice: { type: ["number", "null"] },
+    rationale: { type: "string" },
+    evidenceIds: EVIDENCE_IDS_SCHEMA,
+  },
+  required: [
+    "zoneLow",
+    "zoneHigh",
+    "confirmationPrice",
+    "confirmation",
+    "invalidationPrice",
+    "firstObjectivePrice",
+    "rationale",
+    "evidenceIds",
+  ],
+} as const;
+
+const PULLBACK_PLANS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    shallow: PULLBACK_SCENARIO_SCHEMA,
+    deep: PULLBACK_SCENARIO_SCHEMA,
+  },
+  required: ["shallow", "deep"],
+} as const;
+
+const FAILURE_RECOVERY_SCHEMA = {
+  type: ["object", "null"],
+  additionalProperties: false,
+  properties: {
+    recoveryZoneLow: { type: "number" },
+    recoveryZoneHigh: { type: "number" },
+    firstReclaimPrice: { type: "number" },
+    setupRestorePrice: { type: "number" },
+    firstObjectivePrice: { type: ["number", "null"] },
+    rationale: { type: "string" },
+    evidenceIds: EVIDENCE_IDS_SCHEMA,
+  },
+  required: [
+    "recoveryZoneLow",
+    "recoveryZoneHigh",
+    "firstReclaimPrice",
+    "setupRestorePrice",
+    "firstObjectivePrice",
+    "rationale",
+    "evidenceIds",
+  ],
 } as const;
 
 const SOURCE_URLS_SCHEMA = {
@@ -323,6 +395,8 @@ const AI_READ_SCHEMA = {
       items: TARGET_SCHEMA,
       maxItems: 4,
     },
+    pullbackPlans: PULLBACK_PLANS_SCHEMA,
+    failureRecovery: FAILURE_RECOVERY_SCHEMA,
     catalystRealityCheck: CATALYST_CONTEXT_SCHEMA,
     dilutionRisk: DILUTION_RISK_SCHEMA,
     listingStatus: LISTING_CONTEXT_SCHEMA,
@@ -343,6 +417,8 @@ const AI_READ_SCHEMA = {
     "breakoutContinuation",
     "targets",
     "downsideCheckpoints",
+    "pullbackPlans",
+    "failureRecovery",
     "catalystRealityCheck",
     "dilutionRisk",
     "listingStatus",
@@ -362,7 +438,7 @@ Interpretation contract:
 - Answer what needs to hold, where caution begins, where momentum materially fails, what must clear, what confirms breakout continuation, and where the trade could go next.
 - Derive the tactical map independently from the raw OHLCV price action. The packet intentionally does not contain the app's detected support/resistance ladder. Never infer a ladder or fill fields by stepping through adjacent prices.
 - First locate price inside the active small-cap session: premarket/regular/postmarket range, prior close, opening range, session high/low, repeated rejection and acceptance, consolidation shelves, failed spikes, high-volume pivots, and expansion or compression of the recent range.
-- The 5-minute feed covers premarket, the complete regular session, and after-hours. Never interpret "full-session" as pre/post-market only. The packet also provides compact 15-minute bars for up to two completed regular sessions and 30 recent daily bars. Give current and prior regular-hours structure appropriate weight because it normally has deeper participation, while still using current premarket or after-hours acceptance/rejection to frame the live setup. Discount isolated thin-volume extended-session wicks.
+- The 5-minute feed covers premarket, the complete regular session, and after-hours. The packet also provides deterministic one-minute impulse/base/retest facts, named pullback candidate zones, the final 60 raw one-minute bars, compact 15-minute bars for up to two completed regular sessions, and 30 recent daily bars. Give current and prior regular-hours structure appropriate weight while using the one-minute evidence to distinguish a fast vertical extension from a slower stair-step move and to judge immediate confirmation. Discount isolated thin-volume extended-session wicks.
 - A null volume with volumeDataQuality "unavailable" means the provider did not supply reliable volume for that bar or session. It does not mean zero shares traded. Never describe unavailable or partial volume as zero trading volume, and do not infer thin participation from missing volume alone.
 - Do not mention missing, unavailable, partial, or provider-limited volume in any user-facing AI Read field. Use reliable volume when it adds evidence; otherwise omit volume commentary entirely. Operational volume availability belongs in the admin watchlist, not the public AI Read.
 - A secondary runtime quote may be supplied from EODHD or the configured monitor. It is useful for continuity but may be delayed. Never average conflicting quotes. Anchor tactical boundaries to the full-session candle tape; if quote disagreement is material, lower confidence and describe the data conflict instead of pretending the reference price is certain.
@@ -371,7 +447,11 @@ Interpretation contract:
 - Use high-volume bars and repeated tests as evidence, but do not treat one isolated wick as a confirmed zone. Psychological whole/half-dollar prices may matter when the tape shows behavior around them.
 - The tactical prices must be meaningfully spaced for the stock's observed volatility. Dense adjacent prices are acceptable only when the OHLCV record shows distinct consolidation, breakout, and acceptance structures at each one.
 - Every non-null tactical rationale must state the observable tape evidence that produced it: the relevant session, consolidation/rejection/reclaim behavior, repeated tests, range boundary, volume landmark, prior close, or recent daily high/low. Generic phrases such as "first resistance," "daily confluence," "4h structure," "support stack," or "next level" are invalid.
-- Do not claim a timeframe that is not supplied. The packet contains 5-minute full-session bars (premarket, regular hours, and after-hours) and daily bars; it contains no 4-hour analysis and no precomputed confluence scores.
+- Do not claim a timeframe that is not supplied. The packet contains one-minute evidence, 5-minute full-session bars, and daily bars; it contains no 4-hour analysis and no precomputed confluence scores.
+- pullbackPlans is not another momentum-entry ladder. shallow is the controlled momentum retest; deep is an optional reset into a materially lower observed base after acceleration unwinds. Select zones only from supplied pullbackCandidates and cite their exact candidate IDs. Do not invent a zone, widen one candidate by combining unrelated structures, or use EMA, VWAP, a percentage, or a Fibonacci-style retracement to create a zone. Those measurements may explain extension only.
+- Each pullback scenario must sit below currentPrice and state a confirmation price/instruction, invalidation, and first objective. Confirmation requires observed buyer defense, a higher low, or reclaim; first touch is never confirmation. Shallow invalidation may hand off to a separate deep setup. Deep must be entirely below and materially separated from shallow, and omit deep when there is no defensible second observed structure. Deep invalidation must not be below momentumFailure.
+- Low confidence must return both pullback scenarios as null. At or below momentumFailure neither scenario is active.
+- failureRecovery is the plan after the original momentum setup fails. Use a supplied lower candidate for the recovery-watch zone, require a new base plus first reclaim, identify the higher reclaim that restores the original bullish thesis, and provide the first recovery objective. Touching lower support alone never qualifies. Return null when the tape does not support the full base-and-reclaim sequence.
 - It is normal to leave fields null or return fewer targets when the tape does not support distinct boundaries. Do not manufacture a complete symmetrical staircase.
 - Prefer trader-usable zones and psychologically meaningful prices over false precision. For prices at or above $1, use cents unless a finer tick is essential; below $1, use no more than four decimals.
 - The required downside ordering is currentPrice >= needsToHold >= cautionBelow >= momentumFailure. Equal prices are allowed when one tape boundary serves two roles; null is better than inventing a second boundary. For example, never return needsToHold at $3.85 and cautionBelow at $3.95. momentumFailure is the decisive failure level that exposes lower support. mustClear is the first resistance/pivot needed to improve the setup, and breakoutContinuation is the meaningfully higher confirmation pivot that opens the listed targets.
@@ -396,7 +476,7 @@ Interpretation contract:
 - Account for reverse splits, warrants, offerings, thin liquidity, halts, and failed spikes when relevant.
 - Do not tell the reader to buy, sell, short, average down, or use a specific position size. This is preparation context, not personalized financial advice.
 - Avoid hype and false certainty. If evidence conflicts or is stale, lower confidence and say so.
-- Before returning JSON, self-audit the tactical ordering: currentPrice >= needsToHold >= cautionBelow >= momentumFailure and currentPrice <= mustClear < breakoutContinuation < each upside target. Use null rather than violating the ordering or inventing a boundary.
+- Before returning JSON, self-audit the tactical ordering: currentPrice >= needsToHold >= cautionBelow >= momentumFailure and currentPrice <= mustClear < breakoutContinuation < each upside target. Then audit every candidate ID and pullback/recovery price against the supplied candidate zones. Use null rather than violating the ordering or inventing a boundary.
 - Keep currentRead to 2-4 short sentences. Keep every other rationale, condition, summary, or dayTradeRelevance to 1-2 sentences.
 - Return only the requested structured JSON.`;
 
@@ -476,6 +556,79 @@ function normalizeTarget(value: unknown): TradersLinkAiReadTarget | null {
   const condition = normalizeText(candidate.condition, "Requires sustained acceptance above resistance.");
   const price = normalizePrice(candidate.price);
   return { label, price, condition };
+}
+
+function normalizeEvidenceIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return [...new Set(value
+    .map((item) => typeof item === "string" ? item.trim() : "")
+    .filter(Boolean))]
+    .slice(0, 6);
+}
+
+function normalizePullbackScenario(value: unknown): TradersLinkAiReadPullbackScenario | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  const zoneLow = normalizePrice(candidate.zoneLow);
+  const zoneHigh = normalizePrice(candidate.zoneHigh);
+  const confirmationPrice = normalizePrice(candidate.confirmationPrice);
+  const invalidationPrice = normalizePrice(candidate.invalidationPrice);
+  if (
+    zoneLow === null ||
+    zoneHigh === null ||
+    confirmationPrice === null ||
+    invalidationPrice === null
+  ) {
+    return null;
+  }
+  return {
+    zoneLow,
+    zoneHigh,
+    confirmationPrice,
+    confirmation: normalizeText(
+      candidate.confirmation,
+      "Wait for buyer defense and a reclaim before treating the setup as confirmed.",
+    ),
+    invalidationPrice,
+    firstObjectivePrice: normalizePrice(candidate.firstObjectivePrice),
+    rationale: normalizeText(candidate.rationale, "Observed candle structure supports this area."),
+    evidenceIds: normalizeEvidenceIds(candidate.evidenceIds),
+  };
+}
+
+function normalizeFailureRecovery(value: unknown): TradersLinkAiReadFailureRecoveryPlan | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  const recoveryZoneLow = normalizePrice(candidate.recoveryZoneLow);
+  const recoveryZoneHigh = normalizePrice(candidate.recoveryZoneHigh);
+  const firstReclaimPrice = normalizePrice(candidate.firstReclaimPrice);
+  const setupRestorePrice = normalizePrice(candidate.setupRestorePrice);
+  if (
+    recoveryZoneLow === null ||
+    recoveryZoneHigh === null ||
+    firstReclaimPrice === null ||
+    setupRestorePrice === null
+  ) {
+    return null;
+  }
+  return {
+    recoveryZoneLow,
+    recoveryZoneHigh,
+    firstReclaimPrice,
+    setupRestorePrice,
+    firstObjectivePrice: normalizePrice(candidate.firstObjectivePrice),
+    rationale: normalizeText(
+      candidate.rationale,
+      "A new base and explicit reclaim are required before a recovery attempt is valid.",
+    ),
+    evidenceIds: normalizeEvidenceIds(candidate.evidenceIds),
+  };
 }
 
 const CATALYST_STATUSES = new Set(["confirmed", "conditional", "unverified", "none"]);
@@ -816,6 +969,23 @@ function normalizeModelRead(value: unknown, sources: TradersLinkAiReadSource[]):
           .filter((item): item is TradersLinkAiReadTarget => Boolean(item))
           .slice(0, 4)
       : [],
+    pullbackPlans: {
+      shallow: confidence === "low"
+        ? null
+        : normalizePullbackScenario(
+            typeof candidate.pullbackPlans === "object" && candidate.pullbackPlans !== null
+              ? (candidate.pullbackPlans as Record<string, unknown>).shallow
+              : null,
+          ),
+      deep: confidence === "low"
+        ? null
+        : normalizePullbackScenario(
+            typeof candidate.pullbackPlans === "object" && candidate.pullbackPlans !== null
+              ? (candidate.pullbackPlans as Record<string, unknown>).deep
+              : null,
+          ),
+    },
+    failureRecovery: normalizeFailureRecovery(candidate.failureRecovery),
     catalystRealityCheck,
     dilutionRisk,
     listingStatus,
@@ -844,6 +1014,7 @@ function applyQuoteDisagreementGuard(
   return {
     ...read,
     confidence: "low",
+    pullbackPlans: { shallow: null, deep: null },
     riskSummary: [...read.riskSummary, quoteRisk].slice(0, 6),
   };
 }
@@ -986,6 +1157,39 @@ function normalizeObservableTapeEvidence(
   };
 }
 
+type ModelPullbackCandidate = {
+  id: string;
+  zoneLow: number;
+  zoneHigh: number;
+};
+
+function availablePullbackCandidates(
+  priceAction: TradersLinkAiReadPriceActionContext,
+  currentPrice: number,
+  dataAsOf: number,
+): ModelPullbackCandidate[] {
+  const packet = buildTradersLinkAiPriceActionPacket(priceAction, currentPrice, dataAsOf);
+  const oneMinuteEvidence = packet.oneMinuteEvidence;
+  if (typeof oneMinuteEvidence !== "object" || oneMinuteEvidence === null) {
+    return [];
+  }
+  const rawCandidates = (oneMinuteEvidence as Record<string, unknown>).pullbackCandidates;
+  if (!Array.isArray(rawCandidates)) {
+    return [];
+  }
+  return rawCandidates.flatMap((value) => {
+    if (typeof value !== "object" || value === null) {
+      return [];
+    }
+    const candidate = value as Record<string, unknown>;
+    return typeof candidate.id === "string" &&
+      typeof candidate.zoneLow === "number" &&
+      typeof candidate.zoneHigh === "number"
+      ? [{ id: candidate.id, zoneLow: candidate.zoneLow, zoneHigh: candidate.zoneHigh }]
+      : [];
+  });
+}
+
 function assertTradersLinkAiTradeMap(
   read: ModelRead,
   currentPrice: number,
@@ -1025,6 +1229,10 @@ function assertTradersLinkAiTradeMap(
     read.breakoutContinuation.rationale,
     ...read.targets.map((target) => target.condition),
     ...read.downsideCheckpoints.map((checkpoint) => checkpoint.condition),
+    ...[read.pullbackPlans.shallow, read.pullbackPlans.deep]
+      .filter((scenario): scenario is TradersLinkAiReadPullbackScenario => scenario !== null)
+      .flatMap((scenario) => [scenario.confirmation, scenario.rationale]),
+    ...(read.failureRecovery ? [read.failureRecovery.rationale] : []),
     ...read.riskSummary,
   ].join(" ");
   if (unsupportedZeroVolumeClaim.test(allTradeText)) {
@@ -1129,6 +1337,108 @@ function assertTradersLinkAiTradeMap(
       fail(`downside checkpoint ${checkpoint.price} is above the prior failure boundary ${previousDownside}`);
     }
     previousDownside = checkpoint.price;
+  }
+
+  const candidates = availablePullbackCandidates(priceAction, currentPrice, dataAsOf);
+  const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  const assertEvidenceIds = (label: string, evidenceIds: string[]): ModelPullbackCandidate[] => {
+    if (evidenceIds.length === 0) {
+      fail(`${label} has no supporting candidate IDs`);
+    }
+    const supported: ModelPullbackCandidate[] = [];
+    for (const id of evidenceIds) {
+      const candidate = candidatesById.get(id) ??
+        fail(`${label} cites invented candidate ID ${id}`);
+      supported.push(candidate);
+    }
+    return supported;
+  };
+  const matchesObservedZone = (
+    zoneLow: number,
+    zoneHigh: number,
+    supported: ModelPullbackCandidate[],
+  ): boolean => supported.some((candidate) =>
+    Math.abs(candidate.zoneLow - zoneLow) <= tolerance &&
+    Math.abs(candidate.zoneHigh - zoneHigh) <= tolerance
+  );
+  const validateScenario = (
+    label: "shallow" | "deep",
+    scenario: TradersLinkAiReadPullbackScenario | null,
+  ): void => {
+    if (!scenario) {
+      return;
+    }
+    if (read.confidence === "low") {
+      fail(`${label} pullback was published with low confidence`);
+    }
+    if (scenario.zoneLow > scenario.zoneHigh) {
+      fail(`${label} pullback zone is reversed`);
+    }
+    if (!isBelow(scenario.zoneHigh, currentPrice)) {
+      fail(`${label} pullback zone is not below the generation reference price`);
+    }
+    const supported = assertEvidenceIds(`${label} pullback`, scenario.evidenceIds);
+    if (!matchesObservedZone(scenario.zoneLow, scenario.zoneHigh, supported)) {
+      fail(`${label} pullback prices do not match a cited observed candidate zone`);
+    }
+    if (isAbove(scenario.invalidationPrice, scenario.zoneLow) ||
+      Math.abs(scenario.invalidationPrice - scenario.zoneLow) <= tolerance) {
+      fail(`${label} pullback invalidation must be below its zone`);
+    }
+    if (isBelow(scenario.confirmationPrice, scenario.zoneLow)) {
+      fail(`${label} pullback confirmation is below its zone`);
+    }
+    if (scenario.firstObjectivePrice !== null && !isAbove(scenario.firstObjectivePrice, scenario.zoneHigh)) {
+      fail(`${label} pullback first objective must be above its zone`);
+    }
+  };
+  validateScenario("shallow", read.pullbackPlans.shallow);
+  validateScenario("deep", read.pullbackPlans.deep);
+
+  const shallow = read.pullbackPlans.shallow;
+  const deep = read.pullbackPlans.deep;
+  if (shallow && deep) {
+    const requiredSeparation = Math.max(tolerance, averageTrueRange * 0.25);
+    if (shallow.zoneLow - deep.zoneHigh < requiredSeparation) {
+      fail("deep pullback must be entirely below and materially separated from shallow pullback");
+    }
+  }
+  if (
+    deep &&
+    read.momentumFailure.price !== null &&
+    isBelow(deep.invalidationPrice, read.momentumFailure.price)
+  ) {
+    fail("deep pullback invalidation cannot be below momentumFailure");
+  }
+  if (
+    read.momentumFailure.price !== null &&
+    (currentPrice < read.momentumFailure.price || Math.abs(currentPrice - read.momentumFailure.price) <= tolerance) &&
+    (shallow || deep)
+  ) {
+    fail("pullback plans cannot be active at or below momentumFailure");
+  }
+
+  if (read.failureRecovery) {
+    const recovery = read.failureRecovery;
+    if (recovery.recoveryZoneLow > recovery.recoveryZoneHigh) {
+      fail("failureRecovery zone is reversed");
+    }
+    const supported = assertEvidenceIds("failureRecovery", recovery.evidenceIds);
+    if (!matchesObservedZone(recovery.recoveryZoneLow, recovery.recoveryZoneHigh, supported)) {
+      fail("failureRecovery prices do not match a cited observed candidate zone");
+    }
+    if (!isAbove(recovery.firstReclaimPrice, recovery.recoveryZoneHigh)) {
+      fail("failureRecovery first reclaim must be above the recovery-watch zone");
+    }
+    if (isBelow(recovery.setupRestorePrice, recovery.firstReclaimPrice)) {
+      fail("failureRecovery setup restore price cannot be below its first reclaim");
+    }
+    if (
+      recovery.firstObjectivePrice !== null &&
+      !isAbove(recovery.firstObjectivePrice, recovery.firstReclaimPrice)
+    ) {
+      fail("failureRecovery first objective must be above its first reclaim");
+    }
   }
 }
 
@@ -1912,7 +2222,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     };
     const usage = buildUsage(combinedUsageResponse, model, this.options.pricing);
     return {
-      version: 2,
+      version: 3,
       generationId,
       symbol,
       generatedAt,

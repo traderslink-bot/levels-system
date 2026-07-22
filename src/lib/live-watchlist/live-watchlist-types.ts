@@ -36,6 +36,14 @@ export type LiveWatchlistLifecycleRead = {
   updatedAt: number;
 };
 
+export type LiveWatchlistVolumeContext = {
+  timeframe: "5m";
+  label: "unknown" | "thin" | "normal" | "expanding" | "strong" | "fading";
+  relativeVolumeRatio: number | null;
+  partial: boolean;
+  updatedAt: number;
+};
+
 export type LiveWatchlistCardContent = {
   title: string;
   body: string;
@@ -57,6 +65,7 @@ export type LiveWatchlistCardPatch = {
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
+  liveVolumeContext?: LiveWatchlistVolumeContext | null;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   levelMap?: LiveWatchlistLevelMap | null;
@@ -154,6 +163,27 @@ export type TradersLinkAiReadTarget = {
   label: string;
   price: number | null;
   condition: string;
+};
+
+export type TradersLinkAiReadPullbackScenario = {
+  zoneLow: number;
+  zoneHigh: number;
+  confirmationPrice: number;
+  confirmation: string;
+  invalidationPrice: number;
+  firstObjectivePrice: number | null;
+  rationale: string;
+  evidenceIds: string[];
+};
+
+export type TradersLinkAiReadFailureRecoveryPlan = {
+  recoveryZoneLow: number;
+  recoveryZoneHigh: number;
+  firstReclaimPrice: number;
+  setupRestorePrice: number;
+  firstObjectivePrice: number | null;
+  rationale: string;
+  evidenceIds: string[];
 };
 
 export type TradersLinkAiReadSourceEvidence = {
@@ -267,7 +297,7 @@ export type TradersLinkAiReadListingContext = {
 };
 
 export type TradersLinkAiReadPayload = {
-  version: 2;
+  version: 3;
   /** Immutable id assigned before the first provider attempt for this read. */
   generationId: string;
   symbol: string;
@@ -285,6 +315,11 @@ export type TradersLinkAiReadPayload = {
   breakoutContinuation: TradersLinkAiReadLevel;
   targets: TradersLinkAiReadTarget[];
   downsideCheckpoints: TradersLinkAiReadTarget[];
+  pullbackPlans: {
+    shallow: TradersLinkAiReadPullbackScenario | null;
+    deep: TradersLinkAiReadPullbackScenario | null;
+  };
+  failureRecovery: TradersLinkAiReadFailureRecoveryPlan | null;
   catalystRealityCheck: TradersLinkAiReadCatalystContext;
   dilutionRisk: TradersLinkAiReadDilutionRisk;
   listingStatus: TradersLinkAiReadListingContext;

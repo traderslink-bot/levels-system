@@ -83,6 +83,37 @@ function priceAction(): TradersLinkAiReadPriceActionContext {
   };
 }
 
+function priceActionWithOneMinuteCandidates(): TradersLinkAiReadPriceActionContext {
+  const oneMinuteCandles: TradersLinkAiReadPriceActionContext["intradayCandles"] = [];
+  const start = DATA_AS_OF - 27 * 60_000;
+  const push = (index: number, open: number, close: number, volume: number) => {
+    oneMinuteCandles.push({
+      timestamp: start + index * 60_000,
+      open,
+      high: Math.max(open, close) * 1.002,
+      low: Math.min(open, close) * 0.998,
+      close,
+      volume,
+    });
+  };
+  for (let index = 0; index < 10; index += 1) {
+    push(index, 1, 1 + (index % 2) * 0.002, 100_000);
+  }
+  for (let index = 0; index < 5; index += 1) {
+    push(10 + index, 1 + index * 0.16, 1 + (index + 1) * 0.16, 700_000);
+  }
+  for (let index = 0; index < 3; index += 1) {
+    push(15 + index, 1.45, 1.46, 350_000);
+  }
+  for (let index = 0; index < 10; index += 1) {
+    push(18 + index, 1.48 + index * 0.007, 1.49 + index * 0.007, 250_000);
+  }
+  return {
+    ...priceAction(),
+    oneMinuteCandles,
+  };
+}
+
 function premarketPriceAction(): TradersLinkAiReadPriceActionContext {
   const intradayCandles = Array.from({ length: 24 }, (_, index) => {
     const timestamp = PREMARKET_DATA_AS_OF - (23 - index) * 5 * 60 * 1_000;
@@ -161,6 +192,8 @@ function modelRead(): Record<string, unknown> {
       { label: "First lower support", price: 1.12, condition: "Exposed if the prior regular session low loses acceptance." },
       { label: "Outer lower support", price: 1.05, condition: "Next daily range low if $1.12 fails." },
     ],
+    pullbackPlans: { shallow: null, deep: null },
+    failureRecovery: null,
     catalystRealityCheck: {
       status: "conditional",
       summary: "A recent company filing is the primary known catalyst context.",
@@ -444,7 +477,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(filingSource.evidence?.retrievedAt, "2026-07-15T20:31:00.000Z");
     assert.match(filingSource.evidence?.supportingExcerpt ?? "", /merger consideration/i);
     assert.equal(filingSource.evidence?.supersessionStatus, "latest_in_retrieved_window");
-    assert.equal(read.version, 2);
+    assert.equal(read.version, 3);
     assert.equal(read.breakoutContinuation.price, 1.68);
     assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), [1.12, 1.05]);
     assert.deepEqual(read.catalystRealityCheck.sourceUrls, [
@@ -468,6 +501,8 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(schema.properties.breakoutContinuation);
     assert.ok(schema.properties.catalystRealityCheck);
     assert.ok(schema.properties.downsideCheckpoints);
+    assert.ok(schema.properties.pullbackPlans);
+    assert.ok(schema.properties.failureRecovery);
     assert.ok(schema.properties.dilutionRisk);
     assert.ok(schema.properties.listingStatus);
     const input = requestBody.input as Array<{ role: string; content: Array<{ text: string }> }>;
@@ -487,6 +522,7 @@ describe("OpenAITradersLinkAiReadService", () => {
           completedRegularSessionFifteenMinuteBars: unknown[];
           includesRegularHours: boolean;
           recentRange: { highBar: { session: string } };
+          oneMinuteEvidence: { available: boolean; recentOneMinuteBars: unknown[] };
         };
         supportLevels?: unknown;
         resistanceLevels?: unknown;
@@ -507,6 +543,8 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(typeof packet.marketPacket.priceAction.recentRange.highBar.session, "string");
     assert.ok(packet.marketPacket.priceAction.completedRegularSessionFifteenMinuteBars.length > 0);
     assert.equal(packet.marketPacket.priceAction.includesRegularHours, true);
+    assert.equal(packet.marketPacket.priceAction.oneMinuteEvidence.available, false);
+    assert.deepEqual(packet.marketPacket.priceAction.oneMinuteEvidence.recentOneMinuteBars, []);
     assert.equal(packet.marketPacket.supportLevels, undefined);
     assert.equal(packet.marketPacket.resistanceLevels, undefined);
     assert.deepEqual(packet.confirmedPriorPlanBoundary, {
@@ -519,6 +557,109 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(read.dilutionRisk.canCompanyIssueToday, false);
     assert.equal(read.dilutionRisk.companyIssuance.earliestDate, "2026-07-18");
     assert.match(read.riskSummary.join(" "), /prior plan boundary near \$1\.42/i);
+  });
+
+  it("publishes only candidate-backed, separated v3 pullback and recovery structures", async () => {
+    const tape = priceActionWithOneMinuteCandidates();
+    const currentPrice = tape.oneMinuteCandles!.at(-1)!.close;
+    const packet = buildTradersLinkAiPriceActionPacket(tape, currentPrice, DATA_AS_OF);
+    const oneMinuteEvidence = packet.oneMinuteEvidence as {
+      pullbackCandidates: Array<{ id: string; kind: string; zoneLow: number; zoneHigh: number }>;
+    };
+    const shallowCandidate = oneMinuteEvidence.pullbackCandidates.find(
+      (candidate) => candidate.kind === "first_consolidation",
+    );
+    const deepCandidate = oneMinuteEvidence.pullbackCandidates.find(
+      (candidate) => candidate.kind === "pre_impulse_base",
+    );
+    assert.ok(shallowCandidate);
+    assert.ok(deepCandidate);
+
+    const draft = modelRead();
+    draft.needsToHold = { label: "Post-impulse shelf", price: 1.3, rationale: "Regular-session consolidation held this shelf." };
+    draft.cautionBelow = { label: "Base caution", price: 1.1, rationale: "The intraday base loses acceptance below this price." };
+    draft.momentumFailure = { label: "Momentum failure", price: 0.95, rationale: "The daily range low invalidates the momentum setup." };
+    draft.mustClear = { label: "Reclaim pivot", price: 1.6, rationale: "The intraday rejection pivot must be reclaimed." };
+    draft.downsideCheckpoints = [{ label: "Lower daily base", price: 0.85, condition: "The daily range low is exposed after momentum failure." }];
+    draft.pullbackPlans = {
+      shallow: {
+        zoneLow: shallowCandidate.zoneLow,
+        zoneHigh: shallowCandidate.zoneHigh,
+        confirmationPrice: shallowCandidate.zoneHigh,
+        confirmation: "Require a higher low and reclaim of the one-minute consolidation high.",
+        invalidationPrice: Number((shallowCandidate.zoneLow * 0.98).toFixed(2)),
+        firstObjectivePrice: 1.6,
+        rationale: "The first one-minute consolidation after the impulse supplies the momentum retest.",
+        evidenceIds: [shallowCandidate.id],
+      },
+      deep: {
+        zoneLow: deepCandidate.zoneLow,
+        zoneHigh: deepCandidate.zoneHigh,
+        confirmationPrice: deepCandidate.zoneHigh,
+        confirmation: "Require a new base and reclaim of the pre-impulse base high.",
+        invalidationPrice: Number((deepCandidate.zoneLow * 0.97).toFixed(2)),
+        firstObjectivePrice: 1.3,
+        rationale: "The observed pre-impulse one-minute base supplies the deeper reset.",
+        evidenceIds: [deepCandidate.id],
+      },
+    };
+    draft.failureRecovery = {
+      recoveryZoneLow: deepCandidate.zoneLow,
+      recoveryZoneHigh: deepCandidate.zoneHigh,
+      firstReclaimPrice: 1.1,
+      setupRestorePrice: 1.3,
+      firstObjectivePrice: 1.6,
+      rationale: "After failure, require a new base, a first reclaim, and then restoration of the former shelf.",
+      evidenceIds: [deepCandidate.id],
+    };
+
+    const generate = async (responseDraft: Record<string, unknown>) => {
+      const service = new OpenAITradersLinkAiReadService({
+        apiKey: "test-key",
+        model: "test-model",
+        fetchImpl: async () => new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(responseDraft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } }),
+      });
+      return service.generate({
+        snapshot: { ...snapshot(), currentPrice },
+        priceAction: tape,
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      });
+    };
+
+    const read = await generate(draft);
+    assert.equal(read.pullbackPlans.shallow?.evidenceIds[0], shallowCandidate.id);
+    assert.equal(read.pullbackPlans.deep?.evidenceIds[0], deepCandidate.id);
+    assert.equal(read.failureRecovery?.firstReclaimPrice, 1.1);
+
+    const invalidCases: Array<[string, (value: Record<string, any>) => void, RegExp]> = [
+      ["invented candidate", (value) => {
+        value.pullbackPlans.shallow.evidenceIds = ["invented-zone"];
+      }, /invented candidate ID/i],
+      ["overlapping zones", (value) => {
+        value.pullbackPlans.deep = { ...value.pullbackPlans.shallow };
+      }, /materially separated/i],
+      ["reversed zone", (value) => {
+        const low = value.pullbackPlans.shallow.zoneLow;
+        value.pullbackPlans.shallow.zoneLow = value.pullbackPlans.shallow.zoneHigh;
+        value.pullbackPlans.shallow.zoneHigh = low;
+      }, /zone is reversed/i],
+      ["objective below entry", (value) => {
+        value.pullbackPlans.shallow.firstObjectivePrice = value.pullbackPlans.shallow.zoneLow;
+      }, /first objective must be above/i],
+      ["recovery without reclaim", (value) => {
+        value.failureRecovery.firstReclaimPrice = value.failureRecovery.recoveryZoneHigh;
+      }, /first reclaim must be above/i],
+    ];
+    for (const [label, mutate, errorPattern] of invalidCases) {
+      const invalid = structuredClone(draft) as Record<string, any>;
+      mutate(invalid);
+      await assert.rejects(generate(invalid), errorPattern, label);
+    }
   });
 
   it("treats StockTitan RSS as title-only catalyst evidence without enabling web search", async () => {
