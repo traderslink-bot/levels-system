@@ -105,6 +105,54 @@ describe("TradersLink AI one-minute evidence", () => {
     );
   });
 
+  it("turns repeated overlapping one-minute bodies into an observed acceptance candidate", () => {
+    const candles = impulseCandles(5);
+    const acceptanceStartIndex = candles.length;
+    candles.push(
+      bar(acceptanceStartIndex, 1.31, 1.34, 0),
+      bar(acceptanceStartIndex + 1, 1.32, 1.33, 0),
+      bar(acceptanceStartIndex + 2, 1.325, 1.345, 0),
+    );
+    const facts = evidence(candles);
+    const candidates = facts.pullbackCandidates as Array<Record<string, number | string>>;
+    const candidate = candidates.find(
+      (item) => item.id === `1m-acceptance-${START + acceptanceStartIndex * 60_000}`,
+    );
+
+    assert.ok(candidate);
+    assert.equal(candidate.kind, "one_minute_acceptance");
+    assert.equal(candidate.zoneLow, 1.31);
+    assert.equal(candidate.zoneHigh, 1.345);
+  });
+
+  it("retains the broader move origin separately from a nested fast impulse", () => {
+    const candles: Candle[] = [];
+    for (let index = 0; index < 10; index += 1) {
+      candles.push(bar(index, 7, 7.04 + (index % 2) * 0.03, 200));
+    }
+    for (let index = 0; index < 30; index += 1) {
+      const open = 7.05 + index * 0.04;
+      candles.push(bar(10 + index, open, open + 0.04, 300));
+    }
+    candles.push(
+      bar(40, 8.25, 9.1, 1_000),
+      bar(41, 9.1, 10, 1_200),
+      bar(42, 9.2, 8.8, 700),
+      bar(43, 8.75, 8.82, 500),
+    );
+    const facts = evidence(candles, 8.82);
+    const latestImpulse = facts.latestSignificantImpulse as Record<string, number>;
+    const broaderMove = facts.broaderSessionMove as Record<string, number | string>;
+    const candidates = facts.pullbackCandidates as Array<Record<string, number | string>>;
+    const origin = candidates.find((candidate) => candidate.id === "1m-broader-move-origin");
+
+    assert.ok(latestImpulse.originPrice >= 8);
+    assert.ok(Number(broaderMove.originPrice) <= 7.05);
+    assert.ok(origin);
+    assert.ok(Number(origin.zoneLow) >= 6.9);
+    assert.ok(Number(origin.zoneHigh) <= 7.25);
+  });
+
   it("does not manufacture volume strength from zero-volume or malformed bars", () => {
     const candles = impulseCandles(5).map((candle) => ({ ...candle, volume: 0 }));
     candles.push({ ...candles.at(-1)!, timestamp: Number.NaN, high: 0.5 });
