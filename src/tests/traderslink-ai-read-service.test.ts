@@ -510,6 +510,21 @@ describe("OpenAITradersLinkAiReadService", () => {
       input[0]!.content[0]!.text,
       /currentPrice >= needsToHold >= cautionBelow >= momentumFailure/,
     );
+    assert.match(
+      input[0]!.content[0]!.text,
+      /invalidationPrice < zoneLow <= zoneHigh < currentPrice/,
+    );
+    const pullbackPlansSchema = schema.properties.pullbackPlans as {
+      properties: {
+        shallow: {
+          properties: Record<string, { description?: string }>;
+        };
+      };
+    };
+    assert.match(
+      pullbackPlansSchema.properties.shallow.properties.invalidationPrice?.description ?? "",
+      /strictly below zoneLow/i,
+    );
     const packet = JSON.parse(input[1]!.content[0]!.text) as {
       marketPacket: {
         currentPrice: number;

@@ -211,12 +211,27 @@ const PULLBACK_SCENARIO_SCHEMA = {
   type: ["object", "null"],
   additionalProperties: false,
   properties: {
-    zoneLow: { type: "number" },
-    zoneHigh: { type: "number" },
-    confirmationPrice: { type: "number" },
+    zoneLow: {
+      type: "number",
+      description: "Exact lower bound of the cited candidate zone; it must be below zoneHigh.",
+    },
+    zoneHigh: {
+      type: "number",
+      description: "Exact upper bound of the cited candidate zone; it must be below currentPrice.",
+    },
+    confirmationPrice: {
+      type: "number",
+      description: "Reclaim or hold price at or above zoneLow; it must never be below the zone.",
+    },
     confirmation: { type: "string" },
-    invalidationPrice: { type: "number" },
-    firstObjectivePrice: { type: ["number", "null"] },
+    invalidationPrice: {
+      type: "number",
+      description: "Must be strictly below zoneLow. For a deep plan it must also be at or above momentumFailure.",
+    },
+    firstObjectivePrice: {
+      type: ["number", "null"],
+      description: "Null or a price strictly above zoneHigh.",
+    },
     rationale: { type: "string" },
     evidenceIds: EVIDENCE_IDS_SCHEMA,
   },
@@ -449,7 +464,7 @@ Interpretation contract:
 - Every non-null tactical rationale must state the observable tape evidence that produced it: the relevant session, consolidation/rejection/reclaim behavior, repeated tests, range boundary, volume landmark, prior close, or recent daily high/low. Generic phrases such as "first resistance," "daily confluence," "4h structure," "support stack," or "next level" are invalid.
 - Do not claim a timeframe that is not supplied. The packet contains one-minute evidence, 5-minute full-session bars, and daily bars; it contains no 4-hour analysis and no precomputed confluence scores.
 - pullbackPlans is not another momentum-entry ladder. shallow is the controlled momentum retest; deep is an optional reset into a materially lower observed base after acceleration unwinds. Select zones only from supplied pullbackCandidates and cite their exact candidate IDs. Do not invent a zone, widen one candidate by combining unrelated structures, or use EMA, VWAP, a percentage, or a Fibonacci-style retracement to create a zone. Those measurements may explain extension only.
-- Each pullback scenario must sit below currentPrice and state a confirmation price/instruction, invalidation, and first objective. Confirmation requires observed buyer defense, a higher low, or reclaim; first touch is never confirmation. Shallow invalidation may hand off to a separate deep setup. Deep must be entirely below and materially separated from shallow, and omit deep when there is no defensible second observed structure. Deep invalidation must not be below momentumFailure.
+- Each pullback scenario must sit below currentPrice and state a confirmation price/instruction, invalidation, and first objective. For both scenarios the exact numeric ordering is invalidationPrice < zoneLow <= zoneHigh < currentPrice, confirmationPrice >= zoneLow, and firstObjectivePrice > zoneHigh when an objective is supplied. Confirmation requires observed buyer defense, a higher low, or reclaim; first touch is never confirmation. Shallow invalidation may hand off to a separate deep setup. Deep must be entirely below and materially separated from shallow. For deep, momentumFailure <= invalidationPrice < zoneLow; omit deep when no price can satisfy that ordering or when there is no defensible second observed structure.
 - Low confidence must return both pullback scenarios as null. At or below momentumFailure neither scenario is active.
 - failureRecovery is the plan after the original momentum setup fails. Use a supplied lower candidate for the recovery-watch zone, require a new base plus first reclaim, identify the higher reclaim that restores the original bullish thesis, and provide the first recovery objective. Touching lower support alone never qualifies. Return null when the tape does not support the full base-and-reclaim sequence.
 - It is normal to leave fields null or return fewer targets when the tape does not support distinct boundaries. Do not manufacture a complete symmetrical staircase.
@@ -476,7 +491,7 @@ Interpretation contract:
 - Account for reverse splits, warrants, offerings, thin liquidity, halts, and failed spikes when relevant.
 - Do not tell the reader to buy, sell, short, average down, or use a specific position size. This is preparation context, not personalized financial advice.
 - Avoid hype and false certainty. If evidence conflicts or is stale, lower confidence and say so.
-- Before returning JSON, self-audit the tactical ordering: currentPrice >= needsToHold >= cautionBelow >= momentumFailure and currentPrice <= mustClear < breakoutContinuation < each upside target. Then audit every candidate ID and pullback/recovery price against the supplied candidate zones. Use null rather than violating the ordering or inventing a boundary.
+- Before returning JSON, self-audit the tactical ordering: currentPrice >= needsToHold >= cautionBelow >= momentumFailure and currentPrice <= mustClear < breakoutContinuation < each upside target. Then audit every candidate ID and pullback/recovery price against the supplied candidate zones, including invalidationPrice < zoneLow for both pullbacks and momentumFailure <= invalidationPrice for deep. Use null rather than violating the ordering or inventing a boundary.
 - Keep currentRead to 2-4 short sentences. Keep every other rationale, condition, summary, or dayTradeRelevance to 1-2 sentences.
 - Return only the requested structured JSON.`;
 
@@ -1844,6 +1859,8 @@ function buildRequestBody(args: {
             correctionRules: [
               "Repair the exact validation error without inventing a price ladder.",
               "Re-check every tactical price against the raw price-action packet.",
+              "For every pullback use invalidationPrice < zoneLow <= zoneHigh < currentPrice.",
+              "For deep also use momentumFailure <= invalidationPrice; return deep as null when that ordering is impossible.",
               "Do not add new research claims or source URLs during tactical correction.",
               "Return only the complete corrected JSON object.",
             ],
