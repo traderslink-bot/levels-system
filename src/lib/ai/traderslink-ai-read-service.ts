@@ -275,11 +275,11 @@ const FAILURE_RECOVERY_SCHEMA = {
     },
     setupRestorePrice: {
       type: "number",
-      description: "Higher reclaim that restores the original bullish setup; it must be at or above firstReclaimPrice.",
+      description: "Higher reclaim that restores the original bullish setup; it must be strictly above firstReclaimPrice and at or above cautionBelow when cautionBelow is available.",
     },
     firstObjectivePrice: {
       type: ["number", "null"],
-      description: "First recovery objective; when supplied it must be strictly greater than firstReclaimPrice.",
+      description: "First recovery objective; when supplied it must be strictly greater than firstReclaimPrice and distinct from setupRestorePrice.",
     },
     rationale: { type: "string" },
     evidenceIds: EVIDENCE_IDS_SCHEMA,
@@ -481,7 +481,7 @@ Interpretation contract:
 - pullbackPlans is not another momentum-entry ladder. shallow is the controlled momentum retest; deep is an optional reset into a materially lower observed base after acceleration unwinds. Select zones only from supplied pullbackCandidates and cite their exact candidate IDs. Do not invent a zone, widen one candidate by combining unrelated structures, or use EMA, VWAP, a percentage, or a Fibonacci-style retracement to create a zone. Those measurements may explain extension only. When broaderSessionMove and its broader_move_origin candidate are present, retain that observed origin as a legitimate deeper possibility: it may be the deep reset only when its invalidation remains at or above momentumFailure; when it sits below momentumFailure, use it only as the failureRecovery watch zone with a required new base and reclaim.
 - Each pullback scenario must sit below currentPrice and state a confirmation price/instruction, invalidation, and first objective. For both scenarios the exact numeric ordering is invalidationPrice < zoneLow <= zoneHigh < currentPrice, confirmationPrice >= zoneLow, and firstObjectivePrice > zoneHigh when an objective is supplied. Confirmation requires observed buyer defense, a higher low, or reclaim; first touch is never confirmation. Shallow invalidation may hand off to a separate deep setup. Deep must be entirely below and materially separated from shallow. For deep, momentumFailure <= invalidationPrice < zoneLow; omit deep when no price can satisfy that ordering or when there is no defensible second observed structure.
 - Low confidence must return both pullback scenarios as null. At or below momentumFailure neither scenario is active.
-- failureRecovery is the plan after the original momentum setup fails. Use a supplied lower candidate for the recovery-watch zone, require a future new base plus first reclaim, identify the higher reclaim that restores the original bullish thesis, and provide the first recovery objective. Its exact numeric ordering is recoveryZoneLow <= recoveryZoneHigh < firstReclaimPrice <= setupRestorePrice, with firstObjectivePrice > firstReclaimPrice when an objective is supplied. firstReclaimPrice must be strictly above recoveryZoneHigh, not equal to it and not rounded down to the zone boundary. Touching lower support alone never qualifies. This is a conditional plan, so the recovery sequence need not have happened at generation time; return null only when observed structure cannot support defensible recovery-watch and reclaim prices.
+- failureRecovery is the plan after the original momentum setup fails. Use a supplied lower candidate for the recovery-watch zone, require a future new base plus first reclaim, identify the higher reclaim that restores the original bullish thesis, and provide the first recovery objective. Its exact numeric ordering is recoveryZoneLow <= recoveryZoneHigh < firstReclaimPrice < setupRestorePrice. setupRestorePrice must be at or above cautionBelow when cautionBelow is supplied, otherwise at or above momentumFailure; a price still below the published failure/caution structure cannot restore the original thesis. firstObjectivePrice must be greater than firstReclaimPrice and materially distinct from setupRestorePrice when an objective is supplied, but it may occur before or after full-thesis restoration. firstReclaimPrice must be strictly above recoveryZoneHigh, not equal to it and not rounded down to the zone boundary. Touching lower support alone never qualifies. This is a conditional plan, so the recovery sequence need not have happened at generation time; return null only when observed structure cannot support defensible recovery-watch and reclaim prices.
 - It is normal to leave fields null or return fewer targets when the tape does not support distinct boundaries. Do not manufacture a complete symmetrical staircase.
 - Prefer trader-usable zones and psychologically meaningful prices over false precision. For prices at or above $1, use cents unless a finer tick is essential; below $1, use no more than four decimals.
 - The required downside ordering is currentPrice >= needsToHold >= cautionBelow >= momentumFailure. Equal prices are allowed when one tape boundary serves two roles; null is better than inventing a second boundary. For example, never return needsToHold at $3.85 and cautionBelow at $3.95. momentumFailure is the decisive failure level that exposes lower support. mustClear is the first resistance/pivot needed to improve the setup, and breakoutContinuation is the meaningfully higher confirmation pivot that opens the listed targets.
@@ -506,7 +506,7 @@ Interpretation contract:
 - Account for reverse splits, warrants, offerings, thin liquidity, halts, and failed spikes when relevant.
 - Do not tell the reader to buy, sell, short, average down, or use a specific position size. This is preparation context, not personalized financial advice.
 - Avoid hype and false certainty. If evidence conflicts or is stale, lower confidence and say so.
-- Before returning JSON, self-audit the tactical ordering: currentPrice >= needsToHold >= cautionBelow >= momentumFailure and currentPrice <= mustClear < breakoutContinuation < each upside target. Then audit every candidate ID and pullback/recovery price against the supplied candidate zones, including invalidationPrice < zoneLow for both pullbacks, momentumFailure <= invalidationPrice for deep, and recoveryZoneHigh < firstReclaimPrice <= setupRestorePrice for failureRecovery. Use null rather than violating the ordering or inventing a boundary.
+- Before returning JSON, self-audit the tactical ordering: currentPrice >= needsToHold >= cautionBelow >= momentumFailure and currentPrice <= mustClear < breakoutContinuation < each upside target. Then audit every candidate ID and pullback/recovery price against the supplied candidate zones, including invalidationPrice < zoneLow for both pullbacks, momentumFailure <= invalidationPrice for deep, and recoveryZoneHigh < firstReclaimPrice < setupRestorePrice with setupRestorePrice >= cautionBelow for failureRecovery. Ensure firstObjectivePrice is distinct from setupRestorePrice. Use null rather than violating the ordering or inventing a boundary.
 - Keep currentRead to 2-4 short sentences. Keep every other rationale, condition, summary, or dayTradeRelevance to 1-2 sentences.
 - Return only the requested structured JSON.`;
 
@@ -1460,14 +1460,24 @@ function assertTradersLinkAiTradeMap(
     if (!isAbove(recovery.firstReclaimPrice, recovery.recoveryZoneHigh)) {
       fail("failureRecovery first reclaim must be above the recovery-watch zone");
     }
-    if (isBelow(recovery.setupRestorePrice, recovery.firstReclaimPrice)) {
-      fail("failureRecovery setup restore price cannot be below its first reclaim");
+    if (!isAbove(recovery.setupRestorePrice, recovery.firstReclaimPrice)) {
+      fail("failureRecovery setup restore price must be above its first reclaim");
+    }
+    const minimumRestorePrice = read.cautionBelow.price ?? read.momentumFailure.price;
+    if (minimumRestorePrice !== null && isBelow(recovery.setupRestorePrice, minimumRestorePrice)) {
+      fail("failureRecovery setup restore price cannot remain below the published caution or failure boundary");
     }
     if (
       recovery.firstObjectivePrice !== null &&
       !isAbove(recovery.firstObjectivePrice, recovery.firstReclaimPrice)
     ) {
       fail("failureRecovery first objective must be above its first reclaim");
+    }
+    if (
+      recovery.firstObjectivePrice !== null &&
+      Math.abs(recovery.firstObjectivePrice - recovery.setupRestorePrice) <= tolerance
+    ) {
+      fail("failureRecovery first objective must be distinct from its setup restore price");
     }
   }
 }

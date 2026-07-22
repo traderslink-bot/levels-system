@@ -516,7 +516,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     );
     assert.match(
       input[0]!.content[0]!.text,
-      /recoveryZoneLow <= recoveryZoneHigh < firstReclaimPrice <= setupRestorePrice/,
+      /recoveryZoneLow <= recoveryZoneHigh < firstReclaimPrice < setupRestorePrice/,
     );
     const pullbackPlansSchema = schema.properties.pullbackPlans as {
       properties: {
@@ -680,6 +680,13 @@ describe("OpenAITradersLinkAiReadService", () => {
       ["recovery without reclaim", (value) => {
         value.failureRecovery.firstReclaimPrice = value.failureRecovery.recoveryZoneHigh;
       }, /first reclaim must be above/i],
+      ["restore below caution", (value) => {
+        value.cautionBelow.price = 1.25;
+        value.failureRecovery.setupRestorePrice = 1.2;
+      }, /below the published caution or failure boundary/i],
+      ["recovery objective duplicates restoration", (value) => {
+        value.failureRecovery.firstObjectivePrice = value.failureRecovery.setupRestorePrice;
+      }, /objective must be distinct/i],
     ];
     for (const [label, mutate, errorPattern] of invalidCases) {
       const invalid = structuredClone(draft) as Record<string, any>;
