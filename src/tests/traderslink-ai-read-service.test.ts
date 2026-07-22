@@ -691,12 +691,19 @@ describe("OpenAITradersLinkAiReadService", () => {
     }
 
     const originRecovery = structuredClone(draft) as Record<string, any>;
-    originRecovery.failureRecovery.firstReclaimPrice = 1.05;
-    originRecovery.failureRecovery.setupRestorePrice = 1.08;
-    originRecovery.failureRecovery.firstObjectivePrice = 1.2;
+    const tightOriginReclaim = Number((deepCandidate.zoneHigh * 1.006).toFixed(4));
+    originRecovery.failureRecovery.firstReclaimPrice = tightOriginReclaim;
+    originRecovery.failureRecovery.setupRestorePrice = Number((tightOriginReclaim + 0.05).toFixed(4));
+    originRecovery.failureRecovery.firstObjectivePrice = Number((tightOriginReclaim + 0.15).toFixed(4));
     const originRecoveryRead = await generate(originRecovery);
-    assert.equal(originRecoveryRead.failureRecovery?.setupRestorePrice, 1.08);
-    assert.ok(1.08 < (originRecoveryRead.cautionBelow.price ?? Number.POSITIVE_INFINITY));
+    assert.equal(
+      originRecoveryRead.failureRecovery?.firstReclaimPrice,
+      Number(tightOriginReclaim.toFixed(2)),
+    );
+    assert.ok(
+      (originRecoveryRead.failureRecovery?.setupRestorePrice ?? Number.POSITIVE_INFINITY) <
+      (originRecoveryRead.cautionBelow.price ?? Number.POSITIVE_INFINITY),
+    );
   });
 
   it("treats StockTitan RSS as title-only catalyst evidence without enabling web search", async () => {
