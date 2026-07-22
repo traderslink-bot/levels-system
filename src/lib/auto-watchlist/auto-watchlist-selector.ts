@@ -2867,8 +2867,6 @@ export class AutoWatchlistSelector {
         const currentDecision = decisionBySymbol.get(entry.symbol);
         return !this.isReversalWatchEligibleNow(entry, currentDecision);
       });
-    if (ordinaryFollowups.length <= MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS) return;
-
     // A follow-up seat is a live tactical decision, not a reward for an old
     // admission score. Rebalance only when every competing symbol has fresh
     // activity data; otherwise preserve the shelf until a healthy scan can
@@ -2887,6 +2885,10 @@ export class AutoWatchlistSelector {
       entry.lastRankingScore = decision.rankingScore;
       entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
       this.managedEntries.set(entry.symbol, entry);
+    }
+
+    if (ordinaryFollowups.length <= MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS) {
+      return;
     }
 
     ordinaryFollowups.sort((left, right) => {
