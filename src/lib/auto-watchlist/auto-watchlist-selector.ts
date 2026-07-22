@@ -1779,7 +1779,10 @@ export function scoreAutoWatchlistCandidate(input: {
     reasons.push(`market cap at or below $${Math.round(thresholds.maxMarketCap / 1_000_000)}M`);
   }
 
-  if (score < thresholds.minimumScore) {
+  // Main-bucket admission has its own explicit quality gate. Keep the
+  // configurable score floor scoped to post-market so an admin value cannot
+  // override either branch of meetsMainVacancyAdmissionQuality().
+  if (session === "postmarket" && score < thresholds.minimumScore) {
     rejectionReasons.push(`score ${score} is below ${thresholds.minimumScore}`);
   }
 
