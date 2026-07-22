@@ -19,9 +19,12 @@ export type PersistedWatchlistState = {
 
 export type WatchlistStatePersistenceConfig = {
   filePath?: string;
+  retentionMs?: number;
+  now?: () => number;
 };
 
 const WATCHLIST_STATE_VERSION = 1;
+export const DEFAULT_INACTIVE_WATCHLIST_RETENTION_MS = 3 * 24 * 60 * 60 * 1_000;
 const DEFAULT_WATCHLIST_STATE_FILE = resolve(
   process.cwd(),
   "artifacts",
@@ -324,6 +327,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
           ? "active"
           : "inactive",
     activatedAt: normalizeOptionalTimestamp(value.activatedAt),
+    manualDeactivatedAt: normalizeOptionalTimestamp(value.manualDeactivatedAt),
     lastLevelPostAt: normalizeOptionalTimestamp(value.lastLevelPostAt),
     lastExtensionPostAt: normalizeOptionalTimestamp(value.lastExtensionPostAt),
     lastPriceUpdateAt: normalizeOptionalTimestamp(value.lastPriceUpdateAt),
@@ -386,10 +390,37 @@ function validatePersistedState(value: unknown): PersistedWatchlistState | null 
   };
 }
 
-function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState {
+function latestEntryActivityAt(entry: WatchlistEntry): number | null {
+  const timestamps = [
+    entry.manualDeactivatedAt,
+    entry.lastPriceUpdateAt,
+    entry.lastThreadPostAt,
+    entry.lastLevelPostAt,
+    entry.lastExtensionPostAt,
+    entry.activatedAt,
+  ].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  return timestamps.length > 0 ? Math.max(...timestamps) : null;
+}
+
+export function pruneExpiredInactiveWatchlistEntries(
+  entries: WatchlistEntry[],
+  now = Date.now(),
+  retentionMs = DEFAULT_INACTIVE_WATCHLIST_RETENTION_MS,
+): WatchlistEntry[] {
+  const cutoff = now - Math.max(0, retentionMs);
+  return entries.filter((entry) => {
+    if (entry.active || (entry.lifecycle !== undefined && entry.lifecycle !== "inactive")) {
+      return true;
+    }
+    const lastActivityAt = latestEntryActivityAt(entry);
+    return lastActivityAt === null || lastActivityAt >= cutoff;
+  });
+}
+
+function buildPersistedState(entries: WatchlistEntry[], now = Date.now()): PersistedWatchlistState {
   return {
     version: WATCHLIST_STATE_VERSION,
-    lastUpdated: Date.now(),
+    lastUpdated: now,
     entries: entries.map((entry) => ({
       symbol: entry.symbol.toUpperCase(),
       active: entry.active,
@@ -399,6 +430,7 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
       discordThreadId: entry.discordThreadId?.trim() || null,
       lifecycle: entry.lifecycle ?? (entry.active ? "active" : "inactive"),
       activatedAt: normalizeOptionalTimestamp(entry.activatedAt),
+      manualDeactivatedAt: normalizeOptionalTimestamp(entry.manualDeactivatedAt),
       lastLevelPostAt: normalizeOptionalTimestamp(entry.lastLevelPostAt),
       lastExtensionPostAt: normalizeOptionalTimestamp(entry.lastExtensionPostAt),
       lastPriceUpdateAt: normalizeOptionalTimestamp(entry.lastPriceUpdateAt),
@@ -436,9 +468,13 @@ function buildPersistedState(entries: WatchlistEntry[]): PersistedWatchlistState
 
 export class WatchlistStatePersistence {
   private readonly filePath: string;
+  private readonly retentionMs: number;
+  private readonly now: () => number;
 
   constructor(config: WatchlistStatePersistenceConfig = {}) {
     this.filePath = config.filePath ?? DEFAULT_WATCHLIST_STATE_FILE;
+    this.retentionMs = config.retentionMs ?? DEFAULT_INACTIVE_WATCHLIST_RETENTION_MS;
+    this.now = config.now ?? Date.now;
   }
 
   getFilePath(): string {
@@ -458,7 +494,7 @@ export class WatchlistStatePersistence {
         return null;
       }
 
-      return validated.entries;
+      return pruneExpiredInactiveWatchlistEntries(validated.entries, this.now(), this.retentionMs);
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
         const message = error instanceof Error ? error.message : String(error);
@@ -474,11 +510,15 @@ export class WatchlistStatePersistence {
   save(entries: WatchlistEntry[]): void {
     const directory = dirname(this.filePath);
     const tempFilePath = `${this.filePath}.tmp`;
-    const persisted = buildPersistedState(entries);
+    const now = this.now();
+    const persisted = buildPersistedState(
+      pruneExpiredInactiveWatchlistEntries(entries, now, this.retentionMs),
+      now,
+    );
 
     try {
       mkdirSync(directory, { recursive: true });
-      writeFileSync(tempFilePath, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
+      writeFileSync(tempFilePath, `${JSON.stringify(persisted)}\n`, "utf8");
       renameSync(tempFilePath, this.filePath);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

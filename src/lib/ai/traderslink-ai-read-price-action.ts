@@ -2,16 +2,39 @@ import type { Candle } from "../market-data/candle-types.js";
 import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-classifier.js";
 
 const RECENT_INTRADAY_BAR_LIMIT = 120;
+const RECENT_ONE_MINUTE_BAR_LIMIT = 60;
 const RECENT_DAILY_BAR_LIMIT = 30;
 const VOLUME_LANDMARK_LIMIT = 8;
 const UNREPORTED_EXTENDED_WICK_CONFIRMATION_PCT = 0.03;
+const MINIMUM_SIGNIFICANT_IMPULSE_GAIN_PCT = 5;
+const MAXIMUM_IMPULSE_DURATION_BARS = 45;
+const MINIMUM_BROADER_MOVE_GAIN_PCT = 10;
+const MINIMUM_BROADER_MOVE_DURATION_BARS = 15;
 
 export type TradersLinkAiReadPriceActionContext = {
   source: string;
   fetchedAt: number;
   priorRegularClose: number | null;
+  oneMinuteCandles?: Candle[];
   intradayCandles: Candle[];
   dailyCandles: Candle[];
+};
+
+export type TradersLinkAiReadPullbackCandidate = {
+  id: string;
+  kind:
+    | "pre_impulse_base"
+    | "breakout_shelf"
+    | "first_consolidation"
+    | "volume_shelf"
+    | "broader_move_origin"
+    | "one_minute_acceptance"
+    | "five_minute_acceptance";
+  zoneLow: number;
+  zoneHigh: number;
+  observedFrom: number;
+  observedTo: number;
+  rationale: string;
 };
 
 export type TradersLinkAiReadReferenceQuote = {
@@ -119,6 +142,415 @@ export function mergeTradersLinkAiIntradayCandles(
 
 function roundPrice(value: number): number {
   return Number(value.toFixed(value < 1 ? 4 : 3));
+}
+
+function roundMetric(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+function average(values: number[]): number | null {
+  return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function exponentialMovingAverage(candles: Candle[], period: number): number | null {
+  if (candles.length === 0) {
+    return null;
+  }
+  const multiplier = 2 / (period + 1);
+  let value = candles[0]!.close;
+  for (const candle of candles.slice(1)) {
+    value = candle.close * multiplier + value * (1 - multiplier);
+  }
+  return value;
+}
+
+function approximateVwap(candles: Candle[]): number | null {
+  const reported = candles.filter((candle) => candle.volume > 0);
+  const volume = reported.reduce((sum, candle) => sum + candle.volume, 0);
+  if (volume <= 0) {
+    return null;
+  }
+  return reported.reduce(
+    (sum, candle) => sum + ((candle.high + candle.low + candle.close) / 3) * candle.volume,
+    0,
+  ) / volume;
+}
+
+function candidateFromCandles(args: {
+  id: string;
+  kind: TradersLinkAiReadPullbackCandidate["kind"];
+  candles: Candle[];
+  rationale: string;
+  bodyOnly?: boolean;
+}): TradersLinkAiReadPullbackCandidate | null {
+  if (args.candles.length === 0) {
+    return null;
+  }
+  const lows = args.candles.map((candle) => args.bodyOnly
+    ? Math.min(candle.open, candle.close)
+    : candle.low);
+  const highs = args.candles.map((candle) => args.bodyOnly
+    ? Math.max(candle.open, candle.close)
+    : candle.high);
+  const zoneLow = Math.min(...lows);
+  const zoneHigh = Math.max(...highs);
+  if (!(zoneLow > 0) || zoneHigh < zoneLow) {
+    return null;
+  }
+  return {
+    id: args.id,
+    kind: args.kind,
+    zoneLow: roundPrice(zoneLow),
+    zoneHigh: roundPrice(zoneHigh),
+    observedFrom: args.candles[0]!.timestamp,
+    observedTo: args.candles.at(-1)!.timestamp,
+    rationale: args.rationale,
+  };
+}
+
+function materiallySeparatedCandidates(
+  candidates: TradersLinkAiReadPullbackCandidate[],
+): TradersLinkAiReadPullbackCandidate[] {
+  const separated: TradersLinkAiReadPullbackCandidate[] = [];
+  for (const candidate of candidates
+    .filter((item) => item.zoneLow > 0 && item.zoneHigh >= item.zoneLow)
+    .sort((left, right) => right.zoneHigh - left.zoneHigh)) {
+    const duplicate = separated.some((existing) => {
+      if (existing.kind !== candidate.kind) {
+        return false;
+      }
+      const overlap = Math.max(0, Math.min(existing.zoneHigh, candidate.zoneHigh) -
+        Math.max(existing.zoneLow, candidate.zoneLow));
+      const narrowerWidth = Math.max(
+        0.0001,
+        Math.min(existing.zoneHigh - existing.zoneLow, candidate.zoneHigh - candidate.zoneLow),
+      );
+      return overlap / narrowerWidth >= 0.65;
+    });
+    if (!duplicate) {
+      separated.push(candidate);
+    }
+  }
+
+  // Preserve at least one candidate from every evidence type before allowing
+  // repeated acceptance shelves to consume the bounded model packet.
+  const output: TradersLinkAiReadPullbackCandidate[] = [];
+  const selectedIds = new Set<string>();
+  const representedKinds = new Set<TradersLinkAiReadPullbackCandidate["kind"]>();
+  for (const candidate of separated) {
+    if (!representedKinds.has(candidate.kind)) {
+      output.push(candidate);
+      selectedIds.add(candidate.id);
+      representedKinds.add(candidate.kind);
+    }
+  }
+  for (const candidate of separated) {
+    if (output.length >= 8) {
+      break;
+    }
+    if (!selectedIds.has(candidate.id)) {
+      output.push(candidate);
+      selectedIds.add(candidate.id);
+    }
+  }
+  return output.slice(0, 8);
+}
+
+function buildOneMinuteFacts(
+  rawCandles: Candle[],
+  fiveMinuteCandles: Candle[],
+  currentPrice: number,
+  dataAsOf: number,
+): Record<string, unknown> {
+  const minimumReferenceSeparation = Math.max(currentPrice * 0.005, 0.0001);
+  const candles = normalizeCandles(rawCandles, dataAsOf);
+  if (candles.length < 12) {
+    return {
+      available: false,
+      reason: "Fewer than 12 usable one-minute candles were available.",
+      pullbackCandidates: [],
+      recentOneMinuteBars: candles.slice(-RECENT_ONE_MINUTE_BAR_LIMIT).map(compactIntradayBar),
+    };
+  }
+
+  const search = candles.slice(-180);
+  let best: { startIndex: number; endIndex: number; gainPct: number; score: number } | null = null;
+  for (let endIndex = 2; endIndex < search.length; endIndex += 1) {
+    const firstStart = Math.max(0, endIndex - MAXIMUM_IMPULSE_DURATION_BARS);
+    for (let startIndex = firstStart; startIndex <= endIndex - 2; startIndex += 1) {
+      const start = search[startIndex]!;
+      const end = search[endIndex]!;
+      const durationMinutes = Math.max(1, (end.timestamp - start.timestamp) / 60_000);
+      const gainPct = (end.high - start.low) / start.low * 100;
+      if (gainPct < MINIMUM_SIGNIFICANT_IMPULSE_GAIN_PCT) {
+        continue;
+      }
+      const recencyWeight = endIndex / Math.max(1, search.length - 1);
+      const score = gainPct + gainPct / durationMinutes * 3 + recencyWeight * 2;
+      if (!best || score > best.score || (score === best.score && endIndex > best.endIndex)) {
+        best = { startIndex, endIndex, gainPct, score };
+      }
+    }
+  }
+
+  const currentSessionDate = classifyIntradayCandleTimestamp(dataAsOf).sessionDate;
+  const sessionSearch = candles
+    .filter((candle) => classifyIntradayCandleTimestamp(candle.timestamp).sessionDate === currentSessionDate)
+    .slice(-600);
+  let broaderBest: { startIndex: number; endIndex: number; gainPct: number } | null = null;
+  for (let endIndex = MINIMUM_BROADER_MOVE_DURATION_BARS; endIndex < sessionSearch.length; endIndex += 1) {
+    for (let startIndex = 0; startIndex <= endIndex - MINIMUM_BROADER_MOVE_DURATION_BARS; startIndex += 1) {
+      const start = sessionSearch[startIndex]!;
+      const end = sessionSearch[endIndex]!;
+      const gainPct = (end.high - start.low) / start.low * 100;
+      if (gainPct < MINIMUM_BROADER_MOVE_GAIN_PCT) {
+        continue;
+      }
+      if (
+        !broaderBest ||
+        gainPct > broaderBest.gainPct ||
+        (gainPct === broaderBest.gainPct && startIndex < broaderBest.startIndex)
+      ) {
+        broaderBest = { startIndex, endIndex, gainPct };
+      }
+    }
+  }
+
+  const recent = candles.slice(-RECENT_ONE_MINUTE_BAR_LIMIT);
+  const sessionVwap = approximateVwap(candles);
+  const ema9 = exponentialMovingAverage(recent, 9);
+  const ema20 = exponentialMovingAverage(recent, 20);
+  const latest = candles.at(-1)!;
+  const candidates: Array<TradersLinkAiReadPullbackCandidate | null> = [];
+  let impulse: Record<string, unknown> | null = null;
+  let broaderSessionMove: Record<string, unknown> | null = null;
+  let firstConsolidation: Record<string, unknown> | null = null;
+
+  if (best) {
+    const start = search[best.startIndex]!;
+    const end = search[best.endIndex]!;
+    const impulseCandles = search.slice(best.startIndex, best.endIndex + 1);
+    const preImpulse = search.slice(Math.max(0, best.startIndex - 8), best.startIndex);
+    const postImpulse = search.slice(best.endIndex + 1, Math.min(search.length, best.endIndex + 9));
+    const durationMinutes = Math.max(1, Math.round((end.timestamp - start.timestamp) / 60_000));
+    const precedingVolumes = search
+      .slice(Math.max(0, best.startIndex - 20), best.startIndex)
+      .map((candle) => candle.volume)
+      .filter((volume) => volume > 0);
+    const impulseVolumes = impulseCandles.map((candle) => candle.volume).filter((volume) => volume > 0);
+    const baselineVolume = average(precedingVolumes);
+    const impulseVolume = average(impulseVolumes);
+    const highestImpulsePrice = Math.max(...impulseCandles.map((candle) => candle.high));
+    const latestRetracementPct = highestImpulsePrice > start.low
+      ? (highestImpulsePrice - latest.close) / (highestImpulsePrice - start.low) * 100
+      : null;
+    impulse = {
+      originPrice: roundPrice(start.low),
+      startTime: start.timestamp,
+      startTimeIso: new Date(start.timestamp).toISOString(),
+      endPrice: roundPrice(highestImpulsePrice),
+      endTime: end.timestamp,
+      endTimeIso: new Date(end.timestamp).toISOString(),
+      gainPct: roundMetric(best.gainPct),
+      durationMinutes,
+      gainPerMinutePct: roundMetric(best.gainPct / durationMinutes),
+      volumeVsPrecedingBaseline:
+        baselineVolume && impulseVolume ? roundMetric(impulseVolume / baselineVolume) : null,
+      latestRetracementDepthPct: latestRetracementPct === null ? null : roundMetric(latestRetracementPct),
+    };
+
+    if (preImpulse.length >= 3) {
+      candidates.push(candidateFromCandles({
+        id: "1m-pre-impulse-base",
+        kind: "pre_impulse_base",
+        candles: preImpulse,
+        bodyOnly: true,
+        rationale: "Observed one-minute bodies immediately before the latest significant impulse.",
+      }));
+      const preImpulseHigh = Math.max(...preImpulse.map((candle) => candle.high));
+      const breakoutBars = impulseCandles.filter((candle) =>
+        candle.low <= preImpulseHigh * 1.02 && candle.high >= preImpulseHigh * 0.98
+      ).slice(0, 4);
+      candidates.push(candidateFromCandles({
+        id: "1m-breakout-shelf",
+        kind: "breakout_shelf",
+        candles: breakoutBars,
+        bodyOnly: true,
+        rationale: "Observed one-minute bodies that crossed and tested the pre-impulse ceiling.",
+      }));
+    }
+
+    if (postImpulse.length >= 3) {
+      let consolidationBars: Candle[] = [];
+      const impulseRange = highestImpulsePrice - start.low;
+      for (let index = 0; index <= postImpulse.length - 3; index += 1) {
+        const window = postImpulse.slice(index, index + 3);
+        const windowRange = Math.max(...window.map((candle) => candle.high)) -
+          Math.min(...window.map((candle) => candle.low));
+        if (impulseRange > 0 && windowRange <= impulseRange * 0.35) {
+          consolidationBars = window;
+          break;
+        }
+      }
+      if (consolidationBars.length > 0) {
+        const candidate = candidateFromCandles({
+          id: "1m-first-consolidation",
+          kind: "first_consolidation",
+          candles: consolidationBars,
+          bodyOnly: true,
+          rationale: "First observed three-bar one-minute consolidation after the impulse high.",
+        });
+        candidates.push(candidate);
+        if (candidate) {
+          firstConsolidation = {
+            zoneLow: candidate.zoneLow,
+            zoneHigh: candidate.zoneHigh,
+            startTime: candidate.observedFrom,
+            endTime: candidate.observedTo,
+          };
+        }
+      }
+    }
+
+    const volumeCandidates = impulseCandles
+      .filter((candle) => candle.volume > 0)
+      .sort((left, right) => right.volume - left.volume)
+      .slice(0, 3)
+      .sort((left, right) => left.timestamp - right.timestamp);
+    candidates.push(candidateFromCandles({
+      id: "1m-impulse-volume-shelf",
+      kind: "volume_shelf",
+      candles: volumeCandidates,
+      bodyOnly: true,
+      rationale: "Observed bodies of the highest reported-volume one-minute bars inside the impulse.",
+    }));
+  }
+
+  if (broaderBest) {
+    const start = sessionSearch[broaderBest.startIndex]!;
+    const end = sessionSearch[broaderBest.endIndex]!;
+    const durationMinutes = Math.max(1, Math.round((end.timestamp - start.timestamp) / 60_000));
+    const latestImpulseStart = best ? search[best.startIndex]! : null;
+    const latestImpulseDuration = best
+      ? Math.max(1, Math.round((search[best.endIndex]!.timestamp - latestImpulseStart!.timestamp) / 60_000))
+      : 0;
+    const isDistinctBroaderMove = !latestImpulseStart ||
+      (start.low < latestImpulseStart.low * 0.97 && durationMinutes >= latestImpulseDuration + 5);
+    if (isDistinctBroaderMove) {
+      const anchorMidpoint = (start.open + start.close) / 2;
+      const originWindow = sessionSearch
+        .slice(Math.max(0, broaderBest.startIndex - 4), Math.min(sessionSearch.length, broaderBest.startIndex + 3))
+        .filter((candle) => {
+          const bodyLow = Math.min(candle.open, candle.close);
+          const bodyHigh = Math.max(candle.open, candle.close);
+          return bodyHigh >= anchorMidpoint * 0.97 && bodyLow <= anchorMidpoint * 1.03;
+        });
+      const originCandidate = candidateFromCandles({
+        id: "1m-broader-move-origin",
+        kind: "broader_move_origin",
+        candles: originWindow.length > 0 ? originWindow : [start],
+        bodyOnly: true,
+        rationale: "Observed one-minute bodies around the origin of the broader same-session expansion.",
+      });
+      candidates.push(originCandidate);
+      broaderSessionMove = {
+        originPrice: roundPrice(start.low),
+        startTime: start.timestamp,
+        startTimeIso: new Date(start.timestamp).toISOString(),
+        endPrice: roundPrice(end.high),
+        endTime: end.timestamp,
+        endTimeIso: new Date(end.timestamp).toISOString(),
+        gainPct: roundMetric(broaderBest.gainPct),
+        durationMinutes,
+        originCandidateId: originCandidate?.id ?? null,
+      };
+    }
+  }
+
+  for (let index = 0; index <= recent.length - 3; index += 1) {
+    const window = recent.slice(index, index + 3);
+    const classifications = window.map((candle) => classifyIntradayCandleTimestamp(candle.timestamp));
+    const sameSession = classifications.every((classification) =>
+      classification.session === classifications[0]!.session &&
+      classification.sessionDate === classifications[0]!.sessionDate
+    );
+    const consecutive = window.slice(1).every(
+      (candle, offset) => candle.timestamp - window[offset]!.timestamp <= 90_000,
+    );
+    const bodyLows = window.map((candle) => Math.min(candle.open, candle.close));
+    const bodyHighs = window.map((candle) => Math.max(candle.open, candle.close));
+    const overlappingBodyLow = Math.max(...bodyLows);
+    const overlappingBodyHigh = Math.min(...bodyHighs);
+    if (!sameSession || !consecutive || overlappingBodyLow > overlappingBodyHigh) {
+      continue;
+    }
+    const zone = candidateFromCandles({
+      id: `1m-acceptance-${window[0]!.timestamp}`,
+      kind: "one_minute_acceptance",
+      candles: window,
+      bodyOnly: true,
+      rationale: "Three consecutive one-minute candle bodies overlapped, showing repeated acceptance within observed prices.",
+    });
+    if (
+      zone &&
+      zone.zoneHigh - zone.zoneLow <= currentPrice * 0.025 &&
+      zone.zoneHigh < currentPrice - minimumReferenceSeparation
+    ) {
+      candidates.push(zone);
+    }
+  }
+
+  const recentFiveMinute = normalizeCandles(fiveMinuteCandles, dataAsOf).slice(-24);
+  for (let index = Math.max(0, recentFiveMinute.length - 12); index <= recentFiveMinute.length - 3; index += 3) {
+    const window = recentFiveMinute.slice(index, index + 3);
+    const zone = candidateFromCandles({
+      id: `5m-acceptance-${window[0]!.timestamp}`,
+      kind: "five_minute_acceptance",
+      candles: window,
+      bodyOnly: true,
+      rationale: "Observed three-bar five-minute body acceptance shelf.",
+    });
+    if (zone && zone.zoneHigh < currentPrice - minimumReferenceSeparation) {
+      candidates.push(zone);
+    }
+  }
+
+  const lastSix = recent.slice(-6);
+  const lows = lastSix.map((candle) => candle.low);
+  const higherLow = lows.length >= 4 && Math.min(...lows.slice(-3)) > Math.min(...lows.slice(0, 3));
+  const priorThreeHigh = lastSix.length >= 4
+    ? Math.max(...lastSix.slice(0, -1).map((candle) => candle.high))
+    : null;
+  const reclaim = priorThreeHigh !== null && latest.close > priorThreeHigh;
+
+  return {
+    available: true,
+    latestCandleAt: latest.timestamp,
+    latestCandleAtIso: new Date(latest.timestamp).toISOString(),
+    latestSignificantImpulse: impulse,
+    broaderSessionMove,
+    firstConsolidation,
+    currentDistances: {
+      approximateVwap: sessionVwap === null ? null : roundPrice(sessionVwap),
+      vwapDistancePct: sessionVwap === null ? null : roundMetric((currentPrice - sessionVwap) / sessionVwap * 100),
+      ema9: ema9 === null ? null : roundPrice(ema9),
+      ema9DistancePct: ema9 === null ? null : roundMetric((currentPrice - ema9) / ema9 * 100),
+      ema20: ema20 === null ? null : roundPrice(ema20),
+      ema20DistancePct: ema20 === null ? null : roundMetric((currentPrice - ema20) / ema20 * 100),
+    },
+    latestConfirmationBehavior: {
+      higherLowObserved: higherLow,
+      reclaimObserved: reclaim,
+      latestClose: roundPrice(latest.close),
+      priorThreeBarHigh: priorThreeHigh === null ? null : roundPrice(priorThreeHigh),
+    },
+    pullbackCandidates: materiallySeparatedCandidates(
+      candidates.filter((candidate): candidate is TradersLinkAiReadPullbackCandidate =>
+        candidate !== null && candidate.zoneHigh < currentPrice - minimumReferenceSeparation
+      ),
+    ),
+    recentOneMinuteBars: recent.map(compactIntradayBar),
+  };
 }
 
 function compactIntradayBar(candle: Candle): CompactPriceActionBar {
@@ -292,16 +724,28 @@ export function resolveTradersLinkAiReadReferenceQuote(
   fallbackPrice: number,
   fallbackDataAsOf: number,
 ): TradersLinkAiReadReferenceQuote {
+  const oneMinute = normalizeCandles(
+    context.oneMinuteCandles ?? [],
+    Math.max(fallbackDataAsOf, context.fetchedAt),
+  );
   const intraday = normalizeCandles(
     context.intradayCandles,
     Math.max(fallbackDataAsOf, context.fetchedAt),
   );
-  const latest = intraday.at(-1);
+  const latestOneMinute = oneMinute.at(-1);
+  const latestFiveMinute = intraday.at(-1);
   const referenceTime = Math.max(fallbackDataAsOf, context.fetchedAt);
-  if (latest && referenceTime - latest.timestamp <= 30 * 60 * 1_000) {
+  if (latestOneMinute && referenceTime - latestOneMinute.timestamp <= 10 * 60 * 1_000) {
     return {
-      price: latest.close,
-      dataAsOf: latest.timestamp,
+      price: latestOneMinute.close,
+      dataAsOf: latestOneMinute.timestamp,
+      source: `${context.source} latest 1-minute close`,
+    };
+  }
+  if (latestFiveMinute && referenceTime - latestFiveMinute.timestamp <= 30 * 60 * 1_000) {
+    return {
+      price: latestFiveMinute.close,
+      dataAsOf: latestFiveMinute.timestamp,
       source: `${context.source} latest 5-minute close`,
     };
   }
@@ -375,12 +819,18 @@ export function buildTradersLinkAiPriceActionPacket(
   );
   const range = recentHigh - recentLow;
   const sessionPhaseSummaries = summarizeSessionPhases(intraday);
+  const oneMinuteFacts = buildOneMinuteFacts(
+    context.oneMinuteCandles ?? [],
+    intraday,
+    currentPrice,
+    dataAsOf,
+  );
 
   return {
     source: context.source,
     fetchedAt: context.fetchedAt,
     fetchedAtIso: new Date(context.fetchedAt).toISOString(),
-    timeframe: "5m",
+    timeframes: ["1m", "5m", "1d"],
     sessionCoverage: ["premarket", "opening_range", "regular", "after_hours"],
     includesRegularHours: true,
     includesPrePostMarket: true,
@@ -399,6 +849,7 @@ export function buildTradersLinkAiPriceActionPacket(
     completedRegularSessionFifteenMinuteBars: aggregateRegularSessionToFifteenMinutes(annotated),
     highVolumeFiveMinuteBars: volumeLandmarks,
     recentFiveMinuteBars: recentIntraday.map(compactIntradayBar),
+    oneMinuteEvidence: oneMinuteFacts,
     recentDailyBars: compactDailyBars(daily),
   };
 }

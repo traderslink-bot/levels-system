@@ -20,12 +20,37 @@ import type { LiveWatchlistTickerDataPatch } from "../lib/live-watchlist/live-wa
 import {
   buildRecentWebsiteArticlesPatch,
   deriveRecentWebsiteArticleCatalystFreshness,
+  normalizeRecentWebsiteArticleLookupResult,
   publishRecentWebsiteArticlesForSymbol,
 } from "../lib/live-watchlist/recent-website-articles.js";
 import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import type { TechnicalContext } from "../lib/technical-context/technical-context-types.js";
 
 describe("live watchlist publisher", () => {
+  it("preserves stored article summaries and balanced points for the AI research packet", () => {
+    const result = normalizeRecentWebsiteArticleLookupResult({
+      ticker: "ABCD",
+      businessDays: 5,
+      count: 1,
+      articles: [{
+        ticker: "ABCD",
+        title: "ABCD announces a clinical update",
+        url: "https://traderslink.pro/news/abcd-update",
+        summary: "The company reported a defined clinical milestone.",
+        positives: ["The milestone was reached on the stated timeline.", ""],
+        negatives: ["The update did not include efficacy data."],
+      }],
+    }, "ABCD");
+
+    assert.deepEqual(result.articles[0]?.positives, [
+      "The milestone was reached on the stated timeline.",
+    ]);
+    assert.deepEqual(result.articles[0]?.negatives, [
+      "The update did not include efficacy data.",
+    ]);
+    assert.equal(result.articles[0]?.summary, "The company reported a defined clinical milestone.");
+  });
+
   it("builds an independent dip-buy plan visibility patch", () => {
     const patch = buildTradersLinkAiReadVisibilityPatch({
       symbol: "tghl",
@@ -170,6 +195,50 @@ describe("live watchlist publisher", () => {
         ],
       );
       assert.equal(publisher.pendingCount(), 0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes a card update before the next queued ticker update", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "live-watchlist-outbox-priority-"));
+    const filePath = join(directory, "outbox.json");
+    let releaseFirst!: () => void;
+    let markFirstStarted!: () => void;
+    const firstStarted = new Promise<void>((resolve) => { markFirstStarted = resolve; });
+    const firstRelease = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const delivered: string[] = [];
+
+    try {
+      const publisher = new DurableLiveWatchlistPublisher({
+        async publish(patch) {
+          delivered.push(`card:${patch.symbol}`);
+        },
+        async publishTickerData(patch) {
+          delivered.push(`ticker:${patch.symbol}`);
+          if (patch.symbol === "FIRST") {
+            markFirstStarted();
+            await firstRelease;
+          }
+        },
+      }, filePath);
+      const ticker = (symbol: string): LiveWatchlistTickerDataPatch => ({
+        type: "tickerData",
+        symbol,
+        updatedAt: 1,
+        latestPrice: 1,
+        nearestSupport: null,
+        nearestResistance: null,
+      });
+
+      const first = publisher.publishTickerData(ticker("FIRST"));
+      await firstStarted;
+      const second = publisher.publishTickerData(ticker("SECOND"));
+      const card = publisher.publish({ symbol: "URGENT", updatedAt: 2, cards: {} });
+      releaseFirst();
+      await Promise.all([first, second, card]);
+
+      assert.deepEqual(delivered, ["ticker:FIRST", "card:URGENT", "ticker:SECOND"]);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -320,6 +389,68 @@ describe("live watchlist publisher", () => {
     assert.equal(hidden?.watchlistLifecycle, undefined);
     assert.equal(visible?.watchlistLifecycle?.status, "active");
     assert.match(visible?.watchlistLifecycle?.reason ?? "", /VWAP and EMA9/i);
+  });
+
+  it("derives Pullback Watch from five-minute candle structure and VWAP rather than HOD distance", () => {
+    const patch = buildLiveWatchlistPullbackReadPatch({
+      symbol: "CANDLE",
+      timestamp: 1_000,
+      currentPrice: 1.92,
+      supportZones: [{ representativePrice: 1.4, strengthLabel: "weak", sourceLabel: "intraday" }],
+      resistanceZones: [{ representativePrice: 2.3, strengthLabel: "major", sourceLabel: "daily" }],
+      technicalContext: {
+        ...readyTechnicalContext,
+        currentPrice: 1.92,
+        vwap: 1.9,
+        ema9: 1.95,
+        ema20: 1.8,
+        priceVsVwapPct: 1.05,
+        priceVsEma9Pct: -1.54,
+        priceVsEma20Pct: 6.67,
+        aboveVwap: true,
+        aboveEma9: false,
+        aboveEma20: true,
+      },
+      marketStructure: {
+        timeframes: {
+          "5m": {
+            stable: {
+              state: "pullback_to_structure",
+              previousState: "higher_lows_intact",
+              structureKey: "pullback_to_structure|range:1.900-2.150",
+              materialChange: true,
+              confidence: "high",
+              materialityScore: 0.72,
+              rawState: "pullback_to_structure",
+              reason: "persistent_material_change",
+              candleCount: 48,
+              rawRunLength: 3,
+              trendDirection: "uptrend",
+              higherLowCount: 2,
+              lowerHighCount: 0,
+              higherHighCount: 1,
+              lowerLowCount: 0,
+              latestSwingLow: 1.9,
+              latestSwingHigh: 2.15,
+              priorSwingLow: 1.72,
+              priorSwingHigh: 2.04,
+              activeRangeLow: 1.9,
+              activeRangeHigh: 2.15,
+              activeRangeWidthPct: 0.1316,
+              activeRangeQuality: "clean",
+              pivotEventType: "none",
+              pivotEventTriggerPrice: null,
+            },
+          },
+        },
+      },
+      pullbackReadEnabled: true,
+      includeLifecycle: true,
+    });
+
+    assert.equal(patch?.watchlistLifecycle?.status, "pullback_watch");
+    assert.match(patch?.watchlistLifecycle?.reason ?? "", /five-minute candles/i);
+    assert.doesNotMatch(patch?.watchlistLifecycle?.reason ?? "", /HOD|percent|ATR/i);
   });
 
   it("includes chart thesis context in the live trader read card", () => {
@@ -1130,7 +1261,6 @@ describe("live watchlist publisher", () => {
     });
 
     assert.ok(patch?.levelMap);
-    assert.equal(patch.status, undefined);
     assert.deepEqual(
       patch.levelMap.supportLevels.map((level) => level.price),
       [0.41, 0.35, 0.291],

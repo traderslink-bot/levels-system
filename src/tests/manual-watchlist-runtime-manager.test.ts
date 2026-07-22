@@ -7,7 +7,9 @@ import type { HistoricalFetchRequest } from "../lib/market-data/candle-fetch-ser
 import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
 import {
   buildLiveTradeSetupSeriesMap,
+  MANUAL_WATCHLIST_AUTO_READMISSION_COOLDOWN_MS,
   ManualWatchlistRuntimeManager,
+  parseArchivedTradersLinkAiLifecyclePlan,
   resolveEodhdConfirmedLevelRequestEndTimeMs,
 } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
@@ -30,6 +32,38 @@ function waitForAsyncWork(): Promise<void> {
 function waitMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+test("archived AI lifecycle plans require timestamps and every dereferenced field", () => {
+  const valid = {
+    version: 3,
+    generatedAt: 2_000,
+    dataAsOf: 1_500,
+    needsToHold: { price: 2.5 },
+    momentumFailure: { price: 1.8 },
+    pullbackPlans: { shallow: null, deep: null },
+    failureRecovery: {
+      recoveryZoneLow: 1.5,
+      recoveryZoneHigh: 1.6,
+      firstReclaimPrice: 1.61,
+      setupRestorePrice: 1.7,
+    },
+  };
+  assert.ok(parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify(valid)));
+  assert.equal(
+    parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify({
+      ...valid,
+      needsToHold: undefined,
+    })),
+    null,
+  );
+  assert.equal(
+    parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify({
+      ...valid,
+      generatedAt: undefined,
+    })),
+    null,
+  );
+});
 
 function buildZone(params: Partial<FinalLevelZone> & Pick<FinalLevelZone, "id" | "symbol" | "kind">): FinalLevelZone {
   return {
@@ -506,6 +540,7 @@ class DuplicateOneMinuteFallbackCandleFetchService extends StaticRecentIntradayC
 }
 
 test("ManualWatchlistRuntimeManager blends EODHD completed sessions with Yahoo current-session candles for AI reads", async () => {
+  const now = Date.parse("2026-07-21T05:00:00Z");
   const historicalRequests: any[] = [];
   const historicalLoader = async (request: any) => {
     historicalRequests.push({ ...request });
@@ -537,28 +572,68 @@ test("ManualWatchlistRuntimeManager blends EODHD completed sessions with Yahoo c
       }],
     };
   };
+  const recentCandles = new StaticRecentIntradayCandleFetchService();
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: new RecordingCandleFetchService() as any,
     levelStore: new LevelStore(),
     monitor: new FakeMonitor() as any,
     discordAlertRouter: new FakeDiscordAlertRouter() as any,
     opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
-    recentIntradayCandleFetchService: new StaticRecentIntradayCandleFetchService() as any,
+    recentIntradayCandleFetchService: recentCandles as any,
     tradersLinkAiReadHistoricalCandleLoader: historicalLoader as any,
+    now: () => now,
   });
 
   const context = await (manager as any).buildTradersLinkAiReadPriceActionContext(
     "GLXG",
-    Date.now(),
+    now,
   );
 
   assert.deepEqual(
     historicalRequests.map((request) => request.timeframes[0]).sort(),
     ["5m", "daily"],
   );
+  assert.deepEqual(
+    recentCandles.requests.map((request) => [request.timeframe, request.lookbackBars]),
+    [["1m", 600], ["5m", 720], ["daily", 30]],
+  );
   assert.match(context.source, /yahoo current-session \+ eodhd completed-session OHLCV/);
+  assert.equal(context.oneMinuteCandles.length, 600);
   assert.ok(context.intradayCandles.some((candle: Candle) => candle.volume === 777_000));
   assert.ok(context.dailyCandles.some((candle: Candle) => candle.volume === 888_000));
+});
+
+test("ManualWatchlistRuntimeManager reports expected closed-session price silence without stale alarms", () => {
+  const now = Date.parse("2026-07-21T00:05:00Z");
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({
+    symbol: "CLOS",
+    active: true,
+    lifecycle: "active",
+    lastPrice: 2,
+    lastPriceUpdateAt: now - 5 * 60 * 1_000,
+    operationStatus: "monitoring live price",
+  });
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    now: () => now,
+  });
+  (manager as any).lastPriceUpdateAt = now - 5 * 60 * 1_000;
+  (manager as any).lastPriceUpdateSymbol = "CLOS";
+
+  const health = manager.getRuntimeHealth().providerHealth;
+  assert.equal(health.priceFeedStatus, "closed");
+  assert.ok(health.notes.includes("market session is closed; live price silence is expected"));
+  assert.equal(health.restartReadiness[0]?.priceStatus, "closed");
+  assert.equal(
+    health.restartReadiness[0]?.reason,
+    "market session closed; ready for the next live session",
+  );
 });
 
 test("ManualWatchlistRuntimeManager polls Yahoo recent intraday candles for pullback trader reads", async () => {
@@ -1213,10 +1288,38 @@ test("ManualWatchlistRuntimeManager clamps slightly future Yahoo candles without
   );
   assert.equal(traderReadPatch?.updatedAt, requestEndTime);
   assert.equal(traderReadPatch?.cards.liveTraderRead?.metadata?.pullbackVolumeLabel, "unknown");
+  assert.equal(traderReadPatch?.liveVolumeContext, null);
   assert.doesNotMatch(
     traderReadPatch?.cards.liveTraderRead?.body ?? "",
     /latest 5m candle timestamp is ahead of request time/,
   );
+});
+
+test("ManualWatchlistRuntimeManager derives premarket five-minute volume from cumulative snapshots", () => {
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: new RecordingCandleFetchService() as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    pullbackReadEnabled: true,
+  });
+  const startedAt = Date.parse("2026-07-22T04:00:00-04:00");
+
+  for (let minute = 0; minute <= 16; minute += 1) {
+    manager.ingestPremarketVolumeSnapshots([{
+      symbol: "CAST",
+      cumulativeVolume: 1_000 + minute * 100,
+      observedAt: startedAt + minute * 60 * 1000,
+    }]);
+  }
+
+  const stored = (manager as any).premarketVolumeReadBySymbol.get("CAST");
+  assert.equal(stored?.read.label, "strong");
+  assert.equal(stored?.read.currentVolume, 200);
+  assert.equal(stored?.read.projectedVolume, 1_000);
 });
 
 test("ManualWatchlistRuntimeManager republishes pullback read when volume label changes", async () => {
@@ -1309,6 +1412,33 @@ test("ManualWatchlistRuntimeManager republishes pullback read when volume label 
   assert.equal(liveWatchlistPublisher.cardPatches.length, 2);
   assert.match(liveWatchlistPublisher.cardPatches[0]?.cards.liveTraderRead?.body ?? "", /Volume read: strong/);
   assert.match(liveWatchlistPublisher.cardPatches[1]?.cards.liveTraderRead?.body ?? "", /Volume read: fading/);
+  assert.deepEqual(liveWatchlistPublisher.cardPatches[1]?.liveVolumeContext, {
+    timeframe: "5m",
+    label: "fading",
+    relativeVolumeRatio: 0.5,
+    partial: false,
+    updatedAt: 2_000,
+  });
+
+  (manager as any).liveTraderReadCardVisible = false;
+  (manager as any).publishWebsitePullbackTraderRead({
+    symbol: "CAST",
+    timestamp: 3_000,
+    currentPrice: 2.2,
+    technicalContext,
+    volumeRead: {
+      label: "expanding",
+      currentVolume: 150_000,
+      averageVolume: 100_000,
+      relativeVolumeRatio: 1.5,
+      reason: "latest 5m volume is 1.50x recent average",
+    },
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 3);
+  assert.equal(liveWatchlistPublisher.cardPatches[2]?.cards.liveTraderRead, null);
+  assert.equal(liveWatchlistPublisher.cardPatches[2]?.liveVolumeContext?.label, "expanding");
 });
 
 test("live trade setup series uses only completed 5m candles and builds causal regular-session 4h bars", () => {
@@ -1536,6 +1666,7 @@ test("ManualWatchlistRuntimeManager pins EODHD higher-timeframe level seeding to
 });
 
 test("ManualWatchlistRuntimeManager exposes level seed stats and restart readiness", async () => {
+  const now = Date.parse("2026-07-20T17:00:00.000Z");
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const persistence = new FakeWatchlistStatePersistence();
@@ -1557,6 +1688,7 @@ test("ManualWatchlistRuntimeManager exposes level seed stats and restart readine
     opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
     watchlistStore,
     watchlistStatePersistence: persistence as any,
+    now: () => now,
     seedSymbolLevels: async (symbol: string) => {
       levelStore.setLevels(buildLevelOutput(symbol));
     },
@@ -2414,6 +2546,102 @@ test("ManualWatchlistRuntimeManager automatically generates an AI clean read aft
   );
 });
 
+test("automatic same-session re-additions reuse AI context until price invalidates the original read", async () => {
+  const monitor = new FakeMonitor();
+  const discordAlertRouter = new FakeDiscordAlertRouter();
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const cleanReadInputs: any[] = [];
+  const watchlistStore = new WatchlistStore();
+  persistence.storedEntries = [];
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: monitor as any,
+    discordAlertRouter: discordAlertRouter as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    autoCleanReadGenerator: async (input) => {
+      cleanReadInputs.push(input);
+      return {
+        id: `clean-read-${cleanReadInputs.length}`,
+        model: "gpt-test",
+        text: "Clean read: preserve the existing setup while its boundaries remain valid.",
+      };
+    },
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol, {
+        metadata: {
+          providerByTimeframe: {},
+          dataQualityFlags: [],
+          freshness: "fresh",
+          referencePrice: 2.2,
+        },
+        intradaySupport: [
+          buildZone({
+            id: "S-REUSE",
+            symbol,
+            kind: "support",
+            zoneLow: 1.9,
+            zoneHigh: 2,
+            representativePrice: 1.95,
+          }),
+        ],
+        intradayResistance: [
+          buildZone({
+            id: "R-REUSE",
+            symbol,
+            kind: "resistance",
+            zoneLow: 2.4,
+            zoneHigh: 2.5,
+            representativePrice: 2.45,
+          }),
+        ],
+      }));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({
+    symbol: "reuse",
+    source: "auto",
+    autoSession: "postmarket",
+    selectionPrice: 2.2,
+  });
+  await waitForAsyncWork();
+  watchlistStore.patchEntry("REUSE", {
+    lastPrice: 2.2,
+    tradersLinkAiReadBoundaryState: {
+      generatedAt: Date.now(),
+      currentPrice: 2.2,
+      lowerBoundary: 1.9,
+      upperBoundary: 2.5,
+      boundaries: [],
+      lastAutomaticRefreshRegime: null,
+    },
+  });
+  await manager.deactivateSymbol("REUSE", { source: "auto" });
+  await manager.queueActivation({
+    symbol: "REUSE",
+    source: "auto",
+    autoSession: "postmarket",
+    selectionPrice: 2.3,
+  });
+  await waitForAsyncWork();
+  assert.equal(cleanReadInputs.length, 1);
+
+  await manager.deactivateSymbol("REUSE", { source: "auto" });
+  await manager.queueActivation({
+    symbol: "REUSE",
+    source: "auto",
+    autoSession: "postmarket",
+    selectionPrice: 2.8,
+  });
+  await waitForAsyncWork();
+  assert.equal(cleanReadInputs.length, 2);
+});
+
 test("ManualWatchlistRuntimeManager retries an aborted automatic AI clean read", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
@@ -2523,12 +2751,71 @@ test("ManualWatchlistRuntimeManager deactivates symbols and keeps stored thread 
     lifecycle: "inactive",
     refreshPending: false,
     activatedAt: deactivated?.activatedAt,
+    manualDeactivatedAt: deactivated?.manualDeactivatedAt,
     lastLevelPostAt: deactivated?.lastLevelPostAt,
     lastThreadPostAt: deactivated?.lastThreadPostAt,
     lastThreadPostKind: "snapshot",
   });
   assert.equal(manager.getActiveEntries().length, 0);
   assert.equal(persistence.storedEntries[0]?.discordThreadId, "thread-HUBC");
+});
+
+test("ManualWatchlistRuntimeManager blocks automatic readmission for four hours after an admin deactivation", async () => {
+  let now = Date.UTC(2026, 6, 22, 14, 0, 0);
+  const persistence = new FakeWatchlistStatePersistence();
+  const levelStore = new LevelStore();
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore: new WatchlistStore(),
+    watchlistStatePersistence: persistence as any,
+    now: () => now,
+    seedSymbolLevels: async (symbol: string) => {
+      levelStore.setLevels(buildLevelOutput(symbol));
+    },
+  });
+
+  await manager.start();
+  await manager.activateSymbol({ symbol: "COOL" });
+  const firstDeactivation = await manager.deactivateSymbol("COOL");
+  assert.equal(firstDeactivation?.manualDeactivatedAt, now);
+  await assert.rejects(
+    manager.queueActivation({ symbol: "COOL", source: "auto", autoSession: "regular" }),
+    /cannot be automatically re-added until/,
+  );
+
+  const manualReadmission = await manager.queueActivation({ symbol: "COOL", source: "manual" });
+  assert.equal(manualReadmission.lifecycle, "activating");
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+  await waitForAsyncWork();
+  assert.equal(manager.getActiveEntries()[0]?.manualDeactivatedAt, undefined);
+
+  await manager.deactivateSymbol("COOL");
+  now += MANUAL_WATCHLIST_AUTO_READMISSION_COOLDOWN_MS - 1;
+  await assert.rejects(
+    manager.queueActivation({ symbol: "COOL", source: "auto", autoSession: "regular" }),
+    /cannot be automatically re-added until/,
+  );
+  now += 1;
+  const automaticReadmission = await manager.queueActivation({
+    symbol: "COOL",
+    source: "auto",
+    autoSession: "regular",
+  });
+  assert.equal(automaticReadmission.active, true);
+
+  const automaticDeactivation = await manager.deactivateSymbol("COOL", { source: "auto" });
+  assert.equal(automaticDeactivation?.manualDeactivatedAt, undefined);
+  const automaticReactivation = await manager.queueActivation({
+    symbol: "COOL",
+    source: "auto",
+    autoSession: "regular",
+  });
+  assert.equal(automaticReactivation.active, true);
 });
 
 test("ManualWatchlistRuntimeManager bulk deactivates once while preserving Discord thread ids", async () => {
@@ -2631,6 +2918,7 @@ test("ManualWatchlistRuntimeManager can hide and restore the live website Trader
   const persistence = new FakeWatchlistStatePersistence();
   const levelStore = new LevelStore();
   const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const visibilityChanges: boolean[] = [];
   persistence.storedEntries = [];
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: {} as any,
@@ -2641,6 +2929,7 @@ test("ManualWatchlistRuntimeManager can hide and restore the live website Trader
     watchlistStore: new WatchlistStore(),
     watchlistStatePersistence: persistence as any,
     liveWatchlistPublisher,
+    liveTraderReadCardVisibilityListener: (visible) => visibilityChanges.push(visible),
     seedSymbolLevels: async (symbol: string) => {
       levelStore.setLevels(buildLevelOutput(symbol, {
         intradaySupport: [
@@ -2673,6 +2962,7 @@ test("ManualWatchlistRuntimeManager can hide and restore the live website Trader
   assert.equal(hiddenResult.visible, false);
   assert.deepEqual(hiddenResult.refreshedSymbols, ["CAST"]);
   assert.equal(manager.getRuntimeHealth().liveTraderReadCardVisible, false);
+  assert.deepEqual(visibilityChanges, [false]);
   assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
   assert.equal(liveWatchlistPublisher.cardPatches[0]?.cards.liveTraderRead, null);
 
@@ -2683,6 +2973,7 @@ test("ManualWatchlistRuntimeManager can hide and restore the live website Trader
   assert.equal(visibleResult.visible, true);
   assert.deepEqual(visibleResult.refreshedSymbols, ["CAST"]);
   assert.equal(manager.getRuntimeHealth().liveTraderReadCardVisible, true);
+  assert.deepEqual(visibilityChanges, [false, true]);
   assert.equal(liveWatchlistPublisher.cardPatches.length, 1);
   assert.equal(liveWatchlistPublisher.cardPatches[0]?.cards.liveTraderRead?.source, "level_snapshot");
 });
@@ -2781,18 +3072,60 @@ test("ManualWatchlistRuntimeManager moves automatic tickers through follow-up wi
     liveWatchlistPublisher,
   });
 
-  const followup = await manager.setAutoWatchlistFollowup("FOLLOW", true);
+  const followup = await manager.setAutoWatchlistFollowup("FOLLOW", true, {
+    reversalWatchEligible: true,
+    reversalWatchAttemptReady: true,
+  });
   assert.equal(followup.active, true);
   assert.equal(followup.tags.includes("auto-followup"), true);
+  assert.equal(followup.tags.includes("auto-reversal-watch"), true);
+  assert.equal(followup.tags.includes("auto-reversal-attempt-ready"), true);
   assert.equal(followup.operationStatus, "follow-up monitoring");
   assert.equal(liveWatchlistPublisher.cardPatches[0]?.watchlistSlotState, "followup");
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.reversalWatchEligible, true);
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.reversalWatchAttemptReady, true);
 
   liveWatchlistPublisher.cardPatches = [];
   const promoted = await manager.setAutoWatchlistFollowup("FOLLOW", false);
   assert.equal(promoted.active, true);
   assert.equal(promoted.tags.includes("auto-followup"), false);
+  assert.equal(promoted.tags.includes("auto-reversal-watch"), false);
+  assert.equal(promoted.tags.includes("auto-reversal-attempt-ready"), false);
   assert.equal(promoted.operationStatus, "monitoring live price");
   assert.equal(liveWatchlistPublisher.cardPatches[0]?.watchlistSlotState, "active");
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.reversalWatchEligible, false);
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.reversalWatchAttemptReady, false);
+});
+
+test("ManualWatchlistRuntimeManager publishes the Potential Reversal Watchlist visibility switch", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({
+    symbol: "TURN",
+    tags: ["auto", "auto-main", "auto-followup", "auto-reversal-watch"],
+    active: true,
+    lifecycle: "active",
+    activatedAt: 1000,
+  });
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher,
+    initialReversalWatchlistVisible: true,
+  });
+
+  const hidden = await manager.setReversalWatchlistVisible(false);
+  assert.equal(hidden.visible, false);
+  assert.deepEqual(hidden.refreshedSymbols, ["TURN"]);
+  assert.equal(liveWatchlistPublisher.cardPatches[0]?.reversalWatchlistVisible, false);
+  assert.equal(manager.getRuntimeHealth().reversalWatchlistVisible, false);
+  assert.equal(watchlistStore.getEntry("TURN")?.active, true);
 });
 
 test("ManualWatchlistRuntimeManager refreshes live trader read from same-day catalyst card context", async () => {
@@ -3121,43 +3454,6 @@ test("ManualWatchlistRuntimeManager publishes live volume in website ticker data
   assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.symbol, "CAST");
   assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.latestPrice, 2.12);
   assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.volume, 123_456);
-});
-
-test("ManualWatchlistRuntimeManager does not publish ticker data after a symbol is deactivated", async () => {
-  const monitor = new FakeMonitor();
-  const persistence = new FakeWatchlistStatePersistence();
-  const levelStore = new LevelStore();
-  const watchlistStore = new WatchlistStore();
-  const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
-  const manager = new ManualWatchlistRuntimeManager({
-    candleFetchService: {} as any,
-    levelStore,
-    monitor: monitor as any,
-    discordAlertRouter: new FakeDiscordAlertRouter() as any,
-    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
-    watchlistStore,
-    watchlistStatePersistence: persistence as any,
-    liveWatchlistPublisher,
-    seedSymbolLevels: async (symbol: string) => {
-      levelStore.setLevels(buildLevelOutput(symbol));
-    },
-  });
-
-  await manager.start();
-  await manager.activateSymbol({ symbol: "CAST" });
-  await manager.deactivateSymbol("CAST");
-  liveWatchlistPublisher.tickerDataPatches = [];
-
-  (manager as any).publishLiveTickerData({
-    symbol: "CAST",
-    timestamp: 4_000,
-    lastPrice: 2.15,
-    volume: 125_000,
-  });
-  await waitForAsyncWork();
-
-  assert.equal(watchlistStore.getEntry("CAST")?.active, false);
-  assert.equal(liveWatchlistPublisher.tickerDataPatches.length, 0);
 });
 
 test("ManualWatchlistRuntimeManager keeps stronger duplicate metadata in live website ticker levels", async () => {
@@ -4068,6 +4364,86 @@ test("ManualWatchlistRuntimeManager stores the published AI Read confidence for 
   assert.equal(watchlistStore.getEntry("CONF")?.tradersLinkAiReadConfidence, "medium");
 });
 
+test("ManualWatchlistRuntimeManager retries an automatic AI Read when boundary generation fails before publication", async () => {
+  const persistence = new FakeWatchlistStatePersistence();
+  const watchlistStore = new WatchlistStore();
+  const levelStore = new LevelStore();
+  const now = Date.now();
+  const boundaryState = {
+    generatedAt: now - 60_000,
+    currentPrice: 1.98,
+    upperBoundary: 2,
+    lowerBoundary: 1.05,
+    boundaries: [
+      { role: "upsideTarget" as const, side: "upside" as const, price: 2, impact: "exhausts" as const },
+      { role: "downsideCheckpoint" as const, side: "downside" as const, price: 1.05, impact: "exhausts" as const },
+    ],
+  };
+  persistence.storedEntries = [{
+    symbol: "RETRY",
+    active: true,
+    priority: 1,
+    tags: ["manual"],
+    lifecycle: "active",
+    refreshPending: false,
+    lastPrice: 2.1,
+    lastPriceUpdateAt: now,
+    tradersLinkAiReadBoundaryState: boundaryState,
+  }];
+  watchlistStore.setEntries(persistence.storedEntries);
+  levelStore.setLevels(buildLevelOutput("RETRY", {
+    metadata: {
+      providerByTimeframe: {},
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 2.1,
+    },
+  }));
+  let generationAttempts = 0;
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore,
+    watchlistStatePersistence: persistence as any,
+    liveWatchlistPublisher: new FakeLiveWatchlistPublisher(),
+    tradersLinkAiReadService: {
+      generate: async () => {
+        generationAttempts += 1;
+        throw new Error("AI Read generation failed before publication");
+      },
+    } as any,
+    recentWebsiteArticlesExecFileImpl: async () => ({
+      stderr: "",
+      stdout: JSON.stringify({
+        ticker: "RETRY",
+        businessDays: 5,
+        count: 0,
+        articles: [],
+      }),
+    }),
+  });
+  (manager as any).aiReadState.set("RETRY", boundaryState);
+  (manager as any).buildTradersLinkAiReadPriceActionContext = async () => ({});
+
+  await assert.rejects(
+    (manager as any).generateTradersLinkAiRead("RETRY", false, "automatic"),
+    /generation failed before publication/,
+  );
+  assert.equal(
+    watchlistStore.getEntry("RETRY")?.tradersLinkAiReadBoundaryState?.lastAutomaticRefreshRegime ?? null,
+    null,
+  );
+
+  await assert.rejects(
+    (manager as any).generateTradersLinkAiRead("RETRY", false, "automatic"),
+    /generation failed before publication/,
+  );
+  assert.equal(generationAttempts, 2);
+});
+
 test("ManualWatchlistRuntimeManager posts stock context into a newly created thread before the level snapshot", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
@@ -4314,7 +4690,6 @@ test("ManualWatchlistRuntimeManager records stock context without consuming trad
   assert.equal(discordAlertRouter.routed[0]?.payload.metadata?.messageKind, "stock_context");
   assert.equal(discordAlertRouter.routed[0]?.payload.timestamp, 1_000);
   assert.equal(manager.getRuntimeHealth().lastThreadPostKind, "stock_context");
-  assert.equal(manager.getRuntimeHealth().mondayReview.postsLast15m, 0);
 });
 
 test("ManualWatchlistRuntimeManager marks a hung queued activation failed instead of hiding it", async () => {

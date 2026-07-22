@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import {
   ArchivedLiveWatchlistPublisher,
+  DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS,
   LiveWatchlistAuditArchivePersistence,
   mergeLiveWatchlistPayloadWithArchive,
 } from "../lib/live-watchlist/live-watchlist-audit-archive.js";
@@ -15,6 +16,41 @@ import type {
   LiveWatchlistPublisher,
   LiveWatchlistTickerDataPatch,
 } from "../lib/live-watchlist/live-watchlist-types.js";
+
+test("live watchlist audit archive permanently drops deactivated symbols after three days", () => {
+  const { directory, filePath } = tempArchivePath();
+  const now = 10 * 24 * 60 * 60 * 1_000;
+  try {
+    const archive = new LiveWatchlistAuditArchivePersistence(filePath);
+    archive.recordPatches([
+      {
+        symbol: "OLD",
+        status: "deactivated",
+        updatedAt: now - DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS - 1,
+        cards: {},
+      },
+      {
+        symbol: "RECENT",
+        status: "deactivated",
+        updatedAt: now - DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS + 1,
+        cards: {},
+      },
+      {
+        symbol: "LIVE",
+        status: "live",
+        updatedAt: now - DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS - 1,
+        cards: {},
+      },
+    ], now);
+
+    assert.deepEqual(
+      archive.load().symbols.map((symbol) => symbol.symbol).sort(),
+      ["RECENT"],
+    );
+  } finally {
+    cleanupTempArchive(directory);
+  }
+});
 
 function tempArchivePath(): { directory: string; filePath: string } {
   const directory = mkdtempSync(join(tmpdir(), "live-watchlist-audit-archive-"));
@@ -93,6 +129,62 @@ test("live watchlist audit archive keeps last levels after a status-only deactiv
   }
 });
 
+test("live watchlist audit archive round-trips slot, reversal, lifecycle, volume, and visibility state", () => {
+  const { directory, filePath } = tempArchivePath();
+  try {
+    const archive = new LiveWatchlistAuditArchivePersistence(filePath);
+    archive.recordPatch({
+      symbol: "REV",
+      status: "live",
+      updatedAt: 1_000,
+      watchlistSlotState: "followup",
+      reversalWatchEligible: true,
+      reversalWatchAttemptReady: true,
+      reversalWatchlistVisible: true,
+      potentialGainCardVisible: false,
+      watchlistLifecycleLabelsVisible: true,
+      watchlistLifecycle: {
+        status: "recovery_attempt",
+        label: "Recovery Attempt",
+        reason: "A new base formed and price reclaimed the trigger.",
+        updatedAt: 1_000,
+      },
+      liveVolumeContext: {
+        timeframe: "5m",
+        label: "expanding",
+        relativeVolumeRatio: 2.4,
+        partial: false,
+        updatedAt: 1_000,
+      },
+      tradersLinkAiReadCardVisible: true,
+      tradersLinkAiReadDipBuyPlanVisible: false,
+      cards: {},
+    }, 1_100);
+    archive.recordPatch({
+      symbol: "REV",
+      status: "deactivated",
+      updatedAt: 2_000,
+      cards: {},
+    }, 2_100);
+
+    const reloaded = new LiveWatchlistAuditArchivePersistence(filePath).load();
+    const symbol = reloaded.symbols.find((candidate) => candidate.symbol === "REV");
+    assert.equal(symbol?.status, "deactivated");
+    assert.equal(symbol?.watchlistSlotState, "followup");
+    assert.equal(symbol?.reversalWatchEligible, true);
+    assert.equal(symbol?.reversalWatchAttemptReady, true);
+    assert.equal(symbol?.reversalWatchlistVisible, true);
+    assert.equal(symbol?.potentialGainCardVisible, false);
+    assert.equal(symbol?.watchlistLifecycleLabelsVisible, true);
+    assert.equal(symbol?.watchlistLifecycle?.label, "Recovery Attempt");
+    assert.equal(symbol?.liveVolumeContext?.relativeVolumeRatio, 2.4);
+    assert.equal(symbol?.tradersLinkAiReadCardVisible, true);
+    assert.equal(symbol?.tradersLinkAiReadDipBuyPlanVisible, false);
+  } finally {
+    cleanupTempArchive(directory);
+  }
+});
+
 test("live watchlist audit archive merge keeps removed symbols auditable", () => {
   const { directory, filePath } = tempArchivePath();
   try {
@@ -136,6 +228,7 @@ test("live watchlist audit archive merge keeps removed symbols auditable", () =>
 test("archived live watchlist publisher records successful website patches", async () => {
   const { directory, filePath } = tempArchivePath();
   try {
+    const now = Date.now();
     const published: unknown[] = [];
     const delegate: LiveWatchlistPublisher = {
       async publish(patch: LiveWatchlistCardPatch): Promise<void> {
@@ -155,7 +248,16 @@ test("archived live watchlist publisher records successful website patches", asy
       type: "tickerData",
       symbol: "zbao",
       status: "live",
-      updatedAt: 3000,
+      updatedAt: now,
+      watchlistSlotState: "active",
+      reversalWatchEligible: false,
+      reversalWatchAttemptReady: false,
+      reversalWatchlistVisible: true,
+      potentialGainCardVisible: true,
+      watchlistLifecycleLabelsVisible: true,
+      watchlistLifecycle: null,
+      tradersLinkAiReadCardVisible: true,
+      tradersLinkAiReadDipBuyPlanVisible: true,
       latestPrice: 0.42,
       nearestSupport: 0.41,
       nearestResistance: 0.44,
@@ -169,6 +271,58 @@ test("archived live watchlist publisher records successful website patches", asy
     const archivedSymbol = archive.load().symbols.find((symbol) => symbol.symbol === "ZBAO");
     assert.equal(archivedSymbol?.latestPrice, 0.42);
     assert.equal(archivedSymbol?.nearestSupportLabel, "0.4100 (-2.4%, major, daily confluence)");
+    assert.equal(archivedSymbol?.watchlistSlotState, "active");
+    assert.equal(archivedSymbol?.reversalWatchEligible, false);
+    assert.equal(archivedSymbol?.reversalWatchAttemptReady, false);
+    assert.equal(archivedSymbol?.reversalWatchlistVisible, true);
+    assert.equal(archivedSymbol?.potentialGainCardVisible, true);
+    assert.equal(archivedSymbol?.watchlistLifecycleLabelsVisible, true);
+    assert.equal(archivedSymbol?.watchlistLifecycle, null);
+    assert.equal(archivedSymbol?.tradersLinkAiReadCardVisible, true);
+    assert.equal(archivedSymbol?.tradersLinkAiReadDipBuyPlanVisible, true);
+  } finally {
+    cleanupTempArchive(directory);
+  }
+});
+
+test("archived live watchlist publisher retries patches after a transient archive failure", async () => {
+  const { directory, filePath } = tempArchivePath();
+  class FailOnceArchive extends LiveWatchlistAuditArchivePersistence {
+    attempts = 0;
+
+    override async recordPatchesAsync(...args: Parameters<LiveWatchlistAuditArchivePersistence["recordPatchesAsync"]>) {
+      this.attempts += 1;
+      if (this.attempts === 1) {
+        throw new Error("transient archive write failure");
+      }
+      return super.recordPatchesAsync(...args);
+    }
+  }
+  try {
+    const now = Date.now();
+    const delegate: LiveWatchlistPublisher = {
+      async publishTickerData(): Promise<void> {},
+      async publish(): Promise<void> {},
+    };
+    const archive = new FailOnceArchive(filePath);
+    const publisher = new ArchivedLiveWatchlistPublisher(delegate, archive, 60_000);
+    await publisher.publishTickerData({
+      type: "tickerData",
+      symbol: "RETRY",
+      status: "live",
+      updatedAt: now,
+      latestPrice: 1.25,
+      nearestSupport: null,
+      nearestResistance: null,
+    });
+
+    await publisher.flushPending();
+    assert.equal(archive.attempts, 1);
+    assert.equal(archive.load().symbols.length, 0);
+
+    await publisher.flushPending();
+    assert.equal(archive.attempts, 2);
+    assert.equal(archive.load().symbols[0]?.symbol, "RETRY");
   } finally {
     cleanupTempArchive(directory);
   }

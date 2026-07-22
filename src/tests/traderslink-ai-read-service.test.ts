@@ -83,6 +83,37 @@ function priceAction(): TradersLinkAiReadPriceActionContext {
   };
 }
 
+function priceActionWithOneMinuteCandidates(): TradersLinkAiReadPriceActionContext {
+  const oneMinuteCandles: TradersLinkAiReadPriceActionContext["intradayCandles"] = [];
+  const start = DATA_AS_OF - 27 * 60_000;
+  const push = (index: number, open: number, close: number, volume: number) => {
+    oneMinuteCandles.push({
+      timestamp: start + index * 60_000,
+      open,
+      high: Math.max(open, close) * 1.002,
+      low: Math.min(open, close) * 0.998,
+      close,
+      volume,
+    });
+  };
+  for (let index = 0; index < 10; index += 1) {
+    push(index, 1, 1 + (index % 2) * 0.002, 100_000);
+  }
+  for (let index = 0; index < 5; index += 1) {
+    push(10 + index, 1 + index * 0.16, 1 + (index + 1) * 0.16, 700_000);
+  }
+  for (let index = 0; index < 3; index += 1) {
+    push(15 + index, 1.45, 1.46, 350_000);
+  }
+  for (let index = 0; index < 10; index += 1) {
+    push(18 + index, 1.48 + index * 0.007, 1.49 + index * 0.007, 250_000);
+  }
+  return {
+    ...priceAction(),
+    oneMinuteCandles,
+  };
+}
+
 function premarketPriceAction(): TradersLinkAiReadPriceActionContext {
   const intradayCandles = Array.from({ length: 24 }, (_, index) => {
     const timestamp = PREMARKET_DATA_AS_OF - (23 - index) * 5 * 60 * 1_000;
@@ -161,6 +192,8 @@ function modelRead(): Record<string, unknown> {
       { label: "First lower support", price: 1.12, condition: "Exposed if the prior regular session low loses acceptance." },
       { label: "Outer lower support", price: 1.05, condition: "Next daily range low if $1.12 fails." },
     ],
+    pullbackPlans: { shallow: null, deep: null },
+    failureRecovery: null,
     catalystRealityCheck: {
       status: "conditional",
       summary: "A recent company filing is the primary known catalyst context.",
@@ -413,6 +446,8 @@ describe("OpenAITradersLinkAiReadService", () => {
           ticker: "TGHL",
           title: "TGHL files merger and financing 8-K",
           summary: "The Form 8-K describes the merger consideration and related financing terms.",
+          positives: ["The filing identifies a defined merger consideration."],
+          negatives: ["The related financing can add share supply after its stated gates."],
           url: "https://traderslink.pro/news/tghl-current-report",
           sourceUrl: "https://www.sec.gov/Archives/example",
           publishedAt: "2026-07-15T19:45:00.000Z",
@@ -444,7 +479,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(filingSource.evidence?.retrievedAt, "2026-07-15T20:31:00.000Z");
     assert.match(filingSource.evidence?.supportingExcerpt ?? "", /merger consideration/i);
     assert.equal(filingSource.evidence?.supersessionStatus, "latest_in_retrieved_window");
-    assert.equal(read.version, 2);
+    assert.equal(read.version, 3);
     assert.equal(read.breakoutContinuation.price, 1.68);
     assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), [1.12, 1.05]);
     assert.deepEqual(read.catalystRealityCheck.sourceUrls, [
@@ -468,12 +503,40 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(schema.properties.breakoutContinuation);
     assert.ok(schema.properties.catalystRealityCheck);
     assert.ok(schema.properties.downsideCheckpoints);
+    assert.ok(schema.properties.pullbackPlans);
+    assert.ok(schema.properties.failureRecovery);
     assert.ok(schema.properties.dilutionRisk);
     assert.ok(schema.properties.listingStatus);
     const input = requestBody.input as Array<{ role: string; content: Array<{ text: string }> }>;
     assert.match(
       input[0]!.content[0]!.text,
       /currentPrice >= needsToHold >= cautionBelow >= momentumFailure/,
+    );
+    assert.match(
+      input[0]!.content[0]!.text,
+      /invalidationPrice < zoneLow <= zoneHigh < currentPrice/,
+    );
+    assert.match(
+      input[0]!.content[0]!.text,
+      /recoveryZoneLow <= recoveryZoneHigh < firstReclaimPrice < setupRestorePrice/,
+    );
+    const pullbackPlansSchema = schema.properties.pullbackPlans as {
+      properties: {
+        shallow: {
+          properties: Record<string, { description?: string }>;
+        };
+      };
+    };
+    assert.match(
+      pullbackPlansSchema.properties.shallow.properties.invalidationPrice?.description ?? "",
+      /strictly below zoneLow/i,
+    );
+    const failureRecoverySchema = schema.properties.failureRecovery as {
+      properties: Record<string, { description?: string }>;
+    };
+    assert.match(
+      failureRecoverySchema.properties.firstReclaimPrice?.description ?? "",
+      /strictly greater than recoveryZoneHigh/i,
     );
     const packet = JSON.parse(input[1]!.content[0]!.text) as {
       marketPacket: {
@@ -487,6 +550,7 @@ describe("OpenAITradersLinkAiReadService", () => {
           completedRegularSessionFifteenMinuteBars: unknown[];
           includesRegularHours: boolean;
           recentRange: { highBar: { session: string } };
+          oneMinuteEvidence: { available: boolean; recentOneMinuteBars: unknown[] };
         };
         supportLevels?: unknown;
         resistanceLevels?: unknown;
@@ -496,7 +560,14 @@ describe("OpenAITradersLinkAiReadService", () => {
         price: number;
         priorPlanGeneratedAt: number;
       } | null;
-      primaryCatalystResearch: { source: string; articles: unknown[] };
+      primaryCatalystResearch: {
+        source: string;
+        articles: Array<{
+          sourceSummary: string | null;
+          positivePoints: string[];
+          negativePoints: string[];
+        }>;
+      };
     };
     assert.equal(packet.marketPacket.currentPrice, priceAction().intradayCandles.at(-1)!.close);
     assert.equal(packet.marketPacket.secondaryRuntimeQuote.price, 1.36);
@@ -507,6 +578,8 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(typeof packet.marketPacket.priceAction.recentRange.highBar.session, "string");
     assert.ok(packet.marketPacket.priceAction.completedRegularSessionFifteenMinuteBars.length > 0);
     assert.equal(packet.marketPacket.priceAction.includesRegularHours, true);
+    assert.equal(packet.marketPacket.priceAction.oneMinuteEvidence.available, false);
+    assert.deepEqual(packet.marketPacket.priceAction.oneMinuteEvidence.recentOneMinuteBars, []);
     assert.equal(packet.marketPacket.supportLevels, undefined);
     assert.equal(packet.marketPacket.resistanceLevels, undefined);
     assert.deepEqual(packet.confirmedPriorPlanBoundary, {
@@ -516,9 +589,232 @@ describe("OpenAITradersLinkAiReadService", () => {
     });
     assert.equal(packet.primaryCatalystResearch.source, "TradersLink press-release/SEC database");
     assert.equal(packet.primaryCatalystResearch.articles.length, 1);
+    assert.equal(
+      packet.primaryCatalystResearch.articles[0]?.sourceSummary,
+      "The Form 8-K describes the merger consideration and related financing terms.",
+    );
+    assert.deepEqual(packet.primaryCatalystResearch.articles[0]?.positivePoints, [
+      "The filing identifies a defined merger consideration.",
+    ]);
+    assert.deepEqual(packet.primaryCatalystResearch.articles[0]?.negativePoints, [
+      "The related financing can add share supply after its stated gates.",
+    ]);
     assert.equal(read.dilutionRisk.canCompanyIssueToday, false);
     assert.equal(read.dilutionRisk.companyIssuance.earliestDate, "2026-07-18");
     assert.match(read.riskSummary.join(" "), /prior plan boundary near \$1\.42/i);
+  });
+
+  it("publishes only candidate-backed, separated v3 pullback and recovery structures", async () => {
+    const tape = priceActionWithOneMinuteCandidates();
+    const currentPrice = tape.oneMinuteCandles!.at(-1)!.close;
+    const packet = buildTradersLinkAiPriceActionPacket(tape, currentPrice, DATA_AS_OF);
+    const oneMinuteEvidence = packet.oneMinuteEvidence as {
+      pullbackCandidates: Array<{ id: string; kind: string; zoneLow: number; zoneHigh: number }>;
+    };
+    const shallowCandidate = oneMinuteEvidence.pullbackCandidates.find(
+      (candidate) => candidate.kind === "first_consolidation",
+    );
+    const deepCandidate = oneMinuteEvidence.pullbackCandidates.find(
+      (candidate) => candidate.kind === "pre_impulse_base",
+    );
+    assert.ok(shallowCandidate);
+    assert.ok(deepCandidate);
+
+    const draft = modelRead();
+    draft.needsToHold = { label: "Post-impulse shelf", price: 1.3, rationale: "Regular-session consolidation held this shelf." };
+    draft.cautionBelow = { label: "Base caution", price: 1.1, rationale: "The intraday base loses acceptance below this price." };
+    draft.momentumFailure = { label: "Momentum failure", price: 0.95, rationale: "The daily range low invalidates the momentum setup." };
+    draft.mustClear = { label: "Reclaim pivot", price: 1.6, rationale: "The intraday rejection pivot must be reclaimed." };
+    draft.downsideCheckpoints = [{ label: "Lower daily base", price: 0.85, condition: "The daily range low is exposed after momentum failure." }];
+    draft.pullbackPlans = {
+      shallow: {
+        zoneLow: shallowCandidate.zoneLow,
+        zoneHigh: shallowCandidate.zoneHigh,
+        confirmationPrice: shallowCandidate.zoneHigh,
+        confirmation: "Require a higher low and reclaim of the one-minute consolidation high.",
+        invalidationPrice: Number((shallowCandidate.zoneLow * 0.98).toFixed(2)),
+        firstObjectivePrice: 1.6,
+        rationale: "The first one-minute consolidation after the impulse supplies the momentum retest.",
+        evidenceIds: [shallowCandidate.id],
+      },
+      deep: {
+        zoneLow: deepCandidate.zoneLow,
+        zoneHigh: deepCandidate.zoneHigh,
+        confirmationPrice: deepCandidate.zoneHigh,
+        confirmation: "Require a new base and reclaim of the pre-impulse base high.",
+        invalidationPrice: Number((deepCandidate.zoneLow * 0.97).toFixed(2)),
+        firstObjectivePrice: 1.3,
+        rationale: "The observed pre-impulse one-minute base supplies the deeper reset.",
+        evidenceIds: [deepCandidate.id],
+      },
+    };
+    draft.failureRecovery = {
+      recoveryZoneLow: deepCandidate.zoneLow,
+      recoveryZoneHigh: deepCandidate.zoneHigh,
+      firstReclaimPrice: 1.1,
+      setupRestorePrice: 1.3,
+      firstObjectivePrice: 1.6,
+      rationale: "After failure, require a new base, a first reclaim, and then restoration of the former shelf.",
+      evidenceIds: [deepCandidate.id],
+    };
+
+    const generate = async (responseDraft: Record<string, unknown>) => {
+      const service = new OpenAITradersLinkAiReadService({
+        apiKey: "test-key",
+        model: "test-model",
+        fetchImpl: async () => new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(responseDraft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } }),
+      });
+      return service.generate({
+        snapshot: { ...snapshot(), currentPrice },
+        priceAction: tape,
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      });
+    };
+
+    const read = await generate(draft);
+    assert.equal(read.pullbackPlans.shallow?.evidenceIds[0], shallowCandidate.id);
+    assert.equal(read.pullbackPlans.deep?.evidenceIds[0], deepCandidate.id);
+    assert.equal(read.failureRecovery?.firstReclaimPrice, 1.1);
+
+    const invalidCases: Array<[string, (value: Record<string, any>) => void, RegExp]> = [
+      ["invented candidate", (value) => {
+        value.pullbackPlans.shallow.evidenceIds = ["invented-zone"];
+      }, /invented candidate ID/i],
+      ["overlapping zones", (value) => {
+        value.pullbackPlans.deep = { ...value.pullbackPlans.shallow };
+      }, /materially separated/i],
+      ["reversed zone", (value) => {
+        const low = value.pullbackPlans.shallow.zoneLow;
+        value.pullbackPlans.shallow.zoneLow = value.pullbackPlans.shallow.zoneHigh;
+        value.pullbackPlans.shallow.zoneHigh = low;
+      }, /zone is reversed/i],
+      ["objective below entry", (value) => {
+        value.pullbackPlans.shallow.firstObjectivePrice = value.pullbackPlans.shallow.zoneLow;
+      }, /first objective must be above/i],
+      ["recovery without reclaim", (value) => {
+        value.failureRecovery.firstReclaimPrice = value.failureRecovery.recoveryZoneHigh;
+      }, /first reclaim must be above/i],
+      ["recovery objective duplicates restoration", (value) => {
+        value.failureRecovery.firstObjectivePrice = value.failureRecovery.setupRestorePrice;
+      }, /objective must be distinct/i],
+    ];
+    for (const [label, mutate, errorPattern] of invalidCases) {
+      const invalid = structuredClone(draft) as Record<string, any>;
+      mutate(invalid);
+      await assert.rejects(generate(invalid), errorPattern, label);
+    }
+
+    const originRecovery = structuredClone(draft) as Record<string, any>;
+    const tightOriginReclaim = Number((deepCandidate.zoneHigh * 1.006).toFixed(4));
+    originRecovery.failureRecovery.firstReclaimPrice = tightOriginReclaim;
+    originRecovery.failureRecovery.setupRestorePrice = Number((tightOriginReclaim + 0.05).toFixed(4));
+    originRecovery.failureRecovery.firstObjectivePrice = Number((tightOriginReclaim + 0.15).toFixed(4));
+    const originRecoveryRead = await generate(originRecovery);
+    assert.equal(
+      originRecoveryRead.failureRecovery?.firstReclaimPrice,
+      Number(tightOriginReclaim.toFixed(2)),
+    );
+    assert.ok(
+      (originRecoveryRead.failureRecovery?.setupRestorePrice ?? Number.POSITIVE_INFINITY) <
+      (originRecoveryRead.cautionBelow.price ?? Number.POSITIVE_INFINITY),
+    );
+  });
+
+  it("treats StockTitan RSS as title-only catalyst evidence without enabling web search", async () => {
+    const requestBodies: Record<string, unknown>[] = [];
+    const draft = modelRead() as any;
+    const stockTitanUrl = "https://www.stocktitan.net/news/PAPL/pineapple-financial-reports-results.html";
+    draft.catalystRealityCheck = {
+      status: "confirmed",
+      summary: "A same-day third-quarter results headline is present.",
+      dayTradeRelevance: "The title confirms a catalyst exists, but its strength remains unverified.",
+      sourceUrls: [stockTitanUrl],
+    };
+    draft.dilutionRisk = {
+      level: "unknown",
+      summary: "The title does not establish dilution terms.",
+      dayTradeRelevance: "Do not infer dilution from the RSS title.",
+      sourceUrls: [],
+      canCompanyIssueToday: null,
+      companyIssuance: {
+        status: "unknown",
+        earliestDate: null,
+        trigger: "unknown",
+        summary: "No issuance evidence is present in the title.",
+      },
+      publicResale: {
+        status: "unknown",
+        earliestDate: null,
+        trigger: "unknown",
+        summary: "No resale evidence is present in the title.",
+      },
+    };
+    draft.listingStatus = {
+      status: "unknown",
+      immediacy: "unknown",
+      summary: "The title does not establish listing status.",
+      dayTradeRelevance: "Do not infer listing risk from the RSS title.",
+      sourceUrls: [],
+    };
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async (_url, init) => {
+        requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(draft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      dataAsOf: DATA_AS_OF,
+      research: {
+        ticker: "PAPL",
+        businessDays: 5,
+        generatedAt: "2026-07-20T21:41:00.000Z",
+        count: 1,
+        articles: [{
+          ticker: "PAPL",
+          title: "Pineapple Financial Reports $25.3 Million in Third-Quarter Net Income",
+          url: stockTitanUrl,
+          publishedAt: "2026-07-20T21:19:00.000Z",
+          eventType: "stocktitan_rss_catalyst",
+          sourceKind: "stocktitan_rss",
+        }],
+      },
+    });
+
+    assert.equal(read.externalResearchEnabled, false);
+    assert.equal(read.usedWebSearch, false);
+    assert.equal(read.usage.webSearchCallCount, 0);
+    assert.equal(read.sources.length, 1);
+    assert.equal(read.sources[0]?.sourceType, "stocktitan_rss");
+    assert.equal(read.sources[0]?.evidence?.excerptKind, "article_title");
+    const requestBody = requestBodies[0]!;
+    assert.equal(requestBody.tools, undefined);
+    const input = requestBody.input as Array<{ role: string; content: Array<{ text: string }> }>;
+    assert.match(input[0]!.content[0]!.text, /title-only fallback/i);
+    assert.match(input[0]!.content[0]!.text, /Do not infer catalyst strength/i);
+    const packet = JSON.parse(input[1]!.content[0]!.text) as {
+      primaryCatalystResearch: {
+        source: string;
+        articles: Array<{ sourceKind: string; sourceSummary: string | null }>;
+      };
+    };
+    assert.equal(packet.primaryCatalystResearch.source, "StockTitan ticker RSS title fallback");
+    assert.equal(packet.primaryCatalystResearch.articles[0]?.sourceKind, "stocktitan_rss");
+    assert.equal(packet.primaryCatalystResearch.articles[0]?.sourceSummary, null);
   });
 
   it("keeps external web research off by default and allows the admin setting to change it", async () => {
@@ -1014,6 +1310,72 @@ describe("OpenAITradersLinkAiReadService", () => {
 
     assert.equal(requestCount, 1);
     assert.match(read.downsideCheckpoints[0]?.condition ?? "", /observed daily candle/i);
+  });
+
+  it("grounds a prior-close checkpoint deterministically instead of buying a correction", async () => {
+    const draft = modelRead();
+    draft.downsideCheckpoints = [{
+      label: "Outer downside checkpoint",
+      price: 0.8,
+      condition: "Relevant only if the original setup fails.",
+    }];
+    const tape = priceAction();
+    tape.priorRegularClose = 0.8;
+    let requestCount = 0;
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => {
+        requestCount += 1;
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(draft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: tape,
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(requestCount, 1);
+    assert.match(read.downsideCheckpoints[0]?.condition ?? "", /observed prior close/i);
+  });
+
+  it("drops an unsupported optional checkpoint instead of rejecting the complete AI Read", async () => {
+    const draft = modelRead();
+    draft.downsideCheckpoints = [{
+      label: "Unsupported outer checkpoint",
+      price: 0.7,
+      condition: "Relevant only if the original setup fails.",
+    }];
+    let requestCount = 0;
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => {
+        requestCount += 1;
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(draft) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.equal(requestCount, 1);
+    assert.deepEqual(read.downsideCheckpoints, []);
   });
 
   it("drops duplicate scenario checkpoints instead of paying for a correction", async () => {

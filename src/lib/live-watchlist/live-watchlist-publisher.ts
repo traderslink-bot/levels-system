@@ -13,6 +13,7 @@ import type { TechnicalContext } from "../technical-context/technical-context-ty
 import { formatPotentialMoveRead } from "../monitoring/potential-move-read.js";
 import { buildLiveWatchlistPullbackRead, type LiveWatchlistPullbackVolumeRead } from "./pullback-read.js";
 import { deriveLiveWatchlistLifecycleRead } from "./watchlist-lifecycle-status.js";
+import type { TradersLinkAiLifecyclePlan } from "./watchlist-lifecycle-status.js";
 import {
   buildLiveWatchlistTradeSetupRead,
   resolveLiveWatchlistTradeSetupReadMode,
@@ -1619,6 +1620,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
   pullbackReadEnabled?: boolean;
   includeLifecycle?: boolean;
   priorRegularClosePrice?: number | null;
+  aiRead?: TradersLinkAiLifecyclePlan | null;
 }): LiveWatchlistCardPatch | null {
   const levelMap = buildLiveWatchlistLevelMap({
     currentPrice: args.currentPrice,
@@ -1678,9 +1680,10 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
         bidPrice: args.roleFlipContext?.bidPrice,
         askPrice: args.roleFlipContext?.askPrice,
       });
-  const stableFiveMinuteState = args.marketStructure?.timeframes?.["5m"]?.stable?.state ??
-    args.marketStructure?.stable?.state ??
+  const fiveMinuteStructure = args.marketStructure?.timeframes?.["5m"]?.stable ??
+    args.marketStructure?.stable ??
     null;
+  const stableFiveMinuteState = fiveMinuteStructure?.state ?? null;
   const watchlistLifecycle = args.includeLifecycle
     ? deriveLiveWatchlistLifecycleRead({
         evaluatedAt: args.timestamp,
@@ -1695,9 +1698,29 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
             ? tradeSetupRead.metadata.tradeSetupStateBeforeBlockers
             : null,
         stableFiveMinuteState,
+        fiveMinuteStructure,
+        currentPrice: args.currentPrice,
+        aiRead: args.aiRead,
       })
     : null;
-  if (!pullbackRead && !(tradeSetupReadMode === "active" && tradeSetupRead) && !watchlistLifecycle) {
+  const liveVolumeContext =
+    args.volumeRead &&
+    args.volumeRead.label !== "unknown" &&
+    args.volumeRead.relativeVolumeRatio !== null
+    ? {
+        timeframe: "5m" as const,
+        label: args.volumeRead.label,
+        relativeVolumeRatio: args.volumeRead.relativeVolumeRatio,
+        partial: args.volumeRead.partial === true,
+        updatedAt: args.timestamp,
+      }
+    : null;
+  if (
+    !pullbackRead &&
+    !(tradeSetupReadMode === "active" && tradeSetupRead) &&
+    !watchlistLifecycle &&
+    !liveVolumeContext
+  ) {
     return null;
   }
   const body = tradeSetupReadMode === "active" && tradeSetupRead
@@ -1709,6 +1732,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
     status: "live",
     updatedAt: args.timestamp,
     levelMap,
+    liveVolumeContext,
     ...(watchlistLifecycle ? { watchlistLifecycle } : {}),
     cards: {
       ...(body
@@ -1948,6 +1972,9 @@ export function buildLiveWatchlistStatusPatch(args: {
   updatedAt?: number;
   firstPostedAt?: number | null;
   watchlistSlotState?: "active" | "followup";
+  reversalWatchEligible?: boolean;
+  reversalWatchAttemptReady?: boolean;
+  reversalWatchlistVisible?: boolean;
   preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
@@ -1958,6 +1985,15 @@ export function buildLiveWatchlistStatusPatch(args: {
     updatedAt: args.updatedAt ?? Date.now(),
     ...(args.firstPostedAt !== undefined ? { firstPostedAt: args.firstPostedAt } : {}),
     ...(args.watchlistSlotState !== undefined ? { watchlistSlotState: args.watchlistSlotState } : {}),
+    ...(args.reversalWatchEligible !== undefined
+      ? { reversalWatchEligible: args.reversalWatchEligible }
+      : {}),
+    ...(args.reversalWatchAttemptReady !== undefined
+      ? { reversalWatchAttemptReady: args.reversalWatchAttemptReady }
+      : {}),
+    ...(args.reversalWatchlistVisible !== undefined
+      ? { reversalWatchlistVisible: args.reversalWatchlistVisible }
+      : {}),
     ...(args.preserveExistingOnReactivation === true
       ? { preserveExistingOnReactivation: true }
       : {}),

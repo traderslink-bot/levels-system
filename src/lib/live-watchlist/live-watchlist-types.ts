@@ -19,19 +19,28 @@ export type LiveWatchlistCardKind =
 
 export type LiveWatchlistStatus = "live" | "stale" | "deactivated";
 export type LiveWatchlistSlotState = "active" | "followup";
-export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting";
+export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting" | "closed";
 export type LiveWatchlistLifecycleStatus =
   | "monitoring"
   | "active"
   | "pullback_watch"
   | "recovery_watch"
+  | "recovery_attempt"
   | "setup_fading"
   | "standby";
 
 export type LiveWatchlistLifecycleRead = {
   status: LiveWatchlistLifecycleStatus;
-  label: "Monitoring" | "Active" | "Pullback Watch" | "Recovery Watch" | "Setup Fading" | "Standby";
+  label: "Analysis Pending" | "Momentum Holding" | "Pullback Watch" | "Recovery Watch" | "Recovery Attempt" | "Setup Fading" | "Standby";
   reason: string;
+  updatedAt: number;
+};
+
+export type LiveWatchlistVolumeContext = {
+  timeframe: "5m";
+  label: "unknown" | "thin" | "normal" | "expanding" | "strong" | "fading";
+  relativeVolumeRatio: number | null;
+  partial: boolean;
   updatedAt: number;
 };
 
@@ -50,10 +59,14 @@ export type LiveWatchlistCardPatch = {
   updatedAt: number;
   firstPostedAt?: number | null;
   watchlistSlotState?: LiveWatchlistSlotState;
+  reversalWatchEligible?: boolean;
+  reversalWatchAttemptReady?: boolean;
+  reversalWatchlistVisible?: boolean;
   preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
+  liveVolumeContext?: LiveWatchlistVolumeContext | null;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   levelMap?: LiveWatchlistLevelMap | null;
@@ -74,6 +87,9 @@ export type LiveWatchlistTickerDataPatch = {
   marketDataObservedAt?: number;
   marketDataRevision?: number;
   watchlistSlotState?: LiveWatchlistSlotState;
+  reversalWatchEligible?: boolean;
+  reversalWatchAttemptReady?: boolean;
+  reversalWatchlistVisible?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
@@ -151,6 +167,27 @@ export type TradersLinkAiReadTarget = {
   condition: string;
 };
 
+export type TradersLinkAiReadPullbackScenario = {
+  zoneLow: number;
+  zoneHigh: number;
+  confirmationPrice: number;
+  confirmation: string;
+  invalidationPrice: number;
+  firstObjectivePrice: number | null;
+  rationale: string;
+  evidenceIds: string[];
+};
+
+export type TradersLinkAiReadFailureRecoveryPlan = {
+  recoveryZoneLow: number;
+  recoveryZoneHigh: number;
+  firstReclaimPrice: number;
+  setupRestorePrice: number;
+  firstObjectivePrice: number | null;
+  rationale: string;
+  evidenceIds: string[];
+};
+
 export type TradersLinkAiReadSourceEvidence = {
   publishedAt: string | null;
   filingType: string | null;
@@ -163,7 +200,7 @@ export type TradersLinkAiReadSourceEvidence = {
 export type TradersLinkAiReadSource = {
   title: string;
   url: string;
-  sourceType: "press_release_sec_database" | "web_search";
+  sourceType: "press_release_sec_database" | "stocktitan_rss" | "web_search";
   evidence?: TradersLinkAiReadSourceEvidence;
 };
 
@@ -262,7 +299,7 @@ export type TradersLinkAiReadListingContext = {
 };
 
 export type TradersLinkAiReadPayload = {
-  version: 2;
+  version: 3;
   /** Immutable id assigned before the first provider attempt for this read. */
   generationId: string;
   symbol: string;
@@ -280,6 +317,11 @@ export type TradersLinkAiReadPayload = {
   breakoutContinuation: TradersLinkAiReadLevel;
   targets: TradersLinkAiReadTarget[];
   downsideCheckpoints: TradersLinkAiReadTarget[];
+  pullbackPlans: {
+    shallow: TradersLinkAiReadPullbackScenario | null;
+    deep: TradersLinkAiReadPullbackScenario | null;
+  };
+  failureRecovery: TradersLinkAiReadFailureRecoveryPlan | null;
   catalystRealityCheck: TradersLinkAiReadCatalystContext;
   dilutionRisk: TradersLinkAiReadDilutionRisk;
   listingStatus: TradersLinkAiReadListingContext;

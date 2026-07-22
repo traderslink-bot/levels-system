@@ -8,15 +8,24 @@ import test from "node:test";
 import {
   AutoWatchlistSelector,
   autoWatchlistSessionForTimestamp,
+  buildAutoWatchlistRetentionProtection,
   buildAutoWatchlistSlotSurvivalScore,
+  buildAutoWatchlistDiscoveryFeedComparison,
+  buildVolumeDecelerationRankPenalty,
   compareAutoWatchlistDecisions,
   DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   isWithinAutoWatchlistScanWindow,
-  meetsMainSessionBaselineAdmissionQuality,
+  meetsMainVacancyAdmissionQuality,
   normalizeNasdaqChartTimestamp,
+  parseStockAnalysisAfterhoursGainers,
+  parseStockAnalysisPremarketGainers,
+  parseStockAnalysisRegularGainers,
+  parseTradingViewGainers,
   scoreAutoWatchlistCandidate,
+  selectExtendedSessionProbeCandidates,
   type AutoWatchlistDiscoveryCandidate,
   type AutoWatchlistCandidateDecision,
+  type AutoWatchlistManagedEntry,
   type AutoWatchlistSessionActivityLookup,
 } from "../lib/auto-watchlist/auto-watchlist-selector.js";
 import { derivePressReleaseCatalystContext } from "../lib/catalysts/press-release-catalyst-context.js";
@@ -43,22 +52,6 @@ const ACTIVE_SESSION_LOOKUP: AutoWatchlistSessionActivityLookup = async (input) 
   }]),
 );
 
-const STRONG_RUNNER_SESSION_LOOKUP: AutoWatchlistSessionActivityLookup = async (input) => Object.fromEntries(
-  input.symbols.map((symbol) => [symbol, {
-    symbol,
-    session: input.session,
-    price: 2,
-    gainPct: 20,
-    sessionVolume: 1_000_000,
-    recent15mVolume: 125_000,
-    recent15mDollarVolume: 250_000,
-    volumeAcceleration: 2,
-    quoteTime: Math.floor(input.now / 1000),
-    quoteAgeMinutes: 0,
-    available: true,
-  }]),
-);
-
 const BASE_CANDIDATE: AutoWatchlistDiscoveryCandidate = {
   symbol: "LOWF",
   price: 2,
@@ -69,6 +62,152 @@ const BASE_CANDIDATE: AutoWatchlistDiscoveryCandidate = {
   quoteTime: 1_784_207_400,
   sourceScreens: ["small_cap_gainers"],
 };
+
+test("Main vacancy admission requires an independent quality baseline at exact boundaries", () => {
+  const decision = (
+    score: number,
+    gainPct: number,
+    recent15mDollarVolume: number,
+    volumeAcceleration: number,
+  ) => ({ score, gainPct, recent15mDollarVolume, volumeAcceleration });
+
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 19.99, 249_999, 1.99)), false);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(65, 0, 0, 0)), true);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 20, 249_999, 2)), false);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 20, 250_000, 1.99)), false);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 20, 250_000, 2)), true);
+});
+
+test("a marginal promotion-ready candidate cannot fill a vacant Main slot", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-main-vacancy-quality-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
+  const activated: string[] = [];
+  const now = Date.parse("2026-07-20T15:00:00Z");
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "MARG",
+        marketCapitalization: 90,
+        floatingShare: 45,
+        shareOutstanding: 50,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl: async () => new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "MARG",
+          name: "Marginal Corporation Common Stock",
+          lastsale: "$2.00",
+          pctchange: "12%",
+          volume: "1000000",
+          marketCap: "90000000",
+        }],
+      },
+    }), { status: 200 }),
+    configPath,
+    thresholds: {
+      consecutivePassesRequired: 1,
+      maxActiveMainSessionTickers: 1,
+      enrichmentLimit: 1,
+    },
+    now: () => now,
+    getActiveSymbols: () => [...activated],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => activated.push(symbol),
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: 2.24,
+        gainPct: 12,
+        sessionVolume: 1_000_000,
+        recent15mVolume: 40_000,
+        recent15mDollarVolume: 80_000,
+        volumeAcceleration: 1,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const marginal = status.recentDecisions.find((decision) => decision.symbol === "MARG");
+    assert.equal(marginal?.promotionReady, true);
+    assert.ok((marginal?.score ?? 0) < 65);
+    assert.deepEqual(activated, []);
+    assert.deepEqual(status.activeMainSessionSymbols, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("restored follow-up publication state preserves reversal qualification and attempt readiness", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-followup-publication-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: 3_000,
+    managedEntries: [
+      {
+        symbol: "READY",
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: 1_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        reversalWatchQualifiedAt: 2_000,
+        reversalWatchAttemptReady: true,
+      },
+      {
+        symbol: "WAIT",
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: 1_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        reversalWatchQualifiedAt: 2_000,
+        reversalWatchAttemptReady: false,
+      },
+      {
+        symbol: "PLAIN",
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: 1_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        reversalWatchQualifiedAt: null,
+        reversalWatchAttemptReady: true,
+      },
+    ],
+  }));
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+  try {
+    assert.deepEqual(selector.getFollowupPublicationStates(), [
+      { symbol: "PLAIN", reversalWatchEligible: false, reversalWatchAttemptReady: false },
+      { symbol: "READY", reversalWatchEligible: true, reversalWatchAttemptReady: true },
+      { symbol: "WAIT", reversalWatchEligible: true, reversalWatchAttemptReady: false },
+    ]);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("auto selector strongly favors known low float and rejects oversized share counts", () => {
   const lowFloat = scoreAutoWatchlistCandidate({
@@ -89,6 +228,7 @@ test("auto selector strongly favors known low float and rejects oversized share 
   });
 
   assert.equal(lowFloat.qualified, true);
+  assert.match(lowFloat.reasons.join(" "), /top-gainers list \+5 qualification points/);
   assert.equal(lowFloat.effectiveSharesSource, "yahoo_float");
   assert.ok(lowFloat.score > largerFloat.score);
   assert.equal(fallbackOutstanding.qualified, true);
@@ -148,6 +288,38 @@ test("auto selector rejects an RPGL-like ticker with only about 300K session sha
 
   assert.equal(decision.qualified, false);
   assert.match(decision.rejectionReasons.join(" "), /volume must be at least 500,000/i);
+});
+
+test("exact zero recent volume gets a bounded data-gap grace after strong session activity", () => {
+  const now = Date.parse("2026-07-20T19:40:00Z");
+  const decision = {
+    score: 80,
+    rejectionReasons: [
+      "latest regular trade is too old",
+      "last 15m dollar volume must be at least $50K",
+    ],
+    tradingHaltState: "not_found" as const,
+    tradingHaltReasonCode: null,
+    recent15mDollarVolume: 0,
+    sessionDollarVolume: 150_000_000,
+    sessionVolume: 73_000_000,
+  };
+  const protectedGap = buildAutoWatchlistRetentionProtection({
+    decision,
+    entry: { lastQualifiedAt: now - 10 * 60_000 },
+    thresholds: { ...DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG },
+    now,
+  });
+  const expiredGap = buildAutoWatchlistRetentionProtection({
+    decision,
+    entry: { lastQualifiedAt: now - 16 * 60_000 },
+    thresholds: { ...DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG },
+    now,
+  });
+
+  assert.equal(protectedGap.kind, "zero_volume_data_gap");
+  assert.equal(protectedGap.protected, true);
+  assert.equal(expiredGap.protected, false);
 });
 
 test("auto selector falls back to Finnhub float only when Yahoo float is unavailable", () => {
@@ -210,6 +382,25 @@ test("low-priced candidates can pass a dollar-float exception without outranking
   assert.ok(lowFloat.score > normalized.score);
   assert.equal(oversizedDollarFloat.qualified, false);
   assert.match(oversizedDollarFloat.rejectionReasons.join(" "), /low-price dollar float/i);
+});
+
+test("sub-dollar candidates do not hit an arbitrary 50-cent float-normalization cliff", () => {
+  const result = scoreAutoWatchlistCandidate({
+    candidate: {
+      ...BASE_CANDIDATE,
+      symbol: "RCON",
+      price: 0.504,
+      gainPct: 29,
+      volume: 18_600_000,
+      marketCap: 28_000_000,
+    },
+    finnhubFloatShares: 65_690_000,
+    finnhubSharesOutstanding: 90_630_000,
+  });
+
+  assert.equal(result.qualified, true);
+  assert.equal(result.lowPriceFloatNormalized, true);
+  assert.equal(result.floatDollarValue, 33_107_760);
 });
 
 test("the low-price dollar-float exception never relaxes the fallback outstanding-share cap", () => {
@@ -370,6 +561,124 @@ test("session dollar volume, not latest price times volume, drives dollar-volume
   assert.doesNotMatch(result.rejectionReasons.join(" "), /dollar volume must/);
 });
 
+test("postmarket uses thinner-session volume gates without relaxing regular-hours qualification", () => {
+  const candidate: AutoWatchlistDiscoveryCandidate = {
+    ...BASE_CANDIDATE,
+    gainPct: 12,
+    volume: 150_000,
+    averageVolume: null,
+  };
+  const activity = {
+    symbol: candidate.symbol,
+    price: 2,
+    gainPct: 12,
+    sessionVolume: 150_000,
+    sessionDollarVolume: 300_000,
+    recent15mVolume: 40_000,
+    recent15mDollarVolume: 80_000,
+    sessionElapsedMinutes: 5,
+    volumeAcceleration: null,
+    quoteTime: 1_784_231_610,
+    quoteAgeMinutes: 1,
+    available: true,
+  } as const;
+
+  const postmarket = scoreAutoWatchlistCandidate({
+    candidate,
+    floatShares: 15_000_000,
+    session: "postmarket",
+    activity: { ...activity, session: "postmarket" },
+  });
+  const regular = scoreAutoWatchlistCandidate({
+    candidate,
+    floatShares: 15_000_000,
+    session: "regular",
+    activity: { ...activity, session: "regular" },
+  });
+
+  assert.equal(postmarket.qualified, true);
+  assert.equal(regular.qualified, false);
+  assert.doesNotMatch(postmarket.rejectionReasons.join(" "), /volume must be at least/i);
+  assert.match(regular.rejectionReasons.join(" "), /volume must be at least 500,000/i);
+});
+
+test("postmarket dollar-volume scoring scales to the thinner session", () => {
+  const result = scoreAutoWatchlistCandidate({
+    candidate: {
+      ...BASE_CANDIDATE,
+      price: 4.5,
+      gainPct: 10,
+      volume: 100_000,
+      averageVolume: null,
+      marketCap: 80_000_000,
+    },
+    floatShares: 45_000_000,
+    session: "postmarket",
+    activity: {
+      symbol: "LOWF",
+      session: "postmarket",
+      price: 4.5,
+      gainPct: 10,
+      sessionVolume: 100_000,
+      sessionDollarVolume: 1_100_000,
+      recent15mVolume: 20_000,
+      recent15mDollarVolume: 90_000,
+      sessionElapsedMinutes: 20,
+      volumeAcceleration: null,
+      quoteTime: 1_784_231_610,
+      quoteAgeMinutes: 1,
+      available: true,
+    },
+  });
+
+  assert.equal(result.qualified, true);
+  assert.match(result.reasons.join(" "), /\$1M\+ dollar volume/);
+});
+
+test("postmarket rejects a NEXR-shaped marginal admission at the restored dollar-quality floor", () => {
+  const candidate: AutoWatchlistDiscoveryCandidate = {
+    ...BASE_CANDIDATE,
+    symbol: "NEXR",
+    price: 0.445,
+    gainPct: 12.06,
+    volume: 290_339,
+    marketCap: 2_846_976,
+  };
+  const activity = {
+    symbol: "NEXR",
+    session: "postmarket" as const,
+    price: 0.445,
+    gainPct: 12.06,
+    sessionVolume: 290_339,
+    sessionDollarVolume: 125_036,
+    recent15mVolume: 205_333,
+    recent15mDollarVolume: 91_524,
+    sessionElapsedMinutes: 63,
+    volumeAcceleration: 7.73,
+    quoteTime: 1_784_581_440,
+    quoteAgeMinutes: 0,
+    available: true,
+  };
+
+  const tightened = scoreAutoWatchlistCandidate({
+    candidate,
+    floatShares: 6_100_000,
+    session: "postmarket",
+    activity,
+  });
+  const formerFloor = scoreAutoWatchlistCandidate({
+    candidate,
+    floatShares: 6_100_000,
+    thresholds: { minPostmarketDollarVolume: 100_000 },
+    session: "postmarket",
+    activity,
+  });
+
+  assert.equal(tightened.qualified, false);
+  assert.match(tightened.rejectionReasons.join(" "), /post-market dollar volume must be at least \$250K/i);
+  assert.equal(formerFloor.qualified, true);
+});
+
 test("non-press-release ingest events cannot become catalyst boosts", () => {
   const context = derivePressReleaseCatalystContext({
     symbol: "SAFE",
@@ -453,6 +762,10 @@ test("admin threshold changes persist without enabling automatic additions", asy
         minimumScore: 55,
         recentDollarVolumeRankMaxBoost: 18,
         volumeAccelerationRankFullScoreRatio: 2.5,
+        volumeDecelerationRankMaxPenalty: 14,
+        volumeDecelerationRankFullPenaltyRatio: 0.2,
+        topGainerQualificationScoreBoost: 7,
+        zeroRecentVolumeRetentionGraceMinutes: 12,
         shareTurnoverRankFullScorePct: 80,
       },
     });
@@ -467,6 +780,10 @@ test("admin threshold changes persist without enabling automatic additions", asy
     assert.equal(restored.thresholds.minimumScore, 55);
     assert.equal(restored.thresholds.recentDollarVolumeRankMaxBoost, 18);
     assert.equal(restored.thresholds.volumeAccelerationRankFullScoreRatio, 2.5);
+    assert.equal(restored.thresholds.volumeDecelerationRankMaxPenalty, 14);
+    assert.equal(restored.thresholds.volumeDecelerationRankFullPenaltyRatio, 0.2);
+    assert.equal(restored.thresholds.topGainerQualificationScoreBoost, 7);
+    assert.equal(restored.thresholds.zeroRecentVolumeRetentionGraceMinutes, 12);
     assert.equal(restored.thresholds.shareTurnoverRankFullScorePct, 80);
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -484,6 +801,7 @@ test("selector requires two passing observations before activating and does not 
   }));
   const activated: string[] = [];
   const active = new Set<string>();
+  let currentVolumeAcceleration = 1;
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
     finance: {
       result: [{
@@ -529,7 +847,21 @@ test("selector requires two passing observations before activating and does not 
       active.add(symbol);
     },
     catalystLookup: NO_CATALYST_LOOKUP,
-    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+    sessionActivityLookup: async (input) => Object.fromEntries(
+      input.symbols.map((symbol) => [symbol, {
+        symbol,
+        session: input.session,
+        price: 2,
+        gainPct: 20,
+        sessionVolume: 1_000_000,
+        recent15mVolume: 100_000,
+        recent15mDollarVolume: 200_000,
+        volumeAcceleration: currentVolumeAcceleration,
+        quoteTime: Math.floor(input.now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
   });
 
   try {
@@ -544,83 +876,30 @@ test("selector requires two passing observations before activating and does not 
     const second = await selector.runNow({ activate: true });
     assert.deepEqual(activated, ["LOWF"]);
     assert.deepEqual(second.addedToday, ["LOWF"]);
+    const admitted = second.managedEntries.find((entry) => entry.symbol === "LOWF");
+    assert.equal(admitted?.admissionQualificationScore, second.recentDecisions[0]?.score);
+    assert.equal(admitted?.admissionRankingScore, second.recentDecisions[0]?.rankingScore);
+    assert.equal(admitted?.admissionSlotSurvivalScore, second.recentDecisions[0]?.slotSurvivalScore);
 
-    await selector.runNow({ activate: true });
+    currentVolumeAcceleration = 3;
+    const retained = await selector.runNow({ activate: true });
     assert.deepEqual(activated, ["LOWF"]);
-  } finally {
-    selector.stop();
-    await rm(directory, { recursive: true, force: true });
-  }
-});
+    const retainedEntry = retained.managedEntries.find((entry) => entry.symbol === "LOWF");
+    assert.ok((retainedEntry?.lastRankingScore ?? 0) > (retainedEntry?.admissionRankingScore ?? 0));
+    assert.equal(retainedEntry?.admissionRankingScore, admitted?.admissionRankingScore);
 
-test("a vacant Main slot remains empty when the best candidate fails baseline admission quality", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-vacant-slot-quality-"));
-  const configPath = join(directory, "config.json");
-  writeFileSync(configPath, JSON.stringify({
-    version: 1,
-    enabled: true,
-    lastUpdated: Date.now(),
-    thresholds: {
-      consecutivePassesRequired: 1,
-      maxActiveMainSessionTickers: 5,
-    },
-  }));
-  const activated: string[] = [];
-  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
-    data: {
-      rows: [{
-        symbol: "VACANT",
-        name: "Vacant Slot Common Stock",
-        lastsale: "$2.00",
-        pctchange: "15%",
-        volume: "800000",
-        marketCap: "52000000",
-      }],
-    },
-  }), { status: 200 });
-  const selector = new AutoWatchlistSelector({
-    yahooClient: null,
-    finnhubClient: {
-      getCompanyProfile: async () => ({
-        ticker: "VACANT",
-        marketCapitalization: 52,
-        shareOutstanding: 10,
-      }),
-    } as unknown as FinnhubClient,
-    fetchImpl,
-    configPath,
-    now: () => Date.parse("2026-07-16T12:00:00Z"),
-    getActiveSymbols: () => [],
-    isRuntimeReady: () => true,
-    activateSymbol: async ({ symbol }) => {
-      activated.push(symbol);
-    },
-    catalystLookup: NO_CATALYST_LOOKUP,
-    sessionActivityLookup: async (input) => ({
-      VACANT: {
-        symbol: "VACANT",
-        session: input.session,
-        price: 2,
-        gainPct: 15,
-        sessionVolume: 800_000,
-        sessionDollarVolume: 1_600_000,
-        recent15mVolume: 44_500,
-        recent15mDollarVolume: 89_000,
-        volumeAcceleration: 0.6,
-        quoteTime: Math.floor(input.now / 1000),
-        quoteAgeMinutes: 0,
-        available: true,
-      },
-    }),
-  });
-  try {
-    const status = await selector.runNow({ activate: true });
-    const decision = status.recentDecisions.find((candidate) => candidate.symbol === "VACANT");
-    assert.ok(decision);
-    assert.equal(decision.qualified, true);
-    assert.equal(decision.promotionReady, true);
-    assert.deepEqual(activated, []);
-    assert.deepEqual(status.activeMainSessionSymbols, []);
+    const restoredEntry = new AutoWatchlistSelector({
+      yahooClient,
+      finnhubClient,
+      fetchImpl,
+      configPath,
+      getActiveSymbols: () => [...active],
+      isRuntimeReady: () => true,
+      activateSymbol: async () => undefined,
+      catalystLookup: NO_CATALYST_LOOKUP,
+      sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+    }).getStatus().managedEntries.find((entry) => entry.symbol === "LOWF");
+    assert.equal(restoredEntry?.admissionRankingScore, admitted?.admissionRankingScore);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });
@@ -663,6 +942,62 @@ test("daily automatic-add limit survives a runtime restart", async () => {
     const status = await selector.runNow({ activate: true });
     assert.deepEqual(status.addedToday, ["FIRST"]);
     assert.deepEqual(activated, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("legacy runtime notes recover the frozen admission snapshot during migration", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-admission-migration-"));
+  const configPath = join(directory, "config.json");
+  const activatedAt = Date.parse("2026-07-20T13:28:49Z");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: false,
+    lastUpdated: activatedAt,
+    managedEntries: [{
+      symbol: "SKYQ",
+      bucket: "main",
+      state: "active",
+      firstAddedAt: activatedAt,
+      lastActivatedAt: activatedAt,
+      addedSession: "regular",
+      lastSession: "regular",
+      lastRankingScore: 95,
+      lastSlotSurvivalScore: 96,
+      lastQualifiedAt: activatedAt,
+      retentionFailures: 0,
+      standbyAt: null,
+      statusReason: "retained",
+    }],
+  }));
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath,
+    now: () => Date.parse("2026-07-20T19:00:00Z"),
+    getActiveSymbols: () => ["SKYQ"],
+    getActiveEntries: () => [{
+      symbol: "SKYQ",
+      tags: ["auto", "auto-main"],
+      activatedAt,
+      note: "Auto-selected during regular: qualification score 73; admission rank 81.21; current slot score 81.21; lifecycle: reactivated.",
+    }],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+
+  try {
+    selector.start();
+    const entry = selector.getStatus().managedEntries.find((item) => item.symbol === "SKYQ");
+    assert.equal(entry?.admissionAt, activatedAt);
+    assert.equal(entry?.admissionQualificationScore, 73);
+    assert.equal(entry?.admissionRankingScore, 81.21);
+    assert.equal(entry?.admissionSlotSurvivalScore, 81.21);
+    assert.equal(entry?.lastRankingScore, 95);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });
@@ -723,7 +1058,23 @@ test("the 9:00 ET main-session reserve admits only three late tickers and surviv
       active.add(symbol);
     },
     catalystLookup: NO_CATALYST_LOOKUP,
-    sessionActivityLookup: STRONG_RUNNER_SESSION_LOOKUP,
+    sessionActivityLookup: async (
+      input: Parameters<AutoWatchlistSessionActivityLookup>[0],
+    ) => Object.fromEntries(
+      input.symbols.map((symbol: string) => [symbol, {
+        symbol,
+        session: input.session,
+        price: 2,
+        gainPct: 20,
+        sessionVolume: 1_000_000,
+        recent15mVolume: 125_000,
+        recent15mDollarVolume: 250_000,
+        volumeAcceleration: 2,
+        quoteTime: Math.floor(input.now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
   };
   const selector = new AutoWatchlistSelector(options);
   try {
@@ -835,7 +1186,7 @@ test("the late main-session reserve also extends an exhausted replacement quota"
           price: 2,
           gainPct: 20,
           sessionVolume: 1_000_000,
-          recent15mVolume: 125_000,
+          recent15mVolume: 100_000,
           recent15mDollarVolume: 250_000,
           volumeAcceleration: 2,
           quoteTime: Math.floor(input.now / 1000),
@@ -877,6 +1228,268 @@ test("the late main-session reserve also extends an exhausted replacement quota"
   }
 });
 
+test("one verified extreme postmarket runner can bypass an exhausted replacement quota", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-postmarket-extreme-"));
+  const configPath = join(directory, "config.json");
+  let now = Date.parse("2026-07-21T23:04:00Z");
+  let candidateSymbol = "SNTG";
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: now,
+    thresholds: {
+      maxActivePostmarketTickers: 1,
+      maxPostmarketAddsPerTradingDay: 1,
+      maxPostmarketReplacementsPerTradingDay: 1,
+      maxPostmarketExtremeRunnerOverridesPerTradingDay: 1,
+      consecutivePassesRequired: 2,
+      minimumAutoHoldMinutes: 0,
+      enrichmentLimit: 2,
+      extendedSessionCandidateLimit: 2,
+    },
+    tradingDay: "2026-07-21",
+    postmarketAddedToday: ["OLD"],
+    managedEntries: [{
+      symbol: "OLD",
+      bucket: "postmarket",
+      state: "active",
+      firstAddedAt: now - 60 * 60_000,
+      lastActivatedAt: now - 60 * 60_000,
+      addedSession: "postmarket",
+      lastSession: "postmarket",
+      lastRankingScore: 40,
+      lastSlotSurvivalScore: 40,
+      lastQualifiedAt: now - 60_000,
+      retentionFailures: 0,
+      statusReason: "active before extreme-runner override",
+    }],
+    replacementHistory: [{
+      timestamp: now - 30 * 60_000,
+      bucket: "postmarket",
+      incomingSymbol: "OLD",
+      outgoingSymbol: "OLDER",
+      incomingRankingScore: 40,
+      outgoingRankingScore: 30,
+      reason: "normal postmarket replacement allowance already used",
+    }],
+  }));
+  const active = new Set(["OLD"]);
+  const activated: string[] = [];
+  const fetchImpl: typeof fetch = async (request) => {
+    if (String(request).includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({
+        data: {
+          STOCKS: {
+            MostAdvanced: {
+              table: {
+                rows: [
+                  {
+                    symbol: candidateSymbol,
+                    name: `${candidateSymbol} Common Stock`,
+                    lastSalePrice: "$3.80",
+                    change: "85%",
+                  },
+                  {
+                    symbol: "OLD",
+                    name: "Old Corporation Common Stock",
+                    lastSalePrice: "$2.40",
+                    change: "20%",
+                  },
+                ],
+              },
+            },
+          },
+        },
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        rows: [
+          {
+            symbol: candidateSymbol,
+            name: `${candidateSymbol} Common Stock`,
+            lastsale: "$3.80",
+            pctchange: "85%",
+            volume: "3000000",
+            marketCap: "10000000",
+          },
+          {
+            symbol: "OLD",
+            name: "Old Corporation Common Stock",
+            lastsale: "$2.40",
+            pctchange: "20%",
+            volume: "1000000",
+            marketCap: "10000000",
+          },
+        ],
+      },
+    }), { status: 200 });
+  };
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async (symbol: string) => ({
+        ticker: symbol,
+        marketCapitalization: 10,
+        floatingShare: 3,
+        shareOutstanding: 4,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath,
+    now: () => now,
+    getActiveSymbols: () => [...active],
+    getActiveEntries: () => [...active].map((symbol) => ({
+      symbol,
+      tags: ["auto", "auto-postmarket"],
+    })),
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => {
+      activated.push(symbol);
+      active.add(symbol);
+    },
+    setSymbolFollowup: async (symbol, followup) => {
+      if (followup) active.delete(symbol);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session, now: observedAt }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: symbol === "OLD" ? 2.4 : 3.8,
+        gainPct: symbol === "OLD" ? 20 : 85,
+        sessionVolume: symbol === "OLD" ? 1_000_000 : 3_000_000,
+        mainSessionVolume: 10_000,
+        sessionDollarVolume: symbol === "OLD" ? 2_000_000 : 9_000_000,
+        recent15mVolume: symbol === "OLD" ? 100_000 : 1_500_000,
+        recent15mDollarVolume: symbol === "OLD" ? 200_000 : 5_000_000,
+        sessionElapsedMinutes: 184,
+        mainSessionElapsedMinutes: 720,
+        volumeAcceleration: symbol === "OLD" ? 1 : 5,
+        quoteTime: Math.floor(observedAt / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+  try {
+    const before = selector.getStatus();
+    assert.equal(
+      before.postmarketExtremeRunnerOverridesAvailable,
+      1,
+      JSON.stringify({
+        active: before.activePostmarketSymbols,
+        replacements: before.recentReplacements,
+        thresholds: before.thresholds,
+      }),
+    );
+    const admitted = await selector.runNow({ activate: true });
+    assert.deepEqual(activated, ["SNTG"], JSON.stringify(admitted.recentDecisions));
+    assert.deepEqual(admitted.activePostmarketSymbols, ["SNTG"]);
+    assert.equal(
+      admitted.postmarketExtremeRunnerOverridesUsed,
+      1,
+      JSON.stringify(admitted.recentReplacements),
+    );
+    assert.equal(admitted.postmarketExtremeRunnerOverridesAvailable, 0);
+    assert.equal(admitted.recentReplacements[0]?.exceptionKind, "postmarket_extreme_runner");
+    assert.match(admitted.recentReplacements[0]?.reason ?? "", /verified extreme runner/i);
+
+    candidateSymbol = "SECOND";
+    now += 2 * 60_000;
+    const exhausted = await selector.runNow({ activate: true });
+    assert.deepEqual(activated, ["SNTG"]);
+    assert.deepEqual(exhausted.activePostmarketSymbols, ["SNTG"]);
+    assert.equal(exhausted.postmarketExtremeRunnerOverridesAvailable, 0);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("automatic replacement rejects the same symbol before changing lifecycle state", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-self-replacement-"));
+  const now = Date.parse("2026-07-20T13:00:00Z");
+  let lifecycleCalls = 0;
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath: join(directory, "config.json"),
+    now: () => now,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => {
+      lifecycleCalls += 1;
+    },
+    setSymbolFollowup: async () => {
+      lifecycleCalls += 1;
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+  const incumbent: AutoWatchlistManagedEntry = {
+    symbol: "SAME",
+    bucket: "main",
+    state: "active",
+    firstAddedAt: now - 60_000,
+    lastActivatedAt: now - 60_000,
+    addedSession: "regular",
+    lastSession: "regular",
+    lastRankingScore: 50,
+    lastSlotSurvivalScore: 50,
+    admissionAt: now - 60_000,
+    admissionQualificationScore: 50,
+    admissionRankingScore: 50,
+    admissionSlotSurvivalScore: 50,
+    lastQualifiedAt: now - 60_000,
+    holdProtectionEarnedAt: now - 60_000,
+    holdProtectionReason: "test",
+    reversalWatchQualifiedAt: null,
+    reversalWatchQualificationReason: null,
+    reversalWatchLowPrice: null,
+    reversalWatchLowAt: null,
+    reversalAttemptEvidenceScans: 0,
+    reversalWatchAttemptReady: false,
+    peakGainPct: null,
+    peakGainAt: null,
+    lastObservedGainPct: null,
+    lastObservedAt: null,
+    topFiveGainerFirstObservedAt: null,
+    topFiveGainerLastObservedAt: null,
+    topFiveGainerObservationCount: 0,
+    topFiveGainerConsecutiveObservations: 0,
+    retentionFailures: 3,
+    followupAt: null,
+    vacatedSlotAt: null,
+    standbyAt: null,
+    statusReason: "active",
+  };
+  try {
+    const replaced = await (selector as unknown as {
+      replaceManagedDecision: (
+        challenger: AutoWatchlistCandidateDecision,
+        incumbent: AutoWatchlistManagedEntry,
+        bucket: "main",
+        timestamp: number,
+        reason: string,
+      ) => Promise<boolean>;
+    }).replaceManagedDecision(
+      { symbol: "SAME" } as AutoWatchlistCandidateDecision,
+      incumbent,
+      "main",
+      now,
+      "self replacement regression",
+    );
+    assert.equal(replaced, false);
+    assert.equal(lifecycleCalls, 0);
+    assert.equal(selector.getStatus().recentReplacements.length, 0);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("a full main-session allowance does not block the separate post-market allowance", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-postmarket-limit-"));
   const configPath = join(directory, "config.json");
@@ -905,7 +1518,9 @@ test("a full main-session allowance does not block the separate post-market allo
     finnhubClient,
     fetchImpl,
     configPath,
-    now: () => Date.parse("2026-07-16T22:00:00Z"),
+    // A rolling recent-activity window can qualify before 4:15 p.m.; it does
+    // not require a completed 15-minute candle.
+    now: () => Date.parse("2026-07-16T20:05:00Z"),
     getActiveSymbols: () => [],
     isRuntimeReady: () => true,
     activateSymbol: async ({ symbol }) => activated.push(symbol),
@@ -961,9 +1576,15 @@ test("live exchange discovery surfaces current day-trader leaders and ignores wa
   });
 
   const preview = await selector.previewScan();
-  assert.equal(preview.lastDiscoverySources[0], "live_exchange_gainers");
+  assert.equal(preview.lastDiscoverySources[0], "live_exchange_screener");
   assert.deepEqual(preview.recentDecisions.map((decision) => decision.symbol), ["ATPC", "TGHL"]);
   assert.equal(preview.recentDecisions.every((decision) => decision.qualified), true);
+  assert.equal(
+    preview.recentDecisions.every((decision) =>
+      !decision.reasons.some((reason) => reason.includes("top-gainers list"))
+    ),
+    true,
+  );
   assert.doesNotMatch(JSON.stringify(preview.recentDecisions), /EVLVW/);
 });
 
@@ -1094,6 +1715,81 @@ test("strong recent activity and acceleration can outrank a same-day catalyst", 
   assert.ok((preview.recentDecisions[0]?.rankingScore ?? 0) > (preview.recentDecisions[1]?.rankingScore ?? 0));
 });
 
+test("decelerating SKYQ-like activity lowers live rank instead of leaving a misleading 95", async () => {
+  assert.equal(buildVolumeDecelerationRankPenalty({
+    volumeAcceleration: 0.625,
+    fullPenaltyAtRatio: 0.25,
+    maxPenalty: 12,
+  }), 6);
+  assert.equal(buildVolumeDecelerationRankPenalty({
+    volumeAcceleration: 0.2,
+    fullPenaltyAtRatio: 0.25,
+    maxPenalty: 12,
+  }), 12);
+
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-skyq-rank-"));
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "SKYQ",
+        marketCapitalization: 18.219654,
+        floatingShare: 4.14,
+        shareOutstanding: 4.79,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl: async () => new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "SKYQ",
+          name: "Sky Quarry Inc. Common Stock",
+          lastsale: "$4.725",
+          pctchange: "24.3421%",
+          volume: "13789966",
+          marketCap: "18219654",
+        }],
+      },
+    }), { status: 200 }),
+    configPath: join(directory, "config.json"),
+    now: () => Date.parse("2026-07-20T18:58:43Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ session, now }) => ({
+      SKYQ: {
+        symbol: "SKYQ",
+        session,
+        price: 4.725,
+        gainPct: 24.34210526315789,
+        sessionVolume: 13_789_966.495912,
+        sessionDollarVolume: 63_823_184.9025119,
+        recent15mVolume: 247_535.071818,
+        recent15mDollarVolume: 1_156_045.4149058545,
+        sessionElapsedMinutes: 328,
+        volumeAcceleration: 0.38141096455883716,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      },
+    }),
+  });
+
+  try {
+    const decision = (await selector.previewScan()).recentDecisions[0];
+    assert.ok(decision);
+    assert.equal(decision.score, 80);
+    assert.equal(decision.volumeDecelerationRankPenalty, 9.9);
+    assert.equal(decision.rankingScore, 85.1);
+    assert.equal(decision.slotSurvivalScore, 86.1);
+    assert.match(decision.rankingReasons.join(" "), /volume deceleration -9\.9 ranking points/);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("ranking ties resolve by recent activity, gain, turnover, then symbol", () => {
   const decision = (
     symbol: string,
@@ -1134,33 +1830,6 @@ test("slot-survival scoring keeps a dominant live runner ahead of a marginal low
   assert.ok(zybt.slotSurvivalScore > skyq.slotSurvivalScore);
   assert.equal(zybt.slotSurvivalScore, 120);
   assert.match(zybt.slotSurvivalReasons[0] ?? "", /sustained runner gain/);
-});
-
-test("vacant Main slots require independent baseline admission quality", () => {
-  assert.equal(meetsMainSessionBaselineAdmissionQuality({
-    score: 53,
-    gainPct: 15.6,
-    recent15mDollarVolume: 89_000,
-    volumeAcceleration: 0.6,
-  }), false);
-  assert.equal(meetsMainSessionBaselineAdmissionQuality({
-    score: 51,
-    gainPct: 11.9,
-    recent15mDollarVolume: 1_084_000,
-    volumeAcceleration: 104.8,
-  }), false);
-  assert.equal(meetsMainSessionBaselineAdmissionQuality({
-    score: 65,
-    gainPct: 10,
-    recent15mDollarVolume: 50_000,
-    volumeAcceleration: 1,
-  }), true);
-  assert.equal(meetsMainSessionBaselineAdmissionQuality({
-    score: 60,
-    gainPct: 20,
-    recent15mDollarVolume: 250_000,
-    volumeAcceleration: 2,
-  }), true);
 });
 
 test("catalyst ranking has a true no-effect setting and lookup failures fail open", async () => {
@@ -1235,7 +1904,10 @@ test("post-market discovery can promote an active after-hours runner that was do
   assert.equal(preview.recentDecisions[0]?.session, "postmarket");
   assert.equal(preview.recentDecisions[0]?.qualified, true);
   assert.equal(preview.recentDecisions[0]?.promotionReady, true);
-  assert.equal(preview.recentDecisions.find((decision) => decision.symbol === "LGPS"), undefined);
+  const lowActivityProbe = preview.recentDecisions.find((decision) => decision.symbol === "LGPS");
+  assert.ok(lowActivityProbe);
+  assert.equal(lowActivityProbe.qualified, false);
+  assert.equal(lowActivityProbe.sourceScreens.includes("extended_session_rotating_probe"), true);
 });
 
 test("postmarket promotion holds a marginal pop even when acceleration would qualify it as an obvious runner", async () => {
@@ -1309,6 +1981,461 @@ test("postmarket promotion holds a marginal pop even when acceleration would qua
     selector.stop();
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("a NEXR-shaped postmarket candidate cannot bypass repeat confirmation as an obvious runner", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-nexr-fast-track-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
+  const activated: string[] = [];
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    data: {
+      rows: [{
+        symbol: "NEXR",
+        name: "Nexera Technologies Ltd Ordinary Shares",
+        lastsale: "$0.387",
+        pctchange: "-17%",
+        volume: "12000000",
+        marketCap: "2846976",
+      }],
+    },
+  }), { status: 200 });
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "NEXR",
+        marketCapitalization: 2.846976,
+        floatingShare: 6.1,
+        shareOutstanding: 6.1,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath,
+    thresholds: {
+      extendedSessionCandidateLimit: 1,
+      enrichmentLimit: 1,
+      minPostmarketDollarVolume: 100_000,
+      consecutivePassesRequired: 2,
+    },
+    now: () => Date.parse("2026-07-20T21:04:30Z"),
+    getActiveSymbols: () => [...activated],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => activated.push(symbol),
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session, now }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: 0.445,
+        gainPct: 12.06,
+        sessionVolume: 290_339,
+        sessionDollarVolume: 125_036,
+        recent15mVolume: 205_333,
+        recent15mDollarVolume: 91_524,
+        sessionElapsedMinutes: 64,
+        volumeAcceleration: 7.73,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const nexr = status.recentDecisions.find((decision) => decision.symbol === "NEXR");
+    assert.ok(nexr);
+    assert.equal(nexr.qualified, true);
+    assert.equal(nexr.promotionReady, true);
+    assert.equal(nexr.consecutivePasses, 1, JSON.stringify(nexr));
+    assert.deepEqual(activated, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a recent qualifying pass survives a runtime restart", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-restart-pass-"));
+  const configPath = join(directory, "config.json");
+  let now = Date.parse("2026-07-21T17:00:00Z");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: now,
+    thresholds: {
+      consecutivePassesRequired: 2,
+      enrichmentLimit: 1,
+    },
+  }));
+  const active = new Set<string>();
+  const activated: string[] = [];
+  const options = {
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "KEEP",
+        marketCapitalization: 20,
+        floatingShare: 5,
+        shareOutstanding: 8,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl: async () => new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "KEEP",
+          name: "Keep Corporation Common Stock",
+          lastsale: "$2.00",
+          pctchange: "20%",
+          volume: "1000000",
+          marketCap: "20000000",
+        }],
+      },
+    }), { status: 200 }),
+    configPath,
+    now: () => now,
+    getActiveSymbols: () => [...active],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }: { symbol: string }) => {
+      activated.push(symbol);
+      active.add(symbol);
+    },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  };
+  const firstRuntime = new AutoWatchlistSelector(options);
+  try {
+    const firstPass = await firstRuntime.runNow({ activate: true });
+    assert.equal(firstPass.recentDecisions[0]?.consecutivePasses, 1);
+    assert.deepEqual(activated, []);
+    assert.equal(firstPass.consecutivePassEvidence[0]?.count, 1);
+    firstRuntime.stop();
+
+    now += 2 * 60_000;
+    const restartedRuntime = new AutoWatchlistSelector(options);
+    try {
+      const secondPass = await restartedRuntime.runNow({ activate: true });
+      assert.equal(secondPass.recentDecisions[0]?.consecutivePasses, 2);
+      assert.deepEqual(activated, ["KEEP"]);
+    } finally {
+      restartedRuntime.stop();
+    }
+  } finally {
+    firstRuntime.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("final activation revalidation blocks a candidate that fades after discovery", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-final-revalidation-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
+  const activated: string[] = [];
+  let activityCalls = 0;
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    data: {
+      rows: [{
+        symbol: "FADE",
+        name: "Fade Corporation Common Stock",
+        lastsale: "$1.00",
+        pctchange: "25%",
+        volume: "1000000",
+        marketCap: "10000000",
+      }],
+    },
+  }), { status: 200 });
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "FADE",
+        marketCapitalization: 10,
+        floatingShare: 5,
+        shareOutstanding: 8,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath,
+    thresholds: {
+      consecutivePassesRequired: 1,
+      extendedSessionCandidateLimit: 1,
+      enrichmentLimit: 1,
+    },
+    now: () => Date.parse("2026-07-20T21:10:00Z"),
+    getActiveSymbols: () => [...activated],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => activated.push(symbol),
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session, now }) => {
+      activityCalls += 1;
+      const freshGain = activityCalls === 1 ? 25 : 4;
+      return Object.fromEntries(symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: freshGain === 25 ? 1.25 : 1.04,
+        gainPct: freshGain,
+        sessionVolume: 1_000_000,
+        sessionDollarVolume: 1_000_000,
+        recent15mVolume: 200_000,
+        recent15mDollarVolume: 250_000,
+        sessionElapsedMinutes: 70,
+        volumeAcceleration: 2,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]));
+    },
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const fade = status.recentDecisions.find((decision) => decision.symbol === "FADE");
+    assert.equal(activityCalls, 2, JSON.stringify(fade));
+    assert.ok(fade);
+    assert.equal(fade.gainPct, 4);
+    assert.equal(fade.promotionReady, false);
+    assert.match(fade.rejectionReasons.join(" "), /gain must be at least 10%/i);
+    assert.deepEqual(activated, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("the 30-minute hold is earned by proof instead of granted to every new addition", async () => {
+  const runScenario = async (input: {
+    symbol: string;
+    initialGainPct: number;
+    initialRecentDollarVolume: number;
+    initialAcceleration: number;
+    consecutivePassesRequired?: number;
+    extraQualifyingScans?: number;
+    sessionVolume?: number;
+    mainSessionVolume?: number;
+    mainSessionElapsedMinutes?: number;
+    marketMoverConfirmed?: boolean;
+    marketMoverRank?: number;
+    now?: number;
+    minimumAutoHoldMinutes?: number;
+    fadedGainPct?: number;
+    fadedRecentDollarVolume?: number;
+    fadeScans?: number;
+    renewAfterFade?: boolean;
+  }) => {
+    const directory = await mkdtemp(join(tmpdir(), `auto-watchlist-earned-hold-${input.symbol}-`));
+    const configPath = join(directory, "config.json");
+    writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
+    const active = new Set<string>();
+    let faded = false;
+    let reversalWatchEligible = false;
+    const scenarioNow = input.now ?? Date.parse("2026-07-20T15:00:00Z");
+    const fetchImpl: typeof fetch = async (request) => {
+      if (String(request).includes("/api/marketmovers")) {
+        return new Response(JSON.stringify({
+          data: {
+            STOCKS: input.marketMoverConfirmed
+              ? {
+                  MostAdvanced: {
+                    table: {
+                      rows: [
+                        ...Array.from(
+                          { length: Math.max(0, (input.marketMoverRank ?? 1) - 1) },
+                          (_, index) => ({
+                            symbol: `WRNT${index}`,
+                            name: `Placeholder ${index} Warrant`,
+                            lastSalePrice: "$1.00",
+                            change: `${100 - index}%`,
+                          }),
+                        ),
+                        {
+                          symbol: input.symbol,
+                          name: `${input.symbol} Corporation Common Stock`,
+                          lastSalePrice: "$3.20",
+                          change: `${input.initialGainPct}%`,
+                        },
+                      ],
+                    },
+                  },
+                }
+              : {},
+          },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        data: {
+          rows: [{
+            symbol: input.symbol,
+            name: `${input.symbol} Corporation Common Stock`,
+            lastsale: "$2.00",
+            pctchange: `${input.initialGainPct}%`,
+            volume: String(input.mainSessionVolume ?? input.sessionVolume ?? 1_000_000),
+            marketCap: "10000000",
+          }],
+        },
+      }), { status: 200 });
+    };
+    const selector = new AutoWatchlistSelector({
+      yahooClient: null,
+      finnhubClient: {
+        getCompanyProfile: async () => ({
+          ticker: input.symbol,
+          marketCapitalization: 10,
+          floatingShare: 5,
+          shareOutstanding: 8,
+        }),
+      } as unknown as FinnhubClient,
+      fetchImpl,
+      configPath,
+      thresholds: {
+        consecutivePassesRequired: input.consecutivePassesRequired ?? 1,
+        minimumAutoHoldMinutes: input.minimumAutoHoldMinutes ?? 30,
+        retentionFailureScansRequired: 1,
+        maxActiveMainSessionTickers: 1,
+        enrichmentLimit: 1,
+      },
+      now: () => scenarioNow,
+      getActiveSymbols: () => [...active],
+      isRuntimeReady: () => true,
+      activateSymbol: async ({ symbol }) => active.add(symbol),
+      setSymbolFollowup: async (_symbol, followup, options) => {
+        if (followup) reversalWatchEligible = options?.reversalWatchEligible === true;
+      },
+      catalystLookup: NO_CATALYST_LOOKUP,
+      requireVerifiedCommonEquity: false,
+      sessionActivityLookup: async ({ symbols, session, now }) => Object.fromEntries(
+        symbols.map((symbol) => [symbol, {
+          symbol,
+          session,
+          price: faded ? 2.08 : 2 * (1 + input.initialGainPct / 100),
+          gainPct: faded ? input.fadedGainPct ?? 4 : input.initialGainPct,
+          sessionVolume: input.sessionVolume ?? 1_000_000,
+          mainSessionVolume: input.mainSessionVolume ?? input.sessionVolume ?? 1_000_000,
+          sessionDollarVolume: 2_000_000,
+          recent15mVolume: 100_000,
+          recent15mDollarVolume: faded
+            ? input.fadedRecentDollarVolume ?? 60_000
+            : input.initialRecentDollarVolume,
+          sessionElapsedMinutes: 90,
+          mainSessionElapsedMinutes: input.mainSessionElapsedMinutes ?? 420,
+          volumeAcceleration: faded ? 0.5 : input.initialAcceleration,
+          quoteTime: Math.floor(now / 1000),
+          quoteAgeMinutes: 0,
+          available: true,
+        }]),
+      ),
+    });
+    try {
+      let admitted = selector.getStatus();
+      for (let pass = 0; pass < (input.consecutivePassesRequired ?? 1); pass += 1) {
+        admitted = await selector.runNow({ activate: true });
+      }
+      const admittedEntry = admitted.managedEntries.find((entry) => entry.symbol === input.symbol);
+      assert.ok(admittedEntry);
+      let beforeFade = admitted;
+      for (let pass = 0; pass < (input.extraQualifyingScans ?? 0); pass += 1) {
+        beforeFade = await selector.runNow({ activate: true });
+      }
+      const preFadeEntry = beforeFade.managedEntries.find((entry) => entry.symbol === input.symbol);
+      faded = true;
+      let afterFade = beforeFade;
+      for (let pass = 0; pass < (input.fadeScans ?? 1); pass += 1) {
+        afterFade = await selector.runNow({ activate: true });
+      }
+      let renewedEntry: AutoWatchlistManagedEntry | null = null;
+      if (input.renewAfterFade) {
+        faded = false;
+        const renewed = await selector.runNow({ activate: true });
+        renewedEntry = renewed.managedEntries.find((entry) => entry.symbol === input.symbol) ?? null;
+      }
+      return {
+        admittedEntry,
+        preFadeEntry,
+        fadedEntry: afterFade.managedEntries.find((entry) => entry.symbol === input.symbol),
+        renewedEntry,
+        reversalWatchEligible,
+      };
+    } finally {
+      selector.stop();
+      await rm(directory, { recursive: true, force: true });
+    }
+  };
+
+  const proven = await runScenario({
+    symbol: "PROV",
+    initialGainPct: 25,
+    initialRecentDollarVolume: 400_000,
+    initialAcceleration: 2,
+  });
+  assert.ok(proven.admittedEntry.holdProtectionEarnedAt);
+  assert.match(proven.admittedEntry.holdProtectionReason ?? "", /earned immediately/i);
+  assert.equal(proven.fadedEntry?.state, "active");
+  assert.equal(proven.fadedEntry?.retentionFailures, 1);
+
+  const lateLowVolumeRunner = await runScenario({
+    symbol: "LATELOW",
+    initialGainPct: 60,
+    initialRecentDollarVolume: 3_000_000,
+    initialAcceleration: 3,
+    sessionVolume: 10_000_000,
+    mainSessionVolume: 40_000_000,
+    mainSessionElapsedMinutes: 705,
+    marketMoverConfirmed: true,
+    minimumAutoHoldMinutes: 0,
+    fadedGainPct: 25,
+    fadedRecentDollarVolume: 10_000,
+    now: Date.parse("2026-07-20T19:45:00Z"),
+  });
+  assert.equal(lateLowVolumeRunner.admittedEntry.reversalWatchQualifiedAt, null);
+  assert.equal(lateLowVolumeRunner.reversalWatchEligible, false);
+
+  const highVolumeOutsideTopFive = await runScenario({
+    symbol: "RANKSIX",
+    initialGainPct: 80,
+    initialRecentDollarVolume: 3_000_000,
+    initialAcceleration: 3,
+    sessionVolume: 20_000_000,
+    mainSessionVolume: 60_000_000,
+    mainSessionElapsedMinutes: 705,
+    marketMoverConfirmed: true,
+    marketMoverRank: 6,
+    minimumAutoHoldMinutes: 0,
+    fadedGainPct: 25,
+    fadedRecentDollarVolume: 10_000,
+    now: Date.parse("2026-07-20T19:45:00Z"),
+  });
+  assert.equal(highVolumeOutsideTopFive.admittedEntry.reversalWatchQualifiedAt, null);
+  assert.equal(highVolumeOutsideTopFive.reversalWatchEligible, false);
+
+  const lateVerifiedTopRunner = await runScenario({
+    symbol: "LATETOP",
+    initialGainPct: 60,
+    initialRecentDollarVolume: 3_000_000,
+    initialAcceleration: 3,
+    sessionVolume: 20_000_000,
+    mainSessionVolume: 60_000_000,
+    mainSessionElapsedMinutes: 705,
+    marketMoverConfirmed: true,
+    minimumAutoHoldMinutes: 0,
+    extraQualifyingScans: 1,
+    fadedGainPct: 25,
+    fadedRecentDollarVolume: 10_000,
+    fadeScans: 10,
+    renewAfterFade: true,
+    now: Date.parse("2026-07-20T19:45:00Z"),
+  });
+  assert.ok(lateVerifiedTopRunner.preFadeEntry?.reversalWatchQualifiedAt);
+  assert.match(
+    lateVerifiedTopRunner.preFadeEntry?.reversalWatchQualificationReason ?? "",
+    /verified top runner/i,
+  );
+  assert.equal(lateVerifiedTopRunner.reversalWatchEligible, true);
+  assert.equal(lateVerifiedTopRunner.renewedEntry?.state, "followup");
+  assert.match(
+    lateVerifiedTopRunner.renewedEntry?.reversalWatchQualificationReason ?? "",
+    /verified top runner/i,
+  );
 });
 
 test("premarket discovery prioritizes current market movers that stale regular-session rankings would omit", async () => {
@@ -1513,6 +2640,245 @@ test("postmarket discovery probes liquid names even when Nasdaq movers would oth
   assert.equal(advb.qualified, true);
   assert.equal(advb.gainPct, 40.16);
   assert.equal(advb.sourceScreens.includes("live_exchange_postmarket_activity"), true);
+});
+
+test("direct afterhours gainers discovery puts an RCON-shaped runner into the probe universe", async () => {
+  const html = `<script>const rows=[{no:1,s:"RCON",n:"Recon Technology, Ltd.",postmarketChangePercent:53.98,postmarketDate:"2026-07-20",postmarketPrice:.60,postClose:.3905,marketCap:35390010}]</script>`;
+  const parsed = parseStockAnalysisAfterhoursGainers(html);
+  assert.equal(parsed[0]?.symbol, "RCON");
+  assert.equal(parsed[0]?.gainPct, 53.98);
+
+  const regularLeaders = Array.from({ length: 8 }, (_, index) => ({
+    symbol: `OLD${index}`,
+    name: `Old Leader ${index} Common Stock`,
+    lastsale: "$2.00",
+    pctchange: `${30 - index}%`,
+    volume: String(5_000_000 - index * 100_000),
+    marketCap: "10000000",
+  }));
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("stockanalysis.com/markets/afterhours/gainers")) {
+      return new Response(html, { status: 200, headers: { "Content-Type": "text/html" } });
+    }
+    if (url.includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        rows: [
+          ...regularLeaders,
+          {
+            symbol: "RCON",
+            name: "Recon Technology Ltd Class A Ordinary Shares",
+            lastsale: "$0.3905",
+            pctchange: "0%",
+            volume: "8791894",
+            marketCap: "11960010",
+          },
+        ],
+      },
+    }), { status: 200 });
+  };
+  let lookedUpSymbols: string[] = [];
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async (symbol: string) => ({
+        ticker: symbol,
+        marketCapitalization: symbol === "RCON" ? 11.96 : 10,
+        shareOutstanding: 10,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-direct-afterhours-rcon-test.json"),
+    thresholds: { extendedSessionCandidateLimit: 3, enrichmentLimit: 3 },
+    now: () => Date.parse("2026-07-20T21:10:00Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session, now }) => {
+      lookedUpSymbols = [...symbols];
+      return Object.fromEntries(symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: symbol === "RCON" ? 0.6 : 2,
+        gainPct: symbol === "RCON" ? 53.98 : 1,
+        sessionVolume: symbol === "RCON" ? 14_500_000 : 10_000,
+        sessionDollarVolume: symbol === "RCON" ? 8_000_000 : 20_000,
+        recent15mVolume: symbol === "RCON" ? 3_000_000 : 0,
+        recent15mDollarVolume: symbol === "RCON" ? 1_800_000 : 0,
+        sessionElapsedMinutes: 70,
+        volumeAcceleration: symbol === "RCON" ? 3 : null,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]));
+    },
+  });
+
+  const preview = await selector.previewScan();
+  const rcon = preview.recentDecisions.find((decision) => decision.symbol === "RCON");
+  assert.equal(lookedUpSymbols.includes("RCON"), true);
+  assert.ok(rcon);
+  assert.equal(rcon.qualified, true);
+  assert.equal(rcon.sourceScreens.includes("stockanalysis_live_afterhours_gainers"), true);
+});
+
+test("StockAnalysis premarket parser keeps current dated leaders and their session volume", () => {
+  const html = `<script>const rows=[{no:1,s:"INLF",n:"INLIF Limited",premarketChangePercent:167.713,premarketDate:"2026-07-22",premarketPrice:5.97,premarketVolume:6896096,marketCap:153939},{no:2,s:"SXTC",n:"China SXT Pharmaceuticals, Inc.",premarketChangePercent:51.866,premarketDate:"2026-07-22",premarketPrice:4.07,premarketVolume:6771559,marketCap:86344457},{no:3,s:"OLD",n:"Old Data Corp.",premarketChangePercent:80,premarketDate:"2026-07-21",premarketPrice:2,marketCap:1000000}]</script>`;
+  const parsed = parseStockAnalysisPremarketGainers(html, "2026-07-22");
+  assert.deepEqual(parsed.map((candidate) => candidate.symbol), ["INLF", "SXTC"]);
+  assert.equal(parsed[0]?.volume, 6_896_096);
+  assert.equal(parsed[0]?.sourceScreens.includes("stockanalysis_live_premarket_gainers_top5"), true);
+});
+
+test("StockAnalysis regular-hours parser keeps current leaders and rejects stale rows", () => {
+  const html = `<script>const rows=[{no:1,s:"CPHI",n:"China Pharma Holdings, Inc.",change:790.11,priceDate:"2026-07-22",price:8.1,volume:93614565,marketCap:328228216},{no:2,s:"LIVE",n:"Live Common Stock",change:42.5,priceDate:"2026-07-22",price:3.2,volume:4500000,marketCap:25000000},{no:3,s:"OLD",n:"Old Data Corp.",change:80,priceDate:"2026-07-21",price:2,volume:1000000,marketCap:10000000}]</script>`;
+  const parsed = parseStockAnalysisRegularGainers(html, "2026-07-22");
+  assert.deepEqual(parsed.map((candidate) => candidate.symbol), ["CPHI", "LIVE"]);
+  assert.equal(parsed[0]?.volume, 93_614_565);
+  assert.equal(parsed[0]?.sourceScreens.includes("stockanalysis_live_regular_gainers_top5"), true);
+});
+
+test("TradingView parser discovers a LABT-shaped session leader", () => {
+  const html = `<table><tr data-rowkey="NASDAQ:LABT"><td>Labt Holdings</td><td><span class="positive-cMYWjVQg">+253.23%</span></td></tr><tr data-rowkey="NYSE:SECOND"><td>Second</td><td><span class="positive-cMYWjVQg">+40.50%</span></td></tr></table>`;
+  const parsed = parseTradingViewGainers(html, "premarket");
+  assert.deepEqual(parsed.map((candidate) => candidate.symbol), ["LABT", "SECOND"]);
+  assert.equal(parsed[0]?.gainPct, 253.23);
+  assert.equal(parsed[0]?.sourceScreens.includes("tradingview_live_premarket_gainers"), true);
+  assert.equal(parsed[0]?.sourceScreens.includes("tradingview_live_premarket_gainers_top5"), true);
+});
+
+test("TradingView premarket discovery catches LABT despite low previous-session volume", async () => {
+  const now = Date.parse("2026-07-22T12:49:00Z");
+  const tradingViewHtml = `<table><tr data-rowkey="NASDAQ:LABT"><td>Labt Holdings</td><td><span class="positive-cMYWjVQg">+253.23%</span></td></tr></table>`;
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("tradingview.com/markets/stocks-usa/market-movers-pre-market-gainers")) {
+      return new Response(tradingViewHtml, { status: 200, headers: { "Content-Type": "text/html" } });
+    }
+    if (url.includes("stockanalysis.com/markets/premarket/gainers")) {
+      return new Response("<script>const rows=[]</script>", { status: 200 });
+    }
+    if (url.includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "LABT",
+          name: "Labt Holdings Common Stock",
+          lastsale: "$1.86",
+          pctchange: "0%",
+          volume: "47586",
+          marketCap: "23600000",
+        }],
+      },
+    }), { status: 200 });
+  };
+  const lookedUpSymbols = new Set<string>();
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async (symbol: string) => ({
+        ticker: symbol,
+        marketCapitalization: 83.1,
+        shareOutstanding: 12.7,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-tradingview-labt-test.json"),
+    thresholds: { extendedSessionCandidateLimit: 8, enrichmentLimit: 8 },
+    now: () => now,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session }) => {
+      symbols.forEach((symbol) => lookedUpSymbols.add(symbol));
+      return Object.fromEntries(symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: 6.54,
+        gainPct: 251.61,
+        sessionVolume: 14_890_000,
+        sessionDollarVolume: 83_100_000,
+        recent15mVolume: 2_176_000,
+        recent15mDollarVolume: 14_230_000,
+        sessionElapsedMinutes: 349,
+        volumeAcceleration: 3.07,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]));
+    },
+  });
+
+  const preview = await selector.previewScan();
+  const labt = preview.recentDecisions.find((decision) => decision.symbol === "LABT");
+  assert.equal(lookedUpSymbols.has("LABT"), true);
+  assert.ok(labt);
+  assert.equal(labt.qualified, true);
+  assert.equal(labt.gainPct, 251.61);
+  assert.equal(labt.sourceScreens.includes("tradingview_live_premarket_gainers"), true);
+});
+
+test("extended-session rotating exploration can probe low previous-session volume stocks", () => {
+  const lowPriorVolumeCandidate: AutoWatchlistDiscoveryCandidate = {
+    symbol: "LABT",
+    price: 1.86,
+    gainPct: 0,
+    volume: 47_586,
+    averageVolume: null,
+    marketCap: 23_600_000,
+    quoteTime: null,
+    sourceScreens: ["live_exchange_screener"],
+  };
+  const selected = selectExtendedSessionProbeCandidates({
+    candidates: [],
+    explorationCandidates: [lowPriorVolumeCandidate],
+    marketMovers: [],
+    limit: 4,
+    thresholds: DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
+  });
+  assert.deepEqual(selected.map((candidate) => candidate.symbol), ["LABT"]);
+  assert.equal(selected[0]?.sourceScreens.includes("extended_session_rotating_probe"), true);
+});
+
+test("premarket feed comparison flags Nasdaq when its leaders disagree with current session activity", () => {
+  const candidate = (symbol: string, gainPct: number): AutoWatchlistDiscoveryCandidate => ({
+    symbol,
+    price: 1,
+    gainPct,
+    volume: 1_000_000,
+    averageVolume: null,
+    marketCap: 10_000_000,
+    quoteTime: null,
+    sourceScreens: [],
+  });
+  const comparison = buildAutoWatchlistDiscoveryFeedComparison({
+    checkedAt: Date.parse("2026-07-22T08:20:00Z"),
+    nasdaqAvailable: true,
+    nasdaqError: null,
+    nasdaqCandidates: [candidate("OLD1", 100), candidate("OLD2", 80), candidate("OLD3", 60)],
+    stockAnalysisAvailable: true,
+    stockAnalysisError: null,
+    stockAnalysisCandidates: [candidate("INLF", 160), candidate("SXTC", 55), candidate("CHAI", 70)],
+    activities: new Map([
+      ["OLD1", { symbol: "OLD1", session: "premarket", price: 1, gainPct: 2, sessionVolume: 10_000, recent15mVolume: 10_000, recent15mDollarVolume: 10_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["OLD2", { symbol: "OLD2", session: "premarket", price: 1, gainPct: -5, sessionVolume: 10_000, recent15mVolume: 10_000, recent15mDollarVolume: 10_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["OLD3", { symbol: "OLD3", session: "premarket", price: 1, gainPct: 1, sessionVolume: 10_000, recent15mVolume: 10_000, recent15mDollarVolume: 10_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["INLF", { symbol: "INLF", session: "premarket", price: 5.9, gainPct: 158, sessionVolume: 6_000_000, recent15mVolume: 6_000_000, recent15mDollarVolume: 35_400_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["SXTC", { symbol: "SXTC", session: "premarket", price: 4.1, gainPct: 54, sessionVolume: 6_000_000, recent15mVolume: 6_000_000, recent15mDollarVolume: 24_600_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["CHAI", { symbol: "CHAI", session: "premarket", price: 0.68, gainPct: 72, sessionVolume: 20_000_000, recent15mVolume: 20_000_000, recent15mDollarVolume: 13_600_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+    ]),
+  });
+  assert.equal(comparison.status, "nasdaq_stale_or_mismatched");
+  assert.deepEqual(comparison.stockAnalysis.currentSessionMatches, ["INLF", "SXTC", "CHAI"]);
 });
 
 test("Nasdaq movers are independently evaluated when the bulk screener omits them", async () => {
@@ -1799,8 +3165,12 @@ test("consecutive-pass credit resets when a ticker disappears from the evaluated
   const symbolsByScan = ["ALFA", "BETA", "ALFA", "ALFA"];
   let scanIndex = 0;
   const fetchImpl: typeof fetch = async (input) => {
-    if (String(input).includes("/api/marketmovers")) {
+    const url = String(input);
+    if (url.includes("/api/marketmovers")) {
       return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
+    if (url.includes("stockanalysis.com/") || url.includes("tradingview.com/")) {
+      return new Response("<script>const rows=[]</script>", { status: 200 });
     }
     const symbol = symbolsByScan[Math.min(scanIndex, symbolsByScan.length - 1)]!;
     scanIndex += 1;

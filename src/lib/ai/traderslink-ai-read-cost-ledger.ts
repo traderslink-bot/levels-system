@@ -75,6 +75,7 @@ export type TradersLinkAiReadCostSummary = {
     last30Days: TradersLinkAiReadCostTotals;
     allTime: TradersLinkAiReadCostTotals;
   };
+  todayPerTicker: TradersLinkAiReadTickerCostSummary[];
   perTicker: TradersLinkAiReadTickerCostSummary[];
   byTrigger: Array<{ trigger: TradersLinkAiReadCostTrigger; totals: TradersLinkAiReadCostTotals }>;
   byModel: Array<{ model: string; totals: TradersLinkAiReadCostTotals }>;
@@ -352,19 +353,26 @@ export class TradersLinkAiReadCostLedger {
     }
   }
 
-  summarize(now = Date.now()): TradersLinkAiReadCostSummary {
-    const entries = this.load().filter((entry) => entry.generatedAt <= now);
+  summarize(
+    now = Date.now(),
+    loadedEntries: TradersLinkAiReadCostLedgerEntry[] = this.load(),
+  ): TradersLinkAiReadCostSummary {
+    const entries = loadedEntries.filter((entry) => entry.generatedAt <= now);
     const todayKey = easternDateKey(now);
-    const grouped = <K extends string>(keyFor: (entry: TradersLinkAiReadCostLedgerEntry) => K) => {
+    const todayEntries = entries.filter((entry) => easternDateKey(entry.generatedAt) === todayKey);
+    const grouped = <K extends string>(
+      keyFor: (entry: TradersLinkAiReadCostLedgerEntry) => K,
+      sourceEntries = entries,
+    ) => {
       const map = new Map<K, TradersLinkAiReadCostLedgerEntry[]>();
-      for (const entry of entries) {
+      for (const entry of sourceEntries) {
         const key = keyFor(entry);
         map.set(key, [...(map.get(key) ?? []), entry]);
       }
       return map;
     };
-    const byTicker = grouped((entry) => entry.symbol);
-    const perTicker = [...byTicker.entries()].map(([symbol, tickerEntries]) => {
+    const summarizePerTicker = (sourceEntries: TradersLinkAiReadCostLedgerEntry[]) =>
+      [...grouped((entry) => entry.symbol, sourceEntries).entries()].map(([symbol, tickerEntries]) => {
       const chronological = [...tickerEntries].sort((a, b) => a.generatedAt - b.generatedAt);
       const last = chronological.at(-1)!;
       const totals = totalsFor(tickerEntries);
@@ -382,6 +390,7 @@ export class TradersLinkAiReadCostLedger {
         ),
       };
     }).sort((a, b) => b.estimatedTotalCostUsd - a.estimatedTotalCostUsd || a.symbol.localeCompare(b.symbol));
+    const perTicker = summarizePerTicker(entries);
 
     return {
       generatedAt: now,
@@ -390,11 +399,12 @@ export class TradersLinkAiReadCostLedger {
         "Estimated from API token usage and actual web-search tool calls. OpenAI billing remains the invoice authority; unpriced requests are flagged.",
       accountingHealth: { ...this.accountingHealth },
       windows: {
-        today: totalsFor(entries.filter((entry) => easternDateKey(entry.generatedAt) === todayKey)),
+        today: totalsFor(todayEntries),
         last7Days: totalsFor(entries.filter((entry) => entry.generatedAt >= now - 7 * DAY_MS)),
         last30Days: totalsFor(entries.filter((entry) => entry.generatedAt >= now - 30 * DAY_MS)),
         allTime: totalsFor(entries),
       },
+      todayPerTicker: summarizePerTicker(todayEntries),
       perTicker,
       byTrigger: [...grouped((entry) => entry.trigger).entries()]
         .map(([trigger, triggerEntries]) => ({ trigger, totals: totalsFor(triggerEntries) }))
@@ -409,12 +419,13 @@ export class TradersLinkAiReadCostLedger {
     enabled: boolean;
     dailyLimitUsd: number;
     now?: number;
-  }): TradersLinkAiReadDailyCostBudgetStatus {
+  }, loadedEntries: TradersLinkAiReadCostLedgerEntry[] = this.load(),
+  summary?: TradersLinkAiReadCostSummary): TradersLinkAiReadDailyCostBudgetStatus {
     const now = args.now ?? Date.now();
     const dailyLimitUsd = roundUsd(Math.max(0, args.dailyLimitUsd));
-    const summary = this.summarize(now);
-    const spentUsd = summary.windows.today.estimatedTotalCostUsd;
-    const recentSuccessfulCosts = this.load()
+    const resolvedSummary = summary ?? this.summarize(now, loadedEntries);
+    const spentUsd = resolvedSummary.windows.today.estimatedTotalCostUsd;
+    const recentSuccessfulCosts = loadedEntries
       .filter((entry) =>
         entry.generatedAt <= now &&
         easternDateKey(entry.generatedAt) === easternDateKey(now) &&
@@ -436,9 +447,9 @@ export class TradersLinkAiReadCostLedger {
     );
     const remainingUsd = roundUsd(Math.max(0, dailyLimitUsd - spentUsd));
     let blockReason: string | null = null;
-    if (args.enabled && !summary.accountingHealth.healthy) {
+    if (args.enabled && !resolvedSummary.accountingHealth.healthy) {
       blockReason = "Expense ledger is unhealthy, so the budget guard cannot safely estimate today's spend.";
-    } else if (args.enabled && summary.windows.today.unpricedRequestCount > 0) {
+    } else if (args.enabled && resolvedSummary.windows.today.unpricedRequestCount > 0) {
       blockReason = "At least one AI request today is unpriced, so the budget guard cannot safely estimate today's spend.";
     } else if (args.enabled && dailyLimitUsd <= 0) {
       blockReason = "A positive daily budget is required when the budget guard is enabled.";

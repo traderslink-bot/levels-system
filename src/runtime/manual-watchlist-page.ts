@@ -12,7 +12,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     input, select, textarea { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
     textarea { min-height: 84px; resize: vertical; font-family: Arial, sans-serif; line-height: 1.35; }
     button { min-width: 94px; padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; background: #1d4ed8; color: #fff; white-space: nowrap; }
-    button:disabled { cursor: wait; opacity: 0.62; }
+    button:disabled { cursor: not-allowed; opacity: 0.62; }
+    button[data-loading="true"] { cursor: wait; }
     ul { list-style: none; padding: 0; margin: 0; }
     li { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-top: 1px solid #e5e7eb; padding: 12px 0; }
     li:first-child { border-top: 0; }
@@ -65,10 +66,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .activity-detail { color: #64748b; font-size: 12px; margin-top: 2px; }
     .notice { border: 1px solid #fde68a; background: #fffbeb; border-radius: 8px; color: #78350f; padding: 10px; font-size: 13px; margin-bottom: 12px; }
     .field-hint { color: #64748b; font-size: 12px; line-height: 1.4; margin: -6px 0 12px; }
-    .artifact-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
-    .artifact-card { border: 1px solid #dbe3ee; border-radius: 8px; padding: 10px; background: #fbfdff; }
-    .artifact-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-    .artifact-preview { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; background: #0f172a; color: #e2e8f0; border-radius: 6px; padding: 10px; }
     .danger { background: #b91c1c; }
     .secondary { background: #475569; }
     .quiet { background: #64748b; }
@@ -93,7 +90,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <button class="danger" id="remove-postmarket-tickers-button" type="button">Remove Post-Market</button>
       </div>
       <div class="status" id="status"></div>
-      <label for="symbol">npm run watchlist:manual</label>
       <label for="symbol">Symbol</label>
       <input id="symbol" name="symbol" maxlength="10" required />
       <div class="field-hint">
@@ -151,6 +147,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <div class="inline-status" id="watchlist-lifecycle-labels-visible-status"></div>
       </div>
       <div class="provider-control">
+        <label for="reversal-watchlist-visible-toggle">Potential Reversal Watchlist</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="reversal-watchlist-visible-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="reversal-watchlist-visible-label">Visible to users</span>
+          </label>
+        </div>
+        <div class="inline-status" id="reversal-watchlist-visible-status"></div>
+      </div>
+      <div class="provider-control">
         <label for="auto-selector-enabled-toggle">Automatic Low-Float Selection</label>
         <div class="inline-control toggle-control">
           <label class="toggle-switch">
@@ -169,8 +176,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Minimum price ($)<input id="auto-selector-min-price" type="number" min="0.01" step="0.01" /></label>
           <label>Maximum price ($)<input id="auto-selector-max-price" type="number" min="0.02" step="0.01" /></label>
           <label>Minimum gain (%)<input id="auto-selector-min-gain" type="number" min="0" step="0.1" /></label>
-          <label>Minimum volume (shares)<input id="auto-selector-min-volume" type="number" min="0" step="1000" /></label>
-          <label>Minimum dollar volume ($)<input id="auto-selector-min-dollar-volume" type="number" min="0" step="10000" /></label>
+          <label>Premarket/regular minimum volume (shares)<input id="auto-selector-min-volume" type="number" min="0" step="1000" /></label>
+          <label>Premarket/regular minimum dollar volume ($)<input id="auto-selector-min-dollar-volume" type="number" min="0" step="10000" /></label>
+          <label>Post-market minimum session volume (shares)<input id="auto-selector-postmarket-min-volume" type="number" min="0" step="1000" /></label>
+          <label>Post-market minimum session dollar volume ($)<input id="auto-selector-postmarket-min-dollar-volume" type="number" min="0" step="5000" /></label>
           <label>Minimum score (0-100)<input id="auto-selector-min-score" type="number" min="0" max="100" step="1" /></label>
           <label>Consecutive passing scans<input id="auto-selector-passes" type="number" min="1" max="10" step="1" /></label>
           <label>Maximum active premarket/regular auto tickers (lowering keeps best current slot scores)<input id="auto-selector-max-active-main" type="number" min="1" max="20" step="1" /></label>
@@ -179,6 +188,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Initial post-market automatic additions per day<input id="auto-selector-max-postmarket-adds" type="number" min="1" max="20" step="1" /></label>
           <label>Main-session automatic replacements per day<input id="auto-selector-max-main-replacements" type="number" min="0" max="50" step="1" /></label>
           <label>Post-market automatic replacements per day<input id="auto-selector-max-postmarket-replacements" type="number" min="0" max="50" step="1" /></label>
+          <label>Post-market extreme-runner overrides after replacement limit<input id="auto-selector-max-postmarket-extreme-overrides" type="number" min="0" max="10" step="1" /></label>
           <label>Late main-session admission reserve<input id="auto-selector-late-main-reserve" type="number" min="0" max="20" step="1" /></label>
           <label>Late reserve unlock hour ET<input id="auto-selector-late-main-unlock-hour" type="number" min="0" max="23" step="1" /></label>
           <label>Minimum hold after auto add (minutes)<input id="auto-selector-min-hold" type="number" min="0" max="240" step="1" /></label>
@@ -199,6 +209,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Post-market promotion minimum gain (%)<input id="auto-selector-postmarket-promotion-min-gain" type="number" min="0" max="100" step="0.1" /></label>
           <label>Post-market promotion minimum last-15m dollar volume ($)<input id="auto-selector-postmarket-promotion-recent-dollar-volume" type="number" min="0" step="5000" /></label>
           <label>Maximum latest-trade age (minutes)<input id="auto-selector-max-activity-age" type="number" min="1" max="60" step="1" /></label>
+          <label>Exact-zero recent-volume grace (minutes)<input id="auto-selector-zero-volume-grace" type="number" min="0" max="60" step="1" /></label>
           <label>Extended-hours candidates checked<input id="auto-selector-extended-candidate-limit" type="number" min="1" max="200" step="1" /></label>
           <label>Catalyst lookback (days)<input id="auto-selector-catalyst-lookback" type="number" min="0" max="30" step="1" /></label>
           <label>Same-day catalyst rank boost<input id="auto-selector-catalyst-boost" type="number" min="0" max="100" step="1" /></label>
@@ -207,6 +218,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <label>Recent 15m dollar volume for full boost ($)<input id="auto-selector-recent-volume-full-score" type="number" min="1" step="25000" /></label>
           <label>Volume acceleration maximum rank boost<input id="auto-selector-acceleration-rank-boost" type="number" min="0" max="100" step="1" /></label>
           <label>Acceleration ratio for full boost<input id="auto-selector-acceleration-full-score" type="number" min="1.1" step="0.1" /></label>
+          <label>Volume deceleration maximum rank penalty<input id="auto-selector-deceleration-rank-penalty" type="number" min="0" max="100" step="1" /></label>
+          <label>Acceleration ratio for full deceleration penalty<input id="auto-selector-deceleration-full-penalty" type="number" min="0.01" max="0.99" step="0.05" /></label>
+          <label>Top-gainers qualification score boost<input id="auto-selector-top-gainer-boost" type="number" min="0" max="100" step="1" /></label>
           <label>Share turnover maximum rank boost<input id="auto-selector-turnover-rank-boost" type="number" min="0" max="100" step="1" /></label>
           <label>Share turnover for full boost (%)<input id="auto-selector-turnover-full-score" type="number" min="1" step="5" /></label>
         </div>
@@ -251,7 +265,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             <span>Use recent press-release catalysts as a secondary ranking preference</span>
           </label>
         </div>
-        <div class="inline-status">Catalysts never bypass the price, gain, volume, market-cap, share-count, recent-activity, or base-score qualification rules. Activity and turnover bonuses affect admission rank; sustained gains above 20% add current slot-survival credit only. Set any maximum rank boost to 0 for no ranking effect.</div>
+        <div class="inline-status">Catalysts never bypass the price, gain, volume, market-cap, share-count, or recent-activity rules, and top-gainer credit cannot bypass them either. Exact-zero recent volume on a previously strong active ticker is treated as a short data-gap warning while the free Nasdaq Trader halt feed is checked. Confirmed halts freeze failed-retention counting until a resumption trade is posted. Activity, turnover, and deceleration affect the live rank; sustained gains above 20% add current slot-survival credit only. Admitted-at scores stay frozen while live rank and current slot continue to update.</div>
         <div class="selector-actions">
           <button id="auto-selector-apply-button" type="button">Apply Selection Settings</button>
           <button class="secondary" id="auto-selector-preview-button" type="button">Run Preview Only</button>
@@ -297,17 +311,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     </section>
 
     <section>
-      <h2>Monday Live Review</h2>
-      <div class="runtime-grid" id="monday-review-grid"></div>
-      <ul class="activity-list" id="monday-review-list"></ul>
-    </section>
-
-    <section>
-      <h2>Review Artifacts</h2>
-      <div class="artifact-list" id="artifact-list"></div>
-    </section>
-
-    <section>
       <h2>Runtime Config</h2>
       <div class="provider-control">
         <label for="historical-provider-select">Historical Candle Provider</label>
@@ -335,10 +338,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       <div class="runtime-grid" id="config-grid"></div>
     </section>
 
-    <section>
-      <h2>Activity</h2>
-      <ul class="activity-list" id="activity-list"></ul>
-    </section>
   </main>
 
   <script>
@@ -348,13 +347,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const runtimeGridEl = document.getElementById("runtime-grid");
     const providerHealthGridEl = document.getElementById("provider-health-grid");
     const restartReadinessListEl = document.getElementById("restart-readiness-list");
-    const mondayReviewGridEl = document.getElementById("monday-review-grid");
-    const mondayReviewListEl = document.getElementById("monday-review-list");
-    const artifactListEl = document.getElementById("artifact-list");
     const configGridEl = document.getElementById("config-grid");
     const aiNoticeEl = document.getElementById("ai-notice");
-    const activityListEl = document.getElementById("activity-list");
     const formEl = document.getElementById("watchlist-form");
+    const activateButtonEl = formEl.querySelector('button[type="submit"]');
     const clearDiscordButtonEl = document.getElementById("clear-discord-button");
     const removeAllTickersButtonEl = document.getElementById("remove-all-tickers-button");
     const removeMainTickersButtonEl = document.getElementById("remove-main-tickers-button");
@@ -376,6 +372,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const watchlistLifecycleLabelsVisibleToggleEl = document.getElementById("watchlist-lifecycle-labels-visible-toggle");
     const watchlistLifecycleLabelsVisibleLabelEl = document.getElementById("watchlist-lifecycle-labels-visible-label");
     const watchlistLifecycleLabelsVisibleStatusEl = document.getElementById("watchlist-lifecycle-labels-visible-status");
+    const reversalWatchlistVisibleToggleEl = document.getElementById("reversal-watchlist-visible-toggle");
+    const reversalWatchlistVisibleLabelEl = document.getElementById("reversal-watchlist-visible-label");
+    const reversalWatchlistVisibleStatusEl = document.getElementById("reversal-watchlist-visible-status");
     const aiReadExternalResearchToggleEl = document.getElementById("ai-read-external-research-toggle");
     const aiReadExternalResearchLabelEl = document.getElementById("ai-read-external-research-label");
     const aiReadExternalResearchStatusEl = document.getElementById("ai-read-external-research-status");
@@ -405,6 +404,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       minGainPct: document.getElementById("auto-selector-min-gain"),
       minVolume: document.getElementById("auto-selector-min-volume"),
       minDollarVolume: document.getElementById("auto-selector-min-dollar-volume"),
+      minPostmarketVolume: document.getElementById("auto-selector-postmarket-min-volume"),
+      minPostmarketDollarVolume: document.getElementById("auto-selector-postmarket-min-dollar-volume"),
       minimumScore: document.getElementById("auto-selector-min-score"),
       consecutivePassesRequired: document.getElementById("auto-selector-passes"),
       maxActiveMainSessionTickers: document.getElementById("auto-selector-max-active-main"),
@@ -413,6 +414,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       maxPostmarketAddsPerTradingDay: document.getElementById("auto-selector-max-postmarket-adds"),
       maxMainSessionReplacementsPerTradingDay: document.getElementById("auto-selector-max-main-replacements"),
       maxPostmarketReplacementsPerTradingDay: document.getElementById("auto-selector-max-postmarket-replacements"),
+      maxPostmarketExtremeRunnerOverridesPerTradingDay: document.getElementById("auto-selector-max-postmarket-extreme-overrides"),
       lateMainSessionAdmissionReserve: document.getElementById("auto-selector-late-main-reserve"),
       lateMainSessionAdmissionUnlockHourEastern: document.getElementById("auto-selector-late-main-unlock-hour"),
       dynamicReplacementEnabled: document.getElementById("auto-selector-dynamic-replacement"),
@@ -439,6 +441,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       postmarketPromotionMinGainPct: document.getElementById("auto-selector-postmarket-promotion-min-gain"),
       postmarketPromotionMinRecentDollarVolume: document.getElementById("auto-selector-postmarket-promotion-recent-dollar-volume"),
       maxActivityQuoteAgeMinutes: document.getElementById("auto-selector-max-activity-age"),
+      zeroRecentVolumeRetentionGraceMinutes: document.getElementById("auto-selector-zero-volume-grace"),
       extendedSessionCandidateLimit: document.getElementById("auto-selector-extended-candidate-limit"),
       catalystRankingEnabled: document.getElementById("auto-selector-catalyst-ranking"),
       catalystLookbackDays: document.getElementById("auto-selector-catalyst-lookback"),
@@ -448,6 +451,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       recentDollarVolumeRankFullScore: document.getElementById("auto-selector-recent-volume-full-score"),
       volumeAccelerationRankMaxBoost: document.getElementById("auto-selector-acceleration-rank-boost"),
       volumeAccelerationRankFullScoreRatio: document.getElementById("auto-selector-acceleration-full-score"),
+      volumeDecelerationRankMaxPenalty: document.getElementById("auto-selector-deceleration-rank-penalty"),
+      volumeDecelerationRankFullPenaltyRatio: document.getElementById("auto-selector-deceleration-full-penalty"),
+      topGainerQualificationScoreBoost: document.getElementById("auto-selector-top-gainer-boost"),
       shareTurnoverRankMaxBoost: document.getElementById("auto-selector-turnover-rank-boost"),
       shareTurnoverRankFullScorePct: document.getElementById("auto-selector-turnover-full-score"),
     };
@@ -465,6 +471,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     let potentialGainVisibilityInFlight = false;
     let watchlistLifecycleLabelsVisible = false;
     let watchlistLifecycleLabelsVisibilityInFlight = false;
+    let reversalWatchlistVisible = true;
+    let reversalWatchlistVisibilityInFlight = false;
     let aiReadConfigured = null;
     let aiReadExternalResearchEnabled = false;
     let aiReadExternalResearchInFlight = false;
@@ -473,6 +481,36 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     let autoSelectorEnabled = false;
     let autoSelectorSettingsDirty = false;
     let autoSelectorRequestInFlight = false;
+    let runtimeStatusHydrated = false;
+    let dashboardRefreshTimer = null;
+    const DASHBOARD_REFRESH_INTERVAL_MS = 5000;
+    const RUNTIME_DETAILS_REFRESH_INTERVAL_MS = 60000;
+    const runtimeSettingsControlEls = [
+      historicalProviderSelectEl,
+      applyHistoricalProviderButtonEl,
+      liveProviderSelectEl,
+      applyLiveProviderButtonEl,
+      liveTraderReadVisibleToggleEl,
+      potentialGainVisibleToggleEl,
+      watchlistLifecycleLabelsVisibleToggleEl,
+      reversalWatchlistVisibleToggleEl,
+      aiReadExternalResearchToggleEl,
+      aiReadCostBudgetToggleEl,
+      aiReadCostBudgetUsdEl,
+      aiReadCostBudgetApplyEl,
+      autoSelectorEnabledToggleEl,
+      autoSelectorApplyButtonEl,
+      autoSelectorPreviewButtonEl,
+      ...Object.values(autoSelectorInputEls),
+    ];
+    function setRuntimeStatusHydrated(hydrated) {
+      runtimeStatusHydrated = hydrated;
+      for (const control of runtimeSettingsControlEls) {
+        control.disabled = !runtimeStatusHydrated;
+      }
+      runtimeGridEl.setAttribute("aria-busy", String(!runtimeStatusHydrated));
+    }
+    setRuntimeStatusHydrated(false);
     const largeLiquidTickerSymbols = new Set([
       "AAPL",
       "MSFT",
@@ -592,7 +630,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       header.className = "entry-title";
       title.textContent = entry.symbol;
       header.appendChild(title);
-      header.appendChild(createBadge(lifecycleLabel(entry.lifecycle), lifecycleBadgeClass(entry.lifecycle)));
+      const selectorState = entry.selectorManagedState;
+      header.appendChild(createBadge(
+        selectorState === "followup"
+          ? "Follow-up — not on public watchlist"
+          : lifecycleLabel(entry.lifecycle),
+        selectorState === "followup" ? "badge badge-working" : lifecycleBadgeClass(entry.lifecycle),
+      ));
       const aiConfidence = entry.tradersLinkAiReadConfidence;
       header.appendChild(createBadge(
         "AI confidence: " + (aiConfidence ? lifecycleLabel(aiConfidence) : "Pending"),
@@ -624,6 +668,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       appendMetaValue(details, "trigger", formatNumber(entry.lastTriggerPrice));
       appendMetaValue(details, "levels age", levelFreshness);
       appendMetaValue(details, "OpenAI notes", entry.note);
+      if (selectorState === "followup") {
+        appendMetaValue(details, "follow-up score", formatNumber(entry.selectorCurrentSlotScore));
+        appendMetaValue(details, "follow-up reason", entry.selectorStatusReason);
+      }
 
       meta.appendChild(header);
       meta.appendChild(details);
@@ -696,7 +744,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       runtimeGridEl.innerHTML = "";
       renderWatchlistHealth(status);
       renderProviderHealth(status);
-      renderMondayReview(status);
 
       const health = status.runtimeHealth || {};
       const lastPrice = health.lastPriceUpdateAt
@@ -714,8 +761,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["IBKR", status.ibkrConnected ? "connected" : status.ibkrReconnecting ? "reconnecting" : "disconnected"],
         ["Provider", status.providerName],
         ["Last Price", lastPrice],
-        ["Last Discord Post", lastPost],
-        ["Last Discord Failure", lastDeliveryFailure],
+        ["Last Website Post", lastPost],
+        ["Last Website Failure", lastDeliveryFailure],
         ["Diagnostics", status.diagnosticsEnabled ? "on" : "off"],
         ["Active Count", String(status.activeSymbolCount ?? 0)],
         ["Session Folder", status.sessionDirectory],
@@ -817,69 +864,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           lifecycleLabel(item.levelStatus) +
           " | price " +
           lifecycleLabel(item.priceStatus) +
-          " | Discord " +
+          " | publication " +
           lifecycleLabel(item.discordStatus);
         detail.className = "activity-detail";
         detail.textContent = (item.reason || "readiness check") + priceAge + levelAge;
         body.appendChild(detail);
         row.appendChild(body);
         restartReadinessListEl.appendChild(row);
-      }
-    }
-
-    function renderMondayReview(status) {
-      const review = status.runtimeHealth?.mondayReview || {};
-      mondayReviewGridEl.innerHTML = "";
-      mondayReviewListEl.innerHTML = "";
-
-      const cards = [
-        ["Post Budget", lifecycleLabel(review.postBudgetStatus || "calm")],
-        ["Posts 15m", String(review.postsLast15m || 0)],
-        ["Critical 15m", String(review.criticalPostsLast15m || 0)],
-        ["Optional 15m", String(review.optionalPostsLast15m || 0)],
-        ["Last Why Posted", review.lastWhyPosted || ""],
-      ];
-      for (const [label, value] of cards) {
-        mondayReviewGridEl.appendChild(createRuntimeCard(label, value));
-      }
-
-      const checklist = review.checklist || [];
-      const symbolBudgets = review.symbolBudgets || [];
-      for (const symbolBudget of symbolBudgets) {
-        const item = document.createElement("li");
-        const body = document.createElement("div");
-        const detail = document.createElement("div");
-        body.className = "activity-message";
-        body.textContent =
-          symbolBudget.symbol +
-          ": " +
-          lifecycleLabel(symbolBudget.status) +
-          " | posts 15m " +
-          symbolBudget.postsLast15m +
-          " | critical " +
-          symbolBudget.criticalPostsLast15m +
-          " | optional " +
-          symbolBudget.optionalPostsLast15m;
-        detail.className = "activity-detail";
-        detail.textContent = "symbol post budget";
-        body.appendChild(detail);
-        item.appendChild(body);
-        mondayReviewListEl.appendChild(item);
-      }
-
-      if (checklist.length === 0) {
-        const empty = document.createElement("li");
-        empty.textContent = "No live review checklist yet";
-        mondayReviewListEl.appendChild(empty);
-        return;
-      }
-      for (const itemText of checklist) {
-        const item = document.createElement("li");
-        const body = document.createElement("div");
-        body.className = "activity-message";
-        body.textContent = itemText;
-        item.appendChild(body);
-        mondayReviewListEl.appendChild(item);
       }
     }
 
@@ -980,6 +971,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         : "Lifecycle labels are hidden; watchlist selection and replacement behavior is unchanged.";
     }
 
+    function renderReversalWatchlistVisibilityControl(status, options) {
+      const visible = status.runtimeHealth?.reversalWatchlistVisible !== false;
+      if (!options?.keepPreviousState) {
+        reversalWatchlistVisible = visible;
+      }
+      reversalWatchlistVisibleToggleEl.checked = visible;
+      reversalWatchlistVisibleToggleEl.disabled = reversalWatchlistVisibilityInFlight;
+      reversalWatchlistVisibleLabelEl.textContent = visible ? "Visible to users" : "Hidden from users";
+      reversalWatchlistVisibleStatusEl.textContent = visible
+        ? "Protected Main-session runners can appear below the Main Session list after a pullback."
+        : "The Potential Reversal Watchlist is hidden; ticker monitoring continues in the background.";
+    }
+
     function formatAiReadCost(value) {
       const amount = Number(value || 0);
       return "$" + amount.toFixed(amount >= 1 ? 2 : 4);
@@ -1060,14 +1064,14 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           String(accountingHealth.lastLoadError || "the usage ledger could not be read completely.");
         aiReadCostListEl.appendChild(warning);
       }
-      const perTicker = Array.isArray(summary.perTicker) ? summary.perTicker : [];
+      const perTicker = Array.isArray(summary.todayPerTicker) ? summary.todayPerTicker : [];
       if (perTicker.length === 0) {
         const empty = document.createElement("li");
-        empty.textContent = "No recorded TradersLink AI Read expense yet.";
+        empty.textContent = "No TradersLink AI Read API calls recorded today.";
         aiReadCostListEl.appendChild(empty);
         return;
       }
-      for (const ticker of perTicker.slice(0, 20)) {
+      for (const ticker of perTicker) {
         const item = document.createElement("li");
         const body = document.createElement("div");
         const detail = document.createElement("div");
@@ -1117,6 +1121,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       autoSelectorEnabledToggleEl.disabled = autoSelectorRequestInFlight;
       autoSelectorEnabledLabelEl.textContent = autoSelectorEnabled ? "On" : "Off";
       autoSelectorApplyButtonEl.disabled = autoSelectorRequestInFlight || !autoSelectorSettingsDirty;
+      autoSelectorApplyButtonEl.textContent = autoSelectorRequestInFlight
+        ? "Saving..."
+        : autoSelectorSettingsDirty
+          ? "Apply Selection Settings"
+          : "Settings Saved";
       autoSelectorPreviewButtonEl.disabled = autoSelectorRequestInFlight || selector.running === true;
 
       if (!autoSelectorSettingsDirty) {
@@ -1132,6 +1141,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("minGainPct", thresholds.minGainPct);
         setAutoSelectorInputValue("minVolume", thresholds.minVolume);
         setAutoSelectorInputValue("minDollarVolume", thresholds.minDollarVolume);
+        setAutoSelectorInputValue("minPostmarketVolume", thresholds.minPostmarketVolume);
+        setAutoSelectorInputValue("minPostmarketDollarVolume", thresholds.minPostmarketDollarVolume);
         setAutoSelectorInputValue("minimumScore", thresholds.minimumScore);
         setAutoSelectorInputValue("consecutivePassesRequired", thresholds.consecutivePassesRequired);
         setAutoSelectorInputValue("maxActiveMainSessionTickers", thresholds.maxActiveMainSessionTickers);
@@ -1140,6 +1151,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("maxPostmarketAddsPerTradingDay", thresholds.maxPostmarketAddsPerTradingDay);
         setAutoSelectorInputValue("maxMainSessionReplacementsPerTradingDay", thresholds.maxMainSessionReplacementsPerTradingDay);
         setAutoSelectorInputValue("maxPostmarketReplacementsPerTradingDay", thresholds.maxPostmarketReplacementsPerTradingDay);
+        setAutoSelectorInputValue("maxPostmarketExtremeRunnerOverridesPerTradingDay", thresholds.maxPostmarketExtremeRunnerOverridesPerTradingDay);
         setAutoSelectorInputValue("lateMainSessionAdmissionReserve", thresholds.lateMainSessionAdmissionReserve);
         setAutoSelectorInputValue("lateMainSessionAdmissionUnlockHourEastern", thresholds.lateMainSessionAdmissionUnlockHourEastern);
         setAutoSelectorInputValue("dynamicReplacementEnabled", thresholds.dynamicReplacementEnabled);
@@ -1166,6 +1178,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("postmarketPromotionMinGainPct", thresholds.postmarketPromotionMinGainPct);
         setAutoSelectorInputValue("postmarketPromotionMinRecentDollarVolume", thresholds.postmarketPromotionMinRecentDollarVolume);
         setAutoSelectorInputValue("maxActivityQuoteAgeMinutes", thresholds.maxActivityQuoteAgeMinutes);
+        setAutoSelectorInputValue("zeroRecentVolumeRetentionGraceMinutes", thresholds.zeroRecentVolumeRetentionGraceMinutes);
         setAutoSelectorInputValue("extendedSessionCandidateLimit", thresholds.extendedSessionCandidateLimit);
         setAutoSelectorInputValue("catalystRankingEnabled", thresholds.catalystRankingEnabled);
         setAutoSelectorInputValue("catalystLookbackDays", thresholds.catalystLookbackDays);
@@ -1175,6 +1188,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setAutoSelectorInputValue("recentDollarVolumeRankFullScore", thresholds.recentDollarVolumeRankFullScore);
         setAutoSelectorInputValue("volumeAccelerationRankMaxBoost", thresholds.volumeAccelerationRankMaxBoost);
         setAutoSelectorInputValue("volumeAccelerationRankFullScoreRatio", thresholds.volumeAccelerationRankFullScoreRatio);
+        setAutoSelectorInputValue("volumeDecelerationRankMaxPenalty", thresholds.volumeDecelerationRankMaxPenalty);
+        setAutoSelectorInputValue("volumeDecelerationRankFullPenaltyRatio", thresholds.volumeDecelerationRankFullPenaltyRatio);
+        setAutoSelectorInputValue("topGainerQualificationScoreBoost", thresholds.topGainerQualificationScoreBoost);
         setAutoSelectorInputValue("shareTurnoverRankMaxBoost", thresholds.shareTurnoverRankMaxBoost);
         setAutoSelectorInputValue("shareTurnoverRankFullScorePct", thresholds.shareTurnoverRankFullScorePct);
       }
@@ -1207,10 +1223,23 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           (selector.lateMainSessionAdmissionReserveUnlocked ? "unlocked" : "locked") + ".",
         );
       }
+      if (Number.isFinite(selector.postmarketExtremeRunnerOverridesAvailable)) {
+        pieces.push(
+          "Post-market extreme-runner override: " +
+          String(selector.postmarketExtremeRunnerOverridesAvailable) + " available, " +
+          String(selector.postmarketExtremeRunnerOverridesUsed || 0) + " used.",
+        );
+      }
       if (Array.isArray(selector.activeMainSessionSymbols)) {
-        const activeScores = new Map((selector.managedEntries || []).map((entry) => [entry.symbol, entry.lastSlotSurvivalScore]));
+        const activeEntries = new Map((selector.managedEntries || []).map((entry) => [entry.symbol, entry]));
         pieces.push("Active main auto slots: " + (selector.activeMainSessionSymbols
-          .map((symbol) => symbol + (Number.isFinite(activeScores.get(symbol)) ? " (slot " + activeScores.get(symbol) + ")" : ""))
+          .map((symbol) => {
+            const entry = activeEntries.get(symbol);
+            const scores = [];
+            if (Number.isFinite(entry?.lastSlotSurvivalScore)) scores.push("slot " + entry.lastSlotSurvivalScore);
+            if (Number.isFinite(entry?.admissionRankingScore)) scores.push("admitted rank " + entry.admissionRankingScore);
+            return symbol + (scores.length ? " (" + scores.join("; ") + ")" : "");
+          })
           .join(", ") || "none") + ".");
       }
       if (Array.isArray(selector.activePostmarketSymbols)) {
@@ -1239,6 +1268,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       if (selector.lastActivityLookupError) {
         pieces.push("Recent activity lookup: " + selector.lastActivityLookupError + ".");
       }
+      if (selector.lastTradingHaltLookupError) {
+        pieces.push("Nasdaq halt lookup: " + selector.lastTradingHaltLookupError + ".");
+      }
       if (Array.isArray(selector.lastActivationErrors) && selector.lastActivationErrors.length > 0) {
         pieces.push(
           "Activation errors: " + selector.lastActivationErrors
@@ -1249,18 +1281,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       autoSelectorStatusEl.textContent = pieces.join(" ");
 
       autoSelectorDecisionsEl.innerHTML = "";
+      const managedBySymbol = new Map((selector.managedEntries || []).map((entry) => [entry.symbol, entry]));
       for (const decision of (selector.recentDecisions || [])) {
         const item = document.createElement("li");
         const title = document.createElement("strong");
-        title.textContent = decision.symbol + " — qualification " + decision.score + " — admission rank " + decision.rankingScore + " — current slot " + decision.slotSurvivalScore + (
+        title.textContent = decision.symbol + " — qualification " + decision.score + " — live rank " + decision.rankingScore + " — current slot " + decision.slotSurvivalScore + (
           decision.qualified
             ? decision.promotionReady === false
               ? " — qualifies, promotion held"
               : " — qualifies, promotion-ready"
-            : " — rejected"
+            : decision.haltRetentionProtected
+              ? " — confirmed halt, retention protected"
+              : " — rejected"
         );
         const detail = document.createElement("div");
         detail.className = "activity-detail";
+        const managed = managedBySymbol.get(decision.symbol);
         const facts = [
           decision.gainPct !== null ? Number(decision.gainPct).toFixed(1) + "% gain" : "gain unavailable",
           decision.marketCap ? "$" + Math.round(decision.marketCap / 1000000) + "M cap" : "cap unavailable",
@@ -1276,7 +1312,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           decision.shareTurnoverPct !== null
             ? Number(decision.shareTurnoverPct).toFixed(1) + "% share turnover"
             : "share turnover unavailable",
+          ...(Number.isFinite(managed?.admissionRankingScore)
+            ? [
+                "admitted at qualification " + managed.admissionQualificationScore +
+                ", rank " + managed.admissionRankingScore +
+                ", slot " + managed.admissionSlotSurvivalScore,
+              ]
+            : []),
+          ...(Number.isFinite(managed?.holdProtectionEarnedAt)
+            ? ["30-minute hold earned: " + (managed.holdProtectionReason || "repeat qualification")]
+            : managed?.state === "active"
+              ? ["30-minute hold not earned yet"]
+              : []),
           ...(decision.slotSurvivalReasons || []),
+          ...(decision.tradingHaltState === "halted"
+            ? ["Nasdaq-confirmed trading halt" + (decision.tradingHaltReasonCode ? " (" + decision.tradingHaltReasonCode + ")" : "")]
+            : []),
         ];
         if (decision.catalystPublishedAt) {
           facts.push(
@@ -1288,7 +1339,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         }
         const explanation = decision.qualified
           ? [...(decision.reasons || []), ...(decision.promotionRejectionReasons || [])]
-          : decision.rejectionReasons;
+          : decision.haltRetentionProtected
+            ? [decision.haltRetentionProtectionReason, ...(decision.rejectionReasons || [])].filter(Boolean)
+            : decision.rejectionReasons;
         const rankingExplanation = decision.rankingReasons || [];
         detail.textContent = facts.join(" | ")
           + (explanation?.length ? " | " + explanation.join("; ") : "")
@@ -1316,6 +1369,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderLiveTraderReadVisibilityControl(status);
       renderPotentialGainVisibilityControl(status);
       renderWatchlistLifecycleLabelsVisibilityControl(status);
+      renderReversalWatchlistVisibilityControl(status);
       renderAiReadControls(status);
       renderAutoSelectorControl(status);
       aiNoticeEl.textContent =
@@ -1328,6 +1382,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Trader Read Card", health.liveTraderReadCardVisible === false ? "hidden" : "visible"],
         ["Potential Gain Card", health.potentialGainCardVisible === false ? "hidden" : "visible"],
         ["Lifecycle Labels", health.watchlistLifecycleLabelsVisible === true ? "visible" : "hidden"],
+        ["Reversal Watchlist", health.reversalWatchlistVisible === false ? "hidden" : "visible"],
         ["Automatic Selection", status.autoWatchlistSelector?.enabled ? "enabled" : "disabled"],
         ["TradersLink AI Read", status.aiReadConfigured ? "available" : "unavailable"],
         ["AI External Research", status.aiReadExternalResearchEnabled ? "enabled" : "disabled"],
@@ -1360,142 +1415,55 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
-    function formatBytes(value) {
-      if (!value) {
-        return "";
-      }
-      if (value < 1024) {
-        return value + " B";
-      }
-      return Math.round(value / 1024) + " KB";
-    }
-
-    function renderReviewArtifacts(payload) {
-      artifactListEl.innerHTML = "";
-      const artifacts = payload.artifacts || [];
-      if (artifacts.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "notice";
-        empty.textContent = "No review artifact paths are configured.";
-        artifactListEl.appendChild(empty);
-        return;
-      }
-
-      for (const artifact of artifacts) {
-        const card = document.createElement("div");
-        const head = document.createElement("div");
-        const title = document.createElement("strong");
-        const meta = document.createElement("div");
-
-        card.className = "artifact-card";
-        head.className = "artifact-head";
-        title.textContent = artifact.name;
-        meta.className = "meta";
-        meta.textContent = artifact.exists
-          ? [formatBytes(artifact.sizeBytes), artifact.updatedAt ? "updated " + formatTime(artifact.updatedAt) : ""].filter(Boolean).join(" | ")
-          : "not generated yet";
-        if (artifact.readError) {
-          meta.textContent = "temporarily unavailable";
-        }
-        head.appendChild(title);
-        head.appendChild(createBadge(artifact.exists ? "ready" : "missing", artifact.exists ? "badge badge-active" : "badge"));
-        card.appendChild(head);
-        card.appendChild(meta);
-
-        if (artifact.preview) {
-          const preview = document.createElement("pre");
-          preview.className = "artifact-preview";
-          preview.textContent = artifact.preview;
-          card.appendChild(preview);
-        }
-
-        if (artifact.readError) {
-          const notice = document.createElement("div");
-          notice.className = "notice";
-          notice.textContent = "This review file is locked right now. Refresh again in a moment.";
-          card.appendChild(notice);
-        }
-
-        artifactListEl.appendChild(card);
-      }
-    }
-
-    function renderActivity(entries) {
-      activityListEl.innerHTML = "";
-      if (!entries || entries.length === 0) {
-        const empty = document.createElement("li");
-        empty.textContent = "No recent activity";
-        activityListEl.appendChild(empty);
-        return;
-      }
-
-      for (const entry of entries.slice(0, 25)) {
-        const item = document.createElement("li");
-        const time = document.createElement("div");
-        const body = document.createElement("div");
-        const message = document.createElement("div");
-
-        time.className = "activity-time";
-        body.className = "activity-message";
-        time.textContent = formatTime(entry.timestamp);
-        message.textContent = entry.message || lifecycleLabel(entry.event);
-        body.appendChild(message);
-
-        if (entry.threadId || entry.details?.reason) {
-          const detail = document.createElement("div");
-          detail.className = "activity-detail";
-          detail.textContent = [
-            entry.threadId ? "Discord thread ID: " + entry.threadId : "",
-            entry.details?.reason ? "reason: " + entry.details.reason : "",
-          ].filter(Boolean).join(" | ");
-          body.appendChild(detail);
-        }
-
-        item.appendChild(time);
-        item.appendChild(body);
-        activityListEl.appendChild(item);
-      }
-    }
-
     async function activateEntry(symbol, note, retry) {
-      const response = await fetch("/api/watchlist/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol, note }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setStatus(payload.error || "Activate failed", true);
+      try {
+        const response = await fetch("/api/watchlist/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol, note }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "Activate failed", true);
+          return false;
+        }
+
+        const thread = payload.entry.discordThreadId || "pending";
+        setStatus(
+          (retry ? "Retry started for " : "Activation started for ") +
+            payload.entry.symbol +
+            " in thread " +
+            thread +
+            ".",
+        );
+        return true;
+      } catch (error) {
+        setStatus("Activation request failed: " + String(error), true);
         return false;
       }
-
-      const thread = payload.entry.discordThreadId || "pending";
-      setStatus(
-        (retry ? "Retry started for " : "Activation started for ") +
-          payload.entry.symbol +
-          " in thread " +
-          thread +
-          ".",
-      );
-      return true;
     }
 
     async function postEntryAction(path, symbol, successPrefix) {
-      const response = await fetch(path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setStatus(payload.error || "Action failed", true);
+      try {
+        const response = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "Action failed", true);
+          return false;
+        }
+
+        setStatus(successPrefix + " " + payload.entry.symbol);
+        await loadEntries();
+        await loadRuntimeStatus();
+        return true;
+      } catch (error) {
+        setStatus("Action request failed for " + symbol + ": " + String(error), true);
         return false;
       }
-
-      setStatus(successPrefix + " " + payload.entry.symbol);
-      await loadEntries();
-      await loadRuntimeStatus();
-      return true;
     }
 
     async function copyThreadId(entry) {
@@ -1543,8 +1511,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           repostButton.className = "secondary";
           repostButton.addEventListener("click", async () => {
             repostButton.disabled = true;
-            await postEntryAction("/api/watchlist/repost-snapshot", entry.symbol, "Reposted snapshot for");
-            repostButton.disabled = false;
+            try {
+              await postEntryAction("/api/watchlist/repost-snapshot", entry.symbol, "Reposted snapshot for");
+            } finally {
+              repostButton.disabled = false;
+            }
           });
           actions.appendChild(repostButton);
 
@@ -1553,8 +1524,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           refreshButton.className = "secondary";
           refreshButton.addEventListener("click", async () => {
             refreshButton.disabled = true;
-            await postEntryAction("/api/watchlist/refresh-levels", entry.symbol, "Refreshed levels for");
-            refreshButton.disabled = false;
+            try {
+              await postEntryAction("/api/watchlist/refresh-levels", entry.symbol, "Refreshed levels for");
+            } finally {
+              refreshButton.disabled = false;
+            }
           });
           actions.appendChild(refreshButton);
 
@@ -1682,19 +1656,26 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         deactivateButton.textContent = entry.lifecycle === "activating" ? "Cancel" : "Deactivate";
         deactivateButton.className = "danger";
         deactivateButton.addEventListener("click", async () => {
-          const response = await fetch("/api/watchlist/deactivate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ symbol: entry.symbol }),
-          });
-          const payload = await response.json();
-          if (!response.ok) {
-            setStatus(payload.error || "Deactivate failed", true);
-            return;
+          deactivateButton.disabled = true;
+          try {
+            const response = await fetch("/api/watchlist/deactivate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ symbol: entry.symbol }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+              setStatus(payload.error || "Deactivate failed", true);
+              return;
+            }
+            setStatus("Deactivated " + payload.entry.symbol);
+            await loadEntries();
+            await loadRuntimeStatus();
+          } catch (error) {
+            setStatus("Deactivate request failed for " + entry.symbol + ": " + String(error), true);
+          } finally {
+            deactivateButton.disabled = false;
           }
-          setStatus("Deactivated " + payload.entry.symbol);
-          await loadEntries();
-          await loadRuntimeStatus();
         });
         actions.appendChild(deactivateButton);
 
@@ -1704,24 +1685,30 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
-    async function loadEntries() {
-      const response = await fetch("/api/watchlist");
+    async function fetchJson(url) {
+      const response = await fetch(url);
       const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Request failed with HTTP " + response.status + ".");
+      }
+      return payload;
+    }
+
+    async function loadEntries() {
+      const payload = await fetchJson("/api/watchlist");
       renderEntries(payload.activeEntries || []);
     }
 
-    async function loadRuntimeStatus() {
-      const response = await fetch("/api/runtime/status");
-      const payload = await response.json();
-      renderRuntimeStatus(payload);
-      renderRuntimeConfig(payload);
-      renderActivity(payload.recentActivity || []);
-    }
+    let lastRuntimeDetailsLoadedAt = 0;
 
-    async function loadReviewArtifacts() {
-      const response = await fetch("/api/runtime/review-artifacts");
-      const payload = await response.json();
-      renderReviewArtifacts(payload);
+    async function loadRuntimeStatus(includeDetails = false) {
+      const payload = await fetchJson("/api/runtime/status" + (includeDetails ? "" : "?compact=1"));
+      setRuntimeStatusHydrated(true);
+      renderRuntimeStatus(payload);
+      if (includeDetails) {
+        renderRuntimeConfig(payload);
+        lastRuntimeDetailsLoadedAt = Date.now();
+      }
     }
 
     async function clearDiscordPosts() {
@@ -1754,8 +1741,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             " channel posts. Local thread memory reset."
         );
         await loadEntries();
-        await loadRuntimeStatus();
-        await loadReviewArtifacts();
+        await loadRuntimeStatus(true);
       } catch (error) {
         setStatus(String(error), true);
       } finally {
@@ -1800,8 +1786,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           " Discord posts and threads were kept."
         );
         await loadEntries();
-        await loadRuntimeStatus();
-        await loadReviewArtifacts();
+        await loadRuntimeStatus(true);
       } catch (error) {
         setStatus(String(error), true);
       } finally {
@@ -2025,6 +2010,53 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyReversalWatchlistVisibilitySelection() {
+      const requestedVisible = reversalWatchlistVisibleToggleEl.checked;
+      if (requestedVisible === reversalWatchlistVisible) {
+        renderReversalWatchlistVisibilityControl({
+          runtimeHealth: { reversalWatchlistVisible },
+        });
+        return;
+      }
+
+      reversalWatchlistVisibilityInFlight = true;
+      renderReversalWatchlistVisibilityControl(
+        { runtimeHealth: { reversalWatchlistVisible: requestedVisible } },
+        { keepPreviousState: true },
+      );
+      setStatus((requestedVisible ? "Showing" : "Hiding") + " the Potential Reversal Watchlist...");
+      try {
+        const response = await fetch("/api/runtime/reversal-watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visible: requestedVisible }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          reversalWatchlistVisibleToggleEl.checked = reversalWatchlistVisible;
+          setStatus(payload.error || "Potential Reversal Watchlist visibility change failed", true);
+          return;
+        }
+
+        reversalWatchlistVisible = payload.visible !== false;
+        setStatus(
+          (reversalWatchlistVisible ? "Potential Reversal Watchlist visible" : "Potential Reversal Watchlist hidden") +
+            " on /watchlist. Refreshed " +
+            String(payload.refreshedSymbolCount || 0) +
+            " active ticker records.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        reversalWatchlistVisibleToggleEl.checked = reversalWatchlistVisible;
+        setStatus(String(error), true);
+      } finally {
+        reversalWatchlistVisibilityInFlight = false;
+        renderReversalWatchlistVisibilityControl({
+          runtimeHealth: { reversalWatchlistVisible },
+        });
+      }
+    }
+
     async function applyAiReadExternalResearchSelection() {
       const requestedEnabled = aiReadExternalResearchToggleEl.checked;
       if (requestedEnabled === aiReadExternalResearchEnabled) {
@@ -2129,6 +2161,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         minGainPct: readAutoSelectorNumber("minGainPct"),
         minVolume: Math.round(readAutoSelectorNumber("minVolume")),
         minDollarVolume: Math.round(readAutoSelectorNumber("minDollarVolume")),
+        minPostmarketVolume: Math.round(readAutoSelectorNumber("minPostmarketVolume")),
+        minPostmarketDollarVolume: Math.round(readAutoSelectorNumber("minPostmarketDollarVolume")),
         minimumScore: Math.round(readAutoSelectorNumber("minimumScore")),
         consecutivePassesRequired: Math.round(readAutoSelectorNumber("consecutivePassesRequired")),
         maxActiveMainSessionTickers: Math.round(readAutoSelectorNumber("maxActiveMainSessionTickers")),
@@ -2137,6 +2171,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         maxPostmarketAddsPerTradingDay: Math.round(readAutoSelectorNumber("maxPostmarketAddsPerTradingDay")),
         maxMainSessionReplacementsPerTradingDay: Math.round(readAutoSelectorNumber("maxMainSessionReplacementsPerTradingDay")),
         maxPostmarketReplacementsPerTradingDay: Math.round(readAutoSelectorNumber("maxPostmarketReplacementsPerTradingDay")),
+        maxPostmarketExtremeRunnerOverridesPerTradingDay: Math.round(readAutoSelectorNumber("maxPostmarketExtremeRunnerOverridesPerTradingDay")),
         lateMainSessionAdmissionReserve: Math.round(readAutoSelectorNumber("lateMainSessionAdmissionReserve")),
         lateMainSessionAdmissionUnlockHourEastern: Math.round(readAutoSelectorNumber("lateMainSessionAdmissionUnlockHourEastern")),
         dynamicReplacementEnabled: autoSelectorInputEls.dynamicReplacementEnabled.checked,
@@ -2163,6 +2198,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         postmarketPromotionMinGainPct: readAutoSelectorNumber("postmarketPromotionMinGainPct"),
         postmarketPromotionMinRecentDollarVolume: Math.round(readAutoSelectorNumber("postmarketPromotionMinRecentDollarVolume")),
         maxActivityQuoteAgeMinutes: Math.round(readAutoSelectorNumber("maxActivityQuoteAgeMinutes")),
+        zeroRecentVolumeRetentionGraceMinutes: Math.round(readAutoSelectorNumber("zeroRecentVolumeRetentionGraceMinutes")),
         extendedSessionCandidateLimit: Math.round(readAutoSelectorNumber("extendedSessionCandidateLimit")),
         catalystRankingEnabled: autoSelectorInputEls.catalystRankingEnabled.checked,
         catalystLookbackDays: Math.round(readAutoSelectorNumber("catalystLookbackDays")),
@@ -2172,6 +2208,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         recentDollarVolumeRankFullScore: Math.round(readAutoSelectorNumber("recentDollarVolumeRankFullScore")),
         volumeAccelerationRankMaxBoost: Math.round(readAutoSelectorNumber("volumeAccelerationRankMaxBoost")),
         volumeAccelerationRankFullScoreRatio: readAutoSelectorNumber("volumeAccelerationRankFullScoreRatio"),
+        volumeDecelerationRankMaxPenalty: Math.round(readAutoSelectorNumber("volumeDecelerationRankMaxPenalty")),
+        volumeDecelerationRankFullPenaltyRatio: readAutoSelectorNumber("volumeDecelerationRankFullPenaltyRatio"),
+        topGainerQualificationScoreBoost: Math.round(readAutoSelectorNumber("topGainerQualificationScoreBoost")),
         shareTurnoverRankMaxBoost: Math.round(readAutoSelectorNumber("shareTurnoverRankMaxBoost")),
         shareTurnoverRankFullScorePct: Math.round(readAutoSelectorNumber("shareTurnoverRankFullScorePct")),
       };
@@ -2181,6 +2220,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       autoSelectorRequestInFlight = true;
       autoSelectorEnabledToggleEl.disabled = true;
       autoSelectorApplyButtonEl.disabled = true;
+      autoSelectorApplyButtonEl.dataset.loading = "true";
+      autoSelectorApplyButtonEl.setAttribute("aria-busy", "true");
+      autoSelectorApplyButtonEl.textContent = "Saving...";
       autoSelectorPreviewButtonEl.disabled = true;
       setStatus(progressMessage);
       try {
@@ -2202,6 +2244,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         setStatus(String(error), true);
       } finally {
         autoSelectorRequestInFlight = false;
+        delete autoSelectorApplyButtonEl.dataset.loading;
+        autoSelectorApplyButtonEl.setAttribute("aria-busy", "false");
+        autoSelectorApplyButtonEl.textContent = autoSelectorSettingsDirty
+          ? "Apply Selection Settings"
+          : "Settings Saved";
         autoSelectorApplyButtonEl.disabled = !autoSelectorSettingsDirty;
         autoSelectorPreviewButtonEl.disabled = false;
       }
@@ -2278,15 +2325,21 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           return;
         }
       }
-      const started = await activateEntry(symbolEl.value, noteEl.value, false);
-      if (!started) {
-        return;
+      activateButtonEl.disabled = true;
+      try {
+        const started = await activateEntry(symbolEl.value, noteEl.value, false);
+        if (!started) {
+          return;
+        }
+        symbolEl.value = "";
+        noteEl.value = "";
+        await loadEntries();
+        await loadRuntimeStatus(true);
+      } catch (error) {
+        setStatus("Activation refresh failed: " + String(error), true);
+      } finally {
+        activateButtonEl.disabled = false;
       }
-      symbolEl.value = "";
-      noteEl.value = "";
-      await loadEntries();
-      await loadRuntimeStatus();
-      await loadReviewArtifacts();
     });
     clearDiscordButtonEl.addEventListener("click", clearDiscordPosts);
     removeAllTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("all", "all tickers"));
@@ -2311,6 +2364,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     liveTraderReadVisibleToggleEl.addEventListener("change", applyLiveTraderReadVisibilitySelection);
     potentialGainVisibleToggleEl.addEventListener("change", applyPotentialGainVisibilitySelection);
     watchlistLifecycleLabelsVisibleToggleEl.addEventListener("change", applyWatchlistLifecycleLabelsVisibilitySelection);
+    reversalWatchlistVisibleToggleEl.addEventListener("change", applyReversalWatchlistVisibilitySelection);
     aiReadExternalResearchToggleEl.addEventListener("change", applyAiReadExternalResearchSelection);
     aiReadCostBudgetToggleEl.addEventListener("change", applyAiReadCostBudget);
     aiReadCostBudgetApplyEl.addEventListener("click", applyAiReadCostBudget);
@@ -2320,22 +2374,39 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     for (const input of Object.values(autoSelectorInputEls)) {
       input.addEventListener("input", () => {
         autoSelectorSettingsDirty = true;
+        autoSelectorApplyButtonEl.textContent = "Apply Selection Settings";
         autoSelectorApplyButtonEl.disabled = autoSelectorRequestInFlight;
       });
       input.addEventListener("change", () => {
         autoSelectorSettingsDirty = true;
+        autoSelectorApplyButtonEl.textContent = "Apply Selection Settings";
         autoSelectorApplyButtonEl.disabled = autoSelectorRequestInFlight;
       });
     }
 
-    Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]).catch((error) => {
-      setStatus(String(error), true);
-    });
-    setInterval(() => {
-      Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]).catch((error) => {
+    async function refreshDashboard() {
+      if (dashboardRefreshTimer !== null) {
+        clearTimeout(dashboardRefreshTimer);
+        dashboardRefreshTimer = null;
+      }
+      if (document.hidden) {
+        return;
+      }
+      try {
+        const includeDetails = Date.now() - lastRuntimeDetailsLoadedAt >= RUNTIME_DETAILS_REFRESH_INTERVAL_MS;
+        await Promise.all([loadEntries(), loadRuntimeStatus(includeDetails)]);
+      } catch (error) {
         setStatus(String(error), true);
-      });
-    }, 5000);
+      } finally {
+        dashboardRefreshTimer = setTimeout(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS);
+      }
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        void refreshDashboard();
+      }
+    });
+    void refreshDashboard();
   </script>
 </body>
 </html>

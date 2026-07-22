@@ -26,16 +26,18 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
       liveTraderReadCardVisible: false,
       potentialGainCardVisible: true,
       watchlistLifecycleLabelsVisible: true,
+      reversalWatchlistVisible: false,
       dailyCostBudgetEnabled: false,
       dailyCostBudgetUsd: 1,
     });
     assert.deepEqual(persistence.load(), {
-      version: 4,
+      version: 5,
       lastUpdated: persistence.load()?.lastUpdated,
       externalResearchEnabled: false,
       liveTraderReadCardVisible: false,
       potentialGainCardVisible: true,
       watchlistLifecycleLabelsVisible: true,
+      reversalWatchlistVisible: false,
       dailyCostBudgetEnabled: false,
       dailyCostBudgetUsd: 1,
     });
@@ -55,12 +57,13 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
 
     const loaded = new TradersLinkAiReadSettingsPersistence({ filePath }).load();
     assert.deepEqual(loaded, {
-      version: 4,
+      version: 5,
       lastUpdated: 123,
       externalResearchEnabled: false,
       liveTraderReadCardVisible: true,
       potentialGainCardVisible: true,
       watchlistLifecycleLabelsVisible: false,
+      reversalWatchlistVisible: true,
       dailyCostBudgetEnabled: false,
       dailyCostBudgetUsd: 1,
     });

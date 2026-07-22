@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { DiscordThreadGateway } from "../lib/alerts/alert-router.js";
+import {
+  DiscordAlertRouter,
+  type DiscordThreadGateway,
+} from "../lib/alerts/alert-router.js";
 import type {
   AlertPayload,
   DiscordThread,
@@ -26,7 +29,12 @@ class RecordingDiscordGateway implements DiscordThreadGateway {
   }
 
   async createThread(name: string): Promise<DiscordThread> {
+    this.events.push(`discord:thread:${name}`);
     return { id: name, name };
+  }
+
+  async announceTickerAdded(name: string): Promise<void> {
+    this.events.push(`discord:announcement:${name}`);
   }
 
   async sendMessage(_threadId: string, _payload: AlertPayload): Promise<void> {
@@ -49,6 +57,32 @@ class RecordingDiscordGateway implements DiscordThreadGateway {
 }
 
 describe("website publishing Discord gateway", () => {
+  it("announces new tickers in the watchlist channel without creating Discord threads", async () => {
+    const events: string[] = [];
+    const gateway = new WebsitePublishingDiscordGateway(
+      new RecordingDiscordGateway(events),
+      null,
+    );
+    const router = new DiscordAlertRouter(gateway);
+
+    const created = await router.ensureThread("abcd");
+    const migrated = await router.ensureThread("ABCD", "legacy-thread-id");
+
+    assert.deepEqual(created, {
+      threadId: "watchlist:ABCD",
+      reused: false,
+      recovered: false,
+      created: true,
+    });
+    assert.deepEqual(migrated, {
+      threadId: "watchlist:ABCD",
+      reused: true,
+      recovered: true,
+      created: false,
+    });
+    assert.deepEqual(events, ["discord:announcement:ABCD"]);
+  });
+
   it("publishes trader reads to the website without forwarding the content to Discord", async () => {
     const events: string[] = [];
     const publisher: LiveWatchlistPublisher = {
@@ -127,5 +161,54 @@ describe("website publishing Discord gateway", () => {
     });
 
     assert.deepEqual(events, ["website:ABCD", "website:ABCD"]);
+  });
+
+  it("keeps the website Trader Read card removed from snapshots and alerts while visibility is off", async () => {
+    const patches: LiveWatchlistCardPatch[] = [];
+    let liveTraderReadCardVisible = false;
+    const publisher: LiveWatchlistPublisher = {
+      async publish(patch: LiveWatchlistCardPatch): Promise<void> {
+        patches.push(patch);
+      },
+    };
+    const gateway = new WebsitePublishingDiscordGateway(
+      new RecordingDiscordGateway([]),
+      publisher,
+      undefined,
+      {
+        pullbackReadEnabled: true,
+        isLiveTraderReadCardVisible: () => liveTraderReadCardVisible,
+      },
+    );
+
+    await gateway.sendLevelSnapshot("thread-1", {
+      symbol: "HIDE",
+      currentPrice: 1.23,
+      supportZones: [{ representativePrice: 1.1 }],
+      resistanceZones: [{ representativePrice: 1.4 }],
+      timestamp: 1000,
+    });
+    await gateway.sendMessage("thread-1", {
+      title: "HIDE trader read",
+      body: "Holding above support.",
+      symbol: "HIDE",
+      timestamp: 2000,
+      metadata: { messageKind: "intelligent_alert" },
+    });
+
+    assert.equal(patches.length, 2);
+    assert.equal(patches[0]?.cards.liveTraderRead, null);
+    assert.equal(patches[1]?.cards.liveTraderRead, null);
+
+    liveTraderReadCardVisible = true;
+    await gateway.sendLevelSnapshot("thread-1", {
+      symbol: "HIDE",
+      currentPrice: 1.23,
+      supportZones: [{ representativePrice: 1.1 }],
+      resistanceZones: [{ representativePrice: 1.4 }],
+      timestamp: 3000,
+    });
+
+    assert.equal(patches[2]?.cards.liveTraderRead?.source, "level_snapshot");
   });
 });

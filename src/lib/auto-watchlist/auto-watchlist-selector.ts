@@ -25,22 +25,71 @@ import {
   type CommonEquitySecurityMasterLookup,
   type CommonEquitySecurityMasterStatus,
 } from "./eodhd-common-stock-security-master.js";
+import {
+  NasdaqTradingHaltService,
+  type NasdaqTradingHaltLookup,
+  type NasdaqTradingHaltRecord,
+  type NasdaqTradingHaltState,
+} from "./nasdaq-trading-halt-service.js";
 
 type FetchLike = typeof fetch;
 
 const CONFIG_VERSION = 1;
 const MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS = 3;
-const MAIN_SESSION_BASELINE_QUALIFICATION_SCORE = 65;
-const MAIN_SESSION_STRONG_RUNNER_MIN_GAIN_PCT = 20;
-const MAIN_SESSION_STRONG_RUNNER_MIN_RECENT_DOLLAR_VOLUME = 250_000;
-const MAIN_SESSION_STRONG_RUNNER_MIN_VOLUME_ACCELERATION = 2;
+const CONSECUTIVE_PASS_MAX_GAP_MS = 15 * 60 * 1000;
+const REVERSAL_WATCH_FULL_MAIN_SESSION_VOLUME = 50_000_000;
+const REVERSAL_WATCH_DEAD_CONFIRMATION_MS = 10 * 60 * 1000;
+const MAIN_WATCH_WINDOW_MINUTES = 12 * 60;
+const MAIN_VACANCY_MIN_QUALIFICATION_SCORE = 65;
+const MAIN_VACANCY_MIN_GAIN_PCT = 20;
+const MAIN_VACANCY_MIN_RECENT_DOLLAR_VOLUME = 250_000;
+const MAIN_VACANCY_MIN_VOLUME_ACCELERATION = 2;
+const NASDAQ_TOP_FIVE_GAINER_SOURCE = "nasdaq_live_most_advanced_top5";
+const STOCKANALYSIS_PREMARKET_TOP_FIVE_GAINER_SOURCE = "stockanalysis_live_premarket_gainers_top5";
+const STOCKANALYSIS_REGULAR_TOP_FIVE_GAINER_SOURCE = "stockanalysis_live_regular_gainers_top5";
+const STOCKANALYSIS_AFTERHOURS_TOP_FIVE_GAINER_SOURCE = "stockanalysis_live_afterhours_gainers_top5";
+const TRADINGVIEW_PREMARKET_TOP_FIVE_GAINER_SOURCE = "tradingview_live_premarket_gainers_top5";
+const TRADINGVIEW_REGULAR_TOP_FIVE_GAINER_SOURCE = "tradingview_live_regular_gainers_top5";
+const TRADINGVIEW_AFTERHOURS_TOP_FIVE_GAINER_SOURCE = "tradingview_live_afterhours_gainers_top5";
+const TOP_FIVE_GAINER_SOURCE_SCREENS = new Set([
+  NASDAQ_TOP_FIVE_GAINER_SOURCE,
+  STOCKANALYSIS_PREMARKET_TOP_FIVE_GAINER_SOURCE,
+  STOCKANALYSIS_REGULAR_TOP_FIVE_GAINER_SOURCE,
+  STOCKANALYSIS_AFTERHOURS_TOP_FIVE_GAINER_SOURCE,
+  TRADINGVIEW_PREMARKET_TOP_FIVE_GAINER_SOURCE,
+  TRADINGVIEW_REGULAR_TOP_FIVE_GAINER_SOURCE,
+  TRADINGVIEW_AFTERHOURS_TOP_FIVE_GAINER_SOURCE,
+]);
+const TOP_GAINER_SOURCE_SCREENS = new Set([
+  "nasdaq_live_most_advanced",
+  "stockanalysis_live_premarket_gainers",
+  "stockanalysis_live_regular_gainers",
+  "stockanalysis_live_afterhours_gainers",
+  "tradingview_live_premarket_gainers",
+  "tradingview_live_regular_gainers",
+  "tradingview_live_afterhours_gainers",
+  "small_cap_gainers",
+]);
+const INDEPENDENT_RUNNER_SOURCE_SCREENS = new Set([
+  "live_exchange_screener",
+  "nasdaq_live_most_advanced",
+  "nasdaq_live_most_active",
+  "stockanalysis_live_premarket_gainers",
+  "stockanalysis_live_regular_gainers",
+  "stockanalysis_live_afterhours_gainers",
+  "tradingview_live_premarket_gainers",
+  "tradingview_live_regular_gainers",
+  "tradingview_live_afterhours_gainers",
+  "small_cap_gainers",
+  "aggressive_small_caps",
+]);
 
 export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxMarketCap: 100_000_000,
   maxFloatShares: 50_000_000,
   maxSharesOutstanding: 60_000_000,
   lowPriceFloatNormalizationEnabled: true,
-  lowPriceFloatNormalizationMaxPrice: 0.5,
+  lowPriceFloatNormalizationMaxPrice: 1,
   lowPriceFloatNormalizationMaxDollarValue: 50_000_000,
   requireShareData: true,
   minPrice: 0.25,
@@ -48,6 +97,8 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   minGainPct: 10,
   minVolume: 500_000,
   minDollarVolume: 250_000,
+  minPostmarketVolume: 100_000,
+  minPostmarketDollarVolume: 250_000,
   minimumScore: 50,
   consecutivePassesRequired: 2,
   maxAddsPerTradingDay: 12,
@@ -56,6 +107,7 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   maxActivePostmarketTickers: 3,
   maxMainSessionReplacementsPerTradingDay: 7,
   maxPostmarketReplacementsPerTradingDay: 5,
+  maxPostmarketExtremeRunnerOverridesPerTradingDay: 1,
   lateMainSessionAdmissionReserve: 3,
   lateMainSessionAdmissionUnlockHourEastern: 9,
   dynamicReplacementEnabled: true,
@@ -91,6 +143,10 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   recentDollarVolumeRankFullScore: 1_000_000,
   volumeAccelerationRankMaxBoost: 10,
   volumeAccelerationRankFullScoreRatio: 3,
+  volumeDecelerationRankMaxPenalty: 12,
+  volumeDecelerationRankFullPenaltyRatio: 0.25,
+  topGainerQualificationScoreBoost: 5,
+  zeroRecentVolumeRetentionGraceMinutes: 15,
   shareTurnoverRankMaxBoost: 10,
   shareTurnoverRankFullScorePct: 100,
 } as const;
@@ -113,6 +169,10 @@ export type AutoWatchlistSelectorThresholds = {
   minGainPct: number;
   minVolume: number;
   minDollarVolume: number;
+  /** After-hours-only share volume required for post-market qualification. */
+  minPostmarketVolume: number;
+  /** After-hours-only dollar volume required for post-market qualification. */
+  minPostmarketDollarVolume: number;
   minimumScore: number;
   consecutivePassesRequired: number;
   maxAddsPerTradingDay: number;
@@ -121,6 +181,8 @@ export type AutoWatchlistSelectorThresholds = {
   maxActivePostmarketTickers: number;
   maxMainSessionReplacementsPerTradingDay: number;
   maxPostmarketReplacementsPerTradingDay: number;
+  /** Break-glass replacements after the normal post-market replacement allowance is exhausted. */
+  maxPostmarketExtremeRunnerOverridesPerTradingDay: number;
   /** Shared late-session capacity for main-bucket additions and replacements after the normal quota is exhausted. */
   lateMainSessionAdmissionReserve: number;
   lateMainSessionAdmissionUnlockHourEastern: number;
@@ -159,6 +221,10 @@ export type AutoWatchlistSelectorThresholds = {
   recentDollarVolumeRankFullScore: number;
   volumeAccelerationRankMaxBoost: number;
   volumeAccelerationRankFullScoreRatio: number;
+  volumeDecelerationRankMaxPenalty: number;
+  volumeDecelerationRankFullPenaltyRatio: number;
+  topGainerQualificationScoreBoost: number;
+  zeroRecentVolumeRetentionGraceMinutes: number;
   shareTurnoverRankMaxBoost: number;
   shareTurnoverRankFullScorePct: number;
 };
@@ -197,10 +263,12 @@ export type AutoWatchlistCandidateDecision = AutoWatchlistDiscoveryCandidate & {
   lowPriceFloatNormalized: boolean;
   session: AutoWatchlistSession;
   sessionVolume: number | null;
+  mainSessionVolume: number | null;
   sessionDollarVolume: number | null;
   recent15mVolume: number | null;
   recent15mDollarVolume: number | null;
   sessionElapsedMinutes: number | null;
+  mainSessionElapsedMinutes: number | null;
   volumeAcceleration: number | null;
   shareTurnoverPct: number | null;
   activityQuoteAgeMinutes: number | null;
@@ -212,7 +280,12 @@ export type AutoWatchlistCandidateDecision = AutoWatchlistDiscoveryCandidate & {
   catalystRankBoost: number;
   recentDollarVolumeRankBoost: number;
   volumeAccelerationRankBoost: number;
+  volumeDecelerationRankPenalty: number;
   shareTurnoverRankBoost: number;
+  tradingHaltState: NasdaqTradingHaltState | "not_checked" | "unavailable";
+  tradingHaltReasonCode: string | null;
+  haltRetentionProtected: boolean;
+  haltRetentionProtectionReason: string | null;
   reasons: string[];
   rankingReasons: string[];
   rejectionReasons: string[];
@@ -230,7 +303,27 @@ export type AutoWatchlistManagedEntry = {
   lastSession: AutoWatchlistSession;
   lastRankingScore: number;
   lastSlotSurvivalScore: number;
+  admissionAt: number | null;
+  admissionQualificationScore: number | null;
+  admissionRankingScore: number | null;
+  admissionSlotSurvivalScore: number | null;
   lastQualifiedAt: number | null;
+  holdProtectionEarnedAt: number | null;
+  holdProtectionReason: string | null;
+  reversalWatchQualifiedAt: number | null;
+  reversalWatchQualificationReason: string | null;
+  reversalWatchLowPrice: number | null;
+  reversalWatchLowAt: number | null;
+  reversalAttemptEvidenceScans: number;
+  reversalWatchAttemptReady: boolean;
+  peakGainPct: number | null;
+  peakGainAt: number | null;
+  lastObservedGainPct: number | null;
+  lastObservedAt: number | null;
+  topFiveGainerFirstObservedAt: number | null;
+  topFiveGainerLastObservedAt: number | null;
+  topFiveGainerObservationCount: number;
+  topFiveGainerConsecutiveObservations: number;
   retentionFailures: number;
   followupAt?: number | null;
   vacatedSlotAt?: number | null;
@@ -251,6 +344,13 @@ export type AutoWatchlistFirstPassEvidence = {
   sourceScreens: string[];
 };
 
+export type AutoWatchlistConsecutivePassEvidence = {
+  symbol: string;
+  count: number;
+  session: AutoWatchlistSession;
+  observedAt: number;
+};
+
 export type AutoWatchlistReplacementEvent = {
   timestamp: number;
   bucket: AutoWatchlistBucket;
@@ -259,6 +359,7 @@ export type AutoWatchlistReplacementEvent = {
   incomingRankingScore: number | null;
   outgoingRankingScore: number;
   reason: string;
+  exceptionKind?: "postmarket_extreme_runner";
 };
 
 export type AutoWatchlistRuntimeEntry = {
@@ -280,6 +381,7 @@ export type AutoWatchlistSelectorStatus = {
     finnhubOutstandingAvailable: boolean;
     pressReleaseCatalystAvailable: boolean;
     sessionActivityAvailable: boolean;
+    tradingHaltFeedAvailable: boolean;
     commonEquitySecurityMasterEnabled: boolean;
     commonEquitySecurityMasterAvailable: boolean;
     commonEquitySecurityMasterCheckedAt: number | null;
@@ -295,8 +397,10 @@ export type AutoWatchlistSelectorStatus = {
   lastError: string | null;
   lastDiscoverySources: string[];
   lastDiscoveryError: string | null;
+  discoveryFeedComparison: AutoWatchlistDiscoveryFeedComparison | null;
   lastCatalystLookupError: string | null;
   lastActivityLookupError: string | null;
+  lastTradingHaltLookupError: string | null;
   lastSecurityMasterError: string | null;
   tradingDay: string | null;
   addedToday: string[];
@@ -305,6 +409,8 @@ export type AutoWatchlistSelectorStatus = {
   lateMainSessionAdmissionReserveUsed: number;
   lateMainSessionAdmissionReserveAvailable: number;
   lateMainSessionAdmissionReserveUnlocked: boolean;
+  postmarketExtremeRunnerOverridesUsed: number;
+  postmarketExtremeRunnerOverridesAvailable: number;
   activeMainSessionSymbols: string[];
   activePostmarketSymbols: string[];
   followupSymbols: string[];
@@ -312,8 +418,44 @@ export type AutoWatchlistSelectorStatus = {
   standbyToday: AutoWatchlistManagedEntry[];
   managedEntries: AutoWatchlistManagedEntry[];
   firstPassEvidence: AutoWatchlistFirstPassEvidence[];
+  consecutivePassEvidence: AutoWatchlistConsecutivePassEvidence[];
   recentReplacements: AutoWatchlistReplacementEvent[];
   recentDecisions: AutoWatchlistCandidateDecision[];
+};
+
+export type AutoWatchlistFollowupPublicationState = {
+  symbol: string;
+  reversalWatchEligible: boolean;
+  reversalWatchAttemptReady: boolean;
+};
+
+export function meetsMainVacancyAdmissionQuality(
+  decision: Pick<
+    AutoWatchlistCandidateDecision,
+    "score" | "gainPct" | "recent15mDollarVolume" | "volumeAcceleration"
+  >,
+): boolean {
+  return decision.score >= MAIN_VACANCY_MIN_QUALIFICATION_SCORE || (
+    (decision.gainPct ?? 0) >= MAIN_VACANCY_MIN_GAIN_PCT &&
+    (decision.recent15mDollarVolume ?? 0) >= MAIN_VACANCY_MIN_RECENT_DOLLAR_VOLUME &&
+    (decision.volumeAcceleration ?? 0) >= MAIN_VACANCY_MIN_VOLUME_ACCELERATION
+  );
+}
+
+export type AutoWatchlistDiscoveryFeedComparison = {
+  checkedAt: number;
+  session: "premarket";
+  status: "agreeing" | "nasdaq_stale_or_mismatched" | "stockanalysis_stale_or_mismatched" | "inconclusive";
+  overlapSymbols: string[];
+  nasdaq: AutoWatchlistDiscoveryFeedHealth;
+  stockAnalysis: AutoWatchlistDiscoveryFeedHealth;
+};
+
+export type AutoWatchlistDiscoveryFeedHealth = {
+  available: boolean;
+  error: string | null;
+  leaderSymbols: string[];
+  currentSessionMatches: string[];
 };
 
 type PersistedConfig = {
@@ -328,6 +470,7 @@ type PersistedConfig = {
   lateMainSessionAdmissionReserveUsed?: number;
   managedEntries?: AutoWatchlistManagedEntry[];
   firstPassEvidence?: AutoWatchlistFirstPassEvidence[];
+  consecutivePassEvidence?: AutoWatchlistConsecutivePassEvidence[];
   replacementHistory?: AutoWatchlistReplacementEvent[];
 };
 
@@ -348,9 +491,18 @@ type AutoWatchlistSelectorOptions = {
     note?: string;
     source?: "manual" | "auto";
     autoSession?: Exclude<AutoWatchlistSession, "closed">;
+    selectionPrice?: number;
+    selectionGainPct?: number;
   }) => Promise<unknown>;
   deactivateSymbol?: (symbol: string) => Promise<unknown>;
-  setSymbolFollowup?: (symbol: string, followup: boolean) => Promise<unknown>;
+  setSymbolFollowup?: (
+    symbol: string,
+    followup: boolean,
+    options?: {
+      reversalWatchEligible?: boolean;
+      reversalWatchAttemptReady?: boolean;
+    },
+  ) => Promise<unknown>;
   getActiveSymbols: () => string[];
   getActiveEntries?: () => AutoWatchlistRuntimeEntry[];
   isRuntimeReady: () => boolean;
@@ -360,8 +512,16 @@ type AutoWatchlistSelectorOptions = {
   now?: () => number;
   catalystLookup?: typeof lookupLocalPressReleaseCatalystArticles;
   sessionActivityLookup?: AutoWatchlistSessionActivityLookup;
+  tradingHaltLookup?: NasdaqTradingHaltLookup;
   securityMasterLookup?: CommonEquitySecurityMasterLookup;
   requireVerifiedCommonEquity?: boolean;
+  onPremarketVolumeSnapshot?: (snapshots: AutoWatchlistPremarketVolumeSnapshot[]) => void;
+};
+
+export type AutoWatchlistPremarketVolumeSnapshot = {
+  symbol: string;
+  cumulativeVolume: number;
+  observedAt: number;
 };
 
 export type AutoWatchlistSession = "premarket" | "regular" | "postmarket" | "closed";
@@ -372,10 +532,12 @@ export type AutoWatchlistSessionActivity = {
   price: number | null;
   gainPct: number | null;
   sessionVolume: number | null;
+  mainSessionVolume?: number | null;
   sessionDollarVolume?: number | null;
   recent15mVolume: number | null;
   recent15mDollarVolume: number | null;
   sessionElapsedMinutes?: number | null;
+  mainSessionElapsedMinutes?: number | null;
   volumeAcceleration?: number | null;
   quoteTime: number | null;
   quoteAgeMinutes: number | null;
@@ -434,16 +596,19 @@ function isEligibleForExtendedSessionProbe(
 
 /**
  * A single regular-hours leader board cannot identify an after-hours runner.
- * Keep the session-activity request budget fixed, but split it across three
- * independent discovery lanes: Nasdaq movers, regular-session dollar volume,
- * and regular-session percentage gain. This prevents the first lane from
- * monopolizing all probes while still retaining independent Nasdaq movers.
+ * Keep the session-activity request budget fixed, but split it across direct
+ * movers, regular-session dollar volume, regular-session percentage gain, and
+ * a rotating exploration slice. The exploration slice prevents a stock that
+ * was quiet in regular hours from remaining permanently invisible when a
+ * direct extended-hours source is temporarily unavailable.
  */
-function selectExtendedSessionProbeCandidates(input: {
+export function selectExtendedSessionProbeCandidates(input: {
   candidates: AutoWatchlistDiscoveryCandidate[];
+  explorationCandidates?: AutoWatchlistDiscoveryCandidate[];
   marketMovers: AutoWatchlistDiscoveryCandidate[];
   limit: number;
   thresholds: AutoWatchlistSelectorThresholds;
+  explorationStartIndex?: number;
 }): AutoWatchlistDiscoveryCandidate[] {
   const eligible = (candidate: AutoWatchlistDiscoveryCandidate) =>
     isEligibleForExtendedSessionProbe(candidate, input.thresholds);
@@ -468,6 +633,44 @@ function selectExtendedSessionProbeCandidates(input: {
   const lanes = [byMover, byDollarVolume, byGain];
   const nextIndex = lanes.map(() => 0);
   const selected = new Map<string, AutoWatchlistDiscoveryCandidate>();
+  const explorationPool = [...(input.explorationCandidates ?? input.candidates)]
+    .filter(eligible)
+    .sort((left, right) => left.symbol.localeCompare(right.symbol));
+  const explorationSlots = Math.floor(input.limit / 4);
+  const leaderLimit = Math.max(0, input.limit - explorationSlots);
+
+  while (selected.size < leaderLimit) {
+    let addedAny = false;
+    for (const [laneIndex, lane] of lanes.entries()) {
+      while (nextIndex[laneIndex]! < lane.length) {
+        const candidate = lane[nextIndex[laneIndex]++]!;
+        if (selected.has(candidate.symbol)) continue;
+        selected.set(candidate.symbol, candidate);
+        addedAny = true;
+        break;
+      }
+      if (selected.size >= leaderLimit) break;
+    }
+    if (!addedAny) break;
+  }
+
+  if (explorationSlots > 0 && explorationPool.length > 0) {
+    const start = Math.max(0, input.explorationStartIndex ?? 0) % explorationPool.length;
+    let explorationAdded = 0;
+    for (
+      let offset = 0;
+      offset < explorationPool.length && selected.size < input.limit && explorationAdded < explorationSlots;
+      offset += 1
+    ) {
+      const candidate = explorationPool[(start + offset) % explorationPool.length]!;
+      if (selected.has(candidate.symbol)) continue;
+      selected.set(candidate.symbol, {
+        ...candidate,
+        sourceScreens: [...new Set([...candidate.sourceScreens, "extended_session_rotating_probe"])],
+      });
+      explorationAdded += 1;
+    }
+  }
 
   while (selected.size < input.limit) {
     let addedAny = false;
@@ -487,8 +690,234 @@ function selectExtendedSessionProbeCandidates(input: {
   return [...selected.values()];
 }
 
+export function parseStockAnalysisAfterhoursGainers(
+  html: string,
+  expectedDate?: string,
+): AutoWatchlistDiscoveryCandidate[] {
+  const numberPattern = "[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)";
+  const rowPattern = new RegExp(
+    `\\{no:(\\d+),s:\"([A-Z0-9.-]+)\",n:\"(?:\\\\.|[^\"\\\\])*\",` +
+      `postmarketChangePercent:(${numberPattern}),postmarketDate:\"([^\"]+)\",` +
+      `postmarketPrice:(${numberPattern}),postClose:${numberPattern},marketCap:(${numberPattern})`,
+    "g",
+  );
+  const bySymbol = new Map<string, AutoWatchlistDiscoveryCandidate>();
+  for (const match of html.matchAll(rowPattern)) {
+    const rank = Number(match[1]);
+    const symbol = normalizeSymbol(match[2]);
+    const gainPct = finiteNumber(Number(match[3]));
+    const postmarketDate = match[4];
+    const price = finitePositive(Number(match[5]));
+    const marketCap = finitePositive(Number(match[6]));
+    if (expectedDate && postmarketDate !== expectedDate) continue;
+    if (!symbol || gainPct === null || price === null) continue;
+    bySymbol.set(symbol, {
+      symbol,
+      price,
+      gainPct,
+      volume: null,
+      averageVolume: null,
+      marketCap,
+      quoteTime: null,
+      sourceScreens: [
+        "stockanalysis_live_afterhours_gainers",
+        ...(rank <= 5 ? [STOCKANALYSIS_AFTERHOURS_TOP_FIVE_GAINER_SOURCE] : []),
+      ],
+    });
+  }
+  return [...bySymbol.values()].sort(
+    (left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0),
+  );
+}
+
+export function parseStockAnalysisPremarketGainers(
+  html: string,
+  expectedDate?: string,
+): AutoWatchlistDiscoveryCandidate[] {
+  const numberPattern = "[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)";
+  const rowPattern = new RegExp(
+    `\\{no:(\\d+),s:\"([A-Z0-9.-]+)\",n:\"(?:\\\\.|[^\"\\\\])*\",` +
+      `premarketChangePercent:(${numberPattern}),premarketDate:\"([^\"]+)\",` +
+      `premarketPrice:(${numberPattern})(?:,premarketVolume:(${numberPattern}))?,marketCap:(${numberPattern})`,
+    "g",
+  );
+  const bySymbol = new Map<string, AutoWatchlistDiscoveryCandidate>();
+  for (const match of html.matchAll(rowPattern)) {
+    const rank = Number(match[1]);
+    const symbol = normalizeSymbol(match[2]);
+    const gainPct = finiteNumber(Number(match[3]));
+    const premarketDate = match[4];
+    const price = finitePositive(Number(match[5]));
+    const volume = finitePositive(Number(match[6]));
+    const marketCap = finitePositive(Number(match[7]));
+    if (expectedDate && premarketDate !== expectedDate) continue;
+    if (!symbol || gainPct === null || price === null) continue;
+    bySymbol.set(symbol, {
+      symbol,
+      price,
+      gainPct,
+      volume,
+      averageVolume: null,
+      marketCap,
+      quoteTime: null,
+      sourceScreens: [
+        "stockanalysis_live_premarket_gainers",
+        ...(rank <= 5 ? [STOCKANALYSIS_PREMARKET_TOP_FIVE_GAINER_SOURCE] : []),
+      ],
+    });
+  }
+  return [...bySymbol.values()].sort(
+    (left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0),
+  );
+}
+
+export function parseStockAnalysisRegularGainers(
+  html: string,
+  expectedDate?: string,
+): AutoWatchlistDiscoveryCandidate[] {
+  const numberPattern = "[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)";
+  const rowPattern = new RegExp(
+    `\\{no:(\\d+),s:\"([A-Z0-9.-]+)\",n:\"(?:\\\\.|[^\"\\\\])*\",` +
+      `change:(${numberPattern}),priceDate:\"([^\"]+)\",price:(${numberPattern}),` +
+      `volume:(${numberPattern}),marketCap:(${numberPattern})`,
+    "g",
+  );
+  const bySymbol = new Map<string, AutoWatchlistDiscoveryCandidate>();
+  for (const match of html.matchAll(rowPattern)) {
+    const rank = Number(match[1]);
+    const symbol = normalizeSymbol(match[2]);
+    const gainPct = finiteNumber(Number(match[3]));
+    const priceDate = match[4];
+    const price = finitePositive(Number(match[5]));
+    const volume = finitePositive(Number(match[6]));
+    const marketCap = finitePositive(Number(match[7]));
+    if (expectedDate && priceDate !== expectedDate) continue;
+    if (!symbol || gainPct === null || price === null) continue;
+    bySymbol.set(symbol, {
+      symbol,
+      price,
+      gainPct,
+      volume,
+      averageVolume: null,
+      marketCap,
+      quoteTime: null,
+      sourceScreens: [
+        "stockanalysis_live_regular_gainers",
+        ...(rank <= 5 ? [STOCKANALYSIS_REGULAR_TOP_FIVE_GAINER_SOURCE] : []),
+      ],
+    });
+  }
+  return [...bySymbol.values()].sort(
+    (left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0),
+  );
+}
+
+export function parseTradingViewGainers(
+  html: string,
+  session: Exclude<AutoWatchlistSession, "closed">,
+): AutoWatchlistDiscoveryCandidate[] {
+  const sessionName = session === "postmarket" ? "afterhours" : session;
+  const source = `tradingview_live_${sessionName}_gainers`;
+  const topFiveSource = `tradingview_live_${sessionName}_gainers_top5`;
+  const rowPattern = /<tr\b[^>]*data-rowkey="(?:NASDAQ|NYSE|AMEX):([A-Z0-9.-]+)"[^>]*>([\s\S]*?)<\/tr>/gi;
+  const bySymbol = new Map<string, AutoWatchlistDiscoveryCandidate>();
+  let rank = 0;
+  for (const match of html.matchAll(rowPattern)) {
+    rank += 1;
+    const symbol = normalizeSymbol(match[1]);
+    const rowHtml = match[2] ?? "";
+    const gainMatch = rowHtml.match(/class="positive-[^"]*"[^>]*>\+?([0-9][0-9,.]*)%<\/span>/i);
+    const gainPct = gainMatch ? finiteNumber(Number(gainMatch[1]!.replace(/,/g, ""))) : null;
+    if (!symbol || gainPct === null) continue;
+    bySymbol.set(symbol, {
+      symbol,
+      price: null,
+      gainPct,
+      volume: null,
+      averageVolume: null,
+      marketCap: null,
+      quoteTime: null,
+      sourceScreens: [source, ...(rank <= 5 ? [topFiveSource] : [])],
+    });
+  }
+  return [...bySymbol.values()].sort(
+    (left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0),
+  );
+}
+
+export function buildAutoWatchlistDiscoveryFeedComparison(input: {
+  checkedAt: number;
+  nasdaqAvailable: boolean;
+  nasdaqError: string | null;
+  nasdaqCandidates: AutoWatchlistDiscoveryCandidate[];
+  stockAnalysisAvailable: boolean;
+  stockAnalysisError: string | null;
+  stockAnalysisCandidates: AutoWatchlistDiscoveryCandidate[];
+  activities: Map<string, AutoWatchlistSessionActivity>;
+}): AutoWatchlistDiscoveryFeedComparison {
+  const buildHealth = (
+    available: boolean,
+    error: string | null,
+    candidates: AutoWatchlistDiscoveryCandidate[],
+  ): AutoWatchlistDiscoveryFeedHealth => {
+    const leaders = candidates.slice(0, 10);
+    const currentSessionMatches = leaders
+      .filter((candidate) => {
+        const activity = input.activities.get(candidate.symbol);
+        if (!activity?.available || activity.gainPct === null || candidate.gainPct === null) return false;
+        const tolerance = Math.max(15, Math.abs(activity.gainPct) * 0.5);
+        return activity.gainPct > 0 && Math.abs(candidate.gainPct - activity.gainPct) <= tolerance;
+      })
+      .map((candidate) => candidate.symbol);
+    return {
+      available,
+      error,
+      leaderSymbols: leaders.map((candidate) => candidate.symbol),
+      currentSessionMatches,
+    };
+  };
+  const nasdaq = buildHealth(input.nasdaqAvailable, input.nasdaqError, input.nasdaqCandidates);
+  const stockAnalysis = buildHealth(
+    input.stockAnalysisAvailable,
+    input.stockAnalysisError,
+    input.stockAnalysisCandidates,
+  );
+  const stockAnalysisSymbols = new Set(stockAnalysis.leaderSymbols);
+  const overlapSymbols = nasdaq.leaderSymbols.filter((symbol) => stockAnalysisSymbols.has(symbol));
+  const nasdaqClearlyMismatched =
+    nasdaq.leaderSymbols.length >= 3 &&
+    nasdaq.currentSessionMatches.length <= 1 &&
+    stockAnalysis.currentSessionMatches.length >= 2;
+  const stockAnalysisClearlyMismatched =
+    stockAnalysis.leaderSymbols.length >= 3 &&
+    stockAnalysis.currentSessionMatches.length <= 1 &&
+    nasdaq.currentSessionMatches.length >= 2;
+  const status = nasdaqClearlyMismatched
+    ? "nasdaq_stale_or_mismatched"
+    : stockAnalysisClearlyMismatched
+      ? "stockanalysis_stale_or_mismatched"
+      : overlapSymbols.length >= 2 || (
+          nasdaq.currentSessionMatches.length >= 2 &&
+          stockAnalysis.currentSessionMatches.length >= 2
+        )
+        ? "agreeing"
+        : "inconclusive";
+  return {
+    checkedAt: input.checkedAt,
+    session: "premarket",
+    status,
+    overlapSymbols,
+    nasdaq,
+    stockAnalysis,
+  };
+}
+
 function normalizeSymbol(value: unknown): string {
   return typeof value === "string" ? value.trim().toUpperCase() : "";
+}
+
+function isTopGainerCandidate(candidate: AutoWatchlistDiscoveryCandidate): boolean {
+  return candidate.sourceScreens.some((source) => TOP_GAINER_SOURCE_SCREENS.has(source));
 }
 
 const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
@@ -498,6 +927,8 @@ const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "lowPriceFloatNormalizationMaxDollarValue",
   "minVolume",
   "minDollarVolume",
+  "minPostmarketVolume",
+  "minPostmarketDollarVolume",
   "minimumScore",
   "consecutivePassesRequired",
   "maxAddsPerTradingDay",
@@ -506,6 +937,7 @@ const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "maxActivePostmarketTickers",
   "maxMainSessionReplacementsPerTradingDay",
   "maxPostmarketReplacementsPerTradingDay",
+  "maxPostmarketExtremeRunnerOverridesPerTradingDay",
   "lateMainSessionAdmissionReserve",
   "lateMainSessionAdmissionUnlockHourEastern",
   "minimumAutoHoldMinutes",
@@ -524,6 +956,9 @@ const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "recentDollarVolumeRankMaxBoost",
   "recentDollarVolumeRankFullScore",
   "volumeAccelerationRankMaxBoost",
+  "volumeDecelerationRankMaxPenalty",
+  "topGainerQualificationScoreBoost",
+  "zeroRecentVolumeRetentionGraceMinutes",
   "shareTurnoverRankMaxBoost",
   "shareTurnoverRankFullScorePct",
   "minRecentDollarVolume15mPremarket",
@@ -601,9 +1036,10 @@ export function resolveAutoWatchlistSelectorThresholds(
   }
   if (
     resolved.maxMainSessionReplacementsPerTradingDay > 50 ||
-    resolved.maxPostmarketReplacementsPerTradingDay > 50
+    resolved.maxPostmarketReplacementsPerTradingDay > 50 ||
+    resolved.maxPostmarketExtremeRunnerOverridesPerTradingDay > 10
   ) {
-    throw new Error("Daily automatic replacement limits cannot exceed 50.");
+    throw new Error("Daily automatic replacement limits are too large.");
   }
   if (resolved.lateMainSessionAdmissionReserve > 20) {
     throw new Error("lateMainSessionAdmissionReserve cannot exceed 20.");
@@ -644,9 +1080,11 @@ export function resolveAutoWatchlistSelectorThresholds(
   if (
     resolved.recentDollarVolumeRankMaxBoost > 100 ||
     resolved.volumeAccelerationRankMaxBoost > 100 ||
+    resolved.volumeDecelerationRankMaxPenalty > 100 ||
+    resolved.topGainerQualificationScoreBoost > 100 ||
     resolved.shareTurnoverRankMaxBoost > 100
   ) {
-    throw new Error("Activity and turnover ranking boosts cannot exceed 100.");
+    throw new Error("Activity ranking boosts, penalties, and turnover boosts cannot exceed 100.");
   }
   if (resolved.recentDollarVolumeRankFullScore <= 0) {
     throw new Error("recentDollarVolumeRankFullScore must be greater than zero.");
@@ -654,8 +1092,17 @@ export function resolveAutoWatchlistSelectorThresholds(
   if (resolved.volumeAccelerationRankFullScoreRatio <= 1) {
     throw new Error("volumeAccelerationRankFullScoreRatio must be greater than 1.");
   }
+  if (
+    resolved.volumeDecelerationRankFullPenaltyRatio <= 0 ||
+    resolved.volumeDecelerationRankFullPenaltyRatio >= 1
+  ) {
+    throw new Error("volumeDecelerationRankFullPenaltyRatio must be greater than 0 and less than 1.");
+  }
   if (resolved.shareTurnoverRankFullScorePct <= 0) {
     throw new Error("shareTurnoverRankFullScorePct must be greater than zero.");
+  }
+  if (resolved.zeroRecentVolumeRetentionGraceMinutes > 60) {
+    throw new Error("zeroRecentVolumeRetentionGraceMinutes cannot exceed 60.");
   }
   if (resolved.scanIntervalMs < 30_000 || resolved.scanIntervalMs > 60 * 60 * 1000) {
     throw new Error("scanIntervalMs must be between 30000 and 3600000.");
@@ -716,6 +1163,125 @@ function minimumRecentDollarVolume(
   return thresholds.minRecentDollarVolume15mRegular;
 }
 
+function minimumSessionVolume(
+  session: AutoWatchlistSession,
+  thresholds: AutoWatchlistSelectorThresholds,
+): number {
+  return session === "postmarket"
+    ? thresholds.minPostmarketVolume
+    : thresholds.minVolume;
+}
+
+function minimumSessionDollarVolume(
+  session: AutoWatchlistSession,
+  thresholds: AutoWatchlistSelectorThresholds,
+): number {
+  return session === "postmarket"
+    ? thresholds.minPostmarketDollarVolume
+    : thresholds.minDollarVolume;
+}
+
+function sessionDollarVolumeScoreThresholds(
+  session: AutoWatchlistSession,
+  thresholds: AutoWatchlistSelectorThresholds,
+): { minimum: number; strong: number; exceptional: number } {
+  const minimum = minimumSessionDollarVolume(session, thresholds);
+  if (session === "postmarket") {
+    return {
+      minimum,
+      strong: minimum * 4,
+      exceptional: minimum * 8,
+    };
+  }
+  return {
+    minimum,
+    strong: 1_000_000,
+    exceptional: 2_000_000,
+  };
+}
+
+function compactDollarThreshold(value: number): string {
+  if (value >= 1_000_000) {
+    return `$${Number((value / 1_000_000).toFixed(2))}M`;
+  }
+  return `$${Math.round(value / 1_000)}K`;
+}
+
+function activityNeedsTradingHaltCheck(
+  activity: AutoWatchlistSessionActivity | null | undefined,
+  session: AutoWatchlistSession,
+  thresholds: AutoWatchlistSelectorThresholds,
+): boolean {
+  if (!activity?.available) return true;
+  return (
+    (activity.quoteAgeMinutes ?? Number.POSITIVE_INFINITY) > thresholds.maxActivityQuoteAgeMinutes ||
+    (activity.recent15mDollarVolume ?? 0) < minimumRecentDollarVolume(session, thresholds)
+  );
+}
+
+function isRecentActivityRejection(reason: string): boolean {
+  return (
+    reason === "recent 15-minute activity data is unavailable" ||
+    /^latest (premarket|regular|postmarket) trade is too old$/.test(reason) ||
+    reason.startsWith("last 15m dollar volume must be at least ")
+  );
+}
+
+export function buildAutoWatchlistRetentionProtection(input: {
+  decision: Pick<
+    AutoWatchlistCandidateDecision,
+    | "score"
+    | "rejectionReasons"
+    | "tradingHaltState"
+    | "tradingHaltReasonCode"
+    | "recent15mDollarVolume"
+    | "sessionDollarVolume"
+    | "sessionVolume"
+  >;
+  entry: Pick<AutoWatchlistManagedEntry, "lastQualifiedAt">;
+  thresholds: AutoWatchlistSelectorThresholds;
+  now: number;
+}): {
+  protected: boolean;
+  kind: "confirmed_halt" | "zero_volume_data_gap" | null;
+  reason: string | null;
+} {
+  const activityOnlyFailure =
+    input.decision.rejectionReasons.length > 0 &&
+    input.decision.rejectionReasons.every(isRecentActivityRejection);
+  if (!activityOnlyFailure || input.decision.score < input.thresholds.minimumScore) {
+    return { protected: false, kind: null, reason: null };
+  }
+  if (input.decision.tradingHaltState === "halted") {
+    const reasonCode = input.decision.tradingHaltReasonCode
+      ? ` (${input.decision.tradingHaltReasonCode})`
+      : "";
+    return {
+      protected: true,
+      kind: "confirmed_halt",
+      reason: `retained: Nasdaq Trader confirms an active trading halt${reasonCode}`,
+    };
+  }
+  const lastQualifiedAt = input.entry.lastQualifiedAt;
+  const graceMs = input.thresholds.zeroRecentVolumeRetentionGraceMinutes * 60_000;
+  const strongPriorSession =
+    (input.decision.sessionVolume ?? 0) >= input.thresholds.minVolume &&
+    (input.decision.sessionDollarVolume ?? 0) >= Math.max(1_000_000, input.thresholds.minDollarVolume * 4);
+  if (
+    input.decision.recent15mDollarVolume === 0 &&
+    strongPriorSession &&
+    lastQualifiedAt !== null &&
+    input.now - lastQualifiedAt <= graceMs
+  ) {
+    return {
+      protected: true,
+      kind: "zero_volume_data_gap",
+      reason: `retained: exact zero recent volume treated as a data-gap/halt warning for up to ${input.thresholds.zeroRecentVolumeRetentionGraceMinutes} minutes`,
+    };
+  }
+  return { protected: false, kind: null, reason: null };
+}
+
 function postmarketPromotionRejectionReasons(input: {
   qualified: boolean;
   session: AutoWatchlistSession;
@@ -736,20 +1302,6 @@ function postmarketPromotionRejectionReasons(input: {
     );
   }
   return reasons;
-}
-
-export function meetsMainSessionBaselineAdmissionQuality(input: Pick<
-  AutoWatchlistCandidateDecision,
-  "score" | "gainPct" | "recent15mDollarVolume" | "volumeAcceleration"
->): boolean {
-  return (
-    input.score >= MAIN_SESSION_BASELINE_QUALIFICATION_SCORE ||
-    (
-      (input.gainPct ?? 0) >= MAIN_SESSION_STRONG_RUNNER_MIN_GAIN_PCT &&
-      (input.recent15mDollarVolume ?? 0) >= MAIN_SESSION_STRONG_RUNNER_MIN_RECENT_DOLLAR_VOLUME &&
-      (input.volumeAcceleration ?? 0) >= MAIN_SESSION_STRONG_RUNNER_MIN_VOLUME_ACCELERATION
-    )
-  );
 }
 
 function elapsedSessionMinutes(timestamp: number, session: AutoWatchlistSession): number | null {
@@ -811,6 +1363,29 @@ function graduatedRankingBoost(args: {
   return Math.round(progress * args.maxBoost * 100) / 100;
 }
 
+export function buildVolumeDecelerationRankPenalty(args: {
+  volumeAcceleration: number | null | undefined;
+  fullPenaltyAtRatio: number;
+  maxPenalty: number;
+}): number {
+  if (
+    args.maxPenalty <= 0 ||
+    args.volumeAcceleration === null ||
+    args.volumeAcceleration === undefined ||
+    !Number.isFinite(args.volumeAcceleration) ||
+    args.volumeAcceleration >= 1 ||
+    args.fullPenaltyAtRatio <= 0 ||
+    args.fullPenaltyAtRatio >= 1
+  ) {
+    return 0;
+  }
+  const progress = Math.min(
+    1,
+    (1 - Math.max(0, args.volumeAcceleration)) / (1 - args.fullPenaltyAtRatio),
+  );
+  return Math.round(progress * args.maxPenalty * 100) / 100;
+}
+
 function rankingFields(args: {
   context: PressReleaseCatalystContext;
   referenceDate: string;
@@ -830,6 +1405,7 @@ function rankingFields(args: {
   | "catalystRankBoost"
   | "recentDollarVolumeRankBoost"
   | "volumeAccelerationRankBoost"
+  | "volumeDecelerationRankPenalty"
   | "shareTurnoverRankBoost"
   | "shareTurnoverPct"
   | "rankingReasons"
@@ -860,6 +1436,11 @@ function rankingFields(args: {
     fullScoreAt: args.thresholds.volumeAccelerationRankFullScoreRatio,
     maxBoost: args.thresholds.volumeAccelerationRankMaxBoost,
   });
+  const volumeDecelerationRankPenalty = buildVolumeDecelerationRankPenalty({
+    volumeAcceleration: args.activity?.volumeAcceleration,
+    fullPenaltyAtRatio: args.thresholds.volumeDecelerationRankFullPenaltyRatio,
+    maxPenalty: args.thresholds.volumeDecelerationRankMaxPenalty,
+  });
   const shareTurnoverPct = args.effectiveShares && args.activity?.sessionVolume
     ? (args.activity.sessionVolume / args.effectiveShares) * 100
     : null;
@@ -869,18 +1450,19 @@ function rankingFields(args: {
     fullScoreAt: args.thresholds.shareTurnoverRankFullScorePct,
     maxBoost: args.thresholds.shareTurnoverRankMaxBoost,
   });
-  const eligibilityDollarVolumePoints = args.dollarVolume >= 2_000_000
+  const dollarVolumeThresholds = sessionDollarVolumeScoreThresholds(args.session, args.thresholds);
+  const eligibilityDollarVolumePoints = args.dollarVolume >= dollarVolumeThresholds.exceptional
     ? 20
-    : args.dollarVolume >= 1_000_000
+    : args.dollarVolume >= dollarVolumeThresholds.strong
       ? 15
-      : args.dollarVolume >= args.thresholds.minDollarVolume
+      : args.dollarVolume >= dollarVolumeThresholds.minimum
         ? 8
         : 0;
-  const supportingDollarVolumePoints = args.dollarVolume >= 2_000_000
+  const supportingDollarVolumePoints = args.dollarVolume >= dollarVolumeThresholds.exceptional
     ? 10
-    : args.dollarVolume >= 1_000_000
+    : args.dollarVolume >= dollarVolumeThresholds.strong
       ? 7
-      : args.dollarVolume >= args.thresholds.minDollarVolume
+      : args.dollarVolume >= dollarVolumeThresholds.minimum
         ? 4
         : 0;
   const rankingBaseScore = args.baseScore - eligibilityDollarVolumePoints + supportingDollarVolumePoints;
@@ -896,6 +1478,9 @@ function rankingFields(args: {
   if (volumeAccelerationRankBoost > 0) {
     rankingReasons.push(`volume acceleration +${volumeAccelerationRankBoost} ranking points`);
   }
+  if (volumeDecelerationRankPenalty > 0) {
+    rankingReasons.push(`volume deceleration -${volumeDecelerationRankPenalty} ranking points`);
+  }
   if (shareTurnoverRankBoost > 0) {
     rankingReasons.push(`share turnover +${shareTurnoverRankBoost} ranking points`);
   }
@@ -903,13 +1488,14 @@ function rankingFields(args: {
     rankingReasons.push(`cumulative dollar volume +${supportingDollarVolumePoints} supporting points`);
   }
   return {
-    rankingScore: Math.round((
+    rankingScore: Math.max(0, Math.round((
       rankingBaseScore +
       catalystRankBoost +
       recentDollarVolumeRankBoost +
       volumeAccelerationRankBoost +
-      shareTurnoverRankBoost
-    ) * 100) / 100,
+      shareTurnoverRankBoost -
+      volumeDecelerationRankPenalty
+    ) * 100) / 100),
     catalystAgeDays,
     catalystTiming: args.context.timing,
     catalystPublishedAt: article?.publishedAt ?? null,
@@ -917,6 +1503,7 @@ function rankingFields(args: {
     catalystRankBoost,
     recentDollarVolumeRankBoost,
     volumeAccelerationRankBoost,
+    volumeDecelerationRankPenalty,
     shareTurnoverRankBoost,
     shareTurnoverPct,
     rankingReasons,
@@ -973,8 +1560,6 @@ export function scoreAutoWatchlistCandidate(input: {
   | "promotionRejectionReasons"
   | "consecutivePasses"
   | "rankingScore"
-  | "slotSurvivalScore"
-  | "slotSurvivalReasons"
   | "catalystAgeDays"
   | "catalystTiming"
   | "catalystPublishedAt"
@@ -982,15 +1567,24 @@ export function scoreAutoWatchlistCandidate(input: {
   | "catalystRankBoost"
   | "recentDollarVolumeRankBoost"
   | "volumeAccelerationRankBoost"
+  | "volumeDecelerationRankPenalty"
   | "shareTurnoverRankBoost"
   | "shareTurnoverPct"
   | "rankingReasons"
+  | "slotSurvivalScore"
+  | "slotSurvivalReasons"
+  | "tradingHaltState"
+  | "tradingHaltReasonCode"
+  | "haltRetentionProtected"
+  | "haltRetentionProtectionReason"
   | "session"
   | "sessionVolume"
+  | "mainSessionVolume"
   | "sessionDollarVolume"
   | "recent15mVolume"
   | "recent15mDollarVolume"
   | "sessionElapsedMinutes"
+  | "mainSessionElapsedMinutes"
   | "volumeAcceleration"
   | "activityQuoteAgeMinutes"
   | "activityDataAvailable"
@@ -1019,6 +1613,8 @@ export function scoreAutoWatchlistCandidate(input: {
   const session = input.session ?? "regular";
   const activity = input.activity ?? null;
   const requiredRecentDollarVolume = minimumRecentDollarVolume(session, thresholds);
+  const requiredSessionVolume = minimumSessionVolume(session, thresholds);
+  const dollarVolumeThresholds = sessionDollarVolumeScoreThresholds(session, thresholds);
   const floatDollarValue = floatShares && candidate.price
     ? floatShares * candidate.price
     : null;
@@ -1068,13 +1664,17 @@ export function scoreAutoWatchlistCandidate(input: {
   if (!candidate.gainPct || candidate.gainPct < thresholds.minGainPct) {
     rejectionReasons.push(`gain must be at least ${thresholds.minGainPct}%`);
   }
-  if (!candidate.volume || candidate.volume < thresholds.minVolume) {
-    rejectionReasons.push(`volume must be at least ${thresholds.minVolume.toLocaleString("en-US")}`);
+  if (!candidate.volume || candidate.volume < requiredSessionVolume) {
+    rejectionReasons.push(
+      `${session === "postmarket" ? "post-market volume" : "volume"} must be at least ${requiredSessionVolume.toLocaleString("en-US")}`,
+    );
   }
   const dollarVolume = finitePositive(activity?.sessionDollarVolume) ??
     (candidate.price && candidate.volume ? candidate.price * candidate.volume : 0);
-  if (dollarVolume < thresholds.minDollarVolume) {
-    rejectionReasons.push(`dollar volume must be at least $${Math.round(thresholds.minDollarVolume / 1_000).toLocaleString("en-US")}K`);
+  if (dollarVolume < dollarVolumeThresholds.minimum) {
+    rejectionReasons.push(
+      `${session === "postmarket" ? "post-market dollar volume" : "dollar volume"} must be at least ${compactDollarThreshold(dollarVolumeThresholds.minimum)}`,
+    );
   }
   if (!effectiveShares && thresholds.requireShareData) {
     rejectionReasons.push("float or shares outstanding must be available");
@@ -1106,18 +1706,23 @@ export function scoreAutoWatchlistCandidate(input: {
     reasons.push(`${thresholds.minGainPct}%+ gain`);
   }
 
-  if (dollarVolume >= 2_000_000) {
+  if (isTopGainerCandidate(candidate) && thresholds.topGainerQualificationScoreBoost > 0) {
+    score += thresholds.topGainerQualificationScoreBoost;
+    reasons.push(`top-gainers list +${thresholds.topGainerQualificationScoreBoost} qualification points`);
+  }
+
+  if (dollarVolume >= dollarVolumeThresholds.exceptional) {
     score += 20;
-    reasons.push("$2M+ dollar volume");
-  } else if (dollarVolume >= 1_000_000) {
+    reasons.push(`${compactDollarThreshold(dollarVolumeThresholds.exceptional)}+ dollar volume`);
+  } else if (dollarVolume >= dollarVolumeThresholds.strong) {
     score += 15;
-    reasons.push("$1M+ dollar volume");
-  } else if (dollarVolume >= thresholds.minDollarVolume) {
+    reasons.push(`${compactDollarThreshold(dollarVolumeThresholds.strong)}+ dollar volume`);
+  } else if (dollarVolume >= dollarVolumeThresholds.minimum) {
     score += 8;
     reasons.push("minimum dollar volume met");
   }
 
-  const relativeVolume = candidate.volume && candidate.averageVolume
+  const relativeVolume = session !== "postmarket" && candidate.volume && candidate.averageVolume
     ? candidate.volume / candidate.averageVolume
     : 0;
   if (relativeVolume >= 3) {
@@ -1213,6 +1818,26 @@ function isAutoWatchlistSession(value: unknown): value is AutoWatchlistSession {
   return value === "premarket" || value === "regular" || value === "postmarket" || value === "closed";
 }
 
+function admissionSnapshotFromNote(note: string | undefined): {
+  qualificationScore: number;
+  rankingScore: number;
+  slotSurvivalScore: number;
+} | null {
+  const match = /qualification score\s+([+-]?\d+(?:\.\d+)?)\s*;\s*(?:admission rank|rank)\s+([+-]?\d+(?:\.\d+)?)/i.exec(
+    note ?? "",
+  );
+  if (!match) return null;
+  const qualificationScore = finiteNumber(Number(match[1]));
+  const rankingScore = finiteNumber(Number(match[2]));
+  if (qualificationScore === null || rankingScore === null) return null;
+  const slotMatch = /(?:current|admission) slot(?: score)?\s+([+-]?\d+(?:\.\d+)?)/i.exec(note ?? "");
+  return {
+    qualificationScore,
+    rankingScore,
+    slotSurvivalScore: finiteNumber(Number(slotMatch?.[1])) ?? rankingScore,
+  };
+}
+
 function normalizeManagedEntry(value: unknown): AutoWatchlistManagedEntry | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Partial<AutoWatchlistManagedEntry>;
@@ -1239,7 +1864,40 @@ function normalizeManagedEntry(value: unknown): AutoWatchlistManagedEntry | null
     lastRankingScore: finiteNumber(candidate.lastRankingScore) ?? 0,
     lastSlotSurvivalScore:
       finiteNumber(candidate.lastSlotSurvivalScore) ?? finiteNumber(candidate.lastRankingScore) ?? 0,
+    admissionAt: finiteNumber(candidate.admissionAt),
+    admissionQualificationScore: finiteNumber(candidate.admissionQualificationScore),
+    admissionRankingScore: finiteNumber(candidate.admissionRankingScore),
+    admissionSlotSurvivalScore: finiteNumber(candidate.admissionSlotSurvivalScore),
     lastQualifiedAt: finiteNumber(candidate.lastQualifiedAt),
+    holdProtectionEarnedAt: finiteNumber(candidate.holdProtectionEarnedAt),
+    holdProtectionReason:
+      typeof candidate.holdProtectionReason === "string" ? candidate.holdProtectionReason : null,
+    reversalWatchQualifiedAt: finiteNumber(candidate.reversalWatchQualifiedAt),
+    reversalWatchQualificationReason:
+      typeof candidate.reversalWatchQualificationReason === "string"
+        ? candidate.reversalWatchQualificationReason
+        : null,
+    reversalWatchLowPrice: finitePositive(candidate.reversalWatchLowPrice),
+    reversalWatchLowAt: finiteNumber(candidate.reversalWatchLowAt),
+    reversalAttemptEvidenceScans: Math.max(
+      0,
+      Math.floor(finiteNumber(candidate.reversalAttemptEvidenceScans) ?? 0),
+    ),
+    reversalWatchAttemptReady: candidate.reversalWatchAttemptReady === true,
+    peakGainPct: finiteNumber(candidate.peakGainPct),
+    peakGainAt: finiteNumber(candidate.peakGainAt),
+    lastObservedGainPct: finiteNumber(candidate.lastObservedGainPct),
+    lastObservedAt: finiteNumber(candidate.lastObservedAt),
+    topFiveGainerFirstObservedAt: finiteNumber(candidate.topFiveGainerFirstObservedAt),
+    topFiveGainerLastObservedAt: finiteNumber(candidate.topFiveGainerLastObservedAt),
+    topFiveGainerObservationCount: Math.max(
+      0,
+      Math.floor(finiteNumber(candidate.topFiveGainerObservationCount) ?? 0),
+    ),
+    topFiveGainerConsecutiveObservations: Math.max(
+      0,
+      Math.floor(finiteNumber(candidate.topFiveGainerConsecutiveObservations) ?? 0),
+    ),
     retentionFailures: Math.max(0, Math.floor(finiteNumber(candidate.retentionFailures) ?? 0)),
     followupAt: finiteNumber(candidate.followupAt),
     vacatedSlotAt: finiteNumber(candidate.vacatedSlotAt),
@@ -1280,6 +1938,27 @@ function normalizeFirstPassEvidence(value: unknown): AutoWatchlistFirstPassEvide
   };
 }
 
+function normalizeConsecutivePassEvidence(
+  value: unknown,
+): AutoWatchlistConsecutivePassEvidence | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<AutoWatchlistConsecutivePassEvidence>;
+  const symbol = normalizeSymbol(candidate.symbol);
+  const count = finiteNumber(candidate.count);
+  const observedAt = finiteNumber(candidate.observedAt);
+  if (
+    !symbol ||
+    count === null ||
+    count < 1 ||
+    !Number.isInteger(count) ||
+    observedAt === null ||
+    !isAutoWatchlistSession(candidate.session)
+  ) {
+    return null;
+  }
+  return { symbol, count, session: candidate.session, observedAt };
+}
+
 function isReplacementEvent(value: unknown): value is AutoWatchlistReplacementEvent {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<AutoWatchlistReplacementEvent>;
@@ -1288,7 +1967,11 @@ function isReplacementEvent(value: unknown): value is AutoWatchlistReplacementEv
     (candidate.bucket === "main" || candidate.bucket === "postmarket") &&
     typeof candidate.outgoingSymbol === "string" &&
     (candidate.incomingSymbol === null || typeof candidate.incomingSymbol === "string") &&
-    typeof candidate.reason === "string"
+    typeof candidate.reason === "string" &&
+    (
+      candidate.exceptionKind === undefined ||
+      candidate.exceptionKind === "postmarket_extreme_runner"
+    )
   );
 }
 
@@ -1296,6 +1979,7 @@ export class AutoWatchlistSelector {
   private readonly fetchImpl: FetchLike;
   private readonly catalystLookup: typeof lookupLocalPressReleaseCatalystArticles;
   private readonly sessionActivityLookup: AutoWatchlistSessionActivityLookup;
+  private readonly tradingHaltLookup: NasdaqTradingHaltLookup;
   private readonly securityMasterLookup: CommonEquitySecurityMasterLookup;
   private readonly requireVerifiedCommonEquity: boolean;
   private readonly configPath: string;
@@ -1314,12 +1998,15 @@ export class AutoWatchlistSelector {
   private lastError: string | null = null;
   private lastDiscoverySources: string[] = [];
   private lastDiscoveryError: string | null = null;
+  private lastDiscoveryFeedComparison: AutoWatchlistDiscoveryFeedComparison | null = null;
   private liveExchangeDiscoveryAvailable = false;
   private yahooDiscoveryAvailable = true;
   private lastCatalystLookupError: string | null = null;
   private pressReleaseCatalystAvailable = false;
   private sessionActivityAvailable = false;
   private lastActivityLookupError: string | null = null;
+  private tradingHaltFeedAvailable = false;
+  private lastTradingHaltLookupError: string | null = null;
   private commonEquitySecurityMasterAvailable = false;
   private commonEquitySecurityMasterCheckedAt: number | null = null;
   private commonEquitySecurityMasterCacheUsed: boolean | null = null;
@@ -1334,13 +2021,20 @@ export class AutoWatchlistSelector {
   private recentDecisions: AutoWatchlistCandidateDecision[] = [];
   private consecutivePasses = new Map<string, number>();
   private consecutivePassSessions = new Map<string, AutoWatchlistSession>();
+  private consecutivePassObservedAt = new Map<string, number>();
   private prefetchedActivityBySymbol = new Map<string, AutoWatchlistSessionActivity>();
+  private extendedSessionExplorationCursor = 0;
   private scanPromise: Promise<void> | null = null;
+  private activeSlotReconciliationPromise: Promise<void> | null = null;
 
   constructor(private readonly options: AutoWatchlistSelectorOptions) {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.catalystLookup = options.catalystLookup ?? lookupLocalPressReleaseCatalystArticles;
     this.sessionActivityLookup = options.sessionActivityLookup ?? ((input) => this.fetchNasdaqSessionActivities(input));
+    this.tradingHaltLookup = options.tradingHaltLookup ?? (() => {
+      const service = new NasdaqTradingHaltService({ fetchImpl: this.fetchImpl });
+      return service.lookup.bind(service);
+    })();
     this.configPath = options.configPath ?? join(process.cwd(), "artifacts", "auto-watchlist-selector-config.json");
     const persistedConfig = this.loadConfig();
     this.thresholds = resolveAutoWatchlistSelectorThresholds({
@@ -1389,6 +2083,14 @@ export class AutoWatchlistSelector {
         this.firstPassEvidence.set(normalized.symbol, normalized);
       }
     }
+    for (const evidence of persistedConfig?.consecutivePassEvidence ?? []) {
+      const normalized = normalizeConsecutivePassEvidence(evidence);
+      if (normalized) {
+        this.consecutivePasses.set(normalized.symbol, normalized.count);
+        this.consecutivePassSessions.set(normalized.symbol, normalized.session);
+        this.consecutivePassObservedAt.set(normalized.symbol, normalized.observedAt);
+      }
+    }
     this.replacementHistory = (persistedConfig?.replacementHistory ?? [])
       .filter(isReplacementEvent)
       .slice(-50);
@@ -1433,6 +2135,11 @@ export class AutoWatchlistSelector {
               .map(normalizeFirstPassEvidence)
               .filter((entry): entry is AutoWatchlistFirstPassEvidence => entry !== null)
           : [],
+        consecutivePassEvidence: Array.isArray(parsed.consecutivePassEvidence)
+          ? parsed.consecutivePassEvidence
+              .map(normalizeConsecutivePassEvidence)
+              .filter((entry): entry is AutoWatchlistConsecutivePassEvidence => entry !== null)
+          : [],
         replacementHistory: Array.isArray(parsed.replacementHistory)
           ? parsed.replacementHistory.filter(isReplacementEvent)
           : [],
@@ -1461,6 +2168,21 @@ export class AutoWatchlistSelector {
       lateMainSessionAdmissionReserveUsed: this.lateMainSessionAdmissionReserveUsed,
       managedEntries: [...this.managedEntries.values()],
       firstPassEvidence: [...this.firstPassEvidence.values()]
+        .sort((left, right) => left.observedAt - right.observedAt)
+        .slice(-100),
+      consecutivePassEvidence: [...this.consecutivePasses.entries()]
+        .map(([symbol, count]) => ({
+          symbol,
+          count,
+          session: this.consecutivePassSessions.get(symbol),
+          observedAt: this.consecutivePassObservedAt.get(symbol),
+        }))
+        .filter((entry): entry is AutoWatchlistConsecutivePassEvidence =>
+          entry.count > 0 &&
+          isAutoWatchlistSession(entry.session) &&
+          typeof entry.observedAt === "number" &&
+          Number.isFinite(entry.observedAt),
+        )
         .sort((left, right) => left.observedAt - right.observedAt)
         .slice(-100),
       replacementHistory: this.replacementHistory.slice(-50),
@@ -1509,6 +2231,8 @@ export class AutoWatchlistSelector {
     thresholds?: Partial<AutoWatchlistSelectorThresholds>;
   }): Promise<AutoWatchlistSelectorStatus> {
     const priorInterval = this.thresholds.scanIntervalMs;
+    const priorMainActiveLimit = this.thresholds.maxActiveMainSessionTickers;
+    const priorPostmarketActiveLimit = this.thresholds.maxActivePostmarketTickers;
     if (input.thresholds) {
       this.thresholds = resolveAutoWatchlistSelectorThresholds({
         ...this.thresholds,
@@ -1529,6 +2253,14 @@ export class AutoWatchlistSelector {
     }
     if (input.enabled === true) {
       await this.runImmediateEnabledScan();
+    } else if (
+      this.enabled &&
+      (
+        this.thresholds.maxActiveMainSessionTickers < priorMainActiveLimit ||
+        this.thresholds.maxActivePostmarketTickers < priorPostmarketActiveLimit
+      )
+    ) {
+      this.queueActiveSlotLimitReconciliation();
     }
     return this.getStatus();
   }
@@ -1546,6 +2278,7 @@ export class AutoWatchlistSelector {
         finnhubOutstandingAvailable: this.options.finnhubClient !== null,
         pressReleaseCatalystAvailable: this.pressReleaseCatalystAvailable,
         sessionActivityAvailable: this.sessionActivityAvailable,
+        tradingHaltFeedAvailable: this.tradingHaltFeedAvailable,
         commonEquitySecurityMasterEnabled: this.requireVerifiedCommonEquity,
         commonEquitySecurityMasterAvailable: this.commonEquitySecurityMasterAvailable,
         commonEquitySecurityMasterCheckedAt: this.commonEquitySecurityMasterCheckedAt,
@@ -1561,8 +2294,25 @@ export class AutoWatchlistSelector {
       lastError: this.lastError,
       lastDiscoverySources: [...this.lastDiscoverySources],
       lastDiscoveryError: this.lastDiscoveryError,
+      discoveryFeedComparison: this.lastDiscoveryFeedComparison
+        ? {
+            ...this.lastDiscoveryFeedComparison,
+            overlapSymbols: [...this.lastDiscoveryFeedComparison.overlapSymbols],
+            nasdaq: {
+              ...this.lastDiscoveryFeedComparison.nasdaq,
+              leaderSymbols: [...this.lastDiscoveryFeedComparison.nasdaq.leaderSymbols],
+              currentSessionMatches: [...this.lastDiscoveryFeedComparison.nasdaq.currentSessionMatches],
+            },
+            stockAnalysis: {
+              ...this.lastDiscoveryFeedComparison.stockAnalysis,
+              leaderSymbols: [...this.lastDiscoveryFeedComparison.stockAnalysis.leaderSymbols],
+              currentSessionMatches: [...this.lastDiscoveryFeedComparison.stockAnalysis.currentSessionMatches],
+            },
+          }
+        : null,
       lastCatalystLookupError: this.lastCatalystLookupError,
       lastActivityLookupError: this.lastActivityLookupError,
+      lastTradingHaltLookupError: this.lastTradingHaltLookupError,
       lastSecurityMasterError: this.lastSecurityMasterError,
       tradingDay: this.tradingDay,
       addedToday: [...this.mainSessionAddedToday, ...this.postmarketAddedToday],
@@ -1577,6 +2327,12 @@ export class AutoWatchlistSelector {
         "main",
         this.now(),
       ),
+      postmarketExtremeRunnerOverridesUsed: this.postmarketExtremeRunnerOverrideCount(),
+      postmarketExtremeRunnerOverridesAvailable: Math.max(
+        0,
+        this.thresholds.maxPostmarketExtremeRunnerOverridesPerTradingDay -
+          this.postmarketExtremeRunnerOverrideCount(),
+      ),
       activeMainSessionSymbols: this.managedEntriesFor("main", "active").map((entry) => entry.symbol),
       activePostmarketSymbols: this.managedEntriesFor("postmarket", "active").map((entry) => entry.symbol),
       followupSymbols: this.managedEntriesFor(undefined, "followup").map((entry) => entry.symbol),
@@ -1589,6 +2345,20 @@ export class AutoWatchlistSelector {
       firstPassEvidence: [...this.firstPassEvidence.values()]
         .sort((left, right) => right.observedAt - left.observedAt)
         .map((entry) => ({ ...entry, sourceScreens: [...entry.sourceScreens] })),
+      consecutivePassEvidence: [...this.consecutivePasses.entries()]
+        .map(([symbol, count]) => ({
+          symbol,
+          count,
+          session: this.consecutivePassSessions.get(symbol),
+          observedAt: this.consecutivePassObservedAt.get(symbol),
+        }))
+        .filter((entry): entry is AutoWatchlistConsecutivePassEvidence =>
+          entry.count > 0 &&
+          isAutoWatchlistSession(entry.session) &&
+          typeof entry.observedAt === "number" &&
+          Number.isFinite(entry.observedAt),
+        )
+        .sort((left, right) => right.observedAt - left.observedAt),
       recentReplacements: this.replacementHistory.slice(-20).reverse(),
       recentDecisions: this.recentDecisions.map((decision) => ({
         ...decision,
@@ -1598,6 +2368,18 @@ export class AutoWatchlistSelector {
         rejectionReasons: [...decision.rejectionReasons],
       })),
     };
+  }
+
+  getFollowupPublicationStates(): AutoWatchlistFollowupPublicationState[] {
+    return this.managedEntriesFor(undefined, "followup").map((entry) => {
+      const reversalWatchEligible = entry.reversalWatchQualifiedAt !== null;
+      return {
+        symbol: entry.symbol,
+        reversalWatchEligible,
+        reversalWatchAttemptReady:
+          reversalWatchEligible && entry.reversalWatchAttemptReady,
+      };
+    });
   }
 
   private managedEntriesFor(
@@ -1631,6 +2413,7 @@ export class AutoWatchlistSelector {
       const tags = new Set(runtimeEntry.tags ?? []);
       const legacyAutoNote = /^Auto-selected(?: during (premarket|regular|postmarket))?:/i.exec(runtimeEntry.note ?? "");
       const existing = this.managedEntries.get(runtimeEntry.symbol);
+      const noteAdmission = admissionSnapshotFromNote(runtimeEntry.note);
       const explicitlyManual = Boolean(this.options.getActiveEntries) &&
         tags.has("manual") &&
         !tags.has("auto") &&
@@ -1650,6 +2433,8 @@ export class AutoWatchlistSelector {
           : "regular";
       const bucket = autoWatchlistBucketForSession(inferredSession);
       const runtimeFollowup = tags.has("auto-followup");
+      const runtimeReversalWatch = tags.has("auto-reversal-watch");
+      const runtimeReversalAttemptReady = tags.has("auto-reversal-attempt-ready");
       const state = runtimeFollowup || existing?.state === "followup" ? "followup" : "active";
       this.managedEntries.set(runtimeEntry.symbol, {
         symbol: runtimeEntry.symbol,
@@ -1661,7 +2446,36 @@ export class AutoWatchlistSelector {
         lastSession: existing?.lastSession ?? session,
         lastRankingScore: existing?.lastRankingScore ?? 0,
         lastSlotSurvivalScore: existing?.lastSlotSurvivalScore ?? existing?.lastRankingScore ?? 0,
+        admissionAt: existing?.admissionAt ?? (
+          noteAdmission ? runtimeEntry.activatedAt ?? existing?.lastActivatedAt ?? timestamp : null
+        ),
+        admissionQualificationScore:
+          existing?.admissionQualificationScore ?? noteAdmission?.qualificationScore ?? null,
+        admissionRankingScore: existing?.admissionRankingScore ?? noteAdmission?.rankingScore ?? null,
+        admissionSlotSurvivalScore:
+          existing?.admissionSlotSurvivalScore ?? noteAdmission?.slotSurvivalScore ?? null,
         lastQualifiedAt: existing?.lastQualifiedAt ?? null,
+        holdProtectionEarnedAt: existing?.holdProtectionEarnedAt ?? null,
+        holdProtectionReason: existing?.holdProtectionReason ?? null,
+        reversalWatchQualifiedAt:
+          existing?.reversalWatchQualifiedAt ?? (runtimeReversalWatch ? timestamp : null),
+        reversalWatchQualificationReason:
+          existing?.reversalWatchQualificationReason ??
+          (runtimeReversalWatch ? "restored persistent reversal-watch membership" : null),
+        reversalWatchLowPrice: existing?.reversalWatchLowPrice ?? null,
+        reversalWatchLowAt: existing?.reversalWatchLowAt ?? null,
+        reversalAttemptEvidenceScans: existing?.reversalAttemptEvidenceScans ?? 0,
+        reversalWatchAttemptReady:
+          existing?.reversalWatchAttemptReady ?? runtimeReversalAttemptReady,
+        peakGainPct: existing?.peakGainPct ?? null,
+        peakGainAt: existing?.peakGainAt ?? null,
+        lastObservedGainPct: existing?.lastObservedGainPct ?? null,
+        lastObservedAt: existing?.lastObservedAt ?? null,
+        topFiveGainerFirstObservedAt: existing?.topFiveGainerFirstObservedAt ?? null,
+        topFiveGainerLastObservedAt: existing?.topFiveGainerLastObservedAt ?? null,
+        topFiveGainerObservationCount: existing?.topFiveGainerObservationCount ?? 0,
+        topFiveGainerConsecutiveObservations:
+          existing?.topFiveGainerConsecutiveObservations ?? 0,
         retentionFailures: existing?.retentionFailures ?? 0,
         followupAt: state === "followup" ? existing?.followupAt ?? timestamp : null,
         vacatedSlotAt: state === "followup" ? existing?.vacatedSlotAt ?? timestamp : null,
@@ -1675,6 +2489,12 @@ export class AutoWatchlistSelector {
         entry.followupAt = null;
         entry.vacatedSlotAt = null;
         entry.standbyAt = timestamp;
+        entry.reversalWatchQualifiedAt = null;
+        entry.reversalWatchQualificationReason = null;
+        entry.reversalWatchLowPrice = null;
+        entry.reversalWatchLowAt = null;
+        entry.reversalAttemptEvidenceScans = 0;
+        entry.reversalWatchAttemptReady = false;
         entry.statusReason = "removed outside automatic replacement";
       }
     }
@@ -1685,8 +2505,10 @@ export class AutoWatchlistSelector {
     timestamp: number,
     session: AutoWatchlistSession,
   ): boolean {
-    const heldMinutes = Math.max(0, timestamp - entry.lastActivatedAt) / 60_000;
-    if (heldMinutes < this.thresholds.minimumAutoHoldMinutes) {
+    const protectedMinutes = entry.holdProtectionEarnedAt === null
+      ? Number.POSITIVE_INFINITY
+      : Math.max(0, timestamp - entry.holdProtectionEarnedAt) / 60_000;
+    if (protectedMinutes < this.thresholds.minimumAutoHoldMinutes) {
       return true;
     }
     return session === "regular" &&
@@ -1695,24 +2517,77 @@ export class AutoWatchlistSelector {
         this.thresholds.regularOpenProtectionMinutes;
   }
 
+  private retentionFailuresRequiredForEntry(entry: AutoWatchlistManagedEntry): number {
+    if (entry.reversalWatchQualifiedAt === null) {
+      return this.thresholds.retentionFailureScansRequired;
+    }
+    return Math.max(
+      this.thresholds.retentionFailureScansRequired,
+      Math.ceil(REVERSAL_WATCH_DEAD_CONFIRMATION_MS / this.thresholds.scanIntervalMs),
+    );
+  }
+
+  private isDeadReversalCandidate(
+    entry: AutoWatchlistManagedEntry,
+    decision: AutoWatchlistCandidateDecision | undefined,
+  ): boolean {
+    const peakGainPct = entry.peakGainPct ?? 0;
+    const currentGainPct = decision?.gainPct ?? entry.lastObservedGainPct;
+    return (
+      entry.bucket === "main" &&
+      entry.reversalWatchQualifiedAt !== null &&
+      peakGainPct >= 50 &&
+      currentGainPct !== null &&
+      currentGainPct <= peakGainPct * 0.5 &&
+      decision?.volumeAcceleration !== null &&
+      decision?.volumeAcceleration !== undefined &&
+      decision.volumeAcceleration < 1
+    );
+  }
+
   private isObviousRunner(decision: AutoWatchlistCandidateDecision): boolean {
     if (!this.thresholds.obviousRunnerOverrideEnabled || !decision.qualified) return false;
     const requiredRecentDollarVolume = minimumRecentDollarVolume(decision.session, this.thresholds);
+    const postmarketFastTrackMinimum = decision.session === "postmarket"
+      ? Math.max(
+          this.thresholds.postmarketPromotionMinRecentDollarVolume * 2,
+          requiredRecentDollarVolume * this.thresholds.obviousRunnerRecentDollarVolumeMultiplier,
+        )
+      : requiredRecentDollarVolume * this.thresholds.obviousRunnerRecentDollarVolumeMultiplier;
+    if (
+      decision.session === "postmarket" &&
+      (decision.gainPct ?? 0) < Math.max(20, this.thresholds.postmarketPromotionMinGainPct)
+    ) {
+      return false;
+    }
     return (
-      (decision.recent15mDollarVolume ?? 0) >=
-        requiredRecentDollarVolume * this.thresholds.obviousRunnerRecentDollarVolumeMultiplier &&
+      (decision.recent15mDollarVolume ?? 0) >= postmarketFastTrackMinimum &&
       (decision.volumeAcceleration ?? 0) >= this.thresholds.obviousRunnerMinVolumeAcceleration
     );
   }
 
   private isExtremeRunner(decision: AutoWatchlistCandidateDecision): boolean {
+    const independentRunnerSourceCount = new Set(
+      decision.sourceScreens.filter((source) => INDEPENDENT_RUNNER_SOURCE_SCREENS.has(source)),
+    ).size;
+    const hasTopGainerSource = decision.sourceScreens.some((source) =>
+      TOP_GAINER_SOURCE_SCREENS.has(source)
+    );
+    const hasVerifiedSessionVolume = decision.session === "postmarket"
+      ? (decision.sessionVolume ?? 0) > 0
+      : this.hasReversalWatchVolumePace(decision);
+    const hasVerifiedTopGainerRank = decision.session === "postmarket"
+      ? hasTopGainerSource
+      : decision.sourceScreens.some((source) => TOP_FIVE_GAINER_SOURCE_SCREENS.has(source));
     if (
       !this.thresholds.obviousRunnerOverrideEnabled ||
       !decision.qualified ||
       !decision.promotionReady ||
       (decision.gainPct ?? 0) < 50 ||
+      !hasVerifiedSessionVolume ||
       (decision.shareTurnoverPct ?? 0) < 50 ||
-      decision.sourceScreens.length < 2 ||
+      !hasVerifiedTopGainerRank ||
+      independentRunnerSourceCount < 2 ||
       (this.requireVerifiedCommonEquity && decision.securityMasterStatus !== "verified_common_stock")
     ) {
       return false;
@@ -1721,14 +2596,181 @@ export class AutoWatchlistSelector {
     return (decision.recent15mDollarVolume ?? 0) >= Math.max(1_000_000, requiredRecentDollarVolume * 10);
   }
 
+  private reversalWatchMainSessionElapsedMinutes(
+    decision: AutoWatchlistCandidateDecision,
+  ): number | null {
+    if (decision.mainSessionElapsedMinutes !== null) {
+      return decision.mainSessionElapsedMinutes;
+    }
+    if (decision.sessionElapsedMinutes === null) return null;
+    return decision.session === "regular"
+      ? 330 + decision.sessionElapsedMinutes
+      : decision.session === "premarket"
+        ? decision.sessionElapsedMinutes
+        : null;
+  }
+
+  private hasReversalWatchVolumePace(decision: AutoWatchlistCandidateDecision): boolean {
+    const elapsedMinutes = this.reversalWatchMainSessionElapsedMinutes(decision);
+    const mainSessionVolume = decision.mainSessionVolume ?? decision.sessionVolume;
+    if (elapsedMinutes === null || mainSessionVolume === null) return false;
+    const requiredVolume = REVERSAL_WATCH_FULL_MAIN_SESSION_VOLUME * Math.min(
+      1,
+      Math.max(1, elapsedMinutes) / MAIN_WATCH_WINDOW_MINUTES,
+    );
+    return mainSessionVolume >= requiredVolume;
+  }
+
+  private updateManagedRunnerEvidence(
+    entry: AutoWatchlistManagedEntry,
+    decision: AutoWatchlistCandidateDecision,
+    timestamp: number,
+  ): void {
+    if (decision.gainPct !== null) {
+      entry.lastObservedGainPct = decision.gainPct;
+      entry.lastObservedAt = timestamp;
+      if (entry.peakGainPct === null || decision.gainPct > entry.peakGainPct) {
+        entry.peakGainPct = decision.gainPct;
+        entry.peakGainAt = timestamp;
+      }
+    }
+    if (decision.sourceScreens.includes(NASDAQ_TOP_FIVE_GAINER_SOURCE)) {
+      entry.topFiveGainerFirstObservedAt ??= timestamp;
+      entry.topFiveGainerLastObservedAt = timestamp;
+      entry.topFiveGainerObservationCount += 1;
+      entry.topFiveGainerConsecutiveObservations += 1;
+    } else {
+      entry.topFiveGainerConsecutiveObservations = 0;
+    }
+  }
+
+  private reversalWatchQualification(
+    decision: AutoWatchlistCandidateDecision,
+    entry: AutoWatchlistManagedEntry,
+  ): string | null {
+    if (
+      decision.session === "postmarket" ||
+      entry.topFiveGainerConsecutiveObservations < 2 ||
+      !this.isExtremeRunner(decision)
+    ) {
+      return null;
+    }
+    return `verified top runner: peak gain ${(entry.peakGainPct ?? decision.gainPct ?? 0).toFixed(1)}%, Nasdaq top-five gainer across ${entry.topFiveGainerConsecutiveObservations} consecutive scans, and ${Math.round((decision.mainSessionVolume ?? decision.sessionVolume ?? 0) / 1_000_000)}M main-session shares on qualifying pace`;
+  }
+
+  private isReversalWatchEligibleNow(
+    entry: AutoWatchlistManagedEntry,
+    decision: AutoWatchlistCandidateDecision | undefined,
+  ): boolean {
+    if (
+      entry.bucket === "main" &&
+      entry.state === "followup" &&
+      entry.reversalWatchQualifiedAt !== null
+    ) {
+      return true;
+    }
+    if (
+      entry.bucket !== "main" ||
+      entry.reversalWatchQualifiedAt === null ||
+      decision === undefined ||
+      !this.hasReversalWatchVolumePace(decision)
+    ) {
+      return false;
+    }
+    const peakGainPct = entry.peakGainPct ?? 0;
+    const currentGainPct = decision.gainPct ?? entry.lastObservedGainPct;
+    return (
+      peakGainPct >= 50 &&
+      currentGainPct !== null &&
+      currentGainPct >= Math.max(10, peakGainPct * 0.25)
+    );
+  }
+
+  private updateReversalAttemptEvidence(
+    entry: AutoWatchlistManagedEntry,
+    decision: AutoWatchlistCandidateDecision,
+    timestamp: number,
+  ): void {
+    if (
+      entry.bucket !== "main" ||
+      entry.state !== "followup" ||
+      entry.reversalWatchQualifiedAt === null ||
+      decision.price === null
+    ) {
+      return;
+    }
+    if (entry.reversalWatchLowPrice === null || decision.price < entry.reversalWatchLowPrice) {
+      entry.reversalWatchLowPrice = decision.price;
+      entry.reversalWatchLowAt = timestamp;
+      entry.reversalAttemptEvidenceScans = 0;
+      entry.reversalWatchAttemptReady = false;
+      return;
+    }
+    const lowAgeMs = entry.reversalWatchLowAt === null
+      ? 0
+      : Math.max(0, timestamp - entry.reversalWatchLowAt);
+    const reboundPct = ((decision.price - entry.reversalWatchLowPrice) / entry.reversalWatchLowPrice) * 100;
+    const participationRecovered =
+      (decision.volumeAcceleration ?? 0) >= 1 &&
+      (decision.recent15mDollarVolume ?? 0) >= minimumRecentDollarVolume(
+        decision.session,
+        this.thresholds,
+      );
+    if (lowAgeMs >= 10 * 60_000 && reboundPct >= 10 && participationRecovered) {
+      entry.reversalAttemptEvidenceScans += 1;
+      entry.reversalWatchAttemptReady = entry.reversalAttemptEvidenceScans >= 2;
+      return;
+    }
+    entry.reversalAttemptEvidenceScans = 0;
+    entry.reversalWatchAttemptReady = false;
+  }
+
   private isFastTrackRunner(decision: AutoWatchlistCandidateDecision): boolean {
     return this.isObviousRunner(decision) || this.isExtremeRunner(decision);
+  }
+
+  private automaticHoldQualification(decision: AutoWatchlistCandidateDecision): string | null {
+    if (!decision.qualified || !decision.promotionReady) return null;
+    const repeatedPassRequirement = Math.max(2, this.thresholds.consecutivePassesRequired + 1);
+    if (decision.consecutivePasses >= repeatedPassRequirement) {
+      return `earned after ${decision.consecutivePasses} qualifying observations`;
+    }
+    const requiredRecentDollarVolume = minimumRecentDollarVolume(decision.session, this.thresholds);
+    const immediateHoldRecentDollarVolume = decision.session === "postmarket"
+      ? Math.max(
+          this.thresholds.postmarketPromotionMinRecentDollarVolume * 2,
+          requiredRecentDollarVolume * 4,
+        )
+      : requiredRecentDollarVolume * 4;
+    if (
+      (decision.gainPct ?? 0) >= 20 &&
+      (decision.recent15mDollarVolume ?? 0) >= immediateHoldRecentDollarVolume &&
+      (decision.volumeAcceleration ?? 0) >= this.thresholds.obviousRunnerMinVolumeAcceleration
+    ) {
+      return `earned immediately as a 20%+ runner with at least $${Math.round(immediateHoldRecentDollarVolume / 1_000)}K recent dollar volume`;
+    }
+    return null;
   }
 
   private replacementCount(bucket: AutoWatchlistBucket): number {
     return this.replacementHistory.filter(
       (event) => event.bucket === bucket && event.incomingSymbol !== null,
     ).length;
+  }
+
+  private postmarketExtremeRunnerOverrideCount(): number {
+    return this.replacementHistory.filter(
+      (event) => event.exceptionKind === "postmarket_extreme_runner",
+    ).length;
+  }
+
+  private postmarketExtremeRunnerOverrideAvailable(bucket: AutoWatchlistBucket): boolean {
+    return (
+      bucket === "postmarket" &&
+      this.replacementCount(bucket) >= this.replacementLimit(bucket) &&
+      this.postmarketExtremeRunnerOverrideCount() <
+        this.thresholds.maxPostmarketExtremeRunnerOverridesPerTradingDay
+    );
   }
 
   private pendingReplacementDepartures(bucket: AutoWatchlistBucket): AutoWatchlistManagedEntry[] {
@@ -1795,10 +2837,12 @@ export class AutoWatchlistSelector {
   private replacementAdmissionCapacityAvailable(
     bucket: AutoWatchlistBucket,
     timestamp: number,
+    options: { allowMainSessionFastTrackOverride?: boolean } = {},
   ): boolean {
     return (
       this.replacementCount(bucket) < this.replacementLimit(bucket) ||
-      this.lateMainSessionAdmissionReserveAvailable(bucket, timestamp)
+      this.lateMainSessionAdmissionReserveAvailable(bucket, timestamp) ||
+      (bucket === "main" && options.allowMainSessionFastTrackOverride === true)
     );
   }
 
@@ -1806,6 +2850,72 @@ export class AutoWatchlistSelector {
     return bucket === "postmarket"
       ? this.thresholds.maxActivePostmarketTickers
       : this.thresholds.maxActiveMainSessionTickers;
+  }
+
+  private async enforceActiveSlotLimits(
+    timestamp: number,
+    buckets: AutoWatchlistBucket[] = ["main", "postmarket"],
+    decisionBySymbol: Map<string, AutoWatchlistCandidateDecision> = new Map(),
+  ): Promise<void> {
+    for (const bucket of buckets) {
+      const overflowCount = Math.max(
+        0,
+        this.managedEntriesFor(bucket, "active").length - this.activeSlotLimit(bucket),
+      );
+      if (overflowCount === 0) continue;
+      const overflowEntries = this.managedEntriesFor(bucket, "active")
+        .sort((left, right) => {
+          const leftDecision = decisionBySymbol.get(left.symbol);
+          const rightDecision = decisionBySymbol.get(right.symbol);
+          return (
+          (leftDecision?.slotSurvivalScore ?? left.lastSlotSurvivalScore) -
+            (rightDecision?.slotSurvivalScore ?? right.lastSlotSurvivalScore) ||
+          right.retentionFailures - left.retentionFailures ||
+          (left.lastQualifiedAt ?? 0) - (right.lastQualifiedAt ?? 0)
+          );
+        })
+        .slice(0, overflowCount);
+      for (const entry of overflowEntries) {
+        const decision = decisionBySymbol.get(entry.symbol);
+        if (decision) {
+          entry.lastRankingScore = decision.rankingScore;
+          entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
+        }
+        await this.moveManagedEntryToFollowup(
+          entry,
+          timestamp,
+          `moved to follow-up because the active automatic slot limit was reduced to ${this.activeSlotLimit(bucket)}`,
+          decision,
+        );
+      }
+    }
+  }
+
+  private queueActiveSlotLimitReconciliation(): void {
+    if (this.activeSlotReconciliationPromise) return;
+    const pendingScan = this.scanPromise;
+    let reconciliationPromise: Promise<void>;
+    reconciliationPromise = Promise.resolve()
+      .then(async () => {
+        if (pendingScan) await pendingScan;
+        if (!this.enabled) return;
+        const timestamp = this.now();
+        this.syncManagedEntriesFromRuntime(autoWatchlistSessionForTimestamp(timestamp), timestamp);
+        await this.enforceActiveSlotLimits(timestamp);
+        this.persistConfig();
+        await this.runImmediateEnabledScan();
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.lastError = `Active slot reconciliation failed: ${message}`;
+        console.error(`[AutoWatchlistSelector] ${this.lastError}`);
+      })
+      .finally(() => {
+        if (this.activeSlotReconciliationPromise === reconciliationPromise) {
+          this.activeSlotReconciliationPromise = null;
+        }
+      });
+    this.activeSlotReconciliationPromise = reconciliationPromise;
   }
 
   private sessionAddedSet(bucket: AutoWatchlistBucket): Set<string> {
@@ -1824,6 +2934,7 @@ export class AutoWatchlistSelector {
     timestamp: number,
     reason: string,
   ): Promise<boolean> {
+    const holdProtectionReason = this.automaticHoldQualification(decision);
     const sharesLabel = decision.effectiveShares
       ? `${(decision.effectiveShares / 1_000_000).toFixed(1)}M ${
         decision.effectiveSharesSource === "yahoo_float" || decision.effectiveSharesSource === "finnhub_float"
@@ -1836,7 +2947,9 @@ export class AutoWatchlistSelector {
         symbol: decision.symbol,
         source: "auto",
         autoSession: decision.session === "closed" ? "regular" : decision.session,
-        note: `Auto-selected during ${decision.session}: qualification score ${decision.score}; admission rank ${decision.rankingScore}; current slot score ${decision.slotSurvivalScore}; ${(decision.gainPct ?? 0).toFixed(1)}% gain; $${Math.round((decision.recent15mDollarVolume ?? 0) / 1_000).toLocaleString("en-US")}K last-15m dollar volume; ${decision.volumeAcceleration ? `${decision.volumeAcceleration.toFixed(1)}x activity acceleration; ` : ""}${decision.shareTurnoverPct !== null ? `${decision.shareTurnoverPct.toFixed(1)}% share turnover; ` : ""}$${Math.round((decision.marketCap ?? 0) / 1_000_000)}M market cap; ${sharesLabel}; ranking: ${[...decision.rankingReasons, ...decision.slotSurvivalReasons].join(", ") || "base signals only"}; lifecycle: ${reason}.`,
+        selectionPrice: decision.price ?? undefined,
+        selectionGainPct: decision.gainPct ?? undefined,
+        note: `Auto-selected during ${decision.session}: qualification score ${decision.score}; admission rank ${decision.rankingScore}; admission slot score ${decision.slotSurvivalScore}; ${(decision.gainPct ?? 0).toFixed(1)}% gain; $${Math.round((decision.recent15mDollarVolume ?? 0) / 1_000).toLocaleString("en-US")}K last-15m dollar volume; ${decision.volumeAcceleration ? `${decision.volumeAcceleration.toFixed(1)}x activity acceleration; ` : ""}${decision.shareTurnoverPct !== null ? `${decision.shareTurnoverPct.toFixed(1)}% share turnover; ` : ""}$${Math.round((decision.marketCap ?? 0) / 1_000_000)}M market cap; ${sharesLabel}; ranking: ${[...decision.rankingReasons, ...decision.slotSurvivalReasons].join(", ") || "base signals only"}; lifecycle: ${reason}.`,
       });
     } catch (error) {
       this.lastActivationErrors.push({
@@ -1846,7 +2959,7 @@ export class AutoWatchlistSelector {
       return false;
     }
     const existing = this.managedEntries.get(decision.symbol);
-    this.managedEntries.set(decision.symbol, {
+    const managedEntry: AutoWatchlistManagedEntry = {
       symbol: decision.symbol,
       bucket,
       state: "active",
@@ -1856,13 +2969,44 @@ export class AutoWatchlistSelector {
       lastSession: decision.session,
       lastRankingScore: decision.rankingScore,
       lastSlotSurvivalScore: decision.slotSurvivalScore,
+      admissionAt: timestamp,
+      admissionQualificationScore: decision.score,
+      admissionRankingScore: decision.rankingScore,
+      admissionSlotSurvivalScore: decision.slotSurvivalScore,
       lastQualifiedAt: timestamp,
+      holdProtectionEarnedAt: holdProtectionReason ? timestamp : null,
+      holdProtectionReason,
+      reversalWatchQualifiedAt: existing?.reversalWatchQualifiedAt ?? null,
+      reversalWatchQualificationReason: existing?.reversalWatchQualificationReason ?? null,
+      reversalWatchLowPrice: existing?.reversalWatchLowPrice ?? null,
+      reversalWatchLowAt: existing?.reversalWatchLowAt ?? null,
+      reversalAttemptEvidenceScans: existing?.reversalAttemptEvidenceScans ?? 0,
+      reversalWatchAttemptReady: existing?.reversalWatchAttemptReady ?? false,
+      peakGainPct: existing?.peakGainPct ?? null,
+      peakGainAt: existing?.peakGainAt ?? null,
+      lastObservedGainPct: existing?.lastObservedGainPct ?? null,
+      lastObservedAt: existing?.lastObservedAt ?? null,
+      topFiveGainerFirstObservedAt: existing?.topFiveGainerFirstObservedAt ?? null,
+      topFiveGainerLastObservedAt: existing?.topFiveGainerLastObservedAt ?? null,
+      topFiveGainerObservationCount: existing?.topFiveGainerObservationCount ?? 0,
+      topFiveGainerConsecutiveObservations:
+        existing?.topFiveGainerConsecutiveObservations ?? 0,
       retentionFailures: 0,
       followupAt: null,
       vacatedSlotAt: null,
       standbyAt: null,
       statusReason: reason,
-    });
+    };
+    this.updateManagedRunnerEvidence(managedEntry, decision, timestamp);
+    const reversalWatchQualificationReason = this.reversalWatchQualification(
+      decision,
+      managedEntry,
+    );
+    if (reversalWatchQualificationReason) {
+      managedEntry.reversalWatchQualifiedAt = timestamp;
+      managedEntry.reversalWatchQualificationReason = reversalWatchQualificationReason;
+    }
+    this.managedEntries.set(decision.symbol, managedEntry);
     this.sessionAddedSet(bucket).add(decision.symbol);
     this.lastAddedSymbols.push(decision.symbol);
     this.persistConfig();
@@ -1873,10 +3017,21 @@ export class AutoWatchlistSelector {
     entry: AutoWatchlistManagedEntry,
     timestamp: number,
     reason: string,
+    currentDecision?: AutoWatchlistCandidateDecision,
   ): Promise<boolean> {
     if (!this.options.setSymbolFollowup) return false;
+    const reversalWatchEligible = this.isReversalWatchEligibleNow(entry, currentDecision);
+    if (reversalWatchEligible && currentDecision?.price !== null && currentDecision?.price !== undefined) {
+      entry.reversalWatchLowPrice = currentDecision.price;
+      entry.reversalWatchLowAt = timestamp;
+      entry.reversalAttemptEvidenceScans = 0;
+      entry.reversalWatchAttemptReady = false;
+    }
     try {
-      await this.options.setSymbolFollowup(entry.symbol, true);
+      await this.options.setSymbolFollowup(entry.symbol, true, {
+        reversalWatchEligible,
+        reversalWatchAttemptReady: false,
+      });
     } catch (error) {
       this.lastActivationErrors.push({
         symbol: entry.symbol,
@@ -1914,11 +3069,55 @@ export class AutoWatchlistSelector {
     entry.lastQualifiedAt = timestamp;
     entry.lastRankingScore = decision.rankingScore;
     entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
+    entry.admissionAt = timestamp;
+    entry.admissionQualificationScore = decision.score;
+    entry.admissionRankingScore = decision.rankingScore;
+    entry.admissionSlotSurvivalScore = decision.slotSurvivalScore;
+    const holdProtectionReason = this.automaticHoldQualification(decision);
+    entry.holdProtectionEarnedAt = holdProtectionReason ? timestamp : null;
+    entry.holdProtectionReason = holdProtectionReason;
+    const reversalWatchQualificationReason = this.reversalWatchQualification(decision, entry);
+    if (reversalWatchQualificationReason) {
+      entry.reversalWatchQualifiedAt = timestamp;
+      entry.reversalWatchQualificationReason = reversalWatchQualificationReason;
+    }
     entry.retentionFailures = 0;
+    entry.reversalWatchLowPrice = null;
+    entry.reversalWatchLowAt = null;
+    entry.reversalAttemptEvidenceScans = 0;
+    entry.reversalWatchAttemptReady = false;
     entry.followupAt = null;
     entry.vacatedSlotAt = null;
     entry.standbyAt = null;
     entry.statusReason = "returned from follow-up after renewed qualification";
+    this.managedEntries.set(entry.symbol, entry);
+    this.persistConfig();
+    return true;
+  }
+
+  private async restoreManagedFollowupAfterConfirmedHalt(
+    decision: AutoWatchlistCandidateDecision,
+    entry: AutoWatchlistManagedEntry,
+  ): Promise<boolean> {
+    if (!this.options.setSymbolFollowup) return false;
+    try {
+      await this.options.setSymbolFollowup(entry.symbol, false);
+    } catch (error) {
+      this.lastActivationErrors.push({
+        symbol: entry.symbol,
+        error: `automatic halt-protection restore failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      return false;
+    }
+    entry.state = "active";
+    entry.lastRankingScore = decision.rankingScore;
+    entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
+    entry.retentionFailures = 0;
+    entry.followupAt = null;
+    entry.vacatedSlotAt = null;
+    entry.standbyAt = null;
+    entry.statusReason = decision.haltRetentionProtectionReason ??
+      "restored from follow-up because Nasdaq Trader confirms an active trading halt";
     this.managedEntries.set(entry.symbol, entry);
     this.persistConfig();
     return true;
@@ -2005,12 +3204,17 @@ export class AutoWatchlistSelector {
     bucket: AutoWatchlistBucket,
     timestamp: number,
     reason: string,
+    incumbentDecision?: AutoWatchlistCandidateDecision,
   ): Promise<boolean> {
+    if (normalizeSymbol(challenger.symbol) === normalizeSymbol(incumbent.symbol)) {
+      return false;
+    }
     const incumbentBeforeReplacement = { ...incumbent };
     if (!await this.moveManagedEntryToFollowup(
       incumbent,
       timestamp,
       `replacement pending for ${challenger.symbol}`,
+      incumbentDecision,
     )) {
       return false;
     }
@@ -2044,6 +3248,7 @@ export class AutoWatchlistSelector {
     outgoing: AutoWatchlistManagedEntry,
     timestamp: number,
     reason: string,
+    exceptionKind?: AutoWatchlistReplacementEvent["exceptionKind"],
   ): void {
     this.replacementHistory.push({
       timestamp,
@@ -2053,15 +3258,20 @@ export class AutoWatchlistSelector {
       incomingRankingScore: incoming?.rankingScore ?? null,
       outgoingRankingScore: outgoing.lastRankingScore,
       reason,
+      ...(exceptionKind ? { exceptionKind } : {}),
     });
     this.replacementHistory = this.replacementHistory.slice(-50);
     this.persistConfig();
   }
 
-  private async trimFollowupShelf(timestamp: number): Promise<void> {
+  private async trimFollowupShelf(
+    timestamp: number,
+    decisionBySymbol: Map<string, AutoWatchlistCandidateDecision> = new Map(),
+  ): Promise<void> {
     const tradingDay = easternParts(timestamp).date;
     const expired = this.managedEntriesFor(undefined, "followup").filter((entry) =>
-      typeof entry.followupAt === "number" && easternParts(entry.followupAt).date !== tradingDay,
+      typeof entry.followupAt === "number" &&
+      easternParts(entry.followupAt).date !== tradingDay,
     );
     for (const entry of expired) {
       await this.moveManagedEntryToStandby(
@@ -2071,19 +3281,56 @@ export class AutoWatchlistSelector {
       );
     }
 
-    const currentFollowups = this.managedEntriesFor(undefined, "followup")
-      .sort((left, right) =>
-        left.lastSlotSurvivalScore - right.lastSlotSurvivalScore ||
+    const ordinaryFollowups = this.managedEntriesFor(undefined, "followup")
+      .filter((entry) => entry.reversalWatchQualifiedAt === null);
+    // A follow-up seat is a live tactical decision, not a reward for an old
+    // admission score. Rebalance only when every competing symbol has fresh
+    // activity data; otherwise preserve the shelf until a healthy scan can
+    // compare the entire pool without evicting a ticker on a provider gap.
+    const freshDecisionBySymbol = new Map<string, AutoWatchlistCandidateDecision>();
+    for (const entry of ordinaryFollowups) {
+      const decision = decisionBySymbol.get(entry.symbol);
+      if (
+        !decision?.activityDataAvailable ||
+        decision.activityQuoteAgeMinutes === null ||
+        decision.activityQuoteAgeMinutes > this.thresholds.maxActivityQuoteAgeMinutes
+      ) {
+        return;
+      }
+      freshDecisionBySymbol.set(entry.symbol, decision);
+      entry.lastRankingScore = decision.rankingScore;
+      entry.lastSlotSurvivalScore = decision.slotSurvivalScore;
+      this.managedEntries.set(entry.symbol, entry);
+    }
+
+    if (ordinaryFollowups.length <= MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS) {
+      return;
+    }
+
+    ordinaryFollowups.sort((left, right) => {
+      const leftDecision = freshDecisionBySymbol.get(left.symbol)!;
+      const rightDecision = freshDecisionBySymbol.get(right.symbol)!;
+      return (
+        leftDecision.slotSurvivalScore - rightDecision.slotSurvivalScore ||
+        leftDecision.rankingScore - rightDecision.rankingScore ||
         right.retentionFailures - left.retentionFailures ||
-        (left.followupAt ?? 0) - (right.followupAt ?? 0),
+        (left.followupAt ?? 0) - (right.followupAt ?? 0)
       );
-    const overflow = Math.max(0, currentFollowups.length - MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS);
-    for (const entry of currentFollowups.slice(0, overflow)) {
+    });
+    const overflow = Math.max(0, ordinaryFollowups.length - MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS);
+    for (const entry of ordinaryFollowups.slice(0, overflow)) {
+      const decision = freshDecisionBySymbol.get(entry.symbol)!;
       await this.moveManagedEntryToStandby(
         entry,
         timestamp,
-        `moved to standby because the follow-up shelf is capped at ${MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS} tickers`,
+        `moved to standby after fresh follow-up rebalance: current slot score ${decision.slotSurvivalScore.toFixed(2)} ranked outside the best ${MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS}`,
       );
+    }
+
+    for (const entry of ordinaryFollowups.slice(overflow)) {
+      const decision = freshDecisionBySymbol.get(entry.symbol)!;
+      entry.statusReason = `retained after fresh follow-up rebalance: current slot score ${decision.slotSurvivalScore.toFixed(2)} ranks in the best ${MAX_AUTO_WATCHLIST_FOLLOWUP_TICKERS}`;
+      this.managedEntries.set(entry.symbol, entry);
     }
   }
 
@@ -2139,6 +3386,7 @@ export class AutoWatchlistSelector {
     this.firstPassEvidence.clear();
     this.consecutivePasses.clear();
     this.consecutivePassSessions.clear();
+    this.consecutivePassObservedAt.clear();
     this.persistConfig();
   }
 
@@ -2190,6 +3438,10 @@ export class AutoWatchlistSelector {
       .filter((bar) => easternParts(bar.timestamp).date === easternParts(now).date)
       .sort((left, right) => left.timestamp - right.timestamp);
     const sessionBars = bars.filter((bar) => autoWatchlistSessionForTimestamp(bar.timestamp) === session);
+    const mainSessionBars = bars.filter((bar) => {
+      const barSession = autoWatchlistSessionForTimestamp(bar.timestamp);
+      return barSession === "premarket" || barSession === "regular";
+    });
     const latest = sessionBars.at(-1);
     if (!latest) {
       return {
@@ -2215,6 +3467,10 @@ export class AutoWatchlistSelector {
     const recentCutoff = now - 15 * 60 * 1000;
     const recentBars = sessionBars.filter((bar) => bar.timestamp >= recentCutoff);
     const sessionVolume = sessionBars.reduce((sum, bar) => sum + Math.max(0, bar.volume), 0);
+    const mainSessionVolume = mainSessionBars.reduce(
+      (sum, bar) => sum + Math.max(0, bar.volume),
+      0,
+    );
     const sessionDollarVolume = sessionBars.reduce(
       (sum, bar) => sum + Math.max(0, bar.volume) * bar.price,
       0,
@@ -2225,6 +3481,11 @@ export class AutoWatchlistSelector {
       0,
     );
     const sessionElapsedMinutes = elapsedSessionMinutes(now, session);
+    const nowEastern = easternParts(now);
+    const mainSessionElapsedMinutes = Math.min(
+      MAIN_WATCH_WINDOW_MINUTES,
+      Math.max(0, nowEastern.hour * 60 + nowEastern.minute - 4 * 60),
+    );
     const earlierSessionMinutes = Math.max(0, (sessionElapsedMinutes ?? 0) - 15);
     const earlierSessionVolume = Math.max(0, sessionVolume - recent15mVolume);
     const recentVolumeRate = recent15mVolume / 15;
@@ -2242,10 +3503,12 @@ export class AutoWatchlistSelector {
       price: latest.price,
       gainPct: referencePrice ? ((latest.price - referencePrice) / referencePrice) * 100 : null,
       sessionVolume,
+      mainSessionVolume,
       sessionDollarVolume,
       recent15mVolume,
       recent15mDollarVolume,
       sessionElapsedMinutes,
+      mainSessionElapsedMinutes,
       volumeAcceleration,
       quoteTime: Math.floor(latest.timestamp / 1000),
       quoteAgeMinutes: Math.max(0, (now - latest.timestamp) / 60_000),
@@ -2325,6 +3588,128 @@ export class AutoWatchlistSelector {
     );
   }
 
+  private async revalidatePromotionCandidatesBeforeActivation(
+    decisions: AutoWatchlistCandidateDecision[],
+    session: AutoWatchlistSession,
+  ): Promise<void> {
+    const activeSymbols = new Set(this.options.getActiveSymbols().map(normalizeSymbol));
+    const targets = decisions.filter((decision) => {
+      if (!decision.promotionReady) return false;
+      const managed = this.managedEntries.get(decision.symbol);
+      return !activeSymbols.has(decision.symbol) || managed?.state === "followup";
+    });
+    if (targets.length === 0) return;
+
+    const revalidationNow = this.now();
+    let result: Record<string, AutoWatchlistSessionActivity> = {};
+    try {
+      result = await this.sessionActivityLookup({
+        symbols: targets.map((decision) => decision.symbol),
+        session,
+        now: revalidationNow,
+      });
+    } catch (error) {
+      this.lastActivityLookupError = `final activation revalidation failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+
+    for (const decision of targets) {
+      const activity = result[decision.symbol] ?? {
+        symbol: decision.symbol,
+        session,
+        price: null,
+        gainPct: null,
+        sessionVolume: null,
+        sessionDollarVolume: null,
+        recent15mVolume: null,
+        recent15mDollarVolume: null,
+        sessionElapsedMinutes: null,
+        volumeAcceleration: null,
+        quoteTime: null,
+        quoteAgeMinutes: null,
+        available: false,
+        error: "fresh activation activity was unavailable",
+      };
+      const refreshedCandidate: AutoWatchlistDiscoveryCandidate = {
+        symbol: decision.symbol,
+        price: activity.available ? activity.price : decision.price,
+        gainPct: activity.available ? activity.gainPct : decision.gainPct,
+        volume: activity.available ? activity.sessionVolume : decision.volume,
+        averageVolume: decision.averageVolume,
+        marketCap: decision.marketCap,
+        quoteTime: activity.available ? activity.quoteTime : decision.quoteTime,
+        sourceScreens: [
+          ...new Set([...decision.sourceScreens, "fresh_activation_revalidation"]),
+        ],
+        ...(decision.securityMasterStatus
+          ? { securityMasterStatus: decision.securityMasterStatus }
+          : {}),
+      };
+      const scored = scoreAutoWatchlistCandidate({
+        candidate: refreshedCandidate,
+        floatShares: decision.effectiveSharesSource === "yahoo_float" ? decision.floatShares : null,
+        finnhubFloatShares:
+          decision.effectiveSharesSource === "finnhub_float" ? decision.floatShares : null,
+        yahooSharesOutstanding:
+          decision.effectiveSharesSource === "yahoo_outstanding" ? decision.sharesOutstanding : null,
+        finnhubSharesOutstanding:
+          decision.effectiveSharesSource === "finnhub_outstanding" ? decision.sharesOutstanding : null,
+        thresholds: this.thresholds,
+        session,
+        activity,
+      });
+      const promotionRejectionReasons = postmarketPromotionRejectionReasons({
+        qualified: scored.qualified,
+        session,
+        gainPct: scored.gainPct,
+        recent15mDollarVolume: activity.recent15mDollarVolume,
+        thresholds: this.thresholds,
+      });
+      const slotSurvival = buildAutoWatchlistSlotSurvivalScore({
+        rankingScore: decision.rankingScore,
+        gainPct: scored.gainPct,
+      });
+      Object.assign(decision, scored, slotSurvival, {
+        promotionReady: scored.qualified && promotionRejectionReasons.length === 0,
+        promotionRejectionReasons,
+        sessionVolume: activity.sessionVolume,
+        mainSessionVolume: activity.mainSessionVolume ?? decision.mainSessionVolume,
+        sessionDollarVolume: activity.sessionDollarVolume ?? null,
+        recent15mVolume: activity.recent15mVolume,
+        recent15mDollarVolume: activity.recent15mDollarVolume,
+        sessionElapsedMinutes: activity.sessionElapsedMinutes ?? null,
+        mainSessionElapsedMinutes: activity.mainSessionElapsedMinutes ?? null,
+        volumeAcceleration: activity.volumeAcceleration ?? null,
+        activityQuoteAgeMinutes: activity.quoteAgeMinutes,
+        activityDataAvailable: activity.available,
+      });
+      if (!decision.promotionReady) {
+        decision.consecutivePasses = 0;
+        this.consecutivePasses.set(decision.symbol, 0);
+        this.consecutivePassSessions.set(decision.symbol, session);
+      }
+    }
+  }
+
+  private async lookupTradingHalts(
+    symbols: string[],
+    now: number,
+  ): Promise<Map<string, NasdaqTradingHaltRecord>> {
+    if (symbols.length === 0) return new Map();
+    try {
+      const result = await this.tradingHaltLookup({ symbols, now });
+      this.tradingHaltFeedAvailable = result.available;
+      this.lastTradingHaltLookupError = result.error;
+      return new Map(
+        Object.entries(result.bySymbol)
+          .filter((entry): entry is [string, NasdaqTradingHaltRecord] => entry[1].state !== "not_found"),
+      );
+    } catch (error) {
+      this.tradingHaltFeedAvailable = false;
+      this.lastTradingHaltLookupError = error instanceof Error ? error.message : String(error);
+      return new Map();
+    }
+  }
+
   private async fetchScreen(screenId: string): Promise<YahooScreenerQuote[]> {
     const url = new URL("https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved");
     url.searchParams.set("formatted", "false");
@@ -2395,6 +3780,103 @@ export class AutoWatchlistSelector {
     }
   }
 
+  private async fetchStockAnalysisAfterhoursGainers(
+    expectedDate: string,
+  ): Promise<AutoWatchlistDiscoveryCandidate[]> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const response = await this.fetchImpl("https://stockanalysis.com/markets/afterhours/gainers/", {
+        signal: controller.signal,
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "en-US,en;q=0.9",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36",
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`after-hours gainers request failed (${response.status}).`);
+      }
+      return parseStockAnalysisAfterhoursGainers(await response.text(), expectedDate);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async fetchStockAnalysisPremarketGainers(
+    expectedDate: string,
+  ): Promise<AutoWatchlistDiscoveryCandidate[]> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const response = await this.fetchImpl("https://stockanalysis.com/markets/premarket/gainers/", {
+        signal: controller.signal,
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "en-US,en;q=0.9",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36",
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`premarket gainers request failed (${response.status}).`);
+      }
+      return parseStockAnalysisPremarketGainers(await response.text(), expectedDate);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async fetchStockAnalysisRegularGainers(
+    expectedDate: string,
+  ): Promise<AutoWatchlistDiscoveryCandidate[]> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const response = await this.fetchImpl("https://stockanalysis.com/markets/gainers/", {
+        signal: controller.signal,
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "en-US,en;q=0.9",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36",
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`regular-hours gainers request failed (${response.status}).`);
+      }
+      return parseStockAnalysisRegularGainers(await response.text(), expectedDate);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async fetchTradingViewGainers(
+    session: Exclude<AutoWatchlistSession, "closed">,
+  ): Promise<AutoWatchlistDiscoveryCandidate[]> {
+    const path = session === "premarket"
+      ? "market-movers-pre-market-gainers"
+      : session === "postmarket"
+        ? "market-movers-after-hours-gainers"
+        : "market-movers-gainers";
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const response = await this.fetchImpl(`https://www.tradingview.com/markets/stocks-usa/${path}/`, {
+        signal: controller.signal,
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "en-US,en;q=0.9",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36",
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`TradingView ${session} gainers request failed (${response.status}).`);
+      }
+      return parseTradingViewGainers(await response.text(), session);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   private async fetchLiveExchangeCandidates(): Promise<AutoWatchlistDiscoveryCandidate[]> {
     const url = new URL("https://api.nasdaq.com/api/screener/stocks");
     url.searchParams.set("download", "true");
@@ -2433,7 +3915,7 @@ export class AutoWatchlistSelector {
           // Session activity or a timestamped quote may fill this later, but
           // fetch time must never masquerade as market-event time.
           quoteTime: null,
-          sourceScreens: ["live_exchange_gainers"],
+          sourceScreens: ["live_exchange_screener"],
         }))
         .filter((candidate) =>
           (candidate.marketCap ?? Number.POSITIVE_INFINITY) <= this.thresholds.maxMarketCap,
@@ -2447,13 +3929,38 @@ export class AutoWatchlistSelector {
       const session = autoWatchlistSessionForTimestamp(this.now());
       const commonBySymbol = new Map(commonCandidates.map((candidate) => [candidate.symbol, candidate]));
       const marketMoversBySymbol = new Map<string, AutoWatchlistDiscoveryCandidate>();
+      const mergeMovers = (movers: AutoWatchlistDiscoveryCandidate[]) => {
+        for (const mover of movers) {
+          const existing = marketMoversBySymbol.get(mover.symbol) ?? commonBySymbol.get(mover.symbol);
+          marketMoversBySymbol.set(mover.symbol, {
+            ...(existing ?? mover),
+            price: mover.price ?? existing?.price ?? null,
+            gainPct: mover.gainPct ?? existing?.gainPct ?? null,
+            volume: mover.volume ?? existing?.volume ?? null,
+            marketCap: mover.marketCap ?? existing?.marketCap ?? null,
+            sourceScreens: [
+              ...new Set([
+                ...(existing?.sourceScreens ?? []),
+                ...mover.sourceScreens,
+              ]),
+            ],
+          });
+        }
+      };
+      let nasdaqAvailable = false;
+      let nasdaqError: string | null = null;
+      let nasdaqGainers: AutoWatchlistDiscoveryCandidate[] = [];
+      let stockAnalysisAvailable = false;
+      let stockAnalysisError: string | null = null;
+      let stockAnalysisGainers: AutoWatchlistDiscoveryCandidate[] = [];
       try {
         const movers = await this.fetchNasdaqMarketMovers();
+        nasdaqAvailable = true;
         for (const [rows, source] of [
           [movers.advanced, "nasdaq_live_most_advanced"],
           [movers.active, "nasdaq_live_most_active"],
         ] as const) {
-          for (const row of rows) {
+          for (const [rowIndex, row] of rows.entries()) {
             const symbol = normalizeSymbol(String(row.symbol ?? ""));
             const existing = marketMoversBySymbol.get(symbol) ?? commonBySymbol.get(symbol);
             const identity = normalizeNasdaqRow({
@@ -2487,24 +3994,110 @@ export class AutoWatchlistSelector {
               price: moverPrice ?? base.price,
               gainPct: moverGain ?? base.gainPct,
               volume: moverVolume ?? base.volume,
-              sourceScreens: [...new Set([...base.sourceScreens, source])],
+              sourceScreens: [
+                ...new Set([
+                  ...base.sourceScreens,
+                  source,
+                  ...(source === "nasdaq_live_most_advanced" && rowIndex < 5
+                    ? [NASDAQ_TOP_FIVE_GAINER_SOURCE]
+                    : []),
+                ]),
+              ],
             });
           }
         }
+        nasdaqGainers = [...marketMoversBySymbol.values()]
+          .filter((candidate) => candidate.sourceScreens.includes("nasdaq_live_most_advanced"))
+          .sort((left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0));
       } catch (error) {
+        nasdaqError = error instanceof Error ? error.message : String(error);
         console.warn(
-          `[AutoWatchlistSelector] Nasdaq live market movers unavailable; using the regular screener fallback: ${error instanceof Error ? error.message : String(error)}`,
+          `[AutoWatchlistSelector] Nasdaq live market movers unavailable; using the regular screener fallback: ${nasdaqError}`,
         );
+      }
+      if (session === "premarket") {
+        try {
+          stockAnalysisGainers = await this.fetchStockAnalysisPremarketGainers(easternParts(this.now()).date);
+          stockAnalysisAvailable = true;
+          const observedAt = this.now();
+          this.options.onPremarketVolumeSnapshot?.(
+            stockAnalysisGainers
+              .filter((mover) => mover.volume !== null && mover.volume > 0)
+              .map((mover) => ({
+                symbol: mover.symbol,
+                cumulativeVolume: mover.volume!,
+                observedAt,
+              })),
+          );
+          mergeMovers(stockAnalysisGainers);
+        } catch (error) {
+          stockAnalysisError = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `[AutoWatchlistSelector] Direct premarket gainers unavailable; retaining Nasdaq and rotating probe discovery: ${stockAnalysisError}`,
+          );
+        }
+      }
+      if (session === "regular") {
+        try {
+          stockAnalysisGainers = await this.fetchStockAnalysisRegularGainers(easternParts(this.now()).date);
+          stockAnalysisAvailable = true;
+          mergeMovers(stockAnalysisGainers);
+        } catch (error) {
+          stockAnalysisError = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `[AutoWatchlistSelector] Direct regular-hours gainers unavailable; retaining Nasdaq discovery: ${stockAnalysisError}`,
+          );
+        }
+      }
+      if (session === "postmarket") {
+        try {
+          stockAnalysisGainers = await this.fetchStockAnalysisAfterhoursGainers(easternParts(this.now()).date);
+          stockAnalysisAvailable = true;
+          mergeMovers(stockAnalysisGainers);
+        } catch (error) {
+          stockAnalysisError = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `[AutoWatchlistSelector] Direct after-hours gainers unavailable; retaining rotating probe discovery: ${stockAnalysisError}`,
+          );
+        }
+      }
+      if (session !== "closed") {
+        try {
+          mergeMovers(await this.fetchTradingViewGainers(session));
+        } catch (error) {
+          console.warn(
+            `[AutoWatchlistSelector] TradingView ${session} gainers unavailable; retaining other discovery feeds: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
       if (session === "premarket" || session === "postmarket") {
         const candidateLimit = this.thresholds.extendedSessionCandidateLimit;
+        const explorationSlots = Math.floor(candidateLimit / 4);
         const extendedUniverse = selectExtendedSessionProbeCandidates({
           candidates,
+          explorationCandidates: commonCandidates,
           marketMovers: [...marketMoversBySymbol.values()],
           limit: candidateLimit,
           thresholds: this.thresholds,
+          explorationStartIndex: this.extendedSessionExplorationCursor,
         });
+        if (commonCandidates.length > 0 && explorationSlots > 0) {
+          this.extendedSessionExplorationCursor =
+            (this.extendedSessionExplorationCursor + explorationSlots) % commonCandidates.length;
+        }
         const activities = await this.lookupSessionActivities(extendedUniverse, session, this.now());
+        if (session === "premarket") {
+          this.lastDiscoveryFeedComparison = buildAutoWatchlistDiscoveryFeedComparison({
+            checkedAt: this.now(),
+            nasdaqAvailable,
+            nasdaqError,
+            nasdaqCandidates: nasdaqGainers,
+            stockAnalysisAvailable,
+            stockAnalysisError,
+            stockAnalysisCandidates: stockAnalysisGainers,
+            activities,
+          });
+        }
         return extendedUniverse
           .map((candidate) => {
             const activity = activities.get(candidate.symbol);
@@ -2525,6 +4118,7 @@ export class AutoWatchlistSelector {
           .sort((left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0))
           .slice(0, 50);
       }
+      this.lastDiscoveryFeedComparison = null;
       const liveBySymbol = new Map(marketMoversBySymbol);
       for (const candidate of [...candidates].sort(
         (left, right) => (right.gainPct ?? 0) - (left.gainPct ?? 0),
@@ -2611,6 +4205,8 @@ export class AutoWatchlistSelector {
     referenceDate: string,
     session: AutoWatchlistSession,
     activity: AutoWatchlistSessionActivity | null,
+    tradingHalt: NasdaqTradingHaltRecord | null,
+    tradingHaltChecked: boolean,
   ): Promise<AutoWatchlistCandidateDecision> {
     const [yahooResult, finnhubResult] = await Promise.allSettled([
       this.options.yahooClient?.getSummary(candidate.symbol) ?? Promise.resolve(null),
@@ -2640,10 +4236,16 @@ export class AutoWatchlistSelector {
       session,
       activity,
     });
+    const observationTimestamp = this.now();
     const priorPassSession = this.consecutivePassSessions.get(candidate.symbol);
+    const priorPassObservedAt = this.consecutivePassObservedAt.get(candidate.symbol);
     const canCarryPriorPasses =
-      priorPassSession === session ||
-      (priorPassSession === "premarket" && session === "regular");
+      priorPassObservedAt !== undefined &&
+      observationTimestamp - priorPassObservedAt <= CONSECUTIVE_PASS_MAX_GAP_MS &&
+      (
+        priorPassSession === session ||
+        (priorPassSession === "premarket" && session === "regular")
+      );
     const currentPasses = canCarryPriorPasses
       ? this.consecutivePasses.get(candidate.symbol) ?? 0
       : 0;
@@ -2653,8 +4255,15 @@ export class AutoWatchlistSelector {
         : 0
       : currentPasses;
     if (recordPassingObservation) {
-      this.consecutivePasses.set(candidate.symbol, nextPasses);
-      this.consecutivePassSessions.set(candidate.symbol, session);
+      if (nextPasses > 0) {
+        this.consecutivePasses.set(candidate.symbol, nextPasses);
+        this.consecutivePassSessions.set(candidate.symbol, session);
+        this.consecutivePassObservedAt.set(candidate.symbol, observationTimestamp);
+      } else {
+        this.consecutivePasses.delete(candidate.symbol);
+        this.consecutivePassSessions.delete(candidate.symbol);
+        this.consecutivePassObservedAt.delete(candidate.symbol);
+      }
     }
     const ranking = rankingFields({
       context: catalystContext,
@@ -2686,15 +4295,35 @@ export class AutoWatchlistSelector {
       promotionRejectionReasons,
       session,
       sessionVolume: activity?.sessionVolume ?? null,
+      mainSessionVolume: activity?.mainSessionVolume ?? null,
       sessionDollarVolume: activity?.sessionDollarVolume ?? null,
       recent15mVolume: activity?.recent15mVolume ?? null,
       recent15mDollarVolume: activity?.recent15mDollarVolume ?? null,
       sessionElapsedMinutes: activity?.sessionElapsedMinutes ?? null,
+      mainSessionElapsedMinutes: activity?.mainSessionElapsedMinutes ?? null,
       volumeAcceleration: activity?.volumeAcceleration ?? null,
       activityQuoteAgeMinutes: activity?.quoteAgeMinutes ?? null,
       activityDataAvailable: activity?.available === true,
+      tradingHaltState: tradingHalt?.state ?? (
+        tradingHaltChecked
+          ? this.tradingHaltFeedAvailable ? "not_found" : "unavailable"
+          : "not_checked"
+      ),
+      tradingHaltReasonCode: tradingHalt?.reasonCode ?? null,
+      haltRetentionProtected: false,
+      haltRetentionProtectionReason: null,
       consecutivePasses: nextPasses,
     };
+    const haltProtection = buildAutoWatchlistRetentionProtection({
+      decision,
+      entry: { lastQualifiedAt: null },
+      thresholds: this.thresholds,
+      now: this.now(),
+    });
+    decision.haltRetentionProtected = haltProtection.kind === "confirmed_halt";
+    decision.haltRetentionProtectionReason = decision.haltRetentionProtected
+      ? haltProtection.reason
+      : null;
     if (
       recordPassingObservation &&
       decision.promotionReady &&
@@ -2703,7 +4332,7 @@ export class AutoWatchlistSelector {
     ) {
       this.firstPassEvidence.set(candidate.symbol, {
         symbol: candidate.symbol,
-        observedAt: this.now(),
+        observedAt: observationTimestamp,
         session,
         rankingScore: decision.rankingScore,
         slotSurvivalScore: decision.slotSurvivalScore,
@@ -2796,7 +4425,7 @@ export class AutoWatchlistSelector {
       const evaluatedSymbols = new Set(enrichmentCandidates.map((candidate) => candidate.symbol));
       const retainedEntries = [
         ...this.managedEntriesFor(bucket, "active"),
-        ...this.managedEntriesFor(bucket, "followup"),
+        ...this.managedEntriesFor(undefined, "followup"),
       ];
       for (const entry of retainedEntries) {
         if (evaluatedSymbols.has(entry.symbol)) continue;
@@ -2814,6 +4443,16 @@ export class AutoWatchlistSelector {
       }
       this.lastEvaluatedCount = enrichmentCandidates.length;
       const activities = await this.lookupSessionActivities(enrichmentCandidates, session, scanStartedAt);
+      const haltCheckSymbols = new Set(
+        retainedEntries
+          .filter((entry) => activityNeedsTradingHaltCheck(
+            activities.get(entry.symbol),
+            session,
+            this.thresholds,
+          ))
+          .map((entry) => entry.symbol),
+      );
+      const tradingHalts = await this.lookupTradingHalts([...haltCheckSymbols], scanStartedAt);
       const referenceDate = easternParts(scanStartedAt).date;
       const catalystContexts = await this.lookupCatalysts(enrichmentCandidates, referenceDate);
       const securityMasterBySymbol = new Map<string, CommonEquitySecurityMasterStatus>();
@@ -2871,7 +4510,12 @@ export class AutoWatchlistSelector {
           referenceDate,
           session,
           activity,
+          tradingHalts.get(candidate.symbol) ?? null,
+          haltCheckSymbols.has(candidate.symbol),
         ));
+      }
+      if (activate) {
+        await this.revalidatePromotionCandidatesBeforeActivation(decisions, session);
       }
       this.recentDecisions = decisions.sort(compareAutoWatchlistDecisions);
       if (activate) {
@@ -2880,6 +4524,7 @@ export class AutoWatchlistSelector {
           if (!evaluatedDecisionSymbols.has(symbol)) {
             this.consecutivePasses.delete(symbol);
             this.consecutivePassSessions.delete(symbol);
+            this.consecutivePassObservedAt.delete(symbol);
           }
         }
       }
@@ -2887,29 +4532,135 @@ export class AutoWatchlistSelector {
       this.lastQualifiedCount = qualified.length;
       if (activate) {
         const decisionBySymbol = new Map(decisions.map((decision) => [decision.symbol, decision]));
+        await this.enforceActiveSlotLimits(scanStartedAt, ["main", "postmarket"], decisionBySymbol);
+        for (const entry of [
+          ...this.managedEntriesFor(undefined, "active"),
+          ...this.managedEntriesFor(undefined, "followup"),
+        ]) {
+          const decision = decisionBySymbol.get(entry.symbol);
+          const current = this.managedEntries.get(entry.symbol);
+          if (decision && current) {
+            this.updateManagedRunnerEvidence(current, decision, scanStartedAt);
+            this.updateReversalAttemptEvidence(current, decision, scanStartedAt);
+            this.managedEntries.set(current.symbol, current);
+          }
+        }
         for (const entry of this.managedEntriesFor(bucket, "active")) {
           const current = this.managedEntries.get(entry.symbol)!;
           const decision = decisionBySymbol.get(entry.symbol);
+          const retentionProtection = decision
+            ? buildAutoWatchlistRetentionProtection({
+                decision,
+                entry: current,
+                thresholds: this.thresholds,
+                now: scanStartedAt,
+              })
+            : { protected: false, kind: null, reason: null } as const;
+          const deadReversalCandidate = this.isDeadReversalCandidate(current, decision);
           current.lastSession = session;
-          if (decision?.qualified) {
+          if ((decision?.qualified && !deadReversalCandidate) || retentionProtection.protected) {
             current.retentionFailures = 0;
-            current.lastQualifiedAt = scanStartedAt;
-            current.lastRankingScore = decision.rankingScore;
-            current.lastSlotSurvivalScore = decision.slotSurvivalScore;
-            current.statusReason = "retained: still meets automatic selection requirements";
+            if (decision) {
+              if (decision.qualified) current.lastQualifiedAt = scanStartedAt;
+              current.lastRankingScore = decision.rankingScore;
+              current.lastSlotSurvivalScore = decision.slotSurvivalScore;
+            }
+            const newlyEarnedHoldReason =
+              decision?.qualified && current.holdProtectionEarnedAt === null
+                ? this.automaticHoldQualification(decision)
+                : null;
+            if (newlyEarnedHoldReason) {
+              current.holdProtectionEarnedAt = this.now();
+              current.holdProtectionReason = newlyEarnedHoldReason;
+            }
+            const newlyEarnedReversalWatchReason =
+              decision?.qualified && current.reversalWatchQualifiedAt === null
+                ? this.reversalWatchQualification(decision, current)
+                : null;
+            if (newlyEarnedReversalWatchReason) {
+              current.reversalWatchQualifiedAt = this.now();
+              current.reversalWatchQualificationReason = newlyEarnedReversalWatchReason;
+            }
+            current.statusReason = retentionProtection.reason ?? (
+              newlyEarnedHoldReason
+                ? `retained and ${newlyEarnedHoldReason}`
+                : "retained: still meets automatic selection requirements"
+            );
           } else {
             current.retentionFailures += 1;
             if (decision) {
               current.lastRankingScore = decision.rankingScore;
               current.lastSlotSurvivalScore = decision.slotSurvivalScore;
             }
-            current.statusReason = `retention warning ${current.retentionFailures}/${this.thresholds.retentionFailureScansRequired}: ${decision?.rejectionReasons.join("; ") || "no current activity evidence"}`;
+            current.statusReason = deadReversalCandidate
+              ? `dead reversal warning ${current.retentionFailures}/${this.retentionFailuresRequiredForEntry(current)}: gain has retraced at least half of the peak and volume acceleration remains below 1x`
+              : `retention warning ${current.retentionFailures}/${this.retentionFailuresRequiredForEntry(current)}: ${decision?.rejectionReasons.join("; ") || "no current activity evidence"}`;
+          }
+        }
+
+        for (const entry of this.managedEntriesFor(undefined, "followup")
+          .filter((candidate) =>
+            candidate.reversalWatchQualifiedAt === null &&
+            decisionBySymbol.get(candidate.symbol)?.haltRetentionProtected
+          )
+          .sort((left, right) => right.lastSlotSurvivalScore - left.lastSlotSurvivalScore)) {
+          if (
+            this.managedEntriesFor(entry.bucket, "active").length >=
+            this.activeSlotLimit(entry.bucket)
+          ) continue;
+          const decision = decisionBySymbol.get(entry.symbol);
+          if (decision) {
+            await this.restoreManagedFollowupAfterConfirmedHalt(decision, entry);
+          }
+        }
+
+        if (this.options.setSymbolFollowup) {
+          const runtimeReversalWatchSymbols = new Set(
+            this.runtimeEntries()
+              .filter((runtimeEntry) => runtimeEntry.tags?.includes("auto-reversal-watch"))
+              .map((runtimeEntry) => runtimeEntry.symbol),
+          );
+          const runtimeReversalAttemptSymbols = new Set(
+            this.runtimeEntries()
+              .filter((runtimeEntry) => runtimeEntry.tags?.includes("auto-reversal-attempt-ready"))
+              .map((runtimeEntry) => runtimeEntry.symbol),
+          );
+          for (const entry of this.managedEntriesFor(undefined, "followup")) {
+            const currentDecision = decisionBySymbol.get(entry.symbol);
+            const reversalWatchEligible = this.isReversalWatchEligibleNow(
+              entry,
+              currentDecision,
+            );
+            const reversalWatchAttemptReady =
+              reversalWatchEligible && entry.reversalWatchAttemptReady;
+            if (
+              runtimeReversalWatchSymbols.has(entry.symbol) === reversalWatchEligible &&
+              runtimeReversalAttemptSymbols.has(entry.symbol) === reversalWatchAttemptReady
+            ) {
+              continue;
+            }
+            try {
+              await this.options.setSymbolFollowup(entry.symbol, true, {
+                reversalWatchEligible,
+                reversalWatchAttemptReady,
+              });
+            } catch (error) {
+              this.lastActivationErrors.push({
+                symbol: entry.symbol,
+                error: `automatic reversal-watch refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+              });
+            }
           }
         }
 
         const eligibleChallengers = qualified.filter((decision) => {
           const activeSymbols = new Set(this.options.getActiveSymbols().map(normalizeSymbol));
           const managed = this.managedEntries.get(decision.symbol);
+          if (managed && managed.bucket !== bucket) return false;
+          if (
+            managed?.state === "followup" &&
+            managed.reversalWatchQualifiedAt !== null
+          ) return false;
           if (activeSymbols.has(decision.symbol) && managed?.state !== "followup") return false;
           if (!decision.promotionReady) return false;
           const requiredPasses = this.isFastTrackRunner(decision)
@@ -2917,35 +4668,11 @@ export class AutoWatchlistSelector {
             : this.thresholds.consecutivePassesRequired;
           return decision.consecutivePasses >= requiredPasses;
         });
-        const vacantSlotEligibleChallengers = eligibleChallengers.filter((decision) =>
-          bucket !== "main" || meetsMainSessionBaselineAdmissionQuality(decision)
-        );
-        const overflowCount = Math.max(
-          0,
-          this.managedEntriesFor(bucket, "active").length - this.activeSlotLimit(bucket),
-        );
-        if (overflowCount > 0) {
-          const overflowEntries = this.managedEntriesFor(bucket, "active")
-            .sort((left, right) =>
-              left.lastSlotSurvivalScore - right.lastSlotSurvivalScore ||
-              right.retentionFailures - left.retentionFailures ||
-              (left.lastQualifiedAt ?? 0) - (right.lastQualifiedAt ?? 0),
-            )
-            .slice(0, overflowCount);
-          for (const entry of overflowEntries) {
-            const reason = `moved to standby because the active automatic slot limit was reduced to ${this.activeSlotLimit(bucket)}`;
-            if (await this.moveManagedEntryToStandby(entry, scanStartedAt, reason)) {
-              entry.vacatedSlotAt = null;
-              this.managedEntries.set(entry.symbol, entry);
-              this.persistConfig();
-            }
-          }
-        }
         const fadedFollowups: AutoWatchlistManagedEntry[] = [];
         if (this.thresholds.dynamicReplacementEnabled) {
           const faded = this.managedEntriesFor(bucket, "active")
             .filter((entry) =>
-              entry.retentionFailures >= this.thresholds.retentionFailureScansRequired &&
+              entry.retentionFailures >= this.retentionFailuresRequiredForEntry(entry) &&
               !this.isProtectedIncumbent(entry, scanStartedAt, session),
             )
             .sort((left, right) =>
@@ -2954,7 +4681,12 @@ export class AutoWatchlistSelector {
             );
           for (const entry of faded) {
             const reason = `moved to follow-up after ${entry.retentionFailures} failed retention scans`;
-            if (await this.moveManagedEntryToFollowup(entry, scanStartedAt, reason)) {
+            if (await this.moveManagedEntryToFollowup(
+              entry,
+              scanStartedAt,
+              reason,
+              decisionBySymbol.get(entry.symbol),
+            )) {
               fadedFollowups.push(entry);
             }
           }
@@ -2969,7 +4701,7 @@ export class AutoWatchlistSelector {
         ];
         const usedChallengers = new Set<string>();
         let activeManagedCount = this.managedEntriesFor(bucket, "active").length;
-        for (const decision of vacantSlotEligibleChallengers) {
+        for (const decision of eligibleChallengers) {
           if (activeManagedCount >= this.activeSlotLimit(bucket)) break;
           const alreadyAdded = this.sessionAddedSet(bucket).has(decision.symbol);
           for (let index = availableReplacementDepartures.length - 1; index >= 0; index -= 1) {
@@ -2993,6 +4725,15 @@ export class AutoWatchlistSelector {
             ? availableReplacementDepartures.splice(departureIndex, 1)[0]
             : undefined;
           const isReplacement = Boolean(departure);
+          if (
+            bucket === "main" &&
+            !meetsMainVacancyAdmissionQuality(decision)
+          ) {
+            if (departure) {
+              availableReplacementDepartures.splice(departureIndex, 0, departure);
+            }
+            continue;
+          }
           const normalInitialAdditionLimitReached =
             !alreadyAdded &&
             !isReplacement &&
@@ -3019,9 +4760,10 @@ export class AutoWatchlistSelector {
               : alreadyAdded
                 ? "reactivated from standby after renewed qualification"
                 : "filled an available automatic slot";
+          const activationTimestamp = this.now();
           const activated = managedChallenger?.state === "followup"
-            ? await this.promoteManagedFollowupDecision(decision, managedChallenger, scanStartedAt)
-            : await this.activateManagedDecision(decision, bucket, scanStartedAt, reason);
+            ? await this.promoteManagedFollowupDecision(decision, managedChallenger, activationTimestamp)
+            : await this.activateManagedDecision(decision, bucket, activationTimestamp, reason);
           if (!activated) {
             if (departure) {
               availableReplacementDepartures.splice(departureIndex, 0, departure);
@@ -3061,6 +4803,7 @@ export class AutoWatchlistSelector {
           )) {
             const incumbent = this.managedEntriesFor(bucket, "active")
               .filter((entry) =>
+                entry.symbol !== challenger.symbol &&
                 entry.retentionFailures > 0 &&
                 !this.isProtectedIncumbent(entry, scanStartedAt, session),
               )
@@ -3082,8 +4825,9 @@ export class AutoWatchlistSelector {
               challenger,
               incumbent,
               bucket,
-              scanStartedAt,
+              this.now(),
               reason,
+              decisionBySymbol.get(incumbent.symbol),
             )) continue;
             if (usesLateMainSessionAdmissionReserve) {
               this.consumeLateMainSessionAdmissionReserve();
@@ -3100,16 +4844,36 @@ export class AutoWatchlistSelector {
           }
         }
 
+        const standardFastTrackCapacityAvailable = this.replacementAdmissionCapacityAvailable(
+          bucket,
+          scanStartedAt,
+          {
+            // The daily limit prevents ordinary list churn. It must not hide a
+            // verified late Main-session runner merely because earlier replacements used
+            // the normal allowance and late-session reserve.
+            allowMainSessionFastTrackOverride: true,
+          },
+        );
+        const postmarketExtremeOverrideAvailable =
+          this.postmarketExtremeRunnerOverrideAvailable(bucket);
         if (
           this.thresholds.dynamicReplacementEnabled &&
           activeManagedCount >= this.activeSlotLimit(bucket) &&
-          this.replacementAdmissionCapacityAvailable(bucket, scanStartedAt)
+          (standardFastTrackCapacityAvailable || postmarketExtremeOverrideAvailable)
         ) {
           for (const challenger of eligibleChallengers.filter((decision) =>
-            !usedChallengers.has(decision.symbol) && this.isFastTrackRunner(decision),
+            !usedChallengers.has(decision.symbol) &&
+            this.isFastTrackRunner(decision) &&
+            (
+              standardFastTrackCapacityAvailable ||
+              (postmarketExtremeOverrideAvailable && this.isExtremeRunner(decision))
+            ),
           )) {
             const incumbent = this.managedEntriesFor(bucket, "active")
-              .filter((entry) => !this.isProtectedIncumbent(entry, scanStartedAt, session))
+              .filter((entry) =>
+                entry.symbol !== challenger.symbol &&
+                !this.isProtectedIncumbent(entry, scanStartedAt, session),
+              )
               .sort((left, right) => left.lastSlotSurvivalScore - right.lastSlotSurvivalScore)[0];
             if (!incumbent) break;
             if (
@@ -3123,13 +4887,19 @@ export class AutoWatchlistSelector {
               : "obvious runner";
             const reason = `${fastTrackLabel} override over ${incumbent.symbol}`;
             const usesLateMainSessionAdmissionReserve =
-              this.replacementCount(bucket) >= this.replacementLimit(bucket);
+              this.replacementCount(bucket) >= this.replacementLimit(bucket) &&
+              this.lateMainSessionAdmissionReserveAvailable(bucket, scanStartedAt);
+            const usesPostmarketExtremeRunnerOverride =
+              bucket === "postmarket" &&
+              this.replacementCount(bucket) >= this.replacementLimit(bucket) &&
+              this.isExtremeRunner(challenger);
             if (!await this.replaceManagedDecision(
               challenger,
               incumbent,
               bucket,
-              scanStartedAt,
+              this.now(),
               reason,
+              decisionBySymbol.get(incumbent.symbol),
             )) continue;
             if (usesLateMainSessionAdmissionReserve) {
               this.consumeLateMainSessionAdmissionReserve();
@@ -3140,11 +4910,12 @@ export class AutoWatchlistSelector {
               incumbent,
               scanStartedAt,
               `${challenger.symbol} replaced ${incumbent.symbol}: ${fastTrackLabel} slot score ${challenger.slotSurvivalScore.toFixed(1)} versus ${incumbent.lastSlotSurvivalScore.toFixed(1)}, with $${Math.round((challenger.recent15mDollarVolume ?? 0) / 1_000)}K last-15m dollar volume, ${(challenger.shareTurnoverPct ?? 0).toFixed(1)}% turnover${challenger.volumeAcceleration !== null ? `, and ${challenger.volumeAcceleration.toFixed(1)}x acceleration` : ""}.`,
+              usesPostmarketExtremeRunnerOverride ? "postmarket_extreme_runner" : undefined,
             );
             break;
           }
         }
-        await this.trimFollowupShelf(scanStartedAt);
+        await this.trimFollowupShelf(scanStartedAt, decisionBySymbol);
         this.persistConfig();
       }
       this.lastScanCompletedAt = this.now();

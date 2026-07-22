@@ -9,7 +9,7 @@ import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchl
 
 function read(symbol: string, generatedAt: number, totalCostUsd: number): TradersLinkAiReadPayload {
   return {
-    version: 2,
+    version: 3,
     generationId: `${symbol}-${generatedAt}`,
     symbol,
     generatedAt,
@@ -26,6 +26,8 @@ function read(symbol: string, generatedAt: number, totalCostUsd: number): Trader
     breakoutContinuation: { label: "Continue", price: 1.2, rationale: "Test." },
     targets: [],
     downsideCheckpoints: [],
+    pullbackPlans: { shallow: null, deep: null },
+    failureRecovery: null,
     catalystRealityCheck: {
       status: "none",
       summary: "None.",
@@ -98,6 +100,9 @@ describe("TradersLinkAiReadCostLedger", () => {
       assert.equal(summary.windows.last7Days.estimatedTotalCostUsd, 0.045);
       assert.equal(summary.windows.allTime.estimatedTotalCostUsd, 0.075);
       assert.equal(summary.windows.allTime.webSearchCallCount, 3);
+      assert.deepEqual(summary.todayPerTicker.map((ticker) => ticker.symbol), ["TGHL"]);
+      assert.equal(summary.todayPerTicker[0]?.requestCount, 2);
+      assert.equal(summary.todayPerTicker[0]?.estimatedTotalCostUsd, 0.045);
       assert.equal(summary.perTicker[0]?.symbol, "TGHL");
       assert.equal(summary.perTicker[0]?.requestCount, 2);
       assert.equal(summary.perTicker[0]?.planGenerationCount, 2);
@@ -155,6 +160,12 @@ describe("TradersLinkAiReadCostLedger", () => {
       const now = Date.parse("2026-07-17T18:00:00.000Z");
       ledger.record({ read: read("TGHL", now - 60_000, 0.025), trigger: "manual" });
       ledger.record({ read: read("BIYA", now - 2 * 60_000, 0.02), trigger: "activation" });
+      const load = ledger.load.bind(ledger);
+      let loadCount = 0;
+      ledger.load = () => {
+        loadCount += 1;
+        return load();
+      };
 
       const allowed = ledger.getDailyCostBudgetStatus({
         enabled: true,
@@ -164,6 +175,7 @@ describe("TradersLinkAiReadCostLedger", () => {
       assert.equal(allowed.spentUsd, 0.045);
       assert.equal(allowed.projectedNextRequestUsd, 0.0225);
       assert.equal(allowed.canStartRequest, true);
+      assert.equal(loadCount, 1);
 
       const blocked = ledger.getDailyCostBudgetStatus({
         enabled: true,
@@ -172,6 +184,7 @@ describe("TradersLinkAiReadCostLedger", () => {
       });
       assert.equal(blocked.canStartRequest, false);
       assert.match(blocked.blockReason ?? "", /reserve/i);
+      assert.equal(loadCount, 2);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

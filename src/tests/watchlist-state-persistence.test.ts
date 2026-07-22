@@ -4,7 +4,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
+import {
+  DEFAULT_INACTIVE_WATCHLIST_RETENTION_MS,
+  WatchlistStatePersistence,
+} from "../lib/monitoring/watchlist-state-persistence.js";
 import { WatchlistStore } from "../lib/monitoring/watchlist-store.js";
 
 test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
@@ -22,6 +25,7 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       discordThreadId: "discord-thread-7",
       lifecycle: "active",
       activatedAt: 123,
+      manualDeactivatedAt: 122,
       lastLevelPostAt: 456,
       lastExtensionPostAt: 789,
       lastPriceUpdateAt: 800,
@@ -67,6 +71,7 @@ test("WatchlistStatePersistence saves and loads manual watchlist state", () => {
       discordThreadId: "discord-thread-7",
       lifecycle: "active",
       activatedAt: 123,
+      manualDeactivatedAt: 122,
       lastLevelPostAt: 456,
       lastExtensionPostAt: 789,
       lastPriceUpdateAt: 800,
@@ -130,6 +135,43 @@ test("WatchlistStatePersistence discards invalid persisted state", () => {
   );
 
   assert.equal(persistence.load(), null);
+  rmSync(tempDir, { recursive: true, force: true });
+});
+
+test("WatchlistStatePersistence drops inactive entries older than three days", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "watchlist-state-retention-"));
+  const filePath = join(tempDir, "manual-watchlist-state.json");
+  const now = 10 * 24 * 60 * 60 * 1_000;
+  const persistence = new WatchlistStatePersistence({ filePath, now: () => now });
+
+  persistence.save([
+    {
+      symbol: "old",
+      active: false,
+      lifecycle: "inactive",
+      priority: 1,
+      tags: [],
+      lastPriceUpdateAt: now - DEFAULT_INACTIVE_WATCHLIST_RETENTION_MS - 1,
+    },
+    {
+      symbol: "recent",
+      active: false,
+      lifecycle: "inactive",
+      priority: 1,
+      tags: [],
+      lastPriceUpdateAt: now - DEFAULT_INACTIVE_WATCHLIST_RETENTION_MS + 1,
+    },
+    {
+      symbol: "live",
+      active: true,
+      lifecycle: "active",
+      priority: 1,
+      tags: [],
+      lastPriceUpdateAt: now - DEFAULT_INACTIVE_WATCHLIST_RETENTION_MS - 1,
+    },
+  ]);
+
+  assert.deepEqual(persistence.load()?.map((entry) => entry.symbol).sort(), ["LIVE", "RECENT"]);
   rmSync(tempDir, { recursive: true, force: true });
 });
 

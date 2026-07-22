@@ -290,6 +290,13 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     });
   }
 
+  async announceTickerAdded(name: string): Promise<void> {
+    await this.postMessage(
+      this.watchlistChannelId,
+      buildWatchlistDiscordLinkMessage(name),
+    );
+  }
+
   async preflightPermissions(
     options: { postTest?: boolean } = {},
   ): Promise<DiscordPermissionPreflightResult> {

@@ -508,6 +508,42 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
   });
 
+  it("refreshes a fifteen-percent extension only after thirty seconds when no higher boundary exists", () => {
+    const firstObservedAt = GENERATED_AT + 5 * 60_000;
+    const previous = {
+      generatedAt: GENERATED_AT,
+      currentPrice: 1,
+      upperBoundary: null,
+      lowerBoundary: 0.8,
+      boundaries: [
+        { role: "momentumFailure" as const, side: "downside" as const, price: 0.8, impact: "invalidates" as const },
+      ],
+    };
+    const first = decideTradersLinkAiReadRefresh({
+      previous,
+      currentPrice: 1.15,
+      dataAsOf: firstObservedAt,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+    assert.equal(first.shouldRefresh, false);
+    assert.equal(first.automaticRefreshRegime, "extension:upper:1.15");
+
+    const confirmed = decideTradersLinkAiReadRefresh({
+      previous: {
+        ...previous,
+        pendingAutomaticBoundaryCross: first.pendingBoundaryCross ?? undefined,
+      },
+      currentPrice: 1.16,
+      dataAsOf: firstObservedAt + 30_000,
+      force: false,
+      requestedTrigger: "automatic",
+    });
+
+    assert.equal(confirmed.shouldRefresh, true);
+    assert.equal(confirmed.confirmedPriorBoundary?.price, 1.15);
+  });
+
   it("does not spend on a time-only refresh while price remains inside the analyzed range", () => {
     const decision = decideTradersLinkAiReadRefresh({
       previous: state(1.5),
