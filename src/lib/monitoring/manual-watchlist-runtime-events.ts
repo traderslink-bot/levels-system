@@ -65,6 +65,9 @@ export function isMarketStructureLifecycleEvent(event: ManualWatchlistLifecycleE
 
 export function createConsoleManualWatchlistLifecycleListener(): ManualWatchlistLifecycleListener {
   return (event) => {
+    if (event.event === "alert_suppressed") {
+      return;
+    }
     console.log(JSON.stringify(event));
   };
 }

@@ -13,6 +13,7 @@ import type { TechnicalContext } from "../technical-context/technical-context-ty
 import { formatPotentialMoveRead } from "../monitoring/potential-move-read.js";
 import { buildLiveWatchlistPullbackRead, type LiveWatchlistPullbackVolumeRead } from "./pullback-read.js";
 import { deriveLiveWatchlistLifecycleRead } from "./watchlist-lifecycle-status.js";
+import type { TradersLinkAiLifecyclePlan } from "./watchlist-lifecycle-status.js";
 import {
   buildLiveWatchlistTradeSetupRead,
   resolveLiveWatchlistTradeSetupReadMode,
@@ -1619,6 +1620,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
   pullbackReadEnabled?: boolean;
   includeLifecycle?: boolean;
   priorRegularClosePrice?: number | null;
+  aiRead?: TradersLinkAiLifecyclePlan | null;
 }): LiveWatchlistCardPatch | null {
   const levelMap = buildLiveWatchlistLevelMap({
     currentPrice: args.currentPrice,
@@ -1697,9 +1699,14 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
             : null,
         stableFiveMinuteState,
         fiveMinuteStructure,
+        currentPrice: args.currentPrice,
+        aiRead: args.aiRead,
       })
     : null;
-  const liveVolumeContext = args.volumeRead
+  const liveVolumeContext =
+    args.volumeRead &&
+    args.volumeRead.label !== "unknown" &&
+    args.volumeRead.relativeVolumeRatio !== null
     ? {
         timeframe: "5m" as const,
         label: args.volumeRead.label,
@@ -1966,6 +1973,7 @@ export function buildLiveWatchlistStatusPatch(args: {
   firstPostedAt?: number | null;
   watchlistSlotState?: "active" | "followup";
   reversalWatchEligible?: boolean;
+  reversalWatchAttemptReady?: boolean;
   reversalWatchlistVisible?: boolean;
   preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
@@ -1979,6 +1987,9 @@ export function buildLiveWatchlistStatusPatch(args: {
     ...(args.watchlistSlotState !== undefined ? { watchlistSlotState: args.watchlistSlotState } : {}),
     ...(args.reversalWatchEligible !== undefined
       ? { reversalWatchEligible: args.reversalWatchEligible }
+      : {}),
+    ...(args.reversalWatchAttemptReady !== undefined
+      ? { reversalWatchAttemptReady: args.reversalWatchAttemptReady }
       : {}),
     ...(args.reversalWatchlistVisible !== undefined
       ? { reversalWatchlistVisible: args.reversalWatchlistVisible }

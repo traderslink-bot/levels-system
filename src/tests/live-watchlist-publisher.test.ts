@@ -20,12 +20,37 @@ import type { LiveWatchlistTickerDataPatch } from "../lib/live-watchlist/live-wa
 import {
   buildRecentWebsiteArticlesPatch,
   deriveRecentWebsiteArticleCatalystFreshness,
+  normalizeRecentWebsiteArticleLookupResult,
   publishRecentWebsiteArticlesForSymbol,
 } from "../lib/live-watchlist/recent-website-articles.js";
 import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import type { TechnicalContext } from "../lib/technical-context/technical-context-types.js";
 
 describe("live watchlist publisher", () => {
+  it("preserves stored article summaries and balanced points for the AI research packet", () => {
+    const result = normalizeRecentWebsiteArticleLookupResult({
+      ticker: "ABCD",
+      businessDays: 5,
+      count: 1,
+      articles: [{
+        ticker: "ABCD",
+        title: "ABCD announces a clinical update",
+        url: "https://traderslink.pro/news/abcd-update",
+        summary: "The company reported a defined clinical milestone.",
+        positives: ["The milestone was reached on the stated timeline.", ""],
+        negatives: ["The update did not include efficacy data."],
+      }],
+    }, "ABCD");
+
+    assert.deepEqual(result.articles[0]?.positives, [
+      "The milestone was reached on the stated timeline.",
+    ]);
+    assert.deepEqual(result.articles[0]?.negatives, [
+      "The update did not include efficacy data.",
+    ]);
+    assert.equal(result.articles[0]?.summary, "The company reported a defined clinical milestone.");
+  });
+
   it("builds an independent dip-buy plan visibility patch", () => {
     const patch = buildTradersLinkAiReadVisibilityPatch({
       symbol: "tghl",
@@ -170,6 +195,50 @@ describe("live watchlist publisher", () => {
         ],
       );
       assert.equal(publisher.pendingCount(), 0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes a card update before the next queued ticker update", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "live-watchlist-outbox-priority-"));
+    const filePath = join(directory, "outbox.json");
+    let releaseFirst!: () => void;
+    let markFirstStarted!: () => void;
+    const firstStarted = new Promise<void>((resolve) => { markFirstStarted = resolve; });
+    const firstRelease = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const delivered: string[] = [];
+
+    try {
+      const publisher = new DurableLiveWatchlistPublisher({
+        async publish(patch) {
+          delivered.push(`card:${patch.symbol}`);
+        },
+        async publishTickerData(patch) {
+          delivered.push(`ticker:${patch.symbol}`);
+          if (patch.symbol === "FIRST") {
+            markFirstStarted();
+            await firstRelease;
+          }
+        },
+      }, filePath);
+      const ticker = (symbol: string): LiveWatchlistTickerDataPatch => ({
+        type: "tickerData",
+        symbol,
+        updatedAt: 1,
+        latestPrice: 1,
+        nearestSupport: null,
+        nearestResistance: null,
+      });
+
+      const first = publisher.publishTickerData(ticker("FIRST"));
+      await firstStarted;
+      const second = publisher.publishTickerData(ticker("SECOND"));
+      const card = publisher.publish({ symbol: "URGENT", updatedAt: 2, cards: {} });
+      releaseFirst();
+      await Promise.all([first, second, card]);
+
+      assert.deepEqual(delivered, ["ticker:FIRST", "card:URGENT", "ticker:SECOND"]);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

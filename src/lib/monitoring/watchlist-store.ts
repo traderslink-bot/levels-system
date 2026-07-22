@@ -98,6 +98,7 @@ export class WatchlistStore {
   private normalizeEntry(entry: WatchlistEntry): WatchlistEntry {
     const lifecycle = entry.lifecycle ?? (entry.active ? "active" : "inactive");
     const activatedAt = normalizeFiniteTimestamp(entry.activatedAt);
+    const manualDeactivatedAt = normalizeFiniteTimestamp(entry.manualDeactivatedAt);
     const lastLevelPostAt = normalizeFiniteTimestamp(entry.lastLevelPostAt);
     const lastExtensionPostAt = normalizeFiniteTimestamp(entry.lastExtensionPostAt);
     const lastPriceUpdateAt = normalizeFiniteTimestamp(entry.lastPriceUpdateAt);
@@ -126,6 +127,7 @@ export class WatchlistStore {
       lifecycle,
       refreshPending: entry.refreshPending ?? false,
       ...(activatedAt !== undefined ? { activatedAt } : {}),
+      ...(manualDeactivatedAt !== undefined ? { manualDeactivatedAt } : {}),
       ...(lastLevelPostAt !== undefined ? { lastLevelPostAt } : {}),
       ...(lastExtensionPostAt !== undefined ? { lastExtensionPostAt } : {}),
       ...(lastPriceUpdateAt !== undefined ? { lastPriceUpdateAt } : {}),
@@ -188,6 +190,7 @@ export class WatchlistStore {
     active: boolean;
     lifecycle?: WatchlistLifecycleState;
     activatedAt?: number;
+    manualDeactivatedAt?: number | null;
     lastLevelPostAt?: number;
     lastExtensionPostAt?: number;
     lastPriceUpdateAt?: number;
@@ -228,6 +231,10 @@ export class WatchlistStore {
         normalizeFiniteTimestamp(input.activatedAt) ??
         existing?.activatedAt ??
         (input.active ? Date.now() : undefined),
+      manualDeactivatedAt:
+        input.manualDeactivatedAt !== undefined
+          ? normalizeFiniteTimestamp(input.manualDeactivatedAt ?? undefined)
+          : existing?.manualDeactivatedAt,
       lastLevelPostAt:
         normalizeFiniteTimestamp(input.lastLevelPostAt) ?? existing?.lastLevelPostAt,
       lastExtensionPostAt:

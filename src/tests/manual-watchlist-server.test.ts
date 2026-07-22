@@ -42,8 +42,10 @@ test("manual watchlist page hydrates settings before enabling controls and avoid
   assert.match(MANUAL_WATCHLIST_PAGE, /setRuntimeStatusHydrated\(false\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /setRuntimeStatusHydrated\(true\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /if \(!response\.ok\)/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /await Promise\.all\(\[loadEntries\(\), loadRuntimeStatus\(\), loadReviewArtifacts\(\)\]\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /await Promise\.all\(\[loadEntries\(\), loadRuntimeStatus\(includeDetails\)\]\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /setTimeout\(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /if \(document\.hidden\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /RUNTIME_DETAILS_REFRESH_INTERVAL_MS = 60000/);
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /setInterval\(\(\) => \{\s+Promise\.all\(\[loadEntries/);
 });
 
@@ -88,7 +90,22 @@ test("manual watchlist control page is not cached across runtime restarts", () =
   );
 });
 
-test("manual watchlist page shows runtime status and separate review surfaces", () => {
+test("manual watchlist restart republishes selector-owned reversal follow-up state", () => {
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /autoWatchlistSelector\.getFollowupPublicationStates\(\)/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /reversalWatchEligible: entry\.reversalWatchEligible[\s\S]*?reversalWatchAttemptReady: entry\.reversalWatchAttemptReady/,
+  );
+  assert.doesNotMatch(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /setAutoWatchlistFollowup\(entry\.symbol, true, \{\s*reversalWatchEligible:\s*false/,
+  );
+});
+
+test("manual watchlist page shows runtime status without obsolete review surfaces", () => {
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Status/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Config/);
@@ -110,24 +127,21 @@ test("manual watchlist page shows runtime status and separate review surfaces", 
   assert.match(MANUAL_WATCHLIST_PAGE, /active tickers resubscribed/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Config/);
   assert.match(MANUAL_WATCHLIST_PAGE, /saved for restart/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Open AI Clean Read/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Notes to send to OpenAI \(optional\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /<textarea id="note" name="note"/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Open Trade Plan Review/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /Monday Live Review/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /Last Why Posted/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /symbol post budget/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Monday Live Review/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, />Activity</);
   assert.match(MANUAL_WATCHLIST_PAGE, /AI commentary can add separate AI read posts after deterministic alerts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-operational\.log/);
   assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-diagnostics\.log/);
   assert.match(MANUAL_WATCHLIST_PAGE, /discord-delivery-audit\.jsonl/);
   assert.match(MANUAL_WATCHLIST_PAGE, /thread-summaries\.json/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Discord thread ID/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /fetchJson\("\/api\/runtime\/status"\)/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /fetchJson\("\/api\/runtime\/review-artifacts"\)/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /renderReviewArtifacts/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /renderMondayReview/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /fetchJson\("\/api\/runtime\/status" \+ \(includeDetails/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /\/api\/runtime\/review-artifacts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /renderProviderHealth/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Historical Data/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Pending Seeds/);
@@ -141,7 +155,6 @@ test("manual watchlist page shows runtime status and separate review surfaces", 
   assert.match(MANUAL_WATCHLIST_PAGE, /lastTradeStoryState/);
   assert.match(MANUAL_WATCHLIST_PAGE, /levels age/);
   assert.match(MANUAL_WATCHLIST_PAGE, /price age/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /artifact\.name/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Refresh Levels/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Repost Snapshot/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Copy Thread/);
@@ -204,7 +217,7 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /perTicker\.slice\(0, 20\)/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Automatic Low-Float Selection/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-external-research/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-cost-budget/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-visibility/);

@@ -14,10 +14,13 @@ import type {
   LiveWatchlistHealthPatch,
   LiveWatchlistLevelMap,
   LiveWatchlistMarketDataStatus,
+  LiveWatchlistLifecycleRead,
   LiveWatchlistPublishedPatch,
   LiveWatchlistPublisher,
+  LiveWatchlistSlotState,
   LiveWatchlistStatus,
   LiveWatchlistTickerDataPatch,
+  LiveWatchlistVolumeContext,
 } from "./live-watchlist-types.js";
 
 export const DEFAULT_LIVE_WATCHLIST_AUDIT_ARCHIVE_FILE = resolve(
@@ -25,6 +28,9 @@ export const DEFAULT_LIVE_WATCHLIST_AUDIT_ARCHIVE_FILE = resolve(
   "artifacts",
   "live-watchlist-level-quality-archive.json",
 );
+
+export const DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS = 3 * 24 * 60 * 60 * 1_000;
+export const DEFAULT_LIVE_WATCHLIST_AUDIT_FLUSH_DELAY_MS = 30_000;
 
 export type LiveWatchlistAuditArchiveSymbol = {
   symbol: string;
@@ -34,6 +40,16 @@ export type LiveWatchlistAuditArchiveSymbol = {
   lastSeenAt: number;
   archivedAt: number;
   firstPostedAt?: number | null;
+  watchlistSlotState?: LiveWatchlistSlotState;
+  reversalWatchEligible?: boolean;
+  reversalWatchAttemptReady?: boolean;
+  reversalWatchlistVisible?: boolean;
+  potentialGainCardVisible?: boolean;
+  watchlistLifecycleLabelsVisible?: boolean;
+  watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
+  liveVolumeContext?: LiveWatchlistVolumeContext | null;
+  tradersLinkAiReadCardVisible?: boolean;
+  tradersLinkAiReadDipBuyPlanVisible?: boolean;
   companyName?: string | null;
   latestPrice?: number | null;
   nearestSupport?: number | null;
@@ -127,6 +143,36 @@ function normalizeArchiveSymbol(value: unknown, now: number): LiveWatchlistAudit
     ...(value.firstPostedAt === null || finiteTimestamp(value.firstPostedAt) !== null
       ? { firstPostedAt: value.firstPostedAt === null ? null : finiteTimestamp(value.firstPostedAt)! }
       : {}),
+    ...(value.watchlistSlotState === "active" || value.watchlistSlotState === "followup"
+      ? { watchlistSlotState: value.watchlistSlotState }
+      : {}),
+    ...(typeof value.reversalWatchEligible === "boolean"
+      ? { reversalWatchEligible: value.reversalWatchEligible }
+      : {}),
+    ...(typeof value.reversalWatchAttemptReady === "boolean"
+      ? { reversalWatchAttemptReady: value.reversalWatchAttemptReady }
+      : {}),
+    ...(typeof value.reversalWatchlistVisible === "boolean"
+      ? { reversalWatchlistVisible: value.reversalWatchlistVisible }
+      : {}),
+    ...(typeof value.potentialGainCardVisible === "boolean"
+      ? { potentialGainCardVisible: value.potentialGainCardVisible }
+      : {}),
+    ...(typeof value.watchlistLifecycleLabelsVisible === "boolean"
+      ? { watchlistLifecycleLabelsVisible: value.watchlistLifecycleLabelsVisible }
+      : {}),
+    ...("watchlistLifecycle" in value
+      ? { watchlistLifecycle: cloneJson(value.watchlistLifecycle as LiveWatchlistLifecycleRead | null) }
+      : {}),
+    ...("liveVolumeContext" in value
+      ? { liveVolumeContext: cloneJson(value.liveVolumeContext as LiveWatchlistVolumeContext | null) }
+      : {}),
+    ...(typeof value.tradersLinkAiReadCardVisible === "boolean"
+      ? { tradersLinkAiReadCardVisible: value.tradersLinkAiReadCardVisible }
+      : {}),
+    ...(typeof value.tradersLinkAiReadDipBuyPlanVisible === "boolean"
+      ? { tradersLinkAiReadDipBuyPlanVisible: value.tradersLinkAiReadDipBuyPlanVisible }
+      : {}),
     ...(typeof value.companyName === "string" || value.companyName === null
       ? { companyName: value.companyName }
       : {}),
@@ -205,6 +251,18 @@ function sortArchiveSymbols(symbols: LiveWatchlistAuditArchiveSymbol[]): LiveWat
   });
 }
 
+export function pruneExpiredLiveWatchlistAuditSymbols(
+  archive: LiveWatchlistAuditArchive,
+  now = Date.now(),
+  retentionMs = DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS,
+): LiveWatchlistAuditArchive {
+  const cutoff = now - Math.max(0, retentionMs);
+  const symbols = archive.symbols.filter((symbol) => symbol.lastSeenAt >= cutoff);
+  return symbols.length === archive.symbols.length
+    ? archive
+    : { ...archive, updatedAt: now, symbols };
+}
+
 function upsertArchivedSymbol(
   archive: LiveWatchlistAuditArchive,
   symbolUpdate: Partial<LiveWatchlistAuditArchiveSymbol> & { symbol: string },
@@ -268,6 +326,36 @@ function applyCardPatch(
     updatedAt: patch.updatedAt,
     lastSeenAt: patch.updatedAt,
     ...(patch.firstPostedAt !== undefined ? { firstPostedAt: patch.firstPostedAt } : {}),
+    ...(patch.watchlistSlotState !== undefined
+      ? { watchlistSlotState: patch.watchlistSlotState }
+      : {}),
+    ...(patch.reversalWatchEligible !== undefined
+      ? { reversalWatchEligible: patch.reversalWatchEligible }
+      : {}),
+    ...(patch.reversalWatchAttemptReady !== undefined
+      ? { reversalWatchAttemptReady: patch.reversalWatchAttemptReady }
+      : {}),
+    ...(patch.reversalWatchlistVisible !== undefined
+      ? { reversalWatchlistVisible: patch.reversalWatchlistVisible }
+      : {}),
+    ...(patch.potentialGainCardVisible !== undefined
+      ? { potentialGainCardVisible: patch.potentialGainCardVisible }
+      : {}),
+    ...(patch.watchlistLifecycleLabelsVisible !== undefined
+      ? { watchlistLifecycleLabelsVisible: patch.watchlistLifecycleLabelsVisible }
+      : {}),
+    ...(patch.watchlistLifecycle !== undefined
+      ? { watchlistLifecycle: cloneJson(patch.watchlistLifecycle) }
+      : {}),
+    ...(patch.liveVolumeContext !== undefined
+      ? { liveVolumeContext: cloneJson(patch.liveVolumeContext) }
+      : {}),
+    ...(patch.tradersLinkAiReadCardVisible !== undefined
+      ? { tradersLinkAiReadCardVisible: patch.tradersLinkAiReadCardVisible }
+      : {}),
+    ...(patch.tradersLinkAiReadDipBuyPlanVisible !== undefined
+      ? { tradersLinkAiReadDipBuyPlanVisible: patch.tradersLinkAiReadDipBuyPlanVisible }
+      : {}),
     ...(levelMap !== undefined ? { levelMap } : {}),
     ...(levelMap
       ? {
@@ -302,6 +390,33 @@ function applyTickerDataPatch(
     status: patch.status,
     updatedAt: patch.updatedAt,
     lastSeenAt: patch.updatedAt,
+    ...(patch.watchlistSlotState !== undefined
+      ? { watchlistSlotState: patch.watchlistSlotState }
+      : {}),
+    ...(patch.reversalWatchEligible !== undefined
+      ? { reversalWatchEligible: patch.reversalWatchEligible }
+      : {}),
+    ...(patch.reversalWatchAttemptReady !== undefined
+      ? { reversalWatchAttemptReady: patch.reversalWatchAttemptReady }
+      : {}),
+    ...(patch.reversalWatchlistVisible !== undefined
+      ? { reversalWatchlistVisible: patch.reversalWatchlistVisible }
+      : {}),
+    ...(patch.potentialGainCardVisible !== undefined
+      ? { potentialGainCardVisible: patch.potentialGainCardVisible }
+      : {}),
+    ...(patch.watchlistLifecycleLabelsVisible !== undefined
+      ? { watchlistLifecycleLabelsVisible: patch.watchlistLifecycleLabelsVisible }
+      : {}),
+    ...(patch.watchlistLifecycle !== undefined
+      ? { watchlistLifecycle: cloneJson(patch.watchlistLifecycle) }
+      : {}),
+    ...(patch.tradersLinkAiReadCardVisible !== undefined
+      ? { tradersLinkAiReadCardVisible: patch.tradersLinkAiReadCardVisible }
+      : {}),
+    ...(patch.tradersLinkAiReadDipBuyPlanVisible !== undefined
+      ? { tradersLinkAiReadDipBuyPlanVisible: patch.tradersLinkAiReadDipBuyPlanVisible }
+      : {}),
     latestPrice: patch.latestPrice,
     nearestSupport: patch.nearestSupport,
     nearestResistance: patch.nearestResistance,
@@ -378,6 +493,8 @@ export function payloadFromLiveWatchlistArchive(
 }
 
 export class LiveWatchlistAuditArchivePersistence {
+  private cachedArchive: LiveWatchlistAuditArchive | null = null;
+
   constructor(private readonly filePath = DEFAULT_LIVE_WATCHLIST_AUDIT_ARCHIVE_FILE) {}
 
   getFilePath(): string {
@@ -385,45 +502,54 @@ export class LiveWatchlistAuditArchivePersistence {
   }
 
   load(): LiveWatchlistAuditArchive {
+    if (this.cachedArchive) {
+      return this.cachedArchive;
+    }
     if (!existsSync(this.filePath)) {
-      return emptyArchive();
+      return (this.cachedArchive = emptyArchive());
     }
     try {
       const parsed = JSON.parse(readFileSync(this.filePath, "utf8").replace(/^\uFEFF/, "")) as unknown;
-      return normalizeArchive(parsed, Date.now()) ?? emptyArchive();
+      return (this.cachedArchive = normalizeArchive(parsed, Date.now()) ?? emptyArchive());
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[LiveWatchlistAuditArchive] Failed to load ${this.filePath}: ${message}`);
-      return emptyArchive();
+      return (this.cachedArchive = emptyArchive());
     }
   }
 
   async loadAsync(): Promise<LiveWatchlistAuditArchive> {
+    if (this.cachedArchive) {
+      return this.cachedArchive;
+    }
     try {
       const parsed = JSON.parse((await readFile(this.filePath, "utf8")).replace(/^\uFEFF/, "")) as unknown;
-      return normalizeArchive(parsed, Date.now()) ?? emptyArchive();
+      return (this.cachedArchive = normalizeArchive(parsed, Date.now()) ?? emptyArchive());
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-        return emptyArchive();
+        return (this.cachedArchive = emptyArchive());
       }
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[LiveWatchlistAuditArchive] Failed to load ${this.filePath}: ${message}`);
-      return emptyArchive();
+      return (this.cachedArchive = emptyArchive());
     }
   }
 
   save(archive: LiveWatchlistAuditArchive): void {
+    this.cachedArchive = archive;
     writeFileAtomicallySync(this.filePath, `${JSON.stringify(archive)}\n`);
   }
 
   async saveAsync(archive: LiveWatchlistAuditArchive): Promise<void> {
     await writeFileAtomically(this.filePath, `${JSON.stringify(archive)}\n`);
+    this.cachedArchive = archive;
   }
 
   recordPatch(patch: LiveWatchlistPatch, now = Date.now()): LiveWatchlistAuditArchive {
     const archive = applyLiveWatchlistPatchToArchive(this.load(), patch, now);
-    this.save(archive);
-    return archive;
+    const pruned = pruneExpiredLiveWatchlistAuditSymbols(archive, now);
+    this.save(pruned);
+    return pruned;
   }
 
   recordPatches(
@@ -434,8 +560,9 @@ export class LiveWatchlistAuditArchivePersistence {
     for (const patch of patches) {
       archive = applyLiveWatchlistPatchToArchive(archive, patch, now);
     }
-    this.save(archive);
-    return archive;
+    const pruned = pruneExpiredLiveWatchlistAuditSymbols(archive, now);
+    this.save(pruned);
+    return pruned;
   }
 
   async recordPatchesAsync(
@@ -446,8 +573,9 @@ export class LiveWatchlistAuditArchivePersistence {
     for (const patch of patches) {
       archive = applyLiveWatchlistPatchToArchive(archive, patch, now);
     }
-    await this.saveAsync(archive);
-    return archive;
+    const pruned = pruneExpiredLiveWatchlistAuditSymbols(archive, now);
+    await this.saveAsync(pruned);
+    return pruned;
   }
 
   recordPayload(payload: LiveWatchlistAuditArchivePayload, now = Date.now()): LiveWatchlistAuditArchive {
@@ -465,8 +593,9 @@ export class LiveWatchlistAuditArchivePersistence {
       }, now),
       base,
     );
-    this.save(archived);
-    return archived;
+    const pruned = pruneExpiredLiveWatchlistAuditSymbols(archived, now);
+    this.save(pruned);
+    return pruned;
   }
 }
 
@@ -478,7 +607,7 @@ export class ArchivedLiveWatchlistPublisher implements LiveWatchlistPublisher {
   constructor(
     private readonly delegate: LiveWatchlistPublisher,
     private readonly archive = new LiveWatchlistAuditArchivePersistence(),
-    private readonly archiveFlushDelayMs = 1_000,
+    private readonly archiveFlushDelayMs = DEFAULT_LIVE_WATCHLIST_AUDIT_FLUSH_DELAY_MS,
   ) {}
 
   async publish(patch: LiveWatchlistCardPatch): Promise<void> {
@@ -532,6 +661,7 @@ export class ArchivedLiveWatchlistPublisher implements LiveWatchlistPublisher {
       this.archiveFlushTimer = null;
       void this.flushArchivePatches();
     }, Math.max(0, this.archiveFlushDelayMs));
+    this.archiveFlushTimer.unref();
   }
 
   private async flushArchivePatches(): Promise<void> {

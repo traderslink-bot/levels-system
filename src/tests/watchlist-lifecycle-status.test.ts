@@ -85,6 +85,85 @@ function pullbackStructure(overrides: Partial<FiveMinuteStructure> = {}): FiveMi
   };
 }
 
+function v3LifecyclePlan(): NonNullable<LiveWatchlistLifecycleEvidence["aiRead"]> {
+  const level = (label: string, price: number) => ({ label, price, rationale: label });
+  const scenario = (zoneLow: number, zoneHigh: number, invalidationPrice: number) => ({
+    zoneLow,
+    zoneHigh,
+    confirmationPrice: zoneHigh,
+    confirmation: "Require a higher low and reclaim.",
+    invalidationPrice,
+    firstObjectivePrice: 2.52,
+    rationale: "Observed candle structure.",
+    evidenceIds: ["fixture"],
+  });
+  return {
+    version: 3,
+    generatedAt: NOW - 60_000,
+    dataAsOf: NOW - 90_000,
+    needsToHold: level("Needs to hold", 2.52),
+    momentumFailure: level("Momentum failure", 1.83),
+    pullbackPlans: {
+      shallow: scenario(2.06, 2.11, 2),
+      deep: scenario(1.9, 1.98, 1.83),
+    },
+    failureRecovery: {
+      recoveryZoneLow: 1.52,
+      recoveryZoneHigh: 1.6,
+      firstReclaimPrice: 1.61,
+      setupRestorePrice: 1.7,
+      firstObjectivePrice: 1.83,
+      rationale: "Observed broader move origin.",
+      evidenceIds: ["fixture"],
+    },
+  };
+}
+
+test("v3 lifecycle uses published pullback and recovery prices instead of generic failed-move labels", () => {
+  const base = {
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "failed_move_risk" as const,
+    technicalConfidence: "high" as const,
+    volumeLabel: "normal" as const,
+    levelMap: levelMap(),
+    aiRead: v3LifecyclePlan(),
+  };
+
+  const shallow = deriveLiveWatchlistLifecycleRead({ ...base, currentPrice: 2.08 });
+  assert.equal(shallow.status, "pullback_watch");
+  assert.match(shallow.reason, /shallow momentum/i);
+
+  const deep = deriveLiveWatchlistLifecycleRead({ ...base, currentPrice: 1.95 });
+  assert.equal(deep.status, "pullback_watch");
+  assert.match(deep.reason, /deep reset/i);
+
+  const aboveFailure = deriveLiveWatchlistLifecycleRead({ ...base, currentPrice: 2.15 });
+  assert.equal(aboveFailure.status, "monitoring");
+  assert.notEqual(aboveFailure.label, "Recovery Watch");
+
+  const recoveryWatch = deriveLiveWatchlistLifecycleRead({ ...base, currentPrice: 1.56 });
+  assert.equal(recoveryWatch.status, "recovery_watch");
+  assert.match(recoveryWatch.reason, /1.52-1.6 recovery-watch area/i);
+
+  const reclaimWithoutBase = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    currentPrice: 1.62,
+    stableFiveMinuteState: "reclaim_attempt",
+    fiveMinuteStructure: pullbackStructure({ latestSwingLow: 1.7 }),
+  });
+  assert.equal(reclaimWithoutBase.status, "monitoring");
+
+  const recoveryAttempt = deriveLiveWatchlistLifecycleRead({
+    ...base,
+    currentPrice: 1.62,
+    stableFiveMinuteState: "reclaim_attempt",
+    fiveMinuteStructure: pullbackStructure({ latestSwingLow: 1.56 }),
+  });
+  assert.equal(recoveryAttempt.status, "recovery_attempt");
+  assert.match(recoveryAttempt.reason, /new base/i);
+});
+
 test("watchlist lifecycle labels remain conservative when evidence is stale or incomplete", () => {
   const stale = deriveLiveWatchlistLifecycleRead({
     evaluatedAt: NOW,
@@ -96,6 +175,37 @@ test("watchlist lifecycle labels remain conservative when evidence is stale or i
   });
   assert.equal(stale.status, "monitoring");
   assert.equal(stale.label, "Analysis Pending");
+
+  const staleAiPlan = deriveLiveWatchlistLifecycleRead({
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "failed_move_risk",
+    technicalConfidence: "high",
+    volumeLabel: "normal",
+    levelMap: levelMap(),
+    currentPrice: 1.56,
+    aiRead: {
+      ...v3LifecyclePlan(),
+      generatedAt: NOW - 24 * 60 * 60_000,
+      dataAsOf: NOW - 24 * 60 * 60_000,
+    },
+  });
+  assert.equal(staleAiPlan.status, "monitoring");
+  assert.equal(staleAiPlan.label, "Analysis Pending");
+  assert.match(staleAiPlan.reason, /current-session AI Read/i);
+
+  const aiPlanWithoutFreshStructure = deriveLiveWatchlistLifecycleRead({
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW - 21 * 60_000,
+    phase: "failed_move_risk",
+    technicalConfidence: "high",
+    volumeLabel: "normal",
+    levelMap: levelMap(),
+    currentPrice: 1.56,
+    aiRead: v3LifecyclePlan(),
+  });
+  assert.equal(aiPlanWithoutFreshStructure.status, "monitoring");
+  assert.equal(aiPlanWithoutFreshStructure.label, "Analysis Pending");
 
   const damagedWithoutMappedSupport = deriveLiveWatchlistLifecycleRead({
     evaluatedAt: NOW,

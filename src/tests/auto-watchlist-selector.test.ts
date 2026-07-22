@@ -10,13 +10,19 @@ import {
   autoWatchlistSessionForTimestamp,
   buildAutoWatchlistRetentionProtection,
   buildAutoWatchlistSlotSurvivalScore,
+  buildAutoWatchlistDiscoveryFeedComparison,
   buildVolumeDecelerationRankPenalty,
   compareAutoWatchlistDecisions,
   DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   isWithinAutoWatchlistScanWindow,
+  meetsMainVacancyAdmissionQuality,
   normalizeNasdaqChartTimestamp,
   parseStockAnalysisAfterhoursGainers,
+  parseStockAnalysisPremarketGainers,
+  parseStockAnalysisRegularGainers,
+  parseTradingViewGainers,
   scoreAutoWatchlistCandidate,
+  selectExtendedSessionProbeCandidates,
   type AutoWatchlistDiscoveryCandidate,
   type AutoWatchlistCandidateDecision,
   type AutoWatchlistManagedEntry,
@@ -56,6 +62,152 @@ const BASE_CANDIDATE: AutoWatchlistDiscoveryCandidate = {
   quoteTime: 1_784_207_400,
   sourceScreens: ["small_cap_gainers"],
 };
+
+test("Main vacancy admission requires an independent quality baseline at exact boundaries", () => {
+  const decision = (
+    score: number,
+    gainPct: number,
+    recent15mDollarVolume: number,
+    volumeAcceleration: number,
+  ) => ({ score, gainPct, recent15mDollarVolume, volumeAcceleration });
+
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 19.99, 249_999, 1.99)), false);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(65, 0, 0, 0)), true);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 20, 249_999, 2)), false);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 20, 250_000, 1.99)), false);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 20, 250_000, 2)), true);
+});
+
+test("a marginal promotion-ready candidate cannot fill a vacant Main slot", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-main-vacancy-quality-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
+  const activated: string[] = [];
+  const now = Date.parse("2026-07-20T15:00:00Z");
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "MARG",
+        marketCapitalization: 90,
+        floatingShare: 45,
+        shareOutstanding: 50,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl: async () => new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "MARG",
+          name: "Marginal Corporation Common Stock",
+          lastsale: "$2.00",
+          pctchange: "12%",
+          volume: "1000000",
+          marketCap: "90000000",
+        }],
+      },
+    }), { status: 200 }),
+    configPath,
+    thresholds: {
+      consecutivePassesRequired: 1,
+      maxActiveMainSessionTickers: 1,
+      enrichmentLimit: 1,
+    },
+    now: () => now,
+    getActiveSymbols: () => [...activated],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => activated.push(symbol),
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: 2.24,
+        gainPct: 12,
+        sessionVolume: 1_000_000,
+        recent15mVolume: 40_000,
+        recent15mDollarVolume: 80_000,
+        volumeAcceleration: 1,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const marginal = status.recentDecisions.find((decision) => decision.symbol === "MARG");
+    assert.equal(marginal?.promotionReady, true);
+    assert.ok((marginal?.score ?? 0) < 65);
+    assert.deepEqual(activated, []);
+    assert.deepEqual(status.activeMainSessionSymbols, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("restored follow-up publication state preserves reversal qualification and attempt readiness", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-followup-publication-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: 3_000,
+    managedEntries: [
+      {
+        symbol: "READY",
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: 1_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        reversalWatchQualifiedAt: 2_000,
+        reversalWatchAttemptReady: true,
+      },
+      {
+        symbol: "WAIT",
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: 1_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        reversalWatchQualifiedAt: 2_000,
+        reversalWatchAttemptReady: false,
+      },
+      {
+        symbol: "PLAIN",
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: 1_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        reversalWatchQualifiedAt: null,
+        reversalWatchAttemptReady: true,
+      },
+    ],
+  }));
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+  try {
+    assert.deepEqual(selector.getFollowupPublicationStates(), [
+      { symbol: "PLAIN", reversalWatchEligible: false, reversalWatchAttemptReady: false },
+      { symbol: "READY", reversalWatchEligible: true, reversalWatchAttemptReady: true },
+      { symbol: "WAIT", reversalWatchEligible: true, reversalWatchAttemptReady: false },
+    ]);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("auto selector strongly favors known low float and rejects oversized share counts", () => {
   const lowFloat = scoreAutoWatchlistCandidate({
@@ -906,7 +1058,23 @@ test("the 9:00 ET main-session reserve admits only three late tickers and surviv
       active.add(symbol);
     },
     catalystLookup: NO_CATALYST_LOOKUP,
-    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+    sessionActivityLookup: async (
+      input: Parameters<AutoWatchlistSessionActivityLookup>[0],
+    ) => Object.fromEntries(
+      input.symbols.map((symbol: string) => [symbol, {
+        symbol,
+        session: input.session,
+        price: 2,
+        gainPct: 20,
+        sessionVolume: 1_000_000,
+        recent15mVolume: 125_000,
+        recent15mDollarVolume: 250_000,
+        volumeAcceleration: 2,
+        quoteTime: Math.floor(input.now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
   };
   const selector = new AutoWatchlistSelector(options);
   try {
@@ -1019,7 +1187,8 @@ test("the late main-session reserve also extends an exhausted replacement quota"
           gainPct: 20,
           sessionVolume: 1_000_000,
           recent15mVolume: 100_000,
-          recent15mDollarVolume: 200_000,
+          recent15mDollarVolume: 250_000,
+          volumeAcceleration: 2,
           quoteTime: Math.floor(input.now / 1000),
           quoteAgeMinutes: 0,
           available: true,
@@ -1278,6 +1447,10 @@ test("automatic replacement rejects the same symbol before changing lifecycle st
     holdProtectionReason: "test",
     reversalWatchQualifiedAt: null,
     reversalWatchQualificationReason: null,
+    reversalWatchLowPrice: null,
+    reversalWatchLowAt: null,
+    reversalAttemptEvidenceScans: 0,
+    reversalWatchAttemptReady: false,
     peakGainPct: null,
     peakGainAt: null,
     lastObservedGainPct: null,
@@ -1731,7 +1904,10 @@ test("post-market discovery can promote an active after-hours runner that was do
   assert.equal(preview.recentDecisions[0]?.session, "postmarket");
   assert.equal(preview.recentDecisions[0]?.qualified, true);
   assert.equal(preview.recentDecisions[0]?.promotionReady, true);
-  assert.equal(preview.recentDecisions.find((decision) => decision.symbol === "LGPS"), undefined);
+  const lowActivityProbe = preview.recentDecisions.find((decision) => decision.symbol === "LGPS");
+  assert.ok(lowActivityProbe);
+  assert.equal(lowActivityProbe.qualified, false);
+  assert.equal(lowActivityProbe.sourceScreens.includes("extended_session_rotating_probe"), true);
 });
 
 test("postmarket promotion holds a marginal pop even when acceleration would qualify it as an obvious runner", async () => {
@@ -2045,6 +2221,8 @@ test("the 30-minute hold is earned by proof instead of granted to every new addi
     minimumAutoHoldMinutes?: number;
     fadedGainPct?: number;
     fadedRecentDollarVolume?: number;
+    fadeScans?: number;
+    renewAfterFade?: boolean;
   }) => {
     const directory = await mkdtemp(join(tmpdir(), `auto-watchlist-earned-hold-${input.symbol}-`));
     const configPath = join(directory, "config.json");
@@ -2161,11 +2339,21 @@ test("the 30-minute hold is earned by proof instead of granted to every new addi
       }
       const preFadeEntry = beforeFade.managedEntries.find((entry) => entry.symbol === input.symbol);
       faded = true;
-      const afterFade = await selector.runNow({ activate: true });
+      let afterFade = beforeFade;
+      for (let pass = 0; pass < (input.fadeScans ?? 1); pass += 1) {
+        afterFade = await selector.runNow({ activate: true });
+      }
+      let renewedEntry: AutoWatchlistManagedEntry | null = null;
+      if (input.renewAfterFade) {
+        faded = false;
+        const renewed = await selector.runNow({ activate: true });
+        renewedEntry = renewed.managedEntries.find((entry) => entry.symbol === input.symbol) ?? null;
+      }
       return {
         admittedEntry,
         preFadeEntry,
         fadedEntry: afterFade.managedEntries.find((entry) => entry.symbol === input.symbol),
+        renewedEntry,
         reversalWatchEligible,
       };
     } finally {
@@ -2173,15 +2361,6 @@ test("the 30-minute hold is earned by proof instead of granted to every new addi
       await rm(directory, { recursive: true, force: true });
     }
   };
-
-  const marginal = await runScenario({
-    symbol: "MARG",
-    initialGainPct: 12,
-    initialRecentDollarVolume: 80_000,
-    initialAcceleration: 1,
-  });
-  assert.equal(marginal.admittedEntry.holdProtectionEarnedAt, null);
-  assert.equal(marginal.fadedEntry?.state, "followup");
 
   const proven = await runScenario({
     symbol: "PROV",
@@ -2193,28 +2372,6 @@ test("the 30-minute hold is earned by proof instead of granted to every new addi
   assert.match(proven.admittedEntry.holdProtectionReason ?? "", /earned immediately/i);
   assert.equal(proven.fadedEntry?.state, "active");
   assert.equal(proven.fadedEntry?.retentionFailures, 1);
-
-  const probationary = await runScenario({
-    symbol: "PROB",
-    initialGainPct: 12,
-    initialRecentDollarVolume: 80_000,
-    initialAcceleration: 1,
-    consecutivePassesRequired: 2,
-  });
-  assert.equal(probationary.admittedEntry.holdProtectionEarnedAt, null);
-  assert.equal(probationary.fadedEntry?.state, "followup");
-
-  const repeatProven = await runScenario({
-    symbol: "REPT",
-    initialGainPct: 12,
-    initialRecentDollarVolume: 80_000,
-    initialAcceleration: 1,
-    consecutivePassesRequired: 2,
-    extraQualifyingScans: 1,
-  });
-  assert.ok(repeatProven.preFadeEntry?.holdProtectionEarnedAt);
-  assert.match(repeatProven.preFadeEntry?.holdProtectionReason ?? "", /3 qualifying observations/i);
-  assert.equal(repeatProven.fadedEntry?.state, "active");
 
   const lateLowVolumeRunner = await runScenario({
     symbol: "LATELOW",
@@ -2264,6 +2421,8 @@ test("the 30-minute hold is earned by proof instead of granted to every new addi
     extraQualifyingScans: 1,
     fadedGainPct: 25,
     fadedRecentDollarVolume: 10_000,
+    fadeScans: 10,
+    renewAfterFade: true,
     now: Date.parse("2026-07-20T19:45:00Z"),
   });
   assert.ok(lateVerifiedTopRunner.preFadeEntry?.reversalWatchQualifiedAt);
@@ -2272,6 +2431,11 @@ test("the 30-minute hold is earned by proof instead of granted to every new addi
     /verified top runner/i,
   );
   assert.equal(lateVerifiedTopRunner.reversalWatchEligible, true);
+  assert.equal(lateVerifiedTopRunner.renewedEntry?.state, "followup");
+  assert.match(
+    lateVerifiedTopRunner.renewedEntry?.reversalWatchQualificationReason ?? "",
+    /verified top runner/i,
+  );
 });
 
 test("premarket discovery prioritizes current market movers that stale regular-session rankings would omit", async () => {
@@ -2563,6 +2727,160 @@ test("direct afterhours gainers discovery puts an RCON-shaped runner into the pr
   assert.equal(rcon.sourceScreens.includes("stockanalysis_live_afterhours_gainers"), true);
 });
 
+test("StockAnalysis premarket parser keeps current dated leaders and their session volume", () => {
+  const html = `<script>const rows=[{no:1,s:"INLF",n:"INLIF Limited",premarketChangePercent:167.713,premarketDate:"2026-07-22",premarketPrice:5.97,premarketVolume:6896096,marketCap:153939},{no:2,s:"SXTC",n:"China SXT Pharmaceuticals, Inc.",premarketChangePercent:51.866,premarketDate:"2026-07-22",premarketPrice:4.07,premarketVolume:6771559,marketCap:86344457},{no:3,s:"OLD",n:"Old Data Corp.",premarketChangePercent:80,premarketDate:"2026-07-21",premarketPrice:2,marketCap:1000000}]</script>`;
+  const parsed = parseStockAnalysisPremarketGainers(html, "2026-07-22");
+  assert.deepEqual(parsed.map((candidate) => candidate.symbol), ["INLF", "SXTC"]);
+  assert.equal(parsed[0]?.volume, 6_896_096);
+  assert.equal(parsed[0]?.sourceScreens.includes("stockanalysis_live_premarket_gainers_top5"), true);
+});
+
+test("StockAnalysis regular-hours parser keeps current leaders and rejects stale rows", () => {
+  const html = `<script>const rows=[{no:1,s:"CPHI",n:"China Pharma Holdings, Inc.",change:790.11,priceDate:"2026-07-22",price:8.1,volume:93614565,marketCap:328228216},{no:2,s:"LIVE",n:"Live Common Stock",change:42.5,priceDate:"2026-07-22",price:3.2,volume:4500000,marketCap:25000000},{no:3,s:"OLD",n:"Old Data Corp.",change:80,priceDate:"2026-07-21",price:2,volume:1000000,marketCap:10000000}]</script>`;
+  const parsed = parseStockAnalysisRegularGainers(html, "2026-07-22");
+  assert.deepEqual(parsed.map((candidate) => candidate.symbol), ["CPHI", "LIVE"]);
+  assert.equal(parsed[0]?.volume, 93_614_565);
+  assert.equal(parsed[0]?.sourceScreens.includes("stockanalysis_live_regular_gainers_top5"), true);
+});
+
+test("TradingView parser discovers a LABT-shaped session leader", () => {
+  const html = `<table><tr data-rowkey="NASDAQ:LABT"><td>Labt Holdings</td><td><span class="positive-cMYWjVQg">+253.23%</span></td></tr><tr data-rowkey="NYSE:SECOND"><td>Second</td><td><span class="positive-cMYWjVQg">+40.50%</span></td></tr></table>`;
+  const parsed = parseTradingViewGainers(html, "premarket");
+  assert.deepEqual(parsed.map((candidate) => candidate.symbol), ["LABT", "SECOND"]);
+  assert.equal(parsed[0]?.gainPct, 253.23);
+  assert.equal(parsed[0]?.sourceScreens.includes("tradingview_live_premarket_gainers"), true);
+  assert.equal(parsed[0]?.sourceScreens.includes("tradingview_live_premarket_gainers_top5"), true);
+});
+
+test("TradingView premarket discovery catches LABT despite low previous-session volume", async () => {
+  const now = Date.parse("2026-07-22T12:49:00Z");
+  const tradingViewHtml = `<table><tr data-rowkey="NASDAQ:LABT"><td>Labt Holdings</td><td><span class="positive-cMYWjVQg">+253.23%</span></td></tr></table>`;
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("tradingview.com/markets/stocks-usa/market-movers-pre-market-gainers")) {
+      return new Response(tradingViewHtml, { status: 200, headers: { "Content-Type": "text/html" } });
+    }
+    if (url.includes("stockanalysis.com/markets/premarket/gainers")) {
+      return new Response("<script>const rows=[]</script>", { status: 200 });
+    }
+    if (url.includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "LABT",
+          name: "Labt Holdings Common Stock",
+          lastsale: "$1.86",
+          pctchange: "0%",
+          volume: "47586",
+          marketCap: "23600000",
+        }],
+      },
+    }), { status: 200 });
+  };
+  const lookedUpSymbols = new Set<string>();
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async (symbol: string) => ({
+        ticker: symbol,
+        marketCapitalization: 83.1,
+        shareOutstanding: 12.7,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl,
+    configPath: join(tmpdir(), "auto-watchlist-tradingview-labt-test.json"),
+    thresholds: { extendedSessionCandidateLimit: 8, enrichmentLimit: 8 },
+    now: () => now,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session }) => {
+      symbols.forEach((symbol) => lookedUpSymbols.add(symbol));
+      return Object.fromEntries(symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: 6.54,
+        gainPct: 251.61,
+        sessionVolume: 14_890_000,
+        sessionDollarVolume: 83_100_000,
+        recent15mVolume: 2_176_000,
+        recent15mDollarVolume: 14_230_000,
+        sessionElapsedMinutes: 349,
+        volumeAcceleration: 3.07,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]));
+    },
+  });
+
+  const preview = await selector.previewScan();
+  const labt = preview.recentDecisions.find((decision) => decision.symbol === "LABT");
+  assert.equal(lookedUpSymbols.has("LABT"), true);
+  assert.ok(labt);
+  assert.equal(labt.qualified, true);
+  assert.equal(labt.gainPct, 251.61);
+  assert.equal(labt.sourceScreens.includes("tradingview_live_premarket_gainers"), true);
+});
+
+test("extended-session rotating exploration can probe low previous-session volume stocks", () => {
+  const lowPriorVolumeCandidate: AutoWatchlistDiscoveryCandidate = {
+    symbol: "LABT",
+    price: 1.86,
+    gainPct: 0,
+    volume: 47_586,
+    averageVolume: null,
+    marketCap: 23_600_000,
+    quoteTime: null,
+    sourceScreens: ["live_exchange_screener"],
+  };
+  const selected = selectExtendedSessionProbeCandidates({
+    candidates: [],
+    explorationCandidates: [lowPriorVolumeCandidate],
+    marketMovers: [],
+    limit: 4,
+    thresholds: DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
+  });
+  assert.deepEqual(selected.map((candidate) => candidate.symbol), ["LABT"]);
+  assert.equal(selected[0]?.sourceScreens.includes("extended_session_rotating_probe"), true);
+});
+
+test("premarket feed comparison flags Nasdaq when its leaders disagree with current session activity", () => {
+  const candidate = (symbol: string, gainPct: number): AutoWatchlistDiscoveryCandidate => ({
+    symbol,
+    price: 1,
+    gainPct,
+    volume: 1_000_000,
+    averageVolume: null,
+    marketCap: 10_000_000,
+    quoteTime: null,
+    sourceScreens: [],
+  });
+  const comparison = buildAutoWatchlistDiscoveryFeedComparison({
+    checkedAt: Date.parse("2026-07-22T08:20:00Z"),
+    nasdaqAvailable: true,
+    nasdaqError: null,
+    nasdaqCandidates: [candidate("OLD1", 100), candidate("OLD2", 80), candidate("OLD3", 60)],
+    stockAnalysisAvailable: true,
+    stockAnalysisError: null,
+    stockAnalysisCandidates: [candidate("INLF", 160), candidate("SXTC", 55), candidate("CHAI", 70)],
+    activities: new Map([
+      ["OLD1", { symbol: "OLD1", session: "premarket", price: 1, gainPct: 2, sessionVolume: 10_000, recent15mVolume: 10_000, recent15mDollarVolume: 10_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["OLD2", { symbol: "OLD2", session: "premarket", price: 1, gainPct: -5, sessionVolume: 10_000, recent15mVolume: 10_000, recent15mDollarVolume: 10_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["OLD3", { symbol: "OLD3", session: "premarket", price: 1, gainPct: 1, sessionVolume: 10_000, recent15mVolume: 10_000, recent15mDollarVolume: 10_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["INLF", { symbol: "INLF", session: "premarket", price: 5.9, gainPct: 158, sessionVolume: 6_000_000, recent15mVolume: 6_000_000, recent15mDollarVolume: 35_400_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["SXTC", { symbol: "SXTC", session: "premarket", price: 4.1, gainPct: 54, sessionVolume: 6_000_000, recent15mVolume: 6_000_000, recent15mDollarVolume: 24_600_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+      ["CHAI", { symbol: "CHAI", session: "premarket", price: 0.68, gainPct: 72, sessionVolume: 20_000_000, recent15mVolume: 20_000_000, recent15mDollarVolume: 13_600_000, quoteTime: null, quoteAgeMinutes: 1, available: true }],
+    ]),
+  });
+  assert.equal(comparison.status, "nasdaq_stale_or_mismatched");
+  assert.deepEqual(comparison.stockAnalysis.currentSessionMatches, ["INLF", "SXTC", "CHAI"]);
+});
+
 test("Nasdaq movers are independently evaluated when the bulk screener omits them", async () => {
   const cases = [
     { label: "premarket", now: Date.parse("2026-07-17T12:30:00Z") },
@@ -2847,8 +3165,12 @@ test("consecutive-pass credit resets when a ticker disappears from the evaluated
   const symbolsByScan = ["ALFA", "BETA", "ALFA", "ALFA"];
   let scanIndex = 0;
   const fetchImpl: typeof fetch = async (input) => {
-    if (String(input).includes("/api/marketmovers")) {
+    const url = String(input);
+    if (url.includes("/api/marketmovers")) {
       return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
+    if (url.includes("stockanalysis.com/") || url.includes("tradingview.com/")) {
+      return new Response("<script>const rows=[]</script>", { status: 200 });
     }
     const symbol = symbolsByScan[Math.min(scanIndex, symbolsByScan.length - 1)]!;
     scanIndex += 1;
