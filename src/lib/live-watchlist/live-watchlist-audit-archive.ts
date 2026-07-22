@@ -14,10 +14,13 @@ import type {
   LiveWatchlistHealthPatch,
   LiveWatchlistLevelMap,
   LiveWatchlistMarketDataStatus,
+  LiveWatchlistLifecycleRead,
   LiveWatchlistPublishedPatch,
   LiveWatchlistPublisher,
+  LiveWatchlistSlotState,
   LiveWatchlistStatus,
   LiveWatchlistTickerDataPatch,
+  LiveWatchlistVolumeContext,
 } from "./live-watchlist-types.js";
 
 export const DEFAULT_LIVE_WATCHLIST_AUDIT_ARCHIVE_FILE = resolve(
@@ -37,6 +40,16 @@ export type LiveWatchlistAuditArchiveSymbol = {
   lastSeenAt: number;
   archivedAt: number;
   firstPostedAt?: number | null;
+  watchlistSlotState?: LiveWatchlistSlotState;
+  reversalWatchEligible?: boolean;
+  reversalWatchAttemptReady?: boolean;
+  reversalWatchlistVisible?: boolean;
+  potentialGainCardVisible?: boolean;
+  watchlistLifecycleLabelsVisible?: boolean;
+  watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
+  liveVolumeContext?: LiveWatchlistVolumeContext | null;
+  tradersLinkAiReadCardVisible?: boolean;
+  tradersLinkAiReadDipBuyPlanVisible?: boolean;
   companyName?: string | null;
   latestPrice?: number | null;
   nearestSupport?: number | null;
@@ -129,6 +142,36 @@ function normalizeArchiveSymbol(value: unknown, now: number): LiveWatchlistAudit
     archivedAt: finiteTimestamp(value.archivedAt) ?? now,
     ...(value.firstPostedAt === null || finiteTimestamp(value.firstPostedAt) !== null
       ? { firstPostedAt: value.firstPostedAt === null ? null : finiteTimestamp(value.firstPostedAt)! }
+      : {}),
+    ...(value.watchlistSlotState === "active" || value.watchlistSlotState === "followup"
+      ? { watchlistSlotState: value.watchlistSlotState }
+      : {}),
+    ...(typeof value.reversalWatchEligible === "boolean"
+      ? { reversalWatchEligible: value.reversalWatchEligible }
+      : {}),
+    ...(typeof value.reversalWatchAttemptReady === "boolean"
+      ? { reversalWatchAttemptReady: value.reversalWatchAttemptReady }
+      : {}),
+    ...(typeof value.reversalWatchlistVisible === "boolean"
+      ? { reversalWatchlistVisible: value.reversalWatchlistVisible }
+      : {}),
+    ...(typeof value.potentialGainCardVisible === "boolean"
+      ? { potentialGainCardVisible: value.potentialGainCardVisible }
+      : {}),
+    ...(typeof value.watchlistLifecycleLabelsVisible === "boolean"
+      ? { watchlistLifecycleLabelsVisible: value.watchlistLifecycleLabelsVisible }
+      : {}),
+    ...("watchlistLifecycle" in value
+      ? { watchlistLifecycle: cloneJson(value.watchlistLifecycle as LiveWatchlistLifecycleRead | null) }
+      : {}),
+    ...("liveVolumeContext" in value
+      ? { liveVolumeContext: cloneJson(value.liveVolumeContext as LiveWatchlistVolumeContext | null) }
+      : {}),
+    ...(typeof value.tradersLinkAiReadCardVisible === "boolean"
+      ? { tradersLinkAiReadCardVisible: value.tradersLinkAiReadCardVisible }
+      : {}),
+    ...(typeof value.tradersLinkAiReadDipBuyPlanVisible === "boolean"
+      ? { tradersLinkAiReadDipBuyPlanVisible: value.tradersLinkAiReadDipBuyPlanVisible }
       : {}),
     ...(typeof value.companyName === "string" || value.companyName === null
       ? { companyName: value.companyName }
@@ -283,6 +326,36 @@ function applyCardPatch(
     updatedAt: patch.updatedAt,
     lastSeenAt: patch.updatedAt,
     ...(patch.firstPostedAt !== undefined ? { firstPostedAt: patch.firstPostedAt } : {}),
+    ...(patch.watchlistSlotState !== undefined
+      ? { watchlistSlotState: patch.watchlistSlotState }
+      : {}),
+    ...(patch.reversalWatchEligible !== undefined
+      ? { reversalWatchEligible: patch.reversalWatchEligible }
+      : {}),
+    ...(patch.reversalWatchAttemptReady !== undefined
+      ? { reversalWatchAttemptReady: patch.reversalWatchAttemptReady }
+      : {}),
+    ...(patch.reversalWatchlistVisible !== undefined
+      ? { reversalWatchlistVisible: patch.reversalWatchlistVisible }
+      : {}),
+    ...(patch.potentialGainCardVisible !== undefined
+      ? { potentialGainCardVisible: patch.potentialGainCardVisible }
+      : {}),
+    ...(patch.watchlistLifecycleLabelsVisible !== undefined
+      ? { watchlistLifecycleLabelsVisible: patch.watchlistLifecycleLabelsVisible }
+      : {}),
+    ...(patch.watchlistLifecycle !== undefined
+      ? { watchlistLifecycle: cloneJson(patch.watchlistLifecycle) }
+      : {}),
+    ...(patch.liveVolumeContext !== undefined
+      ? { liveVolumeContext: cloneJson(patch.liveVolumeContext) }
+      : {}),
+    ...(patch.tradersLinkAiReadCardVisible !== undefined
+      ? { tradersLinkAiReadCardVisible: patch.tradersLinkAiReadCardVisible }
+      : {}),
+    ...(patch.tradersLinkAiReadDipBuyPlanVisible !== undefined
+      ? { tradersLinkAiReadDipBuyPlanVisible: patch.tradersLinkAiReadDipBuyPlanVisible }
+      : {}),
     ...(levelMap !== undefined ? { levelMap } : {}),
     ...(levelMap
       ? {
@@ -317,6 +390,33 @@ function applyTickerDataPatch(
     status: patch.status,
     updatedAt: patch.updatedAt,
     lastSeenAt: patch.updatedAt,
+    ...(patch.watchlistSlotState !== undefined
+      ? { watchlistSlotState: patch.watchlistSlotState }
+      : {}),
+    ...(patch.reversalWatchEligible !== undefined
+      ? { reversalWatchEligible: patch.reversalWatchEligible }
+      : {}),
+    ...(patch.reversalWatchAttemptReady !== undefined
+      ? { reversalWatchAttemptReady: patch.reversalWatchAttemptReady }
+      : {}),
+    ...(patch.reversalWatchlistVisible !== undefined
+      ? { reversalWatchlistVisible: patch.reversalWatchlistVisible }
+      : {}),
+    ...(patch.potentialGainCardVisible !== undefined
+      ? { potentialGainCardVisible: patch.potentialGainCardVisible }
+      : {}),
+    ...(patch.watchlistLifecycleLabelsVisible !== undefined
+      ? { watchlistLifecycleLabelsVisible: patch.watchlistLifecycleLabelsVisible }
+      : {}),
+    ...(patch.watchlistLifecycle !== undefined
+      ? { watchlistLifecycle: cloneJson(patch.watchlistLifecycle) }
+      : {}),
+    ...(patch.tradersLinkAiReadCardVisible !== undefined
+      ? { tradersLinkAiReadCardVisible: patch.tradersLinkAiReadCardVisible }
+      : {}),
+    ...(patch.tradersLinkAiReadDipBuyPlanVisible !== undefined
+      ? { tradersLinkAiReadDipBuyPlanVisible: patch.tradersLinkAiReadDipBuyPlanVisible }
+      : {}),
     latestPrice: patch.latestPrice,
     nearestSupport: patch.nearestSupport,
     nearestResistance: patch.nearestResistance,

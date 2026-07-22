@@ -40,6 +40,10 @@ const CONSECUTIVE_PASS_MAX_GAP_MS = 15 * 60 * 1000;
 const REVERSAL_WATCH_FULL_MAIN_SESSION_VOLUME = 50_000_000;
 const REVERSAL_WATCH_DEAD_CONFIRMATION_MS = 10 * 60 * 1000;
 const MAIN_WATCH_WINDOW_MINUTES = 12 * 60;
+const MAIN_VACANCY_MIN_QUALIFICATION_SCORE = 65;
+const MAIN_VACANCY_MIN_GAIN_PCT = 20;
+const MAIN_VACANCY_MIN_RECENT_DOLLAR_VOLUME = 250_000;
+const MAIN_VACANCY_MIN_VOLUME_ACCELERATION = 2;
 const NASDAQ_TOP_FIVE_GAINER_SOURCE = "nasdaq_live_most_advanced_top5";
 const STOCKANALYSIS_PREMARKET_TOP_FIVE_GAINER_SOURCE = "stockanalysis_live_premarket_gainers_top5";
 const STOCKANALYSIS_REGULAR_TOP_FIVE_GAINER_SOURCE = "stockanalysis_live_regular_gainers_top5";
@@ -418,6 +422,25 @@ export type AutoWatchlistSelectorStatus = {
   recentReplacements: AutoWatchlistReplacementEvent[];
   recentDecisions: AutoWatchlistCandidateDecision[];
 };
+
+export type AutoWatchlistFollowupPublicationState = {
+  symbol: string;
+  reversalWatchEligible: boolean;
+  reversalWatchAttemptReady: boolean;
+};
+
+export function meetsMainVacancyAdmissionQuality(
+  decision: Pick<
+    AutoWatchlistCandidateDecision,
+    "score" | "gainPct" | "recent15mDollarVolume" | "volumeAcceleration"
+  >,
+): boolean {
+  return decision.score >= MAIN_VACANCY_MIN_QUALIFICATION_SCORE || (
+    (decision.gainPct ?? 0) >= MAIN_VACANCY_MIN_GAIN_PCT &&
+    (decision.recent15mDollarVolume ?? 0) >= MAIN_VACANCY_MIN_RECENT_DOLLAR_VOLUME &&
+    (decision.volumeAcceleration ?? 0) >= MAIN_VACANCY_MIN_VOLUME_ACCELERATION
+  );
+}
 
 export type AutoWatchlistDiscoveryFeedComparison = {
   checkedAt: number;
@@ -2345,6 +2368,18 @@ export class AutoWatchlistSelector {
         rejectionReasons: [...decision.rejectionReasons],
       })),
     };
+  }
+
+  getFollowupPublicationStates(): AutoWatchlistFollowupPublicationState[] {
+    return this.managedEntriesFor(undefined, "followup").map((entry) => {
+      const reversalWatchEligible = entry.reversalWatchQualifiedAt !== null;
+      return {
+        symbol: entry.symbol,
+        reversalWatchEligible,
+        reversalWatchAttemptReady:
+          reversalWatchEligible && entry.reversalWatchAttemptReady,
+      };
+    });
   }
 
   private managedEntriesFor(
@@ -4690,6 +4725,15 @@ export class AutoWatchlistSelector {
             ? availableReplacementDepartures.splice(departureIndex, 1)[0]
             : undefined;
           const isReplacement = Boolean(departure);
+          if (
+            bucket === "main" &&
+            !meetsMainVacancyAdmissionQuality(decision)
+          ) {
+            if (departure) {
+              availableReplacementDepartures.splice(departureIndex, 0, departure);
+            }
+            continue;
+          }
           const normalInitialAdditionLimitReached =
             !alreadyAdded &&
             !isReplacement &&

@@ -409,28 +409,44 @@ export function parseArchivedTradersLinkAiLifecyclePlan(
   if (typeof body !== "string" || body.trim().length === 0) return null;
   try {
     const parsed = JSON.parse(body) as Record<string, unknown>;
-    const levelPrice = (value: unknown): number | null => {
-      const price = (value as { price?: unknown } | null)?.price;
-      return typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
+    const levelValid = (value: unknown): boolean => {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+      const price = (value as Record<string, unknown>).price;
+      return price === null || (
+        typeof price === "number" && Number.isFinite(price) && price > 0
+      );
     };
     const scenarioValid = (value: unknown): boolean => {
       if (value === null) return true;
+      if (typeof value !== "object" || Array.isArray(value)) return false;
       const scenario = value as Record<string, unknown>;
-      return ["zoneLow", "zoneHigh", "invalidationPrice"].every((key) =>
+      if (!["zoneLow", "zoneHigh", "invalidationPrice"].every((key) =>
         typeof scenario[key] === "number" && Number.isFinite(scenario[key]) && Number(scenario[key]) > 0
-      );
+      )) return false;
+      return Number(scenario.zoneLow) <= Number(scenario.zoneHigh) &&
+        Number(scenario.invalidationPrice) < Number(scenario.zoneHigh);
     };
     const recovery = parsed.failureRecovery as Record<string, unknown> | null;
     const recoveryValid = recovery === null || (
       typeof recovery === "object" &&
       ["recoveryZoneLow", "recoveryZoneHigh", "firstReclaimPrice", "setupRestorePrice"].every((key) =>
         typeof recovery[key] === "number" && Number.isFinite(recovery[key]) && Number(recovery[key]) > 0
-      )
+      ) &&
+      Number(recovery.recoveryZoneLow) <= Number(recovery.recoveryZoneHigh) &&
+      Number(recovery.recoveryZoneHigh) < Number(recovery.firstReclaimPrice) &&
+      Number(recovery.firstReclaimPrice) <= Number(recovery.setupRestorePrice)
     );
     const pullbackPlans = parsed.pullbackPlans as Record<string, unknown> | null;
     if (
       parsed.version !== 3 ||
-      levelPrice(parsed.momentumFailure) === null ||
+      typeof parsed.generatedAt !== "number" ||
+      !Number.isFinite(parsed.generatedAt) ||
+      parsed.generatedAt <= 0 ||
+      typeof parsed.dataAsOf !== "number" ||
+      !Number.isFinite(parsed.dataAsOf) ||
+      parsed.dataAsOf <= 0 ||
+      !levelValid(parsed.needsToHold) ||
+      !levelValid(parsed.momentumFailure) ||
       !pullbackPlans ||
       !scenarioValid(pullbackPlans.shallow) ||
       !scenarioValid(pullbackPlans.deep) ||
@@ -2876,7 +2892,13 @@ export class ManualWatchlistRuntimeManager {
       const lifecyclePlan = parseArchivedTradersLinkAiLifecyclePlan(
         archived?.cards?.tradersLinkAiRead?.body,
       );
-      if (lifecyclePlan) {
+      const restoreTime = this.options.now?.() ?? Date.now();
+      if (
+        lifecyclePlan &&
+        (entry.activatedAt === undefined || lifecyclePlan.generatedAt >= entry.activatedAt) &&
+        isSameNewYorkTradingDate(lifecyclePlan.generatedAt, restoreTime) &&
+        isSameNewYorkTradingDate(lifecyclePlan.dataAsOf, restoreTime)
+      ) {
         this.aiReadLifecyclePlanBySymbol.set(entry.symbol, lifecyclePlan);
       }
       if (state) {

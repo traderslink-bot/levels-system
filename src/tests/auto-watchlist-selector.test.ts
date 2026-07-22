@@ -15,6 +15,7 @@ import {
   compareAutoWatchlistDecisions,
   DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   isWithinAutoWatchlistScanWindow,
+  meetsMainVacancyAdmissionQuality,
   normalizeNasdaqChartTimestamp,
   parseStockAnalysisAfterhoursGainers,
   parseStockAnalysisPremarketGainers,
@@ -61,6 +62,152 @@ const BASE_CANDIDATE: AutoWatchlistDiscoveryCandidate = {
   quoteTime: 1_784_207_400,
   sourceScreens: ["small_cap_gainers"],
 };
+
+test("Main vacancy admission requires an independent quality baseline at exact boundaries", () => {
+  const decision = (
+    score: number,
+    gainPct: number,
+    recent15mDollarVolume: number,
+    volumeAcceleration: number,
+  ) => ({ score, gainPct, recent15mDollarVolume, volumeAcceleration });
+
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 19.99, 249_999, 1.99)), false);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(65, 0, 0, 0)), true);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 20, 249_999, 2)), false);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 20, 250_000, 1.99)), false);
+  assert.equal(meetsMainVacancyAdmissionQuality(decision(64.99, 20, 250_000, 2)), true);
+});
+
+test("a marginal promotion-ready candidate cannot fill a vacant Main slot", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-main-vacancy-quality-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({ version: 1, enabled: true, lastUpdated: Date.now() }));
+  const activated: string[] = [];
+  const now = Date.parse("2026-07-20T15:00:00Z");
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: {
+      getCompanyProfile: async () => ({
+        ticker: "MARG",
+        marketCapitalization: 90,
+        floatingShare: 45,
+        shareOutstanding: 50,
+      }),
+    } as unknown as FinnhubClient,
+    fetchImpl: async () => new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol: "MARG",
+          name: "Marginal Corporation Common Stock",
+          lastsale: "$2.00",
+          pctchange: "12%",
+          volume: "1000000",
+          marketCap: "90000000",
+        }],
+      },
+    }), { status: 200 }),
+    configPath,
+    thresholds: {
+      consecutivePassesRequired: 1,
+      maxActiveMainSessionTickers: 1,
+      enrichmentLimit: 1,
+    },
+    now: () => now,
+    getActiveSymbols: () => [...activated],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => activated.push(symbol),
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ symbols, session }) => Object.fromEntries(
+      symbols.map((symbol) => [symbol, {
+        symbol,
+        session,
+        price: 2.24,
+        gainPct: 12,
+        sessionVolume: 1_000_000,
+        recent15mVolume: 40_000,
+        recent15mDollarVolume: 80_000,
+        volumeAcceleration: 1,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
+  });
+  try {
+    const status = await selector.runNow({ activate: true });
+    const marginal = status.recentDecisions.find((decision) => decision.symbol === "MARG");
+    assert.equal(marginal?.promotionReady, true);
+    assert.ok((marginal?.score ?? 0) < 65);
+    assert.deepEqual(activated, []);
+    assert.deepEqual(status.activeMainSessionSymbols, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("restored follow-up publication state preserves reversal qualification and attempt readiness", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-followup-publication-"));
+  const configPath = join(directory, "config.json");
+  writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    enabled: true,
+    lastUpdated: 3_000,
+    managedEntries: [
+      {
+        symbol: "READY",
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: 1_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        reversalWatchQualifiedAt: 2_000,
+        reversalWatchAttemptReady: true,
+      },
+      {
+        symbol: "WAIT",
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: 1_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        reversalWatchQualifiedAt: 2_000,
+        reversalWatchAttemptReady: false,
+      },
+      {
+        symbol: "PLAIN",
+        bucket: "main",
+        state: "followup",
+        firstAddedAt: 1_000,
+        addedSession: "regular",
+        lastSession: "regular",
+        reversalWatchQualifiedAt: null,
+        reversalWatchAttemptReady: true,
+      },
+    ],
+  }));
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+  try {
+    assert.deepEqual(selector.getFollowupPublicationStates(), [
+      { symbol: "PLAIN", reversalWatchEligible: false, reversalWatchAttemptReady: false },
+      { symbol: "READY", reversalWatchEligible: true, reversalWatchAttemptReady: true },
+      { symbol: "WAIT", reversalWatchEligible: true, reversalWatchAttemptReady: false },
+    ]);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("auto selector strongly favors known low float and rejects oversized share counts", () => {
   const lowFloat = scoreAutoWatchlistCandidate({
@@ -911,7 +1058,23 @@ test("the 9:00 ET main-session reserve admits only three late tickers and surviv
       active.add(symbol);
     },
     catalystLookup: NO_CATALYST_LOOKUP,
-    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+    sessionActivityLookup: async (
+      input: Parameters<AutoWatchlistSessionActivityLookup>[0],
+    ) => Object.fromEntries(
+      input.symbols.map((symbol: string) => [symbol, {
+        symbol,
+        session: input.session,
+        price: 2,
+        gainPct: 20,
+        sessionVolume: 1_000_000,
+        recent15mVolume: 125_000,
+        recent15mDollarVolume: 250_000,
+        volumeAcceleration: 2,
+        quoteTime: Math.floor(input.now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      }]),
+    ),
   };
   const selector = new AutoWatchlistSelector(options);
   try {
@@ -1024,7 +1187,8 @@ test("the late main-session reserve also extends an exhausted replacement quota"
           gainPct: 20,
           sessionVolume: 1_000_000,
           recent15mVolume: 100_000,
-          recent15mDollarVolume: 200_000,
+          recent15mDollarVolume: 250_000,
+          volumeAcceleration: 2,
           quoteTime: Math.floor(input.now / 1000),
           quoteAgeMinutes: 0,
           available: true,
@@ -2198,15 +2362,6 @@ test("the 30-minute hold is earned by proof instead of granted to every new addi
     }
   };
 
-  const marginal = await runScenario({
-    symbol: "MARG",
-    initialGainPct: 12,
-    initialRecentDollarVolume: 80_000,
-    initialAcceleration: 1,
-  });
-  assert.equal(marginal.admittedEntry.holdProtectionEarnedAt, null);
-  assert.equal(marginal.fadedEntry?.state, "followup");
-
   const proven = await runScenario({
     symbol: "PROV",
     initialGainPct: 25,
@@ -2217,28 +2372,6 @@ test("the 30-minute hold is earned by proof instead of granted to every new addi
   assert.match(proven.admittedEntry.holdProtectionReason ?? "", /earned immediately/i);
   assert.equal(proven.fadedEntry?.state, "active");
   assert.equal(proven.fadedEntry?.retentionFailures, 1);
-
-  const probationary = await runScenario({
-    symbol: "PROB",
-    initialGainPct: 12,
-    initialRecentDollarVolume: 80_000,
-    initialAcceleration: 1,
-    consecutivePassesRequired: 2,
-  });
-  assert.equal(probationary.admittedEntry.holdProtectionEarnedAt, null);
-  assert.equal(probationary.fadedEntry?.state, "followup");
-
-  const repeatProven = await runScenario({
-    symbol: "REPT",
-    initialGainPct: 12,
-    initialRecentDollarVolume: 80_000,
-    initialAcceleration: 1,
-    consecutivePassesRequired: 2,
-    extraQualifyingScans: 1,
-  });
-  assert.ok(repeatProven.preFadeEntry?.holdProtectionEarnedAt);
-  assert.match(repeatProven.preFadeEntry?.holdProtectionReason ?? "", /3 qualifying observations/i);
-  assert.equal(repeatProven.fadedEntry?.state, "active");
 
   const lateLowVolumeRunner = await runScenario({
     symbol: "LATELOW",

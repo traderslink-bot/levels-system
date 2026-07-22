@@ -99,6 +99,8 @@ function v3LifecyclePlan(): NonNullable<LiveWatchlistLifecycleEvidence["aiRead"]
   });
   return {
     version: 3,
+    generatedAt: NOW - 60_000,
+    dataAsOf: NOW - 90_000,
     needsToHold: level("Needs to hold", 2.52),
     momentumFailure: level("Momentum failure", 1.83),
     pullbackPlans: {
@@ -173,6 +175,37 @@ test("watchlist lifecycle labels remain conservative when evidence is stale or i
   });
   assert.equal(stale.status, "monitoring");
   assert.equal(stale.label, "Analysis Pending");
+
+  const staleAiPlan = deriveLiveWatchlistLifecycleRead({
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "failed_move_risk",
+    technicalConfidence: "high",
+    volumeLabel: "normal",
+    levelMap: levelMap(),
+    currentPrice: 1.56,
+    aiRead: {
+      ...v3LifecyclePlan(),
+      generatedAt: NOW - 24 * 60 * 60_000,
+      dataAsOf: NOW - 24 * 60 * 60_000,
+    },
+  });
+  assert.equal(staleAiPlan.status, "monitoring");
+  assert.equal(staleAiPlan.label, "Analysis Pending");
+  assert.match(staleAiPlan.reason, /current-session AI Read/i);
+
+  const aiPlanWithoutFreshStructure = deriveLiveWatchlistLifecycleRead({
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW - 21 * 60_000,
+    phase: "failed_move_risk",
+    technicalConfidence: "high",
+    volumeLabel: "normal",
+    levelMap: levelMap(),
+    currentPrice: 1.56,
+    aiRead: v3LifecyclePlan(),
+  });
+  assert.equal(aiPlanWithoutFreshStructure.status, "monitoring");
+  assert.equal(aiPlanWithoutFreshStructure.label, "Analysis Pending");
 
   const damagedWithoutMappedSupport = deriveLiveWatchlistLifecycleRead({
     evaluatedAt: NOW,

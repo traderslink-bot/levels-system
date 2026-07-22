@@ -90,6 +90,21 @@ test("manual watchlist control page is not cached across runtime restarts", () =
   );
 });
 
+test("manual watchlist restart republishes selector-owned reversal follow-up state", () => {
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /autoWatchlistSelector\.getFollowupPublicationStates\(\)/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /reversalWatchEligible: entry\.reversalWatchEligible[\s\S]*?reversalWatchAttemptReady: entry\.reversalWatchAttemptReady/,
+  );
+  assert.doesNotMatch(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /setAutoWatchlistFollowup\(entry\.symbol, true, \{\s*reversalWatchEligible:\s*false/,
+  );
+});
+
 test("manual watchlist page shows runtime status without obsolete review surfaces", () => {
   assert.match(MANUAL_WATCHLIST_PAGE, /Runtime Status/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Provider Health/);

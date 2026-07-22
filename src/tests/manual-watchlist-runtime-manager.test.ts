@@ -9,6 +9,7 @@ import {
   buildLiveTradeSetupSeriesMap,
   MANUAL_WATCHLIST_AUTO_READMISSION_COOLDOWN_MS,
   ManualWatchlistRuntimeManager,
+  parseArchivedTradersLinkAiLifecyclePlan,
   resolveEodhdConfirmedLevelRequestEndTimeMs,
 } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
@@ -31,6 +32,38 @@ function waitForAsyncWork(): Promise<void> {
 function waitMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+test("archived AI lifecycle plans require timestamps and every dereferenced field", () => {
+  const valid = {
+    version: 3,
+    generatedAt: 2_000,
+    dataAsOf: 1_500,
+    needsToHold: { price: 2.5 },
+    momentumFailure: { price: 1.8 },
+    pullbackPlans: { shallow: null, deep: null },
+    failureRecovery: {
+      recoveryZoneLow: 1.5,
+      recoveryZoneHigh: 1.6,
+      firstReclaimPrice: 1.61,
+      setupRestorePrice: 1.7,
+    },
+  };
+  assert.ok(parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify(valid)));
+  assert.equal(
+    parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify({
+      ...valid,
+      needsToHold: undefined,
+    })),
+    null,
+  );
+  assert.equal(
+    parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify({
+      ...valid,
+      generatedAt: undefined,
+    })),
+    null,
+  );
+});
 
 function buildZone(params: Partial<FinalLevelZone> & Pick<FinalLevelZone, "id" | "symbol" | "kind">): FinalLevelZone {
   return {

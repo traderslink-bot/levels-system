@@ -831,11 +831,10 @@ async function main(): Promise<void> {
           if (health.pendingActivationCount === 0 && restoreCount === 0) break;
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
-        for (const entry of autoWatchlistSelector.getStatus().managedEntries) {
-          if (entry.state !== "followup") continue;
+        for (const entry of autoWatchlistSelector.getFollowupPublicationStates()) {
           await manager.setAutoWatchlistFollowup(entry.symbol, true, {
-            reversalWatchEligible:
-              false,
+            reversalWatchEligible: entry.reversalWatchEligible,
+            reversalWatchAttemptReady: entry.reversalWatchAttemptReady,
           });
         }
       })().catch((error) => {

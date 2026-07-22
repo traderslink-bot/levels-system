@@ -13,6 +13,14 @@ import type {
 } from "./pullback-read.js";
 
 const MAX_STRUCTURE_AGE_MS = 20 * 60 * 1_000;
+const MAX_FUTURE_EVIDENCE_SKEW_MS = 2 * 60 * 1_000;
+const NEW_YORK_TIME_ZONE = "America/New_York";
+const NEW_YORK_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: NEW_YORK_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 const LIQUID_VOLUME_LABELS = new Set<LiveWatchlistPullbackVolumeLabel>([
   "strong",
   "expanding",
@@ -39,8 +47,38 @@ export type LiveWatchlistLifecycleEvidence = {
 
 export type TradersLinkAiLifecyclePlan = Pick<
   TradersLinkAiReadPayload,
-  "version" | "needsToHold" | "momentumFailure" | "pullbackPlans" | "failureRecovery"
+  | "version"
+  | "generatedAt"
+  | "dataAsOf"
+  | "needsToHold"
+  | "momentumFailure"
+  | "pullbackPlans"
+  | "failureRecovery"
 >;
+
+function newYorkDateKey(timestamp: number): string | null {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+  const parts = NEW_YORK_DATE_FORMATTER.formatToParts(new Date(timestamp));
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  return year && month && day ? `${year}-${month}-${day}` : null;
+}
+
+function aiPlanIsCurrent(
+  plan: TradersLinkAiLifecyclePlan,
+  evaluatedAt: number,
+): boolean {
+  const evaluatedDate = newYorkDateKey(evaluatedAt);
+  return (
+    evaluatedDate !== null &&
+    newYorkDateKey(plan.generatedAt) === evaluatedDate &&
+    newYorkDateKey(plan.dataAsOf) === evaluatedDate &&
+    plan.generatedAt <= evaluatedAt + MAX_FUTURE_EVIDENCE_SKEW_MS &&
+    plan.dataAsOf <= evaluatedAt + MAX_FUTURE_EVIDENCE_SKEW_MS &&
+    plan.dataAsOf <= plan.generatedAt + MAX_FUTURE_EVIDENCE_SKEW_MS
+  );
+}
 
 function read(
   status: LiveWatchlistLifecycleRead["status"],
@@ -260,9 +298,6 @@ export function deriveLiveWatchlistLifecycleRead(
   const currentPrice = typeof evidence.currentPrice === "number" && Number.isFinite(evidence.currentPrice)
     ? evidence.currentPrice
     : evidence.levelMap?.currentPrice ?? null;
-  if (evidence.aiRead?.version === 3 && currentPrice !== null) {
-    return deriveAiReadLifecycleRead(evidence, currentPrice);
-  }
   const structureAge = evidence.structureUpdatedAt === null
     ? Number.POSITIVE_INFINITY
     : evidence.evaluatedAt - evidence.structureUpdatedAt;
@@ -280,6 +315,17 @@ export function deriveLiveWatchlistLifecycleRead(
       "Waiting for fresh, reliable 5-minute structure before assigning a lifecycle state.",
       evidence.evaluatedAt,
     );
+  }
+  if (evidence.aiRead?.version === 3 && currentPrice !== null) {
+    if (!aiPlanIsCurrent(evidence.aiRead, evidence.evaluatedAt)) {
+      return read(
+        "monitoring",
+        "Analysis Pending",
+        "Waiting for a current-session AI Read before assigning a lifecycle state.",
+        evidence.evaluatedAt,
+      );
+    }
+    return deriveAiReadLifecycleRead(evidence, currentPrice);
   }
 
   const mappedSupport = hasMappedSupport(evidence.levelMap);
