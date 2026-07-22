@@ -271,6 +271,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
 
 const TRADERSLINK_AI_READ_AUTOMATIC_SCHEDULE_COALESCE_MS = 250;
 const TRADERSLINK_AI_READ_BOUNDARY_CONFIRMATION_MS = 30_000;
+const TRADERSLINK_AI_READ_EXTENSION_REFRESH_PCT = 0.15;
 const TRADERSLINK_AI_READ_MIN_BOUNDARY_BUFFER_PCT = 0.01;
 const TRADERSLINK_AI_READ_MAX_BOUNDARY_BUFFER_PCT = 0.05;
 const TRADERSLINK_AI_READ_ATR_BUFFER_MULTIPLIER = 0.2;
@@ -438,15 +439,19 @@ export function decideTradersLinkAiReadRefresh(args: {
     (mappedUpsidePrices.length > 0 ? Math.max(...mappedUpsidePrices) : null);
   const effectiveLowerBoundary = previous.lowerBoundary ??
     (mappedDownsidePrices.length > 0 ? Math.min(...mappedDownsidePrices) : null);
-  const crossedUpperBoundary = effectiveUpperBoundary !== null &&
-    args.currentPrice > effectiveUpperBoundary;
+  const extensionBoundary = previous.currentPrice * (1 + TRADERSLINK_AI_READ_EXTENSION_REFRESH_PCT);
+  const crossedExtensionBoundary =
+    effectiveUpperBoundary === null && args.currentPrice >= extensionBoundary;
+  const crossedUpperBoundary =
+    (effectiveUpperBoundary !== null && args.currentPrice > effectiveUpperBoundary) ||
+    crossedExtensionBoundary;
   const crossedLowerBoundary = effectiveLowerBoundary !== null &&
     args.currentPrice < effectiveLowerBoundary;
   const crossedAnalysisBoundary = crossedUpperBoundary || crossedLowerBoundary;
   if (args.force) {
     const direction = crossedUpperBoundary ? "upper" : crossedLowerBoundary ? "lower" : null;
     const boundary = direction === "upper"
-      ? effectiveUpperBoundary
+      ? effectiveUpperBoundary ?? extensionBoundary
       : direction === "lower"
         ? effectiveLowerBoundary
         : null;
@@ -473,7 +478,9 @@ export function decideTradersLinkAiReadRefresh(args: {
   const automaticRefreshRegime = args.requestedTrigger === "automatic" &&
     crossedAnalysisBoundary
     ? crossedUpperBoundary
-      ? `upper:${effectiveUpperBoundary ?? "none"}`
+      ? crossedExtensionBoundary && effectiveUpperBoundary === null
+        ? `extension:upper:${Number(extensionBoundary.toFixed(extensionBoundary < 1 ? 4 : 2))}`
+        : `upper:${effectiveUpperBoundary ?? "none"}`
       : `lower:${effectiveLowerBoundary ?? "none"}`
     : null;
   const alreadyServedSameRegime =
@@ -502,8 +509,9 @@ export function decideTradersLinkAiReadRefresh(args: {
 
   const direction = crossedUpperBoundary ? "upper" : "lower";
   const boundary = direction === "upper"
-    ? effectiveUpperBoundary!
+    ? effectiveUpperBoundary ?? extensionBoundary
     : effectiveLowerBoundary!;
+  const isExtensionRefresh = crossedExtensionBoundary && effectiveUpperBoundary === null;
   const atrComponent = typeof args.atrPct === "number" &&
     Number.isFinite(args.atrPct) && args.atrPct > 0
     ? args.atrPct * TRADERSLINK_AI_READ_ATR_BUFFER_MULTIPLIER
@@ -540,7 +548,7 @@ export function decideTradersLinkAiReadRefresh(args: {
     pendingBoundaryCross.lastObservedAt - pendingBoundaryCross.firstObservedAt >=
       TRADERSLINK_AI_READ_BOUNDARY_CONFIRMATION_MS;
   const materiallyOutside = excursionPct >= pendingBoundaryCross.confirmationBufferPct;
-  const confirmed = sustainedOutside || materiallyOutside;
+  const confirmed = sustainedOutside || (!isExtensionRefresh && materiallyOutside);
   return {
     shouldRefresh: confirmed,
     trigger,
@@ -1368,6 +1376,7 @@ const PRIOR_REGULAR_CLOSE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const PULLBACK_READ_INTRADAY_POLL_INTERVAL_MS = 60 * 1000;
 const PULLBACK_READ_1M_LOOKBACK_BARS = 120;
 const PULLBACK_READ_5M_LOOKBACK_BARS = 80;
+const TRADERSLINK_AI_READ_1M_FETCH_BARS = 600;
 const TRADERSLINK_AI_READ_5M_FETCH_BARS = 720;
 const TRADERSLINK_AI_READ_DAILY_FETCH_BARS = 30;
 const PULLBACK_READ_MAX_LATEST_CANDLE_AGE_MS = 10 * 60 * 1000;
@@ -2975,6 +2984,7 @@ export class ManualWatchlistRuntimeManager {
   ): Promise<TradersLinkAiReadPriceActionContext> {
     const symbol = normalizeSymbol(symbolInput);
     const storedSeries = this.chartThesisSeriesMapBySymbol.get(symbol);
+    let oneMinuteCandles: Candle[] = [];
     let intradayCandles = normalizePullbackCandles(
       this.technicalContextCandleStore.getCandles(symbol),
     );
@@ -2986,7 +2996,14 @@ export class ManualWatchlistRuntimeManager {
     const fetchAsOf = Math.max(dataAsOf, this.options.now?.() ?? Date.now());
 
     if (service) {
-      const [intradayResult, dailyResult] = await Promise.allSettled([
+      const [oneMinuteResult, intradayResult, dailyResult] = await Promise.allSettled([
+        service.fetchCandles({
+          symbol,
+          timeframe: "1m",
+          lookbackBars: TRADERSLINK_AI_READ_1M_FETCH_BARS,
+          endTimeMs: fetchAsOf,
+          preferredProvider: "yahoo",
+        }),
         service.fetchCandles({
           symbol,
           timeframe: "5m",
@@ -3002,6 +3019,12 @@ export class ManualWatchlistRuntimeManager {
           preferredProvider: "yahoo",
         }),
       ]);
+      if (oneMinuteResult.status === "fulfilled") {
+        const fetchedOneMinute = normalizePullbackCandles(oneMinuteResult.value.candles);
+        if (fetchedOneMinute.length > 0) {
+          oneMinuteCandles = fetchedOneMinute;
+        }
+      }
       if (intradayResult.status === "fulfilled") {
         const fetchedIntraday = normalizePullbackCandles(intradayResult.value.candles);
         if (fetchedIntraday.length > 0) {
@@ -3088,6 +3111,7 @@ export class ManualWatchlistRuntimeManager {
       source,
       fetchedAt: Date.now(),
       priorRegularClose: this.priorRegularCloseBySymbol.get(symbol)?.price ?? null,
+      oneMinuteCandles,
       intradayCandles,
       dailyCandles,
     };
@@ -10762,10 +10786,14 @@ export class ManualWatchlistRuntimeManager {
   }): void {
     const pullbackReadEnabled = this.pullbackReadEnabled();
     const tradeSetupReadMode = resolveLiveWatchlistTradeSetupReadMode();
+    const aiReadCardVisible =
+      this.watchlistStore.getEntry(args.symbol)?.tradersLinkAiReadCardVisible !== false;
     if (
       !this.liveWatchlistPublisher ||
       (!pullbackReadEnabled && tradeSetupReadMode === "off") ||
-      (!this.liveTraderReadCardVisible && !this.watchlistLifecycleLabelsVisible)
+      (!this.liveTraderReadCardVisible &&
+        !this.watchlistLifecycleLabelsVisible &&
+        !aiReadCardVisible)
     ) {
       return;
     }

@@ -1,0 +1,116 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import type { Candle } from "../lib/market-data/candle-types.js";
+import { buildTradersLinkAiPriceActionPacket } from "../lib/ai/traderslink-ai-read-price-action.js";
+
+const START = Date.parse("2026-07-21T14:00:00.000Z");
+
+function bar(index: number, open: number, close: number, volume = 100): Candle {
+  return {
+    timestamp: START + index * 60_000,
+    open,
+    high: Math.max(open, close) * 1.002,
+    low: Math.min(open, close) * 0.998,
+    close,
+    volume,
+  };
+}
+
+function impulseCandles(duration: number): Candle[] {
+  const candles: Candle[] = [];
+  for (let index = 0; index < 10; index += 1) {
+    candles.push(bar(index, 1, 1 + (index % 2) * 0.002));
+  }
+  for (let index = 0; index < duration; index += 1) {
+    const start = 1 + 0.5 * index / duration;
+    const end = 1 + 0.5 * (index + 1) / duration;
+    candles.push(bar(10 + index, start, end, 600));
+  }
+  for (let index = 0; index < 8; index += 1) {
+    candles.push(bar(10 + duration + index, 1.44 + (index % 2) * 0.01, 1.45, 350));
+  }
+  return candles;
+}
+
+function fiveMinuteCandles(oneMinuteCandles: Candle[]): Candle[] {
+  const output: Candle[] = [];
+  for (let index = 0; index < oneMinuteCandles.length; index += 5) {
+    const bucket = oneMinuteCandles.slice(index, index + 5);
+    output.push({
+      timestamp: bucket[0]!.timestamp,
+      open: bucket[0]!.open,
+      high: Math.max(...bucket.map((candle) => candle.high)),
+      low: Math.min(...bucket.map((candle) => candle.low)),
+      close: bucket.at(-1)!.close,
+      volume: bucket.reduce((sum, candle) => sum + candle.volume, 0),
+    });
+  }
+  return output;
+}
+
+function evidence(oneMinuteCandles: Candle[]): Record<string, unknown> {
+  const intradayCandles = fiveMinuteCandles(oneMinuteCandles);
+  while (intradayCandles.length < 12) {
+    const last = intradayCandles.at(-1)!;
+    intradayCandles.push({ ...last, timestamp: last.timestamp + 5 * 60_000 });
+  }
+  const dataAsOf = intradayCandles.at(-1)!.timestamp;
+  const packet = buildTradersLinkAiPriceActionPacket({
+    source: "fixture",
+    fetchedAt: dataAsOf,
+    priorRegularClose: 0.9,
+    oneMinuteCandles,
+    intradayCandles,
+    dailyCandles: [],
+  }, 1.5, dataAsOf);
+  return packet.oneMinuteEvidence as Record<string, unknown>;
+}
+
+describe("TradersLink AI one-minute evidence", () => {
+  it("distinguishes a fast vertical extension from a slower gain of the same size", () => {
+    const fast = evidence(impulseCandles(5)).latestSignificantImpulse as Record<string, number>;
+    const slow = evidence(impulseCandles(25)).latestSignificantImpulse as Record<string, number>;
+
+    assert.ok(fast.gainPct >= 49);
+    assert.ok(slow.gainPct >= 49);
+    assert.ok(fast.durationMinutes < slow.durationMinutes);
+    assert.ok(fast.gainPerMinutePct > slow.gainPerMinutePct * 2);
+  });
+
+  it("builds materially separate shallow consolidation and deep pre-impulse candidates", () => {
+    const facts = evidence(impulseCandles(5));
+    const candidates = facts.pullbackCandidates as Array<Record<string, number | string>>;
+    const shallow = candidates.find((candidate) => candidate.id === "1m-first-consolidation");
+    const deep = candidates.find((candidate) => candidate.id === "1m-pre-impulse-base");
+
+    assert.ok(shallow);
+    assert.ok(deep);
+    assert.ok(Number(deep.zoneHigh) < Number(shallow.zoneLow));
+  });
+
+  it("does not manufacture volume strength from zero-volume or malformed bars", () => {
+    const candles = impulseCandles(5).map((candle) => ({ ...candle, volume: 0 }));
+    candles.push({ ...candles.at(-1)!, timestamp: Number.NaN, high: 0.5 });
+    const facts = evidence(candles);
+    const impulse = facts.latestSignificantImpulse as Record<string, unknown>;
+
+    assert.equal(impulse.volumeVsPrecedingBaseline, null);
+    assert.equal(facts.available, true);
+  });
+
+  it("reports confirmation behavior instead of treating a deep-area touch as confirmation", () => {
+    const candles = impulseCandles(5);
+    const lastIndex = candles.length;
+    candles.push(
+      bar(lastIndex, 1.2, 1.08, 300),
+      bar(lastIndex + 1, 1.08, 1.02, 300),
+      bar(lastIndex + 2, 1.03, 1.01, 300),
+    );
+    const facts = evidence(candles);
+    const confirmation = facts.latestConfirmationBehavior as Record<string, unknown>;
+
+    assert.equal(confirmation.higherLowObserved, false);
+    assert.equal(confirmation.reclaimObserved, false);
+  });
+});

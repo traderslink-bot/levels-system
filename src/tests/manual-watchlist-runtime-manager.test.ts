@@ -538,13 +538,14 @@ test("ManualWatchlistRuntimeManager blends EODHD completed sessions with Yahoo c
       }],
     };
   };
+  const recentCandles = new StaticRecentIntradayCandleFetchService();
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: new RecordingCandleFetchService() as any,
     levelStore: new LevelStore(),
     monitor: new FakeMonitor() as any,
     discordAlertRouter: new FakeDiscordAlertRouter() as any,
     opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
-    recentIntradayCandleFetchService: new StaticRecentIntradayCandleFetchService() as any,
+    recentIntradayCandleFetchService: recentCandles as any,
     tradersLinkAiReadHistoricalCandleLoader: historicalLoader as any,
     now: () => now,
   });
@@ -558,7 +559,12 @@ test("ManualWatchlistRuntimeManager blends EODHD completed sessions with Yahoo c
     historicalRequests.map((request) => request.timeframes[0]).sort(),
     ["5m", "daily"],
   );
+  assert.deepEqual(
+    recentCandles.requests.map((request) => [request.timeframe, request.lookbackBars]),
+    [["1m", 600], ["5m", 720], ["daily", 30]],
+  );
   assert.match(context.source, /yahoo current-session \+ eodhd completed-session OHLCV/);
+  assert.equal(context.oneMinuteCandles.length, 600);
   assert.ok(context.intradayCandles.some((candle: Candle) => candle.volume === 777_000));
   assert.ok(context.dailyCandles.some((candle: Candle) => candle.volume === 888_000));
 });
@@ -1344,6 +1350,33 @@ test("ManualWatchlistRuntimeManager republishes pullback read when volume label 
   assert.equal(liveWatchlistPublisher.cardPatches.length, 2);
   assert.match(liveWatchlistPublisher.cardPatches[0]?.cards.liveTraderRead?.body ?? "", /Volume read: strong/);
   assert.match(liveWatchlistPublisher.cardPatches[1]?.cards.liveTraderRead?.body ?? "", /Volume read: fading/);
+  assert.deepEqual(liveWatchlistPublisher.cardPatches[1]?.liveVolumeContext, {
+    timeframe: "5m",
+    label: "fading",
+    relativeVolumeRatio: 0.5,
+    partial: false,
+    updatedAt: 2_000,
+  });
+
+  (manager as any).liveTraderReadCardVisible = false;
+  (manager as any).publishWebsitePullbackTraderRead({
+    symbol: "CAST",
+    timestamp: 3_000,
+    currentPrice: 2.2,
+    technicalContext,
+    volumeRead: {
+      label: "expanding",
+      currentVolume: 150_000,
+      averageVolume: 100_000,
+      relativeVolumeRatio: 1.5,
+      reason: "latest 5m volume is 1.50x recent average",
+    },
+  });
+  await waitForAsyncWork();
+
+  assert.equal(liveWatchlistPublisher.cardPatches.length, 3);
+  assert.equal(liveWatchlistPublisher.cardPatches[2]?.cards.liveTraderRead, null);
+  assert.equal(liveWatchlistPublisher.cardPatches[2]?.liveVolumeContext?.label, "expanding");
 });
 
 test("live trade setup series uses only completed 5m candles and builds causal regular-session 4h bars", () => {

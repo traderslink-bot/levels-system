@@ -9,7 +9,7 @@ import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchl
 
 function read(symbol: string, generatedAt: number, totalCostUsd: number): TradersLinkAiReadPayload {
   return {
-    version: 2,
+    version: 3,
     generationId: `${symbol}-${generatedAt}`,
     symbol,
     generatedAt,
@@ -26,6 +26,8 @@ function read(symbol: string, generatedAt: number, totalCostUsd: number): Trader
     breakoutContinuation: { label: "Continue", price: 1.2, rationale: "Test." },
     targets: [],
     downsideCheckpoints: [],
+    pullbackPlans: { shallow: null, deep: null },
+    failureRecovery: null,
     catalystRealityCheck: {
       status: "none",
       summary: "None.",

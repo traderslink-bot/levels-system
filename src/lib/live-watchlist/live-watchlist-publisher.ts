@@ -1699,7 +1699,21 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
         fiveMinuteStructure,
       })
     : null;
-  if (!pullbackRead && !(tradeSetupReadMode === "active" && tradeSetupRead) && !watchlistLifecycle) {
+  const liveVolumeContext = args.volumeRead
+    ? {
+        timeframe: "5m" as const,
+        label: args.volumeRead.label,
+        relativeVolumeRatio: args.volumeRead.relativeVolumeRatio,
+        partial: args.volumeRead.partial === true,
+        updatedAt: args.timestamp,
+      }
+    : null;
+  if (
+    !pullbackRead &&
+    !(tradeSetupReadMode === "active" && tradeSetupRead) &&
+    !watchlistLifecycle &&
+    !liveVolumeContext
+  ) {
     return null;
   }
   const body = tradeSetupReadMode === "active" && tradeSetupRead
@@ -1711,6 +1725,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
     status: "live",
     updatedAt: args.timestamp,
     levelMap,
+    liveVolumeContext,
     ...(watchlistLifecycle ? { watchlistLifecycle } : {}),
     cards: {
       ...(body
