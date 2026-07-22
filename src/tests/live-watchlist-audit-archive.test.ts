@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import {
   ArchivedLiveWatchlistPublisher,
+  DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS,
   LiveWatchlistAuditArchivePersistence,
   mergeLiveWatchlistPayloadWithArchive,
 } from "../lib/live-watchlist/live-watchlist-audit-archive.js";
@@ -15,6 +16,41 @@ import type {
   LiveWatchlistPublisher,
   LiveWatchlistTickerDataPatch,
 } from "../lib/live-watchlist/live-watchlist-types.js";
+
+test("live watchlist audit archive permanently drops deactivated symbols after three days", () => {
+  const { directory, filePath } = tempArchivePath();
+  const now = 10 * 24 * 60 * 60 * 1_000;
+  try {
+    const archive = new LiveWatchlistAuditArchivePersistence(filePath);
+    archive.recordPatches([
+      {
+        symbol: "OLD",
+        status: "deactivated",
+        updatedAt: now - DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS - 1,
+        cards: {},
+      },
+      {
+        symbol: "RECENT",
+        status: "deactivated",
+        updatedAt: now - DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS + 1,
+        cards: {},
+      },
+      {
+        symbol: "LIVE",
+        status: "live",
+        updatedAt: now - DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS - 1,
+        cards: {},
+      },
+    ], now);
+
+    assert.deepEqual(
+      archive.load().symbols.map((symbol) => symbol.symbol).sort(),
+      ["RECENT"],
+    );
+  } finally {
+    cleanupTempArchive(directory);
+  }
+});
 
 function tempArchivePath(): { directory: string; filePath: string } {
   const directory = mkdtempSync(join(tmpdir(), "live-watchlist-audit-archive-"));
@@ -136,6 +172,7 @@ test("live watchlist audit archive merge keeps removed symbols auditable", () =>
 test("archived live watchlist publisher records successful website patches", async () => {
   const { directory, filePath } = tempArchivePath();
   try {
+    const now = Date.now();
     const published: unknown[] = [];
     const delegate: LiveWatchlistPublisher = {
       async publish(patch: LiveWatchlistCardPatch): Promise<void> {
@@ -155,7 +192,7 @@ test("archived live watchlist publisher records successful website patches", asy
       type: "tickerData",
       symbol: "zbao",
       status: "live",
-      updatedAt: 3000,
+      updatedAt: now,
       latestPrice: 0.42,
       nearestSupport: 0.41,
       nearestResistance: 0.44,
@@ -188,6 +225,7 @@ test("archived live watchlist publisher retries patches after a transient archiv
     }
   }
   try {
+    const now = Date.now();
     const delegate: LiveWatchlistPublisher = {
       async publishTickerData(): Promise<void> {},
       async publish(): Promise<void> {},
@@ -198,7 +236,7 @@ test("archived live watchlist publisher retries patches after a transient archiv
       type: "tickerData",
       symbol: "RETRY",
       status: "live",
-      updatedAt: 4000,
+      updatedAt: now,
       latestPrice: 1.25,
       nearestSupport: null,
       nearestResistance: null,

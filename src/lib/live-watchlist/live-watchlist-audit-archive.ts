@@ -26,6 +26,9 @@ export const DEFAULT_LIVE_WATCHLIST_AUDIT_ARCHIVE_FILE = resolve(
   "live-watchlist-level-quality-archive.json",
 );
 
+export const DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS = 3 * 24 * 60 * 60 * 1_000;
+export const DEFAULT_LIVE_WATCHLIST_AUDIT_FLUSH_DELAY_MS = 30_000;
+
 export type LiveWatchlistAuditArchiveSymbol = {
   symbol: string;
   status?: LiveWatchlistStatus | string;
@@ -205,6 +208,18 @@ function sortArchiveSymbols(symbols: LiveWatchlistAuditArchiveSymbol[]): LiveWat
   });
 }
 
+export function pruneExpiredLiveWatchlistAuditSymbols(
+  archive: LiveWatchlistAuditArchive,
+  now = Date.now(),
+  retentionMs = DEFAULT_LIVE_WATCHLIST_AUDIT_RETENTION_MS,
+): LiveWatchlistAuditArchive {
+  const cutoff = now - Math.max(0, retentionMs);
+  const symbols = archive.symbols.filter((symbol) => symbol.lastSeenAt >= cutoff);
+  return symbols.length === archive.symbols.length
+    ? archive
+    : { ...archive, updatedAt: now, symbols };
+}
+
 function upsertArchivedSymbol(
   archive: LiveWatchlistAuditArchive,
   symbolUpdate: Partial<LiveWatchlistAuditArchiveSymbol> & { symbol: string },
@@ -378,6 +393,8 @@ export function payloadFromLiveWatchlistArchive(
 }
 
 export class LiveWatchlistAuditArchivePersistence {
+  private cachedArchive: LiveWatchlistAuditArchive | null = null;
+
   constructor(private readonly filePath = DEFAULT_LIVE_WATCHLIST_AUDIT_ARCHIVE_FILE) {}
 
   getFilePath(): string {
@@ -385,45 +402,54 @@ export class LiveWatchlistAuditArchivePersistence {
   }
 
   load(): LiveWatchlistAuditArchive {
+    if (this.cachedArchive) {
+      return this.cachedArchive;
+    }
     if (!existsSync(this.filePath)) {
-      return emptyArchive();
+      return (this.cachedArchive = emptyArchive());
     }
     try {
       const parsed = JSON.parse(readFileSync(this.filePath, "utf8").replace(/^\uFEFF/, "")) as unknown;
-      return normalizeArchive(parsed, Date.now()) ?? emptyArchive();
+      return (this.cachedArchive = normalizeArchive(parsed, Date.now()) ?? emptyArchive());
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[LiveWatchlistAuditArchive] Failed to load ${this.filePath}: ${message}`);
-      return emptyArchive();
+      return (this.cachedArchive = emptyArchive());
     }
   }
 
   async loadAsync(): Promise<LiveWatchlistAuditArchive> {
+    if (this.cachedArchive) {
+      return this.cachedArchive;
+    }
     try {
       const parsed = JSON.parse((await readFile(this.filePath, "utf8")).replace(/^\uFEFF/, "")) as unknown;
-      return normalizeArchive(parsed, Date.now()) ?? emptyArchive();
+      return (this.cachedArchive = normalizeArchive(parsed, Date.now()) ?? emptyArchive());
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-        return emptyArchive();
+        return (this.cachedArchive = emptyArchive());
       }
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[LiveWatchlistAuditArchive] Failed to load ${this.filePath}: ${message}`);
-      return emptyArchive();
+      return (this.cachedArchive = emptyArchive());
     }
   }
 
   save(archive: LiveWatchlistAuditArchive): void {
+    this.cachedArchive = archive;
     writeFileAtomicallySync(this.filePath, `${JSON.stringify(archive)}\n`);
   }
 
   async saveAsync(archive: LiveWatchlistAuditArchive): Promise<void> {
     await writeFileAtomically(this.filePath, `${JSON.stringify(archive)}\n`);
+    this.cachedArchive = archive;
   }
 
   recordPatch(patch: LiveWatchlistPatch, now = Date.now()): LiveWatchlistAuditArchive {
     const archive = applyLiveWatchlistPatchToArchive(this.load(), patch, now);
-    this.save(archive);
-    return archive;
+    const pruned = pruneExpiredLiveWatchlistAuditSymbols(archive, now);
+    this.save(pruned);
+    return pruned;
   }
 
   recordPatches(
@@ -434,8 +460,9 @@ export class LiveWatchlistAuditArchivePersistence {
     for (const patch of patches) {
       archive = applyLiveWatchlistPatchToArchive(archive, patch, now);
     }
-    this.save(archive);
-    return archive;
+    const pruned = pruneExpiredLiveWatchlistAuditSymbols(archive, now);
+    this.save(pruned);
+    return pruned;
   }
 
   async recordPatchesAsync(
@@ -446,8 +473,9 @@ export class LiveWatchlistAuditArchivePersistence {
     for (const patch of patches) {
       archive = applyLiveWatchlistPatchToArchive(archive, patch, now);
     }
-    await this.saveAsync(archive);
-    return archive;
+    const pruned = pruneExpiredLiveWatchlistAuditSymbols(archive, now);
+    await this.saveAsync(pruned);
+    return pruned;
   }
 
   recordPayload(payload: LiveWatchlistAuditArchivePayload, now = Date.now()): LiveWatchlistAuditArchive {
@@ -465,8 +493,9 @@ export class LiveWatchlistAuditArchivePersistence {
       }, now),
       base,
     );
-    this.save(archived);
-    return archived;
+    const pruned = pruneExpiredLiveWatchlistAuditSymbols(archived, now);
+    this.save(pruned);
+    return pruned;
   }
 }
 
@@ -478,7 +507,7 @@ export class ArchivedLiveWatchlistPublisher implements LiveWatchlistPublisher {
   constructor(
     private readonly delegate: LiveWatchlistPublisher,
     private readonly archive = new LiveWatchlistAuditArchivePersistence(),
-    private readonly archiveFlushDelayMs = 1_000,
+    private readonly archiveFlushDelayMs = DEFAULT_LIVE_WATCHLIST_AUDIT_FLUSH_DELAY_MS,
   ) {}
 
   async publish(patch: LiveWatchlistCardPatch): Promise<void> {
@@ -532,6 +561,7 @@ export class ArchivedLiveWatchlistPublisher implements LiveWatchlistPublisher {
       this.archiveFlushTimer = null;
       void this.flushArchivePatches();
     }, Math.max(0, this.archiveFlushDelayMs));
+    this.archiveFlushTimer.unref();
   }
 
   private async flushArchivePatches(): Promise<void> {

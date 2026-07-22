@@ -24,6 +24,8 @@ export type RecentWebsiteArticle = {
   sourceUrl?: string;
   observedAt?: string;
   summary?: string;
+  positives?: string[];
+  negatives?: string[];
   sourceKind?: "traderslink_press_release_sec_database" | "stocktitan_rss";
 };
 
@@ -63,6 +65,14 @@ function normalizeOptionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function normalizeStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value
+        .map((item) => normalizeOptionalString(item))
+        .filter((item): item is string => Boolean(item))
+    : [];
+}
+
 function normalizeArticle(value: unknown, fallbackTicker: string): RecentWebsiteArticle | null {
   if (typeof value !== "object" || value === null) {
     return null;
@@ -85,6 +95,8 @@ function normalizeArticle(value: unknown, fallbackTicker: string): RecentWebsite
     sourceUrl: normalizeOptionalString(candidate.sourceUrl),
     observedAt: normalizeOptionalString(candidate.observedAt),
     summary: normalizeOptionalString(candidate.summary),
+    positives: normalizeStringList(candidate.positives),
+    negatives: normalizeStringList(candidate.negatives),
     sourceKind: "traderslink_press_release_sec_database",
   };
 }

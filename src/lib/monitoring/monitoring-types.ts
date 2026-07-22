@@ -328,6 +328,7 @@ export type WatchlistEntry = {
   discordThreadId?: string | null;
   lifecycle?: WatchlistLifecycleState;
   activatedAt?: number;
+  manualDeactivatedAt?: number;
   lastLevelPostAt?: number;
   lastExtensionPostAt?: number;
   lastPriceUpdateAt?: number;

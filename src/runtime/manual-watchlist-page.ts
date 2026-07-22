@@ -66,10 +66,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .activity-detail { color: #64748b; font-size: 12px; margin-top: 2px; }
     .notice { border: 1px solid #fde68a; background: #fffbeb; border-radius: 8px; color: #78350f; padding: 10px; font-size: 13px; margin-bottom: 12px; }
     .field-hint { color: #64748b; font-size: 12px; line-height: 1.4; margin: -6px 0 12px; }
-    .artifact-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
-    .artifact-card { border: 1px solid #dbe3ee; border-radius: 8px; padding: 10px; background: #fbfdff; }
-    .artifact-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-    .artifact-preview { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; background: #0f172a; color: #e2e8f0; border-radius: 6px; padding: 10px; }
     .danger { background: #b91c1c; }
     .secondary { background: #475569; }
     .quiet { background: #64748b; }
@@ -315,17 +311,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     </section>
 
     <section>
-      <h2>Monday Live Review</h2>
-      <div class="runtime-grid" id="monday-review-grid"></div>
-      <ul class="activity-list" id="monday-review-list"></ul>
-    </section>
-
-    <section>
-      <h2>Review Artifacts</h2>
-      <div class="artifact-list" id="artifact-list"></div>
-    </section>
-
-    <section>
       <h2>Runtime Config</h2>
       <div class="provider-control">
         <label for="historical-provider-select">Historical Candle Provider</label>
@@ -353,10 +338,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       <div class="runtime-grid" id="config-grid"></div>
     </section>
 
-    <section>
-      <h2>Activity</h2>
-      <ul class="activity-list" id="activity-list"></ul>
-    </section>
   </main>
 
   <script>
@@ -366,12 +347,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const runtimeGridEl = document.getElementById("runtime-grid");
     const providerHealthGridEl = document.getElementById("provider-health-grid");
     const restartReadinessListEl = document.getElementById("restart-readiness-list");
-    const mondayReviewGridEl = document.getElementById("monday-review-grid");
-    const mondayReviewListEl = document.getElementById("monday-review-list");
-    const artifactListEl = document.getElementById("artifact-list");
     const configGridEl = document.getElementById("config-grid");
     const aiNoticeEl = document.getElementById("ai-notice");
-    const activityListEl = document.getElementById("activity-list");
     const formEl = document.getElementById("watchlist-form");
     const activateButtonEl = formEl.querySelector('button[type="submit"]');
     const clearDiscordButtonEl = document.getElementById("clear-discord-button");
@@ -507,6 +484,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     let runtimeStatusHydrated = false;
     let dashboardRefreshTimer = null;
     const DASHBOARD_REFRESH_INTERVAL_MS = 5000;
+    const RUNTIME_DETAILS_REFRESH_INTERVAL_MS = 60000;
     const runtimeSettingsControlEls = [
       historicalProviderSelectEl,
       applyHistoricalProviderButtonEl,
@@ -766,7 +744,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       runtimeGridEl.innerHTML = "";
       renderWatchlistHealth(status);
       renderProviderHealth(status);
-      renderMondayReview(status);
 
       const health = status.runtimeHealth || {};
       const lastPrice = health.lastPriceUpdateAt
@@ -784,8 +761,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["IBKR", status.ibkrConnected ? "connected" : status.ibkrReconnecting ? "reconnecting" : "disconnected"],
         ["Provider", status.providerName],
         ["Last Price", lastPrice],
-        ["Last Discord Post", lastPost],
-        ["Last Discord Failure", lastDeliveryFailure],
+        ["Last Website Post", lastPost],
+        ["Last Website Failure", lastDeliveryFailure],
         ["Diagnostics", status.diagnosticsEnabled ? "on" : "off"],
         ["Active Count", String(status.activeSymbolCount ?? 0)],
         ["Session Folder", status.sessionDirectory],
@@ -887,69 +864,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           lifecycleLabel(item.levelStatus) +
           " | price " +
           lifecycleLabel(item.priceStatus) +
-          " | Discord " +
+          " | publication " +
           lifecycleLabel(item.discordStatus);
         detail.className = "activity-detail";
         detail.textContent = (item.reason || "readiness check") + priceAge + levelAge;
         body.appendChild(detail);
         row.appendChild(body);
         restartReadinessListEl.appendChild(row);
-      }
-    }
-
-    function renderMondayReview(status) {
-      const review = status.runtimeHealth?.mondayReview || {};
-      mondayReviewGridEl.innerHTML = "";
-      mondayReviewListEl.innerHTML = "";
-
-      const cards = [
-        ["Post Budget", lifecycleLabel(review.postBudgetStatus || "calm")],
-        ["Posts 15m", String(review.postsLast15m || 0)],
-        ["Critical 15m", String(review.criticalPostsLast15m || 0)],
-        ["Optional 15m", String(review.optionalPostsLast15m || 0)],
-        ["Last Why Posted", review.lastWhyPosted || ""],
-      ];
-      for (const [label, value] of cards) {
-        mondayReviewGridEl.appendChild(createRuntimeCard(label, value));
-      }
-
-      const checklist = review.checklist || [];
-      const symbolBudgets = review.symbolBudgets || [];
-      for (const symbolBudget of symbolBudgets) {
-        const item = document.createElement("li");
-        const body = document.createElement("div");
-        const detail = document.createElement("div");
-        body.className = "activity-message";
-        body.textContent =
-          symbolBudget.symbol +
-          ": " +
-          lifecycleLabel(symbolBudget.status) +
-          " | posts 15m " +
-          symbolBudget.postsLast15m +
-          " | critical " +
-          symbolBudget.criticalPostsLast15m +
-          " | optional " +
-          symbolBudget.optionalPostsLast15m;
-        detail.className = "activity-detail";
-        detail.textContent = "symbol post budget";
-        body.appendChild(detail);
-        item.appendChild(body);
-        mondayReviewListEl.appendChild(item);
-      }
-
-      if (checklist.length === 0) {
-        const empty = document.createElement("li");
-        empty.textContent = "No live review checklist yet";
-        mondayReviewListEl.appendChild(empty);
-        return;
-      }
-      for (const itemText of checklist) {
-        const item = document.createElement("li");
-        const body = document.createElement("div");
-        body.className = "activity-message";
-        body.textContent = itemText;
-        item.appendChild(body);
-        mondayReviewListEl.appendChild(item);
       }
     }
 
@@ -1494,103 +1415,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
-    function formatBytes(value) {
-      if (!value) {
-        return "";
-      }
-      if (value < 1024) {
-        return value + " B";
-      }
-      return Math.round(value / 1024) + " KB";
-    }
-
-    function renderReviewArtifacts(payload) {
-      artifactListEl.innerHTML = "";
-      const artifacts = payload.artifacts || [];
-      if (artifacts.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "notice";
-        empty.textContent = "No review artifact paths are configured.";
-        artifactListEl.appendChild(empty);
-        return;
-      }
-
-      for (const artifact of artifacts) {
-        const card = document.createElement("div");
-        const head = document.createElement("div");
-        const title = document.createElement("strong");
-        const meta = document.createElement("div");
-
-        card.className = "artifact-card";
-        head.className = "artifact-head";
-        title.textContent = artifact.name;
-        meta.className = "meta";
-        meta.textContent = artifact.exists
-          ? [formatBytes(artifact.sizeBytes), artifact.updatedAt ? "updated " + formatTime(artifact.updatedAt) : ""].filter(Boolean).join(" | ")
-          : "not generated yet";
-        if (artifact.readError) {
-          meta.textContent = "temporarily unavailable";
-        }
-        head.appendChild(title);
-        head.appendChild(createBadge(artifact.exists ? "ready" : "missing", artifact.exists ? "badge badge-active" : "badge"));
-        card.appendChild(head);
-        card.appendChild(meta);
-
-        if (artifact.preview) {
-          const preview = document.createElement("pre");
-          preview.className = "artifact-preview";
-          preview.textContent = artifact.preview;
-          card.appendChild(preview);
-        }
-
-        if (artifact.readError) {
-          const notice = document.createElement("div");
-          notice.className = "notice";
-          notice.textContent = "This review file is locked right now. Refresh again in a moment.";
-          card.appendChild(notice);
-        }
-
-        artifactListEl.appendChild(card);
-      }
-    }
-
-    function renderActivity(entries) {
-      activityListEl.innerHTML = "";
-      if (!entries || entries.length === 0) {
-        const empty = document.createElement("li");
-        empty.textContent = "No recent activity";
-        activityListEl.appendChild(empty);
-        return;
-      }
-
-      for (const entry of entries.slice(0, 25)) {
-        const item = document.createElement("li");
-        const time = document.createElement("div");
-        const body = document.createElement("div");
-        const message = document.createElement("div");
-
-        time.className = "activity-time";
-        body.className = "activity-message";
-        time.textContent = formatTime(entry.timestamp);
-        message.textContent = entry.message || lifecycleLabel(entry.event);
-        body.appendChild(message);
-
-        if (entry.threadId || entry.details?.reason) {
-          const detail = document.createElement("div");
-          detail.className = "activity-detail";
-          detail.textContent = [
-            entry.threadId ? "Discord thread ID: " + entry.threadId : "",
-            entry.details?.reason ? "reason: " + entry.details.reason : "",
-          ].filter(Boolean).join(" | ");
-          body.appendChild(detail);
-        }
-
-        item.appendChild(time);
-        item.appendChild(body);
-        activityListEl.appendChild(item);
-      }
-    }
-
     async function activateEntry(symbol, note, retry) {
       try {
         const response = await fetch("/api/watchlist/activate", {
@@ -1875,17 +1699,16 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderEntries(payload.activeEntries || []);
     }
 
-    async function loadRuntimeStatus() {
-      const payload = await fetchJson("/api/runtime/status");
+    let lastRuntimeDetailsLoadedAt = 0;
+
+    async function loadRuntimeStatus(includeDetails = false) {
+      const payload = await fetchJson("/api/runtime/status" + (includeDetails ? "" : "?compact=1"));
       setRuntimeStatusHydrated(true);
       renderRuntimeStatus(payload);
-      renderRuntimeConfig(payload);
-      renderActivity(payload.recentActivity || []);
-    }
-
-    async function loadReviewArtifacts() {
-      const payload = await fetchJson("/api/runtime/review-artifacts");
-      renderReviewArtifacts(payload);
+      if (includeDetails) {
+        renderRuntimeConfig(payload);
+        lastRuntimeDetailsLoadedAt = Date.now();
+      }
     }
 
     async function clearDiscordPosts() {
@@ -1918,8 +1741,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             " channel posts. Local thread memory reset."
         );
         await loadEntries();
-        await loadRuntimeStatus();
-        await loadReviewArtifacts();
+        await loadRuntimeStatus(true);
       } catch (error) {
         setStatus(String(error), true);
       } finally {
@@ -1964,8 +1786,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           " Discord posts and threads were kept."
         );
         await loadEntries();
-        await loadRuntimeStatus();
-        await loadReviewArtifacts();
+        await loadRuntimeStatus(true);
       } catch (error) {
         setStatus(String(error), true);
       } finally {
@@ -2513,8 +2334,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         symbolEl.value = "";
         noteEl.value = "";
         await loadEntries();
-        await loadRuntimeStatus();
-        await loadReviewArtifacts();
+        await loadRuntimeStatus(true);
       } catch (error) {
         setStatus("Activation refresh failed: " + String(error), true);
       } finally {
@@ -2569,14 +2389,23 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         clearTimeout(dashboardRefreshTimer);
         dashboardRefreshTimer = null;
       }
+      if (document.hidden) {
+        return;
+      }
       try {
-        await Promise.all([loadEntries(), loadRuntimeStatus(), loadReviewArtifacts()]);
+        const includeDetails = Date.now() - lastRuntimeDetailsLoadedAt >= RUNTIME_DETAILS_REFRESH_INTERVAL_MS;
+        await Promise.all([loadEntries(), loadRuntimeStatus(includeDetails)]);
       } catch (error) {
         setStatus(String(error), true);
       } finally {
         dashboardRefreshTimer = setTimeout(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS);
       }
     }
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        void refreshDashboard();
+      }
+    });
     void refreshDashboard();
   </script>
 </body>

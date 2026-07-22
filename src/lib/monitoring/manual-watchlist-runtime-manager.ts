@@ -82,6 +82,7 @@ import type {
   TradersLinkAiReadPayload,
 } from "../live-watchlist/live-watchlist-types.js";
 import type { LiveWatchlistPullbackVolumeRead } from "../live-watchlist/pullback-read.js";
+import type { TradersLinkAiLifecyclePlan } from "../live-watchlist/watchlist-lifecycle-status.js";
 import { resolveLiveWatchlistTradeSetupReadMode } from "../live-watchlist/trade-setup-read.js";
 import {
   buildTechnicalContextFromCandles,
@@ -266,6 +267,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
     text?: string;
     model?: string;
   } | void>) | null;
+  opportunityDiagnosticsEnabled?: boolean;
   now?: () => number;
 };
 
@@ -396,6 +398,47 @@ export function parseArchivedTradersLinkAiReadRefreshState(
     return recovered.upperBoundary !== null || recovered.lowerBoundary !== null
       ? recovered
       : null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseArchivedTradersLinkAiLifecyclePlan(
+  body: unknown,
+): TradersLinkAiLifecyclePlan | null {
+  if (typeof body !== "string" || body.trim().length === 0) return null;
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    const levelPrice = (value: unknown): number | null => {
+      const price = (value as { price?: unknown } | null)?.price;
+      return typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
+    };
+    const scenarioValid = (value: unknown): boolean => {
+      if (value === null) return true;
+      const scenario = value as Record<string, unknown>;
+      return ["zoneLow", "zoneHigh", "invalidationPrice"].every((key) =>
+        typeof scenario[key] === "number" && Number.isFinite(scenario[key]) && Number(scenario[key]) > 0
+      );
+    };
+    const recovery = parsed.failureRecovery as Record<string, unknown> | null;
+    const recoveryValid = recovery === null || (
+      typeof recovery === "object" &&
+      ["recoveryZoneLow", "recoveryZoneHigh", "firstReclaimPrice", "setupRestorePrice"].every((key) =>
+        typeof recovery[key] === "number" && Number.isFinite(recovery[key]) && Number(recovery[key]) > 0
+      )
+    );
+    const pullbackPlans = parsed.pullbackPlans as Record<string, unknown> | null;
+    if (
+      parsed.version !== 3 ||
+      levelPrice(parsed.momentumFailure) === null ||
+      !pullbackPlans ||
+      !scenarioValid(pullbackPlans.shallow) ||
+      !scenarioValid(pullbackPlans.deep) ||
+      !recoveryValid
+    ) {
+      return null;
+    }
+    return parsed as unknown as TradersLinkAiLifecyclePlan;
   } catch {
     return null;
   }
@@ -606,6 +649,22 @@ export type ManualWatchlistActivationInput = {
   preservedActivatedAt?: number;
 };
 
+export type ManualWatchlistDeactivationSource = "manual" | "auto";
+
+export const MANUAL_WATCHLIST_AUTO_READMISSION_COOLDOWN_MS = 4 * 60 * 60 * 1000;
+
+export function getManualWatchlistAutoReadmissionBlockedUntil(
+  entry: Pick<WatchlistEntry, "manualDeactivatedAt"> | undefined,
+  now: number,
+): number | null {
+  const manualDeactivatedAt = entry?.manualDeactivatedAt;
+  if (typeof manualDeactivatedAt !== "number" || !Number.isFinite(manualDeactivatedAt)) {
+    return null;
+  }
+  const blockedUntil = manualDeactivatedAt + MANUAL_WATCHLIST_AUTO_READMISSION_COOLDOWN_MS;
+  return now < blockedUntil ? blockedUntil : null;
+}
+
 function isSameNewYorkTradingDate(left: number | undefined, right: number): boolean {
   return typeof left === "number" &&
     newYorkDateKeyForTimestamp(left) === newYorkDateKeyForTimestamp(right);
@@ -709,12 +768,6 @@ export type ManualWatchlistRuntimeHealth = {
   stuckActivations: ManualWatchlistStuckActivation[];
   providerHealth: ManualWatchlistProviderHealth;
   aiCommentary: ManualWatchlistAiCommentaryHealth;
-  mondayReview: ManualWatchlistMondayReviewHealth;
-};
-
-export type ManualWatchlistActivityEntry = ManualWatchlistLifecycleEvent & {
-  id: number;
-  message: string;
 };
 
 export type ManualWatchlistAiCommentaryHealth = {
@@ -728,22 +781,6 @@ export type ManualWatchlistAiCommentaryHealth = {
   lastFailedSymbol: string | null;
   lastFailureMessage: string | null;
   route: "symbol_recaps_and_live_alert_ai_reads";
-};
-
-export type ManualWatchlistMondayReviewHealth = {
-  postBudgetStatus: "calm" | "busy" | "optional_heavy" | "needs_attention";
-  postsLast15m: number;
-  criticalPostsLast15m: number;
-  optionalPostsLast15m: number;
-  lastWhyPosted: string | null;
-  symbolBudgets: Array<{
-    symbol: string;
-    postsLast15m: number;
-    criticalPostsLast15m: number;
-    optionalPostsLast15m: number;
-    status: "calm" | "busy" | "optional_heavy";
-  }>;
-  checklist: string[];
 };
 
 export type ManualWatchlistProviderHealth = {
@@ -1184,12 +1221,18 @@ function volumeLabelForRatio(params: {
 
 function buildPullbackVolumeRead(
   candles: Candle[],
-  options: { nowMs?: number; timeframeMs?: number; minPartialElapsedMs?: number } = {},
+  options: {
+    nowMs?: number;
+    timeframeMs?: number;
+    minPartialElapsedMs?: number;
+    minBaselineBars?: number;
+  } = {},
 ): LiveWatchlistPullbackVolumeRead {
   const sorted = normalizePullbackCandles(candles);
   const latest = sorted.at(-1);
   const timeframeMs = Math.max(1, options.timeframeMs ?? 5 * 60 * 1000);
   const minPartialElapsedMs = Math.max(1, options.minPartialElapsedMs ?? 60 * 1000);
+  const minBaselineBars = Math.max(1, options.minBaselineBars ?? 10);
   const baselineCandles = sorted
     .slice(0, -1)
     .slice(-20)
@@ -1206,7 +1249,7 @@ function buildPullbackVolumeRead(
     };
   }
 
-  if (baseline.length < 10) {
+  if (baseline.length < minBaselineBars) {
     return {
       label: "unknown",
       currentVolume: Math.round(latest.volume),
@@ -1367,7 +1410,6 @@ const ACTIVATION_AUTO_RETRY_DELAY_MS = 90 * 1000;
 const ACTIVATION_MAX_AUTO_RETRIES = 1;
 const ACTIVATION_STUCK_WARNING_MS = 2 * 60 * 1000;
 const ACTIVATION_WATCHDOG_INTERVAL_MS = 15 * 1000;
-const MAX_ACTIVITY_ENTRIES = 80;
 const PRICE_UPDATE_PERSIST_INTERVAL_MS = 5 * 1000;
 const WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS = 2 * 1000;
 const WEBSITE_TECHNICAL_CONTEXT_PUBLISH_INTERVAL_MS = 30 * 1000;
@@ -2570,6 +2612,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly startupCacheFreshRefreshFailures = new Map<string, string>();
   private readonly aiReadInFlight = new Set<string>();
   private readonly aiReadState = new Map<string, TradersLinkAiReadRefreshState>();
+  private readonly aiReadLifecyclePlanBySymbol = new Map<string, TradersLinkAiLifecyclePlan>();
   private readonly aiReadInitialGenerationSuppressedSymbols = new Set<string>();
   private readonly pendingAutomaticAiReadSchedules = new Map<string, NodeJS.Timeout>();
   private tradersLinkAiReadDailyCostBudget = {
@@ -2599,9 +2642,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly fastLevelClearCoalesceMs: number;
   private readonly historicalLookbackBars: ManualWatchlistHistoricalLookbacks;
   private readonly postingPolicySettings: LiveThreadPostingPolicySettings;
-  private readonly recentActivity: ManualWatchlistActivityEntry[] = [];
   private monitoringRestartQueue: Promise<void> = Promise.resolve();
-  private activitySequence = 0;
   private readonly stuckActivationWarnings = new Set<string>();
   private activationWatchdogTimer: NodeJS.Timeout | null = null;
   private readonly pendingLevelTouchAlerts = new Map<string, NodeJS.Timeout>();
@@ -2634,6 +2675,15 @@ export class ManualWatchlistRuntimeManager {
   private readonly priorRegularCloseRefreshInFlight = new Set<string>();
   private readonly lastPriorRegularCloseRefreshAt = new Map<string, number>();
   private readonly technicalContextCandleStore = new LiveDerivedFiveMinuteCandleStore();
+  private readonly premarketVolumeTrackers = new Map<string, {
+    lastObservedAt: number;
+    lastCumulativeVolume: number;
+    bucketVolumeByTimestamp: Map<number, number>;
+  }>();
+  private readonly premarketVolumeReadBySymbol = new Map<string, {
+    observedAt: number;
+    read: LiveWatchlistPullbackVolumeRead;
+  }>();
   private readonly technicalContextProviderBySymbol = new Map<string, string | null>();
   private readonly technicalContextDataQualityFlagsBySymbol = new Map<string, string[]>();
   private readonly technicalContextBootstrapRetryTimers = new Map<string, NodeJS.Timeout>();
@@ -2644,7 +2694,6 @@ export class ManualWatchlistRuntimeManager {
   private lastThreadPostAt: number | null = null;
   private lastThreadPostSymbol: string | null = null;
   private lastThreadPostKind: LiveThreadPostKind | null = null;
-  private lastThreadPostReason: string | null = null;
   private lastDeliveryFailureAt: number | null = null;
   private lastDeliveryFailureSymbol: string | null = null;
   private lastDeliveryFailureMessage: string | null = null;
@@ -2764,94 +2813,6 @@ export class ManualWatchlistRuntimeManager {
     return { ...this.historicalLookbackBars };
   }
 
-  private formatLifecycleMessage(event: ManualWatchlistLifecycleEvent): string {
-    const symbolPrefix = event.symbol ? `${event.symbol}: ` : "";
-    const error = typeof event.details?.error === "string" ? event.details.error : null;
-    const source = typeof event.details?.source === "string" ? event.details.source : null;
-
-    switch (event.event) {
-      case "runtime_started":
-        return "Runtime started";
-      case "monitor_restart_completed":
-        return "Monitoring restarted";
-      case "thread_ready":
-        return `${symbolPrefix}Discord thread ready${source ? ` (${source})` : ""}`;
-      case "activation_queued":
-        return `${symbolPrefix}activation queued`;
-      case "activation_started":
-        return `${symbolPrefix}activation started`;
-      case "activation_stuck":
-        return `${symbolPrefix}activation is still waiting on level seeding`;
-      case "levels_seeded":
-        return `${symbolPrefix}levels seeded`;
-      case "activation_completed":
-        return `${symbolPrefix}activation completed`;
-      case "activation_retry_scheduled":
-        return `${symbolPrefix}auto retry scheduled`;
-      case "activation_marked_failed":
-      case "activation_failed":
-        return `${symbolPrefix}activation failed${error ? `: ${error}` : ""}`;
-      case "restore_started":
-        return `${symbolPrefix}startup restore started`;
-      case "restore_completed":
-        return `${symbolPrefix}startup restore completed`;
-      case "restore_skipped":
-        return `${symbolPrefix}startup restore skipped${error ? `: ${error}` : ""}`;
-      case "stock_context_posted":
-        return `${symbolPrefix}stock context posted`;
-      case "stock_context_post_failed":
-        return `${symbolPrefix}stock context post failed${error ? `: ${error}` : ""}`;
-      case "snapshot_posted":
-        return `${symbolPrefix}level snapshot posted`;
-      case "extension_posted":
-        return `${symbolPrefix}extension levels posted`;
-      case "alert_posted":
-        return `${symbolPrefix}alert posted`;
-      case "alert_suppressed":
-        return `${symbolPrefix}alert suppressed`;
-      case "alert_post_failed":
-        return `${symbolPrefix}alert post failed${error ? `: ${error}` : ""}`;
-      case "continuity_posted":
-        return `${symbolPrefix}continuity posted`;
-      case "continuity_post_failed":
-        return `${symbolPrefix}continuity post failed${error ? `: ${error}` : ""}`;
-      case "follow_through_posted":
-        return `${symbolPrefix}follow-through posted`;
-      case "follow_through_post_failed":
-        return `${symbolPrefix}follow-through post failed${error ? `: ${error}` : ""}`;
-      case "follow_through_state_posted":
-        return `${symbolPrefix}follow-through state posted`;
-      case "follow_through_state_post_failed":
-        return `${symbolPrefix}follow-through state post failed${error ? `: ${error}` : ""}`;
-      case "recap_posted":
-        return `${symbolPrefix}recap posted`;
-      case "recap_post_failed":
-        return `${symbolPrefix}recap post failed${error ? `: ${error}` : ""}`;
-      case "ai_commentary_generated":
-        return `${symbolPrefix}AI commentary generated`;
-      case "ai_commentary_failed":
-        return `${symbolPrefix}AI commentary failed${error ? `: ${error}` : ""}`;
-      case "deactivated":
-        return `${symbolPrefix}deactivated`;
-      case "restore_failed":
-        return `${symbolPrefix}restore failed${error ? `: ${error}` : ""}`;
-      default:
-        return `${symbolPrefix}${String(event.event).replace(/_/g, " ")}`;
-    }
-  }
-
-  private recordActivity(event: ManualWatchlistLifecycleEvent): void {
-    this.recentActivity.unshift({
-      ...event,
-      id: ++this.activitySequence,
-      message: this.formatLifecycleMessage(event),
-    });
-
-    if (this.recentActivity.length > MAX_ACTIVITY_ENTRIES) {
-      this.recentActivity.length = MAX_ACTIVITY_ENTRIES;
-    }
-  }
-
   private emitLifecycle(
     event: ManualWatchlistLifecycleEventName,
     payload: {
@@ -2868,7 +2829,6 @@ export class ManualWatchlistRuntimeManager {
       threadId: payload.threadId,
       details: payload.details,
     };
-    this.recordActivity(lifecycleEvent);
     this.options.lifecycleListener?.(lifecycleEvent);
   }
 
@@ -2909,6 +2869,15 @@ export class ManualWatchlistRuntimeManager {
             tradersLinkAiReadBoundaryState: recovered,
           });
         }
+      }
+      const archived = archivedBySymbol.get(entry.symbol) as
+        | { cards?: Record<string, { body?: unknown } | null> }
+        | undefined;
+      const lifecyclePlan = parseArchivedTradersLinkAiLifecyclePlan(
+        archived?.cards?.tradersLinkAiRead?.body,
+      );
+      if (lifecyclePlan) {
+        this.aiReadLifecyclePlanBySymbol.set(entry.symbol, lifecyclePlan);
       }
       if (state) {
         this.aiReadState.set(entry.symbol, state);
@@ -3289,6 +3258,7 @@ export class ManualWatchlistRuntimeManager {
         });
         throw error;
       }
+      this.aiReadLifecyclePlanBySymbol.set(symbol, read);
       this.acknowledgeTradersLinkAiReadPublication(read);
       return read;
     } finally {
@@ -5736,7 +5706,11 @@ export class ManualWatchlistRuntimeManager {
         provider: "yahoo",
         dataQualityFlags,
       });
-      const volumeRead = buildPullbackVolumeRead(fiveMinuteCandles, { nowMs: endTimeMs });
+      const volumeRead = this.resolveLiveVolumeRead(
+        symbol,
+        buildPullbackVolumeRead(fiveMinuteCandles, { nowMs: endTimeMs }),
+        endTimeMs,
+      );
       if (currentPrice !== null) {
         const timestamp = endTimeMs;
         this.publishWebsiteTechnicalContext({
@@ -6037,7 +6011,6 @@ export class ManualWatchlistRuntimeManager {
     this.lastThreadPostAt = params.timestamp;
     this.lastThreadPostSymbol = params.symbol;
     this.lastThreadPostKind = params.kind;
-    this.lastThreadPostReason = params.whyPosted ?? null;
     const patch: Partial<WatchlistEntry> = {
       lastThreadPostAt: params.timestamp,
       lastThreadPostKind: params.kind,
@@ -6084,77 +6057,6 @@ export class ManualWatchlistRuntimeManager {
       state.lastFailureMessage = null;
       this.deliveryPressureState.set(symbol, state);
     }
-  }
-
-  private buildMondayReviewHealth(): ManualWatchlistMondayReviewHealth {
-    const referenceTimestamp = Date.now();
-    let criticalPostsLast15m = 0;
-    let optionalPostsLast15m = 0;
-    const symbolBudgets: ManualWatchlistMondayReviewHealth["symbolBudgets"] = [];
-
-    for (const [symbol, state] of this.liveThreadPostState.entries()) {
-      const pruned = this.pruneLiveThreadPosts(symbol, referenceTimestamp);
-      const symbolCritical = pruned.critical.length;
-      const symbolOptional = pruned.optional.length;
-      const symbolTotal = symbolCritical + symbolOptional;
-      criticalPostsLast15m += symbolCritical;
-      optionalPostsLast15m += symbolOptional;
-      if (symbolTotal > 0) {
-        symbolBudgets.push({
-          symbol,
-          postsLast15m: symbolTotal,
-          criticalPostsLast15m: symbolCritical,
-          optionalPostsLast15m: symbolOptional,
-          status:
-            symbolTotal >= 6
-              ? "busy"
-              : symbolOptional >= 3 && symbolOptional > symbolCritical * 2
-                ? "optional_heavy"
-                : "calm",
-        });
-      }
-    }
-
-    const postsLast15m = criticalPostsLast15m + optionalPostsLast15m;
-    const stuckActivations = this.getStuckActivations(referenceTimestamp);
-    let postBudgetStatus: ManualWatchlistMondayReviewHealth["postBudgetStatus"] = "calm";
-    if (this.lastDeliveryFailureAt !== null || stuckActivations.length > 0) {
-      postBudgetStatus = "needs_attention";
-    } else if (postsLast15m >= 12) {
-      postBudgetStatus = "busy";
-    } else if (optionalPostsLast15m >= 4 && optionalPostsLast15m > criticalPostsLast15m * 2) {
-      postBudgetStatus = "optional_heavy";
-    }
-
-    const checklist = [
-      "Review trader-post-quality-report.md after the next live run.",
-      "Check all-symbol-stress-report.md for symbols above their post budget.",
-      "Spot-check any post with a missing next support or resistance reason.",
-    ];
-    if (postsLast15m >= 12) {
-      checklist.unshift("Post flow is busy; confirm the thread is telling one trade story, not level-by-level chatter.");
-    }
-    if (optionalPostsLast15m >= 4 && optionalPostsLast15m > criticalPostsLast15m * 2) {
-      checklist.unshift("Optional context is heavier than critical alerts; review recap and follow-through settings.");
-    }
-    if (stuckActivations.length > 0) {
-      checklist.unshift("Resolve stuck activations before trusting post-budget counts.");
-    }
-    if (this.lastDeliveryFailureAt !== null) {
-      checklist.unshift("Resolve the latest Discord delivery failure before judging signal quality.");
-    }
-
-    return {
-      postBudgetStatus,
-      postsLast15m,
-      criticalPostsLast15m,
-      optionalPostsLast15m,
-      lastWhyPosted: this.lastThreadPostReason,
-      symbolBudgets: symbolBudgets.sort(
-        (left, right) => right.postsLast15m - left.postsLast15m || left.symbol.localeCompare(right.symbol),
-      ).slice(0, 12),
-      checklist,
-    };
   }
 
   private getStuckActivations(timestamp: number = Date.now()): ManualWatchlistStuckActivation[] {
@@ -8981,7 +8883,7 @@ export class ManualWatchlistRuntimeManager {
       freshCriticalPosted: Boolean(alertResult.formatted),
       matchingEvent: event,
     });
-    if (snapshot.newOpportunity) {
+    if (snapshot.newOpportunity && this.options.opportunityDiagnosticsEnabled) {
       console.log(JSON.stringify(
         buildOpportunityDiagnosticsLogEntry("opportunity_snapshot", snapshot, {
           symbol: event.symbol,
@@ -9266,8 +9168,11 @@ export class ManualWatchlistRuntimeManager {
       suppressPosting: true,
     });
     if (
-      snapshot.completedEvaluations.length > 0 ||
-      snapshot.progressUpdates.length > 0
+      this.options.opportunityDiagnosticsEnabled &&
+      (
+        snapshot.completedEvaluations.length > 0 ||
+        snapshot.progressUpdates.length > 0
+      )
     ) {
       console.log(JSON.stringify(
         buildOpportunityDiagnosticsLogEntry("evaluation_update", snapshot, {
@@ -9779,10 +9684,102 @@ export class ManualWatchlistRuntimeManager {
     return this.watchlistStore.getActiveEntries();
   }
 
+  ingestPremarketVolumeSnapshots(
+    snapshots: Array<{ symbol: string; cumulativeVolume: number; observedAt: number }>,
+  ): void {
+    for (const snapshot of snapshots) {
+      const symbol = normalizeSymbol(snapshot.symbol);
+      const cumulativeVolume = Math.round(snapshot.cumulativeVolume);
+      const observedAt = snapshot.observedAt;
+      if (
+        !symbol ||
+        !Number.isFinite(cumulativeVolume) ||
+        cumulativeVolume <= 0 ||
+        !Number.isFinite(observedAt) ||
+        classifyUsEquityMarketSession(observedAt).session !== "premarket"
+      ) {
+        continue;
+      }
+
+      const prior = this.premarketVolumeTrackers.get(symbol);
+      if (!prior) {
+        this.premarketVolumeTrackers.set(symbol, {
+          lastObservedAt: observedAt,
+          lastCumulativeVolume: cumulativeVolume,
+          bucketVolumeByTimestamp: new Map(),
+        });
+        continue;
+      }
+      if (observedAt <= prior.lastObservedAt) {
+        continue;
+      }
+
+      const elapsedMs = observedAt - prior.lastObservedAt;
+      const delta = cumulativeVolume - prior.lastCumulativeVolume;
+      prior.lastObservedAt = observedAt;
+      prior.lastCumulativeVolume = cumulativeVolume;
+      if (delta < 0 || elapsedMs > 3 * 60 * 1000) {
+        prior.bucketVolumeByTimestamp.clear();
+        this.premarketVolumeReadBySymbol.delete(symbol);
+        continue;
+      }
+      const bucketTimestamp = Math.floor(observedAt / (5 * 60 * 1000)) * 5 * 60 * 1000;
+      if (delta > 0) {
+        prior.bucketVolumeByTimestamp.set(
+          bucketTimestamp,
+          (prior.bucketVolumeByTimestamp.get(bucketTimestamp) ?? 0) + delta,
+        );
+      }
+      for (const timestamp of prior.bucketVolumeByTimestamp.keys()) {
+        if (timestamp < observedAt - 2 * 60 * 60 * 1000) {
+          prior.bucketVolumeByTimestamp.delete(timestamp);
+        }
+      }
+
+      const volumeCandles: Candle[] = [...prior.bucketVolumeByTimestamp.entries()]
+        .sort(([left], [right]) => left - right)
+        .map(([timestamp, volume]) => ({
+          timestamp,
+          open: 1,
+          high: 1,
+          low: 1,
+          close: 1,
+          volume,
+        }));
+      if ((prior.bucketVolumeByTimestamp.get(bucketTimestamp) ?? 0) <= 0) {
+        continue;
+      }
+      const read = buildPullbackVolumeRead(volumeCandles, {
+        nowMs: observedAt,
+        minBaselineBars: 3,
+      });
+      if (read.label === "unknown" || read.relativeVolumeRatio === null) {
+        continue;
+      }
+      this.premarketVolumeReadBySymbol.set(symbol, { observedAt, read });
+
+      const entry = this.watchlistStore.getEntry(symbol);
+      const technicalContext = this.technicalContextBySymbol.get(symbol);
+      const currentPrice = this.currentTechnicalContextPrice(symbol, null);
+      if (entry?.active && technicalContext && currentPrice !== null) {
+        this.publishWebsitePullbackTraderRead({
+          symbol,
+          timestamp: observedAt,
+          currentPrice,
+          technicalContext: refreshTechnicalContextForPrice(technicalContext, currentPrice),
+          volumeRead: read,
+        });
+      }
+    }
+  }
+
   async setAutoWatchlistFollowup(
     symbolInput: string,
     followup: boolean,
-    options: { reversalWatchEligible?: boolean } = {},
+    options: {
+      reversalWatchEligible?: boolean;
+      reversalWatchAttemptReady?: boolean;
+    } = {},
   ): Promise<WatchlistEntry> {
     const symbol = normalizeSymbol(symbolInput);
     const existing = this.watchlistStore.getEntry(symbol);
@@ -9794,12 +9791,19 @@ export class ManualWatchlistRuntimeManager {
       tags.add("auto-followup");
       if (options.reversalWatchEligible === true) {
         tags.add("auto-reversal-watch");
+        if (options.reversalWatchAttemptReady === true) {
+          tags.add("auto-reversal-attempt-ready");
+        } else {
+          tags.delete("auto-reversal-attempt-ready");
+        }
       } else {
         tags.delete("auto-reversal-watch");
+        tags.delete("auto-reversal-attempt-ready");
       }
     } else {
       tags.delete("auto-followup");
       tags.delete("auto-reversal-watch");
+      tags.delete("auto-reversal-attempt-ready");
     }
     const entry = this.watchlistStore.patchEntry(symbol, {
       tags: [...tags],
@@ -9813,6 +9817,8 @@ export class ManualWatchlistRuntimeManager {
         updatedAt: Date.now(),
         watchlistSlotState: followup ? "followup" : "active",
         reversalWatchEligible: followup && options.reversalWatchEligible === true,
+        reversalWatchAttemptReady:
+          followup && options.reversalWatchAttemptReady === true,
         reversalWatchlistVisible: this.reversalWatchlistVisible,
       }));
     }
@@ -9940,10 +9946,6 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
-  getRecentActivity(limit = 30): ManualWatchlistActivityEntry[] {
-    return this.recentActivity.slice(0, Math.max(0, limit));
-  }
-
   getRuntimeHealth(): ManualWatchlistRuntimeHealth {
     const lifecycleCounts: Record<WatchlistLifecycleState, number> = {
       inactive: 0,
@@ -10000,7 +10002,6 @@ export class ManualWatchlistRuntimeManager {
         lastFailureMessage: this.lastAiCommentaryFailureMessage,
         route: "symbol_recaps_and_live_alert_ai_reads",
       },
-      mondayReview: this.buildMondayReviewHealth(),
     };
   }
 
@@ -10186,6 +10187,15 @@ export class ManualWatchlistRuntimeManager {
   ): Promise<WatchlistEntry> {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.watchlistStore.getEntry(symbol);
+    const now = this.options.now?.() ?? Date.now();
+    const autoReadmissionBlockedUntil = input.source === "auto"
+      ? getManualWatchlistAutoReadmissionBlockedUntil(existing, now)
+      : null;
+    if (autoReadmissionBlockedUntil !== null) {
+      throw new Error(
+        `${symbol} cannot be automatically re-added until ${new Date(autoReadmissionBlockedUntil).toISOString()} after manual deactivation.`,
+      );
+    }
     if (existing?.active && existing.lifecycle === "active") {
       return existing;
     }
@@ -10307,6 +10317,7 @@ export class ManualWatchlistRuntimeManager {
       const activatedEntry = this.watchlistStore.patchEntry(symbol, {
         active: true,
         lifecycle: "active",
+        manualDeactivatedAt: undefined,
         refreshPending: false,
         lastError: null,
         operationStatus: "monitoring live price",
@@ -10531,6 +10542,7 @@ export class ManualWatchlistRuntimeManager {
       firstPostedAt: this.watchlistStore.getEntry(symbol)?.activatedAt ?? timestamp,
       watchlistSlotState: "active",
       reversalWatchEligible: false,
+      reversalWatchAttemptReady: false,
       reversalWatchlistVisible: this.reversalWatchlistVisible,
       ...(preserveExistingOnReactivation ? { preserveExistingOnReactivation: true } : {}),
     });
@@ -10786,13 +10798,15 @@ export class ManualWatchlistRuntimeManager {
   }): void {
     const pullbackReadEnabled = this.pullbackReadEnabled();
     const tradeSetupReadMode = resolveLiveWatchlistTradeSetupReadMode();
-    const aiReadCardVisible =
-      this.watchlistStore.getEntry(args.symbol)?.tradersLinkAiReadCardVisible !== false;
+    const watchlistEntry = this.watchlistStore.getEntry(args.symbol);
+    const aiReadCardVisible = watchlistEntry?.tradersLinkAiReadCardVisible !== false;
+    const reversalWatchEntry = watchlistEntry?.tags.includes("auto-reversal-watch") === true;
     if (
       !this.liveWatchlistPublisher ||
       (!pullbackReadEnabled && tradeSetupReadMode === "off") ||
       (!this.liveTraderReadCardVisible &&
         !this.watchlistLifecycleLabelsVisible &&
+        !reversalWatchEntry &&
         !aiReadCardVisible)
     ) {
       return;
@@ -10826,10 +10840,11 @@ export class ManualWatchlistRuntimeManager {
       tradeSetupThesisRead: this.tradeSetupThesisReadBySymbol.get(args.symbol) ?? null,
       marketStructure: this.getMarketStructureSnapshot(args.symbol),
       pullbackReadEnabled,
-      includeLifecycle: this.watchlistLifecycleLabelsVisible,
+      includeLifecycle: this.watchlistLifecycleLabelsVisible || reversalWatchEntry,
       tradeSetupReadMode,
       specialLevels: this.resolveWebsiteSpecialLevels(args.symbol, levelsOutput),
       priorRegularClosePrice: priorRegularClose?.price ?? null,
+      aiRead: this.aiReadLifecyclePlanBySymbol.get(args.symbol) ?? null,
       dataQuality: {
         status: levelCoverage,
         availableTimeframes: [...availableTimeframes],
@@ -10863,6 +10878,25 @@ export class ManualWatchlistRuntimeManager {
         `[ManualWatchlistRuntimeManager] Failed to publish pullback trader read for ${args.symbol}: ${message}`,
       );
     });
+  }
+
+  private resolveLiveVolumeRead(
+    symbol: string,
+    fallback: LiveWatchlistPullbackVolumeRead | null,
+    timestamp: number,
+  ): LiveWatchlistPullbackVolumeRead | null {
+    if (fallback && fallback.label !== "unknown" && fallback.relativeVolumeRatio !== null) {
+      return fallback;
+    }
+    const premarketRead = this.premarketVolumeReadBySymbol.get(symbol);
+    if (
+      classifyUsEquityMarketSession(timestamp).session === "premarket" &&
+      premarketRead &&
+      timestamp - premarketRead.observedAt <= 6 * 60 * 1000
+    ) {
+      return premarketRead.read;
+    }
+    return null;
   }
 
   private refreshPriorRegularClose(symbolInput: string, timestamp = Date.now()): void {
@@ -10993,12 +11027,17 @@ export class ManualWatchlistRuntimeManager {
     this.publishWebsiteTechnicalContext(update);
     const technicalContext = this.technicalContextBySymbol.get(update.symbol);
     if (technicalContext) {
-      const liveVolumeRead =
+      const yahooLiveVolumeRead =
         typeof update.volume === "number" && Number.isFinite(update.volume) && update.volume > 0
           ? buildPullbackVolumeRead(this.technicalContextCandleStore.getCandles(update.symbol), {
               nowMs: update.timestamp,
             })
           : null;
+      const liveVolumeRead = this.resolveLiveVolumeRead(
+        update.symbol,
+        yahooLiveVolumeRead,
+        update.timestamp,
+      );
       this.publishWebsitePullbackTraderRead({
         symbol: update.symbol,
         timestamp: update.timestamp,
@@ -11113,6 +11152,14 @@ export class ManualWatchlistRuntimeManager {
     const existing = this.watchlistStore.getEntry(symbol);
     const pending = this.pendingActivations.get(symbol);
     const queuedAt = Date.now();
+    const autoReadmissionBlockedUntil = input.source === "auto"
+      ? getManualWatchlistAutoReadmissionBlockedUntil(existing, this.options.now?.() ?? queuedAt)
+      : null;
+    if (autoReadmissionBlockedUntil !== null) {
+      throw new Error(
+        `${symbol} cannot be automatically re-added until ${new Date(autoReadmissionBlockedUntil).toISOString()} after manual deactivation.`,
+      );
+    }
     const reuseExistingSameDayContext = shouldReuseSameDayActivationContext({
       entry: existing,
       activation: input,
@@ -11353,8 +11400,12 @@ export class ManualWatchlistRuntimeManager {
     return entry;
   }
 
-  async deactivateSymbols(symbolInputs: string[]): Promise<WatchlistEntry[]> {
+  async deactivateSymbols(
+    symbolInputs: string[],
+    options: { source?: ManualWatchlistDeactivationSource } = {},
+  ): Promise<WatchlistEntry[]> {
     const normalizedSymbols = [...new Set(symbolInputs.map(normalizeSymbol).filter(Boolean))];
+    const deactivatedAt = this.options.now?.() ?? Date.now();
     const entries = normalizedSymbols
       .map((symbol) => this.prepareSymbolDeactivation(symbol))
       .filter((entry): entry is WatchlistEntry => entry !== null);
@@ -11362,7 +11413,11 @@ export class ManualWatchlistRuntimeManager {
       return [];
     }
 
-    const deactivatedAt = Date.now();
+    if (options.source !== "auto") {
+      for (const entry of entries) {
+        this.watchlistStore.patchEntry(entry.symbol, { manualDeactivatedAt: deactivatedAt });
+      }
+    }
     this.persistMarketStructureStoryMemory();
     this.persistWatchlist();
     for (const entry of entries) {
@@ -11374,15 +11429,22 @@ export class ManualWatchlistRuntimeManager {
         symbol: entry.symbol,
         threadId: entry.discordThreadId ?? null,
         details: {
-          reason: entries.length > 1 ? "bulk watchlist removal" : "manual watchlist removal",
+          reason: options.source === "auto"
+            ? "automatic watchlist removal"
+            : entries.length > 1
+              ? "bulk watchlist removal"
+              : "manual watchlist removal",
         },
       });
     }
-    return entries;
+    return entries.map((entry) => this.watchlistStore.getEntry(entry.symbol) ?? entry);
   }
 
-  async deactivateSymbol(symbol: string): Promise<WatchlistEntry | null> {
-    return (await this.deactivateSymbols([symbol]))[0] ?? null;
+  async deactivateSymbol(
+    symbol: string,
+    options: { source?: ManualWatchlistDeactivationSource } = {},
+  ): Promise<WatchlistEntry | null> {
+    return (await this.deactivateSymbols([symbol], options))[0] ?? null;
   }
 
   async resetDiscordThreadState(): Promise<{
@@ -11466,7 +11528,6 @@ export class ManualWatchlistRuntimeManager {
     this.lastThreadPostAt = null;
     this.lastThreadPostSymbol = null;
     this.lastThreadPostKind = null;
-    this.lastThreadPostReason = null;
     this.lastDeliveryFailureAt = null;
     this.lastDeliveryFailureSymbol = null;
     this.lastDeliveryFailureMessage = null;

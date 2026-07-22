@@ -85,6 +85,7 @@ function coalesceQueuedTickerData(
 
 export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
   private operationQueue: Promise<void> = Promise.resolve();
+  private persistedEntries: OutboxEntry[] | null = null;
   private readonly pendingTickerDataBySymbol = new Map<string, PendingTickerDataPublication>();
   private tickerDataDrainScheduled = false;
   private sequence = 0;
@@ -148,18 +149,20 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
     }
     this.tickerDataDrainScheduled = true;
     void this.serialize(async () => {
-      const batch = [...this.pendingTickerDataBySymbol.values()];
-      this.pendingTickerDataBySymbol.clear();
-      for (const item of batch) {
-        try {
-          await this.persistAndFlush(item.payload);
-          for (const waiter of item.waiters) {
-            waiter.resolve();
-          }
-        } catch (error) {
-          for (const waiter of item.waiters) {
-            waiter.reject(error);
-          }
+      const next = this.pendingTickerDataBySymbol.entries().next().value as
+        | [string, PendingTickerDataPublication]
+        | undefined;
+      if (!next) return;
+      const [symbol, item] = next;
+      this.pendingTickerDataBySymbol.delete(symbol);
+      try {
+        await this.persistAndFlush(item.payload);
+        for (const waiter of item.waiters) {
+          waiter.resolve();
+        }
+      } catch (error) {
+        for (const waiter of item.waiters) {
+          waiter.reject(error);
         }
       }
     }).finally(() => {
@@ -221,15 +224,21 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
   }
 
   private load(): OutboxEntry[] {
+    if (this.persistedEntries) {
+      return this.persistedEntries;
+    }
     try {
-      return parseEntries(readFileSync(this.filePath, "utf8"));
+      return (this.persistedEntries = parseEntries(readFileSync(this.filePath, "utf8")));
     } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+        return (this.persistedEntries = []);
+      }
       throw error;
     }
   }
 
   private save(entries: OutboxEntry[]): Promise<void> {
+    this.persistedEntries = entries;
     return writeFileAtomically(this.filePath, `${JSON.stringify(entries)}\n`);
   }
 }

@@ -3,6 +3,9 @@ import type { TechnicalContextConfidence } from "../technical-context/technical-
 import type {
   LiveWatchlistLifecycleRead,
   LiveWatchlistLevelMap,
+  TradersLinkAiReadFailureRecoveryPlan,
+  TradersLinkAiReadPayload,
+  TradersLinkAiReadPullbackScenario,
 } from "./live-watchlist-types.js";
 import type {
   LiveWatchlistPullbackReadPhase,
@@ -30,7 +33,14 @@ export type LiveWatchlistLifecycleEvidence = {
   tradeSetupStateBeforeBlockers?: string | null;
   stableFiveMinuteState?: string | null;
   fiveMinuteStructure?: StableMarketStructureRuntimeContext | null;
+  currentPrice?: number | null;
+  aiRead?: TradersLinkAiLifecyclePlan | null;
 };
+
+export type TradersLinkAiLifecyclePlan = Pick<
+  TradersLinkAiReadPayload,
+  "version" | "needsToHold" | "momentumFailure" | "pullbackPlans" | "failureRecovery"
+>;
 
 function read(
   status: LiveWatchlistLifecycleRead["status"],
@@ -105,9 +115,154 @@ function pullbackQualificationReason(
   return null;
 }
 
+function scenarioLifecycleRead(
+  scenario: TradersLinkAiReadPullbackScenario,
+  scenarioName: "shallow" | "deep",
+  currentPrice: number,
+  updatedAt: number,
+): LiveWatchlistLifecycleRead | null {
+  if (currentPrice <= scenario.invalidationPrice || currentPrice > scenario.zoneHigh) {
+    return null;
+  }
+  const name = scenarioName === "shallow" ? "shallow momentum" : "deep reset";
+  return read(
+    "pullback_watch",
+    "Pullback Watch",
+    currentPrice >= scenario.zoneLow
+      ? `Price is testing the AI Read's ${name} pullback zone; buyer defense and the published confirmation are still required.`
+      : `Price is below the AI Read's ${name} pullback zone but above its invalidation; a new base and reclaim are required.`,
+    updatedAt,
+  );
+}
+
+function hasRecoveryBase(
+  recovery: TradersLinkAiReadFailureRecoveryPlan,
+  structure: StableMarketStructureRuntimeContext | null | undefined,
+): boolean {
+  if (
+    !structure ||
+    structure.candleCount < 12 ||
+    (structure.rawRunLength ?? 0) < 2
+  ) {
+    return false;
+  }
+  const basePrice = typeof structure.latestSwingLow === "number" && Number.isFinite(structure.latestSwingLow)
+    ? structure.latestSwingLow
+    : typeof structure.activeRangeLow === "number" && Number.isFinite(structure.activeRangeLow)
+      ? structure.activeRangeLow
+      : null;
+  return basePrice !== null &&
+    basePrice >= recovery.recoveryZoneLow &&
+    basePrice <= recovery.recoveryZoneHigh;
+}
+
+function deriveAiReadLifecycleRead(
+  evidence: LiveWatchlistLifecycleEvidence,
+  currentPrice: number,
+): LiveWatchlistLifecycleRead {
+  const aiRead = evidence.aiRead!;
+  const momentumFailure = aiRead.momentumFailure.price;
+  const recovery = aiRead.failureRecovery;
+  const stableState = evidence.stableFiveMinuteState ?? "";
+
+  if (momentumFailure !== null && currentPrice <= momentumFailure) {
+    if (!recovery) {
+      return read(
+        "monitoring",
+        "Analysis Pending",
+        "Price is below the AI Read's momentum-failure boundary, but no evidence-backed recovery setup is available.",
+        evidence.evaluatedAt,
+      );
+    }
+    const baseConfirmed = hasRecoveryBase(recovery, evidence.fiveMinuteStructure);
+    const reclaimStructure = RECOVERY_ATTEMPT_STRUCTURE_STATES.has(stableState);
+    if (
+      baseConfirmed &&
+      reclaimStructure &&
+      currentPrice >= recovery.firstReclaimPrice
+    ) {
+      if (currentPrice >= recovery.setupRestorePrice && stableState === "reclaim_confirmed") {
+        return read(
+          "active",
+          "Momentum Holding",
+          "A new base formed in the AI recovery area and price confirmed the published setup-restoration reclaim.",
+          evidence.evaluatedAt,
+        );
+      }
+      return read(
+        "recovery_attempt",
+        "Recovery Attempt",
+        `A new base formed in the AI recovery area and price reclaimed the published ${recovery.firstReclaimPrice} recovery trigger.`,
+        evidence.evaluatedAt,
+      );
+    }
+    if (
+      currentPrice >= recovery.recoveryZoneLow &&
+      currentPrice <= recovery.firstReclaimPrice
+    ) {
+      return read(
+        "recovery_watch",
+        "Recovery Watch",
+        `Price is near the AI Read's ${recovery.recoveryZoneLow}-${recovery.recoveryZoneHigh} recovery-watch area; a new base and reclaim of ${recovery.firstReclaimPrice} are required.`,
+        evidence.evaluatedAt,
+      );
+    }
+    if (
+      FADING_VOLUME_LABELS.has(evidence.volumeLabel) &&
+      BROKEN_STRUCTURE_STATES.has(stableState)
+    ) {
+      return read(
+        "setup_fading",
+        "Setup Fading",
+        "The momentum setup failed outside its mapped recovery sequence while participation and five-minute structure deteriorated.",
+        evidence.evaluatedAt,
+      );
+    }
+    return read(
+      "monitoring",
+      "Analysis Pending",
+      currentPrice > recovery.firstReclaimPrice
+        ? `Price is above the published ${recovery.firstReclaimPrice} recovery trigger, but a new base in the recovery area has not been confirmed.`
+        : "The momentum setup failed and price is outside the AI Read's recovery-watch area.",
+      evidence.evaluatedAt,
+    );
+  }
+
+  const shallowRead = aiRead.pullbackPlans.shallow
+    ? scenarioLifecycleRead(aiRead.pullbackPlans.shallow, "shallow", currentPrice, evidence.evaluatedAt)
+    : null;
+  if (shallowRead) return shallowRead;
+  const deepRead = aiRead.pullbackPlans.deep
+    ? scenarioLifecycleRead(aiRead.pullbackPlans.deep, "deep", currentPrice, evidence.evaluatedAt)
+    : null;
+  if (deepRead) return deepRead;
+
+  const needsToHold = aiRead.needsToHold.price;
+  if (needsToHold !== null && currentPrice < needsToHold) {
+    return read(
+      "monitoring",
+      "Analysis Pending",
+      "Price is below the AI Read's needs-to-hold boundary but has not entered an active pullback or recovery setup.",
+      evidence.evaluatedAt,
+    );
+  }
+  return read(
+    "active",
+    "Momentum Holding",
+    "Live price remains above the AI Read's active momentum and pullback boundaries.",
+    evidence.evaluatedAt,
+  );
+}
+
 export function deriveLiveWatchlistLifecycleRead(
   evidence: LiveWatchlistLifecycleEvidence,
 ): LiveWatchlistLifecycleRead {
+  const currentPrice = typeof evidence.currentPrice === "number" && Number.isFinite(evidence.currentPrice)
+    ? evidence.currentPrice
+    : evidence.levelMap?.currentPrice ?? null;
+  if (evidence.aiRead?.version === 3 && currentPrice !== null) {
+    return deriveAiReadLifecycleRead(evidence, currentPrice);
+  }
   const structureAge = evidence.structureUpdatedAt === null
     ? Number.POSITIVE_INFINITY
     : evidence.evaluatedAt - evidence.structureUpdatedAt;

@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
@@ -57,16 +57,14 @@ import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
 import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
 import { createDailyWatchlistRecapServiceFromEnv } from "../lib/live-watchlist/daily-watchlist-recap.js";
 import { resolveLiveWatchlistPullbackReadEnabled } from "../lib/live-watchlist/pullback-read.js";
-import type {
-  LiveWatchlistMarketDataStatus,
-  LiveWatchlistPublisher,
-} from "../lib/live-watchlist/live-watchlist-types.js";
+import type { LiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-types.js";
 import {
   LOCAL_BIND_HOST,
   RequestBodyParseError,
   readJsonBody,
   sendJson,
 } from "./manual-watchlist-http.js";
+import { resolveMarketDataStatus } from "./manual-watchlist-market-data-status.js";
 import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
 import { TRADE_PLAN_REVIEW_PAGE } from "./trade-plan-review-page.js";
 import { AI_CLEAN_READ_PAGE } from "./ai-clean-read-page.js";
@@ -117,51 +115,6 @@ const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
 const DEFAULT_MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS = 90_000;
 const DEFAULT_MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS = 5000;
 const DEFAULT_EODHD_MANUAL_WATCHLIST_4H_LOOKBACK = 900;
-const REVIEW_ARTIFACT_FILES = [
-  "session-review.md",
-  "thread-post-policy-report.md",
-  "long-run-tuning-suggestions.md",
-  "live-post-replay-simulation.md",
-  "live-post-profile-comparison.md",
-  "runner-story-report.md",
-  "trader-story-quality-review.md",
-  "trader-story-quality-review.json",
-  "trader-post-quality-report.md",
-  "post-reason-audit.md",
-  "known-bad-post-patterns.md",
-  "all-symbol-stress-report.md",
-  "trader-usefulness-replay-score.md",
-  "trader-usefulness-replay-score.json",
-  "daily-trader-review.md",
-  "daily-trader-review.html",
-  "daily-trader-review.json",
-  "end-of-day-symbol-verdict.md",
-  "end-of-day-symbol-verdict.json",
-  "missed-meaningful-move-audit.md",
-  "missed-meaningful-move-audit.json",
-  "session-behavior-audit.md",
-  "session-behavior-audit.json",
-  "market-structure-delivery-audit.md",
-  "market-structure-delivery-audit.json",
-  "market-structure-calibration.md",
-  "market-structure-calibration.json",
-  "market-structure-outcome-calibration.md",
-  "market-structure-outcome-calibration.json",
-  "market-structure-lifecycle.jsonl",
-  "watchlist-lifecycle-events.jsonl",
-  "market-structure-story-memory.json",
-  "snapshot-audit-report.md",
-  "live-post-replay-simulation.json",
-  "live-post-profile-comparison.json",
-  "runner-story-report.json",
-  "thread-clutter-report.json",
-  "thread-summaries.json",
-  "discord-delivery-audit.jsonl",
-  "trade-plan-review-notes.jsonl",
-  "ai-clean-read-records.jsonl",
-  "ai-clean-read-comments.jsonl",
-] as const;
-
 type DiscordMessage = {
   id: string;
   content?: string;
@@ -337,40 +290,6 @@ function resolveManualWatchlistHistoricalLookbacks(
   };
 }
 
-function resolveMarketDataStatus(args: {
-  liveProviderName: LivePriceProviderName;
-  startupState: "booting" | "ready" | "error";
-  ibkrConnected: boolean;
-  ibkrReconnecting: boolean;
-  priceFeedStatus?: "live" | "stale" | "waiting" | "closed";
-}): LiveWatchlistMarketDataStatus {
-  if (args.startupState === "error") {
-    return "offline";
-  }
-  if (args.startupState === "booting") {
-    return "starting";
-  }
-
-  if (args.liveProviderName === "eodhd") {
-    if (args.priceFeedStatus === "closed") {
-      // The session ended normally; keep the external provider-health contract healthy.
-      return "live";
-    }
-    if (args.priceFeedStatus === "live" || args.priceFeedStatus === "stale") {
-      return args.priceFeedStatus;
-    }
-    return "starting";
-  }
-
-  if (args.ibkrConnected) {
-    return "live";
-  }
-  if (args.ibkrReconnecting) {
-    return "offline";
-  }
-  return "offline";
-}
-
 function publishLiveWatchlistHealth(args: {
   publisher: LiveWatchlistPublisher | null;
   manager: ManualWatchlistRuntimeManager;
@@ -401,67 +320,6 @@ function publishLiveWatchlistHealth(args: {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[ManualWatchlistRuntime] Failed to publish live watchlist health: ${message}`);
     });
-}
-
-function readReviewArtifacts(sessionDirectory: string | null): Array<{
-  name: string;
-  exists: boolean;
-  sizeBytes: number | null;
-  updatedAt: number | null;
-  preview: string | null;
-  readError: string | null;
-}> {
-  if (!sessionDirectory) {
-    return REVIEW_ARTIFACT_FILES.map((name) => ({
-      name,
-      exists: false,
-      sizeBytes: null,
-      updatedAt: null,
-      preview: null,
-      readError: null,
-    }));
-  }
-
-  return REVIEW_ARTIFACT_FILES.map((name) => {
-    const path = join(sessionDirectory, name);
-    if (!existsSync(path)) {
-      return {
-        name,
-        exists: false,
-        sizeBytes: null,
-        updatedAt: null,
-        preview: null,
-        readError: null,
-      };
-    }
-
-    try {
-      const stats = statSync(path);
-      const isPreviewable = name.endsWith(".md") || name.endsWith(".json");
-      const preview = isPreviewable
-        ? readFileSync(path, "utf8").slice(0, 1800)
-        : null;
-      return {
-        name,
-        exists: true,
-        sizeBytes: stats.size,
-        updatedAt: stats.mtimeMs,
-        preview,
-        readError: null,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[ManualWatchlistRuntime] Review artifact ${name} is temporarily unreadable: ${message}`);
-      return {
-        name,
-        exists: true,
-        sizeBytes: null,
-        updatedAt: null,
-        preview: null,
-        readError: message,
-      };
-    }
-  });
 }
 
 function delay(ms: number): Promise<void> {
@@ -863,6 +721,7 @@ async function main(): Promise<void> {
     pullbackReadEnabled,
     recentIntradayCandleFetchService,
     tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
+    opportunityDiagnosticsEnabled: monitoringEventDiagnosticsEnabled,
     autoCleanReadGenerator: aiCleanReadService
       ? async (input) => {
           const result = await aiCleanReadService.generateCleanRead(input);
@@ -884,9 +743,10 @@ async function main(): Promise<void> {
     })),
     isRuntimeReady: () => startupState === "ready" && manager.getRuntimeHealth().isStarted,
     activateSymbol: (input) => manager.queueActivation(input),
-    deactivateSymbol: (symbol) => manager.deactivateSymbol(symbol),
+    deactivateSymbol: (symbol) => manager.deactivateSymbol(symbol, { source: "auto" }),
     setSymbolFollowup: (symbol, followup, options) =>
       manager.setAutoWatchlistFollowup(symbol, followup, options),
+    onPremarketVolumeSnapshot: (snapshots) => manager.ingestPremarketVolumeSnapshots(snapshots),
   });
   const liveWatchlistHealthPublisher = liveWatchlistPublisher;
   const liveWatchlistHealthTimer = setInterval(() => {
@@ -1061,8 +921,9 @@ async function main(): Promise<void> {
     }
 
     if (request.method === "GET" && url.pathname === "/api/runtime/status") {
+      const compact = url.searchParams.get("compact") === "1";
       const runtimeHealth = manager.getRuntimeHealth();
-      const aiReadCostSnapshot = manager.getTradersLinkAiReadCostSnapshot();
+      const aiReadCostSnapshot = compact ? null : manager.getTradersLinkAiReadCostSnapshot();
       sendJson(response, 200, {
         providerName: candleService.getProviderName(),
         diagnosticsEnabled: monitoringEventDiagnosticsEnabled,
@@ -1072,8 +933,12 @@ async function main(): Promise<void> {
         aiReadModel: tradersLinkAiReadService?.getConfiguredModel() ?? null,
         aiReadReasoningEffort: tradersLinkAiReadService?.getReasoningEffort() ?? null,
         aiReadDailyCostBudget: manager.getTradersLinkAiReadDailyCostBudget(),
-        aiReadDailyCostBudgetStatus: aiReadCostSnapshot.dailyCostBudgetStatus,
-        aiReadCostSummary: aiReadCostSnapshot.summary,
+        ...(aiReadCostSnapshot
+          ? {
+              aiReadDailyCostBudgetStatus: aiReadCostSnapshot.dailyCostBudgetStatus,
+              aiReadCostSummary: aiReadCostSnapshot.summary,
+            }
+          : {}),
         runtimeConfig: {
           bindHost: LOCAL_BIND_HOST,
           port: PORT,
@@ -1118,8 +983,7 @@ async function main(): Promise<void> {
         ibkrConnected: isIbkrConnected(ib),
         ibkrReconnecting: isIbkrReconnecting(ib),
         runtimeHealth,
-        autoWatchlistSelector: autoWatchlistSelector.getStatus(),
-        recentActivity: manager.getRecentActivity(),
+        ...(!compact ? { autoWatchlistSelector: autoWatchlistSelector.getStatus() } : {}),
         sessionDirectory,
         startupState,
         startupError,
@@ -1630,14 +1494,6 @@ async function main(): Promise<void> {
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
       }
-      return;
-    }
-
-    if (request.method === "GET" && url.pathname === "/api/runtime/review-artifacts") {
-      sendJson(response, 200, {
-        sessionDirectory,
-        artifacts: readReviewArtifacts(sessionDirectory),
-      });
       return;
     }
 

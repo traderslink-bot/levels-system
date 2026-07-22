@@ -135,9 +135,6 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
       publishPromise,
       new Promise<void>((resolve) => {
         timeout = setTimeout(() => {
-          console.warn(
-            `[WebsitePublishingDiscordGateway] Live watchlist publish did not finish before Discord grace window for ${patch.symbol}.`,
-          );
           resolve();
         }, this.preDiscordPublishGraceMs);
       }),

@@ -39,6 +39,8 @@ test("U.S. equity calendar moves regular close and after-hours to 13:00 ET on a 
 });
 
 test("ordinary weekday session boundaries remain unchanged", () => {
+  assert.equal(classifyUsEquityMarketSession(Date.parse("2026-07-16T07:59:59Z")).session, "closed");
+  assert.equal(classifyUsEquityMarketSession(Date.parse("2026-07-16T08:00:00Z")).session, "premarket");
   assert.equal(classifyUsEquityMarketSession(Date.parse("2026-07-16T13:00:00Z")).session, "premarket");
   assert.equal(classifyUsEquityMarketSession(Date.parse("2026-07-16T13:30:00Z")).session, "regular");
   assert.equal(classifyUsEquityMarketSession(Date.parse("2026-07-16T20:00:00Z")).session, "postmarket");

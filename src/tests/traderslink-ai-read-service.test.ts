@@ -446,6 +446,8 @@ describe("OpenAITradersLinkAiReadService", () => {
           ticker: "TGHL",
           title: "TGHL files merger and financing 8-K",
           summary: "The Form 8-K describes the merger consideration and related financing terms.",
+          positives: ["The filing identifies a defined merger consideration."],
+          negatives: ["The related financing can add share supply after its stated gates."],
           url: "https://traderslink.pro/news/tghl-current-report",
           sourceUrl: "https://www.sec.gov/Archives/example",
           publishedAt: "2026-07-15T19:45:00.000Z",
@@ -558,7 +560,14 @@ describe("OpenAITradersLinkAiReadService", () => {
         price: number;
         priorPlanGeneratedAt: number;
       } | null;
-      primaryCatalystResearch: { source: string; articles: unknown[] };
+      primaryCatalystResearch: {
+        source: string;
+        articles: Array<{
+          sourceSummary: string | null;
+          positivePoints: string[];
+          negativePoints: string[];
+        }>;
+      };
     };
     assert.equal(packet.marketPacket.currentPrice, priceAction().intradayCandles.at(-1)!.close);
     assert.equal(packet.marketPacket.secondaryRuntimeQuote.price, 1.36);
@@ -580,6 +589,16 @@ describe("OpenAITradersLinkAiReadService", () => {
     });
     assert.equal(packet.primaryCatalystResearch.source, "TradersLink press-release/SEC database");
     assert.equal(packet.primaryCatalystResearch.articles.length, 1);
+    assert.equal(
+      packet.primaryCatalystResearch.articles[0]?.sourceSummary,
+      "The Form 8-K describes the merger consideration and related financing terms.",
+    );
+    assert.deepEqual(packet.primaryCatalystResearch.articles[0]?.positivePoints, [
+      "The filing identifies a defined merger consideration.",
+    ]);
+    assert.deepEqual(packet.primaryCatalystResearch.articles[0]?.negativePoints, [
+      "The related financing can add share supply after its stated gates.",
+    ]);
     assert.equal(read.dilutionRisk.canCompanyIssueToday, false);
     assert.equal(read.dilutionRisk.companyIssuance.earliestDate, "2026-07-18");
     assert.match(read.riskSummary.join(" "), /prior plan boundary near \$1\.42/i);
