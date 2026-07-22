@@ -1043,10 +1043,16 @@ async function main(): Promise<void> {
           dataAvailable: decision.activityDataAvailable,
         }]),
       );
+      const managedBySymbol = new Map(
+        selectorStatus.managedEntries.map((entry) => [entry.symbol, entry]),
+      );
       sendJson(response, 200, {
         activeEntries: manager.getActiveEntries().map((entry) => ({
           ...entry,
           selectorSessionActivity: activityBySymbol.get(entry.symbol) ?? null,
+          selectorManagedState: managedBySymbol.get(entry.symbol)?.state ?? null,
+          selectorStatusReason: managedBySymbol.get(entry.symbol)?.statusReason ?? null,
+          selectorCurrentSlotScore: managedBySymbol.get(entry.symbol)?.lastSlotSurvivalScore ?? null,
         })),
         startupState,
         startupError,

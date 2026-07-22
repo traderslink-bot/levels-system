@@ -461,18 +461,19 @@ test("lowering the automatic slot count retires the weakest excess incumbent", a
   });
   try {
     const status = await selector.runNow({ activate: true });
-    assert.equal(activeEntries.length, 2);
-    assert.equal(activeEntries.some((entry) => entry.symbol === "WEAK"), false);
+    assert.equal(activeEntries.length, 3);
+    assert.deepEqual(status.activeMainSessionSymbols.sort(), ["BEST", "MID"]);
+    assert.deepEqual(status.followupSymbols, ["WEAK"]);
     assert.match(
-      status.standbyToday.find((entry) => entry.symbol === "WEAK")?.statusReason ?? "",
-      /slot limit was reduced to 2/,
+      status.managedEntries.find((entry) => entry.symbol === "WEAK")?.statusReason ?? "",
+      /moved to follow-up because the active automatic slot limit was reduced to 2/,
     );
     const expanded = await selector.updateConfiguration({
       enabled: true,
       thresholds: { maxActiveMainSessionTickers: 3 },
     });
-    assert.equal(activeEntries.some((entry) => entry.symbol === "EXPAND"), false);
-    assert.equal(expanded.recentReplacements.some((entry) => entry.incomingSymbol === "EXPAND"), false);
+    assert.deepEqual(expanded.activeMainSessionSymbols.sort(), ["BEST", "EXPAND", "MID"]);
+    assert.equal(expanded.recentReplacements.some((entry) => entry.incomingSymbol === "EXPAND"), true);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });
@@ -506,6 +507,9 @@ test("lowering the main-session slot count during post-market reconciles main in
       const index = activeEntries.findIndex((entry) => entry.symbol === symbol);
       if (index >= 0) activeEntries.splice(index, 1);
     },
+    setSymbolFollowup: async (symbol, followup) => {
+      setRuntimeFollowup(activeEntries, symbol, followup);
+    },
     catalystLookup: NO_CATALYST_LOOKUP,
   });
   try {
@@ -515,11 +519,12 @@ test("lowering the main-session slot count during post-market reconciles main in
     assert.equal(saved.thresholds.maxActiveMainSessionTickers, 2);
     await new Promise<void>((resolve) => setImmediate(resolve));
     const reconciled = selector.getStatus();
-    assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["BEST", "MID"]);
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["BEST", "MID", "WEAK"]);
     assert.deepEqual(reconciled.activeMainSessionSymbols.sort(), ["BEST", "MID"]);
+    assert.deepEqual(reconciled.followupSymbols, ["WEAK"]);
     assert.match(
-      reconciled.standbyToday.find((entry) => entry.symbol === "WEAK")?.statusReason ?? "",
-      /slot limit was reduced to 2/,
+      reconciled.managedEntries.find((entry) => entry.symbol === "WEAK")?.statusReason ?? "",
+      /moved to follow-up because the active automatic slot limit was reduced to 2/,
     );
   } finally {
     selector.stop();
@@ -625,9 +630,17 @@ test("an obvious runner bypasses an exhausted replacement cap and leaves manual 
   });
   try {
     const status = await selector.runNow({ activate: true });
-    assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["F2", "F3", "NEW", "OLD", "PIN"]);
+    assert.deepEqual(activeEntries.map((entry) => entry.symbol).sort(), ["F1", "F2", "NEW", "OLD", "PIN"]);
     assert.deepEqual(status.activeMainSessionSymbols, ["NEW"]);
-    assert.deepEqual(status.followupSymbols.sort(), ["F2", "F3", "OLD"]);
+    assert.deepEqual(status.followupSymbols.sort(), ["F1", "F2", "OLD"]);
+    assert.match(
+      status.standbyToday.find((entry) => entry.symbol === "F3")?.statusReason ?? "",
+      /fresh follow-up rebalance: current slot score .* outside the best 3/,
+    );
+    assert.match(
+      status.managedEntries.find((entry) => entry.symbol === "OLD")?.statusReason ?? "",
+      /retained after fresh follow-up rebalance/,
+    );
     assert.equal(maximumConcurrentAutomaticEntries, 5);
     assert.equal(
       followupTransitions.find((transition) => transition.symbol === "OLD")?.eligible,
