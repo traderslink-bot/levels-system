@@ -1450,6 +1450,9 @@ function assertTradersLinkAiTradeMap(
 
   if (read.failureRecovery) {
     const recovery = read.failureRecovery;
+    const recoveryZoneTolerance = Math.max(recovery.recoveryZoneHigh * 0.005, 0.0001);
+    const firstReclaimTolerance = Math.max(recovery.firstReclaimPrice * 0.005, 0.0001);
+    const setupRestoreTolerance = Math.max(recovery.setupRestorePrice * 0.005, 0.0001);
     if (recovery.recoveryZoneLow > recovery.recoveryZoneHigh) {
       fail("failureRecovery zone is reversed");
     }
@@ -1457,21 +1460,21 @@ function assertTradersLinkAiTradeMap(
     if (!matchesObservedZone(recovery.recoveryZoneLow, recovery.recoveryZoneHigh, supported)) {
       fail("failureRecovery prices do not match a cited observed candidate zone");
     }
-    if (!isAbove(recovery.firstReclaimPrice, recovery.recoveryZoneHigh)) {
+    if (recovery.firstReclaimPrice - recovery.recoveryZoneHigh <= recoveryZoneTolerance) {
       fail("failureRecovery first reclaim must be above the recovery-watch zone");
     }
-    if (!isAbove(recovery.setupRestorePrice, recovery.firstReclaimPrice)) {
+    if (recovery.setupRestorePrice - recovery.firstReclaimPrice <= firstReclaimTolerance) {
       fail("failureRecovery setup restore price must be above its first reclaim");
     }
     if (
       recovery.firstObjectivePrice !== null &&
-      !isAbove(recovery.firstObjectivePrice, recovery.firstReclaimPrice)
+      recovery.firstObjectivePrice - recovery.firstReclaimPrice <= firstReclaimTolerance
     ) {
       fail("failureRecovery first objective must be above its first reclaim");
     }
     if (
       recovery.firstObjectivePrice !== null &&
-      Math.abs(recovery.firstObjectivePrice - recovery.setupRestorePrice) <= tolerance
+      Math.abs(recovery.firstObjectivePrice - recovery.setupRestorePrice) <= setupRestoreTolerance
     ) {
       fail("failureRecovery first objective must be distinct from its setup restore price");
     }
