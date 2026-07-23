@@ -12,6 +12,7 @@ import {
   buildLiveWatchlistStatusPatch,
   buildLiveWatchlistTechnicalContextPatch,
   buildLiveWatchlistTickerDataPatch,
+  buildTradersLinkAiReadStatusPatch,
   buildTradersLinkAiReadVisibilityPatch,
   LiveWatchlistHttpPublisher,
 } from "../lib/live-watchlist/live-watchlist-publisher.js";
@@ -27,6 +28,18 @@ import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import type { TechnicalContext } from "../lib/technical-context/technical-context-types.js";
 
 describe("live watchlist publisher", () => {
+  it("builds an explicit pending AI Read status without fabricating a card", () => {
+    const patch = buildTradersLinkAiReadStatusPatch({
+      symbol: "abcd",
+      status: "analyzing",
+      updatedAt: 1234,
+    });
+
+    assert.equal(patch.symbol, "ABCD");
+    assert.equal(patch.tradersLinkAiReadStatus, "analyzing");
+    assert.deepEqual(patch.cards, {});
+  });
+
   it("preserves stored article summaries and balanced points for the AI research packet", () => {
     const result = normalizeRecentWebsiteArticleLookupResult({
       ticker: "ABCD",

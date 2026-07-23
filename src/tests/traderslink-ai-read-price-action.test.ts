@@ -100,9 +100,11 @@ describe("TradersLink AI one-minute evidence", () => {
       intradayCandles,
       dailyCandles,
     }, 1.5, dataAsOf);
+    const marketRegimeProfile = packet.marketRegimeProfile as Record<string, unknown>;
     const search = packet.historicalOverheadSearch as Record<string, unknown>;
     const windows = search.selectedMonthlyHighWindows as Array<Record<string, unknown>>;
 
+    assert.equal(typeof marketRegimeProfile.regime, "string");
     assert.equal(search.available, true);
     assert.ok(windows.length > 0);
     assert.ok(windows.length <= 4);

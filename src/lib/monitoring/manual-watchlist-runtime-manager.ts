@@ -49,6 +49,7 @@ import {
   buildLiveWatchlistTechnicalContextPatch,
   buildLiveWatchlistTickerDataPatch,
   buildTradersLinkAiReadPatch,
+  buildTradersLinkAiReadStatusPatch,
   buildTradersLinkAiReadVisibilityPatch,
   createLiveWatchlistPublisherFromEnv,
 } from "../live-watchlist/live-watchlist-publisher.js";
@@ -732,14 +733,12 @@ export function decideTradersLinkAiReadRefresh(args: {
 }
 
 export function decideTradersLinkAiReadActivationSchedule(
-  previous: TradersLinkAiReadRefreshState | null,
+  _previous: TradersLinkAiReadRefreshState | null,
 ): {
   force: boolean;
   trigger: TradersLinkAiReadRequestedTrigger;
 } {
-  return previous
-    ? { force: false, trigger: "automatic" }
-    : { force: true, trigger: "activation" };
+  return { force: true, trigger: "activation" };
 }
 
 export type ManualWatchlistAutoCleanReadInput = {
@@ -3503,6 +3502,21 @@ export class ManualWatchlistRuntimeManager {
       void this.generateTradersLinkAiRead(normalizedSymbol, force, trigger).catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[TradersLinkAiRead] Failed to generate ${normalizedSymbol} read: ${message}`);
+        if (trigger === "activation" && this.liveWatchlistPublisher) {
+          void this.liveWatchlistPublisher.publish(
+            buildTradersLinkAiReadStatusPatch({
+              symbol: normalizedSymbol,
+              status: "failed",
+            }),
+          ).catch((publishError) => {
+            const publishMessage = publishError instanceof Error
+              ? publishError.message
+              : String(publishError);
+            console.warn(
+              `[TradersLinkAiRead] Failed to publish ${normalizedSymbol} analysis status: ${publishMessage}`,
+            );
+          });
+        }
       });
     };
 
@@ -10425,14 +10439,13 @@ export class ManualWatchlistRuntimeManager {
         throw new ActivationCancelledError(symbol);
       }
       this.assertActivationCurrent(symbol, activationEpoch);
-      const threadId =
-        preparedThread?.threadId ??
-        (
-          await this.options.discordAlertRouter.ensureThread(
-            symbol,
-            existing?.discordThreadId,
-          )
-        ).threadId;
+      const threadRouting =
+        preparedThread ??
+        await this.options.discordAlertRouter.ensureThread(
+          symbol,
+          existing?.discordThreadId,
+        );
+      const threadId = threadRouting.threadId;
       if (!preparedThread) {
         this.emitLifecycle("thread_ready", {
           symbol,
@@ -10458,6 +10471,16 @@ export class ManualWatchlistRuntimeManager {
         lastError: null,
         operationStatus: "posting level snapshot",
       });
+      const activationAiReadSchedule = decideTradersLinkAiReadActivationSchedule(
+        this.aiReadState.get(symbol) ?? null,
+      );
+      const initialAiReadStatus =
+        activationAiReadSchedule.trigger === "activation" &&
+        this.isTradersLinkAiReadConfigured() &&
+        this.liveWatchlistPublisher &&
+        entry.tradersLinkAiReadCardVisible !== false
+          ? "analyzing" as const
+          : undefined;
 
       let snapshotPayload: LevelSnapshotPayload | null = null;
       if (reuseExistingSameDayContext) {
@@ -10479,8 +10502,16 @@ export class ManualWatchlistRuntimeManager {
       const preparedEntry = this.watchlistStore.getEntry(symbol) ?? entry;
       await this.restartMonitoringForPreparedActivation(preparedEntry);
       this.assertActivationCurrent(symbol, activationEpoch);
-      await this.publishActivationWebsiteSnapshot(symbol, Date.now(), reuseExistingSameDayContext);
+      await this.publishActivationWebsiteSnapshot(
+        symbol,
+        Date.now(),
+        reuseExistingSameDayContext,
+        initialAiReadStatus,
+      );
       this.assertActivationCurrent(symbol, activationEpoch);
+      if (threadRouting.created && !reuseExistingSameDayContext) {
+        await this.options.discordAlertRouter.announceTickerAdded?.(symbol);
+      }
       const activatedEntry = this.watchlistStore.patchEntry(symbol, {
         active: true,
         lifecycle: "active",
@@ -10520,9 +10551,6 @@ export class ManualWatchlistRuntimeManager {
           );
         });
       }
-      const activationAiReadSchedule = decideTradersLinkAiReadActivationSchedule(
-        this.aiReadState.get(symbol) ?? null,
-      );
       this.scheduleTradersLinkAiRead(
         symbol,
         activationAiReadSchedule.force,
@@ -10694,6 +10722,7 @@ export class ManualWatchlistRuntimeManager {
     symbol: string,
     timestamp: number,
     preserveExistingOnReactivation = false,
+    tradersLinkAiReadStatus?: "analyzing",
   ): Promise<void> {
     if (!this.liveWatchlistPublisher || !this.options.levelStore.getLevels(symbol)) {
       return;
@@ -10711,6 +10740,7 @@ export class ManualWatchlistRuntimeManager {
       reversalWatchEligible: false,
       reversalWatchAttemptReady: false,
       reversalWatchlistVisible: this.reversalWatchlistVisible,
+      ...(tradersLinkAiReadStatus ? { tradersLinkAiReadStatus } : {}),
       ...(preserveExistingOnReactivation ? { preserveExistingOnReactivation: true } : {}),
     });
   }

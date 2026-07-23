@@ -1070,9 +1070,17 @@ async function main(): Promise<void> {
           sendJson(response, 400, { error: "enabled must be true or false." });
           return;
         }
+        if (
+          body.approvalRequired !== undefined &&
+          typeof body.approvalRequired !== "boolean"
+        ) {
+          sendJson(response, 400, { error: "approvalRequired must be true or false." });
+          return;
+        }
         const thresholds = parseAutoWatchlistThresholds(body.thresholds);
         const status = await autoWatchlistSelector.updateConfiguration({
           enabled: body.enabled as boolean | undefined,
+          approvalRequired: body.approvalRequired as boolean | undefined,
           thresholds,
         });
         sendJson(response, 200, { ok: true, status });
@@ -1081,6 +1089,24 @@ async function main(): Promise<void> {
           sendJson(response, error.statusCode, { error: error.message });
           return;
         }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 400, { error: message });
+      }
+      return;
+    }
+
+    const autoWatchlistApprovalMatch = url.pathname.match(
+      /^\/api\/runtime\/auto-watchlist-selector\/approvals\/([^/]+)\/(approve|deny)$/,
+    );
+    if (request.method === "POST" && autoWatchlistApprovalMatch) {
+      try {
+        const symbol = decodeURIComponent(autoWatchlistApprovalMatch[1] ?? "");
+        const action = autoWatchlistApprovalMatch[2];
+        const status = action === "approve"
+          ? await autoWatchlistSelector.approvePending(symbol)
+          : autoWatchlistSelector.denyPending(symbol);
+        sendJson(response, 200, { ok: true, status });
+      } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 400, { error: message });
       }

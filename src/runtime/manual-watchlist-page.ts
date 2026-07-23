@@ -101,6 +101,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     </form>
 
     <section>
+      <h2>Pending Automatic Adds</h2>
+      <div class="provider-control">
+        <label for="auto-approval-required-toggle">Require approval before automatic adds</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="auto-approval-required-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="auto-approval-required-label">Off</span>
+          </label>
+        </div>
+        <div class="inline-status">When on, qualified automatic candidates stop here before the ticker page, Discord alert, or OpenAI request is created.</div>
+      </div>
+      <ul id="auto-approval-list"></ul>
+    </section>
+
+    <section>
       <h2>Active Tickers</h2>
       <div class="health-grid" id="watchlist-health"></div>
       <ul id="active-list"></ul>
@@ -391,6 +407,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const autoSelectorDecisionsEl = document.getElementById("auto-selector-decisions");
     const autoSelectorApplyButtonEl = document.getElementById("auto-selector-apply-button");
     const autoSelectorPreviewButtonEl = document.getElementById("auto-selector-preview-button");
+    const autoApprovalRequiredToggleEl = document.getElementById("auto-approval-required-toggle");
+    const autoApprovalRequiredLabelEl = document.getElementById("auto-approval-required-label");
+    const autoApprovalListEl = document.getElementById("auto-approval-list");
     const autoSelectorInputEls = {
       maxMarketCap: document.getElementById("auto-selector-max-market-cap"),
       maxFloatShares: document.getElementById("auto-selector-max-float"),
@@ -1127,6 +1146,43 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           ? "Apply Selection Settings"
           : "Settings Saved";
       autoSelectorPreviewButtonEl.disabled = autoSelectorRequestInFlight || selector.running === true;
+      autoApprovalRequiredToggleEl.checked = selector.approvalRequired === true;
+      autoApprovalRequiredToggleEl.disabled = autoSelectorRequestInFlight;
+      autoApprovalRequiredLabelEl.textContent = selector.approvalRequired === true ? "On" : "Off";
+      autoApprovalListEl.innerHTML = "";
+      const pendingApprovals = Array.isArray(selector.pendingApprovals) ? selector.pendingApprovals : [];
+      if (pendingApprovals.length === 0) {
+        const empty = document.createElement("li");
+        empty.textContent = selector.approvalRequired === true
+          ? "No automatic additions are waiting for approval."
+          : "Approval is off. Qualified automatic additions proceed normally.";
+        autoApprovalListEl.appendChild(empty);
+      }
+      for (const approval of pendingApprovals) {
+        const item = document.createElement("li");
+        const decision = approval.decision || {};
+        const summary = document.createElement("span");
+        summary.textContent =
+          String(approval.symbol || "") + " | " +
+          String(decision.session || approval.bucket || "") + " | $" +
+          Number(decision.price || 0).toFixed(2) + " | " +
+          Number(decision.gainPct || 0).toFixed(1) + "% | score " +
+          String(decision.rankingScore ?? decision.score ?? "n/a") +
+          (approval.incumbentSymbol ? " | would replace " + approval.incumbentSymbol : "");
+        const approve = document.createElement("button");
+        approve.type = "button";
+        approve.textContent = "Approve";
+        approve.dataset.approvalAction = "approve";
+        approve.dataset.symbol = approval.symbol;
+        const deny = document.createElement("button");
+        deny.type = "button";
+        deny.className = "danger";
+        deny.textContent = "Deny";
+        deny.dataset.approvalAction = "deny";
+        deny.dataset.symbol = approval.symbol;
+        item.append(summary, approve, deny);
+        autoApprovalListEl.appendChild(item);
+      }
 
       if (!autoSelectorSettingsDirty) {
         setAutoSelectorInputValue("maxMarketCap", thresholds.maxMarketCap, 1000000);
@@ -2272,6 +2328,38 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyAutoApprovalToggle() {
+      await updateAutoSelector(
+        { approvalRequired: autoApprovalRequiredToggleEl.checked },
+        (autoApprovalRequiredToggleEl.checked ? "Enabling" : "Disabling") + " automatic-add approval...",
+      );
+    }
+
+    async function handleAutoApproval(event) {
+      const button = event.target.closest("button[data-approval-action]");
+      if (!button) return;
+      const action = button.dataset.approvalAction;
+      const symbol = button.dataset.symbol;
+      button.disabled = true;
+      try {
+        const response = await fetch(
+          "/api/runtime/auto-watchlist-selector/approvals/" +
+          encodeURIComponent(symbol) + "/" + action,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+        );
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Approval action failed");
+        renderAutoSelectorControl({ autoWatchlistSelector: result.status });
+        setStatus(symbol + " was " + (action === "approve" ? "approved and queued for activation." : "denied."));
+        await loadEntries();
+        await loadRuntimeStatus(true);
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     async function previewAutoSelector() {
       autoSelectorRequestInFlight = true;
       autoSelectorPreviewButtonEl.disabled = true;
@@ -2369,6 +2457,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     aiReadCostBudgetToggleEl.addEventListener("change", applyAiReadCostBudget);
     aiReadCostBudgetApplyEl.addEventListener("click", applyAiReadCostBudget);
     autoSelectorEnabledToggleEl.addEventListener("change", applyAutoSelectorToggle);
+    autoApprovalRequiredToggleEl.addEventListener("change", applyAutoApprovalToggle);
+    autoApprovalListEl.addEventListener("click", handleAutoApproval);
     autoSelectorApplyButtonEl.addEventListener("click", applyAutoSelectorSettings);
     autoSelectorPreviewButtonEl.addEventListener("click", previewAutoSelector);
     for (const input of Object.values(autoSelectorInputEls)) {

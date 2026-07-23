@@ -790,6 +790,63 @@ test("admin threshold changes persist without enabling automatic additions", asy
   }
 });
 
+test("automatic approval defaults off and blocks activation until explicitly approved", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-approval-"));
+  const configPath = join(directory, "config.json");
+  const activated: string[] = [];
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => { activated.push(symbol); },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+  const decision = {
+    ...scoreAutoWatchlistCandidate({
+      candidate: { ...BASE_CANDIDATE, symbol: "APRV" },
+      floatShares: 5_000_000,
+    }),
+    symbol: "APRV",
+    session: "regular",
+    score: 80,
+    rankingScore: 85,
+    rankingReasons: [],
+    slotSurvivalScore: 85,
+    slotSurvivalReasons: [],
+    promotionRejectionReasons: [],
+    consecutivePasses: 2,
+    recent15mDollarVolume: 250_000,
+    recent15mVolume: 100_000,
+    volumeAcceleration: 2,
+    shareTurnoverPct: 10,
+  } as unknown as AutoWatchlistCandidateDecision;
+  try {
+    assert.equal(selector.getStatus().approvalRequired, false);
+    await selector.updateConfiguration({ approvalRequired: true });
+    const admitted = await (selector as any).activateManagedDecision(
+      decision,
+      "main",
+      Date.now(),
+      "test admission",
+    );
+    assert.equal(admitted, false);
+    assert.deepEqual(activated, []);
+    assert.deepEqual(
+      selector.getStatus().pendingApprovals.map((item) => item.symbol),
+      ["APRV"],
+    );
+
+    await selector.approvePending("APRV");
+    assert.deepEqual(activated, ["APRV"]);
+    assert.equal(selector.getStatus().pendingApprovals.length, 0);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("selector requires two passing observations before activating and does not duplicate active symbols", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-selector-"));
   const configPath = join(directory, "config.json");

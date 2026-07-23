@@ -1195,6 +1195,31 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(read.currentRead, /0\.3469 premarket high/i);
   });
 
+  it("does not mistake a calendar date for a claimed premarket-high price", async () => {
+    const validRead = premarketModelRead(
+      "The July 23 premarket high remains the immediate reference while price holds the rebound shelf.",
+    );
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => new Response(JSON.stringify({
+        output: [{
+          type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(validRead) }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    });
+
+    const read = await service.generate({
+      snapshot: { ...snapshot(), timestamp: PREMARKET_DATA_AS_OF, currentPrice: 0.3336 },
+      dataAsOf: PREMARKET_DATA_AS_OF,
+      priceAction: premarketPriceAction(),
+      research: { ticker: "NXXT", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.match(read.currentRead, /July 23 premarket high/i);
+  });
+
   it("rejects a caution threshold above the stated needs-to-hold boundary", async () => {
     const invalidRead = modelRead();
     invalidRead.needsToHold = {

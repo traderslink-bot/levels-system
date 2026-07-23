@@ -1243,12 +1243,37 @@ function claimedCurrentPremarketHigh(text: string): number | null {
     }
     const highMatches = [...sentence.matchAll(/\bhigh\b/gi)];
     const priceMatches = [...sentence.matchAll(/\$?\d+(?:\.\d+)?/g)]
-      .map((match) => ({
-        index: match.index ?? 0,
-        end: (match.index ?? 0) + match[0].length,
-        value: Number(match[0].replace("$", "")),
-      }))
-      .filter((match) => Number.isFinite(match.value) && match.value > 0);
+      .map((match) => {
+        const index = match.index ?? 0;
+        const raw = match[0];
+        const value = Number(raw.replace("$", ""));
+        const precedingText = sentence.slice(Math.max(0, index - 16), index);
+        const isCalendarDay =
+          !raw.startsWith("$") &&
+          Number.isInteger(value) &&
+          value >= 1 &&
+          value <= 31 &&
+          /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*$/i.test(
+            precedingText,
+          );
+        const isCalendarYear =
+          !raw.startsWith("$") &&
+          Number.isInteger(value) &&
+          value >= 1900 &&
+          value <= 2100;
+        return {
+          index,
+          end: index + raw.length,
+          value,
+          isCalendarDate: isCalendarDay || isCalendarYear,
+        };
+      })
+      .filter(
+        (match) =>
+          Number.isFinite(match.value) &&
+          match.value > 0 &&
+          !match.isCalendarDate,
+      );
     for (const highMatch of highMatches) {
       const highIndex = highMatch.index ?? 0;
       const preceding = sentence.slice(Math.max(0, highIndex - 40), highIndex);

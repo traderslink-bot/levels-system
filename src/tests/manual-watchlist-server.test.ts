@@ -292,6 +292,9 @@ test("manual watchlist admin exposes persisted automatic low-float selection con
   assert.match(MANUAL_WATCHLIST_PAGE, /Regular minimum last-15m dollar volume/);
   assert.match(MANUAL_WATCHLIST_PAGE, /outer safety window/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Run Preview Only/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Pending Automatic Adds/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Require approval before automatic adds/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /data-approval-action/);
   assert.match(MANUAL_WATCHLIST_PAGE, /collectAutoSelectorThresholds/);
   assert.match(MANUAL_WATCHLIST_PAGE, /\/api\/runtime\/auto-watchlist-selector\/preview/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /new AutoWatchlistSelector/);
@@ -301,6 +304,7 @@ test("manual watchlist admin exposes persisted automatic low-float selection con
   );
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /autoWatchlistSelector: autoWatchlistSelector\.getStatus\(\)/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/auto-watchlist-selector"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /auto-watchlist-selector\\\/approvals|auto-watchlist-selector\/approvals/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/auto-watchlist-selector\/preview"/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /autoWatchlistSelector\.stop\(\)/);
 });
