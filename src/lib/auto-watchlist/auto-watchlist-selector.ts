@@ -99,7 +99,6 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
   minDollarVolume: 250_000,
   minPostmarketVolume: 100_000,
   minPostmarketDollarVolume: 250_000,
-  minimumScore: 50,
   consecutivePassesRequired: 2,
   maxAddsPerTradingDay: 12,
   maxPostmarketAddsPerTradingDay: 8,
@@ -173,7 +172,6 @@ export type AutoWatchlistSelectorThresholds = {
   minPostmarketVolume: number;
   /** After-hours-only dollar volume required for post-market qualification. */
   minPostmarketDollarVolume: number;
-  minimumScore: number;
   consecutivePassesRequired: number;
   maxAddsPerTradingDay: number;
   maxPostmarketAddsPerTradingDay: number;
@@ -943,7 +941,6 @@ const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
   "minDollarVolume",
   "minPostmarketVolume",
   "minPostmarketDollarVolume",
-  "minimumScore",
   "consecutivePassesRequired",
   "maxAddsPerTradingDay",
   "maxPostmarketAddsPerTradingDay",
@@ -1029,9 +1026,6 @@ export function resolveAutoWatchlistSelectorThresholds(
   }
   if (resolved.minPrice <= 0 || resolved.maxPrice <= resolved.minPrice) {
     throw new Error("maxPrice must be greater than minPrice, and both must be positive.");
-  }
-  if (resolved.minimumScore > 100) {
-    throw new Error("minimumScore cannot exceed 100.");
   }
   if (resolved.consecutivePassesRequired < 1 || resolved.consecutivePassesRequired > 10) {
     throw new Error("consecutivePassesRequired must be between 1 and 10.");
@@ -1263,7 +1257,7 @@ export function buildAutoWatchlistRetentionProtection(input: {
   const activityOnlyFailure =
     input.decision.rejectionReasons.length > 0 &&
     input.decision.rejectionReasons.every(isRecentActivityRejection);
-  if (!activityOnlyFailure || input.decision.score < input.thresholds.minimumScore) {
+  if (!activityOnlyFailure) {
     return { protected: false, kind: null, reason: null };
   }
   if (input.decision.tradingHaltState === "halted") {
@@ -1791,10 +1785,6 @@ export function scoreAutoWatchlistCandidate(input: {
   } else if ((candidate.marketCap ?? Number.POSITIVE_INFINITY) <= thresholds.maxMarketCap) {
     score += 5;
     reasons.push(`market cap at or below $${Math.round(thresholds.maxMarketCap / 1_000_000)}M`);
-  }
-
-  if (score < thresholds.minimumScore) {
-    rejectionReasons.push(`score ${score} is below ${thresholds.minimumScore}`);
   }
 
   return {
