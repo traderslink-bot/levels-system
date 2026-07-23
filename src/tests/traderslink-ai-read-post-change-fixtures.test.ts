@@ -7,6 +7,10 @@ import { describe, it } from "node:test";
 
 import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import { TradersLinkAiReadCostLedger } from "../lib/ai/traderslink-ai-read-cost-ledger.js";
+import {
+  buildTradersLinkAiPriceActionPacket,
+  buildTradersLinkAiReadMarketRegimeProfile,
+} from "../lib/ai/traderslink-ai-read-price-action.js";
 import { OpenAITradersLinkAiReadService } from "../lib/ai/traderslink-ai-read-service.js";
 import type { TradersLinkAiReadPriceActionContext } from "../lib/ai/traderslink-ai-read-price-action.js";
 
@@ -78,8 +82,46 @@ function completeWideFixtureDraft(fixture: Fixture): {
   const legacyPrices = fixture.expected.targets;
   const nearest = legacyPrices[0] ?? fixture.expected.breakoutContinuation * 1.1;
   const continued = legacyPrices[1] ?? Math.max(nearest * 1.15, fixture.expected.breakoutContinuation * 1.25);
-  const strong = Math.max(continued * 1.2, fixture.snapshot.currentPrice * 2);
-  const extreme = Math.max(strong * 1.2, fixture.snapshot.currentPrice * 3);
+  const priceAction = priceActionFor(fixture);
+  const marketProfile = buildTradersLinkAiReadMarketRegimeProfile({
+    intraday: priceAction.intradayCandles,
+    daily: priceAction.dailyCandles,
+    currentPrice: fixture.snapshot.currentPrice,
+    priorRegularClose: priceAction.priorRegularClose,
+    dataAsOf: fixture.snapshot.timestamp,
+    oneMinuteFacts: {},
+  });
+  const coverageLimitPct = {
+    normal: 50,
+    elevated: 65,
+    high_expansion: 80,
+    extreme_expansion: 100,
+  }[marketProfile.regime];
+  const extreme = fixture.snapshot.currentPrice * (1 + coverageLimitPct / 100) * 0.995;
+  assert.ok(
+    extreme > continued + fixture.snapshot.currentPrice * 0.02,
+    `${fixture.symbol} fixture has no room for separated strong and extreme horizons`,
+  );
+  const strong = continued + (extreme - continued) / 2;
+  const packet = buildTradersLinkAiPriceActionPacket(
+    priceAction,
+    fixture.snapshot.currentPrice,
+    fixture.snapshot.timestamp,
+  );
+  const pullbackCandidates = (
+    (packet.oneMinuteEvidence as Record<string, unknown>).pullbackCandidates as
+      Array<{ id: string; zoneLow: number; zoneHigh: number }>
+  ) ?? [];
+  const shallowCandidate = pullbackCandidates.find((candidate) =>
+    candidate.zoneLow > 0 &&
+    candidate.zoneLow <= candidate.zoneHigh &&
+    candidate.zoneHigh < fixture.snapshot.currentPrice
+  );
+  assert.ok(shallowCandidate, `${fixture.symbol} fixture is missing a usable observed pullback candidate`);
+  const invalidationOffset = Math.max(
+    shallowCandidate.zoneLow * 0.01,
+    fixture.snapshot.currentPrice < 1 ? 0.0001 : 0.01,
+  );
   const expectedForwardPrices = [nearest, continued, strong, extreme]
     .map((value) => Number(value.toFixed(value < 1 ? 4 : 2)));
   const horizon = (price: number, basisType: string) => ({
@@ -103,6 +145,20 @@ function completeWideFixtureDraft(fixture: Fixture): {
         extremeMomentum: horizon(expectedForwardPrices[3]!, "combined"),
         additionalObservedOutcomes: [],
       },
+      pullbackPlans: {
+        shallow: {
+          zoneLow: shallowCandidate.zoneLow,
+          zoneHigh: shallowCandidate.zoneHigh,
+          confirmationPrice: shallowCandidate.zoneHigh,
+          confirmation: "Require buyer defense and a reclaim of the observed candidate high.",
+          invalidationPrice: Number((shallowCandidate.zoneLow - invalidationOffset).toFixed(4)),
+          firstObjectivePrice: fixture.expected.mustClear,
+          rationale: "The supplied tape provides this observed candidate-backed pullback branch.",
+          evidenceIds: [shallowCandidate.id],
+        },
+        deep: null,
+      },
+      failureRecovery: null,
     },
     expectedForwardPrices,
   };
