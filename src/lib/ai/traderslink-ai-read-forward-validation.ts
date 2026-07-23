@@ -11,6 +11,8 @@ import type {
 
 export type TradersLinkAiReadForwardDiagnostics = {
   forwardCoveragePct: number | null;
+  outerCoverageLimitPct: number;
+  outerCoverageExceedsLimit: boolean;
   realizedExpansionPct: number;
   coverageToRealizedExpansionRatio: number | null;
   outerDistanceInAverageDailyRanges: number | null;
@@ -142,6 +144,20 @@ function realizedExpansion(profile: TradersLinkAiReadMarketRegimeProfile): numbe
   );
 }
 
+function outerCoverageLimitPct(profile: TradersLinkAiReadMarketRegimeProfile): number {
+  switch (profile.regime) {
+    case "extreme_expansion":
+      return 100;
+    case "high_expansion":
+      return 80;
+    case "elevated":
+      return 65;
+    case "normal":
+    default:
+      return 50;
+  }
+}
+
 export function buildTradersLinkAiReadForwardDiagnostics(args: {
   currentPrice: number;
   forwardPlan: TradersLinkAiReadForwardPlan;
@@ -152,6 +168,7 @@ export function buildTradersLinkAiReadForwardDiagnostics(args: {
   const forwardCoveragePct = outer?.price
     ? round((outer.price - args.currentPrice) / args.currentPrice * 100)
     : null;
+  const coverageLimitPct = outerCoverageLimitPct(args.marketProfile);
   const realizedExpansionPct = round(realizedExpansion(args.marketProfile));
   const coverageToRealizedExpansionRatio = forwardCoveragePct !== null && realizedExpansionPct > 0
     ? Number((forwardCoveragePct / realizedExpansionPct).toFixed(3))
@@ -162,6 +179,9 @@ export function buildTradersLinkAiReadForwardDiagnostics(args: {
     : null;
   return {
     forwardCoveragePct,
+    outerCoverageLimitPct: coverageLimitPct,
+    outerCoverageExceedsLimit:
+      forwardCoveragePct !== null && forwardCoveragePct > coverageLimitPct + 1,
     realizedExpansionPct,
     coverageToRealizedExpansionRatio,
     outerDistanceInAverageDailyRanges,
@@ -288,6 +308,22 @@ export function validateTradersLinkAiReadForwardPlan(args: {
         message: "Additional observed outcomes must be available, priced, and use an observed basis.",
       });
     }
+  }
+
+  if (diagnostics.outerCoverageExceedsLimit) {
+    failures.push({
+      code: "FORWARD_MAP_IMPLAUSIBLY_WIDE",
+      branch: "forwardPlan.extremeMomentum",
+      message:
+        `The outer day-trade scenario is ${diagnostics.forwardCoveragePct}% above the current price, ` +
+        `beyond the ${diagnostics.outerCoverageLimitPct}% ${args.marketProfile.regime} ceiling. ` +
+        "Keep more distant historical highs as context rather than active forward targets.",
+      details: {
+        ...diagnostics,
+        regime: args.marketProfile.regime,
+        normalizationChanges: args.normalizationChanges ?? [],
+      },
+    });
   }
 
   const highExpansion = args.marketProfile.regime === "high_expansion" ||

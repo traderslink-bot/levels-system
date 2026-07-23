@@ -88,13 +88,16 @@ function priceAction() {
   };
 }
 
-function validate(forwardPlan: TradersLinkAiReadForwardPlan) {
+function validate(
+  forwardPlan: TradersLinkAiReadForwardPlan,
+  marketProfile: TradersLinkAiReadMarketRegimeProfile = profile(),
+) {
   return validateTradersLinkAiReadForwardPlan({
     currentPrice: 10,
     mustClearPrice: null,
     breakoutContinuationPrice: null,
     forwardPlan,
-    marketProfile: profile(),
+    marketProfile,
     priceAction: priceAction(),
     dataAsOf: DATA_AS_OF,
   });
@@ -113,14 +116,44 @@ describe("TradersLink AI Read complete-wide forward validation", () => {
     );
   });
 
-  it("allows a materially wider conditional map without using a fixed maximum", () => {
-    const diagnostics = validate(plan([12, 15, 18, 22]));
+  it("allows a materially wider extreme-expansion map inside the day-trade ceiling", () => {
+    const diagnostics = validate(plan([12, 15, 18, 20]));
     assert.equal(diagnostics.representedHorizons, 4);
-    assert.equal(diagnostics.forwardCoveragePct, 120);
+    assert.equal(diagnostics.forwardCoveragePct, 100);
+    assert.equal(diagnostics.outerCoverageLimitPct, 100);
+    assert.equal(diagnostics.outerCoverageExceedsLimit, false);
+  });
+
+  it("rejects an outer target beyond the extreme-expansion day-trade ceiling", () => {
+    assert.throws(
+      () => validate(plan([12, 15, 18, 22])),
+      (error) => failureCodes(error).includes("FORWARD_MAP_IMPLAUSIBLY_WIDE"),
+    );
+  });
+
+  it("allows a 50% normal-regime outer checkpoint but rejects a wider target", () => {
+    const normalProfile = {
+      ...profile(),
+      regime: "normal" as const,
+      gainFromPriorClosePct: 12,
+      gainFromRegularSessionOpenPct: 10,
+      gainFromCurrentSessionLowPct: 15,
+      currentSessionRangePct: 16,
+      latestSignificantImpulsePct: 8,
+      broaderSessionMovePct: 15,
+    };
+    assert.equal(
+      validate(plan([11, 12, 13.5, 15]), normalProfile).outerCoverageLimitPct,
+      50,
+    );
+    assert.throws(
+      () => validate(plan([11, 12, 14, 16]), normalProfile),
+      (error) => failureCodes(error).includes("FORWARD_MAP_IMPLAUSIBLY_WIDE"),
+    );
   });
 
   it("rejects observed labels whose exact price is absent from supplied candles", () => {
-    const forwardPlan = plan([12, 15, 18, 22]);
+    const forwardPlan = plan([12, 15, 18, 20]);
     forwardPlan.nearestRealistic = horizon(12, "observed_daily");
     assert.throws(
       () => validate(forwardPlan),
@@ -152,7 +185,7 @@ describe("TradersLink AI Read complete-wide forward validation", () => {
   });
 
   it("rejects projected prices described as observed structure", () => {
-    const forwardPlan = plan([12, 15, 18, 22]);
+    const forwardPlan = plan([12, 15, 18, 20]);
     forwardPlan.nearestRealistic.basisSummary = "Observed daily resistance at the selected price.";
     assert.throws(
       () => validate(forwardPlan),
@@ -161,7 +194,7 @@ describe("TradersLink AI Read complete-wide forward validation", () => {
   });
 
   it("allows a projected horizon to explain that no observed resistance remains", () => {
-    const forwardPlan = plan([12, 15, 18, 22]);
+    const forwardPlan = plan([12, 15, 18, 20]);
     forwardPlan.nearestRealistic.basisSummary =
       "No observed resistance remains above the current price, so this is a measured-move scenario.";
     forwardPlan.nearestRealistic.sourceFacts = [
@@ -171,7 +204,7 @@ describe("TradersLink AI Read complete-wide forward validation", () => {
   });
 
   it("still rejects a projected horizon that assigns its exact price to observed resistance", () => {
-    const forwardPlan = plan([12, 15, 18, 22]);
+    const forwardPlan = plan([12, 15, 18, 20]);
     forwardPlan.nearestRealistic.basisSummary = "Observed daily resistance is $12.00.";
     assert.throws(
       () => validate(forwardPlan),

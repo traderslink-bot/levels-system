@@ -167,8 +167,8 @@ function premarketModelRead(currentRead: string): Record<string, unknown> {
     forwardPlan: {
       nearestRealistic: projectedHorizon("Nearest realistic", 0.3851, "psychological_boundary"),
       continuedMomentum: projectedHorizon("Continued momentum", 0.42, "measured_move"),
-      strongExpansion: projectedHorizon("Strong expansion", 0.48, "volatility_projection"),
-      extremeMomentum: projectedHorizon("Extreme momentum", 0.56, "combined"),
+      strongExpansion: projectedHorizon("Strong expansion", 0.46, "volatility_projection"),
+      extremeMomentum: projectedHorizon("Extreme momentum", 0.49, "combined"),
       additionalObservedOutcomes: [],
     },
     downsideCheckpoints: [{
@@ -228,10 +228,10 @@ function modelRead(): Record<string, unknown> {
     mustClear: { label: "Repeated rejection zone", price: 1.5, rationale: "Repeated postmarket rejection tests make sustained acceptance necessary here." },
     breakoutContinuation: { label: "Range-high continuation", price: 1.68, rationale: "Acceptance above the postmarket range high opens the extension targets." },
     forwardPlan: {
-      nearestRealistic: projectedHorizon("Nearest realistic", 1.8, "psychological_boundary"),
-      continuedMomentum: projectedHorizon("Continued momentum", 2, "measured_move"),
-      strongExpansion: projectedHorizon("Strong expansion", 2.25, "volatility_projection"),
-      extremeMomentum: projectedHorizon("Extreme momentum", 2.5, "combined"),
+      nearestRealistic: projectedHorizon("Nearest realistic", 1.72, "psychological_boundary"),
+      continuedMomentum: projectedHorizon("Continued momentum", 1.8, "measured_move"),
+      strongExpansion: projectedHorizon("Strong expansion", 1.9, "volatility_projection"),
+      extremeMomentum: projectedHorizon("Extreme momentum", 2, "combined"),
       additionalObservedOutcomes: [],
     },
     downsideCheckpoints: [

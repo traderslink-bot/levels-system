@@ -118,6 +118,19 @@ $0.0792. It retained a shallow pullback at $0.5391-$0.5490, recovery below
 failure at $0.4859-$0.4885, and four upside branches at $0.90, $1.00, $1.20, and
 $1.50.
 
+The final review also bounded the outer path so that wider history cannot create
+ridiculous day-trade targets. The validator now caps the active extreme scenario
+at 50% above the current reference in a normal regime, 65% in elevated conditions,
+80% in high expansion, and 100% only in extreme expansion. These are maximum
+allowances rather than target ladders. More distant adjusted historical highs
+remain context and cannot automatically become one of the four active targets.
+
+A focused PN replay verified the bound against the prior $20.40 outer result from
+an $8.645 reference. The accepted corrected plan ended at $15.64, approximately
+the high-expansion ceiling, while retaining the $5.56-$5.90 shallow pullback,
+$5.00-$5.10 deep reset, and $3.84-$4.31 failure-recovery area. The two-call
+verification cost $0.1360.
+
 ## Corrections made from live evidence
 
 1. **Projected/observed wording validation**
