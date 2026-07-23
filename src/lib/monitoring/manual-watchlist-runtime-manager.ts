@@ -1543,6 +1543,7 @@ const PULLBACK_READ_5M_LOOKBACK_BARS = 80;
 const TRADERSLINK_AI_READ_1M_FETCH_BARS = 600;
 const TRADERSLINK_AI_READ_5M_FETCH_BARS = 720;
 const TRADERSLINK_AI_READ_DAILY_FETCH_BARS = 30;
+const TRADERSLINK_AI_READ_LONG_DAILY_LOOKBACK_DAYS = 730;
 const PULLBACK_READ_MAX_LATEST_CANDLE_AGE_MS = 10 * 60 * 1000;
 const PULLBACK_READ_MAX_FUTURE_CANDLE_SKEW_MS = 90 * 1000;
 const TECHNICAL_CONTEXT_BOOTSTRAP_RETRY_DELAYS_MS = [
@@ -3086,6 +3087,7 @@ export class ManualWatchlistRuntimeManager {
       this.technicalContextCandleStore.getCandles(symbol),
     );
     let dailyCandles = normalizePullbackCandles(storedSeries?.daily.candles ?? []);
+    let dailyAdjustmentMode: TradersLinkAiReadPriceActionContext["dailyAdjustmentMode"] = "unknown";
     let source = this.technicalContextProviderBySymbol.get(symbol) ?? "runtime raw OHLCV";
     let recentIntradayProvider = source;
     const service = this.options.recentIntradayCandleFetchService;
@@ -3134,6 +3136,11 @@ export class ManualWatchlistRuntimeManager {
         const fetchedDaily = normalizePullbackCandles(dailyResult.value.candles);
         if (fetchedDaily.length > 0) {
           dailyCandles = fetchedDaily;
+          const mode = dailyResult.value.providerMetadata?.providerAdjustmentMode;
+          dailyAdjustmentMode =
+            mode === "adjusted_close_ratio" || mode === "split_adjusted" || mode === "raw"
+              ? mode
+              : "unknown";
         }
       }
     }
@@ -3154,7 +3161,8 @@ export class ManualWatchlistRuntimeManager {
         : Promise.resolve(null);
       const dailyPromise = historicalLoader({
         symbol,
-        fromTimeMs: fetchAsOf - 120 * 24 * 60 * 60 * 1_000,
+        fromTimeMs: fetchAsOf -
+          TRADERSLINK_AI_READ_LONG_DAILY_LOOKBACK_DAYS * 24 * 60 * 60 * 1_000,
         toTimeMs: fetchAsOf,
         timeframes: ["daily"],
         nowMs: fetchAsOf,
@@ -3193,6 +3201,13 @@ export class ManualWatchlistRuntimeManager {
         const historicalDailyCandles = normalizePullbackCandles(dailySeries?.candles ?? []);
         if (historicalDailyCandles.length > 0) {
           dailyCandles = historicalDailyCandles;
+          const mode = dailySeries?.response.providerMetadata?.providerAdjustmentMode;
+          dailyAdjustmentMode =
+            mode === "adjusted_close_ratio" || mode === "split_adjusted" || mode === "raw"
+              ? mode
+              : "unknown";
+          source =
+            `${source} + ${dailySeries?.provider ?? "historical"} long daily history (${dailyAdjustmentMode})`;
         }
       } else {
         const message = historicalDailyResult.reason instanceof Error
@@ -3208,6 +3223,7 @@ export class ManualWatchlistRuntimeManager {
       source,
       fetchedAt: Date.now(),
       priorRegularClose: this.priorRegularCloseBySymbol.get(symbol)?.price ?? null,
+      dailyAdjustmentMode,
       oneMinuteCandles,
       intradayCandles,
       dailyCandles,

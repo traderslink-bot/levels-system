@@ -72,14 +72,14 @@ type ReplayResult = {
 };
 
 type ReplayArtifact = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   auditOnly: true;
   publishingDisabled: true;
   webSearchDisabled: true;
   archivePath: string;
   model: string;
   fallbackModel: string;
-  reasoningEffort: "high";
+  reasoningEffort: "low" | "medium" | "high" | "xhigh";
   maxCostUsd: number;
   startedAt: number;
   startedAtIso: string;
@@ -113,6 +113,18 @@ function hasFlag(name: string): boolean {
 function finitePositive(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function reasoningEffort(
+  value: string | undefined,
+): ReplayArtifact["reasoningEffort"] {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "low" ||
+    normalized === "medium" ||
+    normalized === "high" ||
+    normalized === "xhigh"
+    ? normalized
+    : "high";
 }
 
 function iso(timestamp: number | undefined): string | null {
@@ -182,15 +194,21 @@ async function reconstructPriceAction(record: ArchiveRecord): Promise<{
   });
   const daily = await buildTradeCandleContext({
     symbol: record.symbol,
-    fromTimeMs: record.read.dataAsOf - 180 * DAY_MS,
+    fromTimeMs: record.read.dataAsOf - 730 * DAY_MS,
     toTimeMs: record.read.dataAsOf,
     timeframes: ["daily"],
     nowMs: record.read.dataAsOf,
-    recentProvider: provider,
-    historicalProvider: provider,
   });
   const intradayCandles = intraday.series.find((series) => series.timeframe === "5m")?.candles ?? [];
   const dailyCandles = daily.series.find((series) => series.timeframe === "daily")?.candles ?? [];
+  const dailySeries = daily.series.find((series) => series.timeframe === "daily");
+  const adjustmentMode = dailySeries?.response.providerMetadata?.providerAdjustmentMode;
+  const dailyAdjustmentMode =
+    adjustmentMode === "adjusted_close_ratio" ||
+    adjustmentMode === "split_adjusted" ||
+    adjustmentMode === "raw"
+      ? adjustmentMode
+      : "unknown";
   const oneMinuteCoverage = coverage(oneMinuteCandles);
   const fiveMinuteCoverage = coverage(intradayCandles);
   const dailyCoverage = coverage(dailyCandles);
@@ -203,9 +221,10 @@ async function reconstructPriceAction(record: ArchiveRecord): Promise<{
 
   return {
     priceAction: {
-      source: "audit-only Yahoo historical reconstruction; original request packet was not archived",
+      source: "audit-only Yahoo intraday + EODHD adjusted daily reconstruction; original request packet was not archived",
       fetchedAt: Date.now(),
       priorRegularClose: previousRegularClose(intradayCandles, record.read.dataAsOf),
+      dailyAdjustmentMode,
       oneMinuteCandles,
       intradayCandles,
       dailyCandles,
@@ -247,6 +266,7 @@ async function main(): Promise<void> {
   const archivePath = resolve(flag("--archive") ?? DEFAULT_ARCHIVE_PATH);
   const outputPath = resolve(flag("--out") ?? DEFAULT_OUTPUT_PATH);
   const maxCostUsd = finitePositive(flag("--max-cost-usd"), 5);
+  const effort = reasoningEffort(flag("--reasoning-effort"));
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is required. Set DOTENV_CONFIG_PATH to the owner worktree .env when running the audit.");
@@ -275,14 +295,14 @@ async function main(): Promise<void> {
     : null;
   const now = Date.now();
   const artifact: ReplayArtifact = existing ?? {
-    schemaVersion: 1,
+    schemaVersion: 2,
     auditOnly: true,
     publishingDisabled: true,
     webSearchDisabled: true,
     archivePath,
     model,
     fallbackModel,
-    reasoningEffort: "high",
+    reasoningEffort: effort,
     maxCostUsd,
     startedAt: now,
     startedAtIso: new Date(now).toISOString(),
@@ -294,13 +314,14 @@ async function main(): Promise<void> {
     results: [],
   };
   artifact.maxCostUsd = maxCostUsd;
+  artifact.reasoningEffort = effort;
   artifact.requestedSymbols = Array.from(new Set([...artifact.requestedSymbols, ...records.map((record) => record.symbol)]));
   const completedIds = new Set(artifact.results.map((result) => result.archiveGenerationId));
   const service = new OpenAITradersLinkAiReadService({
     apiKey,
     model,
     fallbackModel,
-    reasoningEffort: "high",
+    reasoningEffort: effort,
     webSearchEnabled: false,
     timeoutMs: 120_000,
     maxOutputTokens: Number(process.env.TRADERSLINK_AI_READ_MAX_OUTPUT_TOKENS) || 8_000,
@@ -333,7 +354,8 @@ async function main(): Promise<void> {
     let reconstructionWarnings: string[] = [];
     let failure: string | null = null;
     let status: ReplayResult["status"] = "failed";
-    const replayGenerationId = `${record.symbol}-V4-AUDIT-${record.read.dataAsOf}`;
+    const replayGenerationId =
+      `${record.symbol}-V4-AUDIT-${effort.toUpperCase()}-${record.read.dataAsOf}`;
     try {
       const reconstructed = await reconstructPriceAction(record);
       candleCoverage = reconstructed.coverage;

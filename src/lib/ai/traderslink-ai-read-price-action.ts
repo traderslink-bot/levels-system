@@ -5,6 +5,8 @@ const RECENT_INTRADAY_BAR_LIMIT = 120;
 const RECENT_ONE_MINUTE_BAR_LIMIT = 60;
 const DEFAULT_DAILY_BAR_LIMIT = 60;
 const EXPANDED_DAILY_BAR_LIMIT = 120;
+const HISTORICAL_OVERHEAD_MONTH_LIMIT = 24;
+const HISTORICAL_OVERHEAD_WINDOW_LIMIT = 4;
 const VOLUME_LANDMARK_LIMIT = 8;
 const UNREPORTED_EXTENDED_WICK_CONFIRMATION_PCT = 0.03;
 const MINIMUM_SIGNIFICANT_IMPULSE_GAIN_PCT = 5;
@@ -16,6 +18,7 @@ export type TradersLinkAiReadPriceActionContext = {
   source: string;
   fetchedAt: number;
   priorRegularClose: number | null;
+  dailyAdjustmentMode?: "adjusted_close_ratio" | "split_adjusted" | "raw" | "unknown";
   oneMinuteCandles?: Candle[];
   intradayCandles: Candle[];
   dailyCandles: Candle[];
@@ -674,6 +677,100 @@ function compactIntradayBar(candle: Candle): CompactPriceActionBar {
   };
 }
 
+function buildHistoricalOverheadSearch(
+  candles: Candle[],
+  currentPrice: number,
+  dataAsOf: number,
+  adjustmentMode: TradersLinkAiReadPriceActionContext["dailyAdjustmentMode"],
+  detailedRecentStartAt: number | null,
+): Record<string, unknown> {
+  if (adjustmentMode !== "adjusted_close_ratio" && adjustmentMode !== "split_adjusted") {
+    return {
+      available: false,
+      adjustmentMode: adjustmentMode ?? "unknown",
+      reason: "Historical overhead search was withheld because split-adjustment status was not trustworthy.",
+      selectedMonthlyHighWindows: [],
+    };
+  }
+  const daily = normalizeCandles(candles, dataAsOf);
+  const byMonth = new Map<string, Candle[]>();
+  for (const candle of daily) {
+    const month = new Date(candle.timestamp).toISOString().slice(0, 7);
+    byMonth.set(month, [...(byMonth.get(month) ?? []), candle]);
+  }
+  const months = [...byMonth.entries()]
+    .sort(([left], [right]) => right.localeCompare(left))
+    .slice(0, HISTORICAL_OVERHEAD_MONTH_LIMIT);
+  const candidates = months
+    .map(([month, monthCandles]) => ({
+      month,
+      highest: monthCandles.reduce((best, candle) =>
+        candle.high > best.high ? candle : best
+      ),
+    }))
+    .filter(({ highest }) =>
+      highest.high > currentPrice &&
+      (detailedRecentStartAt === null || highest.timestamp < detailedRecentStartAt)
+    )
+    .sort((left, right) =>
+      left.highest.high - right.highest.high ||
+      right.month.localeCompare(left.month)
+    );
+  const distinctCandidates: typeof candidates = [];
+  for (const candidate of candidates) {
+    if (distinctCandidates.every((existing) =>
+      Math.abs(existing.highest.high - candidate.highest.high) / currentPrice >= 0.02
+    )) {
+      distinctCandidates.push(candidate);
+    }
+  }
+  const selectedIndexes = distinctCandidates.length <= HISTORICAL_OVERHEAD_WINDOW_LIMIT
+    ? distinctCandidates.map((_, index) => index)
+    : [
+        0,
+        Math.round((distinctCandidates.length - 1) / 3),
+        Math.round((distinctCandidates.length - 1) * 2 / 3),
+        distinctCandidates.length - 1,
+      ];
+  const selectedCandidates = [...new Set(selectedIndexes)]
+    .map((index) => distinctCandidates[index]!)
+    .sort((left, right) => left.highest.high - right.highest.high);
+  const selected: Array<{
+    month: string;
+    monthlyHigh: number;
+    highDate: string;
+    surroundingDailyBars: Array<Record<string, number | string | null>>;
+  }> = selectedCandidates.map(({ month, highest }) => {
+    const dailyIndex = daily.findIndex((candle) => candle.timestamp === highest.timestamp);
+    const surrounding = dailyIndex >= 0
+      ? daily.slice(Math.max(0, dailyIndex - 2), dailyIndex + 3)
+      : [highest];
+    return {
+      month,
+      monthlyHigh: roundPrice(highest.high),
+      highDate: new Date(highest.timestamp).toISOString().slice(0, 10),
+      surroundingDailyBars: compactDailyBars(surrounding, surrounding.length),
+    };
+  });
+  return {
+    available: true,
+    adjustmentMode,
+    searchedMonthCount: months.length,
+    oldestSearchedMonth: months.at(-1)?.[0] ?? null,
+    detailedRecentHistoryStartsAt: detailedRecentStartAt,
+    detailedRecentHistoryStartsAtIso:
+      detailedRecentStartAt === null ? null : new Date(detailedRecentStartAt).toISOString(),
+    eligibleOlderOverheadMonthCount: distinctCandidates.length,
+    stopReason: months.length >= HISTORICAL_OVERHEAD_MONTH_LIMIT
+      ? "maximum_monthly_lookback_reached"
+      : "available_history_exhausted",
+    noObservedOverheadFound: selected.length === 0,
+    limitation:
+      "Selected monthly highs span the price range beyond detailed recent bars. They are observed history used to choose lookback depth, not automatic resistance or targets.",
+    selectedMonthlyHighWindows: selected,
+  };
+}
+
 function sessionSummaryHigh(bars: CompactPriceActionBar[]): number {
   const rawHigh = Math.max(...bars.map((bar) => bar.high));
   const isExtendedSession = bars[0]?.session === "premarket" || bars[0]?.session === "after_hours";
@@ -1072,6 +1169,7 @@ export function buildTradersLinkAiPriceActionPacket(
     marketRegimeProfile.regime === "extreme_expansion"
       ? EXPANDED_DAILY_BAR_LIMIT
       : DEFAULT_DAILY_BAR_LIMIT;
+  const recentDaily = daily.slice(-dailyBarLimit);
 
   return {
     source: context.source,
@@ -1098,6 +1196,13 @@ export function buildTradersLinkAiPriceActionPacket(
     recentFiveMinuteBars: recentIntraday.map(compactIntradayBar),
     oneMinuteEvidence: oneMinuteFacts,
     marketRegimeProfile,
-    recentDailyBars: compactDailyBars(daily, dailyBarLimit),
+    recentDailyBars: compactDailyBars(recentDaily, recentDaily.length),
+    historicalOverheadSearch: buildHistoricalOverheadSearch(
+      daily,
+      currentPrice,
+      dataAsOf,
+      context.dailyAdjustmentMode,
+      recentDaily[0]?.timestamp ?? null,
+    ),
   };
 }

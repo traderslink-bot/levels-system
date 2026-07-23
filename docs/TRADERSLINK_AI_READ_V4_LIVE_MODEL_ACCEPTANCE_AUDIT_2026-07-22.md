@@ -71,6 +71,53 @@ The final named recheck used the wider five-minute candidate fallback and the th
 
 The unavailable BIYA and MTEN zones are deliberate. The service retains needs-to-hold, momentum-failure, and downside coverage but does not manufacture exact pullback or recovery zones when the reconstructed evidence and confidence do not support them.
 
+## 24-month history cost and model calibration
+
+The daily-history extension was measured before being added to the runtime. The
+cost harness reconstructed PN, RPGL, and STKH at 3, 6, 12, 18, and 24 months,
+tokenized the exact developer and user text, and made no paid model calls.
+
+| Daily lookback | Average daily bars fetched | Compact Luna input tokens | Compact Luna input cost | Full-daily Luna input cost |
+|---|---:|---:|---:|---:|
+| 3 months | 62 | 23,854 | $0.0239 | $0.0233 |
+| 6 months | 125 | 27,597 | $0.0276 | $0.0268 |
+| 12 months | 231 | 28,574 | $0.0286 | $0.0326 |
+| 18 months | 305 | 28,486 | $0.0285 | $0.0366 |
+| 24 months | 347 | 28,520 | $0.0285 | $0.0388 |
+
+The compact request keeps the detailed recent daily bars and adds no more than
+four older split-adjusted monthly-high windows. Those older windows are selected
+across the eligible price range and include nearby daily bars for context. The
+24-month compact request therefore costs essentially the same as the 12-month
+request while retaining a much wider search boundary. A ticker with 501 available
+daily bars (STKH) measured 30,019 input tokens in compact mode versus 48,564 when
+every daily bar was serialized.
+
+Luna effort was then compared on the same reconstructed PN, KUST, and SKYQ
+packets, with Luna also forced as fallback so Terra could not rescue a weaker
+setting:
+
+| Luna effort | Accepted | First-pass accepted | Total sample cost | Average attempted-read cost |
+|---|---:|---:|---:|---:|
+| Low | 2/3 | 0/3 | $0.4219 | $0.1406 |
+| Medium | 2/3 | 0/3 | $0.4324 | $0.1441 |
+| High | 3/3 | 2/3 | $0.2984 | $0.0995 |
+
+Low and medium were more expensive in practice because every primary response
+required a high-effort repair and one ticker still failed. Luna high is therefore
+the cheapest verified configuration that completed the work consistently. In
+the controlled sample a first-pass high-effort read cost about $0.073; the one
+read requiring a repair cost $0.152. The expected working budget is roughly
+$0.08-$0.10 per completed read, with approximately $0.15 allowed for an ordinary
+repair. A Terra emergency fallback can add roughly $0.20-$0.23 by itself and
+should remain exceptional.
+
+One final STKH call exercised the finalized 24-month selector against all 501
+available adjusted daily bars. Luna high accepted it on the first call for
+$0.0792. It retained a shallow pullback at $0.5391-$0.5490, recovery below
+failure at $0.4859-$0.4885, and four upside branches at $0.90, $1.00, $1.20, and
+$1.50.
+
 ## Corrections made from live evidence
 
 1. **Projected/observed wording validation**
