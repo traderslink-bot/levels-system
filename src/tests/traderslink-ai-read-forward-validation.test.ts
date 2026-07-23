@@ -159,4 +159,23 @@ describe("TradersLink AI Read complete-wide forward validation", () => {
       (error) => failureCodes(error).includes("FORWARD_PROJECTED_PRICE_MISLABELED"),
     );
   });
+
+  it("allows a projected horizon to explain that no observed resistance remains", () => {
+    const forwardPlan = plan([12, 15, 18, 22]);
+    forwardPlan.nearestRealistic.basisSummary =
+      "No observed resistance remains above the current price, so this is a measured-move scenario.";
+    forwardPlan.nearestRealistic.sourceFacts = [
+      "The highest observed daily high is 10; the selected 12 outcome is projected.",
+    ];
+    assert.doesNotThrow(() => validate(forwardPlan));
+  });
+
+  it("still rejects a projected horizon that assigns its exact price to observed resistance", () => {
+    const forwardPlan = plan([12, 15, 18, 22]);
+    forwardPlan.nearestRealistic.basisSummary = "Observed daily resistance is $12.00.";
+    assert.throws(
+      () => validate(forwardPlan),
+      (error) => failureCodes(error).includes("FORWARD_PROJECTED_PRICE_MISLABELED"),
+    );
+  });
 });

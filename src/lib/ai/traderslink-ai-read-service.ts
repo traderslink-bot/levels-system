@@ -2492,7 +2492,66 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           response,
           correctionValidationError,
         );
-        throw correctionValidationError;
+        const canUseValidationFallback = Boolean(this.options.fallbackModel?.trim()) &&
+          this.fallbackModel !== model;
+        if (!canUseValidationFallback) {
+          throw correctionValidationError;
+        }
+        const fallbackValidationError = correctionValidationError instanceof TradersLinkAiReadValidationError
+          ? correctionValidationError
+          : null;
+        const fallbackValidationFailures: TradersLinkAiReadValidationFailure[] =
+          fallbackValidationError?.failures ?? [{
+            code: "TACTICAL_VALIDATION_FAILED",
+            branch: "aiRead",
+            message: correctionValidationError instanceof Error
+              ? correctionValidationError.message
+              : String(correctionValidationError),
+          }];
+        model = this.fallbackModel;
+        try {
+          response = await this.request(model, input, dataAsOf, nextClientRequestId(), {
+            validationFailures: fallbackValidationFailures,
+            diagnostics: fallbackValidationError
+              ? { ...fallbackValidationError.diagnostics }
+              : null,
+            rejectedDraft: text,
+            rejectedNormalizedResponse,
+            normalizationChanges,
+          });
+        } catch (fallbackError) {
+          recordAttempt(
+            "fallback",
+            "transport_error",
+            model,
+            (fallbackError as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
+            fallbackError,
+          );
+          throw fallbackError;
+        }
+        responses.push(response);
+        text = extractResponseText(response);
+        availableSources = dedupeSources([
+          ...availableSources,
+          ...extractWebSources(response, new Date().toISOString()),
+        ]);
+        try {
+          read = applyQuoteDisagreementGuard(
+            parseAndValidate(text, availableSources),
+            input.snapshot.currentPrice,
+            referenceQuote.price,
+          );
+          recordAttempt("fallback", "success", model, response);
+        } catch (fallbackValidationFailure) {
+          recordAttempt(
+            "fallback",
+            "invalid_output",
+            model,
+            response,
+            fallbackValidationFailure,
+          );
+          throw fallbackValidationFailure;
+        }
       }
     }
 

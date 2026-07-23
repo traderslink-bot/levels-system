@@ -56,8 +56,15 @@ const PROJECTED_BASIS = new Set([
   "volatility_projection",
   "combined",
 ]);
-const FALSE_OBSERVED_LANGUAGE =
-  /\b(?:observed|historical|traded|printed|tested)\s+(?:daily\s+|intraday\s+|prior[- ]session\s+)?(?:resistance|high|supply|price)\b/i;
+const OBSERVED_STRUCTURE_PHRASE =
+  "(?:observed|historical|traded|printed|tested)\\s+(?:daily\\s+|intraday\\s+|prior[- ]session\\s+)?(?:resistance|high|supply|price)";
+const SELECTED_PRICE_PHRASE =
+  "(?:selected|chosen|proposed|horizon|scenario|target)\\s+price";
+const FALSE_OBSERVED_SELECTED_PRICE_LANGUAGE = new RegExp(
+  `\\b(?:${OBSERVED_STRUCTURE_PHRASE})\\b[^.!?]{0,24}\\b(?:${SELECTED_PRICE_PHRASE})\\b|` +
+    `\\b(?:${SELECTED_PRICE_PHRASE})\\b[^.!?]{0,24}\\b(?:${OBSERVED_STRUCTURE_PHRASE})\\b`,
+  "i",
+);
 
 function round(value: number): number {
   return Number(value.toFixed(2));
@@ -72,6 +79,39 @@ function availableHorizons(plan: TradersLinkAiReadForwardPlan): TradersLinkAiRea
 function priceMatches(values: number[], price: number, referencePrice: number): boolean {
   const tolerance = Math.max(referencePrice * 0.005, price * 0.005, 0.0001);
   return values.some((value) => Math.abs(value - price) <= tolerance);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function projectedPriceIsDescribedAsObserved(
+  horizon: TradersLinkAiReadForwardHorizon,
+): boolean {
+  const text = `${horizon.basisSummary} ${horizon.sourceFacts.join(" ")}`;
+  if (FALSE_OBSERVED_SELECTED_PRICE_LANGUAGE.test(text)) {
+    return true;
+  }
+  if (horizon.price === null) {
+    return false;
+  }
+  const priceForms = new Set([
+    String(horizon.price),
+    horizon.price.toFixed(2),
+    horizon.price.toFixed(4),
+  ]);
+  return [...priceForms].some((price) => {
+    const escapedPrice = escapeRegex(price);
+    const observedThenPrice = new RegExp(
+      `\\b(?:${OBSERVED_STRUCTURE_PHRASE})\\b\\s*(?:at|near|around|of|is|was|=)\\s*\\$?${escapedPrice}\\b`,
+      "i",
+    );
+    const priceThenObserved = new RegExp(
+      `\\$?${escapedPrice}\\b\\s*(?:is|was|marks?|matches?|aligns? with)\\s*(?:an?\\s+)?\\b(?:${OBSERVED_STRUCTURE_PHRASE})\\b`,
+      "i",
+    );
+    return observedThenPrice.test(text) || priceThenObserved.test(text);
+  });
 }
 
 function candlePrices(
@@ -224,7 +264,7 @@ export function validateTradersLinkAiReadForwardPlan(args: {
         });
       }
     } else if (horizon.basisType !== "combined" && PROJECTED_BASIS.has(horizon.basisType) &&
-      FALSE_OBSERVED_LANGUAGE.test(`${horizon.basisSummary} ${horizon.sourceFacts.join(" ")}`)) {
+      projectedPriceIsDescribedAsObserved(horizon)) {
       failures.push({
         code: "FORWARD_PROJECTED_PRICE_MISLABELED",
         branch: `forwardPlan.${name}`,

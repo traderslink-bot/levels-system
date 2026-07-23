@@ -68,6 +68,33 @@ function evidence(oneMinuteCandles: Candle[], currentPrice = 1.5): Record<string
 }
 
 describe("TradersLink AI one-minute evidence", () => {
+  it("keeps five-minute pullback candidates when one-minute candles are unavailable", () => {
+    const intradayCandles: Candle[] = Array.from({ length: 15 }, (_, index) => ({
+      timestamp: START + index * 5 * 60_000,
+      open: index < 12 ? 1.2 + (index % 3) * 0.005 : 1.4,
+      high: index < 12 ? 1.23 : 1.44,
+      low: index < 12 ? 1.19 : 1.39,
+      close: index < 12 ? 1.21 + (index % 3) * 0.005 : 1.42,
+      volume: 1_000 + index * 100,
+    }));
+    const dataAsOf = intradayCandles.at(-1)!.timestamp;
+    const packet = buildTradersLinkAiPriceActionPacket({
+      source: "five-minute fallback fixture",
+      fetchedAt: dataAsOf,
+      priorRegularClose: 1,
+      oneMinuteCandles: [],
+      intradayCandles,
+      dailyCandles: [],
+    }, 1.5, dataAsOf);
+    const facts = packet.oneMinuteEvidence as Record<string, unknown>;
+    const candidates = facts.pullbackCandidates as Array<Record<string, number | string>>;
+
+    assert.equal(facts.available, false);
+    assert.equal(facts.fiveMinuteFallbackAvailable, true);
+    assert.ok(candidates.some((candidate) => String(candidate.id).startsWith("5m-acceptance-")));
+    assert.ok(candidates.every((candidate) => Number(candidate.zoneHigh) < 1.5));
+  });
+
   it("distinguishes a fast vertical extension from a slower gain of the same size", () => {
     const fast = evidence(impulseCandles(5)).latestSignificantImpulse as Record<string, number>;
     const slow = evidence(impulseCandles(25)).latestSignificantImpulse as Record<string, number>;

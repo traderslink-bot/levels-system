@@ -176,6 +176,8 @@ function premarketModelRead(currentRead: string): Record<string, unknown> {
       price: 0.2446,
       condition: "The recent daily range low is exposed if the premarket floor fails.",
     }],
+    pullbackPlans: { shallow: null, deep: null },
+    failureRecovery: null,
   };
 }
 
@@ -194,6 +196,24 @@ function projectedHorizon(
     sourceFacts: ["Supplied session range", "Supplied realized impulse", "Supplied daily volatility context"],
     unavailableReasonCode: null,
     unavailableReason: null,
+  };
+}
+
+function fiveMinuteFallbackPullback(): Record<string, unknown> {
+  const packet = buildTradersLinkAiPriceActionPacket(priceAction(), 1.36, DATA_AS_OF);
+  const evidence = packet.oneMinuteEvidence as Record<string, unknown>;
+  const candidate = (evidence.pullbackCandidates as Array<Record<string, number | string>>)[0]!;
+  const zoneLow = Number(candidate.zoneLow);
+  const zoneHigh = Number(candidate.zoneHigh);
+  return {
+    zoneLow,
+    zoneHigh,
+    confirmationPrice: zoneHigh,
+    confirmation: "Hold the observed five-minute shelf and reclaim its upper body boundary.",
+    invalidationPrice: Number((zoneLow - Math.max(0.01, zoneLow * 0.01)).toFixed(4)),
+    firstObjectivePrice: 1.5,
+    rationale: "The supplied five-minute candles preserve a candidate-backed pullback branch.",
+    evidenceIds: [String(candidate.id)],
   };
 }
 
@@ -218,7 +238,7 @@ function modelRead(): Record<string, unknown> {
       { label: "First lower support", price: 1.12, condition: "Exposed if the prior regular session low loses acceptance." },
       { label: "Outer lower support", price: 1.05, condition: "Next daily range low if $1.12 fails." },
     ],
-    pullbackPlans: { shallow: null, deep: null },
+    pullbackPlans: { shallow: fiveMinuteFallbackPullback(), deep: null },
     failureRecovery: null,
     catalystRealityCheck: {
       status: "conditional",
@@ -1273,6 +1293,51 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.deepEqual(attempts, [
       { attemptType: "primary", status: "invalid_output", totalTokens: 120 },
       { attemptType: "correction", status: "success", totalTokens: 230 },
+    ]);
+  });
+
+  it("uses the configured fallback model for one final full repair after two invalid drafts", async () => {
+    const invalidRead = modelRead();
+    invalidRead.needsToHold = {
+      label: "Invalid hold",
+      price: 1.5,
+      rationale: "This intentionally invalid fixture is above the reference quote.",
+    };
+    let requestCount = 0;
+    const attempts: Array<{ attemptType: string; status: string; model: string }> = [];
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-primary",
+      fallbackModel: "test-fallback",
+      fetchImpl: async () => {
+        requestCount += 1;
+        const responseRead = requestCount < 3 ? invalidRead : modelRead();
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(responseRead) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      onAttempt: (attempt) => attempts.push({
+        attemptType: attempt.attemptType,
+        status: attempt.status,
+        model: attempt.model,
+      }),
+    });
+
+    assert.equal(requestCount, 3);
+    assert.equal(read.model, "test-fallback");
+    assert.deepEqual(attempts, [
+      { attemptType: "primary", status: "invalid_output", model: "test-primary" },
+      { attemptType: "correction", status: "invalid_output", model: "test-primary" },
+      { attemptType: "fallback", status: "success", model: "test-fallback" },
     ]);
   });
 

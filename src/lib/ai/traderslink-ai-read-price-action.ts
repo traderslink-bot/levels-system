@@ -30,7 +30,8 @@ export type TradersLinkAiReadPullbackCandidate = {
     | "volume_shelf"
     | "broader_move_origin"
     | "one_minute_acceptance"
-    | "five_minute_acceptance";
+    | "five_minute_acceptance"
+    | "five_minute_session_base";
   zoneLow: number;
   zoneHigh: number;
   observedFrom: number;
@@ -286,6 +287,84 @@ function materiallySeparatedCandidates(
   return output.slice(0, 8);
 }
 
+function buildFiveMinutePullbackCandidates(
+  rawCandles: Candle[],
+  currentPrice: number,
+  dataAsOf: number,
+): TradersLinkAiReadPullbackCandidate[] {
+  const minimumReferenceSeparation = Math.max(currentPrice * 0.005, 0.0001);
+  const recent = normalizeCandles(rawCandles, dataAsOf).slice(-120);
+  const candidates: TradersLinkAiReadPullbackCandidate[] = [];
+  for (let index = Math.max(0, recent.length - 72); index <= recent.length - 3; index += 1) {
+    const window = recent.slice(index, index + 3);
+    const classifications = window.map((candle) => classifyIntradayCandleTimestamp(candle.timestamp));
+    const sameSession = classifications.every((classification) =>
+      classification.session === classifications[0]!.session &&
+      classification.sessionDate === classifications[0]!.sessionDate
+    );
+    const consecutive = window.slice(1).every(
+      (candle, offset) => candle.timestamp - window[offset]!.timestamp <= 7.5 * 60_000,
+    );
+    if (!sameSession || !consecutive) {
+      continue;
+    }
+    const bodyLows = window.map((candle) => Math.min(candle.open, candle.close));
+    const bodyHighs = window.map((candle) => Math.max(candle.open, candle.close));
+    if (Math.max(...bodyLows) > Math.min(...bodyHighs)) {
+      continue;
+    }
+    const zone = candidateFromCandles({
+      id: `5m-acceptance-${window[0]!.timestamp}`,
+      kind: "five_minute_acceptance",
+      candles: window,
+      bodyOnly: true,
+      rationale: "Observed three-bar five-minute body acceptance shelf.",
+    });
+    if (
+      zone &&
+      zone.zoneHigh - zone.zoneLow <= currentPrice * 0.05 &&
+      zone.zoneHigh < currentPrice - minimumReferenceSeparation
+    ) {
+      candidates.push(zone);
+    }
+  }
+
+  const sessionDates = [...new Set(recent
+    .map((candle) => classifyIntradayCandleTimestamp(candle.timestamp).sessionDate))]
+    .slice(-2);
+  for (const sessionDate of sessionDates) {
+    const sessionCandles = recent.filter((candle) =>
+      classifyIntradayCandleTimestamp(candle.timestamp).sessionDate === sessionDate
+    );
+    if (sessionCandles.length < 3) {
+      continue;
+    }
+    const lowIndex = sessionCandles.reduce(
+      (bestIndex, candle, index) => candle.low < sessionCandles[bestIndex]!.low ? index : bestIndex,
+      0,
+    );
+    const baseWindow = sessionCandles.slice(
+      Math.max(0, lowIndex - 1),
+      Math.min(sessionCandles.length, lowIndex + 2),
+    );
+    const base = candidateFromCandles({
+      id: `5m-session-base-${sessionDate}-${sessionCandles[lowIndex]!.timestamp}`,
+      kind: "five_minute_session_base",
+      candles: baseWindow,
+      bodyOnly: true,
+      rationale: "Observed five-minute bodies around the session low form a lower reset or recovery-watch base.",
+    });
+    if (
+      base &&
+      base.zoneHigh - base.zoneLow <= currentPrice * 0.12 &&
+      base.zoneHigh < currentPrice - minimumReferenceSeparation
+    ) {
+      candidates.push(base);
+    }
+  }
+  return candidates;
+}
+
 function buildOneMinuteFacts(
   rawCandles: Candle[],
   fiveMinuteCandles: Candle[],
@@ -294,12 +373,20 @@ function buildOneMinuteFacts(
 ): Record<string, unknown> {
   const minimumReferenceSeparation = Math.max(currentPrice * 0.005, 0.0001);
   const candles = normalizeCandles(rawCandles, dataAsOf);
+  const fiveMinuteCandidates = buildFiveMinutePullbackCandidates(
+    fiveMinuteCandles,
+    currentPrice,
+    dataAsOf,
+  );
   if (candles.length < 12) {
+    const recentFiveMinute = normalizeCandles(fiveMinuteCandles, dataAsOf).slice(-24);
     return {
       available: false,
       reason: "Fewer than 12 usable one-minute candles were available.",
-      pullbackCandidates: [],
+      fiveMinuteFallbackAvailable: fiveMinuteCandidates.length > 0,
+      pullbackCandidates: materiallySeparatedCandidates(fiveMinuteCandidates),
       recentOneMinuteBars: candles.slice(-RECENT_ONE_MINUTE_BAR_LIMIT).map(compactIntradayBar),
+      recentFiveMinuteBars: recentFiveMinute.map(compactIntradayBar),
     };
   }
 
@@ -530,20 +617,7 @@ function buildOneMinuteFacts(
     }
   }
 
-  const recentFiveMinute = normalizeCandles(fiveMinuteCandles, dataAsOf).slice(-24);
-  for (let index = Math.max(0, recentFiveMinute.length - 12); index <= recentFiveMinute.length - 3; index += 3) {
-    const window = recentFiveMinute.slice(index, index + 3);
-    const zone = candidateFromCandles({
-      id: `5m-acceptance-${window[0]!.timestamp}`,
-      kind: "five_minute_acceptance",
-      candles: window,
-      bodyOnly: true,
-      rationale: "Observed three-bar five-minute body acceptance shelf.",
-    });
-    if (zone && zone.zoneHigh < currentPrice - minimumReferenceSeparation) {
-      candidates.push(zone);
-    }
-  }
+  candidates.push(...fiveMinuteCandidates);
 
   const lastSix = recent.slice(-6);
   const lows = lastSix.map((candle) => candle.low);

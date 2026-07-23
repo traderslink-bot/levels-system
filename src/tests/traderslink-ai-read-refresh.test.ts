@@ -27,7 +27,7 @@ describe("TradersLink AI Read refresh decisions", () => {
       available: true,
       price,
       condition: "Acceptance keeps this branch active.",
-      basisType: "measured_move",
+      basisType: "measured_move" as const,
       basisSummary: "Projected from the supplied move.",
       sourceFacts: ["supplied impulse"],
       unavailableReasonCode: null,
@@ -73,7 +73,23 @@ describe("TradersLink AI Read refresh decisions", () => {
       model: "fixture",
       externalResearchEnabled: false,
       usedWebSearch: false,
-      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, estimatedCostUsd: 0 },
+      usage: {
+        inputTokens: 1,
+        cachedInputTokens: 0,
+        outputTokens: 1,
+        totalTokens: 2,
+        webSearchCallCount: 0,
+        tokenCostUsd: 0,
+        webSearchCostUsd: 0,
+        estimatedTotalCostUsd: 0,
+        pricing: {
+          source: "unknown",
+          inputPer1M: null,
+          cachedInputPer1M: null,
+          outputPer1M: null,
+          webSearchPer1KCalls: 10,
+        },
+      },
     });
 
     assert.equal(refreshState.upperBoundary, 10);
