@@ -707,3 +707,16 @@ Provide:
 10. Remaining risks and any fixtures that still require manual trading review.
 
 Keep the work scoped. Do not merge or deploy without explicit owner authorization.
+
+---
+
+# 15. Owner clarification: volatile micro/nano-cap day-trading contract
+
+The complete-wide correction must preserve the meaningful tactical analysis that v3 produced when it followed its instructions. This is a reliability and coverage correction, not a replacement with a generic target generator.
+
+1. The product is for day trading volatile micro-cap and nano-cap stocks, including quick movers that may sustain, break out, reject, reverse, or fully unwind.
+2. One-minute and five-minute candles are primary for measuring short-time extension, acceptance, rejection, pullback structure, reversal risk, and momentum failure.
+3. Daily candles remain essential day-trade evidence for former highs, failed spikes, overhead supply, volatility context, larger reset areas, and outer continuation scenarios.
+4. Premarket high, regular-session HOD, prior HOD, prior close, and prior after-hours highs are role-dependent tactical references. A premarket high may be resistance below it and a hold/retest reference after regular-hours acceptance above it.
+5. Complete-wide must improve the consistency of forward, pullback, and reversal coverage without inventing structures or replacing the grounded v3 read.
+6. If supplied one-minute/five-minute candidate evidence supports a pullback or failure-recovery assessment, a medium/high-confidence read must not silently leave every such branch empty.

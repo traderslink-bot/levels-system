@@ -164,16 +164,36 @@ function premarketModelRead(currentRead: string): Record<string, unknown> {
       price: 0.3658,
       rationale: "Acceptance above the prior regular-session range opens the continuation path.",
     },
-    targets: [{
-      label: "Daily range objective",
-      price: 0.3851,
-      condition: "Only after the prior regular-session range holds as support.",
-    }],
+    forwardPlan: {
+      nearestRealistic: projectedHorizon("Nearest realistic", 0.3851, "psychological_boundary"),
+      continuedMomentum: projectedHorizon("Continued momentum", 0.42, "measured_move"),
+      strongExpansion: projectedHorizon("Strong expansion", 0.48, "volatility_projection"),
+      extremeMomentum: projectedHorizon("Extreme momentum", 0.56, "combined"),
+      additionalObservedOutcomes: [],
+    },
     downsideCheckpoints: [{
       label: "Lower daily range",
       price: 0.2446,
       condition: "The recent daily range low is exposed if the premarket floor fails.",
     }],
+  };
+}
+
+function projectedHorizon(
+  label: string,
+  price: number,
+  basisType: "psychological_boundary" | "measured_move" | "volatility_projection" | "combined",
+): Record<string, unknown> {
+  return {
+    label,
+    available: true,
+    price,
+    condition: `Sustained acceptance must confirm the ${label.toLowerCase()} branch.`,
+    basisType,
+    basisSummary: `A conditional ${basisType.replaceAll("_", " ")} scenario derived from the supplied tape.`,
+    sourceFacts: ["Supplied session range", "Supplied realized impulse", "Supplied daily volatility context"],
+    unavailableReasonCode: null,
+    unavailableReason: null,
   };
 }
 
@@ -187,7 +207,13 @@ function modelRead(): Record<string, unknown> {
     momentumFailure: { label: "Momentum failure", price: 1.2, rationale: "A clean loss of the prior regular-session low exposes the lower daily range." },
     mustClear: { label: "Repeated rejection zone", price: 1.5, rationale: "Repeated postmarket rejection tests make sustained acceptance necessary here." },
     breakoutContinuation: { label: "Range-high continuation", price: 1.68, rationale: "Acceptance above the postmarket range high opens the extension targets." },
-    targets: [{ label: "First continuation area", price: 1.8, condition: "Only after $1.68 holds as support." }],
+    forwardPlan: {
+      nearestRealistic: projectedHorizon("Nearest realistic", 1.8, "psychological_boundary"),
+      continuedMomentum: projectedHorizon("Continued momentum", 2, "measured_move"),
+      strongExpansion: projectedHorizon("Strong expansion", 2.25, "volatility_projection"),
+      extremeMomentum: projectedHorizon("Extreme momentum", 2.5, "combined"),
+      additionalObservedOutcomes: [],
+    },
     downsideCheckpoints: [
       { label: "First lower support", price: 1.12, condition: "Exposed if the prior regular session low loses acceptance." },
       { label: "Outer lower support", price: 1.05, condition: "Next daily range low if $1.12 fails." },
@@ -479,7 +505,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(filingSource.evidence?.retrievedAt, "2026-07-15T20:31:00.000Z");
     assert.match(filingSource.evidence?.supportingExcerpt ?? "", /merger consideration/i);
     assert.equal(filingSource.evidence?.supersessionStatus, "latest_in_retrieved_window");
-    assert.equal(read.version, 3);
+    assert.equal(read.version, 4);
     assert.equal(read.breakoutContinuation.price, 1.68);
     assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), [1.12, 1.05]);
     assert.deepEqual(read.catalystRealityCheck.sourceUrls, [
@@ -604,7 +630,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(read.riskSummary.join(" "), /prior plan boundary near \$1\.42/i);
   });
 
-  it("publishes only candidate-backed, separated v3 pullback and recovery structures", async () => {
+  it("publishes only candidate-backed, separated v4 pullback and recovery structures", async () => {
     const tape = priceActionWithOneMinuteCandidates();
     const currentPrice = tape.oneMinuteCandles!.at(-1)!.close;
     const packet = buildTradersLinkAiPriceActionPacket(tape, currentPrice, DATA_AS_OF);
@@ -1484,7 +1510,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(service);
     assert.equal(service.isExternalResearchEnabled(), false);
     assert.equal(service.getConfiguredModel(), "gpt-5.6-terra");
-    assert.equal(service.getReasoningEffort(), "medium");
+    assert.equal(service.getReasoningEffort(), "high");
     const enabledService = createTradersLinkAiReadServiceFromEnv({
       OPENAI_API_KEY: "test-key",
       TRADERSLINK_AI_READ_WEB_SEARCH_ENABLED: "true",

@@ -24,6 +24,11 @@ import type {
 } from "./trade-story-intelligence.js";
 import type { PrimaryTradeAreaContext } from "./primary-trade-area.js";
 import type { FailedLevelMemoryContext } from "./failed-level-memory.js";
+import type {
+  TradersLinkAiReadForwardHorizonName,
+  TradersLinkAiReadForwardHorizonState,
+  TradersLinkAiReadPayload,
+} from "../live-watchlist/live-watchlist-types.js";
 
 export type MonitoringEventType =
   | "level_touch"
@@ -286,6 +291,19 @@ export type TradersLinkAiReadPendingBoundaryCross = {
   confirmationBufferPct: number;
 };
 
+export type TradersLinkAiReadPriorCompletePlan = {
+  /** The complete acknowledged-or-pending v4 plan, minus provider billing metadata. */
+  plan: Omit<TradersLinkAiReadPayload, "usage">;
+  referencePrice: number;
+  horizonStates: Partial<Record<TradersLinkAiReadForwardHorizonName, TradersLinkAiReadForwardHorizonState>>;
+  crossedBoundaryEvidence?: {
+    direction: "upper" | "lower";
+    price: number;
+    priorPlanGeneratedAt: number;
+  };
+  publicationAcknowledged: boolean;
+};
+
 export type TradersLinkAiReadBoundaryState = {
   generatedAt: number;
   currentPrice: number;
@@ -308,6 +326,8 @@ export type TradersLinkAiReadBoundaryState = {
    * duplicate read after price whipsaws back through an old boundary.
    */
   lastAutomaticRefreshRegime?: string | null;
+  /** Durable continuity context supplied to the next model call. */
+  priorCompletePlan?: TradersLinkAiReadPriorCompletePlan;
 };
 
 export type PendingTradersLinkAiReadGeneration = {

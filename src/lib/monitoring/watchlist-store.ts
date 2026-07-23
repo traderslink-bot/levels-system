@@ -50,12 +50,19 @@ function normalizeAiReadBoundaryState(
     }
     return [{ role: candidate.role, side: candidate.side, impact: candidate.impact, price }];
   });
+  const priorCompletePlan = value.priorCompletePlan?.plan.version === 4 &&
+      typeof value.priorCompletePlan.plan.generationId === "string" &&
+      typeof value.priorCompletePlan.plan.symbol === "string" &&
+      Number.isFinite(value.priorCompletePlan.referencePrice)
+    ? value.priorCompletePlan
+    : undefined;
   return {
     generatedAt: value.generatedAt,
     currentPrice: value.currentPrice,
     upperBoundary: boundary(value.upperBoundary),
     lowerBoundary: boundary(value.lowerBoundary),
     ...(boundaries.length > 0 ? { boundaries } : {}),
+    ...(priorCompletePlan ? { priorCompletePlan } : {}),
     lastAutomaticRefreshRegime:
       typeof value.lastAutomaticRefreshRegime === "string" &&
       value.lastAutomaticRefreshRegime.length > 0 &&

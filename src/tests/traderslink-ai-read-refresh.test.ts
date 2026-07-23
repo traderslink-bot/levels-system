@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  advanceTradersLinkAiReadForwardHorizonStates,
   buildTradersLinkAiReadRefreshState,
   decideTradersLinkAiReadActivationSchedule,
   decideTradersLinkAiReadRefresh,
@@ -20,6 +21,71 @@ function state(currentPrice = 1.98) {
 }
 
 describe("TradersLink AI Read refresh decisions", () => {
+  it("uses the canonical v4 forward plan and advances horizon state without buying another read", () => {
+    const horizon = (label: string, price: number) => ({
+      label,
+      available: true,
+      price,
+      condition: "Acceptance keeps this branch active.",
+      basisType: "measured_move",
+      basisSummary: "Projected from the supplied move.",
+      sourceFacts: ["supplied impulse"],
+      unavailableReasonCode: null,
+      unavailableReason: null,
+    });
+    const refreshState = buildTradersLinkAiReadRefreshState({
+      version: 4,
+      generationId: "PN-v4-test",
+      symbol: "PN",
+      generatedAt: GENERATED_AT,
+      dataAsOf: GENERATED_AT,
+      currentPrice: 5,
+      marketSession: "regular",
+      bias: "bullish",
+      confidence: "medium",
+      currentRead: "Momentum remains conditional.",
+      needsToHold: { label: "Hold", price: 4.8, rationale: "Hold the shelf." },
+      cautionBelow: { label: "Caution", price: 4.6, rationale: "Weakens below." },
+      momentumFailure: { label: "Failure", price: 4.4, rationale: "Invalid below." },
+      mustClear: { label: "Clear", price: 5.2, rationale: "Accept above." },
+      breakoutContinuation: { label: "Continue", price: 5.5, rationale: "Continue above." },
+      forwardPlan: {
+        nearestRealistic: horizon("Nearest", 6),
+        continuedMomentum: horizon("Continued", 7),
+        strongExpansion: horizon("Strong", 8.5),
+        extremeMomentum: horizon("Extreme", 10),
+        additionalObservedOutcomes: [],
+      },
+      targets: [{ label: "Legacy", price: 6, condition: "Compatibility only." }],
+      downsideCheckpoints: [],
+      pullbackPlans: { shallow: null, deep: null },
+      failureRecovery: null,
+      catalystRealityCheck: { summary: "None", status: "none", dayTradeRelevance: "None", sourceUrls: [] },
+      dilutionRisk: {
+        level: "unknown", summary: "Unknown", dayTradeRelevance: "Unknown", sourceUrls: [],
+        canCompanyIssueToday: null,
+        companyIssuance: { status: "unknown", earliestDate: null, trigger: "unknown", summary: "Unknown" },
+        publicResale: { status: "unknown", earliestDate: null, trigger: "unknown", summary: "Unknown" },
+      },
+      listingStatus: { status: "none", immediacy: "background", summary: "None", dayTradeRelevance: "None", sourceUrls: [] },
+      riskSummary: [],
+      sources: [],
+      model: "fixture",
+      externalResearchEnabled: false,
+      usedWebSearch: false,
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, estimatedCostUsd: 0 },
+    });
+
+    assert.equal(refreshState.upperBoundary, 10);
+    assert.equal(refreshState.priorCompletePlan?.horizonStates.nearestRealistic, "approaching");
+    const testing = advanceTradersLinkAiReadForwardHorizonStates(refreshState, 6.01);
+    assert.equal(testing.priorCompletePlan?.horizonStates.nearestRealistic, "testing");
+    const accepted = advanceTradersLinkAiReadForwardHorizonStates(testing, 6.01);
+    assert.equal(accepted.priorCompletePlan?.horizonStates.nearestRealistic, "accepted");
+    const achieved = advanceTradersLinkAiReadForwardHorizonStates(accepted, 6.1);
+    assert.equal(achieved.priorCompletePlan?.horizonStates.nearestRealistic, "achieved");
+  });
+
   it("keeps the outer profit and downside targets as the read boundaries", () => {
     const refreshState = buildTradersLinkAiReadRefreshState({
       generatedAt: GENERATED_AT,
