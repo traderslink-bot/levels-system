@@ -49,6 +49,7 @@ test("archived AI lifecycle plans require timestamps and every dereferenced fiel
     },
   };
   assert.ok(parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify(valid)));
+  assert.ok(parseArchivedTradersLinkAiLifecyclePlan(valid));
   assert.equal(
     parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify({
       ...valid,

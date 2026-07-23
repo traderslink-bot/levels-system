@@ -513,9 +513,15 @@ export function parseArchivedTradersLinkAiReadRefreshState(
 export function parseArchivedTradersLinkAiLifecyclePlan(
   body: unknown,
 ): TradersLinkAiLifecyclePlan | null {
-  if (typeof body !== "string" || body.trim().length === 0) return null;
   try {
-    const parsed = JSON.parse(body) as Record<string, unknown>;
+    const parsed = (
+      typeof body === "string"
+        ? body.trim().length > 0
+          ? JSON.parse(body)
+          : null
+        : body
+    ) as Record<string, unknown> | null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
     const levelValid = (value: unknown): boolean => {
       if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
       const price = (value as Record<string, unknown>).price;
@@ -2995,9 +3001,13 @@ export class ManualWatchlistRuntimeManager {
       const archived = archivedBySymbol.get(entry.symbol) as
         | { cards?: Record<string, { body?: unknown } | null> }
         | undefined;
-      const lifecyclePlan = parseArchivedTradersLinkAiLifecyclePlan(
-        archived?.cards?.tradersLinkAiRead?.body,
-      );
+      const lifecyclePlan =
+        parseArchivedTradersLinkAiLifecyclePlan(
+          state?.priorCompletePlan?.plan,
+        ) ??
+        parseArchivedTradersLinkAiLifecyclePlan(
+          archived?.cards?.tradersLinkAiRead?.body,
+        );
       const restoreTime = this.options.now?.() ?? Date.now();
       if (
         lifecyclePlan &&
@@ -11042,6 +11052,9 @@ export class ManualWatchlistRuntimeManager {
       specialLevels: this.resolveWebsiteSpecialLevels(args.symbol, levelsOutput),
       priorRegularClosePrice: priorRegularClose?.price ?? null,
       aiRead: this.aiReadLifecyclePlanBySymbol.get(args.symbol) ?? null,
+      publishedAiReadKnown:
+        Boolean(watchlistEntry?.tradersLinkAiReadBoundaryState) ||
+        Boolean(watchlistEntry?.pendingTradersLinkAiReadGeneration),
       dataQuality: {
         status: levelCoverage,
         availableTimeframes: [...availableTimeframes],

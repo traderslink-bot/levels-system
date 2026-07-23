@@ -1621,6 +1621,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
   includeLifecycle?: boolean;
   priorRegularClosePrice?: number | null;
   aiRead?: TradersLinkAiLifecyclePlan | null;
+  publishedAiReadKnown?: boolean;
 }): LiveWatchlistCardPatch | null {
   const levelMap = buildLiveWatchlistLevelMap({
     currentPrice: args.currentPrice,
@@ -1701,6 +1702,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
         fiveMinuteStructure,
         currentPrice: args.currentPrice,
         aiRead: args.aiRead,
+        publishedAiReadKnown: args.publishedAiReadKnown,
       })
     : null;
   const liveVolumeContext =
