@@ -71,6 +71,43 @@ function priceActionFor(fixture: Fixture): TradersLinkAiReadPriceActionContext {
   };
 }
 
+function completeWideFixtureDraft(fixture: Fixture): {
+  draft: Record<string, unknown>;
+  expectedForwardPrices: number[];
+} {
+  const legacyPrices = fixture.expected.targets;
+  const nearest = legacyPrices[0] ?? fixture.expected.breakoutContinuation * 1.1;
+  const continued = legacyPrices[1] ?? Math.max(nearest * 1.15, fixture.expected.breakoutContinuation * 1.25);
+  const strong = Math.max(continued * 1.2, fixture.snapshot.currentPrice * 2);
+  const extreme = Math.max(strong * 1.2, fixture.snapshot.currentPrice * 3);
+  const expectedForwardPrices = [nearest, continued, strong, extreme]
+    .map((value) => Number(value.toFixed(value < 1 ? 4 : 2)));
+  const horizon = (price: number, basisType: string) => ({
+    available: true,
+    price,
+    condition: "Sustained acceptance and volume confirmation are required for this fixture branch.",
+    basisType,
+    basisSummary: "A conditional scenario based on the sanitized supplied tape and daily volatility.",
+    sourceFacts: ["sanitized supplied session range", "sanitized supplied daily volatility"],
+    unavailableReasonCode: null,
+    unavailableReason: null,
+  });
+  const { targets: _legacyTargets, ...draft } = fixture.modelResponse;
+  return {
+    draft: {
+      ...draft,
+      forwardPlan: {
+        nearestRealistic: horizon(expectedForwardPrices[0]!, "psychological_boundary"),
+        continuedMomentum: horizon(expectedForwardPrices[1]!, "measured_move"),
+        strongExpansion: horizon(expectedForwardPrices[2]!, "volatility_projection"),
+        extremeMomentum: horizon(expectedForwardPrices[3]!, "combined"),
+        additionalObservedOutcomes: [],
+      },
+    },
+    expectedForwardPrices,
+  };
+}
+
 describe("TradersLink AI Read mandatory post-change five-symbol fixture audit", () => {
   it("validates five independent tactical maps with no web search or paid OpenAI request", async () => {
     assert.equal(fixturePack.version, 1);
@@ -82,6 +119,7 @@ describe("TradersLink AI Read mandatory post-change five-symbol fixture audit", 
     const requestBodies: Array<Record<string, unknown>> = [];
     try {
       for (const fixture of fixturePack.fixtures) {
+        const completeWide = completeWideFixtureDraft(fixture);
         const service = new OpenAITradersLinkAiReadService({
           apiKey: "deterministic-fixture-key-not-sent",
           model: "deterministic-fixture-model",
@@ -93,7 +131,7 @@ describe("TradersLink AI Read mandatory post-change five-symbol fixture audit", 
               id: `fixture_${fixture.id}`,
               output: [{
                 type: "message",
-                content: [{ type: "output_text", text: JSON.stringify(fixture.modelResponse) }],
+                content: [{ type: "output_text", text: JSON.stringify(completeWide.draft) }],
               }],
               usage: { input_tokens: 600, output_tokens: 120, total_tokens: 720 },
             }), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -120,7 +158,9 @@ describe("TradersLink AI Read mandatory post-change five-symbol fixture audit", 
         assert.equal(read.momentumFailure.price, fixture.expected.momentumFailure);
         assert.equal(read.mustClear.price, fixture.expected.mustClear);
         assert.equal(read.breakoutContinuation.price, fixture.expected.breakoutContinuation);
-        assert.deepEqual(read.targets.map((target) => target.price), fixture.expected.targets);
+        assert.equal(read.version, 4);
+        assert.deepEqual(read.targets.map((target) => target.price), completeWide.expectedForwardPrices);
+        assert.equal(read.forwardPlan.extremeMomentum.available, true);
         assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), fixture.expected.downsideCheckpoints);
         assert.equal(read.usedWebSearch, false);
         assert.equal(read.usage.webSearchCallCount, 0);

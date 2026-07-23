@@ -50,6 +50,7 @@
     "audit:missed-moves": "tsx src/scripts/run-missed-meaningful-move-audit.ts",
     "audit:ladder-gaps": "tsx src/scripts/run-ladder-gap-level-audit.ts",
     "audit:live-watchlist-levels": "tsx src/scripts/run-live-watchlist-level-quality-report.ts",
+    "audit:traderslink-ai-read-coverage": "node scripts/audit-traderslink-ai-read-coverage.mjs",
     "audit:why-no-post": "tsx src/scripts/run-why-no-post-replay-proof.ts",
     "audit:session-behavior": "tsx src/scripts/run-session-behavior-audit.ts",
     "audit:visual-replay": "tsx src/scripts/run-visual-audit-replay.ts",

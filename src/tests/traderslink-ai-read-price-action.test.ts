@@ -68,6 +68,87 @@ function evidence(oneMinuteCandles: Candle[], currentPrice = 1.5): Record<string
 }
 
 describe("TradersLink AI one-minute evidence", () => {
+  it("uses adjusted monthly highs to select a small number of older overhead windows", () => {
+    const intradayCandles: Candle[] = Array.from({ length: 15 }, (_, index) => ({
+      timestamp: START + index * 5 * 60_000,
+      open: 1.45,
+      high: 1.51,
+      low: 1.42,
+      close: 1.5,
+      volume: 10_000,
+    }));
+    const dailyCandles: Candle[] = Array.from({ length: 96 }, (_, index) => {
+      const monthIndex = Math.floor(index / 4);
+      const timestamp = Date.UTC(2024 + Math.floor(monthIndex / 12), monthIndex % 12, 5 + index % 4);
+      const high = index % 8 === 0 ? 1.8 + index * 0.03 : 1.4;
+      return {
+        timestamp,
+        open: 1.3,
+        high,
+        low: 1.2,
+        close: 1.35,
+        volume: 100_000,
+      };
+    }).filter((candle) => candle.timestamp <= intradayCandles.at(-1)!.timestamp);
+    const dataAsOf = intradayCandles.at(-1)!.timestamp;
+    const packet = buildTradersLinkAiPriceActionPacket({
+      source: "adjusted monthly selector fixture",
+      fetchedAt: dataAsOf,
+      priorRegularClose: 1.2,
+      dailyAdjustmentMode: "adjusted_close_ratio",
+      oneMinuteCandles: [],
+      intradayCandles,
+      dailyCandles,
+    }, 1.5, dataAsOf);
+    const search = packet.historicalOverheadSearch as Record<string, unknown>;
+    const windows = search.selectedMonthlyHighWindows as Array<Record<string, unknown>>;
+
+    assert.equal(search.available, true);
+    assert.ok(windows.length > 0);
+    assert.ok(windows.length <= 4);
+    assert.ok(windows.every((window) => Number(window.monthlyHigh) > 1.5));
+    assert.equal(search.searchedMonthCount, 24);
+    const detailedRecentStartAt = Number(search.detailedRecentHistoryStartsAt);
+    const highestEligibleOlderHigh = Math.max(
+      ...dailyCandles
+        .filter((candle) => candle.timestamp < detailedRecentStartAt)
+        .map((candle) => candle.high),
+    );
+    assert.ok(windows.some((window) =>
+      Number(window.monthlyHigh) >= highestEligibleOlderHigh
+    ));
+    assert.ok(windows.every((window) =>
+      Array.isArray(window.surroundingDailyBars) && window.surroundingDailyBars.length <= 5
+    ));
+  });
+
+  it("keeps five-minute pullback candidates when one-minute candles are unavailable", () => {
+    const intradayCandles: Candle[] = Array.from({ length: 15 }, (_, index) => ({
+      timestamp: START + index * 5 * 60_000,
+      open: index < 12 ? 1.2 + (index % 3) * 0.005 : 1.4,
+      high: index < 12 ? 1.23 : 1.44,
+      low: index < 12 ? 1.19 : 1.39,
+      close: index < 12 ? 1.21 + (index % 3) * 0.005 : 1.42,
+      volume: 1_000 + index * 100,
+    }));
+    const dataAsOf = intradayCandles.at(-1)!.timestamp;
+    const packet = buildTradersLinkAiPriceActionPacket({
+      source: "five-minute fallback fixture",
+      fetchedAt: dataAsOf,
+      priorRegularClose: 1,
+      oneMinuteCandles: [],
+      intradayCandles,
+      dailyCandles: [],
+    }, 1.5, dataAsOf);
+    const facts = packet.oneMinuteEvidence as Record<string, unknown>;
+    const candidates = facts.pullbackCandidates as Array<Record<string, number | string>>;
+
+    assert.equal(facts.available, false);
+    assert.equal(facts.fiveMinuteFallbackAvailable, true);
+    assert.ok(candidates.some((candidate) => String(candidate.id).startsWith("5m-acceptance-")));
+    assert.ok(candidates.every((candidate) => Number(candidate.zoneHigh) < 1.5));
+  });
+
   it("distinguishes a fast vertical extension from a slower gain of the same size", () => {
     const fast = evidence(impulseCandles(5)).latestSignificantImpulse as Record<string, number>;
     const slow = evidence(impulseCandles(25)).latestSignificantImpulse as Record<string, number>;

@@ -3,7 +3,10 @@ import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-c
 
 const RECENT_INTRADAY_BAR_LIMIT = 120;
 const RECENT_ONE_MINUTE_BAR_LIMIT = 60;
-const RECENT_DAILY_BAR_LIMIT = 30;
+const DEFAULT_DAILY_BAR_LIMIT = 60;
+const EXPANDED_DAILY_BAR_LIMIT = 120;
+const HISTORICAL_OVERHEAD_MONTH_LIMIT = 24;
+const HISTORICAL_OVERHEAD_WINDOW_LIMIT = 4;
 const VOLUME_LANDMARK_LIMIT = 8;
 const UNREPORTED_EXTENDED_WICK_CONFIRMATION_PCT = 0.03;
 const MINIMUM_SIGNIFICANT_IMPULSE_GAIN_PCT = 5;
@@ -15,6 +18,7 @@ export type TradersLinkAiReadPriceActionContext = {
   source: string;
   fetchedAt: number;
   priorRegularClose: number | null;
+  dailyAdjustmentMode?: "adjusted_close_ratio" | "split_adjusted" | "raw" | "unknown";
   oneMinuteCandles?: Candle[];
   intradayCandles: Candle[];
   dailyCandles: Candle[];
@@ -29,7 +33,8 @@ export type TradersLinkAiReadPullbackCandidate = {
     | "volume_shelf"
     | "broader_move_origin"
     | "one_minute_acceptance"
-    | "five_minute_acceptance";
+    | "five_minute_acceptance"
+    | "five_minute_session_base";
   zoneLow: number;
   zoneHigh: number;
   observedFrom: number;
@@ -47,6 +52,35 @@ export type TradersLinkAiCompletedSessionWindow = {
   currentSessionDate: string;
   fromTimeMs: number;
   toTimeMs: number;
+};
+
+export type TradersLinkAiReadMarketRegime =
+  | "normal"
+  | "elevated"
+  | "high_expansion"
+  | "extreme_expansion";
+
+export type TradersLinkAiReadMarketRegimeProfile = {
+  available: boolean;
+  dailyHistoryCount: number;
+  gainFromPriorClosePct: number | null;
+  gainFromRegularSessionOpenPct: number | null;
+  gainFromCurrentSessionLowPct: number | null;
+  currentSessionRangePct: number | null;
+  latestSignificantImpulsePct: number | null;
+  broaderSessionMovePct: number | null;
+  averageDailyRange10Pct: number | null;
+  averageDailyRange20Pct: number | null;
+  largestDailyRange20Pct: number | null;
+  currentRangeVsAverageDailyRange: number | null;
+  currentPriceLocationInSessionRangePct: number | null;
+  currentPriceAtOrNearSessionHigh: boolean;
+  currentPriceAboveHighestSuppliedDailyHigh: boolean;
+  highestObservedUpsidePrice: number | null;
+  highestObservedUpsidePriceType: "current_session" | "prior_session" | "recent_daily" | null;
+  distanceToHighestObservedUpsidePct: number | null;
+  regime: TradersLinkAiReadMarketRegime;
+  limitations: string[];
 };
 
 type CompactPriceActionBar = {
@@ -256,6 +290,84 @@ function materiallySeparatedCandidates(
   return output.slice(0, 8);
 }
 
+function buildFiveMinutePullbackCandidates(
+  rawCandles: Candle[],
+  currentPrice: number,
+  dataAsOf: number,
+): TradersLinkAiReadPullbackCandidate[] {
+  const minimumReferenceSeparation = Math.max(currentPrice * 0.005, 0.0001);
+  const recent = normalizeCandles(rawCandles, dataAsOf).slice(-120);
+  const candidates: TradersLinkAiReadPullbackCandidate[] = [];
+  for (let index = Math.max(0, recent.length - 72); index <= recent.length - 3; index += 1) {
+    const window = recent.slice(index, index + 3);
+    const classifications = window.map((candle) => classifyIntradayCandleTimestamp(candle.timestamp));
+    const sameSession = classifications.every((classification) =>
+      classification.session === classifications[0]!.session &&
+      classification.sessionDate === classifications[0]!.sessionDate
+    );
+    const consecutive = window.slice(1).every(
+      (candle, offset) => candle.timestamp - window[offset]!.timestamp <= 7.5 * 60_000,
+    );
+    if (!sameSession || !consecutive) {
+      continue;
+    }
+    const bodyLows = window.map((candle) => Math.min(candle.open, candle.close));
+    const bodyHighs = window.map((candle) => Math.max(candle.open, candle.close));
+    if (Math.max(...bodyLows) > Math.min(...bodyHighs)) {
+      continue;
+    }
+    const zone = candidateFromCandles({
+      id: `5m-acceptance-${window[0]!.timestamp}`,
+      kind: "five_minute_acceptance",
+      candles: window,
+      bodyOnly: true,
+      rationale: "Observed three-bar five-minute body acceptance shelf.",
+    });
+    if (
+      zone &&
+      zone.zoneHigh - zone.zoneLow <= currentPrice * 0.05 &&
+      zone.zoneHigh < currentPrice - minimumReferenceSeparation
+    ) {
+      candidates.push(zone);
+    }
+  }
+
+  const sessionDates = [...new Set(recent
+    .map((candle) => classifyIntradayCandleTimestamp(candle.timestamp).sessionDate))]
+    .slice(-2);
+  for (const sessionDate of sessionDates) {
+    const sessionCandles = recent.filter((candle) =>
+      classifyIntradayCandleTimestamp(candle.timestamp).sessionDate === sessionDate
+    );
+    if (sessionCandles.length < 3) {
+      continue;
+    }
+    const lowIndex = sessionCandles.reduce(
+      (bestIndex, candle, index) => candle.low < sessionCandles[bestIndex]!.low ? index : bestIndex,
+      0,
+    );
+    const baseWindow = sessionCandles.slice(
+      Math.max(0, lowIndex - 1),
+      Math.min(sessionCandles.length, lowIndex + 2),
+    );
+    const base = candidateFromCandles({
+      id: `5m-session-base-${sessionDate}-${sessionCandles[lowIndex]!.timestamp}`,
+      kind: "five_minute_session_base",
+      candles: baseWindow,
+      bodyOnly: true,
+      rationale: "Observed five-minute bodies around the session low form a lower reset or recovery-watch base.",
+    });
+    if (
+      base &&
+      base.zoneHigh - base.zoneLow <= currentPrice * 0.12 &&
+      base.zoneHigh < currentPrice - minimumReferenceSeparation
+    ) {
+      candidates.push(base);
+    }
+  }
+  return candidates;
+}
+
 function buildOneMinuteFacts(
   rawCandles: Candle[],
   fiveMinuteCandles: Candle[],
@@ -264,12 +376,20 @@ function buildOneMinuteFacts(
 ): Record<string, unknown> {
   const minimumReferenceSeparation = Math.max(currentPrice * 0.005, 0.0001);
   const candles = normalizeCandles(rawCandles, dataAsOf);
+  const fiveMinuteCandidates = buildFiveMinutePullbackCandidates(
+    fiveMinuteCandles,
+    currentPrice,
+    dataAsOf,
+  );
   if (candles.length < 12) {
+    const recentFiveMinute = normalizeCandles(fiveMinuteCandles, dataAsOf).slice(-24);
     return {
       available: false,
       reason: "Fewer than 12 usable one-minute candles were available.",
-      pullbackCandidates: [],
+      fiveMinuteFallbackAvailable: fiveMinuteCandidates.length > 0,
+      pullbackCandidates: materiallySeparatedCandidates(fiveMinuteCandidates),
       recentOneMinuteBars: candles.slice(-RECENT_ONE_MINUTE_BAR_LIMIT).map(compactIntradayBar),
+      recentFiveMinuteBars: recentFiveMinute.map(compactIntradayBar),
     };
   }
 
@@ -500,20 +620,7 @@ function buildOneMinuteFacts(
     }
   }
 
-  const recentFiveMinute = normalizeCandles(fiveMinuteCandles, dataAsOf).slice(-24);
-  for (let index = Math.max(0, recentFiveMinute.length - 12); index <= recentFiveMinute.length - 3; index += 3) {
-    const window = recentFiveMinute.slice(index, index + 3);
-    const zone = candidateFromCandles({
-      id: `5m-acceptance-${window[0]!.timestamp}`,
-      kind: "five_minute_acceptance",
-      candles: window,
-      bodyOnly: true,
-      rationale: "Observed three-bar five-minute body acceptance shelf.",
-    });
-    if (zone && zone.zoneHigh < currentPrice - minimumReferenceSeparation) {
-      candidates.push(zone);
-    }
-  }
+  candidates.push(...fiveMinuteCandidates);
 
   const lastSix = recent.slice(-6);
   const lows = lastSix.map((candle) => candle.low);
@@ -567,6 +674,100 @@ function compactIntradayBar(candle: Candle): CompactPriceActionBar {
     close: roundPrice(candle.close),
     volume: reportedVolume,
     volumeDataQuality: reportedVolume === null ? "unavailable" : "reported",
+  };
+}
+
+function buildHistoricalOverheadSearch(
+  candles: Candle[],
+  currentPrice: number,
+  dataAsOf: number,
+  adjustmentMode: TradersLinkAiReadPriceActionContext["dailyAdjustmentMode"],
+  detailedRecentStartAt: number | null,
+): Record<string, unknown> {
+  if (adjustmentMode !== "adjusted_close_ratio" && adjustmentMode !== "split_adjusted") {
+    return {
+      available: false,
+      adjustmentMode: adjustmentMode ?? "unknown",
+      reason: "Historical overhead search was withheld because split-adjustment status was not trustworthy.",
+      selectedMonthlyHighWindows: [],
+    };
+  }
+  const daily = normalizeCandles(candles, dataAsOf);
+  const byMonth = new Map<string, Candle[]>();
+  for (const candle of daily) {
+    const month = new Date(candle.timestamp).toISOString().slice(0, 7);
+    byMonth.set(month, [...(byMonth.get(month) ?? []), candle]);
+  }
+  const months = [...byMonth.entries()]
+    .sort(([left], [right]) => right.localeCompare(left))
+    .slice(0, HISTORICAL_OVERHEAD_MONTH_LIMIT);
+  const candidates = months
+    .map(([month, monthCandles]) => ({
+      month,
+      highest: monthCandles.reduce((best, candle) =>
+        candle.high > best.high ? candle : best
+      ),
+    }))
+    .filter(({ highest }) =>
+      highest.high > currentPrice &&
+      (detailedRecentStartAt === null || highest.timestamp < detailedRecentStartAt)
+    )
+    .sort((left, right) =>
+      left.highest.high - right.highest.high ||
+      right.month.localeCompare(left.month)
+    );
+  const distinctCandidates: typeof candidates = [];
+  for (const candidate of candidates) {
+    if (distinctCandidates.every((existing) =>
+      Math.abs(existing.highest.high - candidate.highest.high) / currentPrice >= 0.02
+    )) {
+      distinctCandidates.push(candidate);
+    }
+  }
+  const selectedIndexes = distinctCandidates.length <= HISTORICAL_OVERHEAD_WINDOW_LIMIT
+    ? distinctCandidates.map((_, index) => index)
+    : [
+        0,
+        Math.round((distinctCandidates.length - 1) / 3),
+        Math.round((distinctCandidates.length - 1) * 2 / 3),
+        distinctCandidates.length - 1,
+      ];
+  const selectedCandidates = [...new Set(selectedIndexes)]
+    .map((index) => distinctCandidates[index]!)
+    .sort((left, right) => left.highest.high - right.highest.high);
+  const selected: Array<{
+    month: string;
+    monthlyHigh: number;
+    highDate: string;
+    surroundingDailyBars: Array<Record<string, number | string | null>>;
+  }> = selectedCandidates.map(({ month, highest }) => {
+    const dailyIndex = daily.findIndex((candle) => candle.timestamp === highest.timestamp);
+    const surrounding = dailyIndex >= 0
+      ? daily.slice(Math.max(0, dailyIndex - 2), dailyIndex + 3)
+      : [highest];
+    return {
+      month,
+      monthlyHigh: roundPrice(highest.high),
+      highDate: new Date(highest.timestamp).toISOString().slice(0, 10),
+      surroundingDailyBars: compactDailyBars(surrounding, surrounding.length),
+    };
+  });
+  return {
+    available: true,
+    adjustmentMode,
+    searchedMonthCount: months.length,
+    oldestSearchedMonth: months.at(-1)?.[0] ?? null,
+    detailedRecentHistoryStartsAt: detailedRecentStartAt,
+    detailedRecentHistoryStartsAtIso:
+      detailedRecentStartAt === null ? null : new Date(detailedRecentStartAt).toISOString(),
+    eligibleOlderOverheadMonthCount: distinctCandidates.length,
+    stopReason: months.length >= HISTORICAL_OVERHEAD_MONTH_LIMIT
+      ? "maximum_monthly_lookback_reached"
+      : "available_history_exhausted",
+    noObservedOverheadFound: selected.length === 0,
+    limitation:
+      "Selected monthly highs span the price range beyond detailed recent bars. They are observed history used to choose lookback depth, not automatic resistance or targets.",
+    selectedMonthlyHighWindows: selected,
   };
 }
 
@@ -648,8 +849,11 @@ function summarizeSessionPhases(candles: Candle[]): SessionPhaseSummary[] {
   });
 }
 
-function compactDailyBars(candles: Candle[]): Array<Record<string, number | string | null>> {
-  return candles.slice(-RECENT_DAILY_BAR_LIMIT).map((candle) => ({
+function compactDailyBars(
+  candles: Candle[],
+  limit: number,
+): Array<Record<string, number | string | null>> {
+  return candles.slice(-limit).map((candle) => ({
     timestamp: candle.timestamp,
     dateIso: new Date(candle.timestamp).toISOString(),
     open: roundPrice(candle.open),
@@ -659,6 +863,132 @@ function compactDailyBars(candles: Candle[]): Array<Record<string, number | stri
     volume: candle.volume > 0 ? Math.round(candle.volume) : null,
     volumeDataQuality: candle.volume > 0 ? "reported" : "unavailable",
   }));
+}
+
+function percentageGain(from: number | null | undefined, to: number): number | null {
+  return typeof from === "number" && Number.isFinite(from) && from > 0
+    ? roundMetric((to - from) / from * 100)
+    : null;
+}
+
+function averageDailyRangePct(candles: Candle[], count: number): number | null {
+  const values = candles.slice(-count).map((candle) => (candle.high - candle.low) / candle.low * 100);
+  return values.length > 0 ? roundMetric(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+}
+
+function recordNumber(value: unknown, key: string): number | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === "number" && Number.isFinite(candidate) ? candidate : null;
+}
+
+export function buildTradersLinkAiReadMarketRegimeProfile(args: {
+  intraday: Candle[];
+  daily: Candle[];
+  currentPrice: number;
+  priorRegularClose: number | null;
+  dataAsOf: number;
+  oneMinuteFacts: Record<string, unknown>;
+}): TradersLinkAiReadMarketRegimeProfile {
+  const sessionDate = classifyIntradayCandleTimestamp(args.dataAsOf).sessionDate;
+  const annotated = args.intraday.map((candle) => ({
+    candle,
+    classified: classifyIntradayCandleTimestamp(candle.timestamp),
+  }));
+  const currentSession = annotated
+    .filter((item) => item.classified.sessionDate === sessionDate)
+    .map((item) => item.candle);
+  const regularSession = annotated
+    .filter((item) => item.classified.sessionDate === sessionDate &&
+      (item.classified.session === "opening_range" || item.classified.session === "regular"))
+    .map((item) => item.candle);
+  const priorSessionDate = [...annotated].reverse().find((item) =>
+    item.classified.sessionDate !== sessionDate
+  )?.classified.sessionDate ?? null;
+  const priorSession = priorSessionDate
+    ? annotated.filter((item) => item.classified.sessionDate === priorSessionDate).map((item) => item.candle)
+    : [];
+  const sessionHigh = currentSession.length > 0 ? Math.max(...currentSession.map((candle) => candle.high)) : null;
+  const sessionLow = currentSession.length > 0 ? Math.min(...currentSession.map((candle) => candle.low)) : null;
+  const regularOpen = regularSession[0]?.open ?? null;
+  const rangePct = sessionLow && sessionHigh
+    ? roundMetric((sessionHigh - sessionLow) / sessionLow * 100)
+    : null;
+  const locationPct = sessionLow && sessionHigh && sessionHigh > sessionLow
+    ? roundMetric((args.currentPrice - sessionLow) / (sessionHigh - sessionLow) * 100)
+    : null;
+  const latestImpulse = recordNumber(args.oneMinuteFacts.latestSignificantImpulse, "gainPct");
+  const broaderMove = recordNumber(args.oneMinuteFacts.broaderSessionMove, "gainPct");
+  const average10 = averageDailyRangePct(args.daily, 10);
+  const average20 = averageDailyRangePct(args.daily, 20);
+  const dailyRanges20 = args.daily.slice(-20).map((candle) => (candle.high - candle.low) / candle.low * 100);
+  const largest20 = dailyRanges20.length > 0 ? roundMetric(Math.max(...dailyRanges20)) : null;
+  const highestDaily = args.daily.length > 0 ? Math.max(...args.daily.map((candle) => candle.high)) : null;
+  const highestPriorSession = priorSession.length > 0 ? Math.max(...priorSession.map((candle) => candle.high)) : null;
+  const observed: Array<{
+    price: number;
+    type: NonNullable<TradersLinkAiReadMarketRegimeProfile["highestObservedUpsidePriceType"]>;
+  }> = [
+    ...(sessionHigh ? [{ price: sessionHigh, type: "current_session" as const }] : []),
+    ...(highestPriorSession ? [{ price: highestPriorSession, type: "prior_session" as const }] : []),
+    ...(highestDaily ? [{ price: highestDaily, type: "recent_daily" as const }] : []),
+  ];
+  const highestObserved = observed.sort((left, right) => right.price - left.price)[0] ?? null;
+  const gainFromPriorClosePct = percentageGain(args.priorRegularClose, args.currentPrice);
+  const gainFromRegularSessionOpenPct = percentageGain(regularOpen, args.currentPrice);
+  const gainFromCurrentSessionLowPct = percentageGain(sessionLow, args.currentPrice);
+  const rangeMultiple = rangePct !== null && average20 !== null && average20 > 0
+    ? roundMetric(rangePct / average20)
+    : null;
+  let expansionScore = 0;
+  const realizedGain = Math.max(
+    0,
+    gainFromPriorClosePct ?? 0,
+    gainFromRegularSessionOpenPct ?? 0,
+    gainFromCurrentSessionLowPct ?? 0,
+    latestImpulse ?? 0,
+    broaderMove ?? 0,
+  );
+  if (realizedGain >= 20) expansionScore += 1;
+  if (realizedGain >= 50) expansionScore += 2;
+  if ((rangeMultiple ?? 0) >= 1.5) expansionScore += 1;
+  if ((rangeMultiple ?? 0) >= 2.5) expansionScore += 2;
+  if ((latestImpulse ?? 0) >= 15 || (broaderMove ?? 0) >= 25) expansionScore += 1;
+  const regime: TradersLinkAiReadMarketRegime = expansionScore >= 6
+    ? "extreme_expansion"
+    : expansionScore >= 3
+      ? "high_expansion"
+      : expansionScore >= 1
+        ? "elevated"
+        : "normal";
+  const limitations: string[] = [];
+  if (currentSession.length === 0) limitations.push("current_session_unavailable");
+  if (args.daily.length < 10) limitations.push("limited_daily_history");
+  if (latestImpulse === null) limitations.push("significant_impulse_unavailable");
+  return {
+    available: currentSession.length > 0,
+    dailyHistoryCount: args.daily.length,
+    gainFromPriorClosePct,
+    gainFromRegularSessionOpenPct,
+    gainFromCurrentSessionLowPct,
+    currentSessionRangePct: rangePct,
+    latestSignificantImpulsePct: latestImpulse,
+    broaderSessionMovePct: broaderMove,
+    averageDailyRange10Pct: average10,
+    averageDailyRange20Pct: average20,
+    largestDailyRange20Pct: largest20,
+    currentRangeVsAverageDailyRange: rangeMultiple,
+    currentPriceLocationInSessionRangePct: locationPct,
+    currentPriceAtOrNearSessionHigh: Boolean(sessionHigh && args.currentPrice >= sessionHigh * 0.99),
+    currentPriceAboveHighestSuppliedDailyHigh: Boolean(highestDaily && args.currentPrice >= highestDaily),
+    highestObservedUpsidePrice: highestObserved ? roundPrice(highestObserved.price) : null,
+    highestObservedUpsidePriceType: highestObserved?.type ?? null,
+    distanceToHighestObservedUpsidePct: highestObserved
+      ? percentageGain(args.currentPrice, highestObserved.price)
+      : null,
+    regime,
+    limitations,
+  };
 }
 
 function aggregateRegularSessionToFifteenMinutes(
@@ -825,6 +1155,21 @@ export function buildTradersLinkAiPriceActionPacket(
     currentPrice,
     dataAsOf,
   );
+  const marketRegimeProfile = buildTradersLinkAiReadMarketRegimeProfile({
+    intraday,
+    daily,
+    currentPrice,
+    priorRegularClose: context.priorRegularClose,
+    dataAsOf,
+    oneMinuteFacts,
+  });
+  const dailyBarLimit =
+    marketRegimeProfile.currentPriceAboveHighestSuppliedDailyHigh ||
+    marketRegimeProfile.regime === "high_expansion" ||
+    marketRegimeProfile.regime === "extreme_expansion"
+      ? EXPANDED_DAILY_BAR_LIMIT
+      : DEFAULT_DAILY_BAR_LIMIT;
+  const recentDaily = daily.slice(-dailyBarLimit);
 
   return {
     source: context.source,
@@ -850,6 +1195,14 @@ export function buildTradersLinkAiPriceActionPacket(
     highVolumeFiveMinuteBars: volumeLandmarks,
     recentFiveMinuteBars: recentIntraday.map(compactIntradayBar),
     oneMinuteEvidence: oneMinuteFacts,
-    recentDailyBars: compactDailyBars(daily),
+    marketRegimeProfile,
+    recentDailyBars: compactDailyBars(recentDaily, recentDaily.length),
+    historicalOverheadSearch: buildHistoricalOverheadSearch(
+      daily,
+      currentPrice,
+      dataAsOf,
+      context.dailyAdjustmentMode,
+      recentDaily[0]?.timestamp ?? null,
+    ),
   };
 }

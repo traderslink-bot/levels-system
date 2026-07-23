@@ -119,6 +119,7 @@ import type {
   TradersLinkAiReadBoundary,
   TradersLinkAiReadBoundaryState,
   TradersLinkAiReadPendingBoundaryCross,
+  TradersLinkAiReadPriorCompletePlan,
   WatchlistEntry,
   WatchlistLifecycleState,
 } from "./monitoring-types.js";
@@ -283,19 +284,22 @@ export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "
 
 export type TradersLinkAiReadRefreshState = TradersLinkAiReadBoundaryState;
 
+type LegacyTradersLinkAiReadRefreshSource = Pick<
+  TradersLinkAiReadPayload,
+  | "generatedAt"
+  | "currentPrice"
+  | "needsToHold"
+  | "cautionBelow"
+  | "breakoutContinuation"
+  | "momentumFailure"
+  | "mustClear"
+  | "targets"
+  | "downsideCheckpoints"
+>;
+
 export function buildTradersLinkAiReadRefreshState(
-  read: Pick<
-    TradersLinkAiReadPayload,
-    | "generatedAt"
-    | "currentPrice"
-    | "needsToHold"
-    | "cautionBelow"
-    | "breakoutContinuation"
-    | "momentumFailure"
-    | "mustClear"
-    | "targets"
-    | "downsideCheckpoints"
-  >,
+  read: TradersLinkAiReadPayload | LegacyTradersLinkAiReadRefreshSource,
+  crossedBoundaryEvidence?: TradersLinkAiReadPriorCompletePlan["crossedBoundaryEvidence"],
 ): TradersLinkAiReadRefreshState {
   const positivePrice = (price: number | null): number | null =>
     typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
@@ -315,13 +319,22 @@ export function buildTradersLinkAiReadRefreshState(
     { role: "breakoutContinuation", side: "upside", impact: "improves", price: read.breakoutContinuation.price },
   ];
   const primaryBoundaries = primaryBoundaryCandidates.flatMap(normalizeBoundary);
+  const availableForwardHorizons = "forwardPlan" in read
+    ? [
+        read.forwardPlan.nearestRealistic,
+        read.forwardPlan.continuedMomentum,
+        read.forwardPlan.strongExpansion,
+        read.forwardPlan.extremeMomentum,
+        ...read.forwardPlan.additionalObservedOutcomes,
+      ].filter((horizon) => horizon.available && horizon.price !== null)
+    : read.targets.map((target) => ({ available: true as const, price: target.price }));
   const boundaries: TradersLinkAiReadBoundary[] = [
     ...primaryBoundaries,
-    ...read.targets.flatMap((target) => normalizeBoundary({
+    ...availableForwardHorizons.flatMap((horizon) => normalizeBoundary({
       role: "upsideTarget" as const,
       side: "upside" as const,
       impact: "exhausts" as const,
-      price: target.price,
+      price: horizon.price,
     })),
     ...read.downsideCheckpoints.flatMap((checkpoint) => normalizeBoundary({
       role: "downsideCheckpoint" as const,
@@ -336,12 +349,89 @@ export function buildTradersLinkAiReadRefreshState(
   const downsidePrices = boundaries
     .filter((boundary) => boundary.side === "downside" && boundary.price < read.currentPrice)
     .map((boundary) => boundary.price);
+  let priorCompletePlan: TradersLinkAiReadPriorCompletePlan | undefined;
+  if ("forwardPlan" in read) {
+    const { usage: _usage, ...plan } = read;
+    const horizonStates: TradersLinkAiReadPriorCompletePlan["horizonStates"] = {};
+    const primaryHorizons = {
+      nearestRealistic: read.forwardPlan.nearestRealistic,
+      continuedMomentum: read.forwardPlan.continuedMomentum,
+      strongExpansion: read.forwardPlan.strongExpansion,
+      extremeMomentum: read.forwardPlan.extremeMomentum,
+    } as const;
+    for (const [name, horizon] of Object.entries(primaryHorizons)) {
+      if (horizon.available && horizon.price !== null) {
+        horizonStates[name as keyof typeof primaryHorizons] =
+          read.currentPrice >= horizon.price ? "testing" : "approaching";
+      }
+    }
+    priorCompletePlan = {
+      plan,
+      referencePrice: read.currentPrice,
+      horizonStates,
+      ...(crossedBoundaryEvidence ? { crossedBoundaryEvidence } : {}),
+      publicationAcknowledged: false,
+    };
+  }
   return {
     generatedAt: read.generatedAt,
     currentPrice: read.currentPrice,
     upperBoundary: upsidePrices.length > 0 ? Math.max(...upsidePrices) : null,
     lowerBoundary: downsidePrices.length > 0 ? Math.min(...downsidePrices) : null,
     ...(boundaries.length > 0 ? { boundaries } : {}),
+    ...(priorCompletePlan ? { priorCompletePlan } : {}),
+  };
+}
+
+export function advanceTradersLinkAiReadForwardHorizonStates(
+  state: TradersLinkAiReadRefreshState,
+  currentPrice: number,
+): TradersLinkAiReadRefreshState {
+  const prior = state.priorCompletePlan;
+  if (!prior || !Number.isFinite(currentPrice) || currentPrice <= 0) return state;
+  const failurePrice = prior.plan.momentumFailure.price;
+  const invalidated = typeof failurePrice === "number" && currentPrice <= failurePrice;
+  const primaryHorizons = {
+    nearestRealistic: prior.plan.forwardPlan.nearestRealistic,
+    continuedMomentum: prior.plan.forwardPlan.continuedMomentum,
+    strongExpansion: prior.plan.forwardPlan.strongExpansion,
+    extremeMomentum: prior.plan.forwardPlan.extremeMomentum,
+  } as const;
+  const horizonStates: TradersLinkAiReadPriorCompletePlan["horizonStates"] = {
+    ...prior.horizonStates,
+  };
+  for (const [name, horizon] of Object.entries(primaryHorizons)) {
+    const key = name as keyof typeof primaryHorizons;
+    if (!horizon.available || horizon.price === null) {
+      delete horizonStates[key];
+      continue;
+    }
+    const previous = horizonStates[key];
+    if (invalidated) {
+      horizonStates[key] = "invalidated";
+    } else if (currentPrice >= horizon.price * 1.005) {
+      horizonStates[key] = "achieved";
+    } else if (currentPrice >= horizon.price) {
+      horizonStates[key] = previous === "testing" || previous === "accepted"
+        ? "accepted"
+        : "testing";
+    } else if (currentPrice >= horizon.price * 0.995) {
+      horizonStates[key] = "testing";
+    } else if (
+      (previous === "testing" || previous === "accepted") &&
+      currentPrice < horizon.price * 0.98
+    ) {
+      horizonStates[key] = "rejected";
+    } else if (previous !== "achieved" && previous !== "invalidated") {
+      horizonStates[key] = "approaching";
+    }
+  }
+  return {
+    ...state,
+    priorCompletePlan: {
+      ...prior,
+      horizonStates,
+    },
   };
 }
 
@@ -383,6 +473,22 @@ export function parseArchivedTradersLinkAiReadRefreshState(
       parsed.currentPrice <= 0
     ) {
       return null;
+    }
+    if (
+      parsed.version === 4 &&
+      typeof parsed.forwardPlan === "object" &&
+      parsed.forwardPlan !== null &&
+      !Array.isArray(parsed.forwardPlan)
+    ) {
+      const forwardPlan = parsed.forwardPlan as Record<string, unknown>;
+      if (
+        ["nearestRealistic", "continuedMomentum", "strongExpansion", "extremeMomentum"].every(
+          (key) => typeof forwardPlan[key] === "object" && forwardPlan[key] !== null,
+        ) &&
+        Array.isArray(forwardPlan.additionalObservedOutcomes)
+      ) {
+        return buildTradersLinkAiReadRefreshState(parsed as unknown as TradersLinkAiReadPayload);
+      }
     }
     const recovered = buildTradersLinkAiReadRefreshState({
       generatedAt: parsed.generatedAt,
@@ -438,7 +544,7 @@ export function parseArchivedTradersLinkAiLifecyclePlan(
     );
     const pullbackPlans = parsed.pullbackPlans as Record<string, unknown> | null;
     if (
-      parsed.version !== 3 ||
+      (parsed.version !== 3 && parsed.version !== 4) ||
       typeof parsed.generatedAt !== "number" ||
       !Number.isFinite(parsed.generatedAt) ||
       parsed.generatedAt <= 0 ||
@@ -1437,6 +1543,7 @@ const PULLBACK_READ_5M_LOOKBACK_BARS = 80;
 const TRADERSLINK_AI_READ_1M_FETCH_BARS = 600;
 const TRADERSLINK_AI_READ_5M_FETCH_BARS = 720;
 const TRADERSLINK_AI_READ_DAILY_FETCH_BARS = 30;
+const TRADERSLINK_AI_READ_LONG_DAILY_LOOKBACK_DAYS = 730;
 const PULLBACK_READ_MAX_LATEST_CANDLE_AGE_MS = 10 * 60 * 1000;
 const PULLBACK_READ_MAX_FUTURE_CANDLE_SKEW_MS = 90 * 1000;
 const TECHNICAL_CONTEXT_BOOTSTRAP_RETRY_DELAYS_MS = [
@@ -2980,6 +3087,7 @@ export class ManualWatchlistRuntimeManager {
       this.technicalContextCandleStore.getCandles(symbol),
     );
     let dailyCandles = normalizePullbackCandles(storedSeries?.daily.candles ?? []);
+    let dailyAdjustmentMode: TradersLinkAiReadPriceActionContext["dailyAdjustmentMode"] = "unknown";
     let source = this.technicalContextProviderBySymbol.get(symbol) ?? "runtime raw OHLCV";
     let recentIntradayProvider = source;
     const service = this.options.recentIntradayCandleFetchService;
@@ -3028,6 +3136,11 @@ export class ManualWatchlistRuntimeManager {
         const fetchedDaily = normalizePullbackCandles(dailyResult.value.candles);
         if (fetchedDaily.length > 0) {
           dailyCandles = fetchedDaily;
+          const mode = dailyResult.value.providerMetadata?.providerAdjustmentMode;
+          dailyAdjustmentMode =
+            mode === "adjusted_close_ratio" || mode === "split_adjusted" || mode === "raw"
+              ? mode
+              : "unknown";
         }
       }
     }
@@ -3048,7 +3161,8 @@ export class ManualWatchlistRuntimeManager {
         : Promise.resolve(null);
       const dailyPromise = historicalLoader({
         symbol,
-        fromTimeMs: fetchAsOf - 120 * 24 * 60 * 60 * 1_000,
+        fromTimeMs: fetchAsOf -
+          TRADERSLINK_AI_READ_LONG_DAILY_LOOKBACK_DAYS * 24 * 60 * 60 * 1_000,
         toTimeMs: fetchAsOf,
         timeframes: ["daily"],
         nowMs: fetchAsOf,
@@ -3087,6 +3201,13 @@ export class ManualWatchlistRuntimeManager {
         const historicalDailyCandles = normalizePullbackCandles(dailySeries?.candles ?? []);
         if (historicalDailyCandles.length > 0) {
           dailyCandles = historicalDailyCandles;
+          const mode = dailySeries?.response.providerMetadata?.providerAdjustmentMode;
+          dailyAdjustmentMode =
+            mode === "adjusted_close_ratio" || mode === "split_adjusted" || mode === "raw"
+              ? mode
+              : "unknown";
+          source =
+            `${source} + ${dailySeries?.provider ?? "historical"} long daily history (${dailyAdjustmentMode})`;
         }
       } else {
         const message = historicalDailyResult.reason instanceof Error
@@ -3102,6 +3223,7 @@ export class ManualWatchlistRuntimeManager {
       source,
       fetchedAt: Date.now(),
       priorRegularClose: this.priorRegularCloseBySymbol.get(symbol)?.price ?? null,
+      dailyAdjustmentMode,
       oneMinuteCandles,
       intradayCandles,
       dailyCandles,
@@ -3141,8 +3263,19 @@ export class ManualWatchlistRuntimeManager {
       return null;
     }
 
+    const existingRefreshState = this.aiReadState.get(symbol) ?? null;
+    const progressedRefreshState = existingRefreshState
+      ? advanceTradersLinkAiReadForwardHorizonStates(existingRefreshState, snapshot.currentPrice)
+      : null;
+    if (progressedRefreshState?.priorCompletePlan) {
+      this.aiReadState.set(symbol, progressedRefreshState);
+      this.watchlistStore.patchEntry(symbol, {
+        tradersLinkAiReadBoundaryState: progressedRefreshState,
+      });
+      this.persistWatchlist();
+    }
     const refreshDecision = decideTradersLinkAiReadRefresh({
-      previous: this.aiReadState.get(symbol) ?? null,
+      previous: progressedRefreshState,
       currentPrice: snapshot.currentPrice,
       dataAsOf,
       force,
@@ -3228,6 +3361,9 @@ export class ManualWatchlistRuntimeManager {
           ...(refreshDecision.confirmedPriorBoundary
             ? { priorPlanBoundary: refreshDecision.confirmedPriorBoundary }
             : {}),
+          ...(progressedRefreshState?.priorCompletePlan
+            ? { priorCompletePlan: progressedRefreshState.priorCompletePlan as unknown as Record<string, unknown> }
+            : {}),
           onAttempt: (attempt) => {
             this.options.tradersLinkAiReadCostLedger?.recordAttempt({
               attempt,
@@ -3253,7 +3389,7 @@ export class ManualWatchlistRuntimeManager {
         return null;
       }
       const nextRefreshState = {
-        ...buildTradersLinkAiReadRefreshState(read),
+        ...buildTradersLinkAiReadRefreshState(read, refreshDecision.confirmedPriorBoundary),
         lastAutomaticRefreshRegime: refreshDecision.automaticRefreshRegime,
       };
       const pendingGeneration: PendingTradersLinkAiReadGeneration = {
@@ -3300,9 +3436,18 @@ export class ManualWatchlistRuntimeManager {
     if (!entry || !pending || pending.generationId !== read.generationId) {
       return;
     }
-    this.aiReadState.set(read.symbol, pending.boundaryState);
+    const acknowledgedBoundaryState = pending.boundaryState.priorCompletePlan
+      ? {
+          ...pending.boundaryState,
+          priorCompletePlan: {
+            ...pending.boundaryState.priorCompletePlan,
+            publicationAcknowledged: true,
+          },
+        }
+      : pending.boundaryState;
+    this.aiReadState.set(read.symbol, acknowledgedBoundaryState);
     this.watchlistStore.patchEntry(read.symbol, {
-      tradersLinkAiReadBoundaryState: pending.boundaryState,
+      tradersLinkAiReadBoundaryState: acknowledgedBoundaryState,
       pendingTradersLinkAiReadGeneration: null,
       ...(read.confidence ? { tradersLinkAiReadConfidence: read.confidence } : {}),
     });

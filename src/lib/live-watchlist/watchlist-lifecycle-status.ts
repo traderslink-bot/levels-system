@@ -45,7 +45,7 @@ export type LiveWatchlistLifecycleEvidence = {
   aiRead?: TradersLinkAiLifecyclePlan | null;
 };
 
-export type TradersLinkAiLifecyclePlan = Pick<
+export type TradersLinkAiLifecyclePlan = Omit<Pick<
   TradersLinkAiReadPayload,
   | "version"
   | "generatedAt"
@@ -54,7 +54,7 @@ export type TradersLinkAiLifecyclePlan = Pick<
   | "momentumFailure"
   | "pullbackPlans"
   | "failureRecovery"
->;
+>, "version"> & { version: 3 | 4 };
 
 function newYorkDateKey(timestamp: number): string | null {
   if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
@@ -316,7 +316,7 @@ export function deriveLiveWatchlistLifecycleRead(
       evidence.evaluatedAt,
     );
   }
-  if (evidence.aiRead?.version === 3 && currentPrice !== null) {
+  if ((evidence.aiRead?.version === 3 || evidence.aiRead?.version === 4) && currentPrice !== null) {
     if (!aiPlanIsCurrent(evidence.aiRead, evidence.evaluatedAt)) {
       return read(
         "monitoring",

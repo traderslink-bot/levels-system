@@ -164,16 +164,56 @@ function premarketModelRead(currentRead: string): Record<string, unknown> {
       price: 0.3658,
       rationale: "Acceptance above the prior regular-session range opens the continuation path.",
     },
-    targets: [{
-      label: "Daily range objective",
-      price: 0.3851,
-      condition: "Only after the prior regular-session range holds as support.",
-    }],
+    forwardPlan: {
+      nearestRealistic: projectedHorizon("Nearest realistic", 0.3851, "psychological_boundary"),
+      continuedMomentum: projectedHorizon("Continued momentum", 0.42, "measured_move"),
+      strongExpansion: projectedHorizon("Strong expansion", 0.46, "volatility_projection"),
+      extremeMomentum: projectedHorizon("Extreme momentum", 0.49, "combined"),
+      additionalObservedOutcomes: [],
+    },
     downsideCheckpoints: [{
       label: "Lower daily range",
       price: 0.2446,
       condition: "The recent daily range low is exposed if the premarket floor fails.",
     }],
+    pullbackPlans: { shallow: null, deep: null },
+    failureRecovery: null,
+  };
+}
+
+function projectedHorizon(
+  label: string,
+  price: number,
+  basisType: "psychological_boundary" | "measured_move" | "volatility_projection" | "combined",
+): Record<string, unknown> {
+  return {
+    label,
+    available: true,
+    price,
+    condition: `Sustained acceptance must confirm the ${label.toLowerCase()} branch.`,
+    basisType,
+    basisSummary: `A conditional ${basisType.replaceAll("_", " ")} scenario derived from the supplied tape.`,
+    sourceFacts: ["Supplied session range", "Supplied realized impulse", "Supplied daily volatility context"],
+    unavailableReasonCode: null,
+    unavailableReason: null,
+  };
+}
+
+function fiveMinuteFallbackPullback(): Record<string, unknown> {
+  const packet = buildTradersLinkAiPriceActionPacket(priceAction(), 1.36, DATA_AS_OF);
+  const evidence = packet.oneMinuteEvidence as Record<string, unknown>;
+  const candidate = (evidence.pullbackCandidates as Array<Record<string, number | string>>)[0]!;
+  const zoneLow = Number(candidate.zoneLow);
+  const zoneHigh = Number(candidate.zoneHigh);
+  return {
+    zoneLow,
+    zoneHigh,
+    confirmationPrice: zoneHigh,
+    confirmation: "Hold the observed five-minute shelf and reclaim its upper body boundary.",
+    invalidationPrice: Number((zoneLow - Math.max(0.01, zoneLow * 0.01)).toFixed(4)),
+    firstObjectivePrice: 1.5,
+    rationale: "The supplied five-minute candles preserve a candidate-backed pullback branch.",
+    evidenceIds: [String(candidate.id)],
   };
 }
 
@@ -187,12 +227,18 @@ function modelRead(): Record<string, unknown> {
     momentumFailure: { label: "Momentum failure", price: 1.2, rationale: "A clean loss of the prior regular-session low exposes the lower daily range." },
     mustClear: { label: "Repeated rejection zone", price: 1.5, rationale: "Repeated postmarket rejection tests make sustained acceptance necessary here." },
     breakoutContinuation: { label: "Range-high continuation", price: 1.68, rationale: "Acceptance above the postmarket range high opens the extension targets." },
-    targets: [{ label: "First continuation area", price: 1.8, condition: "Only after $1.68 holds as support." }],
+    forwardPlan: {
+      nearestRealistic: projectedHorizon("Nearest realistic", 1.72, "psychological_boundary"),
+      continuedMomentum: projectedHorizon("Continued momentum", 1.8, "measured_move"),
+      strongExpansion: projectedHorizon("Strong expansion", 1.9, "volatility_projection"),
+      extremeMomentum: projectedHorizon("Extreme momentum", 2, "combined"),
+      additionalObservedOutcomes: [],
+    },
     downsideCheckpoints: [
       { label: "First lower support", price: 1.12, condition: "Exposed if the prior regular session low loses acceptance." },
       { label: "Outer lower support", price: 1.05, condition: "Next daily range low if $1.12 fails." },
     ],
-    pullbackPlans: { shallow: null, deep: null },
+    pullbackPlans: { shallow: fiveMinuteFallbackPullback(), deep: null },
     failureRecovery: null,
     catalystRealityCheck: {
       status: "conditional",
@@ -479,7 +525,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(filingSource.evidence?.retrievedAt, "2026-07-15T20:31:00.000Z");
     assert.match(filingSource.evidence?.supportingExcerpt ?? "", /merger consideration/i);
     assert.equal(filingSource.evidence?.supersessionStatus, "latest_in_retrieved_window");
-    assert.equal(read.version, 3);
+    assert.equal(read.version, 4);
     assert.equal(read.breakoutContinuation.price, 1.68);
     assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), [1.12, 1.05]);
     assert.deepEqual(read.catalystRealityCheck.sourceUrls, [
@@ -604,7 +650,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(read.riskSummary.join(" "), /prior plan boundary near \$1\.42/i);
   });
 
-  it("publishes only candidate-backed, separated v3 pullback and recovery structures", async () => {
+  it("publishes only candidate-backed, separated v4 pullback and recovery structures", async () => {
     const tape = priceActionWithOneMinuteCandidates();
     const currentPrice = tape.oneMinuteCandles!.at(-1)!.close;
     const packet = buildTradersLinkAiPriceActionPacket(tape, currentPrice, DATA_AS_OF);
@@ -1250,6 +1296,51 @@ describe("OpenAITradersLinkAiReadService", () => {
     ]);
   });
 
+  it("uses the configured fallback model for one final full repair after two invalid drafts", async () => {
+    const invalidRead = modelRead();
+    invalidRead.needsToHold = {
+      label: "Invalid hold",
+      price: 1.5,
+      rationale: "This intentionally invalid fixture is above the reference quote.",
+    };
+    let requestCount = 0;
+    const attempts: Array<{ attemptType: string; status: string; model: string }> = [];
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-primary",
+      fallbackModel: "test-fallback",
+      fetchImpl: async () => {
+        requestCount += 1;
+        const responseRead = requestCount < 3 ? invalidRead : modelRead();
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(responseRead) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const read = await service.generate({
+      snapshot: snapshot(),
+      priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      onAttempt: (attempt) => attempts.push({
+        attemptType: attempt.attemptType,
+        status: attempt.status,
+        model: attempt.model,
+      }),
+    });
+
+    assert.equal(requestCount, 3);
+    assert.equal(read.model, "test-fallback");
+    assert.deepEqual(attempts, [
+      { attemptType: "primary", status: "invalid_output", model: "test-primary" },
+      { attemptType: "correction", status: "invalid_output", model: "test-primary" },
+      { attemptType: "fallback", status: "success", model: "test-fallback" },
+    ]);
+  });
+
   it("keeps operational volume availability out of the user-facing AI Read", async () => {
     const invalidRead = modelRead();
     invalidRead.currentRead =
@@ -1484,7 +1575,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(service);
     assert.equal(service.isExternalResearchEnabled(), false);
     assert.equal(service.getConfiguredModel(), "gpt-5.6-terra");
-    assert.equal(service.getReasoningEffort(), "medium");
+    assert.equal(service.getReasoningEffort(), "high");
     const enabledService = createTradersLinkAiReadServiceFromEnv({
       OPENAI_API_KEY: "test-key",
       TRADERSLINK_AI_READ_WEB_SEARCH_ENABLED: "true",

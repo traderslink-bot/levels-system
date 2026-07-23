@@ -167,6 +167,57 @@ export type TradersLinkAiReadTarget = {
   condition: string;
 };
 
+export type TradersLinkAiReadForwardHorizonName =
+  | "nearestRealistic"
+  | "continuedMomentum"
+  | "strongExpansion"
+  | "extremeMomentum";
+
+export type TradersLinkAiReadForwardBasisType =
+  | "observed_intraday"
+  | "observed_prior_session"
+  | "observed_daily"
+  | "failed_spike"
+  | "psychological_boundary"
+  | "measured_move"
+  | "volatility_projection"
+  | "combined"
+  | "unavailable";
+
+export type TradersLinkAiReadForwardUnavailableReasonCode =
+  | "stale_or_incomplete_data"
+  | "unresolved_split_adjustment"
+  | "corrupt_candle_history"
+  | "quote_conflict"
+  | "insufficient_history";
+
+export type TradersLinkAiReadForwardHorizon = {
+  available: boolean;
+  price: number | null;
+  condition: string;
+  basisType: TradersLinkAiReadForwardBasisType;
+  basisSummary: string;
+  sourceFacts: string[];
+  unavailableReasonCode: TradersLinkAiReadForwardUnavailableReasonCode | null;
+  unavailableReason: string | null;
+};
+
+export type TradersLinkAiReadForwardPlan = {
+  nearestRealistic: TradersLinkAiReadForwardHorizon;
+  continuedMomentum: TradersLinkAiReadForwardHorizon;
+  strongExpansion: TradersLinkAiReadForwardHorizon;
+  extremeMomentum: TradersLinkAiReadForwardHorizon;
+  additionalObservedOutcomes: TradersLinkAiReadForwardHorizon[];
+};
+
+export type TradersLinkAiReadForwardHorizonState =
+  | "approaching"
+  | "testing"
+  | "accepted"
+  | "rejected"
+  | "achieved"
+  | "invalidated";
+
 export type TradersLinkAiReadPullbackScenario = {
   zoneLow: number;
   zoneHigh: number;
@@ -299,7 +350,7 @@ export type TradersLinkAiReadListingContext = {
 };
 
 export type TradersLinkAiReadPayload = {
-  version: 3;
+  version: 4;
   /** Immutable id assigned before the first provider attempt for this read. */
   generationId: string;
   symbol: string;
@@ -315,6 +366,9 @@ export type TradersLinkAiReadPayload = {
   momentumFailure: TradersLinkAiReadLevel;
   mustClear: TradersLinkAiReadLevel;
   breakoutContinuation: TradersLinkAiReadLevel;
+  /** Canonical complete-wide upside contract. */
+  forwardPlan: TradersLinkAiReadForwardPlan;
+  /** Derived compatibility view for v2/v3 website and archive consumers. */
   targets: TradersLinkAiReadTarget[];
   downsideCheckpoints: TradersLinkAiReadTarget[];
   pullbackPlans: {

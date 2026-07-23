@@ -142,6 +142,18 @@ function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundary
   const pendingAutomaticBoundaryCross = normalizePendingBoundaryCross(
     value.pendingAutomaticBoundaryCross,
   );
+  const priorCompletePlan = isRecord(value.priorCompletePlan) &&
+      isRecord(value.priorCompletePlan.plan) &&
+      value.priorCompletePlan.plan.version === 4 &&
+      typeof value.priorCompletePlan.plan.generationId === "string" &&
+      typeof value.priorCompletePlan.plan.symbol === "string" &&
+      typeof value.priorCompletePlan.referencePrice === "number" &&
+      Number.isFinite(value.priorCompletePlan.referencePrice) &&
+      value.priorCompletePlan.referencePrice > 0 &&
+      isRecord(value.priorCompletePlan.horizonStates) &&
+      typeof value.priorCompletePlan.publicationAcknowledged === "boolean"
+    ? value.priorCompletePlan as unknown as TradersLinkAiReadBoundaryState["priorCompletePlan"]
+    : undefined;
   return {
     generatedAt: value.generatedAt,
     currentPrice: value.currentPrice,
@@ -149,6 +161,7 @@ function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundary
     lowerBoundary: normalizeBoundary(value.lowerBoundary),
     ...(boundaries.length > 0 ? { boundaries } : {}),
     ...(pendingAutomaticBoundaryCross ? { pendingAutomaticBoundaryCross } : {}),
+    ...(priorCompletePlan ? { priorCompletePlan } : {}),
     lastAutomaticRefreshRegime:
       typeof value.lastAutomaticRefreshRegime === "string" &&
       value.lastAutomaticRefreshRegime.length > 0 &&
