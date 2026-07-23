@@ -208,10 +208,15 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.match(MANUAL_WATCHLIST_PAGE, /External Catalyst, SEC, and Web Research/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Refresh AI Read/);
   assert.match(MANUAL_WATCHLIST_PAGE, /AI confidence:/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /All AI Reads Failed/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /tradersLinkAiReadAllAttemptsFailed/);
   assert.match(MANUAL_WATCHLIST_PAGE, /AI Card: Shown/);
   assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-cost-grid/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /Optional Daily AI Spend Guard/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Automatic AI Read Spend Limits/);
   assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-cost-budget-toggle/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-per-ticker-budget-usd/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Admin Refresh AI Read always bypasses both spend limits/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Recent AI API Attempts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /summary\.todayPerTicker/);
   assert.match(MANUAL_WATCHLIST_PAGE, /No TradersLink AI Read API calls recorded today/);
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /perTicker\.slice\(0, 20\)/);
@@ -220,6 +225,7 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-external-research/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-cost-budget/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /bypassCostLimits: true/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-visibility/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-refresh/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /manager\.getTradersLinkAiReadCostSnapshot\(\)/);

@@ -654,6 +654,8 @@ async function main(): Promise<void> {
   let aiReadDailyCostBudget = {
     enabled: persistedTradersLinkAiReadSettings?.dailyCostBudgetEnabled ?? false,
     dailyLimitUsd: persistedTradersLinkAiReadSettings?.dailyCostBudgetUsd ?? 1,
+    perTickerDailyLimitUsd:
+      persistedTradersLinkAiReadSettings?.perTickerDailyCostBudgetUsd ?? 0.25,
   };
   tradersLinkAiReadService?.setExternalResearchEnabled(aiReadExternalResearchEnabled);
   if (!persistedTradersLinkAiReadSettings) {
@@ -665,6 +667,7 @@ async function main(): Promise<void> {
       reversalWatchlistVisible: true,
       dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
       dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+      perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
     });
   }
   const tradersLinkAiReadCostLedger = new TradersLinkAiReadCostLedger({
@@ -1006,6 +1009,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         aiReadExternalResearchEnabled = body.enabled;
         tradersLinkAiReadService?.setExternalResearchEnabled(body.enabled);
@@ -1033,9 +1037,14 @@ async function main(): Promise<void> {
           return;
         }
         const dailyLimitUsd = typeof body.dailyLimitUsd === "number" ? body.dailyLimitUsd : Number.NaN;
+        const perTickerDailyLimitUsd =
+          typeof body.perTickerDailyLimitUsd === "number"
+            ? body.perTickerDailyLimitUsd
+            : Number.NaN;
         aiReadDailyCostBudget = manager.setTradersLinkAiReadDailyCostBudget({
           enabled: body.enabled,
           dailyLimitUsd,
+          perTickerDailyLimitUsd,
         });
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
@@ -1046,6 +1055,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         sendJson(response, 200, {
           ok: true,
@@ -1366,6 +1376,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         publishLiveWatchlistHealth({
           publisher: liveWatchlistHealthPublisher,
@@ -1421,6 +1432,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         sendJson(response, 200, {
           ok: true,
@@ -1468,6 +1480,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         sendJson(response, 200, {
           ok: true,
@@ -1504,6 +1517,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: result.visible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         sendJson(response, 200, {
           ok: true,
@@ -1820,8 +1834,15 @@ async function main(): Promise<void> {
           sendJson(response, 400, { error: "Symbol is required." });
           return;
         }
-        const read = await manager.refreshTradersLinkAiRead(symbol);
-        sendJson(response, 200, { ok: true, generated: Boolean(read), read });
+        const read = await manager.refreshTradersLinkAiRead(symbol, {
+          bypassCostLimits: true,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          generated: Boolean(read),
+          bypassedCostLimits: true,
+          read,
+        });
       } catch (error) {
         if (error instanceof RequestBodyParseError) {
           sendJson(response, error.statusCode, { error: error.message });

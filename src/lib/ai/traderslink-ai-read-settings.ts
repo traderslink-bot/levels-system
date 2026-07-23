@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 export type TradersLinkAiReadSettings = {
-  version: 5;
+  version: 6;
   lastUpdated: number;
   externalResearchEnabled: boolean;
   liveTraderReadCardVisible: boolean;
@@ -11,14 +11,16 @@ export type TradersLinkAiReadSettings = {
   reversalWatchlistVisible: boolean;
   dailyCostBudgetEnabled: boolean;
   dailyCostBudgetUsd: number;
+  perTickerDailyCostBudgetUsd: number;
 };
 
 export type TradersLinkAiReadSettingsPersistenceOptions = {
   filePath?: string;
 };
 
-const SETTINGS_VERSION = 5;
+const SETTINGS_VERSION = 6;
 export const DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 1;
+export const DEFAULT_TRADERSLINK_AI_READ_PER_TICKER_DAILY_COST_BUDGET_USD = 0.25;
 const MIN_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 0.01;
 const MAX_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 10_000;
 const DEFAULT_SETTINGS_FILE = resolve(
@@ -45,7 +47,8 @@ export function normalizeTradersLinkAiReadDailyCostBudgetUsd(
 function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
   if (
     !isRecord(value) ||
-    (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4 && value.version !== SETTINGS_VERSION) ||
+    typeof value.version !== "number" ||
+    ![1, 2, 3, 4, 5, SETTINGS_VERSION].includes(value.version) ||
     typeof value.lastUpdated !== "number" ||
     !Number.isFinite(value.lastUpdated) ||
     typeof value.externalResearchEnabled !== "boolean"
@@ -80,6 +83,9 @@ function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
     dailyCostBudgetUsd:
       normalizeTradersLinkAiReadDailyCostBudgetUsd(value.dailyCostBudgetUsd) ??
       DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD,
+    perTickerDailyCostBudgetUsd:
+      normalizeTradersLinkAiReadDailyCostBudgetUsd(value.perTickerDailyCostBudgetUsd) ??
+      DEFAULT_TRADERSLINK_AI_READ_PER_TICKER_DAILY_COST_BUDGET_USD,
   };
 }
 
@@ -123,6 +129,7 @@ export class TradersLinkAiReadSettingsPersistence {
     reversalWatchlistVisible: boolean;
     dailyCostBudgetEnabled: boolean;
     dailyCostBudgetUsd: number;
+    perTickerDailyCostBudgetUsd: number;
   }): TradersLinkAiReadSettings {
     const values = typeof input === "boolean"
       ? {
@@ -133,6 +140,8 @@ export class TradersLinkAiReadSettingsPersistence {
           reversalWatchlistVisible: true,
           dailyCostBudgetEnabled: false,
           dailyCostBudgetUsd: DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD,
+          perTickerDailyCostBudgetUsd:
+            DEFAULT_TRADERSLINK_AI_READ_PER_TICKER_DAILY_COST_BUDGET_USD,
         }
       : input;
     const dailyCostBudgetUsd = normalizeTradersLinkAiReadDailyCostBudgetUsd(
@@ -143,11 +152,20 @@ export class TradersLinkAiReadSettingsPersistence {
         `dailyCostBudgetUsd must be between $${MIN_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD.toFixed(2)} and $${MAX_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD.toLocaleString("en-US", { minimumFractionDigits: 2 })}.`,
       );
     }
+    const perTickerDailyCostBudgetUsd = normalizeTradersLinkAiReadDailyCostBudgetUsd(
+      values.perTickerDailyCostBudgetUsd,
+    );
+    if (perTickerDailyCostBudgetUsd === null) {
+      throw new Error(
+        `perTickerDailyCostBudgetUsd must be between $${MIN_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD.toFixed(2)} and $${MAX_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD.toLocaleString("en-US", { minimumFractionDigits: 2 })}.`,
+      );
+    }
     const settings: TradersLinkAiReadSettings = {
       version: SETTINGS_VERSION,
       lastUpdated: Date.now(),
       ...values,
       dailyCostBudgetUsd,
+      perTickerDailyCostBudgetUsd,
     };
     const directory = dirname(this.filePath);
     const tempFilePath = `${this.filePath}.tmp`;

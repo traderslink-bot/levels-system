@@ -130,6 +130,13 @@ export type TradersLinkAiReadGenerationInput = {
   dataAsOf?: number;
   generationId?: string;
   onAttempt?: (attempt: TradersLinkAiReadAttempt) => void;
+  authorizeAttempt?: (attempt: {
+    generationId: string;
+    symbol: string;
+    attemptNumber: number;
+    attemptType: TradersLinkAiReadAttempt["attemptType"];
+    model: string;
+  }) => void | Promise<void>;
 };
 
 export type TradersLinkAiReadAttempt = {
@@ -170,6 +177,15 @@ type TimedRequestError = Error & {
   responsePayload?: ResponsesApiResponse;
   requestTiming?: RequestTiming;
 };
+
+type AttemptAuthorizationError = Error & {
+  aiReadAttemptBlocked: true;
+};
+
+function isAttemptAuthorizationError(error: unknown): error is AttemptAuthorizationError {
+  return error instanceof Error &&
+    (error as Partial<AttemptAuthorizationError>).aiReadAttemptBlocked === true;
+}
 
 export type TradersLinkAiReadService = {
   generate(input: TradersLinkAiReadGenerationInput): Promise<TradersLinkAiReadPayload>;
@@ -1732,6 +1748,62 @@ function pruneRedundantScenarioCheckpoints(
   };
 }
 
+function pruneUnsafeOptionalPullbackPlans(
+  read: ModelRead,
+  currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext,
+): ModelRead {
+  const tolerance = Math.max(currentPrice * 0.005, 0.0001);
+  const recentBars = priceAction.intradayCandles.slice(-24);
+  const averageRange = recentBars.length > 0
+    ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) /
+      recentBars.length
+    : 0;
+  const validScenario = (
+    scenario: TradersLinkAiReadPullbackScenario | null,
+    kind: "shallow" | "deep",
+  ): TradersLinkAiReadPullbackScenario | null => {
+    if (!scenario || read.confidence === "low") {
+      return null;
+    }
+    const invalidOrdering =
+      scenario.zoneLow > scenario.zoneHigh ||
+      scenario.zoneHigh >= currentPrice - tolerance ||
+      scenario.invalidationPrice >= scenario.zoneLow - tolerance ||
+      scenario.confirmationPrice < scenario.zoneLow - tolerance ||
+      (scenario.firstObjectivePrice !== null &&
+        scenario.firstObjectivePrice <= scenario.zoneHigh + tolerance);
+    const invalidDeepRelation =
+      kind === "deep" &&
+      read.momentumFailure.price !== null &&
+      scenario.invalidationPrice < read.momentumFailure.price - tolerance;
+    return invalidOrdering || invalidDeepRelation ? null : scenario;
+  };
+
+  if (
+    read.momentumFailure.price !== null &&
+    currentPrice <= read.momentumFailure.price + tolerance
+  ) {
+    return {
+      ...read,
+      pullbackPlans: { shallow: null, deep: null },
+    };
+  }
+
+  const shallow = validScenario(read.pullbackPlans.shallow, "shallow");
+  let deep = validScenario(read.pullbackPlans.deep, "deep");
+  if (shallow && deep) {
+    const requiredSeparation = Math.max(tolerance, averageRange * 0.25);
+    if (shallow.zoneLow - deep.zoneHigh < requiredSeparation) {
+      deep = null;
+    }
+  }
+  return {
+    ...read,
+    pullbackPlans: { shallow, deep },
+  };
+}
+
 function extractResponseText(payload: ResponsesApiResponse): string | null {
   if (typeof payload.output_text === "string" && payload.output_text.trim()) {
     return payload.output_text.trim();
@@ -2100,27 +2172,21 @@ function buildRequestBody(args: {
     args.input.priceAction,
     args.dataAsOf,
   );
-  const marketRegimeProfile = marketRegimeProfileFromPacket(marketPacket);
   const correctionInput = args.correction
     ? [{
         role: "user",
         content: [{
           type: "input_text",
           text: JSON.stringify({
-            task: "Repair the complete rejected AI Read. Preserve all validated locked facts and correct every supplied failure in one response.",
-            authoritativeMarketPacket: marketPacket,
-            priceFreeMarketRegimeProfile: marketRegimeProfile,
+            task: "Regenerate one concise complete AI Read from the authoritative market packet already supplied above. Correct every supplied failure.",
             validationFailures: args.correction.validationFailures,
             diagnostics: args.correction.diagnostics,
-            rejectedDraft: args.correction.rejectedDraft,
-            rejectedNormalizedResponse: args.correction.rejectedNormalizedResponse,
             normalizationChanges: args.correction.normalizationChanges,
             lockedFields: [
               "authoritative market packet",
               "validated research source URLs and source-backed catalyst facts",
               "validated dilution and listing facts",
             ],
-            priorCompletePlan: args.input.priorCompletePlan ?? null,
             correctionRules: [
               "The forward plan was rejected because one or more horizons were missing, duplicated, unsupported, or suspiciously compressed relative to the supplied regime.",
               "Reassess the raw candles, daily history, volatility profile, and psychological price scale; derive exact prices independently.",
@@ -2132,7 +2198,7 @@ function buildRequestBody(args: {
               "For every pullback use invalidationPrice < zoneLow <= zoneHigh < currentPrice.",
               "For deep also use momentumFailure <= invalidationPrice; return deep as null when that ordering is impossible.",
               "Do not add new research claims or source URLs during tactical correction.",
-              "Return only the complete corrected JSON object.",
+              "Keep every explanation short and return only the complete corrected JSON object.",
             ],
           }),
         }],
@@ -2140,11 +2206,12 @@ function buildRequestBody(args: {
     : [];
   return {
     model: args.model,
-    reasoning: { effort: args.correction ? "high" : args.reasoningEffort ?? "high" },
+    reasoning: { effort: args.reasoningEffort ?? "medium" },
     max_output_tokens: args.maxOutputTokens,
     ...(args.webSearchEnabled ? { tools: [{ type: "web_search" }] } : {}),
     ...(args.webSearchEnabled ? { include: ["web_search_call.action.sources"] } : {}),
     text: {
+      verbosity: "low",
       format: {
         type: "json_schema",
         name: "traderslink_ai_read",
@@ -2327,6 +2394,44 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     let attemptSequence = 0;
     let requestSequence = 0;
     const nextClientRequestId = (): string => `${generationId}-request-${++requestSequence}`;
+    const requestAttempt = async (
+      attemptType: TradersLinkAiReadAttempt["attemptType"],
+      attemptModel: string,
+      correction?: {
+        validationFailures: TradersLinkAiReadValidationFailure[];
+        diagnostics: Record<string, unknown> | null;
+        rejectedDraft: string | null;
+        rejectedNormalizedResponse: ModelRead | null;
+        normalizationChanges: string[];
+      },
+    ): Promise<ResponsesApiResponse> => {
+      const attemptNumber = requestSequence + 1;
+      if (attemptNumber > 2) {
+        throw new Error("TradersLink AI Read stopped at the two-call generation limit.");
+      }
+      try {
+        await input.authorizeAttempt?.({
+          generationId,
+          symbol,
+          attemptNumber,
+          attemptType,
+          model: attemptModel,
+        });
+      } catch (error) {
+        const blocked = new Error(
+          error instanceof Error ? error.message : String(error),
+        ) as AttemptAuthorizationError;
+        blocked.aiReadAttemptBlocked = true;
+        throw blocked;
+      }
+      return this.request(
+        attemptModel,
+        input,
+        dataAsOf,
+        nextClientRequestId(),
+        correction,
+      );
+    };
     const recordAttempt = (
       attemptType: TradersLinkAiReadAttempt["attemptType"],
       status: TradersLinkAiReadAttempt["status"],
@@ -2367,8 +2472,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     let model = this.model;
     let response: ResponsesApiResponse;
     try {
-      response = await this.request(model, input, dataAsOf, nextClientRequestId());
+      response = await requestAttempt("primary", model);
     } catch (error) {
+      if (isAttemptAuthorizationError(error)) {
+        throw error;
+      }
       const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
       const status = (error as Error & { status?: number })?.status;
       const canFallback =
@@ -2387,8 +2495,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       }
       model = this.fallbackModel;
       try {
-        response = await this.request(model, input, dataAsOf, nextClientRequestId());
+        response = await requestAttempt("fallback", model);
       } catch (fallbackError) {
+        if (isAttemptAuthorizationError(fallbackError)) {
+          throw fallbackError;
+        }
         recordAttempt(
           "fallback",
           "transport_error",
@@ -2446,8 +2557,13 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       normalizationChanges = canonical.targets.length === pruned.targets.length
         ? ["Derived legacy targets from canonical forwardPlan without pruning a horizon."]
         : [`Derived legacy targets from canonical forwardPlan and pruned ${canonical.targets.length - pruned.targets.length} redundant compatibility target(s).`];
-      const normalized = normalizeObservableTapeEvidence(
+      const safePullbacks = pruneUnsafeOptionalPullbackPlans(
         pruned,
+        referenceQuote.price,
+        input.priceAction,
+      );
+      const normalized = normalizeObservableTapeEvidence(
+        safePullbacks,
         referenceQuote.price,
         input.priceAction,
       );
@@ -2481,7 +2597,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       recordAttempt(initialAttemptType, "invalid_output", model, response, validationError);
     }
 
-    if (!read && validationError) {
+    if (!read && validationError && requestSequence < 2) {
       const forwardValidationError = validationError instanceof TradersLinkAiReadValidationError
         ? validationError
         : null;
@@ -2491,7 +2607,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         message: validationError.message,
       }];
       try {
-        response = await this.request(model, input, dataAsOf, nextClientRequestId(), {
+        response = await requestAttempt("correction", model, {
           validationFailures,
           diagnostics: forwardValidationError
             ? { ...forwardValidationError.diagnostics }
@@ -2501,6 +2617,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           normalizationChanges,
         });
       } catch (correctionError) {
+        if (isAttemptAuthorizationError(correctionError)) {
+          throw correctionError;
+        }
         recordAttempt(
           "correction",
           "transport_error",
@@ -2531,66 +2650,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           response,
           correctionValidationError,
         );
-        const canUseValidationFallback = Boolean(this.options.fallbackModel?.trim()) &&
-          this.fallbackModel !== model;
-        if (!canUseValidationFallback) {
-          throw correctionValidationError;
-        }
-        const fallbackValidationError = correctionValidationError instanceof TradersLinkAiReadValidationError
-          ? correctionValidationError
-          : null;
-        const fallbackValidationFailures: TradersLinkAiReadValidationFailure[] =
-          fallbackValidationError?.failures ?? [{
-            code: "TACTICAL_VALIDATION_FAILED",
-            branch: "aiRead",
-            message: correctionValidationError instanceof Error
-              ? correctionValidationError.message
-              : String(correctionValidationError),
-          }];
-        model = this.fallbackModel;
-        try {
-          response = await this.request(model, input, dataAsOf, nextClientRequestId(), {
-            validationFailures: fallbackValidationFailures,
-            diagnostics: fallbackValidationError
-              ? { ...fallbackValidationError.diagnostics }
-              : null,
-            rejectedDraft: text,
-            rejectedNormalizedResponse,
-            normalizationChanges,
-          });
-        } catch (fallbackError) {
-          recordAttempt(
-            "fallback",
-            "transport_error",
-            model,
-            (fallbackError as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
-            fallbackError,
-          );
-          throw fallbackError;
-        }
-        responses.push(response);
-        text = extractResponseText(response);
-        availableSources = dedupeSources([
-          ...availableSources,
-          ...extractWebSources(response, new Date().toISOString()),
-        ]);
-        try {
-          read = applyQuoteDisagreementGuard(
-            parseAndValidate(text, availableSources),
-            input.snapshot.currentPrice,
-            referenceQuote.price,
-          );
-          recordAttempt("fallback", "success", model, response);
-        } catch (fallbackValidationFailure) {
-          recordAttempt(
-            "fallback",
-            "invalid_output",
-            model,
-            response,
-            fallbackValidationFailure,
-          );
-          throw fallbackValidationFailure;
-        }
+        throw correctionValidationError;
       }
     }
 

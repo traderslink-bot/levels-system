@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { TradersLinkAiReadCostLedger } from "../lib/ai/traderslink-ai-read-cost-ledger.js";
+import type { TradersLinkAiReadAttempt } from "../lib/ai/traderslink-ai-read-service.js";
 import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchlist-types.js";
 
 function read(symbol: string, generatedAt: number, totalCostUsd: number): TradersLinkAiReadPayload {
@@ -128,6 +129,50 @@ function read(symbol: string, generatedAt: number, totalCostUsd: number): Trader
   };
 }
 
+function attempt(
+  symbol: string,
+  generatedAt: number,
+  totalCostUsd: number,
+  attemptType: TradersLinkAiReadAttempt["attemptType"],
+  status: TradersLinkAiReadAttempt["status"],
+): TradersLinkAiReadAttempt {
+  return {
+    generationId: `${symbol}-generation`,
+    requestId: `${symbol}-${attemptType}-${generatedAt}`,
+    clientRequestId: `${symbol}-${attemptType}-client`,
+    symbol,
+    attemptType,
+    status,
+    model: attemptType === "fallback" ? "gpt-5.6-terra" : "gpt-5.6-luna",
+    dataAsOf: generatedAt - 1_000,
+    marketSession: "regular",
+    usedWebSearch: false,
+    usage: {
+      inputTokens: 1_000,
+      cachedInputTokens: attemptType === "correction" ? 500 : 0,
+      outputTokens: 200,
+      totalTokens: 1_200,
+      webSearchCallCount: 0,
+      tokenCostUsd: totalCostUsd,
+      webSearchCostUsd: 0,
+      estimatedTotalCostUsd: totalCostUsd,
+      pricing: {
+        source: "built_in",
+        inputPer1M: 1,
+        cachedInputPer1M: 0.1,
+        outputPer1M: 6,
+        webSearchPer1KCalls: 10,
+      },
+    },
+    receivedAt: generatedAt,
+    startedAt: generatedAt - 1_000,
+    durationMs: 1_000,
+    timeoutMs: 90_000,
+    timeoutOverrunMs: 0,
+    error: status === "success" ? null : "fixture validation failure",
+  };
+}
+
 describe("TradersLinkAiReadCostLedger", () => {
   it("tracks combined, per-ticker, trigger, model, and time-window expense estimates", () => {
     const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-"));
@@ -228,6 +273,55 @@ describe("TradersLinkAiReadCostLedger", () => {
       assert.equal(blocked.canStartRequest, false);
       assert.match(blocked.blockReason ?? "", /reserve/i);
       assert.equal(loadCount, 2);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("enforces a per-ticker daily reserve and exposes attempt outcomes in admin summaries", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-ticker-budget-"));
+    try {
+      const ledger = new TradersLinkAiReadCostLedger({ filePath: join(directory, "costs.jsonl") });
+      const now = Date.parse("2026-07-23T14:00:00.000Z");
+      ledger.recordAttempt({
+        attempt: attempt("WBUY", now - 2_000, 0.08, "primary", "invalid_output"),
+        trigger: "boundary_cross",
+      });
+      ledger.recordAttempt({
+        attempt: attempt("WBUY", now - 1_000, 0.07, "correction", "success"),
+        trigger: "boundary_cross",
+      });
+      ledger.recordAttempt({
+        attempt: attempt("OMH", now - 500, 0.23, "fallback", "success"),
+        trigger: "manual",
+      });
+
+      const allowed = ledger.getTickerDailyCostBudgetStatus("WBUY", {
+        dailyLimitUsd: 0.25,
+        now,
+      });
+      assert.equal(allowed.spentUsd, 0.15);
+      assert.equal(allowed.canStartRequest, true);
+
+      const blocked = ledger.getTickerDailyCostBudgetStatus("WBUY", {
+        dailyLimitUsd: 0.2,
+        now,
+      });
+      assert.equal(blocked.canStartRequest, false);
+      assert.match(blocked.blockReason ?? "", /reserve/i);
+
+      const summary = ledger.summarize(now);
+      const wbuy = summary.todayPerTicker.find((ticker) => ticker.symbol === "WBUY");
+      assert.equal(wbuy?.planGenerationCount, 1);
+      assert.equal(wbuy?.successfulRequestCount, 1);
+      assert.equal(wbuy?.invalidOutputRequestCount, 1);
+      assert.equal(wbuy?.primaryRequestCount, 1);
+      assert.equal(wbuy?.correctionRequestCount, 1);
+      assert.equal(wbuy?.fallbackRequestCount, 0);
+      assert.equal(summary.todayPerTicker.find((ticker) => ticker.symbol === "OMH")?.fallbackCostUsd, 0.23);
+      assert.equal(summary.recentAttempts[0]?.symbol, "OMH");
+      assert.equal(summary.recentAttempts[0]?.attemptType, "fallback");
+      assert.equal(summary.recentAttempts[0]?.status, "success");
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

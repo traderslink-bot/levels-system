@@ -362,6 +362,9 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     ...(normalizeAiReadConfidence(value.tradersLinkAiReadConfidence)
       ? { tradersLinkAiReadConfidence: normalizeAiReadConfidence(value.tradersLinkAiReadConfidence) }
       : {}),
+    ...(typeof value.tradersLinkAiReadAllAttemptsFailed === "boolean"
+      ? { tradersLinkAiReadAllAttemptsFailed: value.tradersLinkAiReadAllAttemptsFailed }
+      : {}),
     ...(tradersLinkAiReadBoundaryState ? { tradersLinkAiReadBoundaryState } : {}),
     ...(pendingTradersLinkAiReadGeneration ? { pendingTradersLinkAiReadGeneration } : {}),
     ...(lastError !== undefined ? { lastError } : {}),
@@ -462,6 +465,9 @@ function buildPersistedState(entries: WatchlistEntry[], now = Date.now()): Persi
         : {}),
       ...(normalizeAiReadConfidence(entry.tradersLinkAiReadConfidence)
         ? { tradersLinkAiReadConfidence: normalizeAiReadConfidence(entry.tradersLinkAiReadConfidence) }
+        : {}),
+      ...(typeof entry.tradersLinkAiReadAllAttemptsFailed === "boolean"
+        ? { tradersLinkAiReadAllAttemptsFailed: entry.tradersLinkAiReadAllAttemptsFailed }
         : {}),
       ...(normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState)
         ? { tradersLinkAiReadBoundaryState: normalizeAiReadBoundaryState(entry.tradersLinkAiReadBoundaryState) }

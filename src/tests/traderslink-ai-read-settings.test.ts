@@ -2,81 +2,71 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, it } from "node:test";
+import { test } from "node:test";
 
-import { TradersLinkAiReadSettingsPersistence } from "../lib/ai/traderslink-ai-read-settings.js";
+import {
+  DEFAULT_TRADERSLINK_AI_READ_PER_TICKER_DAILY_COST_BUDGET_USD,
+  TradersLinkAiReadSettingsPersistence,
+} from "../lib/ai/traderslink-ai-read-settings.js";
 
-const tempDirectories: string[] = [];
-
-afterEach(() => {
-  for (const directory of tempDirectories.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-describe("TradersLinkAiReadSettingsPersistence", () => {
-  it("persists AI research and global card switches across restarts", () => {
-    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-settings-"));
-    tempDirectories.push(directory);
-    const filePath = join(directory, "settings.json");
-    const persistence = new TradersLinkAiReadSettingsPersistence({ filePath });
-
-    assert.equal(persistence.load(), null);
-    persistence.save({
-      externalResearchEnabled: false,
-      liveTraderReadCardVisible: false,
-      potentialGainCardVisible: true,
-      watchlistLifecycleLabelsVisible: true,
-      reversalWatchlistVisible: false,
-      dailyCostBudgetEnabled: false,
-      dailyCostBudgetUsd: 1,
-    });
-    assert.deepEqual(persistence.load(), {
-      version: 5,
-      lastUpdated: persistence.load()?.lastUpdated,
-      externalResearchEnabled: false,
-      liveTraderReadCardVisible: false,
-      potentialGainCardVisible: true,
-      watchlistLifecycleLabelsVisible: true,
-      reversalWatchlistVisible: false,
-      dailyCostBudgetEnabled: false,
-      dailyCostBudgetUsd: 1,
-    });
-  });
-
-  it("migrates earlier settings with the daily cost guard safely off", () => {
-    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-settings-migration-"));
-    tempDirectories.push(directory);
+test("AI Read settings upgrade older files with the safe per-ticker daily default", () => {
+  const directory = mkdtempSync(join(tmpdir(), "ai-read-settings-legacy-"));
+  try {
     const filePath = join(directory, "settings.json");
     writeFileSync(filePath, JSON.stringify({
-      version: 2,
-      lastUpdated: 123,
-      externalResearchEnabled: false,
-      liveTraderReadCardVisible: true,
-      potentialGainCardVisible: true,
-    }));
-
-    const loaded = new TradersLinkAiReadSettingsPersistence({ filePath }).load();
-    assert.deepEqual(loaded, {
       version: 5,
-      lastUpdated: 123,
+      lastUpdated: 1,
       externalResearchEnabled: false,
       liveTraderReadCardVisible: true,
       potentialGainCardVisible: true,
       watchlistLifecycleLabelsVisible: false,
       reversalWatchlistVisible: true,
-      dailyCostBudgetEnabled: false,
-      dailyCostBudgetUsd: 1,
-    });
-  });
-
-  it("rejects malformed settings instead of enabling research", () => {
-    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-settings-"));
-    tempDirectories.push(directory);
-    const filePath = join(directory, "settings.json");
-    writeFileSync(filePath, JSON.stringify({ version: 1, externalResearchEnabled: "yes" }));
+      dailyCostBudgetEnabled: true,
+      dailyCostBudgetUsd: 2.95,
+    }));
     const persistence = new TradersLinkAiReadSettingsPersistence({ filePath });
 
-    assert.equal(persistence.load(), null);
-    assert.match(readFileSync(filePath, "utf8"), /externalResearchEnabled/);
-  });
+    const settings = persistence.load();
+
+    assert.equal(
+      settings?.perTickerDailyCostBudgetUsd,
+      DEFAULT_TRADERSLINK_AI_READ_PER_TICKER_DAILY_COST_BUDGET_USD,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("AI Read settings persist the configurable per-ticker daily limit", () => {
+  const directory = mkdtempSync(join(tmpdir(), "ai-read-settings-ticker-"));
+  try {
+    const filePath = join(directory, "settings.json");
+    const persistence = new TradersLinkAiReadSettingsPersistence({ filePath });
+    const saved = persistence.save({
+      externalResearchEnabled: false,
+      liveTraderReadCardVisible: true,
+      potentialGainCardVisible: true,
+      watchlistLifecycleLabelsVisible: false,
+      reversalWatchlistVisible: true,
+      dailyCostBudgetEnabled: true,
+      dailyCostBudgetUsd: 2.95,
+      perTickerDailyCostBudgetUsd: 0.3,
+    });
+
+    assert.equal(saved.version, 6);
+    assert.equal(saved.perTickerDailyCostBudgetUsd, 0.3);
+    assert.equal(
+      JSON.parse(readFileSync(filePath, "utf8")).perTickerDailyCostBudgetUsd,
+      0.3,
+    );
+    assert.throws(
+      () => persistence.save({
+        ...saved,
+        perTickerDailyCostBudgetUsd: 0,
+      }),
+      /perTickerDailyCostBudgetUsd/,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

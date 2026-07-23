@@ -362,6 +362,7 @@ export type WatchlistEntry = {
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   tradersLinkAiReadConfidence?: WatchlistTradersLinkAiReadConfidence;
+  tradersLinkAiReadAllAttemptsFailed?: boolean;
   tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
   pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration;
   lastError?: string;
