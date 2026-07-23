@@ -4535,7 +4535,6 @@ export class AutoWatchlistSelector {
     this.lastActivationErrors = [];
     this.lastError = null;
     this.lastDiscoverySources = [];
-    this.recentDecisions = [];
     this.prefetchedActivityBySymbol.clear();
     if (activate) {
       this.resetTradingDayIfNeeded(scanStartedAt);

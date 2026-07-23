@@ -3215,6 +3215,75 @@ test("a preview requested during an active scan waits for that scan instead of r
   assert.equal(selector.getStatus().running, false);
 });
 
+test("an active scan keeps the last completed decision list visible until its replacement is ready", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-stable-decisions-"));
+  let holdRefresh = false;
+  let releaseRefresh!: () => void;
+  const refreshGate = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const fetchImpl: typeof fetch = async (input) => {
+    if (String(input).includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
+    if (holdRefresh) {
+      await refreshGate;
+    }
+    const symbol = holdRefresh ? "NEW" : "OLD";
+    return new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol,
+          name: `${symbol} Corporation Common Stock`,
+          lastsale: "$2.00",
+          pctchange: "20%",
+          volume: "1000000",
+          marketCap: "10000000",
+        }],
+      },
+    }), { status: 200 });
+  };
+  const finnhubClient = {
+    getCompanyProfile: async (symbol: string) => ({
+      ticker: symbol,
+      marketCapitalization: 10,
+      shareOutstanding: 10,
+    }),
+  } as unknown as FinnhubClient;
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient,
+    fetchImpl,
+    configPath: join(directory, "config.json"),
+    now: () => Date.parse("2026-07-16T15:00:00Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+
+  try {
+    const firstStatus = await selector.previewScan();
+    assert.equal(firstStatus.recentDecisions[0]?.symbol, "OLD");
+
+    holdRefresh = true;
+    const refresh = selector.previewScan();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const duringRefresh = selector.getStatus();
+    assert.equal(duringRefresh.running, true);
+    assert.equal(duringRefresh.recentDecisions[0]?.symbol, "OLD");
+
+    releaseRefresh();
+    const refreshedStatus = await refresh;
+    assert.equal(refreshedStatus.recentDecisions[0]?.symbol, "NEW");
+  } finally {
+    selector.stop();
+    releaseRefresh();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("consecutive-pass credit resets when a ticker disappears from the evaluated scan", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-consecutive-reset-"));
   const configPath = join(directory, "config.json");

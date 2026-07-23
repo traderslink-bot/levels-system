@@ -1318,11 +1318,13 @@ describe("OpenAITradersLinkAiReadService", () => {
         status: attempt.status,
         totalTokens: attempt.usage.totalTokens,
       }),
-      authorizeAttempt: (attempt) => authorizedAttempts.push({
-        attemptNumber: attempt.attemptNumber,
-        attemptType: attempt.attemptType,
-        model: attempt.model,
-      }),
+      authorizeAttempt: (attempt) => {
+        authorizedAttempts.push({
+          attemptNumber: attempt.attemptNumber,
+          attemptType: attempt.attemptType,
+          model: attempt.model,
+        });
+      },
     });
 
     assert.equal(requestBodies.length, 2);
