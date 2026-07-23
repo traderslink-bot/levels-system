@@ -57,7 +57,7 @@ class RecordingDiscordGateway implements DiscordThreadGateway {
 }
 
 describe("website publishing Discord gateway", () => {
-  it("announces new tickers in the watchlist channel without creating Discord threads", async () => {
+  it("reserves the website route before announcing new tickers in Discord", async () => {
     const events: string[] = [];
     const gateway = new WebsitePublishingDiscordGateway(
       new RecordingDiscordGateway(events),
@@ -67,6 +67,8 @@ describe("website publishing Discord gateway", () => {
 
     const created = await router.ensureThread("abcd");
     const migrated = await router.ensureThread("ABCD", "legacy-thread-id");
+    assert.deepEqual(events, []);
+    await router.announceTickerAdded("abcd");
 
     assert.deepEqual(created, {
       threadId: "watchlist:ABCD",

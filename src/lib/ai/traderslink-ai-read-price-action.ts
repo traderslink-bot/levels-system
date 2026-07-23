@@ -3,8 +3,7 @@ import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-c
 
 const RECENT_INTRADAY_BAR_LIMIT = 120;
 const RECENT_ONE_MINUTE_BAR_LIMIT = 60;
-const DEFAULT_DAILY_BAR_LIMIT = 60;
-const EXPANDED_DAILY_BAR_LIMIT = 120;
+const RECENT_DAILY_BAR_LIMIT = 120;
 const HISTORICAL_OVERHEAD_MONTH_LIMIT = 24;
 const HISTORICAL_OVERHEAD_WINDOW_LIMIT = 4;
 const VOLUME_LANDMARK_LIMIT = 8;
@@ -1163,13 +1162,7 @@ export function buildTradersLinkAiPriceActionPacket(
     dataAsOf,
     oneMinuteFacts,
   });
-  const dailyBarLimit =
-    marketRegimeProfile.currentPriceAboveHighestSuppliedDailyHigh ||
-    marketRegimeProfile.regime === "high_expansion" ||
-    marketRegimeProfile.regime === "extreme_expansion"
-      ? EXPANDED_DAILY_BAR_LIMIT
-      : DEFAULT_DAILY_BAR_LIMIT;
-  const recentDaily = daily.slice(-dailyBarLimit);
+  const recentDaily = daily.slice(-RECENT_DAILY_BAR_LIMIT);
 
   return {
     source: context.source,

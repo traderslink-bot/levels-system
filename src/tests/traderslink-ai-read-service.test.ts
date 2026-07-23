@@ -541,6 +541,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       (requestBody.text as { format: { strict: boolean } }).format.strict,
       true,
     );
+    assert.equal((requestBody.text as { verbosity?: string }).verbosity, "low");
     const schema = (requestBody.text as {
       format: { schema: { properties: Record<string, unknown> } };
     }).format.schema;
@@ -727,21 +728,35 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(read.pullbackPlans.deep?.evidenceIds[0], deepCandidate.id);
     assert.equal(read.failureRecovery?.firstReclaimPrice, 1.1);
 
-    const invalidCases: Array<[string, (value: Record<string, any>) => void, RegExp]> = [
-      ["invented candidate", (value) => {
-        value.pullbackPlans.shallow.evidenceIds = ["invented-zone"];
-      }, /invented candidate ID/i],
+    const inventedCandidate = structuredClone(draft) as Record<string, any>;
+    inventedCandidate.pullbackPlans.shallow.evidenceIds = ["invented-zone"];
+    await assert.rejects(generate(inventedCandidate), /invented candidate ID/i);
+
+    const optionalPullbackCases: Array<[
+      string,
+      (value: Record<string, any>) => void,
+      (read: Awaited<ReturnType<typeof generate>>) => void,
+    ]> = [
       ["overlapping zones", (value) => {
         value.pullbackPlans.deep = { ...value.pullbackPlans.shallow };
-      }, /materially separated/i],
+      }, (result) => assert.equal(result.pullbackPlans.deep, null)],
       ["reversed zone", (value) => {
         const low = value.pullbackPlans.shallow.zoneLow;
         value.pullbackPlans.shallow.zoneLow = value.pullbackPlans.shallow.zoneHigh;
         value.pullbackPlans.shallow.zoneHigh = low;
-      }, /zone is reversed/i],
+      }, (result) => assert.equal(result.pullbackPlans.shallow, null)],
       ["objective below entry", (value) => {
         value.pullbackPlans.shallow.firstObjectivePrice = value.pullbackPlans.shallow.zoneLow;
-      }, /first objective must be above/i],
+      }, (result) => assert.equal(result.pullbackPlans.shallow, null)],
+    ];
+    for (const [label, mutate, verify] of optionalPullbackCases) {
+      const invalid = structuredClone(draft) as Record<string, any>;
+      mutate(invalid);
+      verify(await generate(invalid));
+      assert.ok(true, label);
+    }
+
+    const invalidCases: Array<[string, (value: Record<string, any>) => void, RegExp]> = [
       ["recovery without reclaim", (value) => {
         value.failureRecovery.firstReclaimPrice = value.failureRecovery.recoveryZoneHigh;
       }, /first reclaim must be above/i],
@@ -1195,6 +1210,31 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(read.currentRead, /0\.3469 premarket high/i);
   });
 
+  it("does not mistake a calendar date for a claimed premarket-high price", async () => {
+    const validRead = premarketModelRead(
+      "The July 23 premarket high remains the immediate reference while price holds the rebound shelf.",
+    );
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => new Response(JSON.stringify({
+        output: [{
+          type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(validRead) }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    });
+
+    const read = await service.generate({
+      snapshot: { ...snapshot(), timestamp: PREMARKET_DATA_AS_OF, currentPrice: 0.3336 },
+      dataAsOf: PREMARKET_DATA_AS_OF,
+      priceAction: premarketPriceAction(),
+      research: { ticker: "NXXT", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.match(read.currentRead, /July 23 premarket high/i);
+  });
+
   it("rejects a caution threshold above the stated needs-to-hold boundary", async () => {
     const invalidRead = modelRead();
     invalidRead.needsToHold = {
@@ -1268,6 +1308,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     });
 
     const attempts: Array<{ attemptType: string; status: string; totalTokens: number }> = [];
+    const authorizedAttempts: Array<{ attemptNumber: number; attemptType: string; model: string }> = [];
     const read = await service.generate({
       snapshot: snapshot(),
       priceAction: priceAction(),
@@ -1277,6 +1318,13 @@ describe("OpenAITradersLinkAiReadService", () => {
         status: attempt.status,
         totalTokens: attempt.usage.totalTokens,
       }),
+      authorizeAttempt: (attempt) => {
+        authorizedAttempts.push({
+          attemptNumber: attempt.attemptNumber,
+          attemptType: attempt.attemptType,
+          model: attempt.model,
+        });
+      },
     });
 
     assert.equal(requestBodies.length, 2);
@@ -1286,6 +1334,15 @@ describe("OpenAITradersLinkAiReadService", () => {
       (requestBodies[1]!.input as unknown[]).length,
       3,
     );
+    const correctionInput = requestBodies[1]!.input as Array<{
+      content: Array<{ text: string }>;
+    }>;
+    const correctionPayload = correctionInput[2]!.content[0]!.text;
+    assert.doesNotMatch(correctionPayload, /authoritativeMarketPacket|rejectedDraft|rejectedNormalizedResponse/);
+    assert.deepEqual(authorizedAttempts, [
+      { attemptNumber: 1, attemptType: "primary", model: "test-model" },
+      { attemptNumber: 2, attemptType: "correction", model: "test-model" },
+    ]);
     assert.equal(read.cautionBelow.price, 1.25);
     assert.equal(read.usage.inputTokens, 300);
     assert.equal(read.usage.outputTokens, 50);
@@ -1296,7 +1353,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     ]);
   });
 
-  it("uses the configured fallback model for one final full repair after two invalid drafts", async () => {
+  it("stops after two invalid drafts without buying a validation fallback", async () => {
     const invalidRead = modelRead();
     invalidRead.needsToHold = {
       label: "Invalid hold",
@@ -1321,23 +1378,71 @@ describe("OpenAITradersLinkAiReadService", () => {
       },
     });
 
-    const read = await service.generate({
-      snapshot: snapshot(),
-      priceAction: priceAction(),
-      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
-      onAttempt: (attempt) => attempts.push({
-        attemptType: attempt.attemptType,
-        status: attempt.status,
-        model: attempt.model,
+    await assert.rejects(
+      service.generate({
+        snapshot: snapshot(),
+        priceAction: priceAction(),
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+        onAttempt: (attempt) => attempts.push({
+          attemptType: attempt.attemptType,
+          status: attempt.status,
+          model: attempt.model,
+        }),
       }),
-    });
+      /invalid tactical trade map/i,
+    );
 
-    assert.equal(requestCount, 3);
-    assert.equal(read.model, "test-fallback");
+    assert.equal(requestCount, 2);
     assert.deepEqual(attempts, [
       { attemptType: "primary", status: "invalid_output", model: "test-primary" },
       { attemptType: "correction", status: "invalid_output", model: "test-primary" },
-      { attemptType: "fallback", status: "success", model: "test-fallback" },
+    ]);
+  });
+
+  it("does not count a budget-blocked correction as an API attempt", async () => {
+    const invalidRead = modelRead();
+    invalidRead.needsToHold = {
+      label: "Invalid hold",
+      price: 1.5,
+      rationale: "This fixture is above the reference quote.",
+    };
+    let requestCount = 0;
+    const attempts: Array<{ attemptType: string; status: string }> = [];
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-primary",
+      fetchImpl: async () => {
+        requestCount += 1;
+        return new Response(JSON.stringify({
+          output: [{
+            type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(invalidRead) }],
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    await assert.rejects(
+      service.generate({
+        snapshot: snapshot(),
+        priceAction: priceAction(),
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+        authorizeAttempt: ({ attemptNumber }) => {
+          if (attemptNumber === 2) {
+            throw new Error("fixture per-ticker budget reached");
+          }
+        },
+        onAttempt: (attempt) => attempts.push({
+          attemptType: attempt.attemptType,
+          status: attempt.status,
+        }),
+      }),
+      /fixture per-ticker budget reached/,
+    );
+
+    assert.equal(requestCount, 1);
+    assert.deepEqual(attempts, [
+      { attemptType: "primary", status: "invalid_output" },
     ]);
   });
 

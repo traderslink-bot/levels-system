@@ -101,6 +101,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     </form>
 
     <section>
+      <h2>Pending Automatic Adds</h2>
+      <div class="provider-control">
+        <label for="auto-approval-required-toggle">Require approval before automatic adds</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="auto-approval-required-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="auto-approval-required-label">Off</span>
+          </label>
+        </div>
+        <div class="inline-status">When on, qualified automatic candidates stop here before the ticker page, Discord alert, or OpenAI request is created.</div>
+      </div>
+      <ul id="auto-approval-list"></ul>
+    </section>
+
+    <section>
       <h2>Active Tickers</h2>
       <div class="health-grid" id="watchlist-health"></div>
       <ul id="active-list"></ul>
@@ -288,7 +304,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <div class="inline-status" id="ai-read-external-research-status"></div>
       </div>
       <div class="provider-control">
-        <label for="ai-read-cost-budget-toggle">Optional Daily AI Spend Guard</label>
+        <label for="ai-read-cost-budget-toggle">Automatic AI Read Spend Limits</label>
         <div class="inline-control">
           <label class="toggle-switch">
             <input id="ai-read-cost-budget-toggle" type="checkbox" />
@@ -296,12 +312,16 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             <span id="ai-read-cost-budget-label">Off</span>
           </label>
           <input id="ai-read-cost-budget-usd" type="number" min="0.01" max="10000" step="0.01" value="1.00" aria-label="Daily AI spend budget in US dollars" />
+          <span>Per ticker</span>
+          <input id="ai-read-per-ticker-budget-usd" type="number" min="0.01" max="10000" step="0.01" value="0.25" aria-label="Per-ticker daily AI spend limit in US dollars" />
           <button id="ai-read-cost-budget-apply" type="button">Apply Budget</button>
         </div>
         <div class="inline-status" id="ai-read-cost-budget-status"></div>
       </div>
       <div class="health-grid" id="ai-read-cost-grid"></div>
       <ul class="activity-list" id="ai-read-cost-list"></ul>
+      <h3>Recent AI API Attempts</h3>
+      <ul class="activity-list" id="ai-read-attempt-list"></ul>
     </section>
 
     <section>
@@ -381,16 +401,21 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const aiReadCostBudgetToggleEl = document.getElementById("ai-read-cost-budget-toggle");
     const aiReadCostBudgetLabelEl = document.getElementById("ai-read-cost-budget-label");
     const aiReadCostBudgetUsdEl = document.getElementById("ai-read-cost-budget-usd");
+    const aiReadPerTickerBudgetUsdEl = document.getElementById("ai-read-per-ticker-budget-usd");
     const aiReadCostBudgetApplyEl = document.getElementById("ai-read-cost-budget-apply");
     const aiReadCostBudgetStatusEl = document.getElementById("ai-read-cost-budget-status");
     const aiReadCostGridEl = document.getElementById("ai-read-cost-grid");
     const aiReadCostListEl = document.getElementById("ai-read-cost-list");
+    const aiReadAttemptListEl = document.getElementById("ai-read-attempt-list");
     const autoSelectorEnabledToggleEl = document.getElementById("auto-selector-enabled-toggle");
     const autoSelectorEnabledLabelEl = document.getElementById("auto-selector-enabled-label");
     const autoSelectorStatusEl = document.getElementById("auto-selector-status");
     const autoSelectorDecisionsEl = document.getElementById("auto-selector-decisions");
     const autoSelectorApplyButtonEl = document.getElementById("auto-selector-apply-button");
     const autoSelectorPreviewButtonEl = document.getElementById("auto-selector-preview-button");
+    const autoApprovalRequiredToggleEl = document.getElementById("auto-approval-required-toggle");
+    const autoApprovalRequiredLabelEl = document.getElementById("auto-approval-required-label");
+    const autoApprovalListEl = document.getElementById("auto-approval-list");
     const autoSelectorInputEls = {
       maxMarketCap: document.getElementById("auto-selector-max-market-cap"),
       maxFloatShares: document.getElementById("auto-selector-max-float"),
@@ -497,6 +522,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       aiReadExternalResearchToggleEl,
       aiReadCostBudgetToggleEl,
       aiReadCostBudgetUsdEl,
+      aiReadPerTickerBudgetUsdEl,
       aiReadCostBudgetApplyEl,
       autoSelectorEnabledToggleEl,
       autoSelectorApplyButtonEl,
@@ -642,6 +668,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         "AI confidence: " + (aiConfidence ? lifecycleLabel(aiConfidence) : "Pending"),
         aiConfidence ? "badge badge-confidence-" + aiConfidence : "badge",
       ));
+      if (entry.tradersLinkAiReadAllAttemptsFailed === true) {
+        header.appendChild(createBadge(
+          "All AI Reads Failed",
+          "badge badge-failed",
+        ));
+      }
 
       details.className = "meta";
       details.appendChild(
@@ -1008,27 +1040,35 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       if (!aiReadCostBudgetInFlight) {
         aiReadCostBudgetEnabled = budget.enabled === true;
         const dailyLimitUsd = Number(budget.dailyLimitUsd);
+        const perTickerDailyLimitUsd = Number(budget.perTickerDailyLimitUsd);
         if (Number.isFinite(dailyLimitUsd) && dailyLimitUsd > 0) {
           aiReadCostBudgetUsdEl.value = dailyLimitUsd.toFixed(2);
+        }
+        if (Number.isFinite(perTickerDailyLimitUsd) && perTickerDailyLimitUsd > 0) {
+          aiReadPerTickerBudgetUsdEl.value = perTickerDailyLimitUsd.toFixed(2);
         }
       }
       aiReadCostBudgetToggleEl.checked = aiReadCostBudgetEnabled;
       aiReadCostBudgetToggleEl.disabled = !aiReadConfigured || aiReadCostBudgetInFlight;
       aiReadCostBudgetUsdEl.disabled = !aiReadConfigured || aiReadCostBudgetInFlight;
+      aiReadPerTickerBudgetUsdEl.disabled = !aiReadConfigured || aiReadCostBudgetInFlight;
       aiReadCostBudgetApplyEl.disabled = !aiReadConfigured || aiReadCostBudgetInFlight;
       aiReadCostBudgetLabelEl.textContent = aiReadCostBudgetEnabled ? "On" : "Off";
       if (!aiReadConfigured) {
         aiReadCostBudgetStatusEl.textContent = "Configure the TradersLink AI Read service before using the budget guard.";
       } else if (!aiReadCostBudgetEnabled) {
         aiReadCostBudgetStatusEl.textContent =
-          "Off. This does not limit AI Reads. Set a dollar amount and turn it on whenever you want a daily preflight guard.";
+          "The global limit is off. The per-ticker limit still protects automatic reads. Admin Refresh AI Read always bypasses both spend limits.";
       } else {
         const spent = formatAiReadCost(budgetStatus.spentUsd);
         const remaining = formatAiReadCost(budgetStatus.remainingUsd);
         const reserve = formatAiReadCost(budgetStatus.projectedNextRequestUsd);
         aiReadCostBudgetStatusEl.textContent = budgetStatus.canStartRequest === false
           ? "Guard is holding new reads: " + String(budgetStatus.blockReason || "daily budget reached.")
-          : "On. Today: " + spent + " spent, " + remaining + " remaining; " + reserve + " is reserved before a new read starts.";
+          : "On. Today: " + spent + " spent, " + remaining + " remaining; " + reserve +
+            " is reserved before a new call. Per ticker: " +
+            formatAiReadCost(budget.perTickerDailyLimitUsd) +
+            ". Admin Refresh AI Read bypasses both spend limits.";
       }
 
       const summary = status.aiReadCostSummary || {};
@@ -1038,13 +1078,26 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const last30Days = windows.last30Days || {};
       const allTime = windows.allTime || {};
       const accountingHealth = summary.accountingHealth || {};
+      const perTicker = Array.isArray(summary.todayPerTicker) ? summary.todayPerTicker : [];
+      const successfulCalls = perTicker.reduce((sum, ticker) =>
+        sum + Number(ticker.successfulRequestCount || 0), 0);
+      const invalidCalls = perTicker.reduce((sum, ticker) =>
+        sum + Number(ticker.invalidOutputRequestCount || 0), 0);
+      const fallbackCalls = perTicker.reduce((sum, ticker) =>
+        sum + Number(ticker.fallbackRequestCount || 0), 0);
+      const fallbackCost = perTicker.reduce((sum, ticker) =>
+        sum + Number(ticker.fallbackCostUsd || 0), 0);
       aiReadCostGridEl.innerHTML = "";
       const cards = [
         ["Today", formatAiReadCost(today.estimatedTotalCostUsd)],
         ["Today Requests", String(today.requestCount || 0)],
+        ["Successful Calls", String(successfulCalls)],
+        ["Invalid Outputs", String(invalidCalls)],
+        ["Fallback Calls", String(fallbackCalls) + " / " + formatAiReadCost(fallbackCost)],
         ["AI Model", String(status.aiReadModel || "not configured")],
         ["Reasoning", String(status.aiReadReasoningEffort || "not configured")],
         ["Daily Guard", aiReadCostBudgetEnabled ? formatAiReadCost(budget.dailyLimitUsd) : "Off"],
+        ["Per-Ticker Guard", formatAiReadCost(budget.perTickerDailyLimitUsd)],
         ["Last 7 Days", formatAiReadCost(last7Days.estimatedTotalCostUsd)],
         ["Last 30 Days", formatAiReadCost(last30Days.estimatedTotalCostUsd)],
         ["All Time", formatAiReadCost(allTime.estimatedTotalCostUsd)],
@@ -1064,7 +1117,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           String(accountingHealth.lastLoadError || "the usage ledger could not be read completely.");
         aiReadCostListEl.appendChild(warning);
       }
-      const perTicker = Array.isArray(summary.todayPerTicker) ? summary.todayPerTicker : [];
       if (perTicker.length === 0) {
         const empty = document.createElement("li");
         empty.textContent = "No TradersLink AI Read API calls recorded today.";
@@ -1081,9 +1133,23 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         detail.textContent =
           String(ticker.requestCount || 0) + " API call(s) across " +
           String(ticker.planGenerationCount || ticker.requestCount || 0) + " plan generation(s) | average " +
-          formatAiReadCost(ticker.averageCostPerRequestUsd) + " | web searches " +
-          String(ticker.webSearchCallCount || 0) + " | last trigger " +
-          String(ticker.lastTrigger || "unknown");
+          formatAiReadCost(ticker.averageCostPerRequestUsd) +
+          " | success " + String(ticker.successfulRequestCount || 0) +
+          ", invalid " + String(ticker.invalidOutputRequestCount || 0) +
+          ", transport " + String(ticker.transportErrorRequestCount || 0) +
+          " | primary/correction/fallback " +
+          String(ticker.primaryRequestCount || 0) + "/" +
+          String(ticker.correctionRequestCount || 0) + "/" +
+          String(ticker.fallbackRequestCount || 0) +
+          " | fallback cost " + formatAiReadCost(ticker.fallbackCostUsd) +
+          " | tokens input/cached/output " +
+          String(ticker.inputTokens || 0) + "/" +
+          String(ticker.cachedInputTokens || 0) + "/" +
+          String(ticker.outputTokens || 0) +
+          " | last " + String(ticker.lastAttemptType || "primary") + " " +
+          String(ticker.lastStatus || "success") + " on " +
+          String(ticker.lastModel || "unknown") +
+          (ticker.lastError ? " | " + String(ticker.lastError) : "");
         body.appendChild(detail);
         item.appendChild(body);
         aiReadCostListEl.appendChild(item);
@@ -1098,6 +1164,39 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           formatAiReadCost(model.totals?.estimatedTotalCostUsd) + " across " +
           String(model.totals?.requestCount || 0) + " recorded request(s).";
         aiReadCostListEl.appendChild(item);
+      }
+
+      aiReadAttemptListEl.innerHTML = "";
+      const recentAttempts = Array.isArray(summary.recentAttempts) ? summary.recentAttempts : [];
+      if (recentAttempts.length === 0) {
+        const empty = document.createElement("li");
+        empty.textContent = "No API attempts recorded today.";
+        aiReadAttemptListEl.appendChild(empty);
+      }
+      for (const attempt of recentAttempts) {
+        const item = document.createElement("li");
+        const body = document.createElement("div");
+        const detail = document.createElement("div");
+        body.className = "activity-message";
+        body.textContent =
+          String(attempt.symbol || "unknown") + " — " +
+          String(attempt.attemptType || "primary") + " " +
+          String(attempt.status || "success") + " — " +
+          formatAiReadCost(attempt.estimatedTotalCostUsd);
+        detail.className = "activity-detail";
+        detail.textContent =
+          new Date(Number(attempt.generatedAt || 0)).toLocaleTimeString() +
+          " | " + String(attempt.model || "unknown") +
+          " | " + String(attempt.trigger || "unknown") +
+          " | input/cached/output " +
+          String(attempt.inputTokens || 0) + "/" +
+          String(attempt.cachedInputTokens || 0) + "/" +
+          String(attempt.outputTokens || 0) +
+          " | " + String(attempt.durationMs || 0) + " ms" +
+          (attempt.error ? " | " + String(attempt.error) : "");
+        body.appendChild(detail);
+        item.appendChild(body);
+        aiReadAttemptListEl.appendChild(item);
       }
     }
 
@@ -1127,6 +1226,43 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           ? "Apply Selection Settings"
           : "Settings Saved";
       autoSelectorPreviewButtonEl.disabled = autoSelectorRequestInFlight || selector.running === true;
+      autoApprovalRequiredToggleEl.checked = selector.approvalRequired === true;
+      autoApprovalRequiredToggleEl.disabled = autoSelectorRequestInFlight;
+      autoApprovalRequiredLabelEl.textContent = selector.approvalRequired === true ? "On" : "Off";
+      autoApprovalListEl.innerHTML = "";
+      const pendingApprovals = Array.isArray(selector.pendingApprovals) ? selector.pendingApprovals : [];
+      if (pendingApprovals.length === 0) {
+        const empty = document.createElement("li");
+        empty.textContent = selector.approvalRequired === true
+          ? "No automatic additions are waiting for approval."
+          : "Approval is off. Qualified automatic additions proceed normally.";
+        autoApprovalListEl.appendChild(empty);
+      }
+      for (const approval of pendingApprovals) {
+        const item = document.createElement("li");
+        const decision = approval.decision || {};
+        const summary = document.createElement("span");
+        summary.textContent =
+          String(approval.symbol || "") + " | " +
+          String(decision.session || approval.bucket || "") + " | $" +
+          Number(decision.price || 0).toFixed(2) + " | " +
+          Number(decision.gainPct || 0).toFixed(1) + "% | score " +
+          String(decision.rankingScore ?? decision.score ?? "n/a") +
+          (approval.incumbentSymbol ? " | would replace " + approval.incumbentSymbol : "");
+        const approve = document.createElement("button");
+        approve.type = "button";
+        approve.textContent = "Approve";
+        approve.dataset.approvalAction = "approve";
+        approve.dataset.symbol = approval.symbol;
+        const deny = document.createElement("button");
+        deny.type = "button";
+        deny.className = "danger";
+        deny.textContent = "Deny";
+        deny.dataset.approvalAction = "deny";
+        deny.dataset.symbol = approval.symbol;
+        item.append(summary, approve, deny);
+        autoApprovalListEl.appendChild(item);
+      }
 
       if (!autoSelectorSettingsDirty) {
         setAutoSelectorInputValue("maxMarketCap", thresholds.maxMarketCap, 1000000);
@@ -1538,7 +1674,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           aiRefreshButton.disabled = aiReadConfigured === false;
           aiRefreshButton.addEventListener("click", async () => {
             aiRefreshButton.disabled = true;
-            setStatus("Generating a fresh TradersLink AI Read for " + entry.symbol + "...");
+            setStatus(
+              "Forcing a fresh TradersLink AI Read for " + entry.symbol +
+              "; admin refresh bypasses all spend limits...",
+            );
             try {
               const response = await fetch("/api/watchlist/ai-read-refresh", {
                 method: "POST",
@@ -2096,21 +2235,33 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     async function applyAiReadCostBudget() {
       const dailyLimitUsd = Number(aiReadCostBudgetUsdEl.value);
+      const perTickerDailyLimitUsd = Number(aiReadPerTickerBudgetUsdEl.value);
       if (!Number.isFinite(dailyLimitUsd) || dailyLimitUsd < 0.01 || dailyLimitUsd > 10000) {
         setStatus("AI Read daily budget must be between $0.01 and $10,000.00.", true);
+        return;
+      }
+      if (!Number.isFinite(perTickerDailyLimitUsd) ||
+        perTickerDailyLimitUsd < 0.01 ||
+        perTickerDailyLimitUsd > 10000) {
+        setStatus("Per-ticker AI Read daily limit must be between $0.01 and $10,000.00.", true);
         return;
       }
       const requestedEnabled = aiReadCostBudgetToggleEl.checked;
       aiReadCostBudgetInFlight = true;
       aiReadCostBudgetToggleEl.disabled = true;
       aiReadCostBudgetUsdEl.disabled = true;
+      aiReadPerTickerBudgetUsdEl.disabled = true;
       aiReadCostBudgetApplyEl.disabled = true;
       setStatus("Saving AI Read daily spend guard...");
       try {
         const response = await fetch("/api/runtime/ai-read-cost-budget", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enabled: requestedEnabled, dailyLimitUsd }),
+          body: JSON.stringify({
+            enabled: requestedEnabled,
+            dailyLimitUsd,
+            perTickerDailyLimitUsd,
+          }),
         });
         const payload = await response.json();
         if (!response.ok) {
@@ -2119,6 +2270,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         }
         aiReadCostBudgetEnabled = payload.budget?.enabled === true;
         aiReadCostBudgetUsdEl.value = Number(payload.budget?.dailyLimitUsd || dailyLimitUsd).toFixed(2);
+        aiReadPerTickerBudgetUsdEl.value =
+          Number(payload.budget?.perTickerDailyLimitUsd || perTickerDailyLimitUsd).toFixed(2);
         setStatus(
           aiReadCostBudgetEnabled
             ? "AI Read daily spend guard enabled."
@@ -2134,6 +2287,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           aiReadDailyCostBudget: {
             enabled: aiReadCostBudgetEnabled,
             dailyLimitUsd: Number(aiReadCostBudgetUsdEl.value) || 1,
+            perTickerDailyLimitUsd: Number(aiReadPerTickerBudgetUsdEl.value) || 0.25,
           },
         });
       }
@@ -2272,6 +2426,38 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyAutoApprovalToggle() {
+      await updateAutoSelector(
+        { approvalRequired: autoApprovalRequiredToggleEl.checked },
+        (autoApprovalRequiredToggleEl.checked ? "Enabling" : "Disabling") + " automatic-add approval...",
+      );
+    }
+
+    async function handleAutoApproval(event) {
+      const button = event.target.closest("button[data-approval-action]");
+      if (!button) return;
+      const action = button.dataset.approvalAction;
+      const symbol = button.dataset.symbol;
+      button.disabled = true;
+      try {
+        const response = await fetch(
+          "/api/runtime/auto-watchlist-selector/approvals/" +
+          encodeURIComponent(symbol) + "/" + action,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+        );
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Approval action failed");
+        renderAutoSelectorControl({ autoWatchlistSelector: result.status });
+        setStatus(symbol + " was " + (action === "approve" ? "approved and queued for activation." : "denied."));
+        await loadEntries();
+        await loadRuntimeStatus(true);
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     async function previewAutoSelector() {
       autoSelectorRequestInFlight = true;
       autoSelectorPreviewButtonEl.disabled = true;
@@ -2369,6 +2555,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     aiReadCostBudgetToggleEl.addEventListener("change", applyAiReadCostBudget);
     aiReadCostBudgetApplyEl.addEventListener("click", applyAiReadCostBudget);
     autoSelectorEnabledToggleEl.addEventListener("change", applyAutoSelectorToggle);
+    autoApprovalRequiredToggleEl.addEventListener("change", applyAutoApprovalToggle);
+    autoApprovalListEl.addEventListener("click", handleAutoApproval);
     autoSelectorApplyButtonEl.addEventListener("click", applyAutoSelectorSettings);
     autoSelectorPreviewButtonEl.addEventListener("click", previewAutoSelector);
     for (const input of Object.values(autoSelectorInputEls)) {

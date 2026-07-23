@@ -208,10 +208,15 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.match(MANUAL_WATCHLIST_PAGE, /External Catalyst, SEC, and Web Research/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Refresh AI Read/);
   assert.match(MANUAL_WATCHLIST_PAGE, /AI confidence:/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /All AI Reads Failed/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /tradersLinkAiReadAllAttemptsFailed/);
   assert.match(MANUAL_WATCHLIST_PAGE, /AI Card: Shown/);
   assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-cost-grid/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /Optional Daily AI Spend Guard/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Automatic AI Read Spend Limits/);
   assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-cost-budget-toggle/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /ai-read-per-ticker-budget-usd/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Admin Refresh AI Read always bypasses both spend limits/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Recent AI API Attempts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /summary\.todayPerTicker/);
   assert.match(MANUAL_WATCHLIST_PAGE, /No TradersLink AI Read API calls recorded today/);
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /perTicker\.slice\(0, 20\)/);
@@ -220,6 +225,7 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-external-research/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-cost-budget/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /bypassCostLimits: true/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-visibility/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-refresh/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /manager\.getTradersLinkAiReadCostSnapshot\(\)/);
@@ -292,6 +298,9 @@ test("manual watchlist admin exposes persisted automatic low-float selection con
   assert.match(MANUAL_WATCHLIST_PAGE, /Regular minimum last-15m dollar volume/);
   assert.match(MANUAL_WATCHLIST_PAGE, /outer safety window/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Run Preview Only/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Pending Automatic Adds/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Require approval before automatic adds/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /data-approval-action/);
   assert.match(MANUAL_WATCHLIST_PAGE, /collectAutoSelectorThresholds/);
   assert.match(MANUAL_WATCHLIST_PAGE, /\/api\/runtime\/auto-watchlist-selector\/preview/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /new AutoWatchlistSelector/);
@@ -301,6 +310,7 @@ test("manual watchlist admin exposes persisted automatic low-float selection con
   );
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /autoWatchlistSelector: autoWatchlistSelector\.getStatus\(\)/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/auto-watchlist-selector"/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /auto-watchlist-selector\\\/approvals|auto-watchlist-selector\/approvals/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/runtime\/auto-watchlist-selector\/preview"/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /autoWatchlistSelector\.stop\(\)/);
 });

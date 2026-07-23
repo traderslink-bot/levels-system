@@ -63,7 +63,6 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
       };
     }
 
-    await this.gateway.announceTickerAdded?.(route.name);
     return {
       threadId: route.id,
       reused: false,
@@ -82,8 +81,11 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
   }
 
   async createThread(name: string): Promise<DiscordThread> {
-    await this.gateway.announceTickerAdded?.(name);
     return buildWatchlistRoute(name);
+  }
+
+  async announceTickerAdded(name: string): Promise<void> {
+    await this.gateway.announceTickerAdded?.(normalizeSymbol(name));
   }
 
   async sendMessage(threadId: string, payload: AlertPayload): Promise<void> {

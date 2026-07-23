@@ -1621,6 +1621,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
   includeLifecycle?: boolean;
   priorRegularClosePrice?: number | null;
   aiRead?: TradersLinkAiLifecyclePlan | null;
+  publishedAiReadKnown?: boolean;
 }): LiveWatchlistCardPatch | null {
   const levelMap = buildLiveWatchlistLevelMap({
     currentPrice: args.currentPrice,
@@ -1701,6 +1702,7 @@ export function buildLiveWatchlistPullbackReadPatch(args: {
         fiveMinuteStructure,
         currentPrice: args.currentPrice,
         aiRead: args.aiRead,
+        publishedAiReadKnown: args.publishedAiReadKnown,
       })
     : null;
   const liveVolumeContext =
@@ -2019,6 +2021,7 @@ export function buildTradersLinkAiReadPatch(args: {
     updatedAt: read.generatedAt,
     tradersLinkAiReadCardVisible: args.visible !== false,
     tradersLinkAiReadDipBuyPlanVisible: args.dipBuyPlanVisible !== false,
+    tradersLinkAiReadStatus: "ready",
     cards: {
       tradersLinkAiRead: buildCard({
         title: "TradersLink AI Read",
@@ -2049,6 +2052,22 @@ export function buildTradersLinkAiReadPatch(args: {
         },
       }),
     },
+  };
+}
+
+export function buildTradersLinkAiReadStatusPatch(args: {
+  symbol: string;
+  status: "analyzing" | "failed";
+  visible?: boolean;
+  updatedAt?: number;
+}): LiveWatchlistCardPatch {
+  return {
+    symbol: normalizeSymbol(args.symbol),
+    status: "live",
+    updatedAt: args.updatedAt ?? Date.now(),
+    tradersLinkAiReadCardVisible: args.visible !== false,
+    tradersLinkAiReadStatus: args.status,
+    cards: {},
   };
 }
 

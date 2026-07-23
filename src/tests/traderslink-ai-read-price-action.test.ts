@@ -68,7 +68,7 @@ function evidence(oneMinuteCandles: Candle[], currentPrice = 1.5): Record<string
 }
 
 describe("TradersLink AI one-minute evidence", () => {
-  it("uses adjusted monthly highs to select a small number of older overhead windows", () => {
+  it("keeps 120 recent daily bars and selects older adjusted monthly-high windows", () => {
     const intradayCandles: Candle[] = Array.from({ length: 15 }, (_, index) => ({
       timestamp: START + index * 5 * 60_000,
       open: 1.45,
@@ -77,10 +77,10 @@ describe("TradersLink AI one-minute evidence", () => {
       close: 1.5,
       volume: 10_000,
     }));
-    const dailyCandles: Candle[] = Array.from({ length: 96 }, (_, index) => {
-      const monthIndex = Math.floor(index / 4);
-      const timestamp = Date.UTC(2024 + Math.floor(monthIndex / 12), monthIndex % 12, 5 + index % 4);
-      const high = index % 8 === 0 ? 1.8 + index * 0.03 : 1.4;
+    const dailyCandles: Candle[] = Array.from({ length: 144 }, (_, index) => {
+      const monthIndex = Math.floor(index / 6);
+      const timestamp = Date.UTC(2024 + Math.floor(monthIndex / 12), monthIndex % 12, 5 + index % 6);
+      const high = index % 12 === 0 ? 1.8 + index * 0.03 : 1.4;
       return {
         timestamp,
         open: 1.3,
@@ -100,9 +100,13 @@ describe("TradersLink AI one-minute evidence", () => {
       intradayCandles,
       dailyCandles,
     }, 1.5, dataAsOf);
+    const marketRegimeProfile = packet.marketRegimeProfile as Record<string, unknown>;
+    const recentDailyBars = packet.recentDailyBars as Array<Record<string, unknown>>;
     const search = packet.historicalOverheadSearch as Record<string, unknown>;
     const windows = search.selectedMonthlyHighWindows as Array<Record<string, unknown>>;
 
+    assert.equal(typeof marketRegimeProfile.regime, "string");
+    assert.equal(recentDailyBars.length, 120);
     assert.equal(search.available, true);
     assert.ok(windows.length > 0);
     assert.ok(windows.length <= 4);

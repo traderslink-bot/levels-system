@@ -371,6 +371,8 @@ export type AutoWatchlistRuntimeEntry = {
 
 export type AutoWatchlistSelectorStatus = {
   enabled: boolean;
+  approvalRequired: boolean;
+  pendingApprovals: AutoWatchlistPendingApproval[];
   running: boolean;
   configPath: string;
   thresholds: AutoWatchlistSelectorThresholds;
@@ -458,9 +460,21 @@ export type AutoWatchlistDiscoveryFeedHealth = {
   currentSessionMatches: string[];
 };
 
+export type AutoWatchlistPendingApproval = {
+  symbol: string;
+  decision: AutoWatchlistCandidateDecision;
+  bucket: AutoWatchlistBucket;
+  reason: string;
+  proposedAt: number;
+  incumbentSymbol: string | null;
+};
+
 type PersistedConfig = {
   version: typeof CONFIG_VERSION;
   enabled: boolean;
+  approvalRequired?: boolean;
+  pendingApprovals?: AutoWatchlistPendingApproval[];
+  deniedApprovalSymbols?: string[];
   lastUpdated: number;
   thresholds?: Partial<AutoWatchlistSelectorThresholds>;
   tradingDay?: string | null;
@@ -1986,6 +2000,9 @@ export class AutoWatchlistSelector {
   private thresholds: AutoWatchlistSelectorThresholds;
   private readonly now: () => number;
   private enabled = false;
+  private approvalRequired = false;
+  private readonly pendingApprovals = new Map<string, AutoWatchlistPendingApproval>();
+  private readonly deniedApprovalSymbols = new Set<string>();
   private running = false;
   private timer: NodeJS.Timeout | null = null;
   private lastScanAt: number | null = null;
@@ -2054,6 +2071,17 @@ export class AutoWatchlistSelector {
       return master.verifySymbols.bind(master);
     })();
     this.enabled = persistedConfig?.enabled ?? false;
+    this.approvalRequired = persistedConfig?.approvalRequired ?? false;
+    for (const approval of persistedConfig?.pendingApprovals ?? []) {
+      const symbol = normalizeSymbol(approval?.symbol);
+      if (symbol && approval?.decision && approval.bucket && typeof approval.reason === "string") {
+        this.pendingApprovals.set(symbol, { ...approval, symbol });
+      }
+    }
+    for (const denied of persistedConfig?.deniedApprovalSymbols ?? []) {
+      const symbol = normalizeSymbol(denied);
+      if (symbol) this.deniedApprovalSymbols.add(symbol);
+    }
     this.tradingDay = persistedConfig?.tradingDay ?? null;
     for (const symbol of persistedConfig?.mainSessionAddedToday ?? persistedConfig?.addedToday ?? []) {
       const normalized = normalizeSymbol(symbol);
@@ -2105,6 +2133,13 @@ export class AutoWatchlistSelector {
       return {
         version: CONFIG_VERSION,
         enabled: parsed.enabled,
+        approvalRequired: parsed.approvalRequired === true,
+        pendingApprovals: Array.isArray(parsed.pendingApprovals)
+          ? parsed.pendingApprovals as AutoWatchlistPendingApproval[]
+          : [],
+        deniedApprovalSymbols: Array.isArray(parsed.deniedApprovalSymbols)
+          ? parsed.deniedApprovalSymbols.filter((symbol): symbol is string => typeof symbol === "string")
+          : [],
         lastUpdated: finiteNumber(parsed.lastUpdated) ?? 0,
         thresholds:
           typeof parsed.thresholds === "object" && parsed.thresholds !== null
@@ -2159,6 +2194,9 @@ export class AutoWatchlistSelector {
     writeFileSync(tempPath, `${JSON.stringify({
       version: CONFIG_VERSION,
       enabled: this.enabled,
+      approvalRequired: this.approvalRequired,
+      pendingApprovals: [...this.pendingApprovals.values()],
+      deniedApprovalSymbols: [...this.deniedApprovalSymbols],
       lastUpdated: this.now(),
       thresholds: this.thresholds,
       tradingDay: this.tradingDay,
@@ -2228,6 +2266,7 @@ export class AutoWatchlistSelector {
 
   async updateConfiguration(input: {
     enabled?: boolean;
+    approvalRequired?: boolean;
     thresholds?: Partial<AutoWatchlistSelectorThresholds>;
   }): Promise<AutoWatchlistSelectorStatus> {
     const priorInterval = this.thresholds.scanIntervalMs;
@@ -2244,6 +2283,13 @@ export class AutoWatchlistSelector {
       if (!input.enabled) {
         this.consecutivePasses.clear();
         this.consecutivePassSessions.clear();
+      }
+    }
+    if (typeof input.approvalRequired === "boolean") {
+      this.approvalRequired = input.approvalRequired;
+      if (!input.approvalRequired) {
+        this.pendingApprovals.clear();
+        this.deniedApprovalSymbols.clear();
       }
     }
     this.persistConfig();
@@ -2268,6 +2314,10 @@ export class AutoWatchlistSelector {
   getStatus(): AutoWatchlistSelectorStatus {
     return {
       enabled: this.enabled,
+      approvalRequired: this.approvalRequired,
+      pendingApprovals: [...this.pendingApprovals.values()]
+        .sort((left, right) => left.proposedAt - right.proposedAt)
+        .map((approval) => ({ ...approval, decision: { ...approval.decision } })),
       running: this.running,
       configPath: this.configPath,
       thresholds: { ...this.thresholds },
@@ -2933,7 +2983,11 @@ export class AutoWatchlistSelector {
     bucket: AutoWatchlistBucket,
     timestamp: number,
     reason: string,
+    bypassApproval = false,
   ): Promise<boolean> {
+    if (!bypassApproval && this.queuePendingApproval(decision, bucket, timestamp, reason, null)) {
+      return false;
+    }
     const holdProtectionReason = this.automaticHoldQualification(decision);
     const sharesLabel = decision.effectiveShares
       ? `${(decision.effectiveShares / 1_000_000).toFixed(1)}M ${
@@ -3205,8 +3259,15 @@ export class AutoWatchlistSelector {
     timestamp: number,
     reason: string,
     incumbentDecision?: AutoWatchlistCandidateDecision,
+    bypassApproval = false,
   ): Promise<boolean> {
     if (normalizeSymbol(challenger.symbol) === normalizeSymbol(incumbent.symbol)) {
+      return false;
+    }
+    if (
+      !bypassApproval &&
+      this.queuePendingApproval(challenger, bucket, timestamp, reason, incumbent.symbol)
+    ) {
       return false;
     }
     const incumbentBeforeReplacement = { ...incumbent };
@@ -3222,7 +3283,7 @@ export class AutoWatchlistSelector {
     const managedChallenger = this.managedEntries.get(challenger.symbol);
     const activated = managedChallenger?.state === "followup"
       ? await this.promoteManagedFollowupDecision(challenger, managedChallenger, timestamp)
-      : await this.activateManagedDecision(challenger, bucket, timestamp, reason);
+      : await this.activateManagedDecision(challenger, bucket, timestamp, reason, true);
     if (activated) {
       const liveIncumbent = this.managedEntries.get(incumbent.symbol);
       if (liveIncumbent) {
@@ -3339,6 +3400,70 @@ export class AutoWatchlistSelector {
     return this.getStatus();
   }
 
+  private queuePendingApproval(
+    decision: AutoWatchlistCandidateDecision,
+    bucket: AutoWatchlistBucket,
+    proposedAt: number,
+    reason: string,
+    incumbentSymbol: string | null,
+  ): boolean {
+    if (!this.approvalRequired) return false;
+    if (this.deniedApprovalSymbols.has(decision.symbol)) return true;
+    if (!this.pendingApprovals.has(decision.symbol)) {
+      this.pendingApprovals.set(decision.symbol, {
+        symbol: decision.symbol,
+        decision: { ...decision },
+        bucket,
+        reason,
+        proposedAt,
+        incumbentSymbol,
+      });
+      this.persistConfig();
+    }
+    return true;
+  }
+
+  async approvePending(symbolInput: string): Promise<AutoWatchlistSelectorStatus> {
+    const symbol = normalizeSymbol(symbolInput);
+    const pending = this.pendingApprovals.get(symbol);
+    if (!pending) throw new Error(`${symbol || "Ticker"} is not pending approval.`);
+    this.pendingApprovals.delete(symbol);
+    this.deniedApprovalSymbols.delete(symbol);
+    this.persistConfig();
+    const incumbent = pending.incumbentSymbol
+      ? this.managedEntries.get(pending.incumbentSymbol)
+      : undefined;
+    const activated = incumbent
+      ? await this.replaceManagedDecision(
+          pending.decision,
+          incumbent,
+          pending.bucket,
+          this.now(),
+          pending.reason,
+          undefined,
+          true,
+        )
+      : await this.activateManagedDecision(
+          pending.decision,
+          pending.bucket,
+          this.now(),
+          pending.reason,
+          true,
+        );
+    if (!activated) throw new Error(`${symbol} could not be activated.`);
+    return this.getStatus();
+  }
+
+  denyPending(symbolInput: string): AutoWatchlistSelectorStatus {
+    const symbol = normalizeSymbol(symbolInput);
+    if (!this.pendingApprovals.delete(symbol)) {
+      throw new Error(`${symbol || "Ticker"} is not pending approval.`);
+    }
+    this.deniedApprovalSymbols.add(symbol);
+    this.persistConfig();
+    return this.getStatus();
+  }
+
   async runNow(options: { activate?: boolean } = {}): Promise<AutoWatchlistSelectorStatus> {
     const activate = options.activate === true && this.enabled && this.options.isRuntimeReady();
     await this.runScan(activate);
@@ -3387,6 +3512,8 @@ export class AutoWatchlistSelector {
     this.consecutivePasses.clear();
     this.consecutivePassSessions.clear();
     this.consecutivePassObservedAt.clear();
+    this.pendingApprovals.clear();
+    this.deniedApprovalSymbols.clear();
     this.persistConfig();
   }
 
@@ -4408,7 +4535,6 @@ export class AutoWatchlistSelector {
     this.lastActivationErrors = [];
     this.lastError = null;
     this.lastDiscoverySources = [];
-    this.recentDecisions = [];
     this.prefetchedActivityBySymbol.clear();
     if (activate) {
       this.resetTradingDayIfNeeded(scanStartedAt);

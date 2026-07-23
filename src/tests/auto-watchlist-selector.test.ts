@@ -790,6 +790,63 @@ test("admin threshold changes persist without enabling automatic additions", asy
   }
 });
 
+test("automatic approval defaults off and blocks activation until explicitly approved", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-approval-"));
+  const configPath = join(directory, "config.json");
+  const activated: string[] = [];
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async ({ symbol }) => { activated.push(symbol); },
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+  const decision = {
+    ...scoreAutoWatchlistCandidate({
+      candidate: { ...BASE_CANDIDATE, symbol: "APRV" },
+      floatShares: 5_000_000,
+    }),
+    symbol: "APRV",
+    session: "regular",
+    score: 80,
+    rankingScore: 85,
+    rankingReasons: [],
+    slotSurvivalScore: 85,
+    slotSurvivalReasons: [],
+    promotionRejectionReasons: [],
+    consecutivePasses: 2,
+    recent15mDollarVolume: 250_000,
+    recent15mVolume: 100_000,
+    volumeAcceleration: 2,
+    shareTurnoverPct: 10,
+  } as unknown as AutoWatchlistCandidateDecision;
+  try {
+    assert.equal(selector.getStatus().approvalRequired, false);
+    await selector.updateConfiguration({ approvalRequired: true });
+    const admitted = await (selector as any).activateManagedDecision(
+      decision,
+      "main",
+      Date.now(),
+      "test admission",
+    );
+    assert.equal(admitted, false);
+    assert.deepEqual(activated, []);
+    assert.deepEqual(
+      selector.getStatus().pendingApprovals.map((item) => item.symbol),
+      ["APRV"],
+    );
+
+    await selector.approvePending("APRV");
+    assert.deepEqual(activated, ["APRV"]);
+    assert.equal(selector.getStatus().pendingApprovals.length, 0);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("selector requires two passing observations before activating and does not duplicate active symbols", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-selector-"));
   const configPath = join(directory, "config.json");
@@ -3156,6 +3213,75 @@ test("a preview requested during an active scan waits for that scan instead of r
   assert.equal(secondStatus.lastEvaluatedCount, 1);
   assert.equal(secondStatus.recentDecisions[0]?.symbol, "WAIT");
   assert.equal(selector.getStatus().running, false);
+});
+
+test("an active scan keeps the last completed decision list visible until its replacement is ready", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-stable-decisions-"));
+  let holdRefresh = false;
+  let releaseRefresh!: () => void;
+  const refreshGate = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const fetchImpl: typeof fetch = async (input) => {
+    if (String(input).includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
+    if (holdRefresh) {
+      await refreshGate;
+    }
+    const symbol = holdRefresh ? "NEW" : "OLD";
+    return new Response(JSON.stringify({
+      data: {
+        rows: [{
+          symbol,
+          name: `${symbol} Corporation Common Stock`,
+          lastsale: "$2.00",
+          pctchange: "20%",
+          volume: "1000000",
+          marketCap: "10000000",
+        }],
+      },
+    }), { status: 200 });
+  };
+  const finnhubClient = {
+    getCompanyProfile: async (symbol: string) => ({
+      ticker: symbol,
+      marketCapitalization: 10,
+      shareOutstanding: 10,
+    }),
+  } as unknown as FinnhubClient;
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient,
+    fetchImpl,
+    configPath: join(directory, "config.json"),
+    now: () => Date.parse("2026-07-16T15:00:00Z"),
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    sessionActivityLookup: ACTIVE_SESSION_LOOKUP,
+  });
+
+  try {
+    const firstStatus = await selector.previewScan();
+    assert.equal(firstStatus.recentDecisions[0]?.symbol, "OLD");
+
+    holdRefresh = true;
+    const refresh = selector.previewScan();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const duringRefresh = selector.getStatus();
+    assert.equal(duringRefresh.running, true);
+    assert.equal(duringRefresh.recentDecisions[0]?.symbol, "OLD");
+
+    releaseRefresh();
+    const refreshedStatus = await refresh;
+    assert.equal(refreshedStatus.recentDecisions[0]?.symbol, "NEW");
+  } finally {
+    selector.stop();
+    releaseRefresh();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("consecutive-pass credit resets when a ticker disappears from the evaluated scan", async () => {

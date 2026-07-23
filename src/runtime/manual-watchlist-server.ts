@@ -654,6 +654,8 @@ async function main(): Promise<void> {
   let aiReadDailyCostBudget = {
     enabled: persistedTradersLinkAiReadSettings?.dailyCostBudgetEnabled ?? false,
     dailyLimitUsd: persistedTradersLinkAiReadSettings?.dailyCostBudgetUsd ?? 1,
+    perTickerDailyLimitUsd:
+      persistedTradersLinkAiReadSettings?.perTickerDailyCostBudgetUsd ?? 0.25,
   };
   tradersLinkAiReadService?.setExternalResearchEnabled(aiReadExternalResearchEnabled);
   if (!persistedTradersLinkAiReadSettings) {
@@ -665,6 +667,7 @@ async function main(): Promise<void> {
       reversalWatchlistVisible: true,
       dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
       dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+      perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
     });
   }
   const tradersLinkAiReadCostLedger = new TradersLinkAiReadCostLedger({
@@ -1006,6 +1009,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         aiReadExternalResearchEnabled = body.enabled;
         tradersLinkAiReadService?.setExternalResearchEnabled(body.enabled);
@@ -1033,9 +1037,14 @@ async function main(): Promise<void> {
           return;
         }
         const dailyLimitUsd = typeof body.dailyLimitUsd === "number" ? body.dailyLimitUsd : Number.NaN;
+        const perTickerDailyLimitUsd =
+          typeof body.perTickerDailyLimitUsd === "number"
+            ? body.perTickerDailyLimitUsd
+            : Number.NaN;
         aiReadDailyCostBudget = manager.setTradersLinkAiReadDailyCostBudget({
           enabled: body.enabled,
           dailyLimitUsd,
+          perTickerDailyLimitUsd,
         });
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
@@ -1046,6 +1055,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         sendJson(response, 200, {
           ok: true,
@@ -1070,9 +1080,17 @@ async function main(): Promise<void> {
           sendJson(response, 400, { error: "enabled must be true or false." });
           return;
         }
+        if (
+          body.approvalRequired !== undefined &&
+          typeof body.approvalRequired !== "boolean"
+        ) {
+          sendJson(response, 400, { error: "approvalRequired must be true or false." });
+          return;
+        }
         const thresholds = parseAutoWatchlistThresholds(body.thresholds);
         const status = await autoWatchlistSelector.updateConfiguration({
           enabled: body.enabled as boolean | undefined,
+          approvalRequired: body.approvalRequired as boolean | undefined,
           thresholds,
         });
         sendJson(response, 200, { ok: true, status });
@@ -1081,6 +1099,24 @@ async function main(): Promise<void> {
           sendJson(response, error.statusCode, { error: error.message });
           return;
         }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 400, { error: message });
+      }
+      return;
+    }
+
+    const autoWatchlistApprovalMatch = url.pathname.match(
+      /^\/api\/runtime\/auto-watchlist-selector\/approvals\/([^/]+)\/(approve|deny)$/,
+    );
+    if (request.method === "POST" && autoWatchlistApprovalMatch) {
+      try {
+        const symbol = decodeURIComponent(autoWatchlistApprovalMatch[1] ?? "");
+        const action = autoWatchlistApprovalMatch[2];
+        const status = action === "approve"
+          ? await autoWatchlistSelector.approvePending(symbol)
+          : autoWatchlistSelector.denyPending(symbol);
+        sendJson(response, 200, { ok: true, status });
+      } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 400, { error: message });
       }
@@ -1340,6 +1376,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         publishLiveWatchlistHealth({
           publisher: liveWatchlistHealthPublisher,
@@ -1395,6 +1432,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         sendJson(response, 200, {
           ok: true,
@@ -1442,6 +1480,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         sendJson(response, 200, {
           ok: true,
@@ -1478,6 +1517,7 @@ async function main(): Promise<void> {
           reversalWatchlistVisible: result.visible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          perTickerDailyCostBudgetUsd: aiReadDailyCostBudget.perTickerDailyLimitUsd,
         });
         sendJson(response, 200, {
           ok: true,
@@ -1794,8 +1834,15 @@ async function main(): Promise<void> {
           sendJson(response, 400, { error: "Symbol is required." });
           return;
         }
-        const read = await manager.refreshTradersLinkAiRead(symbol);
-        sendJson(response, 200, { ok: true, generated: Boolean(read), read });
+        const read = await manager.refreshTradersLinkAiRead(symbol, {
+          bypassCostLimits: true,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          generated: Boolean(read),
+          bypassedCostLimits: true,
+          read,
+        });
       } catch (error) {
         if (error instanceof RequestBodyParseError) {
           sendJson(response, error.statusCode, { error: error.message });

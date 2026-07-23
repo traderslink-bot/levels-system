@@ -130,6 +130,13 @@ export type TradersLinkAiReadGenerationInput = {
   dataAsOf?: number;
   generationId?: string;
   onAttempt?: (attempt: TradersLinkAiReadAttempt) => void;
+  authorizeAttempt?: (attempt: {
+    generationId: string;
+    symbol: string;
+    attemptNumber: number;
+    attemptType: TradersLinkAiReadAttempt["attemptType"];
+    model: string;
+  }) => void | Promise<void>;
 };
 
 export type TradersLinkAiReadAttempt = {
@@ -170,6 +177,15 @@ type TimedRequestError = Error & {
   responsePayload?: ResponsesApiResponse;
   requestTiming?: RequestTiming;
 };
+
+type AttemptAuthorizationError = Error & {
+  aiReadAttemptBlocked: true;
+};
+
+function isAttemptAuthorizationError(error: unknown): error is AttemptAuthorizationError {
+  return error instanceof Error &&
+    (error as Partial<AttemptAuthorizationError>).aiReadAttemptBlocked === true;
+}
 
 export type TradersLinkAiReadService = {
   generate(input: TradersLinkAiReadGenerationInput): Promise<TradersLinkAiReadPayload>;
@@ -554,7 +570,7 @@ Interpretation contract:
 - This is a day-trading read for volatile micro-cap and nano-cap stocks, often quick movers. Optimize for the current trading session and the next actionable branches, not a swing-trade valuation or a generic long-horizon forecast. Explicitly distinguish the evidence for sustained gains, momentum breakout, failed acceptance, fast reversal, and full momentum failure; do not assume any one path must occur.
 - Derive the tactical map independently from the raw OHLCV price action. The packet intentionally does not contain the app's detected support/resistance ladder. Never infer a ladder or fill fields by stepping through adjacent prices.
 - First locate price inside the active small-cap session: premarket/regular/postmarket range, prior close, opening range, session high/low, repeated rejection and acceptance, consolidation shelves, failed spikes, high-volume pivots, and expansion or compression of the recent range.
-- The 5-minute feed covers premarket, the complete regular session, and after-hours. The packet also provides deterministic one-minute impulse/base/retest facts, named pullback candidate zones, the final 60 raw one-minute bars, compact 15-minute bars for up to two completed regular sessions, 60 recent daily bars by default and up to 120 in expansion regimes. Give current and prior regular-hours structure appropriate weight while using the one-minute evidence to distinguish a fast vertical extension from a slower stair-step move and to judge immediate confirmation. Discount isolated thin-volume extended-session wicks.
+- The 5-minute feed covers premarket, the complete regular session, and after-hours. The packet also provides deterministic one-minute impulse/base/retest facts, named pullback candidate zones, the final 60 raw one-minute bars, compact 15-minute bars for up to two completed regular sessions, and up to 120 recent daily bars whenever that history is available. Give current and prior regular-hours structure appropriate weight while using the one-minute evidence to distinguish a fast vertical extension from a slower stair-step move and to judge immediate confirmation. Discount isolated thin-volume extended-session wicks.
 - Use the 1-minute and 5-minute tape first to measure how far and how quickly the stock extended, whether gains are being accepted, and where an actionable shallow pullback, deeper reset, or reversal/recovery area exists. Daily candles and prior-session levels remain essential day-trade context for overhead, former HODs, failed spikes, larger reset areas, and outer continuation—not permission to turn the read into a swing thesis.
 - Treat premarket high, regular-session HOD, prior HOD, prior close, and prior after-hours high as role-dependent day-trade references. For example, a premarket high can be breakout resistance while price is below it, then a hold/retest reference after regular-hours acceptance above it. Re-evaluate the role from the current tape instead of mechanically carrying the label forward.
 - A null volume with volumeDataQuality "unavailable" means the provider did not supply reliable volume for that bar or session. It does not mean zero shares traded. Never describe unavailable or partial volume as zero trading volume, and do not infer thin participation from missing volume alone.
@@ -1243,12 +1259,37 @@ function claimedCurrentPremarketHigh(text: string): number | null {
     }
     const highMatches = [...sentence.matchAll(/\bhigh\b/gi)];
     const priceMatches = [...sentence.matchAll(/\$?\d+(?:\.\d+)?/g)]
-      .map((match) => ({
-        index: match.index ?? 0,
-        end: (match.index ?? 0) + match[0].length,
-        value: Number(match[0].replace("$", "")),
-      }))
-      .filter((match) => Number.isFinite(match.value) && match.value > 0);
+      .map((match) => {
+        const index = match.index ?? 0;
+        const raw = match[0];
+        const value = Number(raw.replace("$", ""));
+        const precedingText = sentence.slice(Math.max(0, index - 16), index);
+        const isCalendarDay =
+          !raw.startsWith("$") &&
+          Number.isInteger(value) &&
+          value >= 1 &&
+          value <= 31 &&
+          /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*$/i.test(
+            precedingText,
+          );
+        const isCalendarYear =
+          !raw.startsWith("$") &&
+          Number.isInteger(value) &&
+          value >= 1900 &&
+          value <= 2100;
+        return {
+          index,
+          end: index + raw.length,
+          value,
+          isCalendarDate: isCalendarDay || isCalendarYear,
+        };
+      })
+      .filter(
+        (match) =>
+          Number.isFinite(match.value) &&
+          match.value > 0 &&
+          !match.isCalendarDate,
+      );
     for (const highMatch of highMatches) {
       const highIndex = highMatch.index ?? 0;
       const preceding = sentence.slice(Math.max(0, highIndex - 40), highIndex);
@@ -1707,6 +1748,62 @@ function pruneRedundantScenarioCheckpoints(
   };
 }
 
+function pruneUnsafeOptionalPullbackPlans(
+  read: ModelRead,
+  currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext,
+): ModelRead {
+  const tolerance = Math.max(currentPrice * 0.005, 0.0001);
+  const recentBars = priceAction.intradayCandles.slice(-24);
+  const averageRange = recentBars.length > 0
+    ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) /
+      recentBars.length
+    : 0;
+  const validScenario = (
+    scenario: TradersLinkAiReadPullbackScenario | null,
+    kind: "shallow" | "deep",
+  ): TradersLinkAiReadPullbackScenario | null => {
+    if (!scenario || read.confidence === "low") {
+      return null;
+    }
+    const invalidOrdering =
+      scenario.zoneLow > scenario.zoneHigh ||
+      scenario.zoneHigh >= currentPrice - tolerance ||
+      scenario.invalidationPrice >= scenario.zoneLow - tolerance ||
+      scenario.confirmationPrice < scenario.zoneLow - tolerance ||
+      (scenario.firstObjectivePrice !== null &&
+        scenario.firstObjectivePrice <= scenario.zoneHigh + tolerance);
+    const invalidDeepRelation =
+      kind === "deep" &&
+      read.momentumFailure.price !== null &&
+      scenario.invalidationPrice < read.momentumFailure.price - tolerance;
+    return invalidOrdering || invalidDeepRelation ? null : scenario;
+  };
+
+  if (
+    read.momentumFailure.price !== null &&
+    currentPrice <= read.momentumFailure.price + tolerance
+  ) {
+    return {
+      ...read,
+      pullbackPlans: { shallow: null, deep: null },
+    };
+  }
+
+  const shallow = validScenario(read.pullbackPlans.shallow, "shallow");
+  let deep = validScenario(read.pullbackPlans.deep, "deep");
+  if (shallow && deep) {
+    const requiredSeparation = Math.max(tolerance, averageRange * 0.25);
+    if (shallow.zoneLow - deep.zoneHigh < requiredSeparation) {
+      deep = null;
+    }
+  }
+  return {
+    ...read,
+    pullbackPlans: { shallow, deep },
+  };
+}
+
 function extractResponseText(payload: ResponsesApiResponse): string | null {
   if (typeof payload.output_text === "string" && payload.output_text.trim()) {
     return payload.output_text.trim();
@@ -2075,27 +2172,21 @@ function buildRequestBody(args: {
     args.input.priceAction,
     args.dataAsOf,
   );
-  const marketRegimeProfile = marketRegimeProfileFromPacket(marketPacket);
   const correctionInput = args.correction
     ? [{
         role: "user",
         content: [{
           type: "input_text",
           text: JSON.stringify({
-            task: "Repair the complete rejected AI Read. Preserve all validated locked facts and correct every supplied failure in one response.",
-            authoritativeMarketPacket: marketPacket,
-            priceFreeMarketRegimeProfile: marketRegimeProfile,
+            task: "Regenerate one concise complete AI Read from the authoritative market packet already supplied above. Correct every supplied failure.",
             validationFailures: args.correction.validationFailures,
             diagnostics: args.correction.diagnostics,
-            rejectedDraft: args.correction.rejectedDraft,
-            rejectedNormalizedResponse: args.correction.rejectedNormalizedResponse,
             normalizationChanges: args.correction.normalizationChanges,
             lockedFields: [
               "authoritative market packet",
               "validated research source URLs and source-backed catalyst facts",
               "validated dilution and listing facts",
             ],
-            priorCompletePlan: args.input.priorCompletePlan ?? null,
             correctionRules: [
               "The forward plan was rejected because one or more horizons were missing, duplicated, unsupported, or suspiciously compressed relative to the supplied regime.",
               "Reassess the raw candles, daily history, volatility profile, and psychological price scale; derive exact prices independently.",
@@ -2107,7 +2198,7 @@ function buildRequestBody(args: {
               "For every pullback use invalidationPrice < zoneLow <= zoneHigh < currentPrice.",
               "For deep also use momentumFailure <= invalidationPrice; return deep as null when that ordering is impossible.",
               "Do not add new research claims or source URLs during tactical correction.",
-              "Return only the complete corrected JSON object.",
+              "Keep every explanation short and return only the complete corrected JSON object.",
             ],
           }),
         }],
@@ -2115,11 +2206,12 @@ function buildRequestBody(args: {
     : [];
   return {
     model: args.model,
-    reasoning: { effort: args.correction ? "high" : args.reasoningEffort ?? "high" },
+    reasoning: { effort: args.reasoningEffort ?? "medium" },
     max_output_tokens: args.maxOutputTokens,
     ...(args.webSearchEnabled ? { tools: [{ type: "web_search" }] } : {}),
     ...(args.webSearchEnabled ? { include: ["web_search_call.action.sources"] } : {}),
     text: {
+      verbosity: "low",
       format: {
         type: "json_schema",
         name: "traderslink_ai_read",
@@ -2302,6 +2394,44 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     let attemptSequence = 0;
     let requestSequence = 0;
     const nextClientRequestId = (): string => `${generationId}-request-${++requestSequence}`;
+    const requestAttempt = async (
+      attemptType: TradersLinkAiReadAttempt["attemptType"],
+      attemptModel: string,
+      correction?: {
+        validationFailures: TradersLinkAiReadValidationFailure[];
+        diagnostics: Record<string, unknown> | null;
+        rejectedDraft: string | null;
+        rejectedNormalizedResponse: ModelRead | null;
+        normalizationChanges: string[];
+      },
+    ): Promise<ResponsesApiResponse> => {
+      const attemptNumber = requestSequence + 1;
+      if (attemptNumber > 2) {
+        throw new Error("TradersLink AI Read stopped at the two-call generation limit.");
+      }
+      try {
+        await input.authorizeAttempt?.({
+          generationId,
+          symbol,
+          attemptNumber,
+          attemptType,
+          model: attemptModel,
+        });
+      } catch (error) {
+        const blocked = new Error(
+          error instanceof Error ? error.message : String(error),
+        ) as AttemptAuthorizationError;
+        blocked.aiReadAttemptBlocked = true;
+        throw blocked;
+      }
+      return this.request(
+        attemptModel,
+        input,
+        dataAsOf,
+        nextClientRequestId(),
+        correction,
+      );
+    };
     const recordAttempt = (
       attemptType: TradersLinkAiReadAttempt["attemptType"],
       status: TradersLinkAiReadAttempt["status"],
@@ -2342,8 +2472,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     let model = this.model;
     let response: ResponsesApiResponse;
     try {
-      response = await this.request(model, input, dataAsOf, nextClientRequestId());
+      response = await requestAttempt("primary", model);
     } catch (error) {
+      if (isAttemptAuthorizationError(error)) {
+        throw error;
+      }
       const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
       const status = (error as Error & { status?: number })?.status;
       const canFallback =
@@ -2362,8 +2495,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       }
       model = this.fallbackModel;
       try {
-        response = await this.request(model, input, dataAsOf, nextClientRequestId());
+        response = await requestAttempt("fallback", model);
       } catch (fallbackError) {
+        if (isAttemptAuthorizationError(fallbackError)) {
+          throw fallbackError;
+        }
         recordAttempt(
           "fallback",
           "transport_error",
@@ -2421,8 +2557,13 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       normalizationChanges = canonical.targets.length === pruned.targets.length
         ? ["Derived legacy targets from canonical forwardPlan without pruning a horizon."]
         : [`Derived legacy targets from canonical forwardPlan and pruned ${canonical.targets.length - pruned.targets.length} redundant compatibility target(s).`];
-      const normalized = normalizeObservableTapeEvidence(
+      const safePullbacks = pruneUnsafeOptionalPullbackPlans(
         pruned,
+        referenceQuote.price,
+        input.priceAction,
+      );
+      const normalized = normalizeObservableTapeEvidence(
+        safePullbacks,
         referenceQuote.price,
         input.priceAction,
       );
@@ -2456,7 +2597,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       recordAttempt(initialAttemptType, "invalid_output", model, response, validationError);
     }
 
-    if (!read && validationError) {
+    if (!read && validationError && requestSequence < 2) {
       const forwardValidationError = validationError instanceof TradersLinkAiReadValidationError
         ? validationError
         : null;
@@ -2466,7 +2607,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         message: validationError.message,
       }];
       try {
-        response = await this.request(model, input, dataAsOf, nextClientRequestId(), {
+        response = await requestAttempt("correction", model, {
           validationFailures,
           diagnostics: forwardValidationError
             ? { ...forwardValidationError.diagnostics }
@@ -2476,6 +2617,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           normalizationChanges,
         });
       } catch (correctionError) {
+        if (isAttemptAuthorizationError(correctionError)) {
+          throw correctionError;
+        }
         recordAttempt(
           "correction",
           "transport_error",
@@ -2506,66 +2650,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           response,
           correctionValidationError,
         );
-        const canUseValidationFallback = Boolean(this.options.fallbackModel?.trim()) &&
-          this.fallbackModel !== model;
-        if (!canUseValidationFallback) {
-          throw correctionValidationError;
-        }
-        const fallbackValidationError = correctionValidationError instanceof TradersLinkAiReadValidationError
-          ? correctionValidationError
-          : null;
-        const fallbackValidationFailures: TradersLinkAiReadValidationFailure[] =
-          fallbackValidationError?.failures ?? [{
-            code: "TACTICAL_VALIDATION_FAILED",
-            branch: "aiRead",
-            message: correctionValidationError instanceof Error
-              ? correctionValidationError.message
-              : String(correctionValidationError),
-          }];
-        model = this.fallbackModel;
-        try {
-          response = await this.request(model, input, dataAsOf, nextClientRequestId(), {
-            validationFailures: fallbackValidationFailures,
-            diagnostics: fallbackValidationError
-              ? { ...fallbackValidationError.diagnostics }
-              : null,
-            rejectedDraft: text,
-            rejectedNormalizedResponse,
-            normalizationChanges,
-          });
-        } catch (fallbackError) {
-          recordAttempt(
-            "fallback",
-            "transport_error",
-            model,
-            (fallbackError as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
-            fallbackError,
-          );
-          throw fallbackError;
-        }
-        responses.push(response);
-        text = extractResponseText(response);
-        availableSources = dedupeSources([
-          ...availableSources,
-          ...extractWebSources(response, new Date().toISOString()),
-        ]);
-        try {
-          read = applyQuoteDisagreementGuard(
-            parseAndValidate(text, availableSources),
-            input.snapshot.currentPrice,
-            referenceQuote.price,
-          );
-          recordAttempt("fallback", "success", model, response);
-        } catch (fallbackValidationFailure) {
-          recordAttempt(
-            "fallback",
-            "invalid_output",
-            model,
-            response,
-            fallbackValidationFailure,
-          );
-          throw fallbackValidationFailure;
-        }
+        throw correctionValidationError;
       }
     }
 

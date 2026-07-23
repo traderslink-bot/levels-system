@@ -563,10 +563,10 @@ describe("TradersLink AI Read refresh decisions", () => {
     });
   });
 
-  it("reuses a persisted plan on reactivation and only schedules a boundary check", () => {
+  it("requests a fresh activation read even when an older plan is persisted", () => {
     assert.deepEqual(decideTradersLinkAiReadActivationSchedule(state(1.5)), {
-      force: false,
-      trigger: "automatic",
+      force: true,
+      trigger: "activation",
     });
     assert.deepEqual(decideTradersLinkAiReadActivationSchedule(null), {
       force: true,

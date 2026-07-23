@@ -43,6 +43,7 @@ export type LiveWatchlistLifecycleEvidence = {
   fiveMinuteStructure?: StableMarketStructureRuntimeContext | null;
   currentPrice?: number | null;
   aiRead?: TradersLinkAiLifecyclePlan | null;
+  publishedAiReadKnown?: boolean;
 };
 
 export type TradersLinkAiLifecyclePlan = Omit<Pick<
@@ -313,6 +314,14 @@ export function deriveLiveWatchlistLifecycleRead(
       "monitoring",
       "Analysis Pending",
       "Waiting for fresh, reliable 5-minute structure before assigning a lifecycle state.",
+      evidence.evaluatedAt,
+    );
+  }
+  if (evidence.publishedAiReadKnown === true && !evidence.aiRead) {
+    return read(
+      "monitoring",
+      "Analysis Pending",
+      "A published AI Read exists, but its lifecycle plan is still synchronizing locally.",
       evidence.evaluatedAt,
     );
   }

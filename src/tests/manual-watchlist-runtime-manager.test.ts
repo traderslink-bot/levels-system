@@ -49,6 +49,7 @@ test("archived AI lifecycle plans require timestamps and every dereferenced fiel
     },
   };
   assert.ok(parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify(valid)));
+  assert.ok(parseArchivedTradersLinkAiLifecyclePlan(valid));
   assert.equal(
     parseArchivedTradersLinkAiLifecyclePlan(JSON.stringify({
       ...valid,
@@ -4364,7 +4365,7 @@ test("ManualWatchlistRuntimeManager stores the published AI Read confidence for 
   assert.equal(watchlistStore.getEntry("CONF")?.tradersLinkAiReadConfidence, "medium");
 });
 
-test("ManualWatchlistRuntimeManager retries an automatic AI Read when boundary generation fails before publication", async () => {
+test("ManualWatchlistRuntimeManager locks a failed automatic boundary regime instead of buying another generation", async () => {
   const persistence = new FakeWatchlistStatePersistence();
   const watchlistStore = new WatchlistStore();
   const levelStore = new LevelStore();
@@ -4400,6 +4401,7 @@ test("ManualWatchlistRuntimeManager retries an automatic AI Read when boundary g
     },
   }));
   let generationAttempts = 0;
+  let budgetsBlocked = false;
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: {} as any,
     levelStore,
@@ -4410,10 +4412,58 @@ test("ManualWatchlistRuntimeManager retries an automatic AI Read when boundary g
     watchlistStatePersistence: persistence as any,
     liveWatchlistPublisher: new FakeLiveWatchlistPublisher(),
     tradersLinkAiReadService: {
-      generate: async () => {
+      generate: async (input: any) => {
         generationAttempts += 1;
+        for (const [index, attemptType] of ["primary", "correction"].entries()) {
+          input.onAttempt?.({
+            symbol: "RETRY",
+            generationId: `RETRY-generation-${generationAttempts}`,
+            requestId: `response-${generationAttempts}-${index}`,
+            clientRequestId: `request-${generationAttempts}-${index}`,
+            attemptType,
+            status: "invalid_output",
+            model: "gpt-5.6-luna",
+            dataAsOf: now,
+            marketSession: "regular",
+            usedWebSearch: false,
+            usage: {
+              inputTokens: 100,
+              cachedInputTokens: 0,
+              outputTokens: 20,
+              totalTokens: 120,
+              webSearchCallCount: 0,
+              tokenCostUsd: 0.01,
+              webSearchCostUsd: 0,
+              estimatedTotalCostUsd: 0.01,
+              pricing: {
+                source: "built_in",
+                inputPer1M: 1,
+                cachedInputPer1M: 0.1,
+                outputPer1M: 6,
+                webSearchPer1KCalls: 10,
+              },
+            },
+            receivedAt: now + index,
+            startedAt: now,
+            durationMs: index,
+            timeoutMs: 90_000,
+            timeoutOverrunMs: 0,
+            error: "fixture failure",
+          });
+        }
         throw new Error("AI Read generation failed before publication");
       },
+    } as any,
+    tradersLinkAiReadCostLedger: {
+      recordAttempt: () => {},
+      getDailyCostBudgetStatus: () => ({
+        canStartRequest: !budgetsBlocked,
+        blockReason: budgetsBlocked ? "fixture global budget reached" : null,
+      }),
+      getTickerDailyCostBudgetStatus: () => ({
+        canStartRequest: !budgetsBlocked,
+        blockReason: budgetsBlocked ? "fixture ticker budget reached" : null,
+      }),
     } as any,
     recentWebsiteArticlesExecFileImpl: async () => ({
       stderr: "",
@@ -4434,11 +4484,26 @@ test("ManualWatchlistRuntimeManager retries an automatic AI Read when boundary g
   );
   assert.equal(
     watchlistStore.getEntry("RETRY")?.tradersLinkAiReadBoundaryState?.lastAutomaticRefreshRegime ?? null,
-    null,
+    "upper:2",
+  );
+  assert.equal(
+    watchlistStore.getEntry("RETRY")?.tradersLinkAiReadAllAttemptsFailed,
+    true,
   );
 
+  const secondAttempt = await (manager as any).generateTradersLinkAiRead(
+    "RETRY",
+    false,
+    "automatic",
+  );
+  assert.equal(secondAttempt, null);
+  assert.equal(generationAttempts, 1);
+
+  budgetsBlocked = true;
+  assert.equal(await manager.refreshTradersLinkAiRead("RETRY"), null);
+  assert.equal(generationAttempts, 1);
   await assert.rejects(
-    (manager as any).generateTradersLinkAiRead("RETRY", false, "automatic"),
+    manager.refreshTradersLinkAiRead("RETRY", { bypassCostLimits: true }),
     /generation failed before publication/,
   );
   assert.equal(generationAttempts, 2);

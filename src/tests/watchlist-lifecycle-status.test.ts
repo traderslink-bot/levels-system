@@ -219,6 +219,24 @@ test("watchlist lifecycle labels remain conservative when evidence is stale or i
   assert.equal(damagedWithoutMappedSupport.label, "Analysis Pending");
 });
 
+test("a published AI Read with an unsynchronized local plan cannot fall back to Recovery Watch", () => {
+  const result = deriveLiveWatchlistLifecycleRead({
+    evaluatedAt: NOW,
+    structureUpdatedAt: NOW,
+    phase: "failed_move_risk",
+    technicalConfidence: "high",
+    volumeLabel: "strong",
+    levelMap: levelMap(),
+    currentPrice: 1,
+    aiRead: null,
+    publishedAiReadKnown: true,
+  });
+
+  assert.equal(result.status, "monitoring");
+  assert.equal(result.label, "Analysis Pending");
+  assert.match(result.reason, /synchronizing locally/i);
+});
+
 test("watchlist lifecycle labels distinguish momentum, candle pullback, recovery watch, recovery attempt, and confirmed fade", () => {
   const base = {
     evaluatedAt: NOW,

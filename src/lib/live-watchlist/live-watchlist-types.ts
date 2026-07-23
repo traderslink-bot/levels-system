@@ -18,6 +18,7 @@ export type LiveWatchlistCardKind =
   | "extendedQuote";
 
 export type LiveWatchlistStatus = "live" | "stale" | "deactivated";
+export type TradersLinkAiReadStatus = "analyzing" | "ready" | "failed";
 export type LiveWatchlistSlotState = "active" | "followup";
 export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting" | "closed";
 export type LiveWatchlistLifecycleStatus =
@@ -69,6 +70,7 @@ export type LiveWatchlistCardPatch = {
   liveVolumeContext?: LiveWatchlistVolumeContext | null;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
+  tradersLinkAiReadStatus?: TradersLinkAiReadStatus;
   levelMap?: LiveWatchlistLevelMap | null;
   cards: Partial<Record<LiveWatchlistCardKind, LiveWatchlistCardContent | null>>;
 };

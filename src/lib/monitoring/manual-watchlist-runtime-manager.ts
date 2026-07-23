@@ -49,6 +49,7 @@ import {
   buildLiveWatchlistTechnicalContextPatch,
   buildLiveWatchlistTickerDataPatch,
   buildTradersLinkAiReadPatch,
+  buildTradersLinkAiReadStatusPatch,
   buildTradersLinkAiReadVisibilityPatch,
   createLiveWatchlistPublisherFromEnv,
 } from "../live-watchlist/live-watchlist-publisher.js";
@@ -245,6 +246,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   initialTradersLinkAiReadDailyCostBudget?: {
     enabled: boolean;
     dailyLimitUsd: number;
+    perTickerDailyLimitUsd?: number;
   };
   tradersLinkAiReadStartupRefreshEnabled?: boolean;
   initialLiveTraderReadCardVisible?: boolean;
@@ -280,6 +282,7 @@ const TRADERSLINK_AI_READ_MAX_BOUNDARY_BUFFER_PCT = 0.05;
 const TRADERSLINK_AI_READ_ATR_BUFFER_MULTIPLIER = 0.2;
 const TRADERSLINK_AI_READ_TICK_BUFFER_MULTIPLIER = 3;
 const DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 1;
+const DEFAULT_TRADERSLINK_AI_READ_PER_TICKER_DAILY_COST_BUDGET_USD = 0.25;
 export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "automatic";
 
 export type TradersLinkAiReadRefreshState = TradersLinkAiReadBoundaryState;
@@ -512,9 +515,15 @@ export function parseArchivedTradersLinkAiReadRefreshState(
 export function parseArchivedTradersLinkAiLifecyclePlan(
   body: unknown,
 ): TradersLinkAiLifecyclePlan | null {
-  if (typeof body !== "string" || body.trim().length === 0) return null;
   try {
-    const parsed = JSON.parse(body) as Record<string, unknown>;
+    const parsed = (
+      typeof body === "string"
+        ? body.trim().length > 0
+          ? JSON.parse(body)
+          : null
+        : body
+    ) as Record<string, unknown> | null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
     const levelValid = (value: unknown): boolean => {
       if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
       const price = (value as Record<string, unknown>).price;
@@ -732,14 +741,12 @@ export function decideTradersLinkAiReadRefresh(args: {
 }
 
 export function decideTradersLinkAiReadActivationSchedule(
-  previous: TradersLinkAiReadRefreshState | null,
+  _previous: TradersLinkAiReadRefreshState | null,
 ): {
   force: boolean;
   trigger: TradersLinkAiReadRequestedTrigger;
 } {
-  return previous
-    ? { force: false, trigger: "automatic" }
-    : { force: true, trigger: "activation" };
+  return { force: true, trigger: "activation" };
 }
 
 export type ManualWatchlistAutoCleanReadInput = {
@@ -2741,6 +2748,7 @@ export class ManualWatchlistRuntimeManager {
   private tradersLinkAiReadDailyCostBudget = {
     enabled: false,
     dailyLimitUsd: DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD,
+    perTickerDailyLimitUsd: DEFAULT_TRADERSLINK_AI_READ_PER_TICKER_DAILY_COST_BUDGET_USD,
   };
   private readonly levelSeedStats = {
     attempts: 0,
@@ -2996,9 +3004,13 @@ export class ManualWatchlistRuntimeManager {
       const archived = archivedBySymbol.get(entry.symbol) as
         | { cards?: Record<string, { body?: unknown } | null> }
         | undefined;
-      const lifecyclePlan = parseArchivedTradersLinkAiLifecyclePlan(
-        archived?.cards?.tradersLinkAiRead?.body,
-      );
+      const lifecyclePlan =
+        parseArchivedTradersLinkAiLifecyclePlan(
+          state?.priorCompletePlan?.plan,
+        ) ??
+        parseArchivedTradersLinkAiLifecyclePlan(
+          archived?.cards?.tradersLinkAiRead?.body,
+        );
       const restoreTime = this.options.now?.() ?? Date.now();
       if (
         lifecyclePlan &&
@@ -3020,20 +3032,38 @@ export class ManualWatchlistRuntimeManager {
     );
   }
 
-  getTradersLinkAiReadDailyCostBudget(): { enabled: boolean; dailyLimitUsd: number } {
+  getTradersLinkAiReadDailyCostBudget(): {
+    enabled: boolean;
+    dailyLimitUsd: number;
+    perTickerDailyLimitUsd: number;
+  } {
     return { ...this.tradersLinkAiReadDailyCostBudget };
   }
 
   setTradersLinkAiReadDailyCostBudget(input: {
     enabled: boolean;
     dailyLimitUsd: number;
-  }): { enabled: boolean; dailyLimitUsd: number } {
+    perTickerDailyLimitUsd?: number;
+  }): {
+    enabled: boolean;
+    dailyLimitUsd: number;
+    perTickerDailyLimitUsd: number;
+  } {
     if (!Number.isFinite(input.dailyLimitUsd) || input.dailyLimitUsd < 0.01 || input.dailyLimitUsd > 10_000) {
       throw new Error("The TradersLink AI Read daily budget must be between $0.01 and $10,000.00.");
+    }
+    const perTickerDailyLimitUsd =
+      input.perTickerDailyLimitUsd ??
+      this.tradersLinkAiReadDailyCostBudget.perTickerDailyLimitUsd;
+    if (!Number.isFinite(perTickerDailyLimitUsd) ||
+      perTickerDailyLimitUsd < 0.01 ||
+      perTickerDailyLimitUsd > 10_000) {
+      throw new Error("The per-ticker AI Read daily budget must be between $0.01 and $10,000.00.");
     }
     this.tradersLinkAiReadDailyCostBudget = {
       enabled: input.enabled === true,
       dailyLimitUsd: Math.round(input.dailyLimitUsd * 100) / 100,
+      perTickerDailyLimitUsd: Math.round(perTickerDailyLimitUsd * 100) / 100,
     };
     return this.getTradersLinkAiReadDailyCostBudget();
   }
@@ -3053,6 +3083,27 @@ export class ManualWatchlistRuntimeManager {
       };
     }
     return ledger.getDailyCostBudgetStatus(this.tradersLinkAiReadDailyCostBudget);
+  }
+
+  getTradersLinkAiReadTickerDailyCostBudgetStatus(symbolInput: string) {
+    const symbol = normalizeSymbol(symbolInput);
+    const ledger = this.options.tradersLinkAiReadCostLedger;
+    if (!ledger) {
+      return {
+        symbol,
+        enabled: true,
+        dailyLimitUsd: this.tradersLinkAiReadDailyCostBudget.perTickerDailyLimitUsd,
+        spentUsd: 0,
+        projectedNextRequestUsd: 0,
+        remainingUsd: this.tradersLinkAiReadDailyCostBudget.perTickerDailyLimitUsd,
+        canStartRequest: false,
+        blockReason: "Expense ledger is unavailable, so the per-ticker guard cannot safely estimate spend.",
+      };
+    }
+    return ledger.getTickerDailyCostBudgetStatus(symbol, {
+      dailyLimitUsd: this.tradersLinkAiReadDailyCostBudget.perTickerDailyLimitUsd,
+      now: this.options.now?.() ?? Date.now(),
+    });
   }
 
   getTradersLinkAiReadCostSnapshot() {
@@ -3234,6 +3285,7 @@ export class ManualWatchlistRuntimeManager {
     symbolInput: string,
     force: boolean,
     requestedTrigger: TradersLinkAiReadRequestedTrigger,
+    bypassCostLimits = false,
   ): Promise<TradersLinkAiReadPayload | null> {
     const service = this.options.tradersLinkAiReadService;
     const publisher = this.liveWatchlistPublisher;
@@ -3305,14 +3357,30 @@ export class ManualWatchlistRuntimeManager {
     }
 
     const budgetStatus = this.getTradersLinkAiReadDailyCostBudgetStatus();
-    if (!budgetStatus.canStartRequest) {
+    if (!bypassCostLimits && !budgetStatus.canStartRequest) {
       console.warn(
         `[TradersLinkAiRead] Skipped ${symbol}: ${budgetStatus.blockReason ?? "daily budget guard blocked the new request"}`,
       );
       return null;
     }
+    const tickerBudgetStatus = this.getTradersLinkAiReadTickerDailyCostBudgetStatus(symbol);
+    if (!bypassCostLimits && !tickerBudgetStatus.canStartRequest) {
+      const reason = tickerBudgetStatus.blockReason ??
+        `${symbol} reached its $${tickerBudgetStatus.dailyLimitUsd.toFixed(2)} daily AI Read limit.`;
+      if (requestedTrigger === "manual") {
+        throw new Error(`${reason} Use the admin force action to bypass this ticker limit.`);
+      }
+      console.warn(`[TradersLinkAiRead] Skipped ${symbol}: ${reason}`);
+      return null;
+    }
 
     this.aiReadInFlight.add(symbol);
+    if (entry.tradersLinkAiReadAllAttemptsFailed === true) {
+      this.watchlistStore.patchEntry(symbol, {
+        tradersLinkAiReadAllAttemptsFailed: false,
+      });
+      this.persistWatchlist();
+    }
     try {
       const priceActionPromise = this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
       let research;
@@ -3371,8 +3439,48 @@ export class ManualWatchlistRuntimeManager {
             });
             recordedAttemptCount += 1;
           },
+          authorizeAttempt: () => {
+            const liveGlobalBudget = this.getTradersLinkAiReadDailyCostBudgetStatus();
+            if (!bypassCostLimits && !liveGlobalBudget.canStartRequest) {
+              throw new Error(
+                liveGlobalBudget.blockReason ?? "The global daily AI Read budget blocked this call.",
+              );
+            }
+            if (!bypassCostLimits) {
+              const liveTickerBudget =
+                this.getTradersLinkAiReadTickerDailyCostBudgetStatus(symbol);
+              if (!liveTickerBudget.canStartRequest) {
+                throw new Error(
+                  liveTickerBudget.blockReason ??
+                    `${symbol} reached its per-ticker daily AI Read limit.`,
+                );
+              }
+            }
+          },
         });
       } catch (error) {
+        if (recordedAttemptCount >= 2) {
+          this.watchlistStore.patchEntry(symbol, {
+            tradersLinkAiReadAllAttemptsFailed: true,
+          });
+          this.persistWatchlist();
+        }
+        if (
+          requestedTrigger === "automatic" &&
+          refreshDecision.automaticRefreshRegime &&
+          this.aiReadState.has(symbol)
+        ) {
+          const failedState = {
+            ...this.aiReadState.get(symbol)!,
+            lastAutomaticRefreshRegime: refreshDecision.automaticRefreshRegime,
+          };
+          delete failedState.pendingAutomaticBoundaryCross;
+          this.aiReadState.set(symbol, failedState);
+          this.watchlistStore.patchEntry(symbol, {
+            tradersLinkAiReadBoundaryState: failedState,
+          });
+          this.persistWatchlist();
+        }
         if (!this.aiReadState.has(symbol)) {
           this.aiReadInitialGenerationSuppressedSymbols.add(symbol);
         }
@@ -3400,6 +3508,7 @@ export class ManualWatchlistRuntimeManager {
       };
       this.watchlistStore.patchEntry(symbol, {
         pendingTradersLinkAiReadGeneration: pendingGeneration,
+        tradersLinkAiReadAllAttemptsFailed: false,
       });
       this.persistWatchlist();
       try {
@@ -3503,6 +3612,21 @@ export class ManualWatchlistRuntimeManager {
       void this.generateTradersLinkAiRead(normalizedSymbol, force, trigger).catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[TradersLinkAiRead] Failed to generate ${normalizedSymbol} read: ${message}`);
+        if (trigger === "activation" && this.liveWatchlistPublisher) {
+          void this.liveWatchlistPublisher.publish(
+            buildTradersLinkAiReadStatusPatch({
+              symbol: normalizedSymbol,
+              status: "failed",
+            }),
+          ).catch((publishError) => {
+            const publishMessage = publishError instanceof Error
+              ? publishError.message
+              : String(publishError);
+            console.warn(
+              `[TradersLinkAiRead] Failed to publish ${normalizedSymbol} analysis status: ${publishMessage}`,
+            );
+          });
+        }
       });
     };
 
@@ -3527,7 +3651,10 @@ export class ManualWatchlistRuntimeManager {
     dispatch();
   }
 
-  async refreshTradersLinkAiRead(symbolInput: string): Promise<TradersLinkAiReadPayload | null> {
+  async refreshTradersLinkAiRead(
+    symbolInput: string,
+    options: { bypassCostLimits?: boolean } = {},
+  ): Promise<TradersLinkAiReadPayload | null> {
     if (!this.isTradersLinkAiReadConfigured()) {
       throw new Error("TradersLink AI Read is not configured.");
     }
@@ -3536,7 +3663,12 @@ export class ManualWatchlistRuntimeManager {
     if (!entry?.active) {
       throw new Error(`${symbol} is not active.`);
     }
-    return this.generateTradersLinkAiRead(symbol, true, "manual");
+    return this.generateTradersLinkAiRead(
+      symbol,
+      true,
+      "manual",
+      options.bypassCostLimits === true,
+    );
   }
 
   async setTradersLinkAiReadCardVisible(
@@ -10425,14 +10557,13 @@ export class ManualWatchlistRuntimeManager {
         throw new ActivationCancelledError(symbol);
       }
       this.assertActivationCurrent(symbol, activationEpoch);
-      const threadId =
-        preparedThread?.threadId ??
-        (
-          await this.options.discordAlertRouter.ensureThread(
-            symbol,
-            existing?.discordThreadId,
-          )
-        ).threadId;
+      const threadRouting =
+        preparedThread ??
+        await this.options.discordAlertRouter.ensureThread(
+          symbol,
+          existing?.discordThreadId,
+        );
+      const threadId = threadRouting.threadId;
       if (!preparedThread) {
         this.emitLifecycle("thread_ready", {
           symbol,
@@ -10458,6 +10589,16 @@ export class ManualWatchlistRuntimeManager {
         lastError: null,
         operationStatus: "posting level snapshot",
       });
+      const activationAiReadSchedule = decideTradersLinkAiReadActivationSchedule(
+        this.aiReadState.get(symbol) ?? null,
+      );
+      const initialAiReadStatus =
+        activationAiReadSchedule.trigger === "activation" &&
+        this.isTradersLinkAiReadConfigured() &&
+        this.liveWatchlistPublisher &&
+        entry.tradersLinkAiReadCardVisible !== false
+          ? "analyzing" as const
+          : undefined;
 
       let snapshotPayload: LevelSnapshotPayload | null = null;
       if (reuseExistingSameDayContext) {
@@ -10479,8 +10620,16 @@ export class ManualWatchlistRuntimeManager {
       const preparedEntry = this.watchlistStore.getEntry(symbol) ?? entry;
       await this.restartMonitoringForPreparedActivation(preparedEntry);
       this.assertActivationCurrent(symbol, activationEpoch);
-      await this.publishActivationWebsiteSnapshot(symbol, Date.now(), reuseExistingSameDayContext);
+      await this.publishActivationWebsiteSnapshot(
+        symbol,
+        Date.now(),
+        reuseExistingSameDayContext,
+        initialAiReadStatus,
+      );
       this.assertActivationCurrent(symbol, activationEpoch);
+      if (threadRouting.created && !reuseExistingSameDayContext) {
+        await this.options.discordAlertRouter.announceTickerAdded?.(symbol);
+      }
       const activatedEntry = this.watchlistStore.patchEntry(symbol, {
         active: true,
         lifecycle: "active",
@@ -10520,9 +10669,6 @@ export class ManualWatchlistRuntimeManager {
           );
         });
       }
-      const activationAiReadSchedule = decideTradersLinkAiReadActivationSchedule(
-        this.aiReadState.get(symbol) ?? null,
-      );
       this.scheduleTradersLinkAiRead(
         symbol,
         activationAiReadSchedule.force,
@@ -10694,6 +10840,7 @@ export class ManualWatchlistRuntimeManager {
     symbol: string,
     timestamp: number,
     preserveExistingOnReactivation = false,
+    tradersLinkAiReadStatus?: "analyzing",
   ): Promise<void> {
     if (!this.liveWatchlistPublisher || !this.options.levelStore.getLevels(symbol)) {
       return;
@@ -10711,6 +10858,7 @@ export class ManualWatchlistRuntimeManager {
       reversalWatchEligible: false,
       reversalWatchAttemptReady: false,
       reversalWatchlistVisible: this.reversalWatchlistVisible,
+      ...(tradersLinkAiReadStatus ? { tradersLinkAiReadStatus } : {}),
       ...(preserveExistingOnReactivation ? { preserveExistingOnReactivation: true } : {}),
     });
   }
@@ -11012,6 +11160,9 @@ export class ManualWatchlistRuntimeManager {
       specialLevels: this.resolveWebsiteSpecialLevels(args.symbol, levelsOutput),
       priorRegularClosePrice: priorRegularClose?.price ?? null,
       aiRead: this.aiReadLifecyclePlanBySymbol.get(args.symbol) ?? null,
+      publishedAiReadKnown:
+        Boolean(watchlistEntry?.tradersLinkAiReadBoundaryState) ||
+        Boolean(watchlistEntry?.pendingTradersLinkAiReadGeneration),
       dataQuality: {
         status: levelCoverage,
         availableTimeframes: [...availableTimeframes],

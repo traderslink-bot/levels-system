@@ -55,9 +55,37 @@ export type TradersLinkAiReadTickerCostSummary = TradersLinkAiReadCostTotals & {
   symbol: string;
   planGenerationCount: number;
   averageCostPerRequestUsd: number;
+  primaryRequestCount: number;
+  correctionRequestCount: number;
+  fallbackRequestCount: number;
+  successfulRequestCount: number;
+  invalidOutputRequestCount: number;
+  transportErrorRequestCount: number;
+  fallbackCostUsd: number;
   lastGeneratedAt: number;
   lastTrigger: TradersLinkAiReadCostTrigger;
   lastEstimatedCostUsd: number;
+  lastAttemptType: TradersLinkAiReadCostLedgerEntry["attemptType"] | null;
+  lastStatus: TradersLinkAiReadCostLedgerEntry["status"] | null;
+  lastModel: string;
+  lastError: string | null;
+};
+
+export type TradersLinkAiReadRecentAttempt = {
+  symbol: string;
+  generatedAt: number;
+  generationId: string | null;
+  model: string;
+  trigger: TradersLinkAiReadCostTrigger;
+  attemptType: TradersLinkAiReadCostLedgerEntry["attemptType"] | null;
+  status: TradersLinkAiReadCostLedgerEntry["status"] | null;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedTotalCostUsd: number | null;
+  durationMs: number | null;
+  error: string | null;
 };
 
 export type TradersLinkAiReadCostSummary = {
@@ -77,6 +105,7 @@ export type TradersLinkAiReadCostSummary = {
   };
   todayPerTicker: TradersLinkAiReadTickerCostSummary[];
   perTicker: TradersLinkAiReadTickerCostSummary[];
+  recentAttempts: TradersLinkAiReadRecentAttempt[];
   byTrigger: Array<{ trigger: TradersLinkAiReadCostTrigger; totals: TradersLinkAiReadCostTotals }>;
   byModel: Array<{ model: string; totals: TradersLinkAiReadCostTotals }>;
 };
@@ -90,6 +119,11 @@ export type TradersLinkAiReadDailyCostBudgetStatus = {
   canStartRequest: boolean;
   blockReason: string | null;
 };
+
+export type TradersLinkAiReadTickerDailyCostBudgetStatus =
+  TradersLinkAiReadDailyCostBudgetStatus & {
+    symbol: string;
+  };
 
 export type TradersLinkAiReadCostLedgerOptions = {
   filePath?: string;
@@ -383,11 +417,36 @@ export class TradersLinkAiReadCostLedger {
         averageCostPerRequestUsd: totals.requestCount > 0
           ? roundUsd(totals.estimatedTotalCostUsd / totals.requestCount)
           : 0,
+        primaryRequestCount: tickerEntries.filter((entry) =>
+          !entry.attemptType || entry.attemptType === "primary"
+        ).length,
+        correctionRequestCount: tickerEntries.filter((entry) =>
+          entry.attemptType === "correction"
+        ).length,
+        fallbackRequestCount: tickerEntries.filter((entry) =>
+          entry.attemptType === "fallback"
+        ).length,
+        successfulRequestCount: tickerEntries.filter((entry) =>
+          !entry.status || entry.status === "success"
+        ).length,
+        invalidOutputRequestCount: tickerEntries.filter((entry) =>
+          entry.status === "invalid_output"
+        ).length,
+        transportErrorRequestCount: tickerEntries.filter((entry) =>
+          entry.status === "transport_error"
+        ).length,
+        fallbackCostUsd: roundUsd(tickerEntries
+          .filter((entry) => entry.attemptType === "fallback")
+          .reduce((sum, entry) => sum + (entry.usage.estimatedTotalCostUsd ?? 0), 0)),
         lastGeneratedAt: last.generatedAt,
         lastTrigger: last.trigger,
         lastEstimatedCostUsd: roundUsd(
           (last.usage.tokenCostUsd ?? 0) + last.usage.webSearchCostUsd,
         ),
+        lastAttemptType: last.attemptType ?? null,
+        lastStatus: last.status ?? null,
+        lastModel: last.model,
+        lastError: last.error ?? null,
       };
     }).sort((a, b) => b.estimatedTotalCostUsd - a.estimatedTotalCostUsd || a.symbol.localeCompare(b.symbol));
     const perTicker = summarizePerTicker(entries);
@@ -406,6 +465,26 @@ export class TradersLinkAiReadCostLedger {
       },
       todayPerTicker: summarizePerTicker(todayEntries),
       perTicker,
+      recentAttempts: todayEntries
+        .filter((entry) => entry.status !== "publish_error")
+        .sort((left, right) => right.generatedAt - left.generatedAt)
+        .slice(0, 30)
+        .map((entry) => ({
+          symbol: entry.symbol,
+          generatedAt: entry.generatedAt,
+          generationId: entry.generationId ?? null,
+          model: entry.model,
+          trigger: entry.trigger,
+          attemptType: entry.attemptType ?? null,
+          status: entry.status ?? null,
+          inputTokens: entry.usage.inputTokens,
+          cachedInputTokens: entry.usage.cachedInputTokens,
+          outputTokens: entry.usage.outputTokens,
+          totalTokens: entry.usage.totalTokens,
+          estimatedTotalCostUsd: entry.usage.estimatedTotalCostUsd,
+          durationMs: entry.durationMs ?? null,
+          error: entry.error ?? null,
+        })),
       byTrigger: [...grouped((entry) => entry.trigger).entries()]
         .map(([trigger, triggerEntries]) => ({ trigger, totals: totalsFor(triggerEntries) }))
         .sort((a, b) => b.totals.estimatedTotalCostUsd - a.totals.estimatedTotalCostUsd),
@@ -464,6 +543,30 @@ export class TradersLinkAiReadCostLedger {
       remainingUsd,
       canStartRequest: !args.enabled || blockReason === null,
       blockReason,
+    };
+  }
+
+  getTickerDailyCostBudgetStatus(
+    symbolInput: string,
+    args: {
+      dailyLimitUsd: number;
+      now?: number;
+    },
+    loadedEntries: TradersLinkAiReadCostLedgerEntry[] = this.load(),
+  ): TradersLinkAiReadTickerDailyCostBudgetStatus {
+    const symbol = symbolInput.trim().toUpperCase();
+    const now = args.now ?? Date.now();
+    const tickerEntries = loadedEntries.filter((entry) => entry.symbol === symbol);
+    return {
+      symbol,
+      ...this.getDailyCostBudgetStatus(
+        {
+          enabled: true,
+          dailyLimitUsd: args.dailyLimitUsd,
+          now,
+        },
+        tickerEntries,
+      ),
     };
   }
 }
