@@ -1,11 +1,18 @@
-import type { WatchlistEntry } from "./monitoring-types.js";
+import type { WatchlistEntry, WatchlistGroup } from "./monitoring-types.js";
 import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 
-export type WatchlistEntrySessionGroup = "main" | "postmarket";
+export type WatchlistEntrySessionGroup = WatchlistGroup;
 
 export function getWatchlistEntrySessionGroup(
-  entry: Pick<WatchlistEntry, "activatedAt" | "tags" | "note">,
+  entry: Pick<WatchlistEntry, "activatedAt" | "tags" | "note" | "watchlistGroup">,
 ): WatchlistEntrySessionGroup {
+  if (
+    entry.watchlistGroup === "top_regular" ||
+    entry.watchlistGroup === "main" ||
+    entry.watchlistGroup === "postmarket"
+  ) {
+    return entry.watchlistGroup;
+  }
   const tags = new Set(entry.tags.map((tag) => tag.trim().toLowerCase()));
   if (tags.has("auto-postmarket")) return "postmarket";
   if (tags.has("auto-main")) return "main";

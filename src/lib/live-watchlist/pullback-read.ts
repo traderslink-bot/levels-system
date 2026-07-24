@@ -72,7 +72,9 @@ export function resolveLiveWatchlistPullbackReadEnabled(
   if (isFalseyFlag(value)) {
     return false;
   }
-  return value === undefined ? true : isTruthyFlag(value);
+  // The legacy live Trader Read is opt-in. The AI Read and Potential Path
+  // cards do not require the recurring pullback enrichment loop.
+  return value === undefined ? false : isTruthyFlag(value);
 }
 
 function formatPrice(value: number | null | undefined): string {

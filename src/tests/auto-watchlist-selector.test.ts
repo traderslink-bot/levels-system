@@ -16,6 +16,7 @@ import {
   DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
   isWithinAutoWatchlistScanWindow,
   meetsMainVacancyAdmissionQuality,
+  meetsPostmarketAdmissionQuality,
   normalizeNasdaqChartTimestamp,
   parseStockAnalysisAfterhoursGainers,
   parseStockAnalysisPremarketGainers,
@@ -35,6 +36,47 @@ import type { YahooClient } from "../lib/stock-context/yahoo-client.js";
 const NO_CATALYST_LOOKUP = async (input: { symbols: string[] }) => ({
   available: true,
   articlesBySymbol: Object.fromEntries(input.symbols.map((symbol) => [symbol, []])),
+});
+
+test("post-market admission honors its configured overall score floor", () => {
+  assert.equal(meetsPostmarketAdmissionQuality({ score: 64.99 }, 65), false);
+  assert.equal(meetsPostmarketAdmissionQuality({ score: 65 }, 65), true);
+  assert.equal(meetsPostmarketAdmissionQuality({ score: 0 }), true);
+});
+
+test("group clearing deletes selector score and pass state without a timed block", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-clear-state-"));
+  const configPath = join(directory, "config.json");
+  const selector = new AutoWatchlistSelector({
+    yahooClient: null,
+    finnhubClient: null,
+    configPath,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+  });
+  try {
+    (selector as any).managedEntries.set("RESET", { symbol: "RESET" });
+    (selector as any).firstPassEvidence.set("RESET", { symbol: "RESET" });
+    (selector as any).consecutivePasses.set("RESET", 2);
+    (selector as any).consecutivePassSessions.set("RESET", "regular");
+    (selector as any).consecutivePassObservedAt.set("RESET", Date.now());
+    (selector as any).mainSessionAddedToday.add("RESET");
+    (selector as any).recentDecisions = [{ symbol: "RESET" }];
+
+    selector.resetSymbolsForFreshDiscovery(["reset"]);
+
+    assert.equal((selector as any).managedEntries.has("RESET"), false);
+    assert.equal((selector as any).firstPassEvidence.has("RESET"), false);
+    assert.equal((selector as any).consecutivePasses.has("RESET"), false);
+    assert.equal((selector as any).mainSessionAddedToday.has("RESET"), false);
+    assert.deepEqual((selector as any).recentDecisions, []);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 const ACTIVE_SESSION_LOOKUP: AutoWatchlistSessionActivityLookup = async (input) => Object.fromEntries(
@@ -499,6 +541,84 @@ test("current enrichment market cap overrides a stale smaller discovery cap", as
     assert.ok(decision);
     assert.equal(decision.qualified, false);
     assert.match(decision.rejectionReasons.join(" "), /market cap must be known and at most \$100M/i);
+  } finally {
+    selector.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("Yahoo average daily volume enriches regular qualification without replacing session volume", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auto-watchlist-yahoo-average-volume-"));
+  const now = Date.parse("2026-07-23T15:00:00Z");
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/screener/stocks")) {
+      return new Response(JSON.stringify({
+        data: {
+          rows: [{
+            symbol: "RVOL",
+            name: "Relative Volume Corporation Common Stock",
+            lastsale: "$2.00",
+            pctchange: "25%",
+            volume: "1000000",
+            marketCap: "10000000",
+          }],
+        },
+      }), { status: 200 });
+    }
+    if (url.includes("/api/marketmovers")) {
+      return new Response(JSON.stringify({ data: { STOCKS: {} } }), { status: 200 });
+    }
+    if (url.includes("stockanalysis.com/") || url.includes("tradingview.com/")) {
+      return new Response("<script>const rows=[]</script>", { status: 200 });
+    }
+    throw new Error(`Unexpected discovery request: ${url}`);
+  };
+  const selector = new AutoWatchlistSelector({
+    yahooClient: {
+      getSummary: async () => ({
+        source: "Yahoo" as const,
+        marketCap: 10_000_000,
+        floatShares: 4_500_000,
+        sharesOutstanding: 8_000_000,
+      }),
+      getAverageDailyVolume3Month: async () => 200_000,
+    } as unknown as YahooClient,
+    finnhubClient: null,
+    fetchImpl,
+    configPath: join(directory, "config.json"),
+    thresholds: { enrichmentLimit: 1 },
+    now: () => now,
+    getActiveSymbols: () => [],
+    isRuntimeReady: () => true,
+    activateSymbol: async () => undefined,
+    catalystLookup: NO_CATALYST_LOOKUP,
+    requireVerifiedCommonEquity: false,
+    sessionActivityLookup: async ({ session }) => ({
+      RVOL: {
+        symbol: "RVOL",
+        session,
+        price: 2,
+        gainPct: 25,
+        sessionVolume: 1_000_000,
+        sessionDollarVolume: 2_000_000,
+        recent15mVolume: 100_000,
+        recent15mDollarVolume: 200_000,
+        quoteTime: Math.floor(now / 1000),
+        quoteAgeMinutes: 0,
+        available: true,
+      },
+    }),
+  });
+
+  try {
+    const decision = (await selector.previewScan()).recentDecisions[0];
+    assert.ok(decision);
+    assert.equal(decision.session, "regular");
+    assert.equal(decision.volume, 1_000_000);
+    assert.equal(decision.sessionVolume, 1_000_000);
+    assert.equal(decision.averageVolume, 200_000);
+    assert.match(decision.reasons.join(" "), /3x\+ volume pace/);
   } finally {
     selector.stop();
     await rm(directory, { recursive: true, force: true });

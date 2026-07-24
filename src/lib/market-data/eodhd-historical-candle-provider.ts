@@ -36,6 +36,16 @@ const ADJUSTMENT_MODE = "adjusted_close_ratio";
 type EodhdCandleFetchResult = {
   candles: Candle[];
   droppedInvalidOhlcBars: number;
+  splitEvents: EodhdSplitEvent[];
+};
+
+type EodhdSplitEvent = {
+  date: string;
+  eventType: "reverse_split" | "forward_split" | "material_adjustment";
+  priorAdjustmentFactor: number;
+  adjustmentFactor: number;
+  priceAdjustmentFactor: number;
+  source: "adjusted_close_ratio";
 };
 
 function envText(...names: string[]): string | undefined {
@@ -79,6 +89,47 @@ function dailyAdjustmentFactor(bar: EodhdDailyBar, symbol: string): number {
 
   const adjustedClose = toFiniteNumber(bar.adjusted_close, "adjusted_close", symbol);
   return adjustedClose > 0 && close > 0 ? adjustedClose / close : 1;
+}
+
+function detectSplitEvents(bars: EodhdDailyBar[], symbol: string): EodhdSplitEvent[] {
+  const datedFactors = bars
+    .filter((bar) => bar.date !== undefined && bar.date !== null)
+    .map((bar) => ({ date: String(bar.date), factor: dailyAdjustmentFactor(bar, symbol) }))
+    .filter(({ factor }) => Number.isFinite(factor) && factor > 0)
+    .sort((left, right) => left.date.localeCompare(right.date));
+  const events: EodhdSplitEvent[] = [];
+
+  for (let index = 1; index < datedFactors.length; index += 1) {
+    const previous = datedFactors[index - 1]!;
+    const current = datedFactors[index]!;
+    const priceAdjustmentFactor = current.factor / previous.factor;
+    if (
+      !Number.isFinite(priceAdjustmentFactor) ||
+      (priceAdjustmentFactor >= 0.75 && priceAdjustmentFactor <= 1.333333)
+    ) {
+      continue;
+    }
+
+    events.push({
+      date: current.date,
+      eventType: priceAdjustmentFactor < 1 ? "reverse_split" : "forward_split",
+      priorAdjustmentFactor: previous.factor,
+      adjustmentFactor: current.factor,
+      priceAdjustmentFactor,
+      source: "adjusted_close_ratio",
+    });
+  }
+
+  return events;
+}
+
+function splitMetadata(events: EodhdSplitEvent[]): Record<string, string | number | boolean> {
+  return {
+    splitAdjustmentApplied: true,
+    detectedSplitEventCount: events.length,
+    detectedReverseSplitCount: events.filter((event) => event.eventType === "reverse_split").length,
+    detectedSplitEvents: JSON.stringify(events),
+  };
 }
 
 function normalizeEodhdSymbol(symbol: string, exchangeSuffix: string): string {
@@ -164,6 +215,7 @@ function filterInvalidOhlcCandles(candles: Candle[]): EodhdCandleFetchResult {
   return {
     candles: filtered,
     droppedInvalidOhlcBars: candles.length - filtered.length,
+    splitEvents: [],
   };
 }
 
@@ -217,6 +269,7 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
         eodhdExchangeSuffix: this.exchangeSuffix,
         providerAdjustmentMode: ADJUSTMENT_MODE,
         eodhdDroppedInvalidOhlcBars: result.droppedInvalidOhlcBars,
+        ...splitMetadata(result.splitEvents),
         useRTH: false,
       },
     };
@@ -262,7 +315,9 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
       });
     });
 
-    return filterInvalidOhlcCandles(candles);
+    const result = filterInvalidOhlcCandles(candles);
+    result.splitEvents = detectSplitEvents(payload, requestedSymbol);
+    return result;
   }
 
   private async fetchDailyAdjustmentFactors(
@@ -270,7 +325,7 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
     requestedSymbol: string,
     fromTimestamp: number,
     toTimestamp: number,
-  ): Promise<Map<string, number>> {
+  ): Promise<{ factors: Map<string, number>; splitEvents: EodhdSplitEvent[] }> {
     const payload = await this.fetchDailyBars(
       eodhdSymbol,
       fromTimestamp,
@@ -287,7 +342,7 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
       factors.set(String(bar.date), dailyAdjustmentFactor(bar, requestedSymbol));
     }
 
-    return factors;
+    return { factors, splitEvents: detectSplitEvents(payload, requestedSymbol) };
   }
 
   private intradayAdjustmentFactor(
@@ -316,20 +371,21 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
       to: String(Math.floor(plan.requestEndTimestamp / 1000)),
     });
     const payload = await this.fetchJson<EodhdIntradayBar[]>(url);
-    const adjustmentFactorsBySessionDate = await this.fetchDailyAdjustmentFactors(
+    const adjustmentFactors = await this.fetchDailyAdjustmentFactors(
       eodhdSymbol,
       requestedSymbol,
       expandedStartTimestamp - 24 * 60 * 60 * 1000,
       plan.requestEndTimestamp + 24 * 60 * 60 * 1000,
     );
     const mappedCandles = payload.map((bar) =>
-      this.mapIntradayBar(bar, requestedSymbol, adjustmentFactorsBySessionDate),
+      this.mapIntradayBar(bar, requestedSymbol, adjustmentFactors.factors),
     );
     const filtered = filterInvalidOhlcCandles(mappedCandles);
 
     return {
       candles: timeframe === "4h" ? aggregateHourlyToFourHour(filtered.candles) : filtered.candles,
       droppedInvalidOhlcBars: filtered.droppedInvalidOhlcBars,
+      splitEvents: adjustmentFactors.splitEvents,
     };
   }
 

@@ -12,6 +12,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     input, select, textarea { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
     textarea { min-height: 84px; resize: vertical; font-family: Arial, sans-serif; line-height: 1.35; }
     button { min-width: 94px; padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; background: #1d4ed8; color: #fff; white-space: nowrap; }
+    .button-link { display: inline-flex; align-items: center; min-width: 94px; padding: 10px 14px; border-radius: 8px; background: #1d4ed8; color: #fff; text-decoration: none; box-sizing: border-box; }
     button:disabled { cursor: not-allowed; opacity: 0.62; }
     button[data-loading="true"] { cursor: wait; }
     ul { list-style: none; padding: 0; margin: 0; }
@@ -66,14 +67,58 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .activity-detail { color: #64748b; font-size: 12px; margin-top: 2px; }
     .notice { border: 1px solid #fde68a; background: #fffbeb; border-radius: 8px; color: #78350f; padding: 10px; font-size: 13px; margin-bottom: 12px; }
     .field-hint { color: #64748b; font-size: 12px; line-height: 1.4; margin: -6px 0 12px; }
+    .watchlist-admin-group { border-top: 1px solid #dbe3ee; padding-top: 14px; margin-top: 14px; }
+    .watchlist-admin-group h3 { margin: 0 0 6px; }
+    .watchlist-group-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+    .watchlist-group-heading h3 { margin: 0; }
     .danger { background: #b91c1c; }
     .secondary { background: #475569; }
     .quiet { background: #64748b; }
+    .ai-read-console { border: 1px solid #dbe3ee; border-radius: 10px; padding: 14px; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); margin-top: 12px; }
+    .ai-read-console-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .ai-read-console-title { font-size: 15px; font-weight: 700; color: #0f172a; }
+    .ai-read-console-subtitle { color: #64748b; font-size: 12px; margin-top: 3px; line-height: 1.35; }
+    .ai-read-console-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .ai-read-console-controls input, .ai-read-console-controls select { width: auto; min-width: 150px; margin: 0; padding: 8px 10px; }
+    .ai-read-console-controls button { padding: 8px 12px; min-width: auto; }
+    .ai-read-filter-select { min-width: 170px !important; }
+    .ai-read-table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+    .ai-read-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 680px; }
+    .ai-read-table th { text-align: left; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 10px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+    .ai-read-table td { padding: 10px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+    .ai-read-table tr:last-child td { border-bottom: 0; }
+    .ai-read-table tr:hover td { background: #f8fbff; }
+    .ai-read-ticker-button { min-width: auto; padding: 0; border: 0; background: transparent; color: #1d4ed8; font-weight: 800; cursor: pointer; }
+    .ai-read-ticker-button:hover { text-decoration: underline; }
+    .ai-read-row-detail { color: #64748b; font-size: 12px; margin-top: 3px; max-width: 300px; overflow-wrap: anywhere; }
+    .ai-read-status-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 8px; font-size: 11px; font-weight: 800; background: #e2e8f0; color: #475569; white-space: nowrap; }
+    .ai-read-status-published { background: #dcfce7; color: #166534; }
+    .ai-read-status-failed, .ai-read-status-missing { background: #fee2e2; color: #991b1b; }
+    .ai-read-status-skipped, .ai-read-status-deferred, .ai-read-status-pending { background: #fef3c7; color: #92400e; }
+    .ai-read-status-inactive { background: #e2e8f0; color: #475569; }
+    .ai-read-status-active { background: #dbeafe; color: #1e40af; }
+    .ai-read-detail { margin-top: 12px; padding: 14px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; }
+    .ai-read-detail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+    .ai-read-detail-title { font-size: 16px; font-weight: 800; color: #0f172a; }
+    .ai-read-detail-close { min-width: auto; padding: 6px 10px; }
+    .ai-read-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 12px 0; }
+    .ai-read-detail-grid .runtime-card { background: #fff; min-height: 44px; }
+    .ai-read-cost-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .ai-read-cost-table th { text-align: left; color: #64748b; font-size: 11px; text-transform: uppercase; padding: 9px; border-bottom: 1px solid #e2e8f0; }
+    .ai-read-cost-table td { padding: 9px; border-bottom: 1px solid #eef2f7; }
+    .ai-read-cost-table tr:last-child td { border-bottom: 0; }
+    .ai-read-empty { color: #64748b; padding: 14px; text-align: center; font-size: 13px; }
+    .ai-read-timeline { display: grid; gap: 8px; }
+    .ai-read-timeline-item { border-left: 3px solid #93c5fd; padding: 7px 0 7px 10px; background: rgba(255,255,255,0.72); }
+    .ai-read-timeline-item strong { color: #0f172a; }
+    .ai-read-timeline-item span { color: #64748b; font-size: 12px; display: block; margin-top: 2px; overflow-wrap: anywhere; }
     @media (max-width: 640px) {
       body { margin: 12px; }
       li { align-items: flex-start; flex-direction: column; }
       .entry-actions { width: 100%; justify-content: flex-start; }
       .activity-time { flex-basis: auto; }
+      .ai-read-console-controls { width: 100%; }
+      .ai-read-console-controls input, .ai-read-console-controls select, .ai-read-console-controls button { flex: 1 1 100%; width: 100%; }
     }
   </style>
 </head>
@@ -82,16 +127,21 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     <form id="watchlist-form">
       <h1>Manual Watchlist</h1>
       <div class="top-actions">
+        <a class="button-link" id="open-live-watchlist-link" href="https://traderslink.pro/watchlist" target="_blank" rel="noopener noreferrer">Open Live Watchlist</a>
         <button class="secondary" id="ai-clean-read-button" type="button">Open AI Clean Read</button>
         <button class="secondary" id="trade-plan-review-button" type="button">Open Trade Plan Review</button>
         <button class="danger" id="clear-discord-button" type="button">Clear Discord Posts</button>
-        <button class="danger" id="remove-all-tickers-button" type="button">Remove All Tickers</button>
-        <button class="danger" id="remove-main-tickers-button" type="button">Remove Main Session</button>
-        <button class="danger" id="remove-postmarket-tickers-button" type="button">Remove Post-Market</button>
+        <button class="danger" id="remove-all-tickers-button" type="button">Clear All Watchlists</button>
       </div>
       <div class="status" id="status"></div>
       <label for="symbol">Symbol</label>
       <input id="symbol" name="symbol" maxlength="10" required />
+      <label for="watchlist-group">Add to watchlist</label>
+      <select id="watchlist-group" name="watchlist-group" required>
+        <option value="top_regular">Top Regular Hour Watches</option>
+        <option value="main" selected>Main Session (Premarket + Regular Hours)</option>
+        <option value="postmarket">Post-Market</option>
+      </select>
       <div class="field-hint">
         Use this watchlist for small, micro, and nano-cap momentum tickers. Large liquid names should only be used for deliberate technical tests.
       </div>
@@ -101,14 +151,29 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     </form>
 
     <section>
-      <h2>Active Tickers</h2>
+      <h2>Active Tickers by Watchlist</h2>
       <div class="health-grid" id="watchlist-health"></div>
-      <ul id="active-list"></ul>
-    </section>
-
-    <section>
-      <h2>Runtime Status</h2>
-      <div class="runtime-grid" id="runtime-grid"></div>
+      <div class="watchlist-admin-group">
+        <div class="watchlist-group-heading">
+          <h3>Top Regular Hour Watches</h3>
+          <button class="danger" id="remove-top-regular-tickers-button" type="button">Clear Top Regular</button>
+        </div>
+        <ul id="top-regular-list"></ul>
+      </div>
+      <div class="watchlist-admin-group">
+        <div class="watchlist-group-heading">
+          <h3>Main Session</h3>
+          <button class="danger" id="remove-main-tickers-button" type="button">Clear Main Session</button>
+        </div>
+        <ul id="main-session-list"></ul>
+      </div>
+      <div class="watchlist-admin-group">
+        <div class="watchlist-group-heading">
+          <h3>Post-Market</h3>
+          <button class="danger" id="remove-postmarket-tickers-button" type="button">Clear Post-Market</button>
+        </div>
+        <ul id="postmarket-list"></ul>
+      </div>
     </section>
 
     <section>
@@ -154,8 +219,20 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             <span class="toggle-slider"></span>
             <span id="reversal-watchlist-visible-label">Visible to users</span>
           </label>
+          <button class="danger" id="remove-reversal-tickers-button" type="button">Clear Reversal Watchlist</button>
         </div>
         <div class="inline-status" id="reversal-watchlist-visible-status"></div>
+      </div>
+      <div class="provider-control">
+        <label for="top-regular-watchlist-visible-toggle">Top Regular Hour Watches</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="top-regular-watchlist-visible-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="top-regular-watchlist-visible-label">Visible to users</span>
+          </label>
+        </div>
+        <div class="inline-status" id="top-regular-watchlist-visible-status"></div>
       </div>
       <div class="provider-control">
         <label for="auto-selector-enabled-toggle">Automatic Low-Float Selection</label>
@@ -168,6 +245,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         </div>
         <div class="inline-status" id="auto-selector-status"></div>
         <div class="selector-settings-grid">
+          <label>Minimum score to enter Main Session (%)<input id="auto-selector-main-vacancy-min-score" type="number" min="0" max="100" step="1" /></label>
+          <label>Minimum score to enter Post-Market (%)<input id="auto-selector-postmarket-min-score" type="number" min="0" max="100" step="1" /></label>
           <label>Maximum market cap ($M)<input id="auto-selector-max-market-cap" type="number" min="1" step="1" /></label>
           <label>Maximum float (M shares)<input id="auto-selector-max-float" type="number" min="0.1" step="0.1" /></label>
           <label>Maximum outstanding (M shares)<input id="auto-selector-max-outstanding" type="number" min="0.1" step="0.1" /></label>
@@ -276,6 +355,68 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     <section>
       <h2>TradersLink AI Read</h2>
       <div class="provider-control">
+        <label for="ai-read-model-select">AI Read Model and Reasoning Effort</label>
+        <div class="inline-control">
+          <select id="ai-read-model-select">
+            <option value="gpt-5.6-luna">Luna</option>
+            <option value="gpt-5.6-terra">Terra</option>
+          </select>
+          <select id="ai-read-reasoning-effort-select">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="xhigh">Extra High</option>
+          </select>
+          <button id="ai-read-model-apply" type="button">Apply Model</button>
+        </div>
+        <div class="inline-status" id="ai-read-model-status"></div>
+      </div>
+      <div class="provider-control">
+        <label for="ai-read-generation-toggle">AI Read Generation</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="ai-read-generation-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="ai-read-generation-label">On</span>
+          </label>
+        </div>
+        <div class="inline-status" id="ai-read-generation-status"></div>
+      </div>
+      <div class="provider-control">
+        <label>AI Read Sessions</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="ai-read-premarket-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span>Premarket</span>
+          </label>
+          <label class="toggle-switch">
+            <input id="ai-read-regular-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span>Regular Hours</span>
+          </label>
+          <label class="toggle-switch">
+            <input id="ai-read-postmarket-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span>Post-Market</span>
+          </label>
+        </div>
+        <div class="inline-status" id="ai-read-session-status"></div>
+      </div>
+      <div class="provider-control">
+        <label for="ai-read-top-regular-activation-toggle">Top Regular Watches AI Reads</label>
+        <div class="inline-control toggle-control">
+          <label class="toggle-switch">
+            <input id="ai-read-top-regular-activation-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span>Allow AI Reads for all Top Regular watches</span>
+          </label>
+        </div>
+        <div class="inline-status" id="ai-read-top-regular-activation-status">
+          When enabled, every ticker manually placed in Top Regular Hour Watches can receive AI Reads while it remains on that list, even if the current session switch is off. This toggle has no ticker or read-count limit. The master AI Read switch still stops every OpenAI request.
+        </div>
+      </div>
+      <div class="provider-control">
         <label for="ai-read-external-research-toggle">External Catalyst, SEC, and Web Research</label>
         <div class="inline-control toggle-control">
           <label class="toggle-switch">
@@ -299,8 +440,80 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         </div>
         <div class="inline-status" id="ai-read-cost-budget-status"></div>
       </div>
-      <div class="health-grid" id="ai-read-cost-grid"></div>
-      <ul class="activity-list" id="ai-read-cost-list"></ul>
+      <div class="provider-control">
+        <label for="ai-read-boundary-refreshes-toggle">Automatic Boundary Refreshes</label>
+        <div class="inline-control">
+          <label class="toggle-switch">
+            <input id="ai-read-boundary-refreshes-toggle" type="checkbox" />
+            <span class="toggle-slider"></span>
+            <span id="ai-read-boundary-refreshes-label">On</span>
+          </label>
+          <input id="ai-read-boundary-refreshes-limit" type="number" min="0" max="1000" step="1" value="2" aria-label="Automatic boundary refreshes per ticker" />
+          <span>per ticker per New York trading date</span>
+          <button id="ai-read-boundary-refreshes-apply" type="button">Apply Refresh Limit</button>
+        </div>
+        <div class="inline-status" id="ai-read-boundary-refreshes-status"></div>
+      </div>
+      <div class="ai-read-console" id="ai-read-cost-console">
+        <div class="ai-read-console-toolbar">
+          <div>
+            <div class="ai-read-console-title">API Cost Explorer</div>
+            <div class="ai-read-console-subtitle">Estimated OpenAI usage from the local cost ledger. Select a period to see spend by ticker.</div>
+          </div>
+          <div class="ai-read-console-controls">
+            <label for="ai-read-cost-period" class="meta">Period</label>
+            <select id="ai-read-cost-period" aria-label="AI Read cost period">
+              <option value="today">Today</option>
+              <option value="last7Days">Last 7 days</option>
+              <option value="last30Days">Last 30 days</option>
+              <option value="allTime">All time</option>
+            </select>
+          </div>
+        </div>
+        <div class="health-grid" id="ai-read-cost-grid"></div>
+        <div class="ai-read-table-wrap" id="ai-read-cost-list"></div>
+      </div>
+      <div class="ai-read-console" id="ai-read-audit-console">
+        <div class="ai-read-console-toolbar">
+          <div>
+            <div class="ai-read-console-title">AI Read Operations</div>
+            <div class="ai-read-console-subtitle">Grouped by ticker. Select a row to inspect the expected outcome, actual outcome, reasons, requests, and timeline.</div>
+          </div>
+          <div class="ai-read-console-controls">
+            <select id="ai-read-audit-status-filter" class="ai-read-filter-select" aria-label="AI Read status filter">
+              <option value="needs_attention">Needs attention</option>
+              <option value="all">All tickers</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="published">Published</option>
+              <option value="failed">Failed</option>
+              <option value="skipped">Skipped</option>
+              <option value="missing">Missing</option>
+              <option value="pending">Pending / deferred</option>
+            </select>
+            <input id="ai-read-audit-symbol" type="text" maxlength="12" placeholder="Ticker" aria-label="AI Read audit ticker filter" />
+            <button class="secondary" id="ai-read-audit-refresh" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="health-grid" id="ai-read-audit-grid"></div>
+        <div class="ai-read-table-wrap">
+          <table class="ai-read-table">
+            <thead><tr><th>Ticker</th><th>State</th><th>Last read</th><th>Last outcome</th><th>Reason</th></tr></thead>
+            <tbody id="ai-read-audit-current-list"></tbody>
+          </table>
+        </div>
+        <div class="ai-read-detail" id="ai-read-detail" hidden>
+          <div class="ai-read-detail-header">
+            <div>
+              <div class="ai-read-detail-title" id="ai-read-detail-title"></div>
+              <div class="inline-status" id="ai-read-detail-summary"></div>
+            </div>
+            <button class="secondary ai-read-detail-close" id="ai-read-detail-close" type="button">Close</button>
+          </div>
+          <div class="ai-read-detail-grid" id="ai-read-detail-grid"></div>
+          <div class="ai-read-timeline" id="ai-read-audit-event-list"></div>
+        </div>
+      </div>
     </section>
 
     <section>
@@ -337,11 +550,21 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       <div class="runtime-grid" id="config-grid"></div>
     </section>
 
+    <section>
+      <h2>Runtime Status</h2>
+      <div class="runtime-grid" id="runtime-grid"></div>
+    </section>
+
   </main>
 
   <script>
     const statusEl = document.getElementById("status");
-    const listEl = document.getElementById("active-list");
+    const openLiveWatchlistLinkEl = document.getElementById("open-live-watchlist-link");
+    const listEls = {
+      top_regular: document.getElementById("top-regular-list"),
+      main: document.getElementById("main-session-list"),
+      postmarket: document.getElementById("postmarket-list"),
+    };
     const watchlistHealthEl = document.getElementById("watchlist-health");
     const runtimeGridEl = document.getElementById("runtime-grid");
     const providerHealthGridEl = document.getElementById("provider-health-grid");
@@ -352,8 +575,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const activateButtonEl = formEl.querySelector('button[type="submit"]');
     const clearDiscordButtonEl = document.getElementById("clear-discord-button");
     const removeAllTickersButtonEl = document.getElementById("remove-all-tickers-button");
+    const removeTopRegularTickersButtonEl = document.getElementById("remove-top-regular-tickers-button");
     const removeMainTickersButtonEl = document.getElementById("remove-main-tickers-button");
     const removePostmarketTickersButtonEl = document.getElementById("remove-postmarket-tickers-button");
+    const removeReversalTickersButtonEl = document.getElementById("remove-reversal-tickers-button");
     const aiCleanReadButtonEl = document.getElementById("ai-clean-read-button");
     const tradePlanReviewButtonEl = document.getElementById("trade-plan-review-button");
     const historicalProviderSelectEl = document.getElementById("historical-provider-select");
@@ -374,6 +599,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const reversalWatchlistVisibleToggleEl = document.getElementById("reversal-watchlist-visible-toggle");
     const reversalWatchlistVisibleLabelEl = document.getElementById("reversal-watchlist-visible-label");
     const reversalWatchlistVisibleStatusEl = document.getElementById("reversal-watchlist-visible-status");
+    const topRegularWatchlistVisibleToggleEl = document.getElementById("top-regular-watchlist-visible-toggle");
+    const topRegularWatchlistVisibleLabelEl = document.getElementById("top-regular-watchlist-visible-label");
+    const topRegularWatchlistVisibleStatusEl = document.getElementById("top-regular-watchlist-visible-status");
+    const aiReadGenerationToggleEl = document.getElementById("ai-read-generation-toggle");
+    const aiReadModelSelectEl = document.getElementById("ai-read-model-select");
+    const aiReadReasoningEffortSelectEl = document.getElementById("ai-read-reasoning-effort-select");
+    const aiReadModelApplyEl = document.getElementById("ai-read-model-apply");
+    const aiReadModelStatusEl = document.getElementById("ai-read-model-status");
+    const aiReadGenerationLabelEl = document.getElementById("ai-read-generation-label");
+    const aiReadGenerationStatusEl = document.getElementById("ai-read-generation-status");
+    const aiReadPremarketToggleEl = document.getElementById("ai-read-premarket-toggle");
+    const aiReadRegularToggleEl = document.getElementById("ai-read-regular-toggle");
+    const aiReadPostmarketToggleEl = document.getElementById("ai-read-postmarket-toggle");
+    const aiReadSessionStatusEl = document.getElementById("ai-read-session-status");
+    const aiReadTopRegularActivationToggleEl = document.getElementById("ai-read-top-regular-activation-toggle");
+    const aiReadTopRegularActivationStatusEl = document.getElementById("ai-read-top-regular-activation-status");
     const aiReadExternalResearchToggleEl = document.getElementById("ai-read-external-research-toggle");
     const aiReadExternalResearchLabelEl = document.getElementById("ai-read-external-research-label");
     const aiReadExternalResearchStatusEl = document.getElementById("ai-read-external-research-status");
@@ -382,8 +623,25 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const aiReadCostBudgetUsdEl = document.getElementById("ai-read-cost-budget-usd");
     const aiReadCostBudgetApplyEl = document.getElementById("ai-read-cost-budget-apply");
     const aiReadCostBudgetStatusEl = document.getElementById("ai-read-cost-budget-status");
+    const aiReadBoundaryRefreshesToggleEl = document.getElementById("ai-read-boundary-refreshes-toggle");
+    const aiReadBoundaryRefreshesLabelEl = document.getElementById("ai-read-boundary-refreshes-label");
+    const aiReadBoundaryRefreshesLimitEl = document.getElementById("ai-read-boundary-refreshes-limit");
+    const aiReadBoundaryRefreshesApplyEl = document.getElementById("ai-read-boundary-refreshes-apply");
+    const aiReadBoundaryRefreshesStatusEl = document.getElementById("ai-read-boundary-refreshes-status");
     const aiReadCostGridEl = document.getElementById("ai-read-cost-grid");
     const aiReadCostListEl = document.getElementById("ai-read-cost-list");
+    const aiReadCostPeriodEl = document.getElementById("ai-read-cost-period");
+    const aiReadAuditSymbolEl = document.getElementById("ai-read-audit-symbol");
+    const aiReadAuditStatusFilterEl = document.getElementById("ai-read-audit-status-filter");
+    const aiReadAuditRefreshEl = document.getElementById("ai-read-audit-refresh");
+    const aiReadAuditGridEl = document.getElementById("ai-read-audit-grid");
+    const aiReadAuditCurrentListEl = document.getElementById("ai-read-audit-current-list");
+    const aiReadAuditEventListEl = document.getElementById("ai-read-audit-event-list");
+    const aiReadDetailEl = document.getElementById("ai-read-detail");
+    const aiReadDetailTitleEl = document.getElementById("ai-read-detail-title");
+    const aiReadDetailSummaryEl = document.getElementById("ai-read-detail-summary");
+    const aiReadDetailGridEl = document.getElementById("ai-read-detail-grid");
+    const aiReadDetailCloseEl = document.getElementById("ai-read-detail-close");
     const autoSelectorEnabledToggleEl = document.getElementById("auto-selector-enabled-toggle");
     const autoSelectorEnabledLabelEl = document.getElementById("auto-selector-enabled-label");
     const autoSelectorStatusEl = document.getElementById("auto-selector-status");
@@ -391,6 +649,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const autoSelectorApplyButtonEl = document.getElementById("auto-selector-apply-button");
     const autoSelectorPreviewButtonEl = document.getElementById("auto-selector-preview-button");
     const autoSelectorInputEls = {
+      mainVacancyMinQualificationScore: document.getElementById("auto-selector-main-vacancy-min-score"),
+      postmarketMinQualificationScore: document.getElementById("auto-selector-postmarket-min-score"),
       maxMarketCap: document.getElementById("auto-selector-max-market-cap"),
       maxFloatShares: document.getElementById("auto-selector-max-float"),
       maxSharesOutstanding: document.getElementById("auto-selector-max-outstanding"),
@@ -456,6 +716,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       shareTurnoverRankFullScorePct: document.getElementById("auto-selector-turnover-full-score"),
     };
     const symbolEl = document.getElementById("symbol");
+    const watchlistGroupEl = document.getElementById("watchlist-group");
     const noteEl = document.getElementById("note");
     let currentHistoricalProvider = "";
     let currentLiveProvider = "";
@@ -471,11 +732,27 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     let watchlistLifecycleLabelsVisibilityInFlight = false;
     let reversalWatchlistVisible = true;
     let reversalWatchlistVisibilityInFlight = false;
+    let topRegularWatchlistVisible = true;
+    let topRegularWatchlistVisibilityInFlight = false;
     let aiReadConfigured = null;
+    let aiReadGenerationSettings = {
+      enabled: true,
+      premarketEnabled: true,
+      regularEnabled: true,
+      postmarketEnabled: true,
+      topRegularActivationEnabled: true,
+    };
+    let aiReadGenerationInFlight = false;
+    let aiReadGenerationAllowed = false;
     let aiReadExternalResearchEnabled = false;
     let aiReadExternalResearchInFlight = false;
     let aiReadCostBudgetEnabled = false;
     let aiReadCostBudgetInFlight = false;
+    let aiReadBoundaryRefreshesEnabled = true;
+    let aiReadBoundaryRefreshesInFlight = false;
+    let aiReadCostPeriod = "today";
+    let aiReadAuditPayload = null;
+    let aiReadAuditSelectedSymbol = null;
     let autoSelectorEnabled = false;
     let autoSelectorSettingsDirty = false;
     let autoSelectorRequestInFlight = false;
@@ -492,10 +769,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       potentialGainVisibleToggleEl,
       watchlistLifecycleLabelsVisibleToggleEl,
       reversalWatchlistVisibleToggleEl,
+      topRegularWatchlistVisibleToggleEl,
+      aiReadGenerationToggleEl,
+      aiReadPremarketToggleEl,
+      aiReadRegularToggleEl,
+      aiReadPostmarketToggleEl,
+      aiReadTopRegularActivationToggleEl,
       aiReadExternalResearchToggleEl,
       aiReadCostBudgetToggleEl,
       aiReadCostBudgetUsdEl,
       aiReadCostBudgetApplyEl,
+      aiReadBoundaryRefreshesToggleEl,
+      aiReadBoundaryRefreshesLimitEl,
+      aiReadBoundaryRefreshesApplyEl,
       autoSelectorEnabledToggleEl,
       autoSelectorApplyButtonEl,
       autoSelectorPreviewButtonEl,
@@ -678,6 +964,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         state.className = "entry-state";
         state.textContent = entry.operationStatus;
         meta.appendChild(state);
+      }
+      if (entry.tradersLinkAiReadFailure) {
+        const failure = document.createElement("div");
+        const aiReadFailure = entry.tradersLinkAiReadFailure;
+        failure.className = "meta error-line";
+        failure.textContent =
+          "AI Read failed (" + String(aiReadFailure.stage || "unknown") + "): " +
+          String(aiReadFailure.reason || "unknown reason") +
+          " — trigger: " + String(aiReadFailure.trigger || "unknown") +
+          " at " + formatTime(aiReadFailure.failedAt);
+        meta.appendChild(failure);
       }
       if (entry.lastError) {
         const error = document.createElement("div");
@@ -982,6 +1279,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         : "The Potential Reversal Watchlist is hidden; ticker monitoring continues in the background.";
     }
 
+    function renderTopRegularWatchlistVisibilityControl(status, options) {
+      const visible = status.runtimeHealth?.topRegularWatchlistVisible !== false;
+      if (!options?.keepPreviousState) {
+        topRegularWatchlistVisible = visible;
+      }
+      topRegularWatchlistVisibleToggleEl.checked = visible;
+      topRegularWatchlistVisibleToggleEl.disabled = topRegularWatchlistVisibilityInFlight;
+      topRegularWatchlistVisibleLabelEl.textContent = visible ? "Visible to users" : "Hidden from users";
+      topRegularWatchlistVisibleStatusEl.textContent = visible
+        ? "The manually curated Top Regular Hour Watches list appears above Main Session."
+        : "The list is hidden from users; its saved ticker membership is retained.";
+    }
+
     function formatAiReadCost(value) {
       const amount = Number(value || 0);
       return "$" + amount.toFixed(amount >= 1 ? 2 : 4);
@@ -989,6 +1299,61 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     function renderAiReadControls(status) {
       aiReadConfigured = status.aiReadConfigured === true;
+      if (status.aiReadModel) aiReadModelSelectEl.value = status.aiReadModel;
+      if (status.aiReadReasoningEffort) {
+        aiReadReasoningEffortSelectEl.value = status.aiReadReasoningEffort;
+      }
+      aiReadModelSelectEl.disabled = !aiReadConfigured;
+      aiReadReasoningEffortSelectEl.disabled = !aiReadConfigured;
+      aiReadModelApplyEl.disabled = !aiReadConfigured;
+      aiReadModelStatusEl.textContent = aiReadConfigured
+        ? "Current: " +
+          (status.aiReadModel === "gpt-5.6-luna" ? "Luna" : "Terra") +
+          " at " + String(status.aiReadReasoningEffort || "medium") +
+          " effort. The other model is used as the fallback."
+        : "Configure the TradersLink AI Read service before selecting a model.";
+      const generationSettings =
+        status.runtimeHealth?.tradersLinkAiReadGenerationSettings || aiReadGenerationSettings;
+      if (!aiReadGenerationInFlight) {
+        aiReadGenerationSettings = {
+          enabled: generationSettings.enabled !== false,
+          premarketEnabled: generationSettings.premarketEnabled !== false,
+          regularEnabled: generationSettings.regularEnabled !== false,
+          postmarketEnabled: generationSettings.postmarketEnabled !== false,
+          topRegularActivationEnabled:
+            generationSettings.topRegularActivationEnabled !== false,
+        };
+      }
+      aiReadGenerationToggleEl.checked = aiReadGenerationSettings.enabled;
+      aiReadPremarketToggleEl.checked = aiReadGenerationSettings.premarketEnabled;
+      aiReadRegularToggleEl.checked = aiReadGenerationSettings.regularEnabled;
+      aiReadPostmarketToggleEl.checked = aiReadGenerationSettings.postmarketEnabled;
+      aiReadTopRegularActivationToggleEl.checked =
+        aiReadGenerationSettings.topRegularActivationEnabled;
+      aiReadGenerationLabelEl.textContent = aiReadGenerationSettings.enabled ? "On" : "Off";
+      const generationControlsDisabled = !aiReadConfigured || aiReadGenerationInFlight;
+      aiReadGenerationToggleEl.disabled = generationControlsDisabled;
+      aiReadPremarketToggleEl.disabled =
+        generationControlsDisabled || !aiReadGenerationSettings.enabled;
+      aiReadRegularToggleEl.disabled =
+        generationControlsDisabled || !aiReadGenerationSettings.enabled;
+      aiReadPostmarketToggleEl.disabled =
+        generationControlsDisabled || !aiReadGenerationSettings.enabled;
+      aiReadTopRegularActivationToggleEl.disabled =
+        generationControlsDisabled || !aiReadGenerationSettings.enabled;
+      const availability = status.runtimeHealth?.tradersLinkAiReadGenerationAvailability;
+      aiReadGenerationAllowed = availability?.allowed === true;
+      aiReadGenerationStatusEl.textContent = aiReadGenerationSettings.enabled
+        ? "Master generation is on. Session switches decide whether any OpenAI request can start."
+        : "Master generation is off. No AI Read request preparation or OpenAI API call can start.";
+      aiReadSessionStatusEl.textContent = availability?.allowed
+        ? "Current session: " + availability.session + " — AI Reads allowed."
+        : "Current session: " + String(availability?.session || "unknown") +
+          " — " + String(availability?.reason || "AI Reads blocked.");
+      aiReadTopRegularActivationStatusEl.textContent =
+        aiReadGenerationSettings.topRegularActivationEnabled
+          ? "On: all manually curated Top Regular watches may receive AI Reads with no ticker or read-count limit, even when the current session is off. The master switch still blocks every OpenAI request."
+          : "Off: Top Regular watches obey the current session switch for all AI Reads.";
       if (!aiReadExternalResearchInFlight) {
         aiReadExternalResearchEnabled = status.aiReadExternalResearchEnabled === true;
       }
@@ -1022,80 +1387,103 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           "Off. This does not limit AI Reads. Set a dollar amount and turn it on whenever you want a daily preflight guard.";
       } else {
         const spent = formatAiReadCost(budgetStatus.spentUsd);
+        const guardedSpend = formatAiReadCost(budgetStatus.guardedSpendUsd);
         const remaining = formatAiReadCost(budgetStatus.remainingUsd);
         const reserve = formatAiReadCost(budgetStatus.projectedNextRequestUsd);
+        const unpricedCount = Number(budgetStatus.unpricedRequestCount || 0);
+        const uncertainty = unpricedCount > 0
+          ? " " + unpricedCount + " unpriced request" + (unpricedCount === 1 ? " is" : "s are") + " covered by " + formatAiReadCost(budgetStatus.unpricedReserveUsd) + " of uncertainty allowance."
+          : "";
         aiReadCostBudgetStatusEl.textContent = budgetStatus.canStartRequest === false
           ? "Guard is holding new reads: " + String(budgetStatus.blockReason || "daily budget reached.")
-          : "On. Today: " + spent + " spent, " + remaining + " remaining; " + reserve + " is reserved before a new read starts.";
+          : "On. Today: " + spent + " known spend, " + guardedSpend + " guarded spend, " + remaining + " remaining; " + reserve + " is reserved before a new read starts." + uncertainty;
       }
+
+      const boundaryRefreshes =
+        status.runtimeHealth?.tradersLinkAiReadBoundaryRefreshSettings || {};
+      if (!aiReadBoundaryRefreshesInFlight) {
+        aiReadBoundaryRefreshesEnabled = boundaryRefreshes.enabled !== false;
+        const limit = Number(boundaryRefreshes.maxPerTickerPerNewYorkDate);
+        if (Number.isInteger(limit) && limit >= 0) {
+          aiReadBoundaryRefreshesLimitEl.value = String(limit);
+        }
+      }
+      aiReadBoundaryRefreshesToggleEl.checked = aiReadBoundaryRefreshesEnabled;
+      aiReadBoundaryRefreshesToggleEl.disabled = !aiReadConfigured || aiReadBoundaryRefreshesInFlight;
+      aiReadBoundaryRefreshesLimitEl.disabled = !aiReadConfigured || aiReadBoundaryRefreshesInFlight;
+      aiReadBoundaryRefreshesApplyEl.disabled = !aiReadConfigured || aiReadBoundaryRefreshesInFlight;
+      aiReadBoundaryRefreshesLabelEl.textContent = aiReadBoundaryRefreshesEnabled ? "On" : "Off";
+      aiReadBoundaryRefreshesStatusEl.textContent = !aiReadConfigured
+        ? "Configure the TradersLink AI Read service before changing automatic boundary refreshes."
+        : aiReadBoundaryRefreshesEnabled
+          ? "On. Automatic boundary-crossing reads are limited per ticker per New York trading date. Manual Refresh AI Read requests remain available separately."
+          : "Off. Automatic boundary-crossing reads are disabled; manual Refresh AI Read requests remain available separately.";
 
       const summary = status.aiReadCostSummary || {};
       const windows = summary.windows || {};
-      const today = windows.today || {};
-      const last7Days = windows.last7Days || {};
-      const last30Days = windows.last30Days || {};
-      const allTime = windows.allTime || {};
+      const periodKey = String(aiReadCostPeriod || "today");
+      const period = windows[periodKey] || windows.today || {};
+      const periodLabels = { today: "Today", last7Days: "Last 7 days", last30Days: "Last 30 days", allTime: "All time" };
+      const tickerWindows = summary.tickerWindows || {};
+      const perTicker = Array.isArray(tickerWindows[periodKey])
+        ? tickerWindows[periodKey]
+        : periodKey === "today"
+          ? (Array.isArray(summary.todayPerTicker) ? summary.todayPerTicker : [])
+          : (Array.isArray(summary.perTicker) ? summary.perTicker : []);
       const accountingHealth = summary.accountingHealth || {};
       aiReadCostGridEl.innerHTML = "";
       const cards = [
-        ["Today", formatAiReadCost(today.estimatedTotalCostUsd)],
-        ["Today Requests", String(today.requestCount || 0)],
-        ["AI Model", String(status.aiReadModel || "not configured")],
-        ["Reasoning", String(status.aiReadReasoningEffort || "not configured")],
-        ["Daily Guard", aiReadCostBudgetEnabled ? formatAiReadCost(budget.dailyLimitUsd) : "Off"],
-        ["Last 7 Days", formatAiReadCost(last7Days.estimatedTotalCostUsd)],
-        ["Last 30 Days", formatAiReadCost(last30Days.estimatedTotalCostUsd)],
-        ["All Time", formatAiReadCost(allTime.estimatedTotalCostUsd)],
-        ["Web Searches", String(allTime.webSearchCallCount || 0)],
+        [String(periodLabels[periodKey] || "Selected period") + " spend", formatAiReadCost(period.estimatedTotalCostUsd)],
+        ["API requests", String(period.requestCount || 0)],
+        ["Tickers", String(period.tickerCount || 0)],
+        ["Average / request", formatAiReadCost(period.requestCount ? period.estimatedTotalCostUsd / period.requestCount : 0)],
+        ["Web searches", String(period.webSearchCallCount || 0)],
+        ["Unpriced requests", String(period.unpricedRequestCount || 0)],
+        ["All-time spend", formatAiReadCost(windows.allTime?.estimatedTotalCostUsd)],
         ["Accounting", accountingHealth.healthy === false ? "CHECK LEDGER" : "Healthy"],
       ];
-      for (const [label, value] of cards) {
-        aiReadCostGridEl.appendChild(createRuntimeCard(label, value));
-      }
+      for (const [label, value] of cards) aiReadCostGridEl.appendChild(createRuntimeCard(label, value));
 
       aiReadCostListEl.innerHTML = "";
       if (accountingHealth.healthy === false) {
-        const warning = document.createElement("li");
-        warning.className = "warning-text";
-        warning.textContent =
-          "Expense totals may be incomplete: " +
-          String(accountingHealth.lastLoadError || "the usage ledger could not be read completely.");
+        const warning = document.createElement("div");
+        warning.className = "notice";
+        warning.textContent = "Expense totals may be incomplete: " + String(accountingHealth.lastLoadError || "the usage ledger could not be read completely.");
         aiReadCostListEl.appendChild(warning);
       }
-      const perTicker = Array.isArray(summary.todayPerTicker) ? summary.todayPerTicker : [];
       if (perTicker.length === 0) {
-        const empty = document.createElement("li");
-        empty.textContent = "No TradersLink AI Read API calls recorded today.";
+        const empty = document.createElement("div");
+        empty.className = "ai-read-empty";
+        empty.textContent = "No API calls recorded for " + String(periodLabels[periodKey] || "this period") + ".";
         aiReadCostListEl.appendChild(empty);
-        return;
-      }
-      for (const ticker of perTicker) {
-        const item = document.createElement("li");
-        const body = document.createElement("div");
-        const detail = document.createElement("div");
-        body.className = "activity-message";
-        body.textContent = ticker.symbol + " — " + formatAiReadCost(ticker.estimatedTotalCostUsd);
-        detail.className = "activity-detail";
-        detail.textContent =
-          String(ticker.requestCount || 0) + " API call(s) across " +
-          String(ticker.planGenerationCount || ticker.requestCount || 0) + " plan generation(s) | average " +
-          formatAiReadCost(ticker.averageCostPerRequestUsd) + " | web searches " +
-          String(ticker.webSearchCallCount || 0) + " | last trigger " +
-          String(ticker.lastTrigger || "unknown");
-        body.appendChild(detail);
-        item.appendChild(body);
-        aiReadCostListEl.appendChild(item);
+      } else {
+        const table = document.createElement("table");
+        table.className = "ai-read-cost-table";
+        table.innerHTML = "<thead><tr><th>Ticker</th><th>Spend</th><th>Requests</th><th>Average</th><th>Web searches</th><th>Last trigger</th></tr></thead>";
+        const tbody = document.createElement("tbody");
+        for (const ticker of perTicker) {
+          const row = document.createElement("tr");
+          row.innerHTML =
+            "<td><strong>" + String(ticker.symbol || "") + "</strong></td>" +
+            "<td>" + formatAiReadCost(ticker.estimatedTotalCostUsd) + "</td>" +
+            "<td>" + String(ticker.requestCount || 0) + "</td>" +
+            "<td>" + formatAiReadCost(ticker.averageCostPerRequestUsd) + "</td>" +
+            "<td>" + String(ticker.webSearchCallCount || 0) + "</td>" +
+            "<td>" + String(ticker.lastTrigger || "unknown") + "</td>";
+          tbody.appendChild(row);
+        }
+        table.appendChild(tbody);
+        aiReadCostListEl.appendChild(table);
       }
 
       const byModel = Array.isArray(summary.byModel) ? summary.byModel : [];
-      for (const model of byModel) {
-        const item = document.createElement("li");
-        item.className = "activity-detail";
-        item.textContent =
-          "Model " + String(model.model || "unknown") + ": " +
-          formatAiReadCost(model.totals?.estimatedTotalCostUsd) + " across " +
-          String(model.totals?.requestCount || 0) + " recorded request(s).";
-        aiReadCostListEl.appendChild(item);
+      if (byModel.length > 0) {
+        const modelNote = document.createElement("div");
+        modelNote.className = "inline-status";
+        modelNote.textContent = byModel.map((model) =>
+          String(model.model || "unknown") + ": " + formatAiReadCost(model.totals?.estimatedTotalCostUsd) + " / " + String(model.totals?.requestCount || 0) + " request(s)",
+        ).join(" | ");
+        aiReadCostListEl.appendChild(modelNote);
       }
     }
 
@@ -1109,6 +1497,175 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         return;
       }
       input.value = String(divisor ? value / divisor : value);
+    }
+
+    function auditStatusLabel(value) {
+      return String(value || "unknown").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+    }
+
+    function auditStatusClass(value) {
+      const normalized = String(value || "unknown").replace(/_/g, "-");
+      return "ai-read-status-pill ai-read-status-" + normalized;
+    }
+
+    function buildAiReadAuditRows(payload) {
+      const rows = new Map();
+      const currentEntries = Array.isArray(payload?.currentEntries) ? payload.currentEntries : [];
+      const recentEvents = Array.isArray(payload?.recentEvents) ? payload.recentEvents : [];
+      for (const entry of currentEntries) {
+        rows.set(entry.symbol, { symbol: entry.symbol, current: entry, events: [], outcomes: new Set() });
+      }
+      for (const event of recentEvents) {
+        const row = rows.get(event.symbol) || { symbol: event.symbol, current: null, events: [], outcomes: new Set() };
+        row.events.push(event);
+        row.outcomes.add(event.outcome);
+        rows.set(event.symbol, row);
+      }
+      return [...rows.values()].map((row) => {
+        row.events.sort((left, right) => Number(right.occurredAt || 0) - Number(left.occurredAt || 0));
+        row.latestEvent = row.events[0] || null;
+        row.state = row.current?.status || row.latestEvent?.outcome || "unknown";
+        row.reason = row.current?.reason || row.latestEvent?.reason || "No additional state detail.";
+        row.needsAttention = ["failed", "missing", "publishing_pending"].includes(row.current?.status) ||
+          (row.current?.status !== "published" && ["failed", "missing", "skipped", "deferred", "expected"].some((outcome) => row.outcomes.has(outcome)));
+        return row;
+      });
+    }
+
+    function auditRowMatches(row, filter) {
+      const currentStatus = row.current?.status || "";
+      switch (filter) {
+        case "active": return row.current?.active === true;
+        case "inactive": return row.current?.active === false;
+        case "published": return currentStatus === "published";
+        case "failed": return currentStatus === "failed" || row.outcomes.has("failed");
+        case "skipped": return row.outcomes.has("skipped");
+        case "missing": return currentStatus === "missing" || row.outcomes.has("missing");
+        case "pending": return currentStatus === "publishing_pending" || row.outcomes.has("deferred") || row.outcomes.has("expected");
+        case "needs_attention": return row.needsAttention;
+        default: return true;
+      }
+    }
+
+    function renderAiReadDetail() {
+      const row = buildAiReadAuditRows(aiReadAuditPayload || {}).find((candidate) => candidate.symbol === aiReadAuditSelectedSymbol);
+      if (!row) {
+        aiReadDetailEl.hidden = true;
+        return;
+      }
+      aiReadDetailEl.hidden = false;
+      aiReadDetailTitleEl.textContent = row.symbol + " — " + auditStatusLabel(row.state);
+      aiReadDetailSummaryEl.textContent = row.reason;
+      aiReadDetailGridEl.innerHTML = "";
+      [
+        ["Current state", auditStatusLabel(row.state)],
+        ["Lifecycle", row.current?.active === false ? "Inactive" : "Active"],
+        ["Last read", row.current?.lastReadGeneratedAt ? formatTime(row.current.lastReadGeneratedAt) : "None"],
+        ["Latest trigger", row.latestEvent?.trigger || "None"],
+        ["Events shown", String(row.events.length)],
+      ].forEach(([label, value]) => aiReadDetailGridEl.appendChild(createRuntimeCard(label, value)));
+
+      aiReadAuditEventListEl.innerHTML = "";
+      if (row.events.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "ai-read-empty";
+        empty.textContent = "No audit events are recorded for this ticker.";
+        aiReadAuditEventListEl.appendChild(empty);
+        return;
+      }
+      for (const event of row.events) {
+        const item = document.createElement("div");
+        item.className = "ai-read-timeline-item";
+        const title = document.createElement("strong");
+        title.textContent = auditStatusLabel(event.outcome) + " / " + auditStatusLabel(event.stage);
+        const detail = document.createElement("span");
+        const identifiers = [
+          formatTime(event.occurredAt),
+          event.trigger ? "trigger: " + event.trigger : "",
+          event.attemptType ? "attempt: " + event.attemptType : "",
+          event.model ? "model: " + event.model : "",
+          event.requestId ? "request: " + event.requestId : "",
+          event.durationMs ? "duration: " + event.durationMs + "ms" : "",
+          event.estimatedCostUsd !== undefined && event.estimatedCostUsd !== null ? "cost: " + formatAiReadCost(event.estimatedCostUsd) : "",
+          event.reason || "",
+        ].filter(Boolean);
+        detail.textContent = identifiers.join(" | ");
+        item.appendChild(title);
+        item.appendChild(detail);
+        aiReadAuditEventListEl.appendChild(item);
+      }
+    }
+
+    function renderAiReadAudit(payload) {
+      aiReadAuditPayload = payload;
+      const summary = payload?.summary || {};
+      const byOutcome = summary.byOutcome || {};
+      const rows = buildAiReadAuditRows(payload);
+      const filter = String(aiReadAuditStatusFilterEl.value || "needs_attention");
+      const filteredRows = rows
+        .filter((row) => auditRowMatches(row, filter))
+        .sort((left, right) => Number(right.latestEvent?.occurredAt || right.current?.lastReadGeneratedAt || 0) - Number(left.latestEvent?.occurredAt || left.current?.lastReadGeneratedAt || 0));
+      aiReadAuditGridEl.innerHTML = "";
+      [
+        ["Showing", String(filteredRows.length)],
+        ["Published", String(rows.filter((row) => row.current?.status === "published").length)],
+        ["Needs attention", String(rows.filter((row) => row.needsAttention).length)],
+        ["Failed", String(byOutcome.failed || 0)],
+        ["Skipped", String(byOutcome.skipped || 0)],
+        ["Missing", String(byOutcome.missing || 0)],
+        ["Requests", String(byOutcome.request_started || 0)],
+      ].forEach(([label, value]) => aiReadAuditGridEl.appendChild(createRuntimeCard(label, value)));
+
+      aiReadAuditCurrentListEl.innerHTML = "";
+      if (filteredRows.length === 0) {
+        const emptyRow = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 5;
+        cell.className = "ai-read-empty";
+        cell.textContent = "No tickers match this view.";
+        emptyRow.appendChild(cell);
+        aiReadAuditCurrentListEl.appendChild(emptyRow);
+      } else {
+        for (const row of filteredRows) {
+          const tableRow = document.createElement("tr");
+          const tickerCell = document.createElement("td");
+          const tickerButton = document.createElement("button");
+          tickerButton.className = "ai-read-ticker-button";
+          tickerButton.type = "button";
+          tickerButton.dataset.aiReadSymbol = row.symbol;
+          tickerButton.textContent = row.symbol;
+          tickerCell.appendChild(tickerButton);
+          const tickerDetail = document.createElement("div");
+          tickerDetail.className = "ai-read-row-detail";
+          tickerDetail.textContent = row.current?.active === false ? "Inactive" : "Active";
+          tickerCell.appendChild(tickerDetail);
+          const stateCell = document.createElement("td");
+          const state = document.createElement("span");
+          state.className = auditStatusClass(row.state);
+          state.textContent = auditStatusLabel(row.state);
+          stateCell.appendChild(state);
+          const lastReadCell = document.createElement("td");
+          lastReadCell.textContent = row.current?.lastReadGeneratedAt ? formatTime(row.current.lastReadGeneratedAt) : "None";
+          const outcomeCell = document.createElement("td");
+          outcomeCell.textContent = row.latestEvent ? auditStatusLabel(row.latestEvent.outcome) + " / " + auditStatusLabel(row.latestEvent.stage) : "None";
+          const reasonCell = document.createElement("td");
+          reasonCell.textContent = row.reason;
+          tableRow.appendChild(tickerCell);
+          tableRow.appendChild(stateCell);
+          tableRow.appendChild(lastReadCell);
+          tableRow.appendChild(outcomeCell);
+          tableRow.appendChild(reasonCell);
+          aiReadAuditCurrentListEl.appendChild(tableRow);
+        }
+      }
+      renderAiReadDetail();
+    }
+
+    async function loadAiReadAudit() {
+      const symbol = String(aiReadAuditSymbolEl.value || "").trim().toUpperCase();
+      const query = symbol ? "?symbol=" + encodeURIComponent(symbol) + "&limit=150" : "?limit=150";
+      const payload = await fetchJson("/api/runtime/ai-read-audit" + query);
+      renderAiReadAudit(payload);
     }
 
     function renderAutoSelectorControl(status) {
@@ -1127,6 +1684,14 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       autoSelectorPreviewButtonEl.disabled = autoSelectorRequestInFlight || selector.running === true;
 
       if (!autoSelectorSettingsDirty) {
+        setAutoSelectorInputValue(
+          "mainVacancyMinQualificationScore",
+          thresholds.mainVacancyMinQualificationScore,
+        );
+        setAutoSelectorInputValue(
+          "postmarketMinQualificationScore",
+          thresholds.postmarketMinQualificationScore,
+        );
         setAutoSelectorInputValue("maxMarketCap", thresholds.maxMarketCap, 1000000);
         setAutoSelectorInputValue("maxFloatShares", thresholds.maxFloatShares, 1000000);
         setAutoSelectorInputValue("maxSharesOutstanding", thresholds.maxSharesOutstanding, 1000000);
@@ -1351,6 +1916,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     function renderRuntimeConfig(status) {
       const config = status.runtimeConfig || {};
+      if (config.publicWatchlistUrl) {
+        openLiveWatchlistLinkEl.href = config.publicWatchlistUrl;
+      }
       const health = status.runtimeHealth || {};
       const ai = health.aiCommentary || {};
       const lastAiGenerated = ai.lastGeneratedAt
@@ -1367,6 +1935,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderPotentialGainVisibilityControl(status);
       renderWatchlistLifecycleLabelsVisibilityControl(status);
       renderReversalWatchlistVisibilityControl(status);
+      renderTopRegularWatchlistVisibilityControl(status);
       renderAiReadControls(status);
       renderAutoSelectorControl(status);
       aiNoticeEl.textContent =
@@ -1412,12 +1981,16 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
-    async function activateEntry(symbol, note, retry) {
+    async function activateEntry(symbol, note, retry, watchlistGroup) {
       try {
         const response = await fetch("/api/watchlist/activate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol, note }),
+          body: JSON.stringify({
+            symbol,
+            note,
+            watchlistGroup: watchlistGroup || "main",
+          }),
         });
         const payload = await response.json();
         if (!response.ok) {
@@ -1477,16 +2050,38 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    function entryWatchlistGroup(entry) {
+      if (
+        entry.watchlistGroup === "top_regular" ||
+        entry.watchlistGroup === "main" ||
+        entry.watchlistGroup === "postmarket"
+      ) {
+        return entry.watchlistGroup;
+      }
+      if (Array.isArray(entry.tags) && entry.tags.includes("auto-postmarket")) {
+        return "postmarket";
+      }
+      if (Number.isFinite(entry.activatedAt)) {
+        const parts = Object.fromEntries(
+          new Intl.DateTimeFormat("en-US", {
+            timeZone: "America/New_York",
+            hour: "2-digit",
+            hourCycle: "h23",
+          }).formatToParts(new Date(entry.activatedAt)).map((part) => [part.type, part.value]),
+        );
+        const hour = Number(parts.hour);
+        if (hour >= 16 && hour < 20) return "postmarket";
+      }
+      return "main";
+    }
+
     function renderEntries(entries) {
-      listEl.innerHTML = "";
-      if (entries.length === 0) {
-        const empty = document.createElement("li");
-        empty.textContent = "No active tickers";
-        listEl.appendChild(empty);
-        return;
+      for (const list of Object.values(listEls)) {
+        list.innerHTML = "";
       }
 
       for (const entry of entries) {
+        const listEl = listEls[entryWatchlistGroup(entry)];
         const item = document.createElement("li");
         const meta = buildEntryMeta(entry);
         const actions = document.createElement("div");
@@ -1532,7 +2127,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           const aiRefreshButton = document.createElement("button");
           aiRefreshButton.textContent = "Refresh AI Read";
           aiRefreshButton.className = "secondary";
-          aiRefreshButton.disabled = aiReadConfigured === false;
+          aiRefreshButton.disabled = aiReadConfigured === false || !aiReadGenerationAllowed;
           aiRefreshButton.addEventListener("click", async () => {
             aiRefreshButton.disabled = true;
             setStatus("Generating a fresh TradersLink AI Read for " + entry.symbol + "...");
@@ -1545,16 +2140,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               const payload = await response.json();
               if (!response.ok) {
                 setStatus(payload.error || "AI Read refresh failed", true);
+                await loadEntries();
+                await loadRuntimeStatus();
                 return;
               }
               setStatus(payload.generated
                 ? "Published a fresh TradersLink AI Read for " + entry.symbol + "."
-                : "No AI Read was generated for " + entry.symbol + " because a live price is not available yet.");
+                : payload.failure?.reason
+                  ? "AI Read was not published for " + entry.symbol + ": " + payload.failure.reason
+                  : "No AI Read was published for " + entry.symbol + ". Check the ticker row for the reason.",
+                !payload.generated);
+              await loadEntries();
               await loadRuntimeStatus();
             } catch (error) {
               setStatus(String(error), true);
             } finally {
-              aiRefreshButton.disabled = aiReadConfigured === false;
+              aiRefreshButton.disabled = aiReadConfigured === false || !aiReadGenerationAllowed;
             }
           });
           actions.appendChild(aiRefreshButton);
@@ -1640,7 +2241,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           retryButton.textContent = "Retry";
           retryButton.className = "secondary";
           retryButton.addEventListener("click", async () => {
-            const started = await activateEntry(entry.symbol, entry.note, true);
+            const started = await activateEntry(
+              entry.symbol,
+              entry.note,
+              true,
+              entryWatchlistGroup(entry),
+            );
             if (started) {
               await loadEntries();
               await loadRuntimeStatus();
@@ -1648,6 +2254,80 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           });
           actions.appendChild(retryButton);
         }
+
+        if (
+          entry.lifecycle === "active" ||
+          entry.lifecycle === "refresh_pending" ||
+          entry.lifecycle === "extension_pending"
+        ) {
+          const moveSelect = document.createElement("select");
+          moveSelect.setAttribute("aria-label", "Move " + entry.symbol + " to watchlist");
+          const currentGroup = entryWatchlistGroup(entry);
+          for (const [value, label] of [
+            ["top_regular", "Top Regular Hour Watches"],
+            ["main", "Main Session"],
+            ["postmarket", "Post-Market"],
+          ]) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = label;
+            option.selected = value === currentGroup;
+            moveSelect.appendChild(option);
+          }
+          const moveButton = document.createElement("button");
+          moveButton.textContent = "Move to List";
+          moveButton.className = "secondary";
+          moveButton.addEventListener("click", async () => {
+            moveButton.disabled = true;
+            moveSelect.disabled = true;
+            try {
+              const response = await fetch("/api/watchlist/move-to-list", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  symbol: entry.symbol,
+                  watchlistGroup: moveSelect.value,
+                }),
+              });
+              const payload = await response.json();
+              if (!response.ok) {
+                setStatus(payload.error || "Move to list failed", true);
+                return;
+              }
+              setStatus(
+                "Moved " + payload.entry.symbol + " to " +
+                moveSelect.options[moveSelect.selectedIndex].text +
+                " without deactivating it.",
+              );
+              await loadEntries();
+              await loadRuntimeStatus();
+            } catch (error) {
+              setStatus("Move request failed for " + entry.symbol + ": " + String(error), true);
+            } finally {
+              moveButton.disabled = false;
+              moveSelect.disabled = false;
+            }
+          });
+          actions.appendChild(moveSelect);
+          actions.appendChild(moveButton);
+        }
+
+        const removeFromListButton = document.createElement("button");
+        removeFromListButton.textContent = "Remove from List";
+        removeFromListButton.className = "secondary";
+        removeFromListButton.addEventListener("click", async () => {
+          removeFromListButton.disabled = true;
+          try {
+            await postEntryAction(
+              "/api/watchlist/remove-from-list",
+              entry.symbol,
+              "Removed from list:",
+            );
+          } finally {
+            removeFromListButton.disabled = false;
+          }
+        });
+        actions.appendChild(removeFromListButton);
 
         const deactivateButton = document.createElement("button");
         deactivateButton.textContent = entry.lifecycle === "activating" ? "Cancel" : "Deactivate";
@@ -1679,6 +2359,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         item.appendChild(meta);
         item.appendChild(actions);
         listEl.appendChild(item);
+      }
+
+      const emptyLabels = {
+        top_regular: "No Top Regular Hour Watches are active.",
+        main: "No Main Session tickers are active.",
+        postmarket: "No Post-Market tickers are active.",
+      };
+      for (const [group, list] of Object.entries(listEls)) {
+        if (list.childElementCount === 0) {
+          const empty = document.createElement("li");
+          empty.textContent = emptyLabels[group];
+          list.appendChild(empty);
+        }
       }
     }
 
@@ -1748,7 +2441,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     async function deactivateTickerGroup(scope, label) {
       const confirmed = window.confirm(
-        "Remove " + label + " from the active watchlist? Discord posts and threads will be kept. Automatic selection will remain enabled and can add new qualifying tickers during an enabled trading session."
+        "Clear " + label + " from the admin and public watchlist? Pending activations and existing selector scores/pass evidence for these tickers will be reset. Discord posts and threads will be kept. A ticker can return only after fresh discovery and fresh qualifying scans."
       );
       if (!confirmed) {
         return;
@@ -1756,8 +2449,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
       const bulkButtons = [
         removeAllTickersButtonEl,
+        removeTopRegularTickersButtonEl,
         removeMainTickersButtonEl,
         removePostmarketTickersButtonEl,
+        removeReversalTickersButtonEl,
       ];
       for (const button of bulkButtons) button.disabled = true;
       setStatus("Removing " + label + " from the active watchlist...");
@@ -1777,7 +2472,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         }
         const symbols = payload.deactivatedSymbols || [];
         setStatus(
-          "Removed " + payload.deactivatedCount + " " +
+          "Cleared " + payload.deactivatedCount + " " +
           (payload.deactivatedCount === 1 ? "ticker" : "tickers") +
           (symbols.length ? " (" + symbols.join(", ") + ")." : ".") +
           " Discord posts and threads were kept."
@@ -2054,6 +2749,94 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyTopRegularWatchlistVisibilitySelection() {
+      const requestedVisible = topRegularWatchlistVisibleToggleEl.checked;
+      topRegularWatchlistVisibilityInFlight = true;
+      renderTopRegularWatchlistVisibilityControl(
+        { runtimeHealth: { topRegularWatchlistVisible: requestedVisible } },
+        { keepPreviousState: true },
+      );
+      setStatus((requestedVisible ? "Showing" : "Hiding") + " Top Regular Hour Watches...");
+      try {
+        const response = await fetch("/api/runtime/top-regular-watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visible: requestedVisible }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          topRegularWatchlistVisibleToggleEl.checked = topRegularWatchlistVisible;
+          setStatus(payload.error || "Top Regular Hour Watches visibility change failed", true);
+          return;
+        }
+        topRegularWatchlistVisible = payload.visible !== false;
+        setStatus(
+          "Top Regular Hour Watches " +
+            (topRegularWatchlistVisible ? "visible" : "hidden") +
+            " on /watchlist.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        topRegularWatchlistVisibleToggleEl.checked = topRegularWatchlistVisible;
+        setStatus(String(error), true);
+      } finally {
+        topRegularWatchlistVisibilityInFlight = false;
+        renderTopRegularWatchlistVisibilityControl({
+          runtimeHealth: { topRegularWatchlistVisible },
+        });
+      }
+    }
+
+    async function applyAiReadGenerationSelection() {
+      const requested = {
+        enabled: aiReadGenerationToggleEl.checked,
+        premarketEnabled: aiReadPremarketToggleEl.checked,
+        regularEnabled: aiReadRegularToggleEl.checked,
+        postmarketEnabled: aiReadPostmarketToggleEl.checked,
+        topRegularActivationEnabled: aiReadTopRegularActivationToggleEl.checked,
+      };
+      aiReadGenerationInFlight = true;
+      setStatus("Saving AI Read generation controls...");
+      try {
+        const response = await fetch("/api/runtime/ai-read-generation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requested),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "AI Read generation controls update failed", true);
+          return;
+        }
+        aiReadGenerationSettings = payload.settings;
+        setStatus(
+          aiReadGenerationSettings.enabled
+            ? "AI Read generation controls saved."
+            : "AI Read generation is off. No OpenAI AI Read requests can start.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        aiReadGenerationInFlight = false;
+        aiReadGenerationToggleEl.checked = aiReadGenerationSettings.enabled;
+        aiReadPremarketToggleEl.checked = aiReadGenerationSettings.premarketEnabled;
+        aiReadRegularToggleEl.checked = aiReadGenerationSettings.regularEnabled;
+        aiReadPostmarketToggleEl.checked = aiReadGenerationSettings.postmarketEnabled;
+        aiReadTopRegularActivationToggleEl.checked =
+          aiReadGenerationSettings.topRegularActivationEnabled;
+        aiReadGenerationToggleEl.disabled = aiReadConfigured === false;
+        aiReadPremarketToggleEl.disabled =
+          aiReadConfigured === false || !aiReadGenerationSettings.enabled;
+        aiReadRegularToggleEl.disabled =
+          aiReadConfigured === false || !aiReadGenerationSettings.enabled;
+        aiReadPostmarketToggleEl.disabled =
+          aiReadConfigured === false || !aiReadGenerationSettings.enabled;
+        aiReadTopRegularActivationToggleEl.disabled =
+          aiReadConfigured === false || !aiReadGenerationSettings.enabled;
+      }
+    }
+
     async function applyAiReadExternalResearchSelection() {
       const requestedEnabled = aiReadExternalResearchToggleEl.checked;
       if (requestedEnabled === aiReadExternalResearchEnabled) {
@@ -2136,6 +2919,36 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyAiReadModel() {
+      aiReadModelApplyEl.disabled = true;
+      setStatus("Saving AI Read model and effort...");
+      try {
+        const response = await fetch("/api/runtime/ai-read-model", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: aiReadModelSelectEl.value,
+            reasoningEffort: aiReadReasoningEffortSelectEl.value,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "AI Read model update failed.", true);
+          return;
+        }
+        setStatus(
+          "AI Reads now use " +
+            (payload.model === "gpt-5.6-luna" ? "Luna" : "Terra") +
+            " at " + payload.reasoningEffort + " effort.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        aiReadModelApplyEl.disabled = !aiReadConfigured;
+      }
+    }
+
     function readAutoSelectorNumber(key, multiplier) {
       const value = Number(autoSelectorInputEls[key].value);
       if (!Number.isFinite(value)) {
@@ -2146,6 +2959,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     function collectAutoSelectorThresholds() {
       return {
+        mainVacancyMinQualificationScore: Math.round(readAutoSelectorNumber("mainVacancyMinQualificationScore")),
+        postmarketMinQualificationScore: Math.round(readAutoSelectorNumber("postmarketMinQualificationScore")),
         maxMarketCap: readAutoSelectorNumber("maxMarketCap", 1000000),
         maxFloatShares: readAutoSelectorNumber("maxFloatShares", 1000000),
         maxSharesOutstanding: readAutoSelectorNumber("maxSharesOutstanding", 1000000),
@@ -2250,6 +3065,57 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    async function applyAiReadBoundaryRefreshes() {
+      const limit = Number(aiReadBoundaryRefreshesLimitEl.value);
+      if (!Number.isInteger(limit) || limit < 0 || limit > 1000) {
+        setStatus("Automatic boundary refreshes must be a whole number between 0 and 1,000.", true);
+        return;
+      }
+      aiReadBoundaryRefreshesInFlight = true;
+      aiReadBoundaryRefreshesToggleEl.disabled = true;
+      aiReadBoundaryRefreshesLimitEl.disabled = true;
+      aiReadBoundaryRefreshesApplyEl.disabled = true;
+      setStatus("Saving automatic boundary refresh controls...");
+      try {
+        const response = await fetch("/api/runtime/ai-read-boundary-refreshes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            enabled: aiReadBoundaryRefreshesToggleEl.checked,
+            maxPerTickerPerNewYorkDate: limit,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setStatus(payload.error || "Automatic boundary refresh update failed", true);
+          return;
+        }
+        aiReadBoundaryRefreshesEnabled = payload.settings?.enabled === true;
+        aiReadBoundaryRefreshesLimitEl.value = String(
+          payload.settings?.maxPerTickerPerNewYorkDate ?? limit,
+        );
+        setStatus(
+          aiReadBoundaryRefreshesEnabled
+            ? "Automatic boundary refreshes enabled."
+            : "Automatic boundary refreshes disabled.",
+        );
+        await loadRuntimeStatus();
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        aiReadBoundaryRefreshesInFlight = false;
+        renderAiReadControls({
+          aiReadConfigured,
+          runtimeHealth: {
+            tradersLinkAiReadBoundaryRefreshSettings: {
+              enabled: aiReadBoundaryRefreshesEnabled,
+              maxPerTickerPerNewYorkDate: Number(aiReadBoundaryRefreshesLimitEl.value) || 0,
+            },
+          },
+        });
+      }
+    }
+
     async function applyAutoSelectorToggle() {
       await updateAutoSelector(
         { enabled: autoSelectorEnabledToggleEl.checked },
@@ -2323,7 +3189,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
       activateButtonEl.disabled = true;
       try {
-        const started = await activateEntry(symbolEl.value, noteEl.value, false);
+        const started = await activateEntry(
+          symbolEl.value,
+          noteEl.value,
+          false,
+          watchlistGroupEl.value,
+        );
         if (!started) {
           return;
         }
@@ -2338,9 +3209,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     });
     clearDiscordButtonEl.addEventListener("click", clearDiscordPosts);
-    removeAllTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("all", "all tickers"));
-    removeMainTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("main", "all Main Session tickers"));
-    removePostmarketTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("postmarket", "all Post-Market tickers"));
+    removeAllTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("all", "all watchlists"));
+    removeTopRegularTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("top_regular", "Top Regular Hour Watches"));
+    removeMainTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("main", "Main Session"));
+    removePostmarketTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("postmarket", "Post-Market"));
+    removeReversalTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("reversal", "Potential Reversal Watchlist"));
     aiCleanReadButtonEl.addEventListener("click", () => {
       window.open("/ai-clean-read", "ai-clean-read");
     });
@@ -2361,9 +3234,49 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     potentialGainVisibleToggleEl.addEventListener("change", applyPotentialGainVisibilitySelection);
     watchlistLifecycleLabelsVisibleToggleEl.addEventListener("change", applyWatchlistLifecycleLabelsVisibilitySelection);
     reversalWatchlistVisibleToggleEl.addEventListener("change", applyReversalWatchlistVisibilitySelection);
+    topRegularWatchlistVisibleToggleEl.addEventListener("change", applyTopRegularWatchlistVisibilitySelection);
+    aiReadGenerationToggleEl.addEventListener("change", applyAiReadGenerationSelection);
+    aiReadModelApplyEl.addEventListener("click", applyAiReadModel);
+    aiReadPremarketToggleEl.addEventListener("change", applyAiReadGenerationSelection);
+    aiReadRegularToggleEl.addEventListener("change", applyAiReadGenerationSelection);
+    aiReadPostmarketToggleEl.addEventListener("change", applyAiReadGenerationSelection);
+    aiReadTopRegularActivationToggleEl.addEventListener("change", applyAiReadGenerationSelection);
     aiReadExternalResearchToggleEl.addEventListener("change", applyAiReadExternalResearchSelection);
     aiReadCostBudgetToggleEl.addEventListener("change", applyAiReadCostBudget);
     aiReadCostBudgetApplyEl.addEventListener("click", applyAiReadCostBudget);
+    aiReadBoundaryRefreshesToggleEl.addEventListener("change", applyAiReadBoundaryRefreshes);
+    aiReadBoundaryRefreshesApplyEl.addEventListener("click", applyAiReadBoundaryRefreshes);
+    aiReadCostPeriodEl.addEventListener("change", () => {
+      aiReadCostPeriod = String(aiReadCostPeriodEl.value || "today");
+      void loadRuntimeStatus(true).catch((error) => setStatus(String(error), true));
+    });
+    aiReadAuditStatusFilterEl.addEventListener("change", () => renderAiReadAudit(aiReadAuditPayload));
+    aiReadAuditCurrentListEl.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target.closest("[data-ai-read-symbol]") : null;
+      if (!target) return;
+      aiReadAuditSelectedSymbol = target.dataset.aiReadSymbol || null;
+      renderAiReadDetail();
+    });
+    aiReadDetailCloseEl.addEventListener("click", () => {
+      aiReadAuditSelectedSymbol = null;
+      aiReadDetailEl.hidden = true;
+    });
+    aiReadAuditRefreshEl.addEventListener("click", async () => {
+      aiReadAuditRefreshEl.disabled = true;
+      try {
+        await loadAiReadAudit();
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        aiReadAuditRefreshEl.disabled = false;
+      }
+    });
+    aiReadAuditSymbolEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void aiReadAuditRefreshEl.click();
+      }
+    });
     autoSelectorEnabledToggleEl.addEventListener("change", applyAutoSelectorToggle);
     autoSelectorApplyButtonEl.addEventListener("click", applyAutoSelectorSettings);
     autoSelectorPreviewButtonEl.addEventListener("click", previewAutoSelector);
@@ -2402,6 +3315,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         void refreshDashboard();
       }
     });
+    void loadAiReadAudit().catch((error) => setStatus(String(error), true));
     void refreshDashboard();
   </script>
 </body>

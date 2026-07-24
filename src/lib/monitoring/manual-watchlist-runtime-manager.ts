@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
+import { NasdaqTradingHaltService, type NasdaqTradingHaltLookup } from "../auto-watchlist/nasdaq-trading-halt-service.js";
 import type { Candle, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
 import type {
   BuildTradeCandleContextRequest,
@@ -31,12 +32,20 @@ import type { TradersLinkAiReadService } from "../ai/traderslink-ai-read-service
 import {
   buildTradersLinkAiCompletedSessionWindow,
   mergeTradersLinkAiIntradayCandles,
+  resolveTradersLinkAiReadHistoricalCoverageRequirement,
   type TradersLinkAiReadPriceActionContext,
 } from "../ai/traderslink-ai-read-price-action.js";
 import type {
   TradersLinkAiReadCostLedger,
   TradersLinkAiReadCostTrigger,
 } from "../ai/traderslink-ai-read-cost-ledger.js";
+import type {
+  TradersLinkAiReadAuditSummary,
+  TradersLinkAiReadRunLedger,
+  TradersLinkAiReadRunEvent,
+  TradersLinkAiReadRunOutcome,
+  TradersLinkAiReadRunStage,
+} from "../ai/traderslink-ai-read-run-ledger.js";
 import {
   buildFinnhubThreadPreviewPayload,
   resolveStockContextCurrentPrice,
@@ -120,7 +129,9 @@ import type {
   TradersLinkAiReadBoundaryState,
   TradersLinkAiReadPendingBoundaryCross,
   WatchlistEntry,
+  WatchlistGroup,
   WatchlistLifecycleState,
+  WatchlistTradersLinkAiReadFailureStage,
 } from "./monitoring-types.js";
 import type { LivePriceProvider } from "./live-price-types.js";
 import { buildOpportunityDiagnosticsLogEntry } from "./opportunity-diagnostics.js";
@@ -130,6 +141,7 @@ import type { EvaluatedOpportunity, OpportunityProgressUpdate } from "./opportun
 import { WatchlistMonitor } from "./watchlist-monitor.js";
 import { WatchlistStatePersistence } from "./watchlist-state-persistence.js";
 import { WatchlistStore } from "./watchlist-store.js";
+import { getWatchlistEntrySessionGroup } from "./watchlist-entry-session.js";
 import { LiveDerivedFiveMinuteCandleStore } from "./live-derived-technical-candles.js";
 import {
   buildTradeSetupChartThesisRead,
@@ -241,20 +253,25 @@ export type ManualWatchlistRuntimeManagerOptions = {
   liveWatchlistPublisher?: LiveWatchlistPublisher | null;
   tradersLinkAiReadService?: TradersLinkAiReadService | null;
   tradersLinkAiReadCostLedger?: TradersLinkAiReadCostLedger | null;
+  tradersLinkAiReadRunLedger?: TradersLinkAiReadRunLedger | null;
   initialTradersLinkAiReadDailyCostBudget?: {
     enabled: boolean;
     dailyLimitUsd: number;
   };
+  initialTradersLinkAiReadGenerationSettings?: Partial<TradersLinkAiReadGenerationSettings>;
+  initialTradersLinkAiReadBoundaryRefreshSettings?: Partial<TradersLinkAiReadBoundaryRefreshSettings>;
   tradersLinkAiReadStartupRefreshEnabled?: boolean;
   initialLiveTraderReadCardVisible?: boolean;
   liveTraderReadCardVisibilityListener?: (visible: boolean) => void;
   initialPotentialGainCardVisible?: boolean;
   initialWatchlistLifecycleLabelsVisible?: boolean;
   initialReversalWatchlistVisible?: boolean;
+  initialTopRegularWatchlistVisible?: boolean;
   levelProvenanceMode?: LiveWatchlistLevelProvenanceMode | string | null;
   pullbackReadEnabled?: boolean;
   pullbackReadPollIntervalMs?: number;
   recentIntradayCandleFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName"> | null;
+  levelIntradayFallbackCandleFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName"> | null;
   tradersLinkAiReadHistoricalCandleLoader?: (
     request: BuildTradeCandleContextRequest,
   ) => Promise<TradeCandleContext>;
@@ -269,6 +286,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   } | void>) | null;
   opportunityDiagnosticsEnabled?: boolean;
   now?: () => number;
+  tradingHaltLookup?: NasdaqTradingHaltLookup;
 };
 
 const TRADERSLINK_AI_READ_AUTOMATIC_SCHEDULE_COALESCE_MS = 250;
@@ -278,10 +296,49 @@ const TRADERSLINK_AI_READ_MIN_BOUNDARY_BUFFER_PCT = 0.01;
 const TRADERSLINK_AI_READ_MAX_BOUNDARY_BUFFER_PCT = 0.05;
 const TRADERSLINK_AI_READ_ATR_BUFFER_MULTIPLIER = 0.2;
 const TRADERSLINK_AI_READ_TICK_BUFFER_MULTIPLIER = 3;
+export const MAX_AUTOMATIC_AI_READS_PER_SYMBOL_PER_NEW_YORK_DATE = 2;
 const DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 1;
+const HALT_CONFIRMATION_POLL_INTERVAL_MS = 60_000;
+// Nasdaq Trader is only queried during the regular 09:30-16:00 New York
+// session. Missing trades outside that window are not halt evidence.
+const HALT_SUSPECT_AFTER_MS = 60 * 1000;
+
+export function isUsEquityHaltDetectionWindow(timestamp: number): boolean {
+  return classifyUsEquityMarketSession(timestamp).session === "regular";
+}
+
+type WatchlistTickerMarketDataStatus = "live" | "stale" | "halted";
+type WatchlistTickerHaltState = {
+  status: WatchlistTickerMarketDataStatus;
+  reason: string | null;
+  updatedAt: number;
+};
 export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "automatic";
 
+export type TradersLinkAiReadGenerationSettings = {
+  enabled: boolean;
+  premarketEnabled: boolean;
+  regularEnabled: boolean;
+  postmarketEnabled: boolean;
+  topRegularActivationEnabled: boolean;
+};
+
+export type TradersLinkAiReadBoundaryRefreshSettings = {
+  enabled: boolean;
+  maxPerTickerPerNewYorkDate: number;
+};
+
 export type TradersLinkAiReadRefreshState = TradersLinkAiReadBoundaryState;
+
+export function getAutomaticAiReadRefreshCountForDate(
+  state: TradersLinkAiReadRefreshState | null,
+  timestamp: number,
+): number {
+  const dateKey = newYorkDateKeyForTimestamp(timestamp);
+  return state?.automaticRefreshDateKey === dateKey
+    ? state.automaticRefreshCount ?? 0
+    : 0;
+}
 
 export function buildTradersLinkAiReadRefreshState(
   read: Pick<
@@ -657,6 +714,7 @@ type PriorRegularCloseReference = {
 export type ManualWatchlistActivationInput = {
   symbol: string;
   note?: string;
+  watchlistGroup?: WatchlistGroup;
   source?: "manual" | "auto";
   autoSession?: "premarket" | "regular" | "postmarket";
   selectionPrice?: number;
@@ -665,7 +723,7 @@ export type ManualWatchlistActivationInput = {
   preservedActivatedAt?: number;
 };
 
-export type ManualWatchlistDeactivationSource = "manual" | "auto";
+export type ManualWatchlistDeactivationSource = "manual" | "auto" | "clear";
 
 export const MANUAL_WATCHLIST_AUTO_READMISSION_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 
@@ -695,6 +753,17 @@ function watchlistTagsForActivation(input: ManualWatchlistActivationInput): stri
     input.autoSession === "postmarket" ? "auto-postmarket" : "auto-main",
     `auto-${input.autoSession ?? "regular"}`,
   ])];
+}
+
+function watchlistGroupForActivation(input: ManualWatchlistActivationInput): WatchlistGroup {
+  if (
+    input.watchlistGroup === "top_regular" ||
+    input.watchlistGroup === "main" ||
+    input.watchlistGroup === "postmarket"
+  ) {
+    return input.watchlistGroup;
+  }
+  return input.autoSession === "postmarket" ? "postmarket" : "main";
 }
 
 const AUTO_REACTIVATION_AI_CONTEXT_MAX_PRICE_DRIFT_PCT = 15;
@@ -772,6 +841,14 @@ export type ManualWatchlistRuntimeHealth = {
   potentialGainCardVisible: boolean;
   watchlistLifecycleLabelsVisible: boolean;
   reversalWatchlistVisible: boolean;
+  topRegularWatchlistVisible: boolean;
+  tradersLinkAiReadGenerationSettings: TradersLinkAiReadGenerationSettings;
+  tradersLinkAiReadBoundaryRefreshSettings: TradersLinkAiReadBoundaryRefreshSettings;
+  tradersLinkAiReadGenerationAvailability: {
+    allowed: boolean;
+    session: "premarket" | "regular" | "postmarket" | "closed";
+    reason: string | null;
+  };
   lifecycleCounts: Record<WatchlistLifecycleState, number>;
   lastPriceUpdateAt: number | null;
   lastPriceUpdateSymbol: string | null;
@@ -1386,10 +1463,15 @@ const SNAPSHOT_PRICE_TOLERANCE_ABSOLUTE = 0.001;
 const SNAPSHOT_DISPLAY_COMPACTION_PCT = 0.0075;
 const SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE = 0.01;
 const SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 0.5;
+// The level ranker keeps a wider forward map for active small-cap names so a
+// real higher-timeframe cap can anchor continuation checkpoints. Keep the
+// snapshot filter consistent with that map; otherwise the cap is discarded
+// before addSnapshotContinuationResistanceMap can fill the gap beneath it.
+const ACTIVE_TRADER_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 1.25;
+const ACTIVE_TRADER_SNAPSHOT_FORWARD_RESISTANCE_MAX_PRICE = 15;
 const LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT = 1;
 const SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT = 2;
 const SNAPSHOT_BASE_COVERAGE_AT = 3;
-const SNAPSHOT_MAX_STRUCTURAL_OUTER_ANCHORS = 1;
 const SNAPSHOT_CONTINUATION_MAP_MIN_GAP_PCT = 0.18;
 const SNAPSHOT_CONTINUATION_MAP_TARGET_PCT = 0.55;
 const SNAPSHOT_CONTINUATION_MAP_MIN_STEP_PCT = 0.03;
@@ -1427,7 +1509,10 @@ const ACTIVATION_MAX_AUTO_RETRIES = 1;
 const ACTIVATION_STUCK_WARNING_MS = 2 * 60 * 1000;
 const ACTIVATION_WATCHDOG_INTERVAL_MS = 15 * 1000;
 const PRICE_UPDATE_PERSIST_INTERVAL_MS = 5 * 1000;
-const WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS = 2 * 1000;
+// The website consumes ticker updates over SSE and refreshes visible pages every
+// 15 seconds. Keep the durable publisher on the same cadence so quote bursts do
+// not turn every tick into a Neon read/modify/write cycle.
+const WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS = 15 * 1000;
 const WEBSITE_TECHNICAL_CONTEXT_PUBLISH_INTERVAL_MS = 30 * 1000;
 const WEBSITE_PULLBACK_READ_PUBLISH_INTERVAL_MS = 5 * 60 * 1000;
 const PRIOR_REGULAR_CLOSE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -1436,7 +1521,6 @@ const PULLBACK_READ_1M_LOOKBACK_BARS = 120;
 const PULLBACK_READ_5M_LOOKBACK_BARS = 80;
 const TRADERSLINK_AI_READ_1M_FETCH_BARS = 600;
 const TRADERSLINK_AI_READ_5M_FETCH_BARS = 720;
-const TRADERSLINK_AI_READ_DAILY_FETCH_BARS = 30;
 const PULLBACK_READ_MAX_LATEST_CANDLE_AGE_MS = 10 * 60 * 1000;
 const PULLBACK_READ_MAX_FUTURE_CANDLE_SKEW_MS = 90 * 1000;
 const TECHNICAL_CONTEXT_BOOTSTRAP_RETRY_DELAYS_MS = [
@@ -1559,19 +1643,25 @@ function snapshotForwardResistanceRangePct(currentPrice: number): number {
   if (currentPrice <= SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT) {
     return LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT;
   }
-  if (currentPrice >= SNAPSHOT_BASE_COVERAGE_AT) {
-    return SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT;
+  if (currentPrice < SNAPSHOT_BASE_COVERAGE_AT) {
+    const progress =
+      (currentPrice - SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT) /
+      (SNAPSHOT_BASE_COVERAGE_AT - SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT);
+    return (
+      LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT -
+      progress *
+        (LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT -
+          SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT)
+    );
+  }
+  if (
+    currentPrice >= SNAPSHOT_BASE_COVERAGE_AT &&
+    currentPrice < ACTIVE_TRADER_SNAPSHOT_FORWARD_RESISTANCE_MAX_PRICE
+  ) {
+    return ACTIVE_TRADER_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT;
   }
 
-  const progress =
-    (currentPrice - SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT) /
-    (SNAPSHOT_BASE_COVERAGE_AT - SNAPSHOT_FULL_LOW_PRICE_COVERAGE_AT);
-  return (
-    LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT -
-    progress *
-      (LOW_PRICE_SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT -
-        SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT)
-  );
+  return SNAPSHOT_FORWARD_RESISTANCE_RANGE_PCT;
 }
 
 function decimalPlacesForIncrement(increment: number): number {
@@ -2149,7 +2239,7 @@ function addSnapshotStructuralOuterResistanceAnchor(params: {
         isMeaningfulStructuralOuterResistance(zone),
     ),
     "resistance",
-  ).slice(0, SNAPSHOT_MAX_STRUCTURAL_OUTER_ANCHORS);
+  );
 
   return anchors.length > 0
     ? sortSnapshotZones([...params.zones, ...anchors], "resistance")
@@ -2635,6 +2725,17 @@ export class ManualWatchlistRuntimeManager {
     enabled: false,
     dailyLimitUsd: DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD,
   };
+  private tradersLinkAiReadGenerationSettings: TradersLinkAiReadGenerationSettings = {
+    enabled: true,
+    premarketEnabled: true,
+    regularEnabled: true,
+    postmarketEnabled: true,
+    topRegularActivationEnabled: true,
+  };
+  private tradersLinkAiReadBoundaryRefreshSettings: TradersLinkAiReadBoundaryRefreshSettings = {
+    enabled: true,
+    maxPerTickerPerNewYorkDate: MAX_AUTOMATIC_AI_READS_PER_SYMBOL_PER_NEW_YORK_DATE,
+  };
   private readonly levelSeedStats = {
     attempts: 0,
     successes: 0,
@@ -2661,6 +2762,10 @@ export class ManualWatchlistRuntimeManager {
   private monitoringRestartQueue: Promise<void> = Promise.resolve();
   private readonly stuckActivationWarnings = new Set<string>();
   private activationWatchdogTimer: NodeJS.Timeout | null = null;
+  private haltConfirmationTimer: NodeJS.Timeout | null = null;
+  private haltConfirmationInFlight = false;
+  private readonly tradingHaltLookup: NasdaqTradingHaltLookup;
+  private readonly tickerHaltStateBySymbol = new Map<string, WatchlistTickerHaltState>();
   private readonly pendingLevelTouchAlerts = new Map<string, NodeJS.Timeout>();
   private readonly pendingFastLevelClearAlerts = new Map<string, {
     timer: NodeJS.Timeout;
@@ -2680,6 +2785,7 @@ export class ManualWatchlistRuntimeManager {
   private potentialGainCardVisible = resolveInitialPotentialGainCardVisible();
   private watchlistLifecycleLabelsVisible = false;
   private reversalWatchlistVisible = true;
+  private topRegularWatchlistVisible = true;
   private readonly technicalContextBySymbol = new Map<string, TechnicalContext>();
   private readonly potentialMoveReadBySymbol = new Map<string, PotentialMoveRead>();
   private readonly tradeSetupThesisReadBySymbol = new Map<string, PotentialMoveRead>();
@@ -2687,6 +2793,10 @@ export class ManualWatchlistRuntimeManager {
   private readonly chartThesisSeriesMapBySymbol = new Map<string, Record<CandleTimeframe, CandleProviderResponse>>();
   private readonly recentWebsiteArticleFreshnessBySymbol = new Map<string, RecentWebsiteArticleCatalystFreshness>();
   private readonly pressReleaseCatalystContextBySymbol = new Map<string, PressReleaseCatalystContext>();
+  private readonly aiReadResearchBySymbol = new Map<
+    string,
+    Awaited<ReturnType<typeof lookupRecentWebsiteArticlesForSymbol>>
+  >();
   private readonly priorRegularCloseBySymbol = new Map<string, PriorRegularCloseReference>();
   private readonly priorRegularCloseRefreshInFlight = new Set<string>();
   private readonly lastPriorRegularCloseRefreshAt = new Map<string, number>();
@@ -2724,12 +2834,35 @@ export class ManualWatchlistRuntimeManager {
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
+    const haltService = new NasdaqTradingHaltService();
+    this.tradingHaltLookup = options.tradingHaltLookup ?? haltService.lookup.bind(haltService);
     this.liveTraderReadCardVisible =
       options.initialLiveTraderReadCardVisible ?? resolveInitialLiveTraderReadCardVisible();
     this.potentialGainCardVisible =
       options.initialPotentialGainCardVisible ?? resolveInitialPotentialGainCardVisible();
     this.watchlistLifecycleLabelsVisible = options.initialWatchlistLifecycleLabelsVisible ?? false;
     this.reversalWatchlistVisible = options.initialReversalWatchlistVisible ?? true;
+    this.topRegularWatchlistVisible = options.initialTopRegularWatchlistVisible ?? true;
+    this.tradersLinkAiReadGenerationSettings = {
+      enabled: options.initialTradersLinkAiReadGenerationSettings?.enabled ?? true,
+      premarketEnabled:
+        options.initialTradersLinkAiReadGenerationSettings?.premarketEnabled ?? true,
+      regularEnabled:
+        options.initialTradersLinkAiReadGenerationSettings?.regularEnabled ?? true,
+      postmarketEnabled:
+        options.initialTradersLinkAiReadGenerationSettings?.postmarketEnabled ?? true,
+      topRegularActivationEnabled:
+        options.initialTradersLinkAiReadGenerationSettings?.topRegularActivationEnabled ?? true,
+    };
+    this.tradersLinkAiReadBoundaryRefreshSettings = {
+      enabled: options.initialTradersLinkAiReadBoundaryRefreshSettings?.enabled ?? true,
+      maxPerTickerPerNewYorkDate:
+        Number.isInteger(options.initialTradersLinkAiReadBoundaryRefreshSettings?.maxPerTickerPerNewYorkDate) &&
+        (options.initialTradersLinkAiReadBoundaryRefreshSettings?.maxPerTickerPerNewYorkDate ?? 0) >= 0
+          ? options.initialTradersLinkAiReadBoundaryRefreshSettings?.maxPerTickerPerNewYorkDate ??
+            MAX_AUTOMATIC_AI_READS_PER_SYMBOL_PER_NEW_YORK_DATE
+          : MAX_AUTOMATIC_AI_READS_PER_SYMBOL_PER_NEW_YORK_DATE,
+    };
     if (options.initialTradersLinkAiReadDailyCostBudget) {
       this.setTradersLinkAiReadDailyCostBudget(
         options.initialTradersLinkAiReadDailyCostBudget,
@@ -2756,6 +2889,7 @@ export class ManualWatchlistRuntimeManager {
     this.levelEngine = new LevelEngine(options.candleFetchService, undefined, {
       runtimeMode: runtimeSettings.mode,
       compareActivePath: runtimeSettings.compareActivePath,
+      fallbackFiveMinuteFetchService: options.levelIntradayFallbackCandleFetchService ?? undefined,
       onComparisonLog: runtimeSettings.compareLoggingEnabled
         ? (entry) => {
             console.log(JSON.stringify(entry));
@@ -2907,10 +3041,160 @@ export class ManualWatchlistRuntimeManager {
     }
   }
 
+  private recordMissingTradersLinkAiReadsOnStartup(): void {
+    const timestamp = this.options.now?.() ?? Date.now();
+    for (const entry of this.watchlistStore.getActiveEntries()) {
+      if (
+        entry.tradersLinkAiReadCardVisible === false ||
+        entry.tradersLinkAiReadBoundaryState ||
+        entry.pendingTradersLinkAiReadGeneration ||
+        entry.tradersLinkAiReadFailure
+      ) {
+        continue;
+      }
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol: entry.symbol,
+        trigger: "startup",
+        stage: "startup",
+        outcome: "missing",
+        reason: "Active ticker has no published read, pending generation, or recorded failure after runtime startup.",
+        dedupeKey: `startup-missing:${entry.symbol}:${entry.activatedAt ?? "unknown"}`,
+        occurredAt: timestamp,
+      });
+    }
+  }
+
   isTradersLinkAiReadConfigured(): boolean {
     return Boolean(
       this.options.tradersLinkAiReadService && this.liveWatchlistPublisher,
     );
+  }
+
+  getTradersLinkAiReadGenerationSettings(): TradersLinkAiReadGenerationSettings {
+    return { ...this.tradersLinkAiReadGenerationSettings };
+  }
+
+  setTradersLinkAiReadGenerationSettings(
+    input: TradersLinkAiReadGenerationSettings,
+  ): TradersLinkAiReadGenerationSettings {
+    this.tradersLinkAiReadGenerationSettings = {
+      enabled: input.enabled === true,
+      premarketEnabled: input.premarketEnabled === true,
+      regularEnabled: input.regularEnabled === true,
+      postmarketEnabled: input.postmarketEnabled === true,
+      topRegularActivationEnabled: input.topRegularActivationEnabled === true,
+    };
+    this.refreshAiReadBoundLifecycleLabelVisibility();
+    return this.getTradersLinkAiReadGenerationSettings();
+  }
+
+  getTradersLinkAiReadBoundaryRefreshSettings(): TradersLinkAiReadBoundaryRefreshSettings {
+    return { ...this.tradersLinkAiReadBoundaryRefreshSettings };
+  }
+
+  setTradersLinkAiReadBoundaryRefreshSettings(
+    input: TradersLinkAiReadBoundaryRefreshSettings,
+  ): TradersLinkAiReadBoundaryRefreshSettings {
+    if (
+      !Number.isInteger(input.maxPerTickerPerNewYorkDate) ||
+      input.maxPerTickerPerNewYorkDate < 0 ||
+      input.maxPerTickerPerNewYorkDate > 1_000
+    ) {
+      throw new Error("Automatic boundary refreshes per ticker must be a whole number between 0 and 1,000.");
+    }
+    this.tradersLinkAiReadBoundaryRefreshSettings = {
+      enabled: input.enabled === true,
+      maxPerTickerPerNewYorkDate: input.maxPerTickerPerNewYorkDate,
+    };
+    return this.getTradersLinkAiReadBoundaryRefreshSettings();
+  }
+
+  private lifecycleLabelsVisibleForSymbol(
+    symbol: string,
+    timestamp = this.options.now?.() ?? Date.now(),
+  ): boolean {
+    return (
+      this.watchlistLifecycleLabelsVisible &&
+      this.getTradersLinkAiReadGenerationAvailability(timestamp, {
+        symbol,
+      }).allowed
+    );
+  }
+
+  private refreshAiReadBoundLifecycleLabelVisibility(): void {
+    if (!this.liveWatchlistPublisher) return;
+    const timestamp = this.options.now?.() ?? Date.now();
+    for (const entry of this.watchlistStore.getActiveEntries()) {
+      void this.liveWatchlistPublisher.publish({
+        symbol: entry.symbol,
+        status: "live",
+        updatedAt: timestamp,
+        watchlistLifecycleLabelsVisible:
+          this.lifecycleLabelsVisibleForSymbol(entry.symbol, timestamp),
+        cards: {},
+      }).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[ManualWatchlistRuntimeManager] Failed to refresh AI Read-bound lifecycle labels for ${entry.symbol}: ${message}`,
+        );
+      });
+    }
+  }
+
+  getTradersLinkAiReadGenerationAvailability(
+    timestamp = this.options.now?.() ?? Date.now(),
+    context: {
+      symbol?: string;
+      requestedTrigger?: TradersLinkAiReadRequestedTrigger;
+    } = {},
+  ): {
+    allowed: boolean;
+    session: "premarket" | "regular" | "postmarket" | "closed";
+    reason: string | null;
+    topRegularActivationOverrideApplied: boolean;
+  } {
+    const session = classifyUsEquityMarketSession(timestamp).session;
+    if (!this.tradersLinkAiReadGenerationSettings.enabled) {
+      return {
+        allowed: false,
+        session,
+        reason: "AI Read generation is disabled.",
+        topRegularActivationOverrideApplied: false,
+      };
+    }
+    const symbol = context.symbol ? normalizeSymbol(context.symbol) : "";
+    const entry = symbol ? this.watchlistStore.getEntry(symbol) : undefined;
+    const topRegularActivationOverrideApplied =
+      entry !== undefined &&
+      getWatchlistEntrySessionGroup(entry) === "top_regular" &&
+      this.tradersLinkAiReadGenerationSettings.topRegularActivationEnabled;
+    if (topRegularActivationOverrideApplied) {
+      return {
+        allowed: true,
+        session,
+        reason: null,
+        topRegularActivationOverrideApplied: true,
+      };
+    }
+    if (session === "closed") {
+      return {
+        allowed: false,
+        session,
+        reason: "AI Read generation is disabled outside premarket, regular hours, and post-market.",
+        topRegularActivationOverrideApplied: false,
+      };
+    }
+    const enabled = session === "premarket"
+      ? this.tradersLinkAiReadGenerationSettings.premarketEnabled
+      : session === "regular"
+        ? this.tradersLinkAiReadGenerationSettings.regularEnabled
+        : this.tradersLinkAiReadGenerationSettings.postmarketEnabled;
+    return {
+      allowed: enabled,
+      session,
+      reason: enabled ? null : `AI Read generation is disabled during ${session}.`,
+      topRegularActivationOverrideApplied: false,
+    };
   }
 
   getTradersLinkAiReadDailyCostBudget(): { enabled: boolean; dailyLimitUsd: number } {
@@ -2937,6 +3221,9 @@ export class ManualWatchlistRuntimeManager {
       return {
         ...this.tradersLinkAiReadDailyCostBudget,
         spentUsd: 0,
+        guardedSpendUsd: 0,
+        unpricedRequestCount: 0,
+        unpricedReserveUsd: 0,
         projectedNextRequestUsd: 0,
         remainingUsd: this.tradersLinkAiReadDailyCostBudget.dailyLimitUsd,
         canStartRequest: !this.tradersLinkAiReadDailyCostBudget.enabled,
@@ -2969,6 +3256,111 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
+  private recordTradersLinkAiReadRunEvent(
+    event: Omit<TradersLinkAiReadRunEvent, "version" | "eventId" | "occurredAt"> & {
+      occurredAt?: number;
+    },
+  ): void {
+    this.options.tradersLinkAiReadRunLedger?.record(event);
+  }
+
+  private recordTradersLinkAiReadRunOutcome(params: {
+    symbol: string;
+    trigger: string;
+    stage: TradersLinkAiReadRunStage;
+    outcome: TradersLinkAiReadRunOutcome;
+    runId?: string;
+    reason?: string;
+    dedupeKey?: string;
+    occurredAt?: number;
+    generationId?: string;
+    model?: string;
+    dataAsOf?: number;
+  }): void {
+    this.recordTradersLinkAiReadRunEvent({
+      symbol: normalizeSymbol(params.symbol),
+      trigger: params.trigger,
+      stage: params.stage,
+      outcome: params.outcome,
+      ...(params.runId ? { runId: params.runId } : {}),
+      ...(params.reason ? { reason: params.reason.slice(0, 500) } : {}),
+      ...(params.dedupeKey ? { dedupeKey: params.dedupeKey } : {}),
+      ...(params.occurredAt ? { occurredAt: params.occurredAt } : {}),
+      ...(params.generationId ? { generationId: params.generationId } : {}),
+      ...(params.model ? { model: params.model } : {}),
+      ...(params.dataAsOf ? { dataAsOf: params.dataAsOf } : {}),
+    });
+  }
+
+  getTradersLinkAiReadAudit(options: { symbol?: string; limit?: number } = {}): {
+    generatedAt: number;
+    storagePath: string | null;
+    summary: TradersLinkAiReadAuditSummary;
+    recentEvents: TradersLinkAiReadRunEvent[];
+    currentEntries: Array<{
+      symbol: string;
+      active: boolean;
+      lifecycle?: WatchlistLifecycleState;
+      status: "published" | "failed" | "publishing_pending" | "missing" | "hidden" | "inactive";
+      reason?: string;
+      confidence?: string;
+      lastReadGeneratedAt?: number;
+      activatedAt?: number;
+    }>;
+  } {
+    const ledger = this.options.tradersLinkAiReadRunLedger;
+    const symbol = options.symbol?.trim().toUpperCase();
+    const events = ledger?.load() ?? [];
+    const filteredEvents = symbol
+      ? events.filter((event) => event.symbol === symbol)
+      : events;
+    const currentEntries = this.watchlistStore.getEntries()
+      .filter((entry) => !symbol || entry.symbol === symbol)
+      .map((entry) => {
+        const status = (entry.tradersLinkAiReadCardVisible === false
+          ? "hidden"
+          : !entry.active
+            ? "inactive"
+            : entry.tradersLinkAiReadFailure
+              ? "failed"
+              : entry.pendingTradersLinkAiReadGeneration
+                ? "publishing_pending"
+                : entry.tradersLinkAiReadBoundaryState
+                  ? "published"
+                  : "missing") as "published" | "failed" | "publishing_pending" | "missing" | "hidden" | "inactive";
+        return {
+          symbol: entry.symbol,
+          active: entry.active,
+          lifecycle: entry.lifecycle,
+          status,
+          ...(entry.tradersLinkAiReadFailure
+            ? { reason: `${entry.tradersLinkAiReadFailure.stage}: ${entry.tradersLinkAiReadFailure.reason}` }
+            : status === "missing"
+              ? { reason: "No published read, pending generation, or recorded failure is present." }
+              : {}),
+          ...(entry.tradersLinkAiReadConfidence
+            ? { confidence: entry.tradersLinkAiReadConfidence }
+            : {}),
+          ...(entry.tradersLinkAiReadBoundaryState?.generatedAt
+            ? { lastReadGeneratedAt: entry.tradersLinkAiReadBoundaryState.generatedAt }
+            : {}),
+          ...(entry.activatedAt ? { activatedAt: entry.activatedAt } : {}),
+        };
+      });
+    return {
+      generatedAt: Date.now(),
+      storagePath: ledger?.filePath ?? null,
+      summary: ledger?.summarize(filteredEvents) ?? {
+        eventCount: 0,
+        byOutcome: {},
+        byStage: {},
+        bySymbol: [],
+      },
+      recentEvents: (ledger?.recent({ symbol, limit: options.limit }) ?? []),
+      currentEntries,
+    };
+  }
+
   private async buildTradersLinkAiReadPriceActionContext(
     symbolInput: string,
     dataAsOf: number,
@@ -2985,6 +3377,10 @@ export class ManualWatchlistRuntimeManager {
     const service = this.options.recentIntradayCandleFetchService;
     const historicalLoader = this.options.tradersLinkAiReadHistoricalCandleLoader;
     const fetchAsOf = Math.max(dataAsOf, this.options.now?.() ?? Date.now());
+    const historicalCoverageRequirement = resolveTradersLinkAiReadHistoricalCoverageRequirement(
+      this.options.levelStore.getLevels(symbol),
+      fetchAsOf,
+    );
 
     if (service) {
       const [oneMinuteResult, intradayResult, dailyResult] = await Promise.allSettled([
@@ -3005,7 +3401,7 @@ export class ManualWatchlistRuntimeManager {
         service.fetchCandles({
           symbol,
           timeframe: "daily",
-          lookbackBars: TRADERSLINK_AI_READ_DAILY_FETCH_BARS,
+          lookbackBars: historicalCoverageRequirement.requestedDailyBars,
           endTimeMs: fetchAsOf,
           preferredProvider: "yahoo",
         }),
@@ -3048,7 +3444,8 @@ export class ManualWatchlistRuntimeManager {
         : Promise.resolve(null);
       const dailyPromise = historicalLoader({
         symbol,
-        fromTimeMs: fetchAsOf - 120 * 24 * 60 * 60 * 1_000,
+        fromTimeMs: historicalCoverageRequirement.requiredEarliestDailyCandleAt ??
+          fetchAsOf - 120 * 24 * 60 * 60 * 1_000,
         toTimeMs: fetchAsOf,
         timeframes: ["daily"],
         nowMs: fetchAsOf,
@@ -3105,6 +3502,7 @@ export class ManualWatchlistRuntimeManager {
       oneMinuteCandles,
       intradayCandles,
       dailyCandles,
+      historicalCoverageRequirement,
     };
   }
 
@@ -3113,14 +3511,89 @@ export class ManualWatchlistRuntimeManager {
     force: boolean,
     requestedTrigger: TradersLinkAiReadRequestedTrigger,
   ): Promise<TradersLinkAiReadPayload | null> {
+    const symbol = normalizeSymbol(symbolInput);
+    const runId = `${symbol}-run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const dispatchEntry = this.watchlistStore.getEntry(symbol);
+    this.recordTradersLinkAiReadRunOutcome({
+      symbol,
+      trigger: requestedTrigger,
+      stage: "dispatch",
+      outcome: "started",
+      runId,
+      ...(requestedTrigger === "automatic"
+        ? {
+            dedupeKey: `dispatch:${symbol}:${dispatchEntry?.tradersLinkAiReadBoundaryState?.generatedAt ?? "none"}`,
+          }
+        : {}),
+    });
+    try {
+      return await this.generateTradersLinkAiReadInternal(symbol, force, requestedTrigger, runId);
+    } catch (error) {
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "unhandled",
+        outcome: "failed",
+        runId,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  private async generateTradersLinkAiReadInternal(
+    symbol: string,
+    force: boolean,
+    requestedTrigger: TradersLinkAiReadRequestedTrigger,
+    runId: string,
+  ): Promise<TradersLinkAiReadPayload | null> {
+    const generationAvailability = this.getTradersLinkAiReadGenerationAvailability(
+      this.options.now?.() ?? Date.now(),
+      { symbol, requestedTrigger },
+    );
+    if (!generationAvailability.allowed) {
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "preflight",
+        outcome: "skipped",
+        runId,
+        reason: generationAvailability.reason ?? "AI Read generation is unavailable.",
+      });
+      console.info(
+        `[TradersLinkAiRead] Skipped ${symbol} before request preparation: ${generationAvailability.reason}`,
+      );
+      return null;
+    }
     const service = this.options.tradersLinkAiReadService;
     const publisher = this.liveWatchlistPublisher;
-    const symbol = normalizeSymbol(symbolInput);
     const entry = this.watchlistStore.getEntry(symbol);
     if (!service || !publisher || !entry?.active || entry.tradersLinkAiReadCardVisible === false) {
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "preflight",
+        outcome: "skipped",
+        runId,
+        reason: !service
+          ? "AI Read service is unavailable."
+          : !publisher
+            ? "Live watchlist publisher is unavailable."
+            : !entry?.active
+              ? "Ticker is not active."
+              : "AI Read card visibility is disabled.",
+      });
       return null;
     }
     if (this.aiReadInFlight.has(symbol)) {
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "preflight",
+        outcome: "skipped",
+        runId,
+        reason: "Another AI Read generation is already in flight for this ticker.",
+      });
       return null;
     }
     if (entry.pendingTradersLinkAiReadGeneration) {
@@ -3128,16 +3601,40 @@ export class ManualWatchlistRuntimeManager {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[TradersLinkAiRead] Pending ${symbol} read remains unpublished: ${message}`);
       });
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "preflight",
+        outcome: "deferred",
+        runId,
+        reason: "A previous valid read is waiting for website publication acknowledgement.",
+      });
       return null;
     }
 
     const currentPrice = entry.lastPrice;
     const dataAsOf = entry.lastPriceUpdateAt ?? Date.now();
     if (!Number.isFinite(currentPrice) || (currentPrice ?? 0) <= 0) {
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "preflight",
+        outcome: "skipped",
+        runId,
+        reason: "No valid current price was available.",
+      });
       return null;
     }
     const snapshot = this.buildLevelSnapshotPayload(symbol, dataAsOf, currentPrice);
     if (!Number.isFinite(snapshot.currentPrice) || snapshot.currentPrice <= 0) {
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "preflight",
+        outcome: "skipped",
+        runId,
+        reason: "No valid level snapshot price was available.",
+      });
       return null;
     }
 
@@ -3151,6 +3648,12 @@ export class ManualWatchlistRuntimeManager {
       atrPct: snapshot.roleFlipContext?.atrPct,
       tickSize: snapshot.roleFlipContext?.tickSize,
     });
+    const previousRefreshState = this.aiReadState.get(symbol) ?? null;
+    const automaticRefreshDateKey = newYorkDateKeyForTimestamp(this.options.now?.() ?? Date.now());
+    const automaticRefreshCount = getAutomaticAiReadRefreshCountForDate(
+      previousRefreshState,
+      this.options.now?.() ?? Date.now(),
+    );
     if (refreshDecision.pendingBoundaryCross !== undefined) {
       const previousState = this.aiReadState.get(symbol);
       if (previousState) {
@@ -3166,9 +3669,69 @@ export class ManualWatchlistRuntimeManager {
         });
         this.persistWatchlist();
       }
+      if (refreshDecision.pendingBoundaryCross) {
+        const pending = refreshDecision.pendingBoundaryCross;
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol,
+          trigger: requestedTrigger,
+          stage: "boundary",
+          outcome: "deferred",
+          runId,
+          reason: `Boundary confirmation pending at ${pending.boundary}.`,
+          dedupeKey: `boundary-pending:${symbol}:${pending.direction}:${pending.boundary}:${pending.firstObservedAt}`,
+        });
+      }
     }
     if (!refreshDecision.shouldRefresh) {
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "preflight",
+        outcome: "not_needed",
+        runId,
+        reason: "Refresh decision did not require a new AI Read.",
+        dedupeKey: `not-needed:${symbol}:${requestedTrigger}:${previousRefreshState?.generatedAt ?? "none"}:${refreshDecision.trigger}:${refreshDecision.automaticRefreshRegime ?? "none"}`,
+      });
       return null;
+    }
+    if (
+      refreshDecision.trigger === "boundary_cross" &&
+      (!this.tradersLinkAiReadBoundaryRefreshSettings.enabled ||
+        automaticRefreshCount >= this.tradersLinkAiReadBoundaryRefreshSettings.maxPerTickerPerNewYorkDate)
+    ) {
+      console.info(
+        `[TradersLinkAiRead] Skipped automatic ${symbol} boundary refresh: ` +
+          (this.tradersLinkAiReadBoundaryRefreshSettings.enabled
+            ? `daily per-symbol cap of ${this.tradersLinkAiReadBoundaryRefreshSettings.maxPerTickerPerNewYorkDate} reached.`
+            : "automatic boundary refreshes are disabled."),
+      );
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "preflight",
+        outcome: "skipped",
+        runId,
+        reason: this.tradersLinkAiReadBoundaryRefreshSettings.enabled
+          ? `Daily automatic boundary-refresh cap of ${this.tradersLinkAiReadBoundaryRefreshSettings.maxPerTickerPerNewYorkDate} reached.`
+          : "Automatic boundary refreshes are disabled.",
+      });
+      return null;
+    }
+
+    const nextAutomaticRefreshCount = refreshDecision.trigger === "boundary_cross"
+      ? automaticRefreshCount + 1
+      : automaticRefreshCount;
+    if (refreshDecision.trigger === "boundary_cross" && previousRefreshState) {
+      const countedState = {
+        ...previousRefreshState,
+        automaticRefreshDateKey,
+        automaticRefreshCount: nextAutomaticRefreshCount,
+      };
+      this.aiReadState.set(symbol, countedState);
+      this.watchlistStore.patchEntry(symbol, {
+        tradersLinkAiReadBoundaryState: countedState,
+      });
+      this.persistWatchlist();
     }
 
     const budgetStatus = this.getTradersLinkAiReadDailyCostBudgetStatus();
@@ -3176,49 +3739,93 @@ export class ManualWatchlistRuntimeManager {
       console.warn(
         `[TradersLinkAiRead] Skipped ${symbol}: ${budgetStatus.blockReason ?? "daily budget guard blocked the new request"}`,
       );
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "preflight",
+        outcome: "skipped",
+        runId,
+        reason: budgetStatus.blockReason ?? "Daily AI Read budget guard blocked the request.",
+      });
       return null;
     }
 
+    this.recordTradersLinkAiReadRunOutcome({
+      symbol,
+      trigger: requestedTrigger,
+      stage: "preparation",
+      outcome: "started",
+      runId,
+      dataAsOf,
+    });
     this.aiReadInFlight.add(symbol);
     try {
       const priceActionPromise = this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
-      let research;
-      try {
-        research = await lookupRecentWebsiteArticlesForSymbol({
-          symbol,
-          execFileImpl: this.options.recentWebsiteArticlesExecFileImpl,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(
-          `[TradersLinkAiRead] Primary press-release/SEC lookup failed for ${symbol}: ${message}`,
-        );
-        research = {
-          ticker: symbol,
-          businessDays: 5,
-          count: 0,
-          articles: [],
-        };
-      }
-      try {
-        research = await applyStockTitanRssFallback({
-          localResearch: research,
-          symbol,
-          referenceTimeMs: dataAsOf,
-          lookup: this.options.stockTitanCatalystFeedLookup,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(
-          `[TradersLinkAiRead] StockTitan RSS catalyst fallback failed for ${symbol}: ${message}`,
-        );
+      let research = this.aiReadResearchBySymbol.get(symbol);
+      if (!research) {
+        try {
+          research = await lookupRecentWebsiteArticlesForSymbol({
+            symbol,
+            execFileImpl: this.options.recentWebsiteArticlesExecFileImpl,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `[TradersLinkAiRead] Initial catalyst lookup failed for ${symbol}: ${message}`,
+          );
+          research = {
+            ticker: symbol,
+            businessDays: 5,
+            count: 0,
+            articles: [],
+          };
+        }
+        try {
+          research = await applyStockTitanRssFallback({
+            localResearch: research,
+            symbol,
+            referenceTimeMs: dataAsOf,
+            lookup: this.options.stockTitanCatalystFeedLookup,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `[TradersLinkAiRead] Initial catalyst fallback failed for ${symbol}: ${message}`,
+          );
+        }
+        this.aiReadResearchBySymbol.set(symbol, research);
       }
 
-      const priceAction = await priceActionPromise;
+      let priceAction: TradersLinkAiReadPriceActionContext;
+      try {
+        priceAction = await priceActionPromise;
+      } catch (error) {
+        this.recordTradersLinkAiReadFailure(symbol, "preparation", refreshDecision.trigger, error);
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol,
+          trigger: requestedTrigger,
+          stage: "preparation",
+          outcome: "failed",
+          runId,
+          reason: error instanceof Error ? error.message : String(error),
+          dataAsOf,
+        });
+        throw error;
+      }
       let recordedAttemptCount = 0;
       const generationId = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       let read: TradersLinkAiReadPayload;
       try {
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol,
+          trigger: requestedTrigger,
+          stage: "request",
+          outcome: "request_started",
+          runId,
+          generationId,
+          model: service.getConfiguredModel(),
+          dataAsOf,
+        });
         read = await service.generate({
           snapshot,
           research,
@@ -3233,6 +3840,27 @@ export class ManualWatchlistRuntimeManager {
               attempt,
               trigger: refreshDecision.trigger,
             });
+            this.recordTradersLinkAiReadRunEvent({
+              symbol,
+              trigger: refreshDecision.trigger,
+              stage: "attempt",
+              outcome: attempt.status === "success" ? "success" : "failed",
+              runId,
+              generationId: attempt.generationId,
+              requestId: attempt.requestId,
+              clientRequestId: attempt.clientRequestId,
+              attemptType: attempt.attemptType,
+              model: attempt.model,
+              marketSession: attempt.marketSession,
+              dataAsOf: attempt.dataAsOf,
+              startedAt: attempt.startedAt,
+              receivedAt: attempt.receivedAt,
+              durationMs: attempt.durationMs,
+              status: attempt.status,
+              ...(attempt.failureStage ? { failureStage: attempt.failureStage } : {}),
+              estimatedCostUsd: attempt.usage.estimatedTotalCostUsd,
+              ...(attempt.error ? { reason: attempt.error } : {}),
+            });
             recordedAttemptCount += 1;
           },
         });
@@ -3240,6 +3868,17 @@ export class ManualWatchlistRuntimeManager {
         if (!this.aiReadState.has(symbol)) {
           this.aiReadInitialGenerationSuppressedSymbols.add(symbol);
         }
+        this.recordTradersLinkAiReadFailure(symbol, "generation", refreshDecision.trigger, error);
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol,
+          trigger: requestedTrigger,
+          stage: "validation",
+          outcome: "failed",
+          runId,
+          generationId,
+          reason: error instanceof Error ? error.message : String(error),
+          dataAsOf,
+        });
         throw error;
       }
       if (recordedAttemptCount === 0) {
@@ -3250,11 +3889,33 @@ export class ManualWatchlistRuntimeManager {
       }
       const latestEntry = this.watchlistStore.getEntry(symbol);
       if (!latestEntry?.active || latestEntry.tradersLinkAiReadCardVisible === false) {
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol,
+          trigger: requestedTrigger,
+          stage: "validation",
+          outcome: "skipped",
+          runId,
+          generationId: read.generationId,
+          reason: "Ticker became inactive or its AI Read card was hidden before publication.",
+          dataAsOf,
+        });
         return null;
       }
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol,
+        trigger: requestedTrigger,
+        stage: "validation",
+        outcome: "success",
+        runId,
+        generationId: read.generationId,
+        model: read.model,
+        dataAsOf,
+      });
       const nextRefreshState = {
         ...buildTradersLinkAiReadRefreshState(read),
         lastAutomaticRefreshRegime: refreshDecision.automaticRefreshRegime,
+        automaticRefreshDateKey,
+        automaticRefreshCount: nextAutomaticRefreshCount,
       };
       const pendingGeneration: PendingTradersLinkAiReadGeneration = {
         generationId: read.generationId,
@@ -3267,6 +3928,15 @@ export class ManualWatchlistRuntimeManager {
       });
       this.persistWatchlist();
       try {
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol,
+          trigger: requestedTrigger,
+          stage: "publishing",
+          outcome: "started",
+          runId,
+          generationId: read.generationId,
+          dataAsOf,
+        });
         await publisher.publish(buildTradersLinkAiReadPatch({
           read,
           visible: true,
@@ -3277,6 +3947,17 @@ export class ManualWatchlistRuntimeManager {
           read,
           trigger: refreshDecision.trigger,
           error,
+        });
+        this.recordTradersLinkAiReadFailure(symbol, "publishing", refreshDecision.trigger, error);
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol,
+          trigger: requestedTrigger,
+          stage: "publishing",
+          outcome: "failed",
+          runId,
+          generationId: read.generationId,
+          reason: error instanceof Error ? error.message : String(error),
+          dataAsOf,
         });
         throw error;
       }
@@ -3305,9 +3986,23 @@ export class ManualWatchlistRuntimeManager {
       tradersLinkAiReadBoundaryState: pending.boundaryState,
       pendingTradersLinkAiReadGeneration: null,
       ...(read.confidence ? { tradersLinkAiReadConfidence: read.confidence } : {}),
+      tradersLinkAiReadFailure: null,
     });
     this.persistWatchlist();
+    this.recordTradersLinkAiReadRunEvent({
+      symbol: read.symbol,
+      trigger: pending.trigger,
+      stage: "publishing",
+      outcome: "published",
+      generationId: read.generationId,
+      model: "model" in published && typeof published.model === "string" ? published.model : undefined,
+      dedupeKey: `published:${read.symbol}:${read.generationId}`,
+    });
     this.aiReadInitialGenerationSuppressedSymbols.delete(read.symbol);
+    // The quote can cross the newly generated plan while the AI request is in
+    // flight. Re-run the zero-cost boundary decision immediately after
+    // publication so the next read does not depend on another quote tick.
+    this.scheduleTradersLinkAiRead(read.symbol, false, "automatic");
   }
 
   private resolvePublishedTradersLinkAiRead(
@@ -3354,8 +4049,30 @@ export class ManualWatchlistRuntimeManager {
     trigger: TradersLinkAiReadRequestedTrigger,
   ): void {
     const normalizedSymbol = normalizeSymbol(symbol);
+    const haltState = this.tickerHaltStateBySymbol.get(normalizedSymbol);
+    if (
+      !force &&
+      trigger === "automatic" &&
+      haltState?.status === "halted"
+    ) {
+      console.info(
+        `[TradersLinkAiRead] Deferred automatic ${normalizedSymbol} read while market data is ${haltState.status}.`,
+      );
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol: normalizedSymbol,
+        trigger,
+        stage: "preflight",
+        outcome: "deferred",
+        reason: `Market data is ${haltState.status}.`,
+        dedupeKey: `halt-deferred:${normalizedSymbol}:${haltState.status}:${newYorkDateKeyForTimestamp(Date.now())}`,
+      });
+      return;
+    }
     const dispatch = (): void => {
       void this.generateTradersLinkAiRead(normalizedSymbol, force, trigger).catch((error) => {
+        if (!this.watchlistStore.getEntry(normalizedSymbol)?.tradersLinkAiReadFailure) {
+          this.recordTradersLinkAiReadFailure(normalizedSymbol, "unknown", trigger, error);
+        }
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[TradersLinkAiRead] Failed to generate ${normalizedSymbol} read: ${message}`);
       });
@@ -3382,6 +4099,25 @@ export class ManualWatchlistRuntimeManager {
     dispatch();
   }
 
+  private recordTradersLinkAiReadFailure(
+    symbol: string,
+    stage: WatchlistTradersLinkAiReadFailureStage,
+    trigger: TradersLinkAiReadRequestedTrigger,
+    error: unknown,
+  ): void {
+    const reason = (error instanceof Error ? error.message : String(error)).trim().slice(0, 500)
+      || "Unknown AI Read failure.";
+    this.watchlistStore.patchEntry(symbol, {
+      tradersLinkAiReadFailure: {
+        stage,
+        reason,
+        trigger,
+        failedAt: this.options.now?.() ?? Date.now(),
+      },
+    });
+    this.persistWatchlist();
+  }
+
   async refreshTradersLinkAiRead(symbolInput: string): Promise<TradersLinkAiReadPayload | null> {
     if (!this.isTradersLinkAiReadConfigured()) {
       throw new Error("TradersLink AI Read is not configured.");
@@ -3390,6 +4126,13 @@ export class ManualWatchlistRuntimeManager {
     const entry = this.watchlistStore.getEntry(symbol);
     if (!entry?.active) {
       throw new Error(`${symbol} is not active.`);
+    }
+    const generationAvailability = this.getTradersLinkAiReadGenerationAvailability(
+      this.options.now?.() ?? Date.now(),
+      { symbol, requestedTrigger: "manual" },
+    );
+    if (!generationAvailability.allowed) {
+      throw new Error(generationAvailability.reason ?? "AI Read generation is disabled.");
     }
     return this.generateTradersLinkAiRead(symbol, true, "manual");
   }
@@ -5648,6 +6391,75 @@ export class ManualWatchlistRuntimeManager {
       this.pullbackReadIntradayPollTimer = null;
     }
     this.pullbackReadIntradayPollInFlight = false;
+  }
+
+  private startHaltConfirmationPolling(): void {
+    if (this.haltConfirmationTimer) return;
+    void this.pollHaltConfirmation();
+    this.haltConfirmationTimer = setInterval(() => {
+      void this.pollHaltConfirmation();
+    }, HALT_CONFIRMATION_POLL_INTERVAL_MS);
+    this.haltConfirmationTimer.unref?.();
+  }
+
+  private stopHaltConfirmationPolling(): void {
+    if (this.haltConfirmationTimer) {
+      clearInterval(this.haltConfirmationTimer);
+      this.haltConfirmationTimer = null;
+    }
+    this.haltConfirmationInFlight = false;
+  }
+
+  private async pollHaltConfirmation(): Promise<void> {
+    if (this.haltConfirmationInFlight) return;
+    const now = this.options.now?.() ?? Date.now();
+    if (!isUsEquityHaltDetectionWindow(now)) return;
+    const candidates = this.watchlistStore.getActiveEntries().filter((entry) => {
+      const age = entry.lastPriceUpdateAt === undefined ? Infinity : Math.max(0, now - entry.lastPriceUpdateAt);
+      return age >= HALT_SUSPECT_AFTER_MS || this.tickerHaltStateBySymbol.has(normalizeSymbol(entry.symbol));
+    });
+    if (candidates.length === 0) return;
+
+    this.haltConfirmationInFlight = true;
+    try {
+      const result = await this.tradingHaltLookup({
+        symbols: candidates.map((entry) => normalizeSymbol(entry.symbol)),
+        now,
+      });
+      for (const entry of candidates) {
+        const symbol = normalizeSymbol(entry.symbol);
+        const record = result.bySymbol[symbol];
+        const age = entry.lastPriceUpdateAt === undefined ? Infinity : Math.max(0, now - entry.lastPriceUpdateAt);
+        const next: WatchlistTickerHaltState = record?.state === "halted"
+          ? {
+              status: "halted",
+              reason: `Nasdaq Trader confirms an active trading halt${record.reasonCode ? ` (${record.reasonCode})` : ""}. Last EODHD trade may not be the final sale before the halt.`,
+              updatedAt: now,
+            }
+          : {
+              status: "stale",
+              reason: result.available
+                ? "No recent EODHD trade; market data is stale."
+                : `No recent EODHD trade; market data freshness could not be verified${result.error ? ` (${result.error})` : ""}.`,
+              updatedAt: now,
+            };
+        const previous = this.tickerHaltStateBySymbol.get(symbol);
+        if (!previous || previous.status !== next.status || previous.reason !== next.reason) {
+          this.tickerHaltStateBySymbol.set(symbol, next);
+          if (entry.lastPrice && entry.lastPriceUpdateAt) {
+            this.publishLiveTickerData({
+              symbol,
+              lastPrice: entry.lastPrice,
+              timestamp: entry.lastPriceUpdateAt,
+            }, { force: true });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`[ManualWatchlistRuntimeManager] Halt confirmation failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      this.haltConfirmationInFlight = false;
+    }
   }
 
   private async pollPullbackReadIntradayCandles(): Promise<void> {
@@ -9162,6 +9974,11 @@ export class ManualWatchlistRuntimeManager {
       lastPrice: update.lastPrice,
       operationStatus: "monitoring live price",
     });
+    this.tickerHaltStateBySymbol.set(normalizeSymbol(update.symbol), {
+      status: "live",
+      reason: null,
+      updatedAt: update.timestamp,
+    });
     this.ingestLiveTechnicalContextPrice(update);
     this.publishLiveTickerData(update);
     if (
@@ -9644,8 +10461,12 @@ export class ManualWatchlistRuntimeManager {
       }
     }
 
+    this.recordMissingTradersLinkAiReadsOnStartup();
     this.persistWatchlist();
     await this.restartMonitoring();
+    // Populate halt state before the persisted-boundary recovery checks below
+    // so automatic AI reads are deferred when the quote is frozen.
+    this.startHaltConfirmationPolling();
     if (this.isTradersLinkAiReadConfigured() && this.liveWatchlistPublisher) {
       for (const entry of this.watchlistStore.getActiveEntries()) {
         await this.liveWatchlistPublisher.publish(
@@ -9655,7 +10476,12 @@ export class ManualWatchlistRuntimeManager {
             dipBuyPlanVisible: entry.tradersLinkAiReadDipBuyPlanVisible !== false,
           }),
         );
-        if (this.options.tradersLinkAiReadStartupRefreshEnabled) {
+        // Existing boundary state must be re-evaluated after restart. This is
+        // a zero-cost decision check for unchanged tickers, but it recovers a
+        // boundary crossed while the process was down or before a halt.
+        if (this.aiReadState.has(entry.symbol)) {
+          this.scheduleTradersLinkAiRead(entry.symbol, false, "automatic");
+        } else if (this.options.tradersLinkAiReadStartupRefreshEnabled) {
           this.scheduleTradersLinkAiRead(entry.symbol, false, "startup");
         }
       }
@@ -9671,6 +10497,7 @@ export class ManualWatchlistRuntimeManager {
 
   async stop(): Promise<void> {
     this.stopPullbackReadIntradayPolling();
+    this.stopHaltConfirmationPolling();
     this.stopActivationWatchdog();
     for (const timer of this.pendingAutomaticAiReadSchedules.values()) {
       clearTimeout(timer);
@@ -9704,6 +10531,26 @@ export class ManualWatchlistRuntimeManager {
 
   getActiveEntries(): WatchlistEntry[] {
     return this.watchlistStore.getActiveEntries();
+  }
+
+  getEntries(): WatchlistEntry[] {
+    return this.watchlistStore.getEntries();
+  }
+
+  async moveSymbolToWatchlistGroup(
+    symbolInput: string,
+    watchlistGroup: WatchlistGroup,
+  ): Promise<WatchlistEntry> {
+    const symbol = normalizeSymbol(symbolInput);
+    const existing = this.watchlistStore.getEntry(symbol);
+    if (!existing?.active || existing.lifecycle !== "active") {
+      throw new Error(`${symbol} must be active before it can be moved to another watchlist.`);
+    }
+    return this.queueActivation({
+      symbol,
+      watchlistGroup,
+      source: "manual",
+    });
   }
 
   ingestPremarketVolumeSnapshots(
@@ -9916,13 +10763,19 @@ export class ManualWatchlistRuntimeManager {
         symbol: entry.symbol,
         status: "live",
         updatedAt: timestamp,
-        watchlistLifecycleLabelsVisible: visible,
+        watchlistLifecycleLabelsVisible:
+          this.lifecycleLabelsVisibleForSymbol(entry.symbol, timestamp),
         cards: {},
       });
       this.lastWebsitePullbackReadPublishAt.delete(entry.symbol);
       this.lastWebsitePullbackReadStateKey.delete(entry.symbol);
       const technicalContext = this.technicalContextBySymbol.get(entry.symbol);
-      if (visible && technicalContext && typeof entry.lastPrice === "number" && entry.lastPrice > 0) {
+      if (
+        this.lifecycleLabelsVisibleForSymbol(entry.symbol, timestamp) &&
+        technicalContext &&
+        typeof entry.lastPrice === "number" &&
+        entry.lastPrice > 0
+      ) {
         this.publishWebsitePullbackTraderRead({
           symbol: entry.symbol,
           timestamp,
@@ -9968,6 +10821,33 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
+  async setTopRegularWatchlistVisible(visible: boolean): Promise<{
+    visible: boolean;
+    refreshedSymbols: string[];
+  }> {
+    this.topRegularWatchlistVisible = visible;
+    const refreshedSymbols = this.watchlistStore.getActiveEntries().map((entry) => entry.symbol);
+    const timestamp = Date.now();
+
+    for (const entry of this.watchlistStore.getActiveEntries()) {
+      if (!this.liveWatchlistPublisher) {
+        break;
+      }
+      await this.liveWatchlistPublisher.publish(buildLiveWatchlistStatusPatch({
+        symbol: entry.symbol,
+        status: "live",
+        updatedAt: timestamp,
+        watchlistGroup: getWatchlistEntrySessionGroup(entry),
+        topRegularWatchlistVisible: visible,
+      }));
+    }
+
+    return {
+      visible: this.topRegularWatchlistVisible,
+      refreshedSymbols,
+    };
+  }
+
   getRuntimeHealth(): ManualWatchlistRuntimeHealth {
     const lifecycleCounts: Record<WatchlistLifecycleState, number> = {
       inactive: 0,
@@ -9999,8 +10879,16 @@ export class ManualWatchlistRuntimeManager {
       pendingActivationCount,
       liveTraderReadCardVisible: this.liveTraderReadCardVisible,
       potentialGainCardVisible: this.potentialGainCardVisible,
+      // This is the saved operator preference used to hydrate the admin toggle.
+      // Per-entry website visibility is additionally gated by AI Read availability.
       watchlistLifecycleLabelsVisible: this.watchlistLifecycleLabelsVisible,
       reversalWatchlistVisible: this.reversalWatchlistVisible,
+      topRegularWatchlistVisible: this.topRegularWatchlistVisible,
+      tradersLinkAiReadGenerationSettings: this.getTradersLinkAiReadGenerationSettings(),
+      tradersLinkAiReadBoundaryRefreshSettings:
+        this.getTradersLinkAiReadBoundaryRefreshSettings(),
+      tradersLinkAiReadGenerationAvailability:
+        this.getTradersLinkAiReadGenerationAvailability(),
       lifecycleCounts,
       lastPriceUpdateAt: this.lastPriceUpdateAt,
       lastPriceUpdateSymbol: this.lastPriceUpdateSymbol,
@@ -10280,14 +11168,13 @@ export class ManualWatchlistRuntimeManager {
         throw new ActivationCancelledError(symbol);
       }
       this.assertActivationCurrent(symbol, activationEpoch);
-      const threadId =
-        preparedThread?.threadId ??
-        (
-          await this.options.discordAlertRouter.ensureThread(
-            symbol,
-            existing?.discordThreadId,
-          )
-        ).threadId;
+      const threadRouting =
+        preparedThread ??
+        await this.options.discordAlertRouter.ensureThread(
+          symbol,
+          existing?.discordThreadId,
+        );
+      const threadId = threadRouting.threadId;
       if (!preparedThread) {
         this.emitLifecycle("thread_ready", {
           symbol,
@@ -10304,6 +11191,7 @@ export class ManualWatchlistRuntimeManager {
       const entry = this.watchlistStore.upsertManualEntry({
         symbol,
         tags: watchlistTagsForActivation(input),
+        watchlistGroup: watchlistGroupForActivation(input),
         note: input.note,
         discordThreadId: threadId,
         active: false,
@@ -10336,6 +11224,9 @@ export class ManualWatchlistRuntimeManager {
       this.assertActivationCurrent(symbol, activationEpoch);
       await this.publishActivationWebsiteSnapshot(symbol, Date.now(), reuseExistingSameDayContext);
       this.assertActivationCurrent(symbol, activationEpoch);
+      if (threadRouting.created && !reuseExistingSameDayContext) {
+        await this.options.discordAlertRouter.announceTickerAdded(symbol);
+      }
       const activatedEntry = this.watchlistStore.patchEntry(symbol, {
         active: true,
         lifecycle: "active",
@@ -10378,6 +11269,17 @@ export class ManualWatchlistRuntimeManager {
       const activationAiReadSchedule = decideTradersLinkAiReadActivationSchedule(
         this.aiReadState.get(symbol) ?? null,
       );
+      if (activationAiReadSchedule.force) {
+        const activatedAt = (this.watchlistStore.getEntry(symbol) ?? activatedEntry).activatedAt;
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol,
+          trigger: activationAiReadSchedule.trigger,
+          stage: "activation",
+          outcome: "expected",
+          reason: "Activation completed and an initial AI Read was expected to start.",
+          dedupeKey: `activation-expected:${symbol}:${activatedAt ?? "unknown"}`,
+        });
+      }
       this.scheduleTradersLinkAiRead(
         symbol,
         activationAiReadSchedule.force,
@@ -10419,6 +11321,7 @@ export class ManualWatchlistRuntimeManager {
         this.watchlistStore.upsertManualEntry({
           symbol,
           tags: watchlistTagsForActivation(input),
+          watchlistGroup: watchlistGroupForActivation(input),
           note: input.note,
           discordThreadId: preparedThread.threadId,
           active: false,
@@ -10562,20 +11465,36 @@ export class ManualWatchlistRuntimeManager {
     await this.liveWatchlistPublisher.publish({
       ...patch,
       firstPostedAt: this.watchlistStore.getEntry(symbol)?.activatedAt ?? timestamp,
+      watchlistGroup: getWatchlistEntrySessionGroup(
+        this.watchlistStore.getEntry(symbol) ?? {
+          activatedAt: timestamp,
+          tags: [],
+          note: undefined,
+          watchlistGroup: "main",
+        },
+      ),
       watchlistSlotState: "active",
       reversalWatchEligible: false,
       reversalWatchAttemptReady: false,
       reversalWatchlistVisible: this.reversalWatchlistVisible,
+      topRegularWatchlistVisible: this.topRegularWatchlistVisible,
       ...(preserveExistingOnReactivation ? { preserveExistingOnReactivation: true } : {}),
     });
   }
 
   private applyLiveTraderReadCardVisibility(patch: LiveWatchlistCardPatch): LiveWatchlistCardPatch {
+    const entry = this.watchlistStore.getEntry(patch.symbol);
+    const lifecycleLabelsVisible = this.lifecycleLabelsVisibleForSymbol(
+      patch.symbol,
+      patch.updatedAt,
+    );
     const websitePatch = {
       ...patch,
+      ...(entry ? { watchlistGroup: getWatchlistEntrySessionGroup(entry) } : {}),
       potentialGainCardVisible: this.potentialGainCardVisible,
-      watchlistLifecycleLabelsVisible: this.watchlistLifecycleLabelsVisible,
+      watchlistLifecycleLabelsVisible: lifecycleLabelsVisible,
       reversalWatchlistVisible: this.reversalWatchlistVisible,
+      topRegularWatchlistVisible: this.topRegularWatchlistVisible,
     };
     if (this.liveTraderReadCardVisible) {
       return websitePatch;
@@ -10624,9 +11543,18 @@ export class ManualWatchlistRuntimeManager {
       symbol,
       status,
       firstPostedAt,
+      ...(this.watchlistStore.getEntry(symbol)
+        ? {
+            watchlistGroup: getWatchlistEntrySessionGroup(
+              this.watchlistStore.getEntry(symbol)!,
+            ),
+          }
+        : {}),
       potentialGainCardVisible: this.potentialGainCardVisible,
-      watchlistLifecycleLabelsVisible: this.watchlistLifecycleLabelsVisible,
+      watchlistLifecycleLabelsVisible:
+        this.lifecycleLabelsVisibleForSymbol(symbol),
       reversalWatchlistVisible: this.reversalWatchlistVisible,
+      topRegularWatchlistVisible: this.topRegularWatchlistVisible,
     });
     void this.liveWatchlistPublisher.publish(patch).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -10821,15 +11749,17 @@ export class ManualWatchlistRuntimeManager {
     const pullbackReadEnabled = this.pullbackReadEnabled();
     const tradeSetupReadMode = resolveLiveWatchlistTradeSetupReadMode();
     const watchlistEntry = this.watchlistStore.getEntry(args.symbol);
-    const aiReadCardVisible = watchlistEntry?.tradersLinkAiReadCardVisible !== false;
+    const lifecycleLabelsVisible = this.lifecycleLabelsVisibleForSymbol(
+      args.symbol,
+      args.timestamp,
+    );
     const reversalWatchEntry = watchlistEntry?.tags.includes("auto-reversal-watch") === true;
     if (
       !this.liveWatchlistPublisher ||
       (!pullbackReadEnabled && tradeSetupReadMode === "off") ||
       (!this.liveTraderReadCardVisible &&
-        !this.watchlistLifecycleLabelsVisible &&
-        !reversalWatchEntry &&
-        !aiReadCardVisible)
+        !lifecycleLabelsVisible &&
+        !reversalWatchEntry)
     ) {
       return;
     }
@@ -10862,7 +11792,7 @@ export class ManualWatchlistRuntimeManager {
       tradeSetupThesisRead: this.tradeSetupThesisReadBySymbol.get(args.symbol) ?? null,
       marketStructure: this.getMarketStructureSnapshot(args.symbol),
       pullbackReadEnabled,
-      includeLifecycle: this.watchlistLifecycleLabelsVisible || reversalWatchEntry,
+      includeLifecycle: lifecycleLabelsVisible || reversalWatchEntry,
       tradeSetupReadMode,
       specialLevels: this.resolveWebsiteSpecialLevels(args.symbol, levelsOutput),
       priorRegularClosePrice: priorRegularClose?.price ?? null,
@@ -10986,7 +11916,14 @@ export class ManualWatchlistRuntimeManager {
     }
 
     const lastPublishedAt = this.lastWebsiteTickerDataPublishAt.get(update.symbol) ?? 0;
-    if (!options.force && update.timestamp - lastPublishedAt < WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS) {
+    // Unit fixtures use small synthetic timestamps; keep those deterministic
+    // while applying the production throttle to epoch-millisecond observations.
+    const isProductionTimestamp = update.timestamp >= 1_000_000_000_000;
+    if (
+      !options.force &&
+      isProductionTimestamp &&
+      update.timestamp - lastPublishedAt < WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS
+    ) {
       return;
     }
 
@@ -11011,12 +11948,18 @@ export class ManualWatchlistRuntimeManager {
     const marketDataRevision =
       previousMarketDataObservedAt === undefined || update.timestamp > previousMarketDataObservedAt
         ? Math.max(observedAtRevisionBase, previousMarketDataRevision + 1)
-        : previousMarketDataRevision;
+        : options.force
+          ? previousMarketDataRevision + 1
+          : previousMarketDataRevision;
+    const haltState = this.tickerHaltStateBySymbol.get(normalizeSymbol(update.symbol));
     const patch = buildLiveWatchlistTickerDataPatch({
       symbol: update.symbol,
       lastPrice: update.lastPrice,
       timestamp: update.timestamp,
       marketDataRevision,
+      marketDataStatus: haltState?.status ?? "live",
+      marketDataStatusUpdatedAt: haltState?.updatedAt,
+      marketDataStatusReason: haltState?.reason,
       supportZones: this.getWebsiteTickerSupportReferences(update.symbol, snapshotState),
       resistanceZones: this.getWebsiteTickerResistanceReferences(update.symbol, snapshotState),
       volume: update.volume,
@@ -11042,11 +11985,25 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.lastWebsiteTickerDataPublishAt.set(update.symbol, update.timestamp);
-    if (previousMarketDataObservedAt === undefined || update.timestamp > previousMarketDataObservedAt) {
+    if (
+      previousMarketDataObservedAt === undefined ||
+      update.timestamp > previousMarketDataObservedAt ||
+      marketDataRevision > previousMarketDataRevision
+    ) {
       this.lastWebsiteTickerDataObservedAt.set(update.symbol, update.timestamp);
       this.lastWebsiteTickerDataRevision.set(update.symbol, marketDataRevision);
     }
-    this.publishWebsiteTechnicalContext(update);
+    // Keep technical context in memory for ATR/role-flip and AI boundary
+    // calculations, but do not continuously publish the hidden legacy card.
+    // It is still published when that surface or lifecycle/reversal context is
+    // explicitly enabled.
+    const publishTechnicalContext =
+      this.liveTraderReadCardVisible ||
+      this.watchlistLifecycleLabelsVisible ||
+      this.watchlistStore.getEntry(update.symbol)?.tags.includes("auto-reversal-watch") === true;
+    if (publishTechnicalContext) {
+      this.publishWebsiteTechnicalContext(update);
+    }
     const technicalContext = this.technicalContextBySymbol.get(update.symbol);
     if (technicalContext) {
       const yahooLiveVolumeRead =
@@ -11070,9 +12027,18 @@ export class ManualWatchlistRuntimeManager {
     }
     void this.liveWatchlistPublisher.publishTickerData({
       ...patch,
+      ...(this.watchlistStore.getEntry(update.symbol)
+        ? {
+            watchlistGroup: getWatchlistEntrySessionGroup(
+              this.watchlistStore.getEntry(update.symbol)!,
+            ),
+          }
+        : {}),
       potentialGainCardVisible: this.potentialGainCardVisible,
-      watchlistLifecycleLabelsVisible: this.watchlistLifecycleLabelsVisible,
+      watchlistLifecycleLabelsVisible:
+        this.lifecycleLabelsVisibleForSymbol(update.symbol, update.timestamp),
       reversalWatchlistVisible: this.reversalWatchlistVisible,
+      topRegularWatchlistVisible: this.topRegularWatchlistVisible,
     }).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(
@@ -11120,6 +12086,7 @@ export class ManualWatchlistRuntimeManager {
         this.watchlistStore.upsertManualEntry({
           symbol,
           tags: watchlistTagsForActivation(input),
+          watchlistGroup: watchlistGroupForActivation(input),
           note: input.note,
           discordThreadId: thread.threadId,
           active: false,
@@ -11149,6 +12116,7 @@ export class ManualWatchlistRuntimeManager {
         this.watchlistStore.upsertManualEntry({
           symbol,
           tags: watchlistTagsForActivation(input),
+          watchlistGroup: watchlistGroupForActivation(input),
           note: input.note,
           discordThreadId: thread.threadId,
           active: false,
@@ -11171,6 +12139,9 @@ export class ManualWatchlistRuntimeManager {
 
   async queueActivation(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
     const symbol = normalizeSymbol(input.symbol);
+    if (input.source === "auto" && input.watchlistGroup === "top_regular") {
+      throw new Error("Top Regular Hour Watches is manual-only.");
+    }
     const existing = this.watchlistStore.getEntry(symbol);
     const pending = this.pendingActivations.get(symbol);
     const queuedAt = Date.now();
@@ -11210,6 +12181,7 @@ export class ManualWatchlistRuntimeManager {
         this.watchlistStore.upsertManualEntry({
           symbol,
           tags: watchlistTagsForActivation(input),
+          watchlistGroup: watchlistGroupForActivation(input),
           note: input.note,
           active: false,
           lifecycle: "activating",
@@ -11221,12 +12193,36 @@ export class ManualWatchlistRuntimeManager {
     }
 
     if (existing?.active && existing.lifecycle === "active") {
-      if (input.source !== "auto" && existing.tags.includes("auto")) {
+      const requestedGroup = watchlistGroupForActivation(input);
+      const existingGroup = getWatchlistEntrySessionGroup(existing);
+      const groupChanged = requestedGroup !== existingGroup;
+      if (
+        groupChanged ||
+        (input.source !== "auto" && existing.tags.includes("auto"))
+      ) {
         const pinned = this.watchlistStore.patchEntry(symbol, {
-          tags: ["manual"],
-          note: input.note?.trim() || "Manually pinned; prior automatic selection retained in the lifecycle audit.",
+          watchlistGroup: requestedGroup,
+          ...(input.source !== "auto" && existing.tags.includes("auto")
+            ? {
+                tags: ["manual"],
+                note:
+                  input.note?.trim() ||
+                  "Manually pinned; prior automatic selection retained in the lifecycle audit.",
+              }
+            : {}),
         });
         this.persistWatchlist();
+        if (groupChanged && pinned && this.liveWatchlistPublisher) {
+          await this.liveWatchlistPublisher.publish(buildLiveWatchlistStatusPatch({
+            symbol,
+            status: "live",
+            watchlistGroup: requestedGroup,
+            topRegularWatchlistVisible: this.topRegularWatchlistVisible,
+          }));
+        }
+        if (groupChanged && requestedGroup === "top_regular") {
+          this.scheduleTradersLinkAiRead(symbol, true, "activation");
+        }
         return pinned ?? existing;
       }
       return existing;
@@ -11263,6 +12259,7 @@ export class ManualWatchlistRuntimeManager {
     const queuedEntry = this.watchlistStore.upsertManualEntry({
       symbol,
       tags: watchlistTagsForActivation(input),
+      watchlistGroup: watchlistGroupForActivation(input),
       note: input.note,
       discordThreadId: thread.threadId,
       active: false,
@@ -11408,6 +12405,7 @@ export class ManualWatchlistRuntimeManager {
     this.chartThesisSeriesMapBySymbol.delete(normalizedSymbol);
     this.recentWebsiteArticleFreshnessBySymbol.delete(normalizedSymbol);
     this.pressReleaseCatalystContextBySymbol.delete(normalizedSymbol);
+    this.aiReadResearchBySymbol.delete(normalizedSymbol);
     this.technicalContextCandleStore.clear(normalizedSymbol);
     this.technicalContextProviderBySymbol.delete(normalizedSymbol);
     this.technicalContextDataQualityFlagsBySymbol.delete(normalizedSymbol);
@@ -11435,7 +12433,7 @@ export class ManualWatchlistRuntimeManager {
       return [];
     }
 
-    if (options.source !== "auto") {
+    if (options.source !== "auto" && options.source !== "clear") {
       for (const entry of entries) {
         this.watchlistStore.patchEntry(entry.symbol, { manualDeactivatedAt: deactivatedAt });
       }
@@ -11453,6 +12451,8 @@ export class ManualWatchlistRuntimeManager {
         details: {
           reason: options.source === "auto"
             ? "automatic watchlist removal"
+            : options.source === "clear"
+              ? "admin cleared watchlist group"
             : entries.length > 1
               ? "bulk watchlist removal"
               : "manual watchlist removal",
@@ -11462,11 +12462,28 @@ export class ManualWatchlistRuntimeManager {
     return entries.map((entry) => this.watchlistStore.getEntry(entry.symbol) ?? entry);
   }
 
+  async deactivatePublishedSymbols(symbolInputs: string[]): Promise<string[]> {
+    const normalizedSymbols = [...new Set(symbolInputs.map(normalizeSymbol).filter(Boolean))];
+    if (normalizedSymbols.length === 0) {
+      return [];
+    }
+
+    const deactivatedAt = this.options.now?.() ?? Date.now();
+    for (const symbol of normalizedSymbols) {
+      await this.publishWebsiteTickerDeactivation(symbol, deactivatedAt);
+    }
+    return normalizedSymbols;
+  }
+
   async deactivateSymbol(
     symbol: string,
     options: { source?: ManualWatchlistDeactivationSource } = {},
   ): Promise<WatchlistEntry | null> {
     return (await this.deactivateSymbols([symbol], options))[0] ?? null;
+  }
+
+  async removeSymbolFromWatchlist(symbol: string): Promise<WatchlistEntry | null> {
+    return this.deactivateSymbol(symbol, { source: "auto" });
   }
 
   async resetDiscordThreadState(): Promise<{
@@ -11516,6 +12533,7 @@ export class ManualWatchlistRuntimeManager {
     this.chartThesisSeriesMapBySymbol.clear();
     this.recentWebsiteArticleFreshnessBySymbol.clear();
     this.pressReleaseCatalystContextBySymbol.clear();
+    this.aiReadResearchBySymbol.clear();
     this.priorRegularCloseBySymbol.clear();
     this.priorRegularCloseRefreshInFlight.clear();
     this.lastPriorRegularCloseRefreshAt.clear();
@@ -11560,6 +12578,7 @@ export class ManualWatchlistRuntimeManager {
     this.chartThesisSeriesMapBySymbol.clear();
     this.recentWebsiteArticleFreshnessBySymbol.clear();
     this.pressReleaseCatalystContextBySymbol.clear();
+    this.aiReadResearchBySymbol.clear();
     this.technicalContextCandleStore.clearAll();
     this.technicalContextProviderBySymbol.clear();
     this.technicalContextDataQualityFlagsBySymbol.clear();

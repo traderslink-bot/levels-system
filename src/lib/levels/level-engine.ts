@@ -33,6 +33,12 @@ export type LevelEngineRuntimeOptions = {
   runtimeMode?: LevelRuntimeMode;
   compareActivePath?: LevelRuntimeCompareActivePath;
   onComparisonLog?: (entry: LevelRuntimeComparisonLogEntry) => void;
+  /**
+   * Recent intraday fallback used when the configured historical provider
+   * cannot return a usable 5m series. This is intentionally limited to 5m;
+   * daily and 4h levels must continue to come from the configured provider.
+   */
+  fallbackFiveMinuteFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName">;
 };
 
 export type LevelEngineOutputWithCandleSeries = {
@@ -120,11 +126,43 @@ export class LevelEngine {
           reason: result.reason instanceof Error ? result.reason.message : "provider request failed",
         });
 
-    return {
+    const seriesMap = {
       daily: resolveSeries(dailyResult, request.historicalRequests.daily),
       "4h": resolveSeries(fourHourResult, request.historicalRequests["4h"]),
       "5m": resolveSeries(fiveMinuteResult, request.historicalRequests["5m"]),
     };
+
+    const fallback = this.runtimeOptions.fallbackFiveMinuteFetchService;
+    const primaryFiveMinute = seriesMap["5m"];
+    const shouldUseFiveMinuteFallback =
+      Boolean(fallback) &&
+      primaryFiveMinute.provider === "eodhd" &&
+      fallback!.getProviderName() !== "eodhd" &&
+      (primaryFiveMinute.completenessStatus === "empty" ||
+        primaryFiveMinute.stale ||
+        primaryFiveMinute.validationIssues.some((issue) =>
+          issue.code === "zero_results" ||
+          issue.code === "stale_final_candle" ||
+          issue.code === "missing_recent_candles" ||
+          issue.code === "incomplete_current_session_data",
+        ));
+
+    if (shouldUseFiveMinuteFallback) {
+      try {
+        const fallbackResponse = await fallback!.fetchCandles({
+          ...request.historicalRequests["5m"],
+          preferredProvider: fallback!.getProviderName(),
+        });
+        if (fallbackResponse.candles.length > 0 && !fallbackResponse.stale) {
+          seriesMap["5m"] = fallbackResponse;
+        }
+      } catch {
+        // Keep the primary response and its quality flags when the optional
+        // intraday fallback is unavailable.
+      }
+    }
+
+    return seriesMap;
   }
 
   private assertSeriesUsable(seriesMap: Record<CandleTimeframe, CandleProviderResponse>): void {
@@ -164,6 +202,10 @@ export class LevelEngine {
     for (const timeframe of ["daily", "4h", "5m"] as const) {
       if (!availableTimeframes.includes(timeframe)) {
         dataQualityFlags.push(`${timeframe}:unavailable`);
+      }
+      const providerMetadata = seriesMap[timeframe].providerMetadata;
+      if (providerMetadata?.detectedReverseSplitCount) {
+        dataQualityFlags.push(`${timeframe}:reverse_split_detected`);
       }
     }
     const freshestTimestamp = Math.max(...Object.values(seriesMap).map((series) => series.candles.at(-1)?.timestamp ?? 0));

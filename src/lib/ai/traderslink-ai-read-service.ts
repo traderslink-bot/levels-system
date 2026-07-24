@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { LevelSnapshotPayload } from "../alerts/alert-types.js";
 import type { RecentWebsiteArticleLookupResult } from "../live-watchlist/recent-website-articles.js";
 import {
@@ -137,7 +138,41 @@ export type TradersLinkAiReadAttempt = {
   timeoutMs: number;
   timeoutOverrunMs: number;
   error: string | null;
+  failureStage?: "transport" | "response" | "json_parse" | "validation" | "quote_guard";
+  rejectedDraft?: {
+    sha256: string;
+    length: number;
+    preview: string;
+  };
 };
+
+function redactRejectedDraft(text: string | null): TradersLinkAiReadAttempt["rejectedDraft"] {
+  if (!text) {
+    return undefined;
+  }
+  const preview = text
+    .replace(/https?:\/\/[^\s"']+/gi, "[redacted-url]")
+    .slice(0, 4_000);
+  return {
+    sha256: createHash("sha256").update(text).digest("hex"),
+    length: text.length,
+    preview,
+  };
+}
+
+function failureStageFor(error: unknown, draft: string | null): TradersLinkAiReadAttempt["failureStage"] {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!draft || /returned no TradersLink AI Read/i.test(message)) {
+    return "response";
+  }
+  if (/invalid TradersLink AI Read JSON/i.test(message)) {
+    return "json_parse";
+  }
+  if (/quote|price disagreement|stale/i.test(message)) {
+    return "quote_guard";
+  }
+  return "validation";
+}
 
 type RequestTiming = {
   clientRequestId: string;
@@ -164,6 +199,10 @@ export type TradersLinkAiReadService = {
   setExternalResearchEnabled(enabled: boolean): void;
   getConfiguredModel(): string;
   getReasoningEffort(): NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
+  setRuntimeConfiguration(input: {
+    model: "gpt-5.6-luna" | "gpt-5.6-terra";
+    reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
+  }): void;
 };
 
 export type OpenAITradersLinkAiReadServiceOptions = {
@@ -468,7 +507,7 @@ Interpretation contract:
 - Answer what needs to hold, where caution begins, where momentum materially fails, what must clear, what confirms breakout continuation, and where the trade could go next.
 - Derive the tactical map independently from the raw OHLCV price action. The packet intentionally does not contain the app's detected support/resistance ladder. Never infer a ladder or fill fields by stepping through adjacent prices.
 - First locate price inside the active small-cap session: premarket/regular/postmarket range, prior close, opening range, session high/low, repeated rejection and acceptance, consolidation shelves, failed spikes, high-volume pivots, and expansion or compression of the recent range.
-- The 5-minute feed covers premarket, the complete regular session, and after-hours. The packet also provides deterministic one-minute impulse/base/retest facts, named pullback candidate zones, the final 60 raw one-minute bars, compact 15-minute bars for up to two completed regular sessions, and 30 recent daily bars. Give current and prior regular-hours structure appropriate weight while using the one-minute evidence to distinguish a fast vertical extension from a slower stair-step move and to judge immediate confirmation. Discount isolated thin-volume extended-session wicks.
+- The 5-minute feed covers premarket, the complete regular session, and after-hours. The packet also provides deterministic one-minute impulse/base/retest facts, named pullback candidate zones, the final 60 raw one-minute bars, compact 15-minute bars for up to two completed regular sessions, and an adaptive daily-candle window whose requested size is recorded in historicalCoverage. Use the supplied daily history to assess older support/resistance and far-out continuation context when it is present. If historicalCoverage.longRangeDailyContext is false, do not project a far-out target as though the supplied tape confirmed it; state that the historical context is insufficient. Give current and prior regular-hours structure appropriate weight while using the one-minute evidence to distinguish a fast vertical extension from a slower stair-step move and to judge immediate confirmation. Discount isolated thin-volume extended-session wicks.
 - A null volume with volumeDataQuality "unavailable" means the provider did not supply reliable volume for that bar or session. It does not mean zero shares traded. Never describe unavailable or partial volume as zero trading volume, and do not infer thin participation from missing volume alone.
 - Do not mention missing, unavailable, partial, or provider-limited volume in any user-facing AI Read field. Use reliable volume when it adds evidence; otherwise omit volume commentary entirely. Operational volume availability belongs in the admin watchlist, not the public AI Read.
 - A secondary runtime quote may be supplied from EODHD or the configured monitor. It is useful for continuity but may be delayed. Never average conflicting quotes. Anchor tactical boundaries to the full-session candle tape; if quote disagreement is material, lower confidence and describe the data conflict instead of pretending the reference price is certain.
@@ -1070,12 +1109,37 @@ function claimedCurrentPremarketHigh(text: string): number | null {
     }
     const highMatches = [...sentence.matchAll(/\bhigh\b/gi)];
     const priceMatches = [...sentence.matchAll(/\$?\d+(?:\.\d+)?/g)]
-      .map((match) => ({
-        index: match.index ?? 0,
-        end: (match.index ?? 0) + match[0].length,
-        value: Number(match[0].replace("$", "")),
-      }))
-      .filter((match) => Number.isFinite(match.value) && match.value > 0);
+      .map((match) => {
+        const index = match.index ?? 0;
+        const raw = match[0];
+        const value = Number(raw.replace("$", ""));
+        const precedingText = sentence.slice(Math.max(0, index - 16), index);
+        const isCalendarDay =
+          !raw.startsWith("$") &&
+          Number.isInteger(value) &&
+          value >= 1 &&
+          value <= 31 &&
+          /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*$/i.test(
+            precedingText,
+          );
+        const isCalendarYear =
+          !raw.startsWith("$") &&
+          Number.isInteger(value) &&
+          value >= 1900 &&
+          value <= 2100;
+        return {
+          index,
+          end: index + raw.length,
+          value,
+          isCalendarDate: isCalendarDay || isCalendarYear,
+        };
+      })
+      .filter(
+        (match) =>
+          Number.isFinite(match.value) &&
+          match.value > 0 &&
+          !match.isCalendarDate,
+      );
     for (const highMatch of highMatches) {
       const highIndex = highMatch.index ?? 0;
       const preceding = sentence.slice(Math.max(0, highIndex - 40), highIndex);
@@ -1953,13 +2017,13 @@ function resolveBoolean(value: string | undefined, fallback: boolean): boolean {
 }
 
 export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService {
-  private readonly model: string;
-  private readonly fallbackModel: string;
+  private model: string;
+  private fallbackModel: string;
   private readonly fetchImpl: FetchLike;
   private readonly timeoutMs: number;
   private readonly maxOutputTokens: number;
   private webSearchEnabled: boolean;
-  private readonly reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
+  private reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
 
   constructor(private readonly options: OpenAITradersLinkAiReadServiceOptions) {
     this.model = options.model?.trim() || DEFAULT_MODEL;
@@ -1985,6 +2049,16 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
 
   getReasoningEffort(): NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]> {
     return this.reasoningEffort;
+  }
+
+  setRuntimeConfiguration(input: {
+    model: "gpt-5.6-luna" | "gpt-5.6-terra";
+    reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
+  }): void {
+    this.model = input.model;
+    this.fallbackModel =
+      input.model === "gpt-5.6-luna" ? "gpt-5.6-terra" : "gpt-5.6-luna";
+    this.reasoningEffort = input.reasoningEffort;
   }
 
   private async request(
@@ -2039,7 +2113,18 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       const completedAt = Date.now();
       const durationMs = completedAt - startedAt;
       const timeoutOverrunMs = Math.max(0, durationMs - this.timeoutMs);
-      const timedError = error instanceof Error ? error as TimedRequestError : new Error(String(error)) as TimedRequestError;
+      const timeoutMessage = timeoutOverrunMs > 1_000
+        ? `OpenAI request timed out after ${durationMs}ms; local runtime delay postponed the ${this.timeoutMs}ms timeout by ${timeoutOverrunMs}ms.`
+        : `OpenAI request timed out after ${durationMs}ms.`;
+      // Abort errors from fetch implementations can expose a read-only
+      // `message` (for example DOMException). Normalize those errors instead
+      // of mutating them, otherwise the timeout gets masked by a secondary
+      // "Cannot set property message ..." exception.
+      const timedError = controller.signal.aborted
+        ? new Error(timeoutMessage) as TimedRequestError
+        : error instanceof Error
+          ? error as TimedRequestError
+          : new Error(String(error)) as TimedRequestError;
       timedError.requestTiming = {
         clientRequestId,
         startedAt,
@@ -2048,11 +2133,6 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         timeoutMs: this.timeoutMs,
         timeoutOverrunMs,
       };
-      if (controller.signal.aborted) {
-        timedError.message = timeoutOverrunMs > 1_000
-          ? `OpenAI request timed out after ${durationMs}ms; local runtime delay postponed the ${this.timeoutMs}ms timeout by ${timeoutOverrunMs}ms.`
-          : `OpenAI request timed out after ${durationMs}ms.`;
-      }
       throw timedError;
     } finally {
       clearTimeout(timeout);
@@ -2079,6 +2159,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       attemptModel: string,
       attemptResponse: ResponsesApiResponse | null,
       error: unknown = null,
+      diagnostics: {
+        failureStage?: TradersLinkAiReadAttempt["failureStage"];
+        rejectedDraft?: string | null;
+      } = {},
     ): void => {
       attemptSequence += 1;
       const usage = buildUsage(attemptResponse ?? {}, attemptModel, this.options.pricing);
@@ -2103,6 +2187,12 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         timeoutMs: timing?.timeoutMs ?? this.timeoutMs,
         timeoutOverrunMs: timing?.timeoutOverrunMs ?? 0,
         error: error === null ? null : error instanceof Error ? error.message : String(error),
+        ...(status !== "success" && diagnostics.failureStage
+          ? { failureStage: diagnostics.failureStage }
+          : {}),
+        ...(status === "invalid_output" && diagnostics.rejectedDraft
+          ? { rejectedDraft: redactRejectedDraft(diagnostics.rejectedDraft) }
+          : {}),
       });
     };
     if (!hasUsableTradersLinkAiPriceAction(input.priceAction, dataAsOf)) {
@@ -2127,6 +2217,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         model,
         (error as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
         error,
+        { failureStage: "transport" },
       );
       if (!canFallback) {
         throw error;
@@ -2141,6 +2232,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           model,
           (fallbackError as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
           fallbackError,
+          { failureStage: "transport" },
         );
         throw fallbackError;
       }
@@ -2194,7 +2286,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       recordAttempt(initialAttemptType, "success", model, response);
     } catch (error) {
       validationError = error instanceof Error ? error : new Error(String(error));
-      recordAttempt(initialAttemptType, "invalid_output", model, response, validationError);
+      recordAttempt(initialAttemptType, "invalid_output", model, response, validationError, {
+        failureStage: failureStageFor(validationError, text),
+        rejectedDraft: text,
+      });
     }
 
     if (!read && validationError) {
@@ -2210,6 +2305,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           model,
           (correctionError as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
           correctionError,
+          { failureStage: "transport" },
         );
         throw correctionError;
       }
@@ -2233,6 +2329,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           model,
           response,
           correctionValidationError,
+          {
+            failureStage: failureStageFor(correctionValidationError, text),
+            rejectedDraft: text,
+          },
         );
         throw correctionValidationError;
       }

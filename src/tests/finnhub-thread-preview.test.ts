@@ -239,6 +239,41 @@ test("YahooClient assembles quote, summary, and previous-day context", async () 
   );
 });
 
+test("YahooClient calculates and caches completed-session three-month average volume", async () => {
+  const now = Date.parse("2026-07-23T15:00:00Z");
+  let fetchCalls = 0;
+  const client = new YahooClient({
+    now: () => now,
+    fetchImpl: async (input) => {
+      const url = new URL(typeof input === "string" ? input : input.toString());
+      assert.equal(url.pathname, "/v8/finance/chart/EXMP");
+      assert.equal(url.searchParams.get("range"), "3mo");
+      assert.equal(url.searchParams.get("interval"), "1d");
+      fetchCalls += 1;
+      return new Response(JSON.stringify({
+        chart: {
+          result: [{
+            timestamp: [
+              Date.parse("2026-07-21T13:30:00Z") / 1000,
+              Date.parse("2026-07-22T13:30:00Z") / 1000,
+              Date.parse("2026-07-23T13:30:00Z") / 1000,
+            ],
+            indicators: {
+              quote: [{
+                volume: [100_000, 300_000, 9_999_999],
+              }],
+            },
+          }],
+        },
+      }), { status: 200 });
+    },
+  });
+
+  assert.equal(await client.getAverageDailyVolume3Month("exmp"), 200_000);
+  assert.equal(await client.getAverageDailyVolume3Month("EXMP"), 200_000);
+  assert.equal(fetchCalls, 1);
+});
+
 test("YahooClient uses chart price when quote endpoint has no usable price", async () => {
   const client = new YahooClient({
     fetchImpl: async (input) => {

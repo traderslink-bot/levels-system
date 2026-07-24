@@ -3,6 +3,7 @@ import "dotenv/config";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { createHistoricalCandleProvider } from "../lib/market-data/provider-factory.js";
@@ -15,6 +16,7 @@ import {
 import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-commentary-service.js";
 import { createTradersLinkAiReadServiceFromEnv } from "../lib/ai/traderslink-ai-read-service.js";
 import { TradersLinkAiReadCostLedger } from "../lib/ai/traderslink-ai-read-cost-ledger.js";
+import { TradersLinkAiReadRunLedger } from "../lib/ai/traderslink-ai-read-run-ledger.js";
 import { TradersLinkAiReadSettingsPersistence } from "../lib/ai/traderslink-ai-read-settings.js";
 import { createFinnhubClientFromEnv } from "../lib/stock-context/finnhub-client.js";
 import { createYahooClientFromEnv } from "../lib/stock-context/yahoo-client.js";
@@ -31,6 +33,7 @@ import {
   resolveMarketStructureStandalonePostMode,
   type ManualWatchlistHistoricalLookbacks,
 } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
+
 import {
   AdaptiveScoringEngine,
   DEFAULT_ADAPTIVE_SCORING_CONFIG,
@@ -46,6 +49,11 @@ import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runt
 import { createMonitoringEventDiagnosticListener } from "../lib/monitoring/monitoring-event-diagnostic-logger.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
+import {
+  migrateLegacyManualWatchlistFile,
+  resolveDurableManualWatchlistFile,
+  resolveManualWatchlistDurableDirectory,
+} from "../lib/monitoring/manual-watchlist-durable-storage.js";
 import { getWatchlistEntrySessionGroup } from "../lib/monitoring/watchlist-entry-session.js";
 import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
 import {
@@ -89,6 +97,11 @@ import {
   type AutoWatchlistSelectorThresholds,
 } from "../lib/auto-watchlist/auto-watchlist-selector.js";
 
+const MANUAL_WATCHLIST_RUNTIME_IDENTITY = {
+  checkoutRole: "canonical-levels-v2",
+  runtimeRoot: process.cwd(),
+  entrypointPath: fileURLToPath(import.meta.url),
+} as const;
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
 const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
 const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
@@ -111,6 +124,8 @@ const MANUAL_WATCHLIST_LOOKBACK_5M_ENV = "LEVEL_MANUAL_LOOKBACK_5M";
 const WATCHLIST_POSTING_PROFILE_ENV = "WATCHLIST_POSTING_PROFILE";
 const MARKET_STRUCTURE_STANDALONE_POSTS_ENV = "MARKET_STRUCTURE_STANDALONE_POSTS";
 const LIVE_WATCHLIST_HEALTH_PUBLISH_INTERVAL_MS = 15_000;
+let lastPublishedLiveWatchlistHealthStatus: string | null = null;
+let pendingLiveWatchlistHealthStatus: string | null = null;
 const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
 const DEFAULT_MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS = 90_000;
 const DEFAULT_MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS = 5000;
@@ -210,7 +225,7 @@ function parseRuntimeLiveProviderName(raw: unknown): LivePriceProviderName | nul
 
 function resolveProviderConfigPath(): string {
   return process.env[MANUAL_WATCHLIST_PROVIDER_CONFIG_PATH_ENV]?.trim() ||
-    join(process.cwd(), "artifacts", "manual-watchlist-provider-config.json");
+    resolveDurableManualWatchlistFile("manual-watchlist-provider-config.json");
 }
 
 function loadRuntimeProviderConfig(path: string): RuntimeProviderConfig | null {
@@ -310,13 +325,29 @@ function publishLiveWatchlistHealth(args: {
     ibkrReconnecting: args.ibkrReconnecting,
     priceFeedStatus: health.providerHealth.priceFeedStatus,
   });
+  if (
+    marketDataStatus === lastPublishedLiveWatchlistHealthStatus ||
+    marketDataStatus === pendingLiveWatchlistHealthStatus
+  ) {
+    return;
+  }
+  pendingLiveWatchlistHealthStatus = marketDataStatus;
   void args.publisher
     .publishHealth({
       type: "health",
       marketDataStatus,
       marketDataUpdatedAt: health.lastPriceUpdateAt,
     })
+    .then(() => {
+      lastPublishedLiveWatchlistHealthStatus = marketDataStatus;
+      if (pendingLiveWatchlistHealthStatus === marketDataStatus) {
+        pendingLiveWatchlistHealthStatus = null;
+      }
+    })
     .catch((error) => {
+      if (pendingLiveWatchlistHealthStatus === marketDataStatus) {
+        pendingLiveWatchlistHealthStatus = null;
+      }
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[ManualWatchlistRuntime] Failed to publish live watchlist health: ${message}`);
     });
@@ -487,6 +518,31 @@ async function clearDiscordWatchlistChannel(): Promise<DiscordChannelCleanupResu
 
 async function main(): Promise<void> {
   const ib = createIbkrClient();
+  const durableDataDirectory = resolveManualWatchlistDurableDirectory();
+  const legacyArtifactsDirectory = join(process.cwd(), "artifacts");
+  const durableFiles = {
+    providerConfig: resolveDurableManualWatchlistFile("manual-watchlist-provider-config.json"),
+    aiReadSettings: resolveDurableManualWatchlistFile("traderslink-ai-read-settings.json"),
+    autoSelectorConfig: resolveDurableManualWatchlistFile("auto-watchlist-selector-config.json"),
+    watchlistState: resolveDurableManualWatchlistFile("manual-watchlist-state.json"),
+    adaptiveState: resolveDurableManualWatchlistFile("adaptive-state.json"),
+    aiReadCostLedger: resolveDurableManualWatchlistFile("traderslink-ai-read-cost-ledger.jsonl"),
+    aiReadRunLedger: resolveDurableManualWatchlistFile("traderslink-ai-read-run-events.jsonl"),
+  };
+  for (const [fileName, durablePath] of Object.entries({
+    "manual-watchlist-provider-config.json": durableFiles.providerConfig,
+    "traderslink-ai-read-settings.json": durableFiles.aiReadSettings,
+    "auto-watchlist-selector-config.json": durableFiles.autoSelectorConfig,
+    "manual-watchlist-state.json": durableFiles.watchlistState,
+    "adaptive-state.json": durableFiles.adaptiveState,
+    "traderslink-ai-read-cost-ledger.jsonl": durableFiles.aiReadCostLedger,
+    "traderslink-ai-read-run-events.jsonl": durableFiles.aiReadRunLedger,
+  })) {
+    migrateLegacyManualWatchlistFile(
+      durablePath,
+      join(legacyArtifactsDirectory, fileName),
+    );
+  }
   const manualWatchlistIbkrTimeoutMs = Number(
     process.env[MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV] ?? DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
   );
@@ -563,6 +619,7 @@ async function main(): Promise<void> {
   const adaptiveStatePersistence = new AdaptiveStatePersistence({
     minMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.minMultiplier,
     maxMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.maxMultiplier,
+    filePath: durableFiles.adaptiveState,
   });
   const initialAdaptiveState = adaptiveStatePersistence.load() ?? undefined;
   const adaptiveScoringEngine = new AdaptiveScoringEngine(
@@ -592,6 +649,11 @@ async function main(): Promise<void> {
   )
     ? new CandleFetchService(new YahooHistoricalCandleProvider())
     : null;
+  // EODHD is still the source of truth for daily/4h levels, but its 5m
+  // endpoint can be empty during the live session. Keep deterministic level
+  // detection supplied with a recent chart series in that case.
+  const levelIntradayFallbackCandleFetchService =
+    new CandleFetchService(new YahooHistoricalCandleProvider());
   const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
   const marketStructureLifecyclePath = sessionDirectory
     ? join(sessionDirectory, "market-structure-lifecycle.jsonl")
@@ -642,9 +704,19 @@ async function main(): Promise<void> {
   const tradersLinkAiReadSettingsPersistence = new TradersLinkAiReadSettingsPersistence({
     ...(process.env.TRADERSLINK_AI_READ_SETTINGS_FILE?.trim()
       ? { filePath: process.env.TRADERSLINK_AI_READ_SETTINGS_FILE.trim() }
-      : {}),
+      : { filePath: durableFiles.aiReadSettings }),
   });
   const persistedTradersLinkAiReadSettings = tradersLinkAiReadSettingsPersistence.load();
+  let aiReadModelSettings = {
+    model: persistedTradersLinkAiReadSettings?.model ??
+      (tradersLinkAiReadService?.getConfiguredModel() === "gpt-5.6-luna"
+        ? "gpt-5.6-luna"
+        : "gpt-5.6-terra"),
+    reasoningEffort:
+      persistedTradersLinkAiReadSettings?.reasoningEffort ??
+      tradersLinkAiReadService?.getReasoningEffort() ??
+      "medium",
+  } as const;
   let liveTraderReadCardVisible =
     persistedTradersLinkAiReadSettings?.liveTraderReadCardVisible ?? true;
   let aiReadExternalResearchEnabled =
@@ -655,22 +727,53 @@ async function main(): Promise<void> {
     enabled: persistedTradersLinkAiReadSettings?.dailyCostBudgetEnabled ?? false,
     dailyLimitUsd: persistedTradersLinkAiReadSettings?.dailyCostBudgetUsd ?? 1,
   };
+  let aiReadBoundaryRefreshSettings = {
+    enabled: persistedTradersLinkAiReadSettings?.automaticBoundaryRefreshesEnabled ?? true,
+    maxPerTickerPerNewYorkDate:
+      persistedTradersLinkAiReadSettings?.automaticBoundaryRefreshesPerTicker ?? 2,
+  };
+  let aiReadGenerationSettings = {
+    enabled: persistedTradersLinkAiReadSettings?.generationEnabled ?? true,
+    premarketEnabled:
+      persistedTradersLinkAiReadSettings?.premarketGenerationEnabled ?? true,
+    regularEnabled:
+      persistedTradersLinkAiReadSettings?.regularGenerationEnabled ?? true,
+    postmarketEnabled:
+      persistedTradersLinkAiReadSettings?.postmarketGenerationEnabled ?? true,
+    topRegularActivationEnabled:
+      persistedTradersLinkAiReadSettings?.topRegularActivationGenerationEnabled ?? true,
+  };
   tradersLinkAiReadService?.setExternalResearchEnabled(aiReadExternalResearchEnabled);
+  tradersLinkAiReadService?.setRuntimeConfiguration(aiReadModelSettings);
   if (!persistedTradersLinkAiReadSettings) {
     tradersLinkAiReadSettingsPersistence.save({
+      model: aiReadModelSettings.model,
+      reasoningEffort: aiReadModelSettings.reasoningEffort,
       externalResearchEnabled: aiReadExternalResearchEnabled,
+      generationEnabled: aiReadGenerationSettings.enabled,
+      premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+      regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+      postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+      topRegularActivationGenerationEnabled:
+        aiReadGenerationSettings.topRegularActivationEnabled,
       liveTraderReadCardVisible: true,
       potentialGainCardVisible: true,
       watchlistLifecycleLabelsVisible: false,
       reversalWatchlistVisible: true,
+      topRegularWatchlistVisible: true,
       dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
       dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+      automaticBoundaryRefreshesEnabled: aiReadBoundaryRefreshSettings.enabled,
+      automaticBoundaryRefreshesPerTicker: aiReadBoundaryRefreshSettings.maxPerTickerPerNewYorkDate,
     });
   }
   const tradersLinkAiReadCostLedger = new TradersLinkAiReadCostLedger({
     ...(process.env.TRADERSLINK_AI_READ_COST_LEDGER_FILE?.trim()
       ? { filePath: process.env.TRADERSLINK_AI_READ_COST_LEDGER_FILE.trim() }
-      : {}),
+      : { filePath: durableFiles.aiReadCostLedger }),
+  });
+  const tradersLinkAiReadRunLedger = new TradersLinkAiReadRunLedger({
+    filePath: durableFiles.aiReadRunLedger,
   });
   const finnhubClient = createFinnhubClientFromEnv();
   const yahooClient = createYahooClientFromEnv();
@@ -693,7 +796,9 @@ async function main(): Promise<void> {
     historicalLookbackBars,
     aiCommentaryService,
     stockContextProvider,
-    watchlistStatePersistence: new WatchlistStatePersistence(),
+    watchlistStatePersistence: new WatchlistStatePersistence({
+      filePath: durableFiles.watchlistState,
+    }),
     lifecycleListener,
     optionalPostSettleDelayMs: 250,
     postingProfile,
@@ -704,7 +809,10 @@ async function main(): Promise<void> {
     liveWatchlistPublisher,
     tradersLinkAiReadService,
     tradersLinkAiReadCostLedger,
+    tradersLinkAiReadRunLedger,
     initialTradersLinkAiReadDailyCostBudget: aiReadDailyCostBudget,
+    initialTradersLinkAiReadGenerationSettings: aiReadGenerationSettings,
+    initialTradersLinkAiReadBoundaryRefreshSettings: aiReadBoundaryRefreshSettings,
     tradersLinkAiReadStartupRefreshEnabled: isTruthyEnv(
       process.env.TRADERSLINK_AI_READ_STARTUP_REFRESH_ENABLED,
     ),
@@ -718,8 +826,11 @@ async function main(): Promise<void> {
       persistedTradersLinkAiReadSettings?.watchlistLifecycleLabelsVisible,
     initialReversalWatchlistVisible:
       persistedTradersLinkAiReadSettings?.reversalWatchlistVisible,
+    initialTopRegularWatchlistVisible:
+      persistedTradersLinkAiReadSettings?.topRegularWatchlistVisible,
     pullbackReadEnabled,
     recentIntradayCandleFetchService,
+    levelIntradayFallbackCandleFetchService,
     tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
     opportunityDiagnosticsEnabled: monitoringEventDiagnosticsEnabled,
     autoCleanReadGenerator: aiCleanReadService
@@ -732,6 +843,7 @@ async function main(): Promise<void> {
   let startupState: "booting" | "ready" | "error" = "booting";
   let startupError: string | null = null;
   const autoWatchlistSelector = new AutoWatchlistSelector({
+    configPath: durableFiles.autoSelectorConfig,
     yahooClient,
     finnhubClient,
     getActiveSymbols: () => manager.getActiveEntries().map((entry) => entry.symbol),
@@ -939,12 +1051,18 @@ async function main(): Promise<void> {
             }
           : {}),
         runtimeConfig: {
+          runtimeIdentity: MANUAL_WATCHLIST_RUNTIME_IDENTITY,
           bindHost: LOCAL_BIND_HOST,
           port: PORT,
           historicalProvider: candleService.getProviderName(),
           availableHistoricalProviders: RUNTIME_HISTORICAL_PROVIDER_OPTIONS,
           historicalProviderRuntimeMutable: true,
           providerConfigPath,
+          durableDataDirectory,
+          aiReadRunLedgerPath: durableFiles.aiReadRunLedger,
+          publicWatchlistUrl:
+            process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL?.trim() ||
+            "https://traderslink.pro/watchlist",
           liveProvider: liveProviderName,
           availableLiveProviders: RUNTIME_LIVE_PROVIDER_OPTIONS,
           liveProviderRuntimeMutable: true,
@@ -990,6 +1108,14 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/api/runtime/ai-read-audit") {
+      const symbol = url.searchParams.get("symbol")?.trim().toUpperCase() || undefined;
+      const requestedLimit = Number(url.searchParams.get("limit") ?? "100");
+      const limit = Number.isFinite(requestedLimit) ? Math.min(500, Math.max(1, Math.floor(requestedLimit))) : 100;
+      sendJson(response, 200, manager.getTradersLinkAiReadAudit({ symbol, limit }));
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-external-research") {
       try {
         const body = await readJsonBody(request);
@@ -1000,10 +1126,17 @@ async function main(): Promise<void> {
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
           externalResearchEnabled: body.enabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1025,6 +1158,60 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-model") {
+      try {
+        const body = await readJsonBody(request);
+        const model =
+          body.model === "gpt-5.6-luna" || body.model === "gpt-5.6-terra"
+            ? body.model
+            : null;
+        const reasoningEffort =
+          body.reasoningEffort === "low" ||
+          body.reasoningEffort === "medium" ||
+          body.reasoningEffort === "high" ||
+          body.reasoningEffort === "xhigh"
+            ? body.reasoningEffort
+            : null;
+        if (!model || !reasoningEffort) {
+          sendJson(response, 400, {
+            error: "Choose Luna or Terra and a low, medium, high, or xhigh effort.",
+          });
+          return;
+        }
+        aiReadModelSettings = { model, reasoningEffort };
+        tradersLinkAiReadService?.setRuntimeConfiguration(aiReadModelSettings);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          model,
+          reasoningEffort,
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, { ok: true, ...aiReadModelSettings });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        sendJson(response, 500, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-cost-budget") {
       try {
         const body = await readJsonBody(request);
@@ -1040,10 +1227,17 @@ async function main(): Promise<void> {
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
           externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1052,6 +1246,108 @@ async function main(): Promise<void> {
           budget: aiReadDailyCostBudget,
           status: manager.getTradersLinkAiReadDailyCostBudgetStatus(),
         });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 400, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-generation") {
+      try {
+        const body = await readJsonBody(request);
+        if (
+          typeof body.enabled !== "boolean" ||
+          typeof body.premarketEnabled !== "boolean" ||
+          typeof body.regularEnabled !== "boolean" ||
+          typeof body.postmarketEnabled !== "boolean" ||
+          typeof body.topRegularActivationEnabled !== "boolean"
+        ) {
+          sendJson(response, 400, {
+            error:
+              "Boolean enabled, premarketEnabled, regularEnabled, postmarketEnabled, and topRegularActivationEnabled values are required.",
+          });
+          return;
+        }
+        aiReadGenerationSettings = manager.setTradersLinkAiReadGenerationSettings({
+          enabled: body.enabled,
+          premarketEnabled: body.premarketEnabled,
+          regularEnabled: body.regularEnabled,
+          postmarketEnabled: body.postmarketEnabled,
+          topRegularActivationEnabled: body.topRegularActivationEnabled,
+        });
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          settings: aiReadGenerationSettings,
+          availability: manager.getTradersLinkAiReadGenerationAvailability(),
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-boundary-refreshes") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.enabled !== "boolean") {
+          sendJson(response, 400, { error: "Boolean enabled value is required." });
+          return;
+        }
+        const limit = typeof body.maxPerTickerPerNewYorkDate === "number"
+          ? body.maxPerTickerPerNewYorkDate
+          : Number.NaN;
+        aiReadBoundaryRefreshSettings = manager.setTradersLinkAiReadBoundaryRefreshSettings({
+          enabled: body.enabled,
+          maxPerTickerPerNewYorkDate: limit,
+        });
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          automaticBoundaryRefreshesEnabled: aiReadBoundaryRefreshSettings.enabled,
+          automaticBoundaryRefreshesPerTicker:
+            aiReadBoundaryRefreshSettings.maxPerTickerPerNewYorkDate,
+        });
+        sendJson(response, 200, { ok: true, settings: aiReadBoundaryRefreshSettings });
       } catch (error) {
         if (error instanceof RequestBodyParseError) {
           sendJson(response, error.statusCode, { error: error.message });
@@ -1334,10 +1630,17 @@ async function main(): Promise<void> {
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
           externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
           liveTraderReadCardVisible: result.visible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1389,10 +1692,17 @@ async function main(): Promise<void> {
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
           externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: result.visible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1436,10 +1746,17 @@ async function main(): Promise<void> {
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
           externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: result.visible,
           reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1472,10 +1789,59 @@ async function main(): Promise<void> {
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
           externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
           reversalWatchlistVisible: result.visible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          visible: result.visible,
+          refreshedSymbols: result.refreshedSymbols,
+          refreshedSymbolCount: result.refreshedSymbols.length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/top-regular-watchlist") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.visible !== "boolean") {
+          sendJson(response, 400, { error: "Boolean visible value is required." });
+          return;
+        }
+        const result = await manager.setTopRegularWatchlistVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: result.visible,
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
@@ -1689,13 +2055,26 @@ async function main(): Promise<void> {
         const body = await readJsonBody(request);
         const symbol = typeof body.symbol === "string" ? body.symbol : "";
         const note = typeof body.note === "string" ? body.note : undefined;
+        const watchlistGroup =
+          body.watchlistGroup === "top_regular" ||
+          body.watchlistGroup === "main" ||
+          body.watchlistGroup === "postmarket"
+            ? body.watchlistGroup
+            : null;
 
-        if (symbol.trim().length === 0) {
-          sendJson(response, 400, { error: "Symbol is required." });
+        if (symbol.trim().length === 0 || watchlistGroup === null) {
+          sendJson(response, 400, {
+            error: "Symbol and a valid watchlistGroup are required.",
+          });
           return;
         }
 
-        const entry = await manager.queueActivation({ symbol, note });
+        const entry = await manager.queueActivation({
+          symbol,
+          note,
+          watchlistGroup,
+          source: "manual",
+        });
         sendJson(response, 202, { entry, queued: true });
       } catch (error) {
         if (error instanceof RequestBodyParseError) {
@@ -1733,6 +2112,60 @@ async function main(): Promise<void> {
         }
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/remove-from-list") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        if (symbol.trim().length === 0) {
+          sendJson(response, 400, { error: "Symbol is required." });
+          return;
+        }
+        const entry = await manager.removeSymbolFromWatchlist(symbol);
+        if (!entry) {
+          sendJson(response, 404, { error: "Symbol was not found." });
+          return;
+        }
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/move-to-list") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const watchlistGroup =
+          body.watchlistGroup === "top_regular" ||
+          body.watchlistGroup === "main" ||
+          body.watchlistGroup === "postmarket"
+            ? body.watchlistGroup
+            : null;
+        if (symbol.trim().length === 0 || watchlistGroup === null) {
+          sendJson(response, 400, {
+            error: "Symbol and a valid watchlistGroup are required.",
+          });
+          return;
+        }
+        const entry = await manager.moveSymbolToWatchlistGroup(symbol, watchlistGroup);
+        sendJson(response, 200, { ok: true, entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 400, { error: message });
       }
       return;
     }
@@ -1795,7 +2228,15 @@ async function main(): Promise<void> {
           return;
         }
         const read = await manager.refreshTradersLinkAiRead(symbol);
-        sendJson(response, 200, { ok: true, generated: Boolean(read), read });
+        const entry = manager.getEntries().find(
+          (candidate) => candidate.symbol === symbol.trim().toUpperCase(),
+        );
+        sendJson(response, 200, {
+          ok: true,
+          generated: Boolean(read),
+          read,
+          failure: entry?.tradersLinkAiReadFailure ?? null,
+        });
       } catch (error) {
         if (error instanceof RequestBodyParseError) {
           sendJson(response, error.statusCode, { error: error.message });
@@ -1821,8 +2262,19 @@ async function main(): Promise<void> {
         const body = await readJsonBody(request);
         const scope = body.scope;
         const confirmation = body.confirmation;
-        if (scope !== "all" && scope !== "main" && scope !== "postmarket") {
-          sendJson(response, 400, { error: "scope must be all, main, or postmarket." });
+        const publishedSymbols = Array.isArray(body.publishedSymbols)
+          ? body.publishedSymbols.filter((symbol): symbol is string => typeof symbol === "string")
+          : [];
+        if (
+          scope !== "all" &&
+          scope !== "top_regular" &&
+          scope !== "main" &&
+          scope !== "postmarket" &&
+          scope !== "reversal"
+        ) {
+          sendJson(response, 400, {
+            error: "scope must be all, top_regular, main, postmarket, or reversal.",
+          });
           return;
         }
         if (confirmation !== "DEACTIVATE_WATCHLIST_TICKERS") {
@@ -1830,15 +2282,37 @@ async function main(): Promise<void> {
           return;
         }
 
-        const symbols = manager.getActiveEntries()
-          .filter((entry) => scope === "all" || getWatchlistEntrySessionGroup(entry) === scope)
+        const symbols = manager.getEntries()
+          .filter((entry) =>
+            (
+              scope === "all" ||
+              (scope === "reversal"
+                ? entry.tags.includes("auto-reversal-watch")
+                : getWatchlistEntrySessionGroup(entry) === scope)
+            ),
+          )
           .map((entry) => entry.symbol);
-        const entries = await manager.deactivateSymbols(symbols);
+        const entries = await manager.deactivateSymbols(symbols, { source: "clear" });
+        const additionallyDeactivatedPublishedSymbols =
+          await manager.deactivatePublishedSymbols(
+            publishedSymbols.filter((symbol) => !symbols.includes(symbol)),
+          );
+        autoWatchlistSelector.resetSymbolsForFreshDiscovery([
+          ...symbols,
+          ...additionallyDeactivatedPublishedSymbols,
+        ]);
         sendJson(response, 200, {
           ok: true,
           scope,
-          deactivatedCount: entries.length,
-          deactivatedSymbols: entries.map((entry) => entry.symbol),
+          deactivatedCount: entries.length + additionallyDeactivatedPublishedSymbols.length,
+          deactivatedSymbols: [
+            ...entries.map((entry) => entry.symbol),
+            ...additionallyDeactivatedPublishedSymbols,
+          ],
+          resetSelectorSymbols: [
+            ...symbols,
+            ...additionallyDeactivatedPublishedSymbols,
+          ],
         });
       } catch (error) {
         if (error instanceof RequestBodyParseError) {
@@ -1934,6 +2408,9 @@ async function main(): Promise<void> {
 
   server.listen(PORT, LOCAL_BIND_HOST, () => {
     console.log(`Manual watchlist server running at http://127.0.0.1:${PORT}`);
+    console.log(
+      `[ManualWatchlistRuntimeIdentity] ${JSON.stringify(MANUAL_WATCHLIST_RUNTIME_IDENTITY)}`,
+    );
   });
 
   void bootRuntime();

@@ -18,8 +18,10 @@ export type LiveWatchlistCardKind =
   | "extendedQuote";
 
 export type LiveWatchlistStatus = "live" | "stale" | "deactivated";
+export type LiveWatchlistGroup = "top_regular" | "main" | "postmarket";
 export type LiveWatchlistSlotState = "active" | "followup";
 export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting" | "closed";
+export type LiveWatchlistTickerMarketDataStatus = "live" | "stale" | "halted";
 export type LiveWatchlistLifecycleStatus =
   | "monitoring"
   | "active"
@@ -58,10 +60,12 @@ export type LiveWatchlistCardPatch = {
   status?: LiveWatchlistStatus;
   updatedAt: number;
   firstPostedAt?: number | null;
+  watchlistGroup?: LiveWatchlistGroup;
   watchlistSlotState?: LiveWatchlistSlotState;
   reversalWatchEligible?: boolean;
   reversalWatchAttemptReady?: boolean;
   reversalWatchlistVisible?: boolean;
+  topRegularWatchlistVisible?: boolean;
   preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
@@ -86,10 +90,15 @@ export type LiveWatchlistTickerDataPatch = {
   updatedAt: number;
   marketDataObservedAt?: number;
   marketDataRevision?: number;
+  marketDataStatus?: LiveWatchlistTickerMarketDataStatus;
+  marketDataStatusUpdatedAt?: number;
+  marketDataStatusReason?: string | null;
+  watchlistGroup?: LiveWatchlistGroup;
   watchlistSlotState?: LiveWatchlistSlotState;
   reversalWatchEligible?: boolean;
   reversalWatchAttemptReady?: boolean;
   reversalWatchlistVisible?: boolean;
+  topRegularWatchlistVisible?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;

@@ -22,24 +22,42 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
 
     assert.equal(persistence.load(), null);
     persistence.save({
+      model: "gpt-5.6-luna",
+      reasoningEffort: "high",
       externalResearchEnabled: false,
+      generationEnabled: false,
+      premarketGenerationEnabled: false,
+      regularGenerationEnabled: true,
+      postmarketGenerationEnabled: false,
+      topRegularActivationGenerationEnabled: false,
       liveTraderReadCardVisible: false,
       potentialGainCardVisible: true,
       watchlistLifecycleLabelsVisible: true,
       reversalWatchlistVisible: false,
+      topRegularWatchlistVisible: false,
       dailyCostBudgetEnabled: false,
       dailyCostBudgetUsd: 1,
     });
     assert.deepEqual(persistence.load(), {
-      version: 5,
+      version: 8,
       lastUpdated: persistence.load()?.lastUpdated,
+      model: "gpt-5.6-luna",
+      reasoningEffort: "high",
       externalResearchEnabled: false,
+      generationEnabled: false,
+      premarketGenerationEnabled: false,
+      regularGenerationEnabled: true,
+      postmarketGenerationEnabled: false,
+      topRegularActivationGenerationEnabled: false,
       liveTraderReadCardVisible: false,
       potentialGainCardVisible: true,
       watchlistLifecycleLabelsVisible: true,
       reversalWatchlistVisible: false,
+      topRegularWatchlistVisible: false,
       dailyCostBudgetEnabled: false,
       dailyCostBudgetUsd: 1,
+      automaticBoundaryRefreshesEnabled: true,
+      automaticBoundaryRefreshesPerTicker: 2,
     });
   });
 
@@ -57,15 +75,25 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
 
     const loaded = new TradersLinkAiReadSettingsPersistence({ filePath }).load();
     assert.deepEqual(loaded, {
-      version: 5,
+      version: 8,
       lastUpdated: 123,
+      model: "gpt-5.6-terra",
+      reasoningEffort: "medium",
       externalResearchEnabled: false,
+      generationEnabled: true,
+      premarketGenerationEnabled: true,
+      regularGenerationEnabled: true,
+      postmarketGenerationEnabled: true,
+      topRegularActivationGenerationEnabled: true,
       liveTraderReadCardVisible: true,
       potentialGainCardVisible: true,
       watchlistLifecycleLabelsVisible: false,
       reversalWatchlistVisible: true,
+      topRegularWatchlistVisible: true,
       dailyCostBudgetEnabled: false,
       dailyCostBudgetUsd: 1,
+      automaticBoundaryRefreshesEnabled: true,
+      automaticBoundaryRefreshesPerTicker: 2,
     });
   });
 

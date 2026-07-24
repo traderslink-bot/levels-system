@@ -699,13 +699,18 @@ function selectDisplayedLevelMapLevels(
         (level) => Math.abs(level.distancePct) > LEVEL_MAP_SOFT_PATH_DISTANCE_PCT,
       ) ?? null
     : null;
+  // Keep the card useful for a newly activated ticker whose nearest full-ladder
+  // level is already outside the normal 30% path window. The full ladder is the
+  // source of truth; use its nearest side-specific level instead of presenting
+  // an empty path when no bounded checkpoint exists.
+  const fullLadderFallback = isPotentialPath ? levels[0] ?? null : null;
   const selectableLevels = isPotentialPath
     ? boundedPotentialPathLevels.filter(
         (level) => Math.abs(level.distancePct) <= LEVEL_MAP_SOFT_PATH_DISTANCE_PCT,
       )
     : levels;
   if (selectableLevels.length === 0) {
-    return appendPotentialPathOuterCheckpoint([], outerCheckpoint);
+    return appendPotentialPathOuterCheckpoint([], outerCheckpoint ?? fullLadderFallback);
   }
 
   if (options.preferStructuralLevels) {
@@ -1886,6 +1891,9 @@ export function buildLiveWatchlistTickerDataPatch(args: {
   lastPrice: number;
   timestamp: number;
   marketDataRevision?: number;
+  marketDataStatus?: LiveWatchlistTickerDataPatch["marketDataStatus"];
+  marketDataStatusUpdatedAt?: number;
+  marketDataStatusReason?: string | null;
   supportZones: LevelMapDisplayZone[];
   resistanceZones: LevelMapDisplayZone[];
   volume?: number | null;
@@ -1943,6 +1951,13 @@ export function buildLiveWatchlistTickerDataPatch(args: {
     ...(args.marketDataRevision !== undefined
       ? { marketDataRevision: args.marketDataRevision }
       : {}),
+    ...(args.marketDataStatus !== undefined ? { marketDataStatus: args.marketDataStatus } : {}),
+    ...(args.marketDataStatusUpdatedAt !== undefined
+      ? { marketDataStatusUpdatedAt: args.marketDataStatusUpdatedAt }
+      : {}),
+    ...(args.marketDataStatusReason !== undefined
+      ? { marketDataStatusReason: args.marketDataStatusReason }
+      : {}),
     latestPrice: args.lastPrice,
     nearestSupport: nearestSupport?.price ?? null,
     nearestResistance: nearestResistance?.price ?? null,
@@ -1971,10 +1986,12 @@ export function buildLiveWatchlistStatusPatch(args: {
   status: LiveWatchlistStatus;
   updatedAt?: number;
   firstPostedAt?: number | null;
+  watchlistGroup?: "top_regular" | "main" | "postmarket";
   watchlistSlotState?: "active" | "followup";
   reversalWatchEligible?: boolean;
   reversalWatchAttemptReady?: boolean;
   reversalWatchlistVisible?: boolean;
+  topRegularWatchlistVisible?: boolean;
   preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
@@ -1984,6 +2001,7 @@ export function buildLiveWatchlistStatusPatch(args: {
     status: args.status,
     updatedAt: args.updatedAt ?? Date.now(),
     ...(args.firstPostedAt !== undefined ? { firstPostedAt: args.firstPostedAt } : {}),
+    ...(args.watchlistGroup !== undefined ? { watchlistGroup: args.watchlistGroup } : {}),
     ...(args.watchlistSlotState !== undefined ? { watchlistSlotState: args.watchlistSlotState } : {}),
     ...(args.reversalWatchEligible !== undefined
       ? { reversalWatchEligible: args.reversalWatchEligible }
@@ -1993,6 +2011,9 @@ export function buildLiveWatchlistStatusPatch(args: {
       : {}),
     ...(args.reversalWatchlistVisible !== undefined
       ? { reversalWatchlistVisible: args.reversalWatchlistVisible }
+      : {}),
+    ...(args.topRegularWatchlistVisible !== undefined
+      ? { topRegularWatchlistVisible: args.topRegularWatchlistVisible }
       : {}),
     ...(args.preserveExistingOnReactivation === true
       ? { preserveExistingOnReactivation: true }

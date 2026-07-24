@@ -6,8 +6,10 @@ import type {
   TradersLinkAiReadBoundary,
   TradersLinkAiReadBoundaryState,
   WatchlistEntry,
+  WatchlistGroup,
   WatchlistLifecycleState,
   WatchlistTradersLinkAiReadConfidence,
+  WatchlistTradersLinkAiReadFailure,
 } from "./monitoring-types.js";
 
 function normalizeSymbol(symbol: string): string {
@@ -20,6 +22,26 @@ function normalizeFiniteTimestamp(value: number | undefined): number | undefined
 
 function normalizeAiReadConfidence(value: unknown): WatchlistTradersLinkAiReadConfidence | undefined {
   return value === "low" || value === "medium" || value === "high" ? value : undefined;
+}
+
+function normalizeAiReadFailure(value: unknown): WatchlistTradersLinkAiReadFailure | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const candidate = value as Partial<WatchlistTradersLinkAiReadFailure>;
+  const stage = candidate.stage;
+  if (stage !== "preparation" && stage !== "generation" && stage !== "publishing" && stage !== "unknown") {
+    return undefined;
+  }
+  const reason = typeof candidate.reason === "string" ? candidate.reason.trim() : "";
+  const trigger = typeof candidate.trigger === "string" ? candidate.trigger.trim() : "";
+  const failedAt = normalizeFiniteTimestamp(candidate.failedAt);
+  if (!reason || !trigger || failedAt === undefined) return undefined;
+  return { stage, reason: reason.slice(0, 500), trigger, failedAt };
+}
+
+function normalizeWatchlistGroup(value: unknown): WatchlistGroup | undefined {
+  return value === "top_regular" || value === "main" || value === "postmarket"
+    ? value
+    : undefined;
 }
 
 function normalizeAiReadBoundaryState(
@@ -116,12 +138,16 @@ export class WatchlistStore {
     const pendingTradersLinkAiReadGeneration = normalizePendingTradersLinkAiReadGeneration(
       entry.pendingTradersLinkAiReadGeneration,
     );
+    const tradersLinkAiReadFailure = normalizeAiReadFailure(entry.tradersLinkAiReadFailure);
 
     return {
       symbol: normalizeSymbol(entry.symbol),
       active: entry.active,
       priority: entry.priority,
       tags: [...entry.tags],
+      ...(normalizeWatchlistGroup(entry.watchlistGroup)
+        ? { watchlistGroup: normalizeWatchlistGroup(entry.watchlistGroup) }
+        : {}),
       note: entry.note?.trim() || undefined,
       discordThreadId: entry.discordThreadId?.trim() || null,
       lifecycle,
@@ -151,6 +177,7 @@ export class WatchlistStore {
       ...(pendingTradersLinkAiReadGeneration
         ? { pendingTradersLinkAiReadGeneration }
         : {}),
+      ...(tradersLinkAiReadFailure ? { tradersLinkAiReadFailure } : {}),
     };
   }
 
@@ -185,6 +212,7 @@ export class WatchlistStore {
   upsertManualEntry(input: {
     symbol: string;
     tags?: string[];
+    watchlistGroup?: WatchlistGroup;
     note?: string;
     discordThreadId?: string | null;
     active: boolean;
@@ -205,6 +233,7 @@ export class WatchlistStore {
     tradersLinkAiReadConfidence?: WatchlistTradersLinkAiReadConfidence;
     tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
     pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration | null;
+    tradersLinkAiReadFailure?: WatchlistTradersLinkAiReadFailure | null;
   }): WatchlistEntry {
     const symbol = normalizeSymbol(input.symbol);
     const existing = this.entries.get(symbol);
@@ -218,6 +247,9 @@ export class WatchlistStore {
         : existing?.tags
           ? [...existing.tags]
           : ["manual"],
+      watchlistGroup:
+        normalizeWatchlistGroup(input.watchlistGroup) ??
+        normalizeWatchlistGroup(existing?.watchlistGroup),
       note:
         typeof input.note === "string" && input.note.trim().length > 0
           ? input.note.trim()
@@ -278,6 +310,10 @@ export class WatchlistStore {
         input.pendingTradersLinkAiReadGeneration !== undefined
           ? input.pendingTradersLinkAiReadGeneration ?? undefined
           : existing?.pendingTradersLinkAiReadGeneration,
+      tradersLinkAiReadFailure:
+        input.tradersLinkAiReadFailure !== undefined
+          ? input.tradersLinkAiReadFailure ?? undefined
+          : existing?.tradersLinkAiReadFailure,
     };
 
     this.entries.set(symbol, entry);
@@ -286,9 +322,10 @@ export class WatchlistStore {
 
   patchEntry(
     symbol: string,
-    patch: Partial<Omit<WatchlistEntry, "lastError" | "pendingTradersLinkAiReadGeneration">> & {
+    patch: Partial<Omit<WatchlistEntry, "lastError" | "pendingTradersLinkAiReadGeneration" | "tradersLinkAiReadFailure">> & {
       lastError?: string | null;
       pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration | null;
+      tradersLinkAiReadFailure?: WatchlistTradersLinkAiReadFailure | null;
     },
   ): WatchlistEntry | null {
     const normalizedSymbol = normalizeSymbol(symbol);
@@ -310,6 +347,10 @@ export class WatchlistStore {
         patch.pendingTradersLinkAiReadGeneration !== undefined
           ? patch.pendingTradersLinkAiReadGeneration ?? undefined
           : existing.pendingTradersLinkAiReadGeneration,
+      tradersLinkAiReadFailure:
+        patch.tradersLinkAiReadFailure !== undefined
+          ? patch.tradersLinkAiReadFailure ?? undefined
+          : existing.tradersLinkAiReadFailure,
     };
     const updated = this.normalizeEntry(merged);
     this.entries.set(normalizedSymbol, updated);

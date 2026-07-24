@@ -1,9 +1,16 @@
 import type { Candle } from "../market-data/candle-types.js";
 import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-classifier.js";
+import type { LevelEngineOutput } from "../levels/level-types.js";
 
 const RECENT_INTRADAY_BAR_LIMIT = 120;
 const RECENT_ONE_MINUTE_BAR_LIMIT = 60;
-const RECENT_DAILY_BAR_LIMIT = 30;
+// Daily history is the long-range context for continuation targets. Keep this
+// materially wider than the short intraday packet so later reads can reassess
+// older structure instead of projecting from only the activation window.
+const RECENT_DAILY_BAR_LIMIT = 180;
+const DAILY_COVERAGE_BUFFER_DAYS = 30;
+const DAILY_COVERAGE_MAX_LOOKBACK_BARS = 756;
+const DAY_MS = 24 * 60 * 60 * 1_000;
 const VOLUME_LANDMARK_LIMIT = 8;
 const UNREPORTED_EXTENDED_WICK_CONFIRMATION_PCT = 0.03;
 const MINIMUM_SIGNIFICANT_IMPULSE_GAIN_PCT = 5;
@@ -18,7 +25,65 @@ export type TradersLinkAiReadPriceActionContext = {
   oneMinuteCandles?: Candle[];
   intradayCandles: Candle[];
   dailyCandles: Candle[];
+  historicalCoverageRequirement?: TradersLinkAiReadHistoricalCoverageRequirement;
 };
+
+export type TradersLinkAiReadHistoricalCoverageRequirement = {
+  requiredEarliestDailyCandleAt: number | null;
+  requiredEarliestDailyCandleAtIso: string | null;
+  requestedDailyBars: number;
+  source: "level_evidence" | "default";
+};
+
+function levelEvidenceTimestamps(levelsOutput: LevelEngineOutput | null | undefined): number[] {
+  if (!levelsOutput) {
+    return [];
+  }
+  const zones = [
+    ...levelsOutput.majorSupport,
+    ...levelsOutput.majorResistance,
+    ...levelsOutput.intermediateSupport,
+    ...levelsOutput.intermediateResistance,
+    ...levelsOutput.intradaySupport,
+    ...levelsOutput.intradayResistance,
+    ...levelsOutput.extensionLevels.support,
+    ...levelsOutput.extensionLevels.resistance,
+  ];
+  return zones.flatMap((zone) => [
+    zone.firstTimestamp,
+    zone.marketDataProvenance?.formedAt,
+  ]).filter((timestamp): timestamp is number =>
+    typeof timestamp === "number" && Number.isFinite(timestamp) && timestamp > 0,
+  );
+}
+
+export function resolveTradersLinkAiReadHistoricalCoverageRequirement(
+  levelsOutput: LevelEngineOutput | null | undefined,
+  dataAsOf: number,
+): TradersLinkAiReadHistoricalCoverageRequirement {
+  const earliestEvidenceAt = Math.min(...levelEvidenceTimestamps(levelsOutput));
+  if (!Number.isFinite(earliestEvidenceAt) || earliestEvidenceAt >= dataAsOf) {
+    return {
+      requiredEarliestDailyCandleAt: null,
+      requiredEarliestDailyCandleAtIso: null,
+      requestedDailyBars: RECENT_DAILY_BAR_LIMIT,
+      source: "default",
+    };
+  }
+
+  const requiredEarliestDailyCandleAt = Math.max(0, earliestEvidenceAt - DAILY_COVERAGE_BUFFER_DAYS * DAY_MS);
+  const calendarDays = Math.ceil((dataAsOf - requiredEarliestDailyCandleAt) / DAY_MS);
+  const estimatedTradingBars = Math.ceil(calendarDays * 5 / 7) + 10;
+  return {
+    requiredEarliestDailyCandleAt,
+    requiredEarliestDailyCandleAtIso: new Date(requiredEarliestDailyCandleAt).toISOString(),
+    requestedDailyBars: Math.min(
+      DAILY_COVERAGE_MAX_LOOKBACK_BARS,
+      Math.max(RECENT_DAILY_BAR_LIMIT, estimatedTradingBars),
+    ),
+    source: "level_evidence",
+  };
+}
 
 export type TradersLinkAiReadPullbackCandidate = {
   id: string;
@@ -661,6 +726,33 @@ function compactDailyBars(candles: Candle[]): Array<Record<string, number | stri
   }));
 }
 
+function buildHistoricalCoverage(
+  candles: Candle[],
+  requirement: TradersLinkAiReadHistoricalCoverageRequirement,
+): Record<string, unknown> {
+  const earliest = candles[0]?.timestamp ?? null;
+  const latest = candles.at(-1)?.timestamp ?? null;
+  const spanDays = earliest !== null && latest !== null
+    ? Number(((latest - earliest) / (24 * 60 * 60 * 1_000)).toFixed(1))
+    : 0;
+  return {
+    dailyCandleCount: candles.length,
+    requestedDailyBars: requirement.requestedDailyBars,
+    requiredEarliestDailyCandleAt: requirement.requiredEarliestDailyCandleAt,
+    requiredEarliestDailyCandleAtIso: requirement.requiredEarliestDailyCandleAtIso,
+    coverageRequirementSource: requirement.source,
+    earliestDailyCandleAt: earliest,
+    earliestDailyCandleAtIso: earliest === null ? null : new Date(earliest).toISOString(),
+    latestDailyCandleAt: latest,
+    latestDailyCandleAtIso: latest === null ? null : new Date(latest).toISOString(),
+    dailySpanDays: spanDays,
+    // This is a diagnostic, not a permission to invent distant targets.
+    longRangeDailyContext: candles.length >= requirement.requestedDailyBars &&
+      (requirement.requiredEarliestDailyCandleAt === null ||
+        (earliest !== null && earliest <= requirement.requiredEarliestDailyCandleAt)),
+  };
+}
+
 function aggregateRegularSessionToFifteenMinutes(
   annotated: Array<{
     candle: Candle;
@@ -778,6 +870,8 @@ export function buildTradersLinkAiPriceActionPacket(
 ): Record<string, unknown> {
   const intraday = normalizeCandles(context.intradayCandles, dataAsOf);
   const daily = normalizeCandles(context.dailyCandles, dataAsOf);
+  const historicalCoverageRequirement = context.historicalCoverageRequirement ??
+    resolveTradersLinkAiReadHistoricalCoverageRequirement(null, dataAsOf);
   if (!hasUsableTradersLinkAiPriceAction(context, dataAsOf)) {
     throw new Error("TradersLink AI Read requires recent extended-hours intraday price action.");
   }
@@ -851,5 +945,6 @@ export function buildTradersLinkAiPriceActionPacket(
     recentFiveMinuteBars: recentIntraday.map(compactIntradayBar),
     oneMinuteEvidence: oneMinuteFacts,
     recentDailyBars: compactDailyBars(daily),
+    historicalCoverage: buildHistoricalCoverage(daily, historicalCoverageRequirement),
   };
 }

@@ -728,6 +728,28 @@ describe("live watchlist publisher", () => {
     assert.equal(patch.cards.nearestSupportResistance?.metadata?.resistanceCount, 4);
   });
 
+  it("keeps the nearest full-ladder level when a side has no level within 30%", () => {
+    const patch = buildLiveWatchlistSnapshotPatch({
+      symbol: "NEWL",
+      currentPrice: 1,
+      timestamp: 1000,
+      supportZones: [],
+      resistanceZones: [{ representativePrice: 1.1, strengthLabel: "strong" }],
+      ladderSupportZones: [
+        { representativePrice: 0.25, strengthLabel: "strong", sourceLabel: "daily structure" },
+        { representativePrice: 0.1, strengthLabel: "major", sourceLabel: "weekly structure" },
+      ],
+      ladderResistanceZones: [
+        { representativePrice: 1.1, strengthLabel: "strong", sourceLabel: "fresh intraday" },
+      ],
+    });
+
+    const pathBody = patch.cards.nearestSupportResistance?.body ?? "";
+
+    assert.match(pathBody, /Support path:\n- 0\.2500 \(-75\.0%, strong, daily structure\)/);
+    assert.equal(patch.levelMap?.supportLevels[0]?.price, 0.25);
+  });
+
   it("omits freshness wording from potential path labels while preserving freshness metadata", () => {
     const patch = buildLiveWatchlistSnapshotPatch({
       symbol: "FRESH",
@@ -1104,7 +1126,7 @@ describe("live watchlist publisher", () => {
     assert.match(patch.cards.fullLadder?.body ?? "", /2\.95/);
   });
 
-  it("does not escape the 50 percent Potential Path cap when a side has a real vacuum", () => {
+  it("keeps the nearest full-ladder level when a side has a real vacuum", () => {
     const levelMap = buildLiveWatchlistLevelMap({
       currentPrice: 10,
       supportZones: [
@@ -1114,7 +1136,7 @@ describe("live watchlist publisher", () => {
       resistanceZones: [],
     });
 
-    assert.deepEqual(levelMap?.supportLevels.map((level) => level.price), []);
+    assert.deepEqual(levelMap?.supportLevels.map((level) => level.price), [3.6]);
   });
 
   it("keeps only the nearest detected checkpoint between 30 and 50 percent", () => {

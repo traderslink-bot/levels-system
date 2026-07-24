@@ -147,6 +147,8 @@ export type YahooClientOptions = {
   timeoutMs?: number;
   quoteBaseUrl?: string;
   summaryBaseUrl?: string;
+  averageVolumeCacheTtlMs?: number;
+  now?: () => number;
 };
 
 function rawNumber(value: YahooRawValue<string | number> | undefined): number | undefined {
@@ -269,12 +271,20 @@ export class YahooClient {
   private readonly timeoutMs: number;
   private readonly quoteBaseUrl: string;
   private readonly summaryBaseUrl: string;
+  private readonly averageVolumeCacheTtlMs: number;
+  private readonly now: () => number;
+  private readonly averageDailyVolume3MonthCache = new Map<
+    string,
+    { value: number; expiresAt: number }
+  >();
 
   constructor(options: YahooClientOptions = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 15_000;
     this.quoteBaseUrl = options.quoteBaseUrl ?? "https://query1.finance.yahoo.com/v7/finance/quote";
     this.summaryBaseUrl = options.summaryBaseUrl ?? "https://query1.finance.yahoo.com/v10/finance/quoteSummary";
+    this.averageVolumeCacheTtlMs = options.averageVolumeCacheTtlMs ?? 12 * 60 * 60 * 1000;
+    this.now = options.now ?? Date.now;
   }
 
   async getPreviousDayRange(symbolInput: string): Promise<YahooPreviousDayRange> {
@@ -371,6 +381,61 @@ export class YahooClient {
       postMarketTime: session === "postmarket" ? latestTime : undefined,
       priceSource: "chart",
     };
+  }
+
+  async getAverageDailyVolume3Month(symbolInput: string): Promise<number> {
+    const symbol = symbolInput.trim().toUpperCase();
+    if (!symbol) {
+      throw new Error("A ticker symbol is required.");
+    }
+
+    const now = this.now();
+    const cached = this.averageDailyVolume3MonthCache.get(symbol);
+    if (cached && cached.expiresAt > now) {
+      return cached.value;
+    }
+
+    const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
+    url.searchParams.set("range", "3mo");
+    url.searchParams.set("interval", "1d");
+    url.searchParams.set("includePrePost", "false");
+
+    const data = await this.requestJson<{ chart?: { result?: YahooChartResult[] } }>(url);
+    const result = data.chart?.result?.[0];
+    const timestamps = result?.timestamp ?? [];
+    const volumes = result?.indicators?.quote?.[0]?.volume ?? [];
+    const completedSessionVolumes: number[] = [];
+    const count = Math.min(timestamps.length, volumes.length);
+
+    for (let index = 0; index < count; index += 1) {
+      const timestamp = timestamps[index];
+      const volume = volumes[index];
+      if (
+        typeof timestamp !== "number" ||
+        !Number.isFinite(timestamp) ||
+        isSameLocalDate(timestamp, now) ||
+        typeof volume !== "number" ||
+        !Number.isFinite(volume) ||
+        volume <= 0
+      ) {
+        continue;
+      }
+      completedSessionVolumes.push(volume);
+    }
+
+    if (completedSessionVolumes.length === 0) {
+      throw new Error(`Yahoo average daily volume unavailable for ${symbol}.`);
+    }
+
+    const average = Math.round(
+      completedSessionVolumes.reduce((sum, volume) => sum + volume, 0) /
+      completedSessionVolumes.length,
+    );
+    this.averageDailyVolume3MonthCache.set(symbol, {
+      value: average,
+      expiresAt: now + this.averageVolumeCacheTtlMs,
+    });
+    return average;
   }
 
   private async requestJson<T>(url: URL): Promise<T> {

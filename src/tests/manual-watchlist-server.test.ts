@@ -222,12 +222,38 @@ test("manual watchlist admin adds TradersLink AI Read without replacing full con
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-cost-budget/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-visibility/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/ai-read-refresh/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /failure: entry\?\.tradersLinkAiReadFailure \?\? null/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /manager\.getTradersLinkAiReadCostSnapshot\(\)/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /selectorSessionActivity/);
   assert.match(MANUAL_WATCHLIST_PAGE, /formatShareVolume/);
   assert.match(MANUAL_WATCHLIST_PAGE, /session volume/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Watchlist Lifecycle Labels/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/watchlist-lifecycle-labels/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /payload\.failure\?\.reason/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /await loadEntries\(\);/);
+});
+
+test("manual watchlist admin exposes explicit lists and request-blocking AI generation controls", () => {
+  assert.match(MANUAL_WATCHLIST_PAGE, /value="top_regular"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /value="main"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /value="postmarket"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="top-regular-list"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="main-session-list"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="postmarket-list"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Remove from List/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Move to List/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="ai-read-generation-toggle"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="ai-read-premarket-toggle"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="ai-read-regular-toggle"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="ai-read-postmarket-toggle"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="ai-read-top-regular-activation-toggle"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /no ticker or read-count limit/i);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /one activation read/i);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/ai-read-generation/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/runtime\/top-regular-watchlist/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/remove-from-list/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /\/api\/watchlist\/move-to-list/);
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /runtimeIdentity: MANUAL_WATCHLIST_RUNTIME_IDENTITY/);
 });
 
 test("legacy OpenAI routes are opt-in and remain separate from website TradersLink AI Read", () => {
@@ -305,18 +331,49 @@ test("manual watchlist admin exposes persisted automatic low-float selection con
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /autoWatchlistSelector\.stop\(\)/);
 });
 
-test("manual watchlist admin exposes scoped bulk ticker removal without clearing Discord", () => {
+test("manual watchlist admin restores both saved admission-score fields after refresh", () => {
+  assert.match(
+    MANUAL_WATCHLIST_PAGE,
+    /setAutoSelectorInputValue\(\s*"mainVacancyMinQualificationScore",\s*thresholds\.mainVacancyMinQualificationScore/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_PAGE,
+    /setAutoSelectorInputValue\(\s*"postmarketMinQualificationScore",\s*thresholds\.postmarketMinQualificationScore/,
+  );
+});
+
+test("manual watchlist admin exposes authoritative per-list clearing without clearing Discord", () => {
   assert.match(MANUAL_WATCHLIST_PAGE, /id="remove-all-tickers-button"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="remove-top-regular-tickers-button"/);
   assert.match(MANUAL_WATCHLIST_PAGE, /id="remove-main-tickers-button"/);
   assert.match(MANUAL_WATCHLIST_PAGE, /id="remove-postmarket-tickers-button"/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("all", "all tickers"\)/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("main", "all Main Session tickers"\)/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("postmarket", "all Post-Market tickers"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /id="remove-reversal-tickers-button"/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("all", "all watchlists"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("top_regular", "Top Regular Hour Watches"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("main", "Main Session"\)/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /deactivateTickerGroup\("postmarket", "Post-Market"\)/);
+  assert.match(
+    MANUAL_WATCHLIST_PAGE,
+    /deactivateTickerGroup\("reversal", "Potential Reversal Watchlist"\)/,
+  );
+  assert.match(MANUAL_WATCHLIST_PAGE, /fresh discovery and fresh qualifying scans/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Discord posts and threads will be kept/);
   assert.match(MANUAL_WATCHLIST_PAGE, /\/api\/watchlist\/deactivate-bulk/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /url\.pathname === "\/api\/watchlist\/deactivate-bulk"/);
   assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /getWatchlistEntrySessionGroup\(entry\) === scope/);
-  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /await manager\.deactivateSymbols\(symbols\)/);
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /await manager\.deactivateSymbols\(symbols, \{ source: "clear" \}\)/,
+  );
+  assert.match(MANUAL_WATCHLIST_SERVER_SOURCE, /resetSymbolsForFreshDiscovery\(symbols\)/);
+  assert.doesNotMatch(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /\(entry\.active \|\| entry\.lifecycle === "activating"\)\s*&&\s*\(\s*scope === "all"/,
+  );
+  assert.match(
+    MANUAL_WATCHLIST_SERVER_SOURCE,
+    /entry\.tags\.includes\("auto-reversal-watch"\)/,
+  );
 });
 
 test("manual watchlist server uses a deeper default 4h lookback for EODHD", () => {

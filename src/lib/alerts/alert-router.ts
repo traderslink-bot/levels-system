@@ -2878,6 +2878,10 @@ export function formatLevelExtensionMessage(payload: LevelExtensionPayload): str
 export class DiscordAlertRouter {
   constructor(private readonly gateway: DiscordThreadGateway) {}
 
+  async announceTickerAdded(symbol: string): Promise<void> {
+    await this.gateway.announceTickerAdded?.(normalizeSymbol(symbol));
+  }
+
   async ensureThread(
     symbol: string,
     storedThreadId?: string | null,

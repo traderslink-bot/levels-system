@@ -40,7 +40,6 @@ const CONSECUTIVE_PASS_MAX_GAP_MS = 15 * 60 * 1000;
 const REVERSAL_WATCH_FULL_MAIN_SESSION_VOLUME = 50_000_000;
 const REVERSAL_WATCH_DEAD_CONFIRMATION_MS = 10 * 60 * 1000;
 const MAIN_WATCH_WINDOW_MINUTES = 12 * 60;
-const MAIN_VACANCY_MIN_QUALIFICATION_SCORE = 65;
 const MAIN_VACANCY_MIN_GAIN_PCT = 20;
 const MAIN_VACANCY_MIN_RECENT_DOLLAR_VOLUME = 250_000;
 const MAIN_VACANCY_MIN_VOLUME_ACCELERATION = 2;
@@ -85,6 +84,8 @@ const INDEPENDENT_RUNNER_SOURCE_SCREENS = new Set([
 ]);
 
 export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
+  mainVacancyMinQualificationScore: 65,
+  postmarketMinQualificationScore: 0,
   maxMarketCap: 100_000_000,
   maxFloatShares: 50_000_000,
   maxSharesOutstanding: 60_000_000,
@@ -151,6 +152,10 @@ export const DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG = {
 } as const;
 
 export type AutoWatchlistSelectorThresholds = {
+  /** Minimum selector score required to admit a ticker into a vacant main-session slot. */
+  mainVacancyMinQualificationScore: number;
+  /** Minimum selector score required for a new post-market admission or replacement. */
+  postmarketMinQualificationScore: number;
   maxMarketCap: number;
   maxFloatShares: number;
   maxSharesOutstanding: number;
@@ -432,12 +437,22 @@ export function meetsMainVacancyAdmissionQuality(
     AutoWatchlistCandidateDecision,
     "score" | "gainPct" | "recent15mDollarVolume" | "volumeAcceleration"
   >,
+  minimumQualificationScore: number =
+    DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG.mainVacancyMinQualificationScore,
 ): boolean {
-  return decision.score >= MAIN_VACANCY_MIN_QUALIFICATION_SCORE || (
+  return decision.score >= minimumQualificationScore || (
     (decision.gainPct ?? 0) >= MAIN_VACANCY_MIN_GAIN_PCT &&
     (decision.recent15mDollarVolume ?? 0) >= MAIN_VACANCY_MIN_RECENT_DOLLAR_VOLUME &&
     (decision.volumeAcceleration ?? 0) >= MAIN_VACANCY_MIN_VOLUME_ACCELERATION
   );
+}
+
+export function meetsPostmarketAdmissionQuality(
+  decision: Pick<AutoWatchlistCandidateDecision, "score">,
+  minimumQualificationScore: number =
+    DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG.postmarketMinQualificationScore,
+): boolean {
+  return decision.score >= minimumQualificationScore;
 }
 
 export type AutoWatchlistDiscoveryFeedComparison = {
@@ -919,6 +934,8 @@ function isTopGainerCandidate(candidate: AutoWatchlistDiscoveryCandidate): boole
 }
 
 const INTEGER_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>([
+  "mainVacancyMinQualificationScore",
+  "postmarketMinQualificationScore",
   "maxMarketCap",
   "maxFloatShares",
   "maxSharesOutstanding",
@@ -1002,6 +1019,12 @@ export function resolveAutoWatchlistSelectorThresholds(
   }
   if (resolved.maxMarketCap <= 0 || resolved.maxFloatShares <= 0 || resolved.maxSharesOutstanding <= 0) {
     throw new Error("Market-cap and share ceilings must be greater than zero.");
+  }
+  if (
+    resolved.mainVacancyMinQualificationScore > 100 ||
+    resolved.postmarketMinQualificationScore > 100
+  ) {
+    throw new Error("Main and post-market qualification scores must be between 0 and 100.");
   }
   if (
     resolved.lowPriceFloatNormalizationMaxPrice <= 0 ||
@@ -2358,6 +2381,36 @@ export class AutoWatchlistSelector {
         rejectionReasons: [...decision.rejectionReasons],
       })),
     };
+  }
+
+  resetSymbolsForFreshDiscovery(symbolInputs: string[]): AutoWatchlistSelectorStatus {
+    const symbols = new Set(symbolInputs.map(normalizeSymbol).filter(Boolean));
+    for (const symbol of symbols) {
+      this.managedEntries.delete(symbol);
+      this.firstPassEvidence.delete(symbol);
+      this.consecutivePasses.delete(symbol);
+      this.consecutivePassSessions.delete(symbol);
+      this.consecutivePassObservedAt.delete(symbol);
+      this.prefetchedActivityBySymbol.delete(symbol);
+      this.mainSessionAddedToday.delete(symbol);
+      this.postmarketAddedToday.delete(symbol);
+    }
+    this.recentDecisions = this.recentDecisions.filter(
+      (decision) => !symbols.has(decision.symbol),
+    );
+    this.lastAddedSymbols = this.lastAddedSymbols.filter(
+      (symbol) => !symbols.has(symbol),
+    );
+    this.lastActivationErrors = this.lastActivationErrors.filter(
+      (entry) => !symbols.has(entry.symbol),
+    );
+    this.replacementHistory = this.replacementHistory.filter(
+      (entry) =>
+        !symbols.has(entry.outgoingSymbol) &&
+        (entry.incomingSymbol === null || !symbols.has(entry.incomingSymbol)),
+    );
+    this.persistConfig();
+    return this.getStatus();
   }
 
   getFollowupPublicationStates(): AutoWatchlistFollowupPublicationState[] {
@@ -4198,15 +4251,27 @@ export class AutoWatchlistSelector {
     tradingHalt: NasdaqTradingHaltRecord | null,
     tradingHaltChecked: boolean,
   ): Promise<AutoWatchlistCandidateDecision> {
-    const [yahooResult, finnhubResult] = await Promise.allSettled([
+    const yahooAverageVolumePromise =
+      session !== "postmarket" &&
+      typeof this.options.yahooClient?.getAverageDailyVolume3Month === "function"
+        ? this.options.yahooClient.getAverageDailyVolume3Month(candidate.symbol)
+        : Promise.resolve(null);
+    const [yahooResult, finnhubResult, yahooAverageVolumeResult] = await Promise.allSettled([
       this.options.yahooClient?.getSummary(candidate.symbol) ?? Promise.resolve(null),
       this.options.finnhubClient?.getCompanyProfile(candidate.symbol) ?? Promise.resolve(null),
+      yahooAverageVolumePromise,
     ]);
     const yahoo = yahooResult.status === "fulfilled" ? yahooResult.value : null;
     const finnhub = finnhubResult.status === "fulfilled" ? finnhubResult.value : null;
+    const yahooAverageVolume =
+      yahooAverageVolumeResult.status === "fulfilled" ? yahooAverageVolumeResult.value : null;
     const scored = scoreAutoWatchlistCandidate({
       candidate: {
         ...candidate,
+        averageVolume:
+          session === "postmarket"
+            ? candidate.averageVolume
+            : finitePositive(yahooAverageVolume) ?? candidate.averageVolume,
         marketCap:
           finitePositive(yahoo?.marketCap) ??
           (finitePositive(finnhub?.marketCapitalization)
@@ -4717,7 +4782,22 @@ export class AutoWatchlistSelector {
           const isReplacement = Boolean(departure);
           if (
             bucket === "main" &&
-            !meetsMainVacancyAdmissionQuality(decision)
+            !meetsMainVacancyAdmissionQuality(
+              decision,
+              this.thresholds.mainVacancyMinQualificationScore,
+            )
+          ) {
+            if (departure) {
+              availableReplacementDepartures.splice(departureIndex, 0, departure);
+            }
+            continue;
+          }
+          if (
+            bucket === "postmarket" &&
+            !meetsPostmarketAdmissionQuality(
+              decision,
+              this.thresholds.postmarketMinQualificationScore,
+            )
           ) {
             if (departure) {
               availableReplacementDepartures.splice(departureIndex, 0, departure);

@@ -139,6 +139,66 @@ describe("TradersLinkAiReadCostLedger", () => {
     }
   });
 
+  it("retains bounded diagnostics for rejected AI Read attempts", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-failure-"));
+    try {
+      const ledger = new TradersLinkAiReadCostLedger({ filePath: join(directory, "costs.jsonl") });
+      const generatedAt = Date.parse("2026-07-17T18:00:00.000Z");
+      ledger.recordAttempt({
+        trigger: "manual",
+        attempt: {
+          generationId: "VIVK-generation",
+          requestId: "resp_vivk",
+          clientRequestId: "VIVK-request-1",
+          symbol: "VIVK",
+          attemptType: "primary",
+          status: "invalid_output",
+          model: "gpt-5.6-luna",
+          dataAsOf: generatedAt - 1_000,
+          marketSession: "regular",
+          usedWebSearch: false,
+          usage: {
+            inputTokens: 10,
+            cachedInputTokens: 0,
+            outputTokens: 20,
+            totalTokens: 30,
+            webSearchCallCount: 0,
+            tokenCostUsd: 0.01,
+            webSearchCostUsd: 0,
+            estimatedTotalCostUsd: 0.01,
+            pricing: {
+              source: "built_in",
+              inputPer1M: 1,
+              cachedInputPer1M: 0.1,
+              outputPer1M: 6,
+              webSearchPer1KCalls: 10,
+            },
+          },
+          receivedAt: generatedAt,
+          startedAt: generatedAt - 500,
+          durationMs: 500,
+          timeoutMs: 90_000,
+          timeoutOverrunMs: 0,
+          error: "invalid tactical trade map: needsToHold ordering",
+          failureStage: "validation",
+          rejectedDraft: {
+            sha256: "abc123",
+            length: 5_000,
+            preview: "{\"currentRead\":\"[redacted-url]\"}",
+          },
+        },
+      });
+
+      const summary = ledger.summarize(generatedAt);
+      assert.equal(summary.recentFailures[0]?.symbol, "VIVK");
+      assert.equal(summary.recentFailures[0]?.failureStage, "validation");
+      assert.equal(summary.recentFailures[0]?.rejectedDraft?.length, 5_000);
+      assert.equal(ledger.load()[0]?.rejectedDraft?.sha256, "abc123");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("throws when an attempt cannot be durably appended", () => {
     const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-write-"));
     try {
@@ -185,6 +245,76 @@ describe("TradersLinkAiReadCostLedger", () => {
       assert.equal(blocked.canStartRequest, false);
       assert.match(blocked.blockReason ?? "", /reserve/i);
       assert.equal(loadCount, 2);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("covers unpriced requests with an uncertainty allowance instead of fail-closing the AI system", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-unpriced-budget-"));
+    try {
+      const ledger = new TradersLinkAiReadCostLedger({ filePath: join(directory, "costs.jsonl") });
+      const now = Date.parse("2026-07-17T18:00:00.000Z");
+      ledger.record({ read: read("TGHL", now - 60_000, 0.025), trigger: "manual" });
+      ledger.recordAttempt({
+        trigger: "manual",
+        attempt: {
+          generationId: "VMAR-generation",
+          requestId: "VMAR-request",
+          clientRequestId: "VMAR-client-request",
+          symbol: "VMAR",
+          attemptType: "primary",
+          status: "transport_error",
+          model: "gpt-5.6-terra",
+          dataAsOf: now - 2_000,
+          marketSession: "regular",
+          usedWebSearch: false,
+          usage: {
+            inputTokens: 0,
+            cachedInputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            webSearchCallCount: 0,
+            tokenCostUsd: null,
+            webSearchCostUsd: 0,
+            estimatedTotalCostUsd: null,
+            pricing: {
+              source: "unknown",
+              inputPer1M: null,
+              cachedInputPer1M: null,
+              outputPer1M: null,
+              webSearchPer1KCalls: 10,
+            },
+          },
+          receivedAt: now - 30_000,
+          startedAt: now - 40_000,
+          durationMs: 10_000,
+          timeoutMs: 90_000,
+          timeoutOverrunMs: 0,
+          error: "transport error",
+          failureStage: "transport",
+        },
+      });
+
+      const status = ledger.getDailyCostBudgetStatus({
+        enabled: true,
+        dailyLimitUsd: 0.5,
+        now,
+      });
+      assert.equal(status.spentUsd, 0.025);
+      assert.equal(status.unpricedRequestCount, 1);
+      assert.equal(status.unpricedReserveUsd, 0.25);
+      assert.equal(status.guardedSpendUsd, 0.275);
+      assert.equal(status.canStartRequest, true);
+      assert.match(status.blockReason ?? "", /^$/);
+
+      const blocked = ledger.getDailyCostBudgetStatus({
+        enabled: true,
+        dailyLimitUsd: 0.3,
+        now,
+      });
+      assert.equal(blocked.canStartRequest, false);
+      assert.match(blocked.blockReason ?? "", /unpriced-request allowance/i);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

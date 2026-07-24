@@ -383,6 +383,34 @@ describe("TradersLink AI price-action volume quality", () => {
 });
 
 describe("OpenAITradersLinkAiReadService", () => {
+  it("normalizes abort errors with read-only messages into a timeout error", async () => {
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      timeoutMs: 1,
+      fetchImpl: async (_url, init) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          const abortError = new Error();
+          Object.defineProperty(abortError, "message", {
+            configurable: false,
+            enumerable: false,
+            get: () => "The operation was aborted.",
+          });
+          reject(abortError);
+        }, { once: true });
+      }),
+    });
+
+    await assert.rejects(
+      service.generate({
+        snapshot: snapshot(),
+        priceAction: priceAction(),
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      }),
+      /OpenAI request timed out after \d+ms\./,
+    );
+  });
+
   it("sends authoritative market data, database-first research, web search, and a strict schema", async () => {
     const requestBodies: Record<string, unknown>[] = [];
     const fetchImpl: typeof fetch = async (_url, init) => {
@@ -548,6 +576,10 @@ describe("OpenAITradersLinkAiReadService", () => {
           sessionPhaseSummaries: unknown[];
           recentSessionReferencePoints: unknown[];
           completedRegularSessionFifteenMinuteBars: unknown[];
+          historicalCoverage: {
+            dailyCandleCount: number;
+            longRangeDailyContext: boolean;
+          };
           includesRegularHours: boolean;
           recentRange: { highBar: { session: string } };
           oneMinuteEvidence: { available: boolean; recentOneMinuteBars: unknown[] };
@@ -577,6 +609,8 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(packet.marketPacket.priceAction.recentSessionReferencePoints.length > 0);
     assert.equal(typeof packet.marketPacket.priceAction.recentRange.highBar.session, "string");
     assert.ok(packet.marketPacket.priceAction.completedRegularSessionFifteenMinuteBars.length > 0);
+    assert.equal(packet.marketPacket.priceAction.historicalCoverage.dailyCandleCount, 20);
+    assert.equal(packet.marketPacket.priceAction.historicalCoverage.longRangeDailyContext, false);
     assert.equal(packet.marketPacket.priceAction.includesRegularHours, true);
     assert.equal(packet.marketPacket.priceAction.oneMinuteEvidence.available, false);
     assert.deepEqual(packet.marketPacket.priceAction.oneMinuteEvidence.recentOneMinuteBars, []);
@@ -1147,6 +1181,31 @@ describe("OpenAITradersLinkAiReadService", () => {
 
     assert.equal(read.breakoutContinuation.price, 0.3658);
     assert.match(read.currentRead, /0\.3469 premarket high/i);
+  });
+
+  it("does not mistake a calendar date for a claimed premarket-high price", async () => {
+    const validRead = premarketModelRead(
+      "The July 23 premarket high remains the immediate reference while price holds the rebound shelf.",
+    );
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async () => new Response(JSON.stringify({
+        output: [{
+          type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(validRead) }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    });
+
+    const read = await service.generate({
+      snapshot: { ...snapshot(), timestamp: PREMARKET_DATA_AS_OF, currentPrice: 0.3336 },
+      dataAsOf: PREMARKET_DATA_AS_OF,
+      priceAction: premarketPriceAction(),
+      research: { ticker: "NXXT", businessDays: 5, count: 0, articles: [] },
+    });
+
+    assert.match(read.currentRead, /July 23 premarket high/i);
   });
 
   it("rejects a caution threshold above the stated needs-to-hold boundary", async () => {

@@ -155,6 +155,18 @@ function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundary
       value.lastAutomaticRefreshRegime.length <= 160
         ? value.lastAutomaticRefreshRegime
         : null,
+    automaticRefreshDateKey:
+      typeof value.automaticRefreshDateKey === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(value.automaticRefreshDateKey)
+        ? value.automaticRefreshDateKey
+        : null,
+    automaticRefreshCount:
+      typeof value.automaticRefreshCount === "number" &&
+      Number.isInteger(value.automaticRefreshCount) &&
+      value.automaticRefreshCount >= 0 &&
+      value.automaticRefreshCount <= 100
+        ? value.automaticRefreshCount
+        : 0,
   };
 }
 
@@ -204,6 +216,16 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     value.note !== undefined &&
     value.note !== null &&
     typeof value.note !== "string"
+  ) {
+    return null;
+  }
+
+  if (
+    value.watchlistGroup !== undefined &&
+    value.watchlistGroup !== null &&
+    value.watchlistGroup !== "top_regular" &&
+    value.watchlistGroup !== "main" &&
+    value.watchlistGroup !== "postmarket"
   ) {
     return null;
   }
@@ -312,6 +334,11 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     active: value.active,
     priority: value.priority,
     tags: [...value.tags],
+    ...(value.watchlistGroup === "top_regular" ||
+    value.watchlistGroup === "main" ||
+    value.watchlistGroup === "postmarket"
+      ? { watchlistGroup: value.watchlistGroup }
+      : {}),
     note:
       typeof value.note === "string" && value.note.trim().length > 0
         ? value.note.trim()
@@ -426,6 +453,7 @@ function buildPersistedState(entries: WatchlistEntry[], now = Date.now()): Persi
       active: entry.active,
       priority: entry.priority,
       tags: [...entry.tags],
+      ...(entry.watchlistGroup ? { watchlistGroup: entry.watchlistGroup } : {}),
       note: entry.note?.trim() || undefined,
       discordThreadId: entry.discordThreadId?.trim() || null,
       lifecycle: entry.lifecycle ?? (entry.active ? "active" : "inactive"),

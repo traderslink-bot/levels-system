@@ -798,6 +798,79 @@ test("LevelEngine still generates structural levels when 5m is unavailable", asy
   assert.ok(Math.abs((output.metadata.referencePrice ?? 0) - 6.025) < 1e-9);
 });
 
+test("LevelEngine falls back to recent Yahoo 5m candles when EODHD 5m is empty", async () => {
+  const baseTimestamp = Date.parse("2026-07-24T13:30:00Z");
+  const higherTimeframeCandles = Array.from({ length: 20 }, (_, index) => ({
+    timestamp: baseTimestamp - (20 - index) * 24 * 60 * 60 * 1000,
+    open: 2 + index * 0.02,
+    high: 2.2 + index * 0.03,
+    low: 1.8 + index * 0.01,
+    close: 2.05 + index * 0.02,
+    volume: 10000 + index * 100,
+  }));
+  const fallbackFiveMinuteCandles = [
+    { timestamp: baseTimestamp, open: 2.8, high: 3.2, low: 2.7, close: 3.1, volume: 5000 },
+    { timestamp: baseTimestamp + 5 * 60 * 1000, open: 3.1, high: 3.8, low: 3.0, close: 3.2, volume: 8000 },
+    { timestamp: baseTimestamp + 10 * 60 * 1000, open: 3.2, high: 3.4, low: 3.0, close: 3.1, volume: 4000 },
+    { timestamp: baseTimestamp + 15 * 60 * 1000, open: 3.1, high: 3.3, low: 2.9, close: 3.0, volume: 4000 },
+    { timestamp: baseTimestamp + 20 * 60 * 1000, open: 3.0, high: 3.2, low: 2.8, close: 3.1, volume: 3000 },
+  ];
+  const response = (
+    timeframe: "daily" | "4h" | "5m",
+    provider: "eodhd" | "yahoo",
+    candles: typeof higherTimeframeCandles,
+  ): CandleProviderResponse => ({
+    provider,
+    symbol: "VIVK",
+    timeframe,
+    requestedLookbackBars: candles.length,
+    candles,
+    fetchStartTimestamp: 1,
+    fetchEndTimestamp: 2,
+    requestedStartTimestamp: candles[0]?.timestamp ?? baseTimestamp,
+    requestedEndTimestamp: candles.at(-1)?.timestamp ?? baseTimestamp,
+    sessionMetadataAvailable: timeframe === "5m",
+    actualBarsReturned: candles.length,
+    completenessStatus: "complete",
+    stale: false,
+    validationIssues: [],
+    sessionSummary: timeframe === "5m"
+      ? { premarketBars: 0, openingRangeBars: 5, regularBars: 5, afterHoursBars: 0, extendedBars: 0, unknownBars: 0, latestRegularSessionDate: "2026-07-24" }
+      : null,
+  });
+  const primary = new FakeHistoricalProvider({
+    daily: response("daily", "eodhd", higherTimeframeCandles),
+    "4h": response("4h", "eodhd", higherTimeframeCandles),
+    "5m": {
+      ...response("5m", "eodhd", []),
+      completenessStatus: "empty",
+      stale: true,
+      validationIssues: [{ code: "zero_results", severity: "error", message: "EODHD 5m unavailable" }],
+    },
+  });
+  const fallback = {
+    getProviderName: () => "yahoo" as const,
+    fetchCandles: async () => response("5m", "yahoo", fallbackFiveMinuteCandles),
+  };
+
+  const output = await new LevelEngine(
+    new CandleFetchService(primary as any),
+    undefined,
+    { fallbackFiveMinuteFetchService: fallback },
+  ).generateLevels({
+    symbol: "VIVK",
+    historicalRequests: {
+      daily: { symbol: "VIVK", timeframe: "daily", lookbackBars: 20 },
+      "4h": { symbol: "VIVK", timeframe: "4h", lookbackBars: 20 },
+      "5m": { symbol: "VIVK", timeframe: "5m", lookbackBars: 5 },
+    },
+  });
+
+  assert.equal(output.metadata.providerByTimeframe["5m"], "yahoo");
+  assert.equal(output.metadata.coverage, "full");
+  assert.ok(output.specialLevels.openingRangeHigh === 3.8);
+});
+
 test("LevelEngine builds an honest intraday-only map when daily and 4h history are unavailable", async () => {
   const baseTimestamp = Date.parse("2026-07-14T13:30:00Z");
   const emptyResponse = (timeframe: "daily" | "4h"): CandleProviderResponse => ({

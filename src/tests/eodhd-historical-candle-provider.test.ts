@@ -203,6 +203,51 @@ test("EodhdHistoricalCandleProvider adjusts pre-split daily resistance into the 
   });
 });
 
+test("EodhdHistoricalCandleProvider records material reverse-split transitions in provider metadata", async () => {
+  const provider = new EodhdHistoricalCandleProvider({
+    apiToken: "test-token",
+    fetchFn: createFetch([
+      {
+        date: "2026-07-16",
+        open: 0.2,
+        high: 0.23,
+        low: 0.19,
+        close: 0.21,
+        adjusted_close: 4.2,
+        volume: 1000,
+      },
+      {
+        date: "2026-07-17",
+        open: 4.1,
+        high: 4.2,
+        low: 2.1,
+        close: 2.2,
+        adjusted_close: 2.2,
+        volume: 2000,
+      },
+    ], []),
+  });
+  const request: HistoricalFetchRequest = {
+    symbol: "VIVK",
+    timeframe: "daily",
+    lookbackBars: 2,
+    endTimeMs: Date.parse("2026-07-18T00:00:00.000Z"),
+  };
+
+  const response = await provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd"));
+
+  assert.equal(response.providerMetadata?.splitAdjustmentApplied, true);
+  assert.equal(response.providerMetadata?.detectedReverseSplitCount, 1);
+  assert.deepEqual(JSON.parse(String(response.providerMetadata?.detectedSplitEvents)), [{
+    date: "2026-07-17",
+    eventType: "reverse_split",
+    priorAdjustmentFactor: 20,
+    adjustmentFactor: 1,
+    priceAdjustmentFactor: 0.05,
+    source: "adjusted_close_ratio",
+  }]);
+});
+
 test("EodhdHistoricalCandleProvider aggregates 1h EODHD bars into session-anchored 4h candles", async () => {
   const urls: string[] = [];
   const firstTimestamp = Date.parse("2026-05-01T09:30:00-04:00");

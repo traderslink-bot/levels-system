@@ -35,6 +35,8 @@ export type TradersLinkAiReadCostLedgerEntry = {
   timeoutMs?: number;
   timeoutOverrunMs?: number;
   error?: string | null;
+  failureStage?: TradersLinkAiReadAttempt["failureStage"];
+  rejectedDraft?: TradersLinkAiReadAttempt["rejectedDraft"];
 };
 
 export type TradersLinkAiReadCostTotals = {
@@ -77,14 +79,27 @@ export type TradersLinkAiReadCostSummary = {
   };
   todayPerTicker: TradersLinkAiReadTickerCostSummary[];
   perTicker: TradersLinkAiReadTickerCostSummary[];
+  tickerWindows: {
+    today: TradersLinkAiReadTickerCostSummary[];
+    last7Days: TradersLinkAiReadTickerCostSummary[];
+    last30Days: TradersLinkAiReadTickerCostSummary[];
+    allTime: TradersLinkAiReadTickerCostSummary[];
+  };
   byTrigger: Array<{ trigger: TradersLinkAiReadCostTrigger; totals: TradersLinkAiReadCostTotals }>;
   byModel: Array<{ model: string; totals: TradersLinkAiReadCostTotals }>;
+  recentFailures: Array<Pick<TradersLinkAiReadCostLedgerEntry,
+    "symbol" | "generatedAt" | "dataAsOf" | "model" | "trigger" | "attemptType" |
+    "status" | "error" | "failureStage" | "rejectedDraft" | "generationId" | "requestId"
+  >>;
 };
 
 export type TradersLinkAiReadDailyCostBudgetStatus = {
   enabled: boolean;
   dailyLimitUsd: number;
   spentUsd: number;
+  guardedSpendUsd: number;
+  unpricedRequestCount: number;
+  unpricedReserveUsd: number;
   projectedNextRequestUsd: number;
   remainingUsd: number;
   canStartRequest: boolean;
@@ -102,6 +117,9 @@ const DEFAULT_LEDGER_FILE = resolve(
 );
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const DEFAULT_NEXT_REQUEST_RESERVE_USD = 0.1;
+// A request without token pricing is not treated as free. Keep a conservative
+// allowance for provider-side billing that the response did not let us price.
+const UNPRICED_REQUEST_RESERVE_USD = 0.25;
 const RECENT_REQUEST_RESERVE_SAMPLE_SIZE = 8;
 
 function roundUsd(value: number): number {
@@ -274,6 +292,8 @@ export class TradersLinkAiReadCostLedger {
       timeoutMs: args.attempt.timeoutMs,
       timeoutOverrunMs: args.attempt.timeoutOverrunMs,
       error: args.attempt.error,
+      failureStage: args.attempt.failureStage,
+      rejectedDraft: args.attempt.rejectedDraft,
     });
   }
 
@@ -390,7 +410,14 @@ export class TradersLinkAiReadCostLedger {
         ),
       };
     }).sort((a, b) => b.estimatedTotalCostUsd - a.estimatedTotalCostUsd || a.symbol.localeCompare(b.symbol));
-    const perTicker = summarizePerTicker(entries);
+    const last7DaysEntries = entries.filter((entry) => entry.generatedAt >= now - 7 * DAY_MS);
+    const last30DaysEntries = entries.filter((entry) => entry.generatedAt >= now - 30 * DAY_MS);
+    const tickerWindows = {
+      today: summarizePerTicker(todayEntries),
+      last7Days: summarizePerTicker(last7DaysEntries),
+      last30Days: summarizePerTicker(last30DaysEntries),
+      allTime: summarizePerTicker(entries),
+    };
 
     return {
       generatedAt: now,
@@ -400,18 +427,37 @@ export class TradersLinkAiReadCostLedger {
       accountingHealth: { ...this.accountingHealth },
       windows: {
         today: totalsFor(todayEntries),
-        last7Days: totalsFor(entries.filter((entry) => entry.generatedAt >= now - 7 * DAY_MS)),
-        last30Days: totalsFor(entries.filter((entry) => entry.generatedAt >= now - 30 * DAY_MS)),
+        last7Days: totalsFor(last7DaysEntries),
+        last30Days: totalsFor(last30DaysEntries),
         allTime: totalsFor(entries),
       },
-      todayPerTicker: summarizePerTicker(todayEntries),
-      perTicker,
+      todayPerTicker: tickerWindows.today,
+      perTicker: tickerWindows.allTime,
+      tickerWindows,
       byTrigger: [...grouped((entry) => entry.trigger).entries()]
         .map(([trigger, triggerEntries]) => ({ trigger, totals: totalsFor(triggerEntries) }))
         .sort((a, b) => b.totals.estimatedTotalCostUsd - a.totals.estimatedTotalCostUsd),
       byModel: [...grouped((entry) => entry.model).entries()]
         .map(([model, modelEntries]) => ({ model, totals: totalsFor(modelEntries) }))
         .sort((a, b) => b.totals.estimatedTotalCostUsd - a.totals.estimatedTotalCostUsd),
+      recentFailures: entries
+        .filter((entry) => entry.status === "invalid_output" || entry.status === "transport_error")
+        .sort((a, b) => b.generatedAt - a.generatedAt)
+        .slice(0, 20)
+        .map((entry) => ({
+          symbol: entry.symbol,
+          generatedAt: entry.generatedAt,
+          dataAsOf: entry.dataAsOf,
+          model: entry.model,
+          trigger: entry.trigger,
+          ...(entry.attemptType ? { attemptType: entry.attemptType } : {}),
+          ...(entry.status ? { status: entry.status } : {}),
+          ...(entry.error !== undefined ? { error: entry.error } : {}),
+          ...(entry.failureStage ? { failureStage: entry.failureStage } : {}),
+          ...(entry.rejectedDraft ? { rejectedDraft: entry.rejectedDraft } : {}),
+          ...(entry.generationId ? { generationId: entry.generationId } : {}),
+          ...(entry.requestId ? { requestId: entry.requestId } : {}),
+        })),
     };
   }
 
@@ -425,6 +471,9 @@ export class TradersLinkAiReadCostLedger {
     const dailyLimitUsd = roundUsd(Math.max(0, args.dailyLimitUsd));
     const resolvedSummary = summary ?? this.summarize(now, loadedEntries);
     const spentUsd = resolvedSummary.windows.today.estimatedTotalCostUsd;
+    const unpricedRequestCount = resolvedSummary.windows.today.unpricedRequestCount;
+    const unpricedReserveUsd = roundUsd(unpricedRequestCount * UNPRICED_REQUEST_RESERVE_USD);
+    const guardedSpendUsd = roundUsd(spentUsd + unpricedReserveUsd);
     const recentSuccessfulCosts = loadedEntries
       .filter((entry) =>
         entry.generatedAt <= now &&
@@ -445,21 +494,24 @@ export class TradersLinkAiReadCostLedger {
           )
         : DEFAULT_NEXT_REQUEST_RESERVE_USD,
     );
-    const remainingUsd = roundUsd(Math.max(0, dailyLimitUsd - spentUsd));
+    const remainingUsd = roundUsd(Math.max(0, dailyLimitUsd - guardedSpendUsd));
     let blockReason: string | null = null;
     if (args.enabled && !resolvedSummary.accountingHealth.healthy) {
       blockReason = "Expense ledger is unhealthy, so the budget guard cannot safely estimate today's spend.";
-    } else if (args.enabled && resolvedSummary.windows.today.unpricedRequestCount > 0) {
-      blockReason = "At least one AI request today is unpriced, so the budget guard cannot safely estimate today's spend.";
     } else if (args.enabled && dailyLimitUsd <= 0) {
       blockReason = "A positive daily budget is required when the budget guard is enabled.";
-    } else if (args.enabled && spentUsd + projectedNextRequestUsd > dailyLimitUsd) {
-      blockReason = "Today's recorded spend plus the next-request reserve would exceed the daily budget.";
+    } else if (args.enabled && guardedSpendUsd + projectedNextRequestUsd > dailyLimitUsd) {
+      blockReason = unpricedRequestCount > 0
+        ? "Today's recorded spend plus the unpriced-request allowance and next-request reserve would exceed the daily budget."
+        : "Today's recorded spend plus the next-request reserve would exceed the daily budget.";
     }
     return {
       enabled: args.enabled,
       dailyLimitUsd,
       spentUsd,
+      guardedSpendUsd,
+      unpricedRequestCount,
+      unpricedReserveUsd,
       projectedNextRequestUsd,
       remainingUsd,
       canStartRequest: !args.enabled || blockReason === null,

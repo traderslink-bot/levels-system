@@ -40,10 +40,12 @@ export type LiveWatchlistAuditArchiveSymbol = {
   lastSeenAt: number;
   archivedAt: number;
   firstPostedAt?: number | null;
+  watchlistGroup?: "top_regular" | "main" | "postmarket";
   watchlistSlotState?: LiveWatchlistSlotState;
   reversalWatchEligible?: boolean;
   reversalWatchAttemptReady?: boolean;
   reversalWatchlistVisible?: boolean;
+  topRegularWatchlistVisible?: boolean;
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
@@ -143,6 +145,11 @@ function normalizeArchiveSymbol(value: unknown, now: number): LiveWatchlistAudit
     ...(value.firstPostedAt === null || finiteTimestamp(value.firstPostedAt) !== null
       ? { firstPostedAt: value.firstPostedAt === null ? null : finiteTimestamp(value.firstPostedAt)! }
       : {}),
+    ...(value.watchlistGroup === "top_regular" ||
+    value.watchlistGroup === "main" ||
+    value.watchlistGroup === "postmarket"
+      ? { watchlistGroup: value.watchlistGroup }
+      : {}),
     ...(value.watchlistSlotState === "active" || value.watchlistSlotState === "followup"
       ? { watchlistSlotState: value.watchlistSlotState }
       : {}),
@@ -154,6 +161,9 @@ function normalizeArchiveSymbol(value: unknown, now: number): LiveWatchlistAudit
       : {}),
     ...(typeof value.reversalWatchlistVisible === "boolean"
       ? { reversalWatchlistVisible: value.reversalWatchlistVisible }
+      : {}),
+    ...(typeof value.topRegularWatchlistVisible === "boolean"
+      ? { topRegularWatchlistVisible: value.topRegularWatchlistVisible }
       : {}),
     ...(typeof value.potentialGainCardVisible === "boolean"
       ? { potentialGainCardVisible: value.potentialGainCardVisible }
@@ -326,6 +336,7 @@ function applyCardPatch(
     updatedAt: patch.updatedAt,
     lastSeenAt: patch.updatedAt,
     ...(patch.firstPostedAt !== undefined ? { firstPostedAt: patch.firstPostedAt } : {}),
+    ...(patch.watchlistGroup !== undefined ? { watchlistGroup: patch.watchlistGroup } : {}),
     ...(patch.watchlistSlotState !== undefined
       ? { watchlistSlotState: patch.watchlistSlotState }
       : {}),
@@ -337,6 +348,9 @@ function applyCardPatch(
       : {}),
     ...(patch.reversalWatchlistVisible !== undefined
       ? { reversalWatchlistVisible: patch.reversalWatchlistVisible }
+      : {}),
+    ...(patch.topRegularWatchlistVisible !== undefined
+      ? { topRegularWatchlistVisible: patch.topRegularWatchlistVisible }
       : {}),
     ...(patch.potentialGainCardVisible !== undefined
       ? { potentialGainCardVisible: patch.potentialGainCardVisible }
@@ -390,6 +404,7 @@ function applyTickerDataPatch(
     status: patch.status,
     updatedAt: patch.updatedAt,
     lastSeenAt: patch.updatedAt,
+    ...(patch.watchlistGroup !== undefined ? { watchlistGroup: patch.watchlistGroup } : {}),
     ...(patch.watchlistSlotState !== undefined
       ? { watchlistSlotState: patch.watchlistSlotState }
       : {}),
@@ -401,6 +416,9 @@ function applyTickerDataPatch(
       : {}),
     ...(patch.reversalWatchlistVisible !== undefined
       ? { reversalWatchlistVisible: patch.reversalWatchlistVisible }
+      : {}),
+    ...(patch.topRegularWatchlistVisible !== undefined
+      ? { topRegularWatchlistVisible: patch.topRegularWatchlistVisible }
       : {}),
     ...(patch.potentialGainCardVisible !== undefined
       ? { potentialGainCardVisible: patch.potentialGainCardVisible }

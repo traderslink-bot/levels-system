@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { Candle } from "../lib/market-data/candle-types.js";
-import { buildTradersLinkAiPriceActionPacket } from "../lib/ai/traderslink-ai-read-price-action.js";
+import {
+  buildTradersLinkAiPriceActionPacket,
+  resolveTradersLinkAiReadHistoricalCoverageRequirement,
+} from "../lib/ai/traderslink-ai-read-price-action.js";
 
 const START = Date.parse("2026-07-21T14:00:00.000Z");
 
@@ -68,6 +71,37 @@ function evidence(oneMinuteCandles: Candle[], currentPrice = 1.5): Record<string
 }
 
 describe("TradersLink AI one-minute evidence", () => {
+  it("reports whether the supplied daily history is long-range enough", () => {
+    const oneMinuteCandles = impulseCandles(5);
+    const intradayCandles = fiveMinuteCandles(oneMinuteCandles);
+    while (intradayCandles.length < 12) {
+      const last = intradayCandles.at(-1)!;
+      intradayCandles.push({ ...last, timestamp: last.timestamp + 5 * 60_000 });
+    }
+    const dataAsOf = intradayCandles.at(-1)!.timestamp;
+    const dailyCandles = Array.from({ length: 180 }, (_, index) => ({
+      timestamp: dataAsOf - (179 - index) * 24 * 60 * 60_000,
+      open: 1 + index * 0.001,
+      high: 1.01 + index * 0.001,
+      low: 0.99 + index * 0.001,
+      close: 1 + index * 0.001,
+      volume: 100_000,
+    }));
+    const packet = buildTradersLinkAiPriceActionPacket({
+      source: "fixture",
+      fetchedAt: dataAsOf,
+      priorRegularClose: 0.9,
+      oneMinuteCandles,
+      intradayCandles,
+      dailyCandles,
+    }, 1.18, dataAsOf) as { historicalCoverage: Record<string, unknown>; recentDailyBars: unknown[] };
+
+    assert.equal(packet.recentDailyBars.length, 180);
+    assert.equal(packet.historicalCoverage.dailyCandleCount, 180);
+    assert.equal(packet.historicalCoverage.requestedDailyBars, 180);
+    assert.equal(packet.historicalCoverage.longRangeDailyContext, true);
+  });
+
   it("distinguishes a fast vertical extension from a slower gain of the same size", () => {
     const fast = evidence(impulseCandles(5)).latestSignificantImpulse as Record<string, number>;
     const slow = evidence(impulseCandles(25)).latestSignificantImpulse as Record<string, number>;
@@ -76,6 +110,29 @@ describe("TradersLink AI one-minute evidence", () => {
     assert.ok(slow.gainPct >= 49);
     assert.ok(fast.durationMinutes < slow.durationMinutes);
     assert.ok(fast.gainPerMinutePct > slow.gainPerMinutePct * 2);
+  });
+
+  it("expands daily coverage when the private level evidence reaches farther back", () => {
+    const evidenceAt = Date.parse("2025-06-08T16:00:00.000Z");
+    const requirement = resolveTradersLinkAiReadHistoricalCoverageRequirement({
+      majorSupport: [],
+      majorResistance: [{
+        firstTimestamp: evidenceAt,
+        marketDataProvenance: { formedAt: evidenceAt, sourceLastSeenAt: START },
+      }],
+      intermediateSupport: [],
+      intermediateResistance: [],
+      intradaySupport: [],
+      intradayResistance: [],
+      extensionLevels: { support: [], resistance: [] },
+    } as never, START);
+
+    assert.equal(requirement.source, "level_evidence");
+    assert.ok(requirement.requestedDailyBars > 180);
+    assert.equal(
+      requirement.requiredEarliestDailyCandleAt,
+      evidenceAt - 30 * 24 * 60 * 60 * 1_000,
+    );
   });
 
   it("builds materially separate shallow consolidation and deep pre-impulse candidates", () => {

@@ -308,6 +308,9 @@ export type TradersLinkAiReadBoundaryState = {
    * duplicate read after price whipsaws back through an old boundary.
    */
   lastAutomaticRefreshRegime?: string | null;
+  /** Number of automatic boundary refreshes consumed on the stored New York trading date. */
+  automaticRefreshDateKey?: string | null;
+  automaticRefreshCount?: number;
 };
 
 export type PendingTradersLinkAiReadGeneration = {
@@ -318,12 +321,25 @@ export type PendingTradersLinkAiReadGeneration = {
 };
 
 export type WatchlistTradersLinkAiReadConfidence = "low" | "medium" | "high";
+export type WatchlistTradersLinkAiReadFailureStage =
+  | "preparation"
+  | "generation"
+  | "publishing"
+  | "unknown";
+export type WatchlistTradersLinkAiReadFailure = {
+  stage: WatchlistTradersLinkAiReadFailureStage;
+  reason: string;
+  trigger: string;
+  failedAt: number;
+};
+export type WatchlistGroup = "top_regular" | "main" | "postmarket";
 
 export type WatchlistEntry = {
   symbol: string;
   active: boolean;
   priority: number;
   tags: string[];
+  watchlistGroup?: WatchlistGroup;
   note?: string;
   discordThreadId?: string | null;
   lifecycle?: WatchlistLifecycleState;
@@ -342,6 +358,7 @@ export type WatchlistEntry = {
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   tradersLinkAiReadConfidence?: WatchlistTradersLinkAiReadConfidence;
+  tradersLinkAiReadFailure?: WatchlistTradersLinkAiReadFailure;
   tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
   pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration;
   lastError?: string;
