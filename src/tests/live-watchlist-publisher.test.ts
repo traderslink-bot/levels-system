@@ -728,6 +728,27 @@ describe("live watchlist publisher", () => {
     assert.equal(patch.cards.nearestSupportResistance?.metadata?.resistanceCount, 4);
   });
 
+  it("keeps a major session-low floor when structural preference would otherwise leave one support", () => {
+    const patch = buildLiveWatchlistSnapshotPatch({
+      symbol: "BIYA",
+      currentPrice: 2.5141,
+      timestamp: 1000,
+      supportZones: [{ representativePrice: 2.44, strengthLabel: "moderate", sourceLabel: "4h structure" }],
+      resistanceZones: [{ representativePrice: 2.6, strengthLabel: "moderate", sourceLabel: "4h structure" }],
+      ladderSupportZones: [
+        { representativePrice: 2.44, strengthLabel: "moderate", sourceLabel: "4h structure" },
+        { representativePrice: 1.91, strengthLabel: "major", sourceLabel: "session low (52-week low)" },
+      ],
+      ladderResistanceZones: [{ representativePrice: 2.6, strengthLabel: "moderate", sourceLabel: "4h structure" }],
+    });
+
+    assert.deepEqual(patch.levelMap?.supportLevels.map((level) => level.price), [2.44, 1.91]);
+    assert.match(
+      patch.cards.nearestSupportResistance?.body ?? "",
+      /1\.91 \(-24\.0%, major, session low \(52-week low\)\)/,
+    );
+  });
+
   it("keeps the nearest full-ladder level when a side has no level within 30%", () => {
     const patch = buildLiveWatchlistSnapshotPatch({
       symbol: "NEWL",

@@ -2828,7 +2828,11 @@ export function formatLevelLadderMessage(payload: LevelSnapshotPayload): string 
   const ladderResistanceZones = payload.ladderResistanceZones ?? payload.resistanceZones;
   const ladderSupportZones = payload.ladderSupportZones ?? payload.supportZones;
 
-  if (ladderResistanceZones.length === 0 && ladderSupportZones.length === 0) {
+  if (
+    ladderResistanceZones.length === 0 &&
+    ladderSupportZones.length === 0 &&
+    !payload.lastDetectableSupport
+  ) {
     return null;
   }
 
@@ -2850,6 +2854,9 @@ export function formatLevelLadderMessage(payload: LevelSnapshotPayload): string 
     undefined,
     { compact: false },
   );
+  const lastDetectableSupportLine = payload.lastDetectableSupport
+    ? `No support is detectable below price. ${formatLevel(payload.lastDetectableSupport.price)} was the last detectable support and the ${payload.lastDetectableSupport.sourceLabel}.`
+    : null;
 
   return [
     `${payload.symbol} full level ladder`,
@@ -2858,6 +2865,7 @@ export function formatLevelLadderMessage(payload: LevelSnapshotPayload): string 
     ...resistanceLines,
     "",
     ...fullSupportLines,
+    ...(lastDetectableSupportLine ? ["", lastDetectableSupportLine] : []),
   ].join("\n");
 }
 

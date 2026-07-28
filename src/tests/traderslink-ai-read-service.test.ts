@@ -457,7 +457,14 @@ describe("OpenAITradersLinkAiReadService", () => {
     });
 
     const read = await service.generate({
-      snapshot: snapshot(),
+      snapshot: {
+        ...snapshot(),
+        verifiedFiftyTwoWeekLow: {
+          price: 1.12,
+          observedAt: DATA_AS_OF - 60_000,
+          sourceLabel: "verified Yahoo daily-candle 52-week low",
+        },
+      },
       priceAction: priceAction(),
       dataAsOf: DATA_AS_OF,
       priorPlanBoundary: {
@@ -548,6 +555,8 @@ describe("OpenAITradersLinkAiReadService", () => {
       input[0]!.content[0]!.text,
       /recoveryZoneLow <= recoveryZoneHigh < firstReclaimPrice < setupRestorePrice/,
     );
+    assert.match(input[0]!.content[0]!.text, /verifiedFiftyTwoWeekLow/);
+    assert.match(input[0]!.content[0]!.text, /must never dominate the read/);
     const pullbackPlansSchema = schema.properties.pullbackPlans as {
       properties: {
         shallow: {
@@ -571,6 +580,11 @@ describe("OpenAITradersLinkAiReadService", () => {
         currentPrice: number;
         secondaryRuntimeQuote: { price: number };
         quoteDisagreementPct: number;
+        verifiedFiftyTwoWeekLow: {
+          price: number;
+          relationshipToCurrentPrice: "above" | "at_or_near" | "broken";
+          isLastDetectableSupport: boolean;
+        } | null;
         priceAction: {
           recentFiveMinuteBars: unknown[];
           sessionPhaseSummaries: unknown[];
@@ -604,6 +618,15 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(packet.marketPacket.currentPrice, priceAction().intradayCandles.at(-1)!.close);
     assert.equal(packet.marketPacket.secondaryRuntimeQuote.price, 1.36);
     assert.ok(packet.marketPacket.quoteDisagreementPct > 0);
+    assert.deepEqual(packet.marketPacket.verifiedFiftyTwoWeekLow, {
+      price: 1.12,
+      source: "verified Yahoo daily-candle 52-week low",
+      observedAt: DATA_AS_OF - 60_000,
+      observedAtIso: new Date(DATA_AS_OF - 60_000).toISOString(),
+      distanceFromCurrentPricePct: 17.77,
+      relationshipToCurrentPrice: "above",
+      isLastDetectableSupport: false,
+    });
     assert.equal(packet.marketPacket.priceAction.recentFiveMinuteBars.length, 24);
     assert.ok(packet.marketPacket.priceAction.sessionPhaseSummaries.length > 0);
     assert.ok(packet.marketPacket.priceAction.recentSessionReferencePoints.length > 0);

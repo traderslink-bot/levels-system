@@ -1455,6 +1455,13 @@ type ActiveLevelSnapshotState = {
   lastLevelClearTimestamp?: number | null;
 };
 
+type YahooCurrentSessionRangeFallback = {
+  low: number;
+  high: number;
+  dailyCandles: Candle[];
+  observedAt: number;
+};
+
 const LEVEL_REFRESH_THRESHOLD_PCT = 0.01;
 const LEVEL_REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 const INITIAL_SNAPSHOT_RETRY_DELAY_MS = 1000;
@@ -1519,6 +1526,8 @@ const PRIOR_REGULAR_CLOSE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const PULLBACK_READ_INTRADAY_POLL_INTERVAL_MS = 60 * 1000;
 const PULLBACK_READ_1M_LOOKBACK_BARS = 120;
 const PULLBACK_READ_5M_LOOKBACK_BARS = 80;
+const YAHOO_SESSION_SUPPORT_5M_LOOKBACK_BARS = 500;
+const YAHOO_SESSION_SUPPORT_DAILY_LOOKBACK_BARS = 370;
 const TRADERSLINK_AI_READ_1M_FETCH_BARS = 600;
 const TRADERSLINK_AI_READ_5M_FETCH_BARS = 720;
 const PULLBACK_READ_MAX_LATEST_CANDLE_AGE_MS = 10 * 60 * 1000;
@@ -1633,6 +1642,182 @@ function snapshotPriceTolerance(price: number): number {
 
 function snapshotDisplayCompactionTolerance(price: number): number {
   return Math.max(price * SNAPSHOT_DISPLAY_COMPACTION_PCT, SNAPSHOT_DISPLAY_COMPACTION_ABSOLUTE);
+}
+
+function hasReliableFiftyTwoWeekLow(params: {
+  dailyCandles: Candle[];
+  candidatePrice: number;
+  referenceTimestamp: number;
+  tolerance: number;
+}): boolean {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const validCandles = params.dailyCandles.filter((candle) =>
+    Number.isFinite(candle.timestamp) &&
+    Number.isFinite(candle.low) &&
+    candle.low > 0 &&
+    candle.timestamp <= params.referenceTimestamp + dayMs,
+  );
+  if (validCandles.length < 240) {
+    return false;
+  }
+
+  const oldestTimestamp = Math.min(...validCandles.map((candle) => candle.timestamp));
+  const newestTimestamp = Math.max(...validCandles.map((candle) => candle.timestamp));
+  const hasNearlyFullYearOfHistory =
+    oldestTimestamp <= params.referenceTimestamp - 350 * dayMs &&
+    newestTimestamp >= params.referenceTimestamp - 7 * dayMs;
+  if (!hasNearlyFullYearOfHistory) {
+    return false;
+  }
+
+  const trailingLow = Math.min(...validCandles.map((candle) => candle.low));
+  return params.candidatePrice <= trailingLow + params.tolerance;
+}
+
+function buildVerifiedFiftyTwoWeekLow(params: {
+  timestamp: number;
+  tolerance: number;
+  yahooSessionRange: YahooCurrentSessionRangeFallback | null | undefined;
+}): NonNullable<LevelSnapshotPayload["verifiedFiftyTwoWeekLow"]> | null {
+  const price = params.yahooSessionRange?.low;
+  if (
+    typeof price !== "number" ||
+    !Number.isFinite(price) ||
+    price <= 0 ||
+    !hasReliableFiftyTwoWeekLow({
+      dailyCandles: params.yahooSessionRange?.dailyCandles ?? [],
+      candidatePrice: price,
+      referenceTimestamp: params.timestamp,
+      tolerance: params.tolerance,
+    })
+  ) {
+    return null;
+  }
+
+  return {
+    price,
+    observedAt: params.yahooSessionRange?.observedAt ?? params.timestamp,
+    sourceLabel: "verified Yahoo daily-candle 52-week low",
+  };
+}
+
+function buildYahooCurrentSessionLowSupportFallback(params: {
+  symbol: string;
+  tolerance: number;
+  timestamp: number;
+  yahooSessionRange: YahooCurrentSessionRangeFallback | null | undefined;
+  existingSupportZones: FinalLevelZone[];
+}): FinalLevelZone | null {
+  // EODHD deliberately ends level requests at the last confirmed session. When
+  // its 5m series is stale, LevelEngine replaces it with Yahoo's live-session
+  // 5m series. Preserve that Yahoo low as the terminal ladder floor when no
+  // historical support reaches it; do not let it manufacture a normal level.
+  const price = params.yahooSessionRange?.low;
+  if (
+    typeof price !== "number" ||
+    !Number.isFinite(price) ||
+    price <= 0
+  ) {
+    return null;
+  }
+
+  const hasExistingFloor = params.existingSupportZones.some(
+    (zone) => zone.zoneLow <= price + params.tolerance,
+  );
+  if (hasExistingFloor) {
+    return null;
+  }
+
+  const isFiftyTwoWeekLow = hasReliableFiftyTwoWeekLow({
+    dailyCandles: params.yahooSessionRange?.dailyCandles ?? [],
+    candidatePrice: price,
+    referenceTimestamp: params.timestamp,
+    tolerance: params.tolerance,
+  });
+
+  return {
+    id: `${params.symbol}-yahoo-current-session-low-${formatSnapshotLevel(price)}`,
+    symbol: params.symbol,
+    kind: "support",
+    timeframeBias: "5m",
+    zoneLow: price,
+    zoneHigh: price,
+    representativePrice: price,
+    strengthScore: isFiftyTwoWeekLow ? 40 : 18,
+    strengthLabel: isFiftyTwoWeekLow ? "major" : "moderate",
+    touchCount: 1,
+    confluenceCount: 1,
+    sourceTypes: ["current_session_low"],
+    timeframeSources: ["5m"],
+    reactionQualityScore: 0.7,
+    rejectionScore: 0.6,
+    displacementScore: 0.65,
+    sessionSignificanceScore: isFiftyTwoWeekLow ? 1 : 0.9,
+    followThroughScore: 0.7,
+    sourceEvidenceCount: 1,
+    firstTimestamp: params.timestamp,
+    lastTimestamp: params.timestamp,
+    sessionDate: newYorkDateKeyForTimestamp(params.timestamp) ?? undefined,
+    isExtension: false,
+    freshness: "fresh",
+    notes: [
+      "yahoo_current_session_support_fallback",
+      ...(isFiftyTwoWeekLow ? ["reliable_52_week_low"] : []),
+    ],
+  };
+}
+
+function buildYahooCurrentSessionHighResistanceFallback(params: {
+  symbol: string;
+  currentPrice: number;
+  tolerance: number;
+  timestamp: number;
+  yahooSessionRange: YahooCurrentSessionRangeFallback | null | undefined;
+  existingResistanceZones: FinalLevelZone[];
+}): FinalLevelZone | null {
+  const price = params.yahooSessionRange?.high;
+  if (
+    typeof price !== "number" ||
+    !Number.isFinite(price) ||
+    price <= params.currentPrice + params.tolerance
+  ) {
+    return null;
+  }
+
+  const overlapsExistingCeiling = params.existingResistanceZones.some((zone) =>
+    zone.zoneLow <= price + params.tolerance && zone.zoneHigh >= price - params.tolerance,
+  );
+  if (overlapsExistingCeiling) {
+    return null;
+  }
+
+  return {
+    id: `${params.symbol}-yahoo-current-session-high-${formatSnapshotLevel(price)}`,
+    symbol: params.symbol,
+    kind: "resistance",
+    timeframeBias: "5m",
+    zoneLow: price,
+    zoneHigh: price,
+    representativePrice: price,
+    strengthScore: 18,
+    strengthLabel: "moderate",
+    touchCount: 1,
+    confluenceCount: 1,
+    sourceTypes: ["current_session_high"],
+    timeframeSources: ["5m"],
+    reactionQualityScore: 0.7,
+    rejectionScore: 0.6,
+    displacementScore: 0.65,
+    sessionSignificanceScore: 0.9,
+    followThroughScore: 0.7,
+    sourceEvidenceCount: 1,
+    firstTimestamp: params.timestamp,
+    lastTimestamp: params.timestamp,
+    sessionDate: newYorkDateKeyForTimestamp(params.timestamp) ?? undefined,
+    isExtension: false,
+    freshness: "fresh",
+    notes: ["yahoo_current_session_resistance_fallback"],
+  };
 }
 
 function formatSnapshotLevel(level: number): string {
@@ -1802,6 +1987,14 @@ function formatFastLevelRange(levels: number[]): string {
 
 function deriveSnapshotLevelSourceLabel(zone: FinalLevelZone): string {
   const sourceTypes = new Set(zone.sourceTypes);
+  if (zone.notes.includes("yahoo_current_session_support_fallback")) {
+    return zone.notes.includes("reliable_52_week_low")
+      ? "session low (52-week low)"
+      : "session low";
+  }
+  if (zone.notes.includes("yahoo_current_session_resistance_fallback")) {
+    return "session high";
+  }
   if (sourceTypes.has("current_session_high")) return "high of day";
   if (sourceTypes.has("current_session_low")) return "low of day";
   if (sourceTypes.has("premarket_high")) return "premarket high";
@@ -2208,11 +2401,26 @@ function buildSnapshotSideZones(params: {
 }
 
 function isMeaningfulStructuralOuterResistance(zone: FinalLevelZone): boolean {
+  const hasHigherTimeframeStructure = zone.timeframeSources.some(
+    (timeframe) => timeframe === "daily" || timeframe === "4h",
+  );
+  const isStrongStructuralZone =
+    zone.strengthLabel === "strong" || zone.strengthLabel === "major";
+  // A non-extension daily/4h moderate shelf is already a detected market
+  // structure level. Keep it available to bridge a credible Full Ladder;
+  // the continuity gate below still rejects a disconnected distant anchor.
+  const isModerateHigherTimeframeStructure =
+    zone.strengthLabel === "moderate" && !zone.isExtension;
+  const isEvidenceBackedExtension =
+    zone.isExtension &&
+    zone.strengthLabel !== "weak" &&
+    zone.sourceEvidenceCount >= 1 &&
+    zone.rejectionScore >= 0.4 &&
+    zone.followThroughScore >= 0.5;
+
   return (
-    (zone.strengthLabel === "strong" || zone.strengthLabel === "major") &&
-    zone.timeframeSources.some(
-      (timeframe) => timeframe === "daily" || timeframe === "4h",
-    ) &&
+    hasHigherTimeframeStructure &&
+    (isStrongStructuralZone || isModerateHigherTimeframeStructure || isEvidenceBackedExtension) &&
     !zone.notes.includes("snapshot_continuation_map")
   );
 }
@@ -2240,9 +2448,30 @@ function addSnapshotStructuralOuterResistanceAnchor(params: {
     ),
     "resistance",
   );
+  const nearestKnownResistance = sortSnapshotZones(params.zones, "resistance")
+    .filter((zone) => zone.representativePrice > params.currentPrice)
+    .at(-1)?.representativePrice ?? params.currentPrice;
+  const maximumLinkGapPct = Math.max(
+    SNAPSHOT_CONTINUATION_MAP_TARGET_PCT,
+    (params.maxForwardResistancePrice - params.currentPrice) /
+      Math.max(params.currentPrice, 0.0001),
+  );
+  let lastConnectedPrice = nearestKnownResistance;
+  const linkedAnchors: FinalLevelZone[] = [];
 
-  return anchors.length > 0
-    ? sortSnapshotZones([...params.zones, ...anchors], "resistance")
+  for (const anchor of anchors) {
+    const gapPct =
+      (anchor.zoneLow - lastConnectedPrice) / Math.max(lastConnectedPrice, 0.0001);
+    if (gapPct > maximumLinkGapPct) {
+      continue;
+    }
+
+    linkedAnchors.push(anchor);
+    lastConnectedPrice = Math.max(lastConnectedPrice, anchor.representativePrice);
+  }
+
+  return linkedAnchors.length > 0
+    ? sortSnapshotZones([...params.zones, ...linkedAnchors], "resistance")
     : params.zones;
 }
 
@@ -2438,6 +2667,18 @@ function snapshotCandidateKey(zone: FinalLevelZone): string {
   return zone.id;
 }
 
+function buildLevelSnapshotKey(payload: LevelSnapshotPayload): string {
+  return JSON.stringify({
+    symbol: payload.symbol,
+    supportZones: payload.supportZones,
+    resistanceZones: payload.resistanceZones,
+    ladderSupportZones: payload.ladderSupportZones ?? payload.supportZones,
+    ladderResistanceZones: payload.ladderResistanceZones ?? payload.resistanceZones,
+    lastDetectableSupport: payload.lastDetectableSupport ?? null,
+    verifiedFiftyTwoWeekLow: payload.verifiedFiftyTwoWeekLow ?? null,
+  });
+}
+
 function isImportantAtPriceDecisionZone(
   zone: FinalLevelZone,
   currentPrice: number,
@@ -2494,7 +2735,7 @@ function buildSnapshotAuditZones(params: {
   zones: FinalLevelZone[];
   displayedZoneIds: Set<string>;
   side: "support" | "resistance";
-  bucket: "surfaced" | "extension";
+  bucket: "surfaced" | "full_ladder" | "extension";
   currentPrice: number;
   tolerance: number;
   maxForwardResistancePrice: number;
@@ -2568,6 +2809,9 @@ function buildSnapshotAudit(params: {
   metadataReferencePrice?: number;
   surfacedSupportZones: FinalLevelZone[];
   surfacedResistanceZones: FinalLevelZone[];
+  fullLadderSupportZones: FinalLevelZone[];
+  fullLadderResistanceZones: FinalLevelZone[];
+  extensionSupportZones: FinalLevelZone[];
   extensionResistanceZones: FinalLevelZone[];
   displayedSupportZones: FinalLevelZone[];
   displayedResistanceZones: FinalLevelZone[];
@@ -2588,24 +2832,74 @@ function buildSnapshotAudit(params: {
       .filter((id) => id.endsWith("-as-support"))
       .map((id) => id.slice(0, -"-as-support".length)),
   ]);
-  const supportCandidates = buildSnapshotAuditZones({
-    zones: params.surfacedSupportZones,
-    displayedZoneIds: displayedSupportIdSet,
-    side: "support",
-    bucket: "surfaced",
-    currentPrice: params.currentPrice,
-    tolerance: params.tolerance,
-    maxForwardResistancePrice: params.maxForwardResistancePrice,
-    provenanceWouldSuppressIds: params.supportProvenancePolicy.wouldSuppressIds,
-    provenanceSuppressedIds: params.supportProvenancePolicy.suppressedIds,
-    provenanceFallbackRestoredIds: params.supportProvenancePolicy.fallbackRestoredIds,
-  });
+  const surfacedSupportIds = new Set(params.surfacedSupportZones.map(snapshotCandidateKey));
+  const surfacedResistanceIds = new Set(params.surfacedResistanceZones.map(snapshotCandidateKey));
+  const extensionSupportIds = new Set(params.extensionSupportZones.map(snapshotCandidateKey));
+  const extensionResistanceIds = new Set(params.extensionResistanceZones.map(snapshotCandidateKey));
+  const fullLadderSupportOnly = params.fullLadderSupportZones.filter((zone) =>
+    !surfacedSupportIds.has(snapshotCandidateKey(zone)) &&
+    !extensionSupportIds.has(snapshotCandidateKey(zone)),
+  );
+  const fullLadderResistanceOnly = params.fullLadderResistanceZones.filter((zone) =>
+    !surfacedResistanceIds.has(snapshotCandidateKey(zone)) &&
+    !extensionResistanceIds.has(snapshotCandidateKey(zone)),
+  );
+  const supportCandidates = [
+    ...buildSnapshotAuditZones({
+      zones: params.surfacedSupportZones,
+      displayedZoneIds: displayedSupportIdSet,
+      side: "support",
+      bucket: "surfaced",
+      currentPrice: params.currentPrice,
+      tolerance: params.tolerance,
+      maxForwardResistancePrice: params.maxForwardResistancePrice,
+      provenanceWouldSuppressIds: params.supportProvenancePolicy.wouldSuppressIds,
+      provenanceSuppressedIds: params.supportProvenancePolicy.suppressedIds,
+      provenanceFallbackRestoredIds: params.supportProvenancePolicy.fallbackRestoredIds,
+    }),
+    ...buildSnapshotAuditZones({
+      zones: fullLadderSupportOnly,
+      displayedZoneIds: displayedSupportIdSet,
+      side: "support",
+      bucket: "full_ladder",
+      currentPrice: params.currentPrice,
+      tolerance: params.tolerance,
+      maxForwardResistancePrice: params.maxForwardResistancePrice,
+      provenanceWouldSuppressIds: params.supportProvenancePolicy.wouldSuppressIds,
+      provenanceSuppressedIds: params.supportProvenancePolicy.suppressedIds,
+      provenanceFallbackRestoredIds: params.supportProvenancePolicy.fallbackRestoredIds,
+    }),
+    ...buildSnapshotAuditZones({
+      zones: params.extensionSupportZones,
+      displayedZoneIds: displayedSupportIdSet,
+      side: "support",
+      bucket: "extension",
+      currentPrice: params.currentPrice,
+      tolerance: params.tolerance,
+      maxForwardResistancePrice: params.maxForwardResistancePrice,
+      provenanceWouldSuppressIds: params.supportProvenancePolicy.wouldSuppressIds,
+      provenanceSuppressedIds: params.supportProvenancePolicy.suppressedIds,
+      provenanceFallbackRestoredIds: params.supportProvenancePolicy.fallbackRestoredIds,
+    }),
+  ];
   const resistanceCandidates = [
     ...buildSnapshotAuditZones({
       zones: params.surfacedResistanceZones,
       displayedZoneIds: displayedResistanceIdSet,
       side: "resistance",
       bucket: "surfaced",
+      currentPrice: params.currentPrice,
+      tolerance: params.tolerance,
+      maxForwardResistancePrice: params.maxForwardResistancePrice,
+      provenanceWouldSuppressIds: params.resistanceProvenancePolicy.wouldSuppressIds,
+      provenanceSuppressedIds: params.resistanceProvenancePolicy.suppressedIds,
+      provenanceFallbackRestoredIds: params.resistanceProvenancePolicy.fallbackRestoredIds,
+    }),
+    ...buildSnapshotAuditZones({
+      zones: fullLadderResistanceOnly,
+      displayedZoneIds: displayedResistanceIdSet,
+      side: "resistance",
+      bucket: "full_ladder",
       currentPrice: params.currentPrice,
       tolerance: params.tolerance,
       maxForwardResistancePrice: params.maxForwardResistancePrice,
@@ -2787,6 +3081,10 @@ export class ManualWatchlistRuntimeManager {
   private reversalWatchlistVisible = true;
   private topRegularWatchlistVisible = true;
   private readonly technicalContextBySymbol = new Map<string, TechnicalContext>();
+  private readonly yahooCurrentSessionSupportFallbackBySymbol = new Map<
+    string,
+    YahooCurrentSessionRangeFallback
+  >();
   private readonly potentialMoveReadBySymbol = new Map<string, PotentialMoveRead>();
   private readonly tradeSetupThesisReadBySymbol = new Map<string, PotentialMoveRead>();
   private readonly chartThesisLevelOutputBySymbol = new Map<string, LevelEngineOutput>();
@@ -4376,23 +4674,29 @@ export class ManualWatchlistRuntimeManager {
       normalizedPrice * (1 + forwardResistanceRangePct);
     const surfacedSupportZones = this.options.levelStore.getSupportZones(symbol);
     const surfacedResistanceZones = this.options.levelStore.getResistanceZones(symbol);
+    const extensionSupportCandidates = levelsOutput?.extensionLevels.support ?? [];
     const extensionResistanceCandidates = levelsOutput?.extensionLevels.resistance ?? [];
-    const extensionResistanceZones = extensionResistanceCandidates.filter(
-      (zone) =>
-        isSnapshotZoneDisplayableForSide(zone, normalizedPrice, tolerance, "resistance") &&
-        zone.zoneLow <= maxForwardResistancePrice,
-    );
-    const displayableSupportBase = surfacedSupportZones.filter((zone) =>
+    const fullLadderSupportCandidates = [
+      ...surfacedSupportZones,
+      ...(levelsOutput?.fullLadderLevels?.support ?? []),
+      ...extensionSupportCandidates,
+    ];
+    const fullLadderResistanceCandidates = [
+      ...surfacedResistanceZones,
+      ...(levelsOutput?.fullLadderLevels?.resistance ?? []),
+      ...extensionResistanceCandidates,
+    ];
+    const displayableSupportBase = fullLadderSupportCandidates.filter((zone) =>
       isSnapshotZoneDisplayableForSide(zone, normalizedPrice, tolerance, "support"),
     );
-    const displayableResistanceBase = [...surfacedResistanceZones, ...extensionResistanceZones].filter(
+    const displayableResistanceBase = fullLadderResistanceCandidates.filter(
       (zone) =>
         isSnapshotZoneDisplayableForSide(zone, normalizedPrice, tolerance, "resistance") &&
         zone.zoneLow <= maxForwardResistancePrice,
     );
     const supportCandidatesForDisplay = buildSnapshotSideZones({
       primaryZones: displayableSupportBase,
-      oppositeZones: surfacedResistanceZones,
+      oppositeZones: fullLadderResistanceCandidates,
       currentPrice: normalizedPrice,
       tolerance,
       side: "support",
@@ -4400,15 +4704,44 @@ export class ManualWatchlistRuntimeManager {
     });
     const resistanceCandidatesForDisplay = buildSnapshotSideZones({
       primaryZones: displayableResistanceBase,
-      oppositeZones: surfacedSupportZones,
+      oppositeZones: fullLadderSupportCandidates,
       currentPrice: normalizedPrice,
       tolerance,
       side: "resistance",
       maxForwardResistancePrice,
     });
+    const verifiedFiftyTwoWeekLow = buildVerifiedFiftyTwoWeekLow({
+      timestamp,
+      tolerance,
+      yahooSessionRange: this.yahooCurrentSessionSupportFallbackBySymbol.get(symbol),
+    });
+    const yahooCurrentSessionSupportFallback = buildYahooCurrentSessionLowSupportFallback({
+      symbol,
+      tolerance,
+      timestamp,
+      yahooSessionRange: this.yahooCurrentSessionSupportFallbackBySymbol.get(symbol),
+      existingSupportZones: supportCandidatesForDisplay,
+    });
+    const yahooSessionLowIsAtOrBelowPrice =
+      yahooCurrentSessionSupportFallback !== null &&
+      yahooCurrentSessionSupportFallback.representativePrice <= normalizedPrice + tolerance;
+    const supportCandidatesWithYahooFallback = yahooSessionLowIsAtOrBelowPrice
+      ? [...supportCandidatesForDisplay, yahooCurrentSessionSupportFallback]
+      : supportCandidatesForDisplay;
+    const yahooCurrentSessionResistanceFallback = buildYahooCurrentSessionHighResistanceFallback({
+      symbol,
+      currentPrice: normalizedPrice,
+      tolerance,
+      timestamp,
+      yahooSessionRange: this.yahooCurrentSessionSupportFallbackBySymbol.get(symbol),
+      existingResistanceZones: resistanceCandidatesForDisplay,
+    });
+    const resistanceCandidatesWithYahooFallback = yahooCurrentSessionResistanceFallback
+      ? [...resistanceCandidatesForDisplay, yahooCurrentSessionResistanceFallback]
+      : resistanceCandidatesForDisplay;
     const resistanceCandidatesWithOuterAnchor = addSnapshotStructuralOuterResistanceAnchor({
-      zones: resistanceCandidatesForDisplay,
-      allCandidates: [...surfacedResistanceZones, ...extensionResistanceCandidates],
+      zones: resistanceCandidatesWithYahooFallback,
+      allCandidates: fullLadderResistanceCandidates,
       currentPrice: normalizedPrice,
       tolerance,
       maxForwardResistancePrice,
@@ -4421,7 +4754,7 @@ export class ManualWatchlistRuntimeManager {
       timestamp,
     });
     const supportProvenancePolicy = applySnapshotLevelProvenancePolicy({
-      zones: supportCandidatesForDisplay,
+      zones: supportCandidatesWithYahooFallback,
       currentPrice: normalizedPrice,
       timestamp,
       side: "support",
@@ -4495,8 +4828,15 @@ export class ManualWatchlistRuntimeManager {
         referencePriceSource: referencePrice.source,
         livePriceAgeMs: referencePrice.livePriceAgeMs,
         metadataReferencePrice: referencePrice.metadataReferencePrice,
-        surfacedSupportZones,
-        surfacedResistanceZones,
+        surfacedSupportZones: yahooSessionLowIsAtOrBelowPrice
+          ? [...surfacedSupportZones, yahooCurrentSessionSupportFallback]
+          : surfacedSupportZones,
+        surfacedResistanceZones: yahooCurrentSessionResistanceFallback
+          ? [...surfacedResistanceZones, yahooCurrentSessionResistanceFallback]
+          : surfacedResistanceZones,
+        fullLadderSupportZones: levelsOutput?.fullLadderLevels?.support ?? [],
+        fullLadderResistanceZones: levelsOutput?.fullLadderLevels?.resistance ?? [],
+        extensionSupportZones: extensionSupportCandidates,
         extensionResistanceZones: extensionResistanceCandidates,
         displayedSupportZones: supportZones,
         displayedResistanceZones: resistanceZones,
@@ -4506,6 +4846,17 @@ export class ManualWatchlistRuntimeManager {
       marketStructure: this.getMarketStructureSnapshot(symbol),
       potentialMoveRead: this.potentialMoveReadBySymbol.get(symbol) ?? null,
       tradeSetupThesisRead: this.tradeSetupThesisReadBySymbol.get(symbol) ?? null,
+      ...(verifiedFiftyTwoWeekLow ? { verifiedFiftyTwoWeekLow } : {}),
+      ...(yahooCurrentSessionSupportFallback &&
+      yahooCurrentSessionSupportFallback.notes.includes("reliable_52_week_low") &&
+      yahooCurrentSessionSupportFallback.representativePrice > normalizedPrice + tolerance
+        ? {
+            lastDetectableSupport: {
+              price: yahooCurrentSessionSupportFallback.representativePrice,
+              sourceLabel: "52-week low",
+            },
+          }
+        : {}),
       technicalContext: refreshedTechnicalContext,
       priorRegularClosePrice: priorRegularClose?.price ?? null,
       priorRegularCloseSource: priorRegularClose?.source ?? null,
@@ -4640,11 +4991,7 @@ export class ManualWatchlistRuntimeManager {
         lastPrice: payload.currentPrice,
       }, { force: true });
     }
-    const snapshotKey = JSON.stringify({
-      symbol: payload.symbol,
-      supportZones: payload.supportZones,
-      resistanceZones: payload.resistanceZones,
-    });
+    const snapshotKey = buildLevelSnapshotKey(payload);
     const existingState = this.activeSnapshotState.get(symbol);
     const candidateLevelCount =
       (payload.audit?.supportCandidates.length ?? 0) +
@@ -4760,11 +5107,7 @@ export class ManualWatchlistRuntimeManager {
   ): LevelSnapshotPayload {
     const payload = this.buildLevelSnapshotPayload(symbol, timestamp);
     this.activeSnapshotState.set(symbol, {
-      lastSnapshot: JSON.stringify({
-        symbol: payload.symbol,
-        supportZones: payload.supportZones,
-        resistanceZones: payload.resistanceZones,
-      }),
+      lastSnapshot: buildLevelSnapshotKey(payload),
       highestResistance: payload.resistanceZones.at(-1)?.representativePrice ?? null,
       lowestSupport: payload.supportZones.at(-1)?.representativePrice ?? null,
       referencePrice: payload.currentPrice,
@@ -6621,6 +6964,63 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
+  private async refreshYahooCurrentSessionSupportFallback(symbolInput: string): Promise<void> {
+    const symbol = normalizeSymbol(symbolInput);
+    const service = this.options.levelIntradayFallbackCandleFetchService;
+    if (!service || service.getProviderName() !== "yahoo") {
+      this.yahooCurrentSessionSupportFallbackBySymbol.delete(symbol);
+      return;
+    }
+
+    const observedAt = Date.now();
+    try {
+      const [intradayResult, dailyResult] = await Promise.all([
+        service.fetchCandles({
+          symbol,
+          timeframe: "5m",
+          lookbackBars: YAHOO_SESSION_SUPPORT_5M_LOOKBACK_BARS,
+          endTimeMs: observedAt,
+          preferredProvider: "yahoo",
+        }),
+        service.fetchCandles({
+          symbol,
+          timeframe: "daily",
+          lookbackBars: YAHOO_SESSION_SUPPORT_DAILY_LOOKBACK_BARS,
+          endTimeMs: observedAt,
+          preferredProvider: "yahoo",
+        }),
+      ]);
+      const intradayCandles = normalizePullbackCandles(intradayResult.candles);
+      const dailyCandles = normalizePullbackCandles(dailyResult.candles);
+      const currentSessionLevels = buildSpecialLevelCandidates(symbol, intradayCandles, []).summary;
+      const currentSessionLow = currentSessionLevels.currentSessionLow;
+      const currentSessionHigh = currentSessionLevels.currentSessionHigh;
+      if (
+        typeof currentSessionLow !== "number" ||
+        !Number.isFinite(currentSessionLow) ||
+        currentSessionLow <= 0 ||
+        typeof currentSessionHigh !== "number" ||
+        !Number.isFinite(currentSessionHigh) ||
+        currentSessionHigh <= 0
+      ) {
+        this.yahooCurrentSessionSupportFallbackBySymbol.delete(symbol);
+        return;
+      }
+
+      this.yahooCurrentSessionSupportFallbackBySymbol.set(symbol, {
+        low: currentSessionLow,
+        high: currentSessionHigh,
+        dailyCandles,
+        observedAt,
+      });
+    } catch (error) {
+      this.yahooCurrentSessionSupportFallbackBySymbol.delete(symbol);
+      console.warn(
+        `[ManualWatchlistRuntimeManager] Yahoo current-session support fallback failed for ${symbol}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   private beginSeedLevelsForSymbol(symbol: string): Promise<void> {
     const startedAt = this.recordLevelSeedStarted(symbol);
     return (async (): Promise<void> => {
@@ -6641,6 +7041,7 @@ export class ManualWatchlistRuntimeManager {
           historicalRequests: this.buildLevelSeedHistoricalRequests(symbol, this.options.candleFetchService),
           referencePriceOverride,
         });
+        await this.refreshYahooCurrentSessionSupportFallback(symbol);
 
         this.options.levelStore.setLevels(output);
         this.storeTechnicalContextForSymbol(symbol, output, seriesMap);
@@ -6725,6 +7126,7 @@ export class ManualWatchlistRuntimeManager {
         ),
         referencePriceOverride: this.resolveLevelSeedReferencePrice(symbol),
       });
+      await this.refreshYahooCurrentSessionSupportFallback(symbol);
       this.options.levelStore.setLevels(output);
       this.storeTechnicalContextForSymbol(symbol, output, seriesMap);
       this.options.monitor.seedMarketStructure(symbol, seriesMap);

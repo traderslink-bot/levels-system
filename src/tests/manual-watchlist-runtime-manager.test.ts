@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { DiscordThreadRoutingResult } from "../lib/alerts/alert-types.js";
+import { formatLevelLadderMessage } from "../lib/alerts/alert-router.js";
 import type { Candle, CandleProviderName, CandleProviderResponse, CandleTimeframe } from "../lib/market-data/candle-types.js";
 import type { HistoricalFetchRequest } from "../lib/market-data/candle-fetch-service.js";
 import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
@@ -7281,6 +7282,77 @@ test("ManualWatchlistRuntimeManager snapshot tolerance excludes near-price level
   ]);
 });
 
+test("ManualWatchlistRuntimeManager retains a Yahoo session range and labels a reliable 52-week low", () => {
+  const levelStore = new LevelStore();
+  const evaluatedAt = Date.parse("2026-07-24T20:00:00.000Z");
+  levelStore.setLevels(buildLevelOutput("BIYA", {
+    metadata: {
+      providerByTimeframe: {},
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 1.91,
+    },
+    specialLevels: {},
+  }));
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any,
+    levelStore,
+    monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+  });
+  const yearMs = 364 * 24 * 60 * 60 * 1000;
+  const dailyCandles: Candle[] = Array.from({ length: 251 }, (_, index) => {
+    const timestamp = evaluatedAt - yearMs + index * (yearMs / 250);
+    return {
+      timestamp,
+      open: 2.4,
+      high: 2.6,
+      low: 2.2,
+      close: 2.4,
+      volume: 1_000_000,
+    };
+  });
+  (manager as any).chartThesisSeriesMapBySymbol.set("BIYA", {
+    daily: buildTestCandleResponse("daily", dailyCandles),
+  });
+  (manager as any).yahooCurrentSessionSupportFallbackBySymbol.set("BIYA", {
+    low: 1.91,
+    high: 2.22,
+    dailyCandles,
+    observedAt: evaluatedAt,
+  });
+
+  const snapshot = (manager as any).buildLevelSnapshotPayload("BIYA", evaluatedAt, 1.91);
+
+  assert.deepEqual(snapshot.verifiedFiftyTwoWeekLow, {
+    price: 1.91,
+    observedAt: evaluatedAt,
+    sourceLabel: "verified Yahoo daily-candle 52-week low",
+  });
+  assert.deepEqual(snapshot.ladderSupportZones.map((zone: any) => zone.representativePrice), [1.91]);
+  assert.equal(snapshot.ladderSupportZones[0]?.sourceLabel, "session low (52-week low)");
+  assert.equal(snapshot.ladderSupportZones[0]?.strengthLabel, "major");
+  assert.deepEqual(snapshot.ladderResistanceZones.map((zone: any) => zone.representativePrice), [2.22]);
+  assert.equal(snapshot.ladderResistanceZones[0]?.sourceLabel, "session high");
+  assert.equal(
+    snapshot.audit?.supportCandidates.find((candidate: any) => candidate.representativePrice === 1.91)?.omittedReason,
+    "displayed",
+  );
+
+  const brokenSnapshot = (manager as any).buildLevelSnapshotPayload("BIYA", evaluatedAt, 1.85);
+  assert.deepEqual(brokenSnapshot.ladderSupportZones, []);
+  assert.deepEqual(brokenSnapshot.lastDetectableSupport, {
+    price: 1.91,
+    sourceLabel: "52-week low",
+  });
+  assert.deepEqual(brokenSnapshot.verifiedFiftyTwoWeekLow, snapshot.verifiedFiftyTwoWeekLow);
+  assert.match(
+    formatLevelLadderMessage(brokenSnapshot) ?? "",
+    /No support is detectable below price\. 1\.91 was the last detectable support and the 52-week low\./,
+  );
+});
+
 test("ManualWatchlistRuntimeManager keeps important at-price decision levels visible", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
@@ -8205,7 +8277,7 @@ test("ManualWatchlistRuntimeManager preserves an active-trader outer cap and fil
   assert.equal(snapshot?.audit?.forwardResistanceLimit && snapshot.audit.forwardResistanceLimit > 24.10, true);
 });
 
-test("ManualWatchlistRuntimeManager smooths the two-dollar ladder boundary and keeps all structural outer anchors", async () => {
+test("ManualWatchlistRuntimeManager smooths the two-dollar ladder boundary and keeps only linked structural outer anchors", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const persistence = new FakeWatchlistStatePersistence();
@@ -8245,6 +8317,34 @@ test("ManualWatchlistRuntimeManager smooths the two-dollar ladder boundary and k
             zoneHigh: 3.4,
           }),
         ],
+        fullLadderLevels: {
+          support: [
+            buildZone({
+              id: "S-160-moderate-daily",
+              symbol,
+              kind: "support",
+              representativePrice: 1.6,
+              zoneLow: 1.6,
+              zoneHigh: 1.6,
+              strengthLabel: "moderate",
+              timeframeBias: "daily",
+              timeframeSources: ["daily"],
+            }),
+          ],
+          resistance: [
+            buildZone({
+              id: "R-410-moderate-daily",
+              symbol,
+              kind: "resistance",
+              representativePrice: 4.1,
+              zoneLow: 4.1,
+              zoneHigh: 4.1,
+              strengthLabel: "moderate",
+              timeframeBias: "daily",
+              timeframeSources: ["daily"],
+            }),
+          ],
+        },
         extensionLevels: {
           support: [],
           resistance: [
@@ -8282,6 +8382,18 @@ test("ManualWatchlistRuntimeManager smooths the two-dollar ladder boundary and k
               timeframeSources: ["daily"],
               isExtension: true,
             }),
+            buildZone({
+              id: "RX-3206-major-daily",
+              symbol,
+              kind: "resistance",
+              representativePrice: 32.06,
+              zoneLow: 32.06,
+              zoneHigh: 32.06,
+              strengthLabel: "major",
+              timeframeBias: "daily",
+              timeframeSources: ["daily"],
+              isExtension: true,
+            }),
           ],
         },
       }));
@@ -8295,7 +8407,18 @@ test("ManualWatchlistRuntimeManager smooths the two-dollar ladder boundary and k
     .ladderResistanceZones.map((zone: any) => zone.representativePrice) ?? [];
   assert.equal(resistancePrices.includes(4.2), true);
   assert.equal(resistancePrices.includes(4.05), false);
+  assert.equal(resistancePrices.includes(4.1), true);
   assert.equal(resistancePrices.includes(4.4), true);
+  assert.equal(resistancePrices.includes(32.06), false);
+  const snapshot = discordAlertRouter.levelSnapshots.at(-1)?.payload;
+  assert.equal(snapshot?.ladderSupportZones.some((zone: any) => zone.representativePrice === 1.6), true);
+  assert.equal(
+    snapshot?.audit?.supportCandidates.some(
+      (candidate: any) =>
+        candidate.representativePrice === 1.6 && candidate.bucket === "full_ladder" && candidate.displayed,
+    ),
+    true,
+  );
 });
 
 test("ManualWatchlistRuntimeManager preserves near, intermediate, and far resistance continuity in the compact snapshot ladder", async () => {

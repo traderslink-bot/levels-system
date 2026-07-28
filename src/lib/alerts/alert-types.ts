@@ -422,7 +422,7 @@ export type LevelSnapshotProvenanceDisposition =
 export type LevelSnapshotAuditZone = {
   id: string;
   side: "support" | "resistance";
-  bucket: "surfaced" | "extension";
+  bucket: "surfaced" | "full_ladder" | "extension";
   representativePrice: number;
   zoneLow: number;
   zoneHigh: number;
@@ -469,6 +469,15 @@ export type LevelSnapshotPayload = {
   tradePlan?: FirstPostTradePlanContext;
   potentialMoveRead?: PotentialMoveRead | null;
   tradeSetupThesisRead?: ChartThesisRead | null;
+  lastDetectableSupport?: {
+    price: number;
+    sourceLabel: string;
+  } | null;
+  verifiedFiftyTwoWeekLow?: {
+    price: number;
+    observedAt: number;
+    sourceLabel: string;
+  } | null;
   marketStructure?: RuntimeMarketStructureSnapshot | null;
   technicalContext?: TechnicalContext | null;
   priorRegularClosePrice?: number | null;

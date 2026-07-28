@@ -21,7 +21,12 @@ import { normalizeOldPathOutput } from "./level-ranking-comparison.js";
 import { scoreLevelZones } from "./level-scorer.js";
 import { buildSpecialLevelCandidates } from "./special-level-builder.js";
 import { detectSwingPoints } from "./swing-detector.js";
-import type { LevelDataFreshness, LevelEngineOutput, RawLevelCandidate } from "./level-types.js";
+import type {
+  FinalLevelZone,
+  LevelDataFreshness,
+  LevelEngineOutput,
+  RawLevelCandidate,
+} from "./level-types.js";
 
 export type LevelEngineRequest = {
   symbol: string;
@@ -292,7 +297,7 @@ export class LevelEngine {
       params.referenceTimestamp,
     );
 
-    return rankLevelZones({
+    const rankedOutput = rankLevelZones({
       symbol: params.symbol,
       supportZones,
       resistanceZones,
@@ -300,6 +305,24 @@ export class LevelEngine {
       metadata: params.metadata,
       config: this.config,
     });
+
+    // The tactical ranker intentionally limits each owned timeframe so the
+    // normal runtime buckets stay actionable. Full Ladder is a separate
+    // surface: retain every chart-derived daily/4h (or mixed) zone that clears
+    // the engine's moderate evidence floor, before those per-timeframe caps.
+    // Intraday rows remain sourced from the retained tactical buckets, which
+    // avoids turning a live 5m swing stream into an unreadable history dump.
+    const isStructuralFullLadderZone = (zone: FinalLevelZone): boolean =>
+      zone.strengthLabel !== "weak" &&
+      zone.timeframeSources.some((timeframe) => timeframe === "daily" || timeframe === "4h");
+
+    return {
+      ...rankedOutput,
+      fullLadderLevels: {
+        support: supportZones.filter(isStructuralFullLadderZone),
+        resistance: resistanceZones.filter(isStructuralFullLadderZone),
+      },
+    };
   }
 
   private buildOutputFromSeries(
@@ -374,6 +397,7 @@ export class LevelEngine {
       runtimeBucketOwnership: "surfaced",
       legacyRuntimeBuckets: oldOutput,
       legacyExtensionLevels: oldOutput.extensionLevels,
+      legacyFullLadderLevels: oldOutput.fullLadderLevels,
     });
 
     if (runtimeMode === "new") {

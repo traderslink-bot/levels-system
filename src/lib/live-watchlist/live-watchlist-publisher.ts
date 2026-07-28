@@ -415,6 +415,13 @@ function isExtremeGapSessionLandmark(level: Pick<LiveWatchlistLevelMapLevel, "so
     .test(level.sourceLabel ?? "");
 }
 
+function isCriticalSessionSupportFloor(level: LiveWatchlistLevelMapLevel): boolean {
+  return (
+    strengthRank(level.strengthLabel) >= strengthRank("strong") &&
+    /session low|52-week low/i.test(level.sourceLabel ?? "")
+  );
+}
+
 function isStackedNearLevel(
   candidate: Pick<LiveWatchlistLevelMapLevel, "price">,
   existing: Pick<LiveWatchlistLevelMapLevel, "price">,
@@ -731,10 +738,17 @@ function selectDisplayedLevelMapLevels(
           isStackedNearLevel(level, structuralLevel, options.atrNoiseDistancePrice),
         ),
       );
+      const criticalSessionSupportFloors = selectableLevels.filter((level) =>
+        isCriticalSessionSupportFloor(level) &&
+        !structuralLevels.some((structuralLevel) =>
+          isStackedNearLevel(level, structuralLevel, options.atrNoiseDistancePrice),
+        ),
+      );
       const preferredLevels = selectableLevels.filter((level) =>
         structuralLevels.includes(level) ||
         nearbyTacticalLevels.includes(level) ||
-        extremeGapSessionLandmarks.includes(level),
+        extremeGapSessionLandmarks.includes(level) ||
+        criticalSessionSupportFloors.includes(level),
       );
       const selectedPreferredLevels = selectDisplayedLevelMapLevels(preferredLevels, currentPrice, {
         selectionMode: options.selectionMode,

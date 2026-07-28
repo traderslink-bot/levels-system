@@ -707,6 +707,14 @@ test("LevelEngine returns metadata, session-accurate special levels, and extensi
   assert.equal(output.specialLevels.openingRangeHigh, 2.7);
   assert.ok(Array.isArray(output.extensionLevels.resistance));
   assert.ok(Array.isArray(output.extensionLevels.support));
+  assert.ok(Array.isArray(output.fullLadderLevels?.resistance));
+  assert.ok(
+    output.fullLadderLevels?.resistance.every(
+      (zone) =>
+        zone.strengthLabel !== "weak" &&
+        zone.timeframeSources.some((timeframe) => timeframe === "daily" || timeframe === "4h"),
+    ),
+  );
 });
 
 test("LevelEngine still generates structural levels when 5m is unavailable", async () => {

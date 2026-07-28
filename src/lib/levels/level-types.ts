@@ -122,6 +122,12 @@ export type LevelEngineOutput = {
   intradaySupport: FinalLevelZone[];
   intradayResistance: FinalLevelZone[];
   extensionLevels: LevelLadderExtension;
+  /**
+   * Complete evidence inventory for the Full Ladder. The active buckets may
+   * intentionally be selective for tactical pathing, while this sidecar keeps
+   * verified legacy daily/4h structure available for the separate Full Ladder.
+   */
+  fullLadderLevels?: LevelLadderExtension;
   specialLevels: {
     premarketHigh?: number;
     premarketLow?: number;

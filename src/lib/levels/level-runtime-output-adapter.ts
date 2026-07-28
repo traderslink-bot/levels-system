@@ -70,6 +70,11 @@ export type LevelRuntimeOutputAdapterInput = {
   legacyRuntimeBuckets?: LegacyRuntimeBuckets;
   legacyExtensionLevels?: LevelEngineOutput["extensionLevels"];
   /**
+   * Structural chart inventory collected before the legacy runtime ranker's
+   * tactical per-timeframe output caps. It is used only by Full Ladder.
+   */
+  legacyFullLadderLevels?: LevelEngineOutput["fullLadderLevels"];
+  /**
    * Selects the owner of the visible runtime buckets. The projected surfaced
    * path owns normal new-mode output; legacy ownership is retained only for
    * explicit parity diagnostics and requires legacyRuntimeBuckets.
@@ -709,6 +714,26 @@ export function buildNewRuntimeCompatibleLevelOutput(
     intradaySupport: runtimeBuckets.intradaySupport,
     intradayResistance: runtimeBuckets.intradayResistance,
     extensionLevels,
+    ...(input.legacyRuntimeBuckets
+      ? {
+          fullLadderLevels: {
+            support: [
+              ...(input.legacyFullLadderLevels?.support ?? []),
+              ...input.legacyRuntimeBuckets.majorSupport,
+              ...input.legacyRuntimeBuckets.intermediateSupport,
+              ...input.legacyRuntimeBuckets.intradaySupport,
+              ...(input.legacyExtensionLevels?.support ?? []),
+            ],
+            resistance: [
+              ...(input.legacyFullLadderLevels?.resistance ?? []),
+              ...input.legacyRuntimeBuckets.majorResistance,
+              ...input.legacyRuntimeBuckets.intermediateResistance,
+              ...input.legacyRuntimeBuckets.intradayResistance,
+              ...(input.legacyExtensionLevels?.resistance ?? []),
+            ],
+          },
+        }
+      : {}),
     specialLevels: input.specialLevels,
   };
   const enrichmentDiagnostics = buildEnrichmentDiagnostics(output, enrichmentAccumulator);
