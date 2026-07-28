@@ -1,4 +1,4 @@
-import type { CandleTimeframe } from "../market-data/candle-types.js";
+import type { CandleFetchTimeframe, CandleTimeframe } from "../market-data/candle-types.js";
 
 export const DEFAULT_VALIDATION_LOOKBACKS: Record<CandleTimeframe, number> = {
   daily: 120,
@@ -34,7 +34,7 @@ export function resolveValidationLookbacks(
 }
 
 export function isStructurallyRequiredValidationTimeframe(
-  timeframe: CandleTimeframe,
+  timeframe: CandleFetchTimeframe,
 ): boolean {
   return timeframe === "daily" || timeframe === "4h";
 }

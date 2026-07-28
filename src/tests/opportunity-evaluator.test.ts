@@ -7,12 +7,14 @@ import { OpportunityEvaluator } from "../lib/monitoring/opportunity-evaluator.js
 function makeOpportunity(params: {
   symbol?: string;
   type?: string;
+  eventType?: string;
   timestamp: number;
   level?: number;
 }): RankedOpportunity {
   return {
     symbol: params.symbol ?? "AAPL",
     type: params.type ?? "breakout",
+    eventType: params.eventType,
     level: params.level ?? 100,
     strength: 0.8,
     confidence: 0.75,
@@ -57,9 +59,9 @@ describe("opportunity evaluator", () => {
     const start = 2_000_000;
 
     evaluator.track(makeOpportunity({ timestamp: start, type: "breakout" }), 100);
-    assert.equal(evaluator.updatePrice("AAPL", 99.8, start + 30_000).length, 0);
+    assert.equal(evaluator.updatePrice("AAPL", 99.8, start + 30_000).completed.length, 0);
 
-    const completed = evaluator.updatePrice("AAPL", 100.4, start + 60_000);
+    const completed = evaluator.updatePrice("AAPL", 100.4, start + 60_000).completed;
     const summary = evaluator.getSummary();
 
     assert.equal(completed.length, 1);
@@ -87,5 +89,62 @@ describe("opportunity evaluator", () => {
     assert.ok(summary.rollingExpectancy.expectancy < 0);
     assert.equal(summary.performanceDrift.declining, true);
     assert.ok(summary.performanceDrift.delta < 0);
+  });
+
+  it("emits live progress updates before final evaluation", () => {
+    const evaluator = new OpportunityEvaluator(10 * 60 * 1000, false, 10, 0.3, 1.5, 5);
+    const start = 4_000_000;
+
+    evaluator.track(makeOpportunity({ timestamp: start, type: "breakout" }), 100);
+
+    const first = evaluator.updatePrice("AAPL", 100.35, start + 70_000);
+    const second = evaluator.updatePrice("AAPL", 100.12, start + 220_000);
+
+    assert.equal(first.completed.length, 0);
+    assert.equal(first.progressUpdates.length, 1);
+    assert.equal(first.progressUpdates[0]?.progressLabel, "improving");
+    assert.equal(second.completed.length, 0);
+    assert.equal(second.progressUpdates.length, 1);
+    assert.equal(second.progressUpdates[0]?.progressLabel, "stalling");
+  });
+
+  it("treats a normal level-touch pullback as stalled instead of holding up well", () => {
+    const evaluator = new OpportunityEvaluator(10 * 60 * 1000, false, 10, 0.3, 0.3, 5);
+    const start = 5_000_000;
+
+    evaluator.track(makeOpportunity({ timestamp: start, type: "level_touch", eventType: "level_touch" }), 6.02);
+    const completed = evaluator.updatePrice("AAPL", 5.93, start + 60_000).completed;
+
+    assert.equal(completed.length, 1);
+    assert.equal(completed[0]?.success, false);
+    assert.equal(completed[0]?.followThroughLabel, "stalled");
+    assert.equal(completed[0]?.returnPct, -1.495);
+    assert.equal(completed[0]?.directionalReturnPct, -1.495);
+  });
+
+  it("treats a deeper level-touch break as failed follow-through", () => {
+    const evaluator = new OpportunityEvaluator(10 * 60 * 1000, false, 10, 0.3, 0.3, 5);
+    const start = 5_500_000;
+
+    evaluator.track(makeOpportunity({ timestamp: start, type: "level_touch", eventType: "level_touch" }), 6.02);
+    const completed = evaluator.updatePrice("AAPL", 5.84, start + 60_000).completed;
+
+    assert.equal(completed.length, 1);
+    assert.equal(completed[0]?.success, false);
+    assert.equal(completed[0]?.followThroughLabel, "failed");
+    assert.equal(completed[0]?.directionalReturnPct, -2.990);
+  });
+
+  it("keeps upward level-touch follow-through as working", () => {
+    const evaluator = new OpportunityEvaluator(10 * 60 * 1000, false, 10, 0.3, 0.3, 5);
+    const start = 6_000_000;
+
+    evaluator.track(makeOpportunity({ timestamp: start, type: "level_touch", eventType: "level_touch" }), 6.02);
+    const completed = evaluator.updatePrice("AAPL", 6.08, start + 60_000).completed;
+
+    assert.equal(completed.length, 1);
+    assert.equal(completed[0]?.success, true);
+    assert.equal(completed[0]?.followThroughLabel, "working");
+    assert.equal(completed[0]?.directionalReturnPct, 0.9967);
   });
 });

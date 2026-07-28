@@ -9,8 +9,6 @@ export type SwingDetectionOptions = {
   minimumDisplacementPct: number;
   minimumSeparationBars: number;
   includeBarrierCandles?: boolean;
-  /** Ignore zero-volume placeholder bars when deriving intraday evidence. */
-  requirePositiveVolumeEvidence?: boolean;
 };
 
 function round(value: number): number {
@@ -22,7 +20,6 @@ function countLocalReactions(
   index: number,
   price: number,
   swingWindow: number,
-  requirePositiveVolumeEvidence: boolean,
 ): number {
   const tolerance = Math.max(price * 0.003, 0.0001);
   const left = Math.max(0, index - swingWindow * 3);
@@ -31,15 +28,67 @@ function countLocalReactions(
 
   for (let cursor = left; cursor <= right; cursor += 1) {
     const candle = candles[cursor]!;
-    if (requirePositiveVolumeEvidence && candle.volume <= 0) {
-      continue;
-    }
     if (Math.abs(candle.high - price) <= tolerance || Math.abs(candle.low - price) <= tolerance) {
       reactions += 1;
     }
   }
 
   return reactions;
+}
+
+function candleRange(candle: { high: number; low: number }): number {
+  return Math.max(candle.high - candle.low, 0.0001);
+}
+
+function hasMeaningfulBarrierReaction(
+  candles: Candle[],
+  index: number,
+  kind: SwingPoint["kind"],
+  swingWindow: number,
+): boolean {
+  const candle = candles[index]!;
+  const range = candleRange(candle);
+  const bodyHigh = Math.max(candle.open, candle.close);
+  const bodyLow = Math.min(candle.open, candle.close);
+  const reactionCount = countLocalReactions(
+    candles,
+    index,
+    kind === "resistance" ? candle.high : candle.low,
+    swingWindow,
+  );
+
+  if (kind === "resistance") {
+    const upperWickRatio = (candle.high - bodyHigh) / range;
+    const closeOffHighRatio = (candle.high - candle.close) / range;
+    return reactionCount >= 2 || upperWickRatio >= 0.24 || closeOffHighRatio >= 0.36;
+  }
+
+  const lowerWickRatio = (bodyLow - candle.low) / range;
+  const closeOffLowRatio = (candle.close - candle.low) / range;
+  return reactionCount >= 2 || lowerWickRatio >= 0.24 || closeOffLowRatio >= 0.36;
+}
+
+function buildBarrierSwing(params: {
+  candles: Candle[];
+  index: number;
+  kind: SwingPoint["kind"];
+  swingWindow: number;
+  displacementPct: number;
+  displacement: number;
+}): SwingPoint {
+  const candle = params.candles[params.index]!;
+  const price = params.kind === "resistance" ? candle.high : candle.low;
+
+  return {
+    index: params.index,
+    timestamp: candle.timestamp,
+    price: round(price),
+    kind: params.kind,
+    strength: round(params.displacement * 0.8),
+    displacement: round(params.displacementPct * 0.85),
+    separation: params.swingWindow,
+    reactionCount: countLocalReactions(params.candles, params.index, price, params.swingWindow),
+  };
 }
 
 function selectDominantSwings(
@@ -53,9 +102,13 @@ function selectDominantSwings(
     const matchedIndex =
       previousIndex === -1 ? -1 : selected.length - 1 - previousIndex;
     const previous = matchedIndex === -1 ? undefined : selected[matchedIndex];
+    const sameLocalPriceBand = previous
+      ? Math.abs(swing.price - previous.price) / Math.max(Math.max(swing.price, previous.price), 0.0001) <= 0.06
+      : false;
     if (
       previous &&
-      swing.index - previous.index < minimumSeparationBars
+      swing.index - previous.index < minimumSeparationBars &&
+      sameLocalPriceBand
     ) {
       if (swing.strength > previous.strength) {
         selected[matchedIndex] = swing;
@@ -90,18 +143,9 @@ export function detectSwingPoints(
 
   for (let index = options.swingWindow; index < candles.length - options.swingWindow; index += 1) {
     const current = candles[index]!;
-    if (options.requirePositiveVolumeEvidence && current.volume <= 0) {
-      continue;
-    }
     const window = candles.slice(index - options.swingWindow, index + options.swingWindow + 1);
-    const evidenceWindow = options.requirePositiveVolumeEvidence
-      ? window.filter((candle) => candle.volume > 0)
-      : window;
-    if (evidenceWindow.length === 0) {
-      continue;
-    }
-    const highest = Math.max(...evidenceWindow.map((candle) => candle.high));
-    const lowest = Math.min(...evidenceWindow.map((candle) => candle.low));
+    const highest = Math.max(...window.map((candle) => candle.high));
+    const lowest = Math.min(...window.map((candle) => candle.low));
     const baseline = Math.max((highest + lowest) / 2, 0.0001);
     const displacement = highest - lowest;
     const displacementPct = displacement / baseline;
@@ -110,7 +154,10 @@ export function detectSwingPoints(
       continue;
     }
 
-    if (current.high >= highest) {
+    const isResistanceSwing = current.high >= highest;
+    const isSupportSwing = current.low <= lowest;
+
+    if (isResistanceSwing) {
       candidateSwings.push({
         index,
         timestamp: current.timestamp,
@@ -119,17 +166,11 @@ export function detectSwingPoints(
         strength: round(displacement),
         displacement: round(displacementPct),
         separation: options.swingWindow,
-        reactionCount: countLocalReactions(
-          candles,
-          index,
-          current.high,
-          options.swingWindow,
-          Boolean(options.requirePositiveVolumeEvidence),
-        ),
+        reactionCount: countLocalReactions(candles, index, current.high, options.swingWindow),
       });
     }
 
-    if (current.low <= lowest) {
+    if (isSupportSwing) {
       candidateSwings.push({
         index,
         timestamp: current.timestamp,
@@ -138,14 +179,47 @@ export function detectSwingPoints(
         strength: round(displacement),
         displacement: round(displacementPct),
         separation: options.swingWindow,
-        reactionCount: countLocalReactions(
-          candles,
-          index,
-          current.low,
-          options.swingWindow,
-          Boolean(options.requirePositiveVolumeEvidence),
-        ),
+        reactionCount: countLocalReactions(candles, index, current.low, options.swingWindow),
       });
+    }
+
+    if (options.includeBarrierCandles) {
+      const upperBarrierArea = lowest + displacement * 0.5;
+      const lowerBarrierArea = highest - displacement * 0.5;
+
+      if (
+        !isResistanceSwing &&
+        current.high >= upperBarrierArea &&
+        hasMeaningfulBarrierReaction(candles, index, "resistance", options.swingWindow)
+      ) {
+        candidateSwings.push(
+          buildBarrierSwing({
+            candles,
+            index,
+            kind: "resistance",
+            swingWindow: options.swingWindow,
+            displacementPct,
+            displacement,
+          }),
+        );
+      }
+
+      if (
+        !isSupportSwing &&
+        current.low <= lowerBarrierArea &&
+        hasMeaningfulBarrierReaction(candles, index, "support", options.swingWindow)
+      ) {
+        candidateSwings.push(
+          buildBarrierSwing({
+            candles,
+            index,
+            kind: "support",
+            swingWindow: options.swingWindow,
+            displacementPct,
+            displacement,
+          }),
+        );
+      }
     }
   }
 

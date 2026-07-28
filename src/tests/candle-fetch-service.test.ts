@@ -5,8 +5,44 @@ import {
   CandleFetchService,
   StubHistoricalCandleProvider,
 } from "../lib/market-data/candle-fetch-service.js";
+import type { BaseCandleProviderResponse, CandleProviderName } from "../lib/market-data/candle-types.js";
 import { buildCandleSessionSummary } from "../lib/market-data/candle-session-classifier.js";
-import { validateCandleResponse } from "../lib/market-data/candle-validation.js";
+import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "../lib/market-data/provider-types.js";
+import { createValidationIbkrClient } from "../scripts/shared/ibkr-runtime.js";
+
+class FixedHistoricalProvider implements HistoricalCandleProvider {
+  constructor(
+    readonly providerName: CandleProviderName,
+    private readonly close: number,
+  ) {}
+
+  async fetchCandles(
+    request: HistoricalFetchRequest,
+    plan: HistoricalFetchPlan,
+  ): Promise<BaseCandleProviderResponse> {
+    return {
+      provider: this.providerName,
+      symbol: request.symbol.trim().toUpperCase(),
+      timeframe: request.timeframe,
+      requestedLookbackBars: request.lookbackBars,
+      candles: [
+        {
+          timestamp: plan.requestEndTimestamp,
+          open: this.close,
+          high: this.close,
+          low: this.close,
+          close: this.close,
+          volume: 100,
+        },
+      ],
+      fetchStartTimestamp: plan.requestEndTimestamp,
+      fetchEndTimestamp: plan.requestEndTimestamp,
+      requestedStartTimestamp: plan.requestStartTimestamp,
+      requestedEndTimestamp: plan.requestEndTimestamp,
+      sessionMetadataAvailable: plan.sessionMetadataAvailable,
+    };
+  }
+}
 
 test("CandleFetchService returns the requested number of stub candles", async () => {
   const service = new CandleFetchService(new StubHistoricalCandleProvider());
@@ -28,6 +64,23 @@ test("CandleFetchService returns the requested number of stub candles", async ()
   assert.ok(response.sessionSummary);
 });
 
+test("CandleFetchService supports 1m stub candles with session metadata", async () => {
+  const service = new CandleFetchService(new StubHistoricalCandleProvider());
+
+  const response = await service.fetchCandles({
+    symbol: "AAPL",
+    timeframe: "1m",
+    lookbackBars: 30,
+    endTimeMs: Date.parse("2026-04-15T14:00:00-04:00"),
+  });
+
+  assert.equal(response.symbol, "AAPL");
+  assert.equal(response.timeframe, "1m");
+  assert.equal(response.candles.length, 30);
+  assert.equal(response.provider, "stub");
+  assert.ok(response.sessionSummary);
+});
+
 test("CandleFetchService rejects non-positive lookbackBars", async () => {
   const service = new CandleFetchService(new StubHistoricalCandleProvider());
 
@@ -42,17 +95,37 @@ test("CandleFetchService rejects non-positive lookbackBars", async () => {
   );
 });
 
-test("CandleFetchService passes explicit IBKR timeout through provider options", () => {
-  const service = new CandleFetchService({
-    providerName: "ibkr",
-    ib: {} as never,
-    ibkrTimeoutMs: 120_000,
+test("CandleFetchService can swap historical providers at runtime", async () => {
+  const service = new CandleFetchService(new FixedHistoricalProvider("ibkr", 10));
+  assert.equal(service.getProviderName(), "ibkr");
+
+  service.setProvider(new FixedHistoricalProvider("eodhd", 20));
+
+  const response = await service.fetchCandles({
+    symbol: "AAPL",
+    timeframe: "daily",
+    lookbackBars: 1,
+    endTimeMs: Date.parse("2026-05-01T00:00:00.000Z"),
   });
 
-  assert.equal((service as any).provider.timeoutMs, 120_000);
+  assert.equal(service.getProviderName(), "eodhd");
+  assert.equal(response.provider, "eodhd");
+  assert.equal(response.candles[0]?.close, 20);
 });
 
-test("buildCandleSessionSummary classifies 5m candles into market sessions", () => {
+test("CandleFetchService passes IBKR historical timeout through provider options", () => {
+  const ib = createValidationIbkrClient();
+  const service = new CandleFetchService({
+    providerName: "ibkr",
+    ib,
+    ibkrTimeoutMs: 60_000,
+  });
+
+  assert.equal((service as any).provider.timeoutMs, 60_000);
+  ib.disconnect();
+});
+
+test("buildCandleSessionSummary classifies intraday candles into market sessions", () => {
   const summary = buildCandleSessionSummary(
     [
       {
@@ -88,7 +161,7 @@ test("buildCandleSessionSummary classifies 5m candles into market sessions", () 
         volume: 200,
       },
     ],
-    "5m",
+    "1m",
   );
 
   assert.deepEqual(summary, {
@@ -100,38 +173,4 @@ test("buildCandleSessionSummary classifies 5m candles into market sessions", () 
     unknownBars: 0,
     latestRegularSessionDate: "2026-04-15",
   });
-});
-
-test("five-minute validation flags sparse traded bars and a thin outlier print", () => {
-  const base = Date.parse("2026-07-01T13:30:00.000Z");
-  const tradedIndexes = new Set([0, 6, 12, 19]);
-  const candles = Array.from({ length: 20 }, (_, index) => {
-    const isLatest = index === 19;
-    const close = isLatest ? 12 : 10;
-    return {
-      timestamp: base + index * 5 * 60_000,
-      open: close,
-      high: close,
-      low: close,
-      close,
-      volume: tradedIndexes.has(index) ? 100 : 0,
-    };
-  });
-
-  const result = validateCandleResponse({
-    provider: "stub",
-    symbol: "THIN",
-    timeframe: "5m",
-    requestedLookbackBars: 20,
-    candles,
-    fetchStartTimestamp: base,
-    fetchEndTimestamp: base + 19 * 5 * 60_000,
-    requestedStartTimestamp: base,
-    requestedEndTimestamp: base + 19 * 5 * 60_000,
-    sessionMetadataAvailable: true,
-  });
-  const codes = result.validationIssues.map((issue) => issue.code);
-
-  assert.ok(codes.includes("sparse_traded_bars"));
-  assert.ok(codes.includes("thin_last_print"));
 });

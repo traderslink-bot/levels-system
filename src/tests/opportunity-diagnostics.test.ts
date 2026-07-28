@@ -65,6 +65,7 @@ function makeSnapshot(): OpportunityRuntimeSnapshot {
         symbol: "AAPL",
         message: "watching pullback into support near 100.00",
         type: "pre_zone",
+        eventType: "breakout",
         confidence: 0.79,
         tags: ["pre_zone", "breakout", "support", "no_structure"],
         timestamp: 1_000_000,
@@ -139,6 +140,7 @@ function makeSnapshot(): OpportunityRuntimeSnapshot {
       disableReason: null,
     },
     completedEvaluations: [],
+    progressUpdates: [],
   };
 }
 
@@ -169,9 +171,12 @@ describe("opportunity diagnostics", () => {
           {
             symbol: "AAPL",
             timestamp: 1_000_000,
+            evaluatedAt: 1_060_000,
             entryPrice: 100,
             outcomePrice: 100.5,
             returnPct: 0.5,
+            directionalReturnPct: 0.5,
+            followThroughLabel: "working",
             success: true,
             eventType: "breakout",
           },

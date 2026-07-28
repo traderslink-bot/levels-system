@@ -9,7 +9,7 @@ import type {
   LevelSnapshotPayload,
 } from "./alert-types.js";
 import type { DiscordThreadGateway } from "./alert-router.js";
-import { formatLevelExtensionMessage, formatLevelSnapshotMessage } from "./alert-router.js";
+import { formatLevelExtensionMessage, formatLevelLadderMessage, formatLevelSnapshotMessage } from "./alert-router.js";
 import { buildWatchlistDiscordLinkMessage } from "./watchlist-discord-link-message.js";
 
 type PersistedDiscordMessage = {
@@ -235,8 +235,8 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
       type: "alert",
       title: payload.title,
       body: payload.body,
-      symbol: payload.event.symbol,
-      timestamp: payload.event.timestamp,
+      symbol: payload.symbol ?? payload.event?.symbol ?? "UNKNOWN",
+      timestamp: payload.timestamp ?? payload.event?.timestamp ?? Date.now(),
     });
     this.saveState(state);
   }
@@ -251,8 +251,31 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
 
     thread.messages.push({
       type: "level_snapshot",
-      title: `LEVEL SNAPSHOT: ${payload.symbol}`,
+      title: `${payload.symbol} support and resistance`,
       body: formatLevelSnapshotMessage(payload),
+      symbol: payload.symbol,
+      timestamp: payload.timestamp,
+    });
+    this.saveState(state);
+  }
+
+  async sendLevelLadder(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
+    const body = formatLevelLadderMessage(payload);
+    if (!body) {
+      return;
+    }
+
+    const state = this.loadState();
+    const thread = state.threads[threadId];
+
+    if (!thread) {
+      throw new Error(`Discord thread ${threadId} was not found.`);
+    }
+
+    thread.messages.push({
+      type: "level_snapshot",
+      title: `${payload.symbol} full level ladder`,
+      body,
       symbol: payload.symbol,
       timestamp: payload.timestamp,
     });
@@ -269,7 +292,7 @@ export class LocalDiscordThreadGateway implements DiscordThreadGateway {
 
     thread.messages.push({
       type: "level_extension",
-      title: `NEXT LEVELS: ${payload.symbol}`,
+      title: `${payload.symbol} next levels to watch`,
       body: formatLevelExtensionMessage(payload),
       symbol: payload.symbol,
       timestamp: payload.timestamp,

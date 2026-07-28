@@ -1,11 +1,18 @@
-// 2026-05-27 08:55 PM America/Toronto
-// Runtime-compatible projection that keeps FinalLevelZone transport stable while attaching optional richer metadata.
+// 2026-04-18 08:40 AM America/Toronto
+// Runtime-compatible projection from the new structural ranking + surfaced adapter path into the legacy bucketed output contract.
 
 import type { Candle, CandleTimeframe } from "../market-data/candle-types.js";
 import { rankLevels } from "./level-ranking.js";
-import { buildConfirmedRoleFlipCandidate } from "./level-role-flip-detector.js";
 import { normalizeSurfacedSelectionOutput, type ComparablePathOutput } from "./level-ranking-comparison.js";
-import { selectSurfacedLevels, type SurfacedSelectionResult } from "./level-surfaced-selection.js";
+import type { LevelScoreConfig } from "./level-score-config.js";
+import { LEVEL_SCORE_CONFIG } from "./level-score-config.js";
+import type { LevelSurfacedSelectionConfig } from "./level-surfaced-selection-config.js";
+import { LEVEL_SURFACED_SELECTION_CONFIG } from "./level-surfaced-selection-config.js";
+import {
+  selectSurfacedLevels,
+  type SurfacedLevelSelection,
+  type SurfacedSelectionResult,
+} from "./level-surfaced-selection.js";
 import type {
   EnrichedLevelAnalysis,
   FinalLevelZone,
@@ -19,7 +26,30 @@ import type {
   RankedLevelsOutput,
   SourceTimeframe,
 } from "./level-types.js";
-import { buildZoneBounds, clamp } from "./level-zone-utils.js";
+import {
+  buildZoneBounds,
+  clamp,
+  isPriceInsideZone,
+  priceDistancePct,
+  zonesOverlap,
+} from "./level-zone-utils.js";
+
+export type NewRuntimeCompatibleLevelOutput = {
+  output: LevelEngineOutput;
+  rankedOutput: RankedLevelsOutput;
+  surfacedSelection: SurfacedSelectionResult;
+  comparableOutput: ComparablePathOutput;
+  mappingNotes: string[];
+  enrichmentDiagnostics: EnrichmentDiagnostics;
+};
+
+export type EnrichmentDiagnostics = {
+  totalRuntimeZones: number;
+  enrichedZones: number;
+  unenrichedZones: number;
+  unmatchedRuntimeZoneIds: string[];
+  unmatchedReason: "no_safe_ranked_level_match" | null;
+};
 
 export type LegacyRuntimeBuckets = Pick<
   LevelEngineOutput,
@@ -31,30 +61,6 @@ export type LegacyRuntimeBuckets = Pick<
   | "intradayResistance"
 >;
 
-export type EnrichmentDiagnostics = {
-  totalRuntimeZones: number;
-  enrichedZones: number;
-  unenrichedZones: number;
-  unmatchedRuntimeZoneIds: string[];
-  enrichedHistoricalZones: number;
-  unenrichedHistoricalZones: number;
-  enrichedExtensionZones: number;
-  unenrichedExtensionZones: number;
-  unenrichedSyntheticZones: number;
-  unmatchedHistoricalRuntimeZoneIds: string[];
-  unmatchedExtensionRuntimeZoneIds: string[];
-  unmatchedSyntheticRuntimeZoneIds: string[];
-};
-
-export type NewRuntimeCompatibleLevelOutput = {
-  output: LevelEngineOutput;
-  rankedOutput: RankedLevelsOutput;
-  surfacedSelection: SurfacedSelectionResult;
-  comparableOutput: ComparablePathOutput;
-  enrichmentDiagnostics: EnrichmentDiagnostics;
-  mappingNotes: string[];
-};
-
 export type LevelRuntimeOutputAdapterInput = {
   symbol: string;
   rawCandidates: RawLevelCandidate[];
@@ -62,35 +68,41 @@ export type LevelRuntimeOutputAdapterInput = {
   metadata: LevelEngineOutput["metadata"];
   specialLevels: LevelEngineOutput["specialLevels"];
   legacyRuntimeBuckets?: LegacyRuntimeBuckets;
+  legacyExtensionLevels?: LevelEngineOutput["extensionLevels"];
   /**
-   * Explicit owner of the runtime support/resistance buckets. `surfaced`
-   * publishes the ranked projected rows; `legacy` is retained only for
-   * parity diagnostics and requires legacyRuntimeBuckets.
+   * Structural chart inventory collected before the legacy runtime ranker's
+   * tactical per-timeframe output caps. It is used only by Full Ladder.
+   */
+  legacyFullLadderLevels?: LevelEngineOutput["fullLadderLevels"];
+  /**
+   * Selects the owner of the visible runtime buckets. The projected surfaced
+   * path owns normal new-mode output; legacy ownership is retained only for
+   * explicit parity diagnostics and requires legacyRuntimeBuckets.
    */
   runtimeBucketOwnership?: "surfaced" | "legacy";
-  legacyExtensionLevels?: LevelEngineOutput["extensionLevels"];
   levelCandidates?: LevelCandidate[];
   generatedAt?: number;
-  /**
-   * Candle-close cutoff for each source series. This is separate from
-   * generatedAt so historical/replay generation cannot certify a role flip
-   * with a higher-timeframe candle that was still open at the requested end.
-   */
-  asOfTimestampByTimeframe?: Partial<Record<CandleTimeframe, number>>;
+  scoreConfig?: LevelScoreConfig;
+  surfacedSelectionConfig?: LevelSurfacedSelectionConfig;
 };
 
 type RuntimeBucket = "major" | "intermediate" | "intraday";
+type EnrichmentAccumulator = {
+  unmatchedRuntimeZoneIds: string[];
+};
 
 const RAW_LEVEL_SOURCE_TYPES: readonly RawLevelCandidateSourceType[] = [
   "swing_high",
   "swing_low",
-  "breakout_base",
-  "gap_up_origin",
-  "gap_up_pullback_low",
   "premarket_high",
   "premarket_low",
   "opening_range_high",
   "opening_range_low",
+  "previous_day_high",
+  "previous_day_low",
+  "previous_day_close",
+  "current_session_high",
+  "current_session_low",
 ] as const;
 
 function normalizeRuntimeSourceTimeframe(timeframe: SourceTimeframe): CandleTimeframe {
@@ -107,6 +119,7 @@ function deriveCurrentTimeframe(
   if ((candlesByTimeframe["5m"]?.length ?? 0) > 0) {
     return "5m";
   }
+
   if ((candlesByTimeframe["4h"]?.length ?? 0) > 0) {
     return "4h";
   }
@@ -148,135 +161,110 @@ function buildScoringContext(
 function convertRawCandidateToLevelCandidate(
   candidate: RawLevelCandidate,
   candlesByTimeframe: Partial<Record<CandleTimeframe, Candle[]>>,
-  referencePrice: number,
-  asOfTimestamp: number,
 ): LevelCandidate {
   const zoneBounds = buildZoneBounds(candidate.price);
 
-  const levelCandidate: LevelCandidate = {
+  return {
     id: candidate.id,
     symbol: candidate.symbol,
-    type: candidate.kind,
+    type: candidate.kind === "support" ? "support" : "resistance",
     price: candidate.price,
     zoneLow: zoneBounds.zoneLow,
     zoneHigh: zoneBounds.zoneHigh,
     sourceTimeframes: [candidate.timeframe],
     originKinds: [candidate.sourceType],
-    firstTimestamp: candidate.firstTimestamp,
-    lastTimestamp: candidate.lastTimestamp,
-    analysisCandles: candlesByTimeframe[candidate.timeframe] ?? [],
-    touchCount: candidate.touchCount,
-    meaningfulTouchCount: candidate.touchCount,
-    rejectionCount: Math.round(candidate.rejectionScore * Math.max(candidate.touchCount, 1)),
-    failedBreakCount: 0,
-    cleanBreakCount: 0,
-    reclaimCount: 0,
-    strongestReactionMovePct: candidate.reactionScore,
-    averageReactionMovePct: candidate.reactionQuality,
-    bestVolumeRatio: 1 + candidate.sessionSignificance,
-    averageVolumeRatio: 1 + candidate.sessionSignificance / 2,
-    cleanlinessStdDevPct: Math.max(0, 0.04 - candidate.reactionQuality * 0.02),
-    ageInBars: 0,
-    barsSinceLastReaction: 0,
+    marketDataProvenance: candidate.marketDataProvenance,
+    analysisCandles: candlesByTimeframe[candidate.timeframe],
   };
-
-  if (
-    (candidate.timeframe !== "daily" && candidate.timeframe !== "4h") ||
-    (candidate.sourceType !== "swing_high" && candidate.sourceType !== "swing_low")
-  ) {
-    return levelCandidate;
-  }
-
-  return buildConfirmedRoleFlipCandidate({
-    candidate: levelCandidate,
-    timeframe: candidate.timeframe,
-    candles: candlesByTimeframe[candidate.timeframe] ?? [],
-    formationTimestamp: candidate.confirmationTimestamp ?? candidate.lastTimestamp,
-    referencePrice,
-    asOfTimestamp,
-  }) ?? levelCandidate;
 }
 
-function buildLevelCandidates(
-  input: LevelRuntimeOutputAdapterInput,
-): LevelCandidate[] {
-  const referencePrice = input.metadata.referencePrice ?? 0;
-  const defaultAsOfTimestamp = input.generatedAt ?? Date.now();
-  const candidates = [
-    ...(input.levelCandidates ?? []),
-    ...input.rawCandidates.map((candidate) =>
-      convertRawCandidateToLevelCandidate(
-        candidate,
-        input.candlesByTimeframe,
-        referencePrice,
-        input.asOfTimestampByTimeframe?.[candidate.timeframe] ?? defaultAsOfTimestamp,
-      ),
-    ),
-  ];
-
-  if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
-    return candidates;
-  }
-
-  // A crossed level is no longer actionable in its original role. Daily/4h
-  // candidates reach this filter after the confirmation detector has had a
-  // chance to replace them with a proven flip; unconfirmed crossings and
-  // noisy intraday crossings are suppressed instead of mislabeled. A price
-  // inside the zone is still testing that original level and must not make the
-  // level disappear from the path.
-  return candidates.filter((candidate) =>
-    candidate.type === "support"
-      ? referencePrice >= (candidate.zoneLow ?? candidate.price) * 0.999
-      : referencePrice <= (candidate.zoneHigh ?? candidate.price) * 1.001,
-  );
-}
-
-function bucketForTimeframes(timeframes: readonly SourceTimeframe[]): RuntimeBucket {
-  const normalized = [...new Set(timeframes.map(normalizeRuntimeSourceTimeframe))];
-
+function bucketForSurfacedLevel(level: SurfacedLevelSelection): RuntimeBucket {
+  const normalized = [...new Set(level.sourceTimeframes.map(normalizeRuntimeSourceTimeframe))];
   if (normalized.includes("daily") || normalized.length > 1) {
     return "major";
   }
   if (normalized.includes("4h")) {
     return "intermediate";
   }
-
   return "intraday";
 }
 
-function deriveStrengthLabel(score: number): FinalLevelZone["strengthLabel"] {
-  if (score >= 78) {
+function deriveStructuralStrengthLabel(score: number): FinalLevelZone["strengthLabel"] {
+  if (score >= 80) {
     return "major";
   }
-  if (score >= 62) {
+  if (score >= 64) {
     return "strong";
   }
-  if (score >= 42) {
+  if (score >= 46) {
     return "moderate";
   }
-
   return "weak";
 }
 
-function deriveFreshness(level: RankedLevel): LevelDataFreshness {
+function deriveFreshness(level: SurfacedLevelSelection): LevelDataFreshness {
   if (level.barsSinceLastReaction <= 8) {
     return "fresh";
   }
-  if (level.barsSinceLastReaction <= 60) {
+  if (level.barsSinceLastReaction <= 30) {
     return "aging";
   }
-
   return "stale";
 }
 
-function deriveSourceTypes(level: RankedLevel): RawLevelCandidateSourceType[] {
+function deriveTimeframeBias(level: SurfacedLevelSelection): FinalLevelZone["timeframeBias"] {
+  const normalized = [...new Set(level.sourceTimeframes.map(normalizeRuntimeSourceTimeframe))];
+  if (normalized.length !== 1) {
+    return "mixed";
+  }
+  return normalized[0]!;
+}
+
+function deriveSourceTypes(level: SurfacedLevelSelection): RawLevelCandidateSourceType[] {
   const sourceTypes = level.originKinds.filter((origin): origin is RawLevelCandidateSourceType =>
     (RAW_LEVEL_SOURCE_TYPES as readonly string[]).includes(origin),
   );
 
-  return sourceTypes.length > 0
-    ? sourceTypes
-    : [level.type === "support" ? "swing_low" : "swing_high"];
+  if (sourceTypes.length > 0) {
+    return [...new Set(sourceTypes)];
+  }
+
+  return [level.type === "support" ? "swing_low" : "swing_high"];
+}
+
+function deriveReactionScore(level: SurfacedLevelSelection): number {
+  return clamp(level.scoreBreakdown.reactionQualityScore / 15, 0, 1);
+}
+
+function deriveRejectionScore(level: SurfacedLevelSelection): number {
+  return clamp(
+    (level.rejectionCount + level.failedBreakCount + level.reclaimCount) /
+      Math.max(level.touchCount, 1),
+    0,
+    1,
+  );
+}
+
+function deriveDisplacementScore(level: SurfacedLevelSelection): number {
+  return clamp(level.scoreBreakdown.reactionMagnitudeScore / 10, 0, 1);
+}
+
+function deriveSessionSignificanceScore(level: SurfacedLevelSelection): number {
+  return clamp(level.scoreBreakdown.volumeScore / 10, 0, 1);
+}
+
+function deriveFollowThroughScore(level: SurfacedLevelSelection): number {
+  return clamp(level.averageReactionMovePct / 0.08, 0, 1);
+}
+
+function deriveFirstTimestamp(level: SurfacedLevelSelection, generatedAt: number): number {
+  const timestamps = level.touches.map((touch) => touch.candleTimestamp);
+  return timestamps.length > 0 ? Math.min(...timestamps) : generatedAt;
+}
+
+function deriveLastTimestamp(level: SurfacedLevelSelection, generatedAt: number): number {
+  const timestamps = level.touches.map((touch) => touch.candleTimestamp);
+  return timestamps.length > 0 ? Math.max(...timestamps) : generatedAt;
 }
 
 function toEnrichedAnalysis(level: RankedLevel): EnrichedLevelAnalysis {
@@ -308,46 +296,56 @@ function toEnrichedAnalysis(level: RankedLevel): EnrichedLevelAnalysis {
   };
 }
 
-function toRuntimeZone(level: RankedLevel, generatedAt: number): FinalLevelZone {
+function toRuntimeZone(
+  level: SurfacedLevelSelection,
+  generatedAt: number,
+  legacyLabelZones: FinalLevelZone[] = [],
+): FinalLevelZone {
+  const legacyLabelMatch = findLegacyRuntimeLabelMatch(level, legacyLabelZones);
+  const strengthScore =
+    legacyLabelMatch?.strengthScore ?? Number(level.structuralStrengthScore.toFixed(2));
   const timeframeSources = [...new Set(level.sourceTimeframes.map(normalizeRuntimeSourceTimeframe))];
-  const sourceTypes = deriveSourceTypes(level);
 
   return {
     id: level.id,
     symbol: level.symbol,
     kind: level.type,
-    timeframeBias: timeframeSources.length === 1 ? timeframeSources[0]! : "mixed",
+    timeframeBias: deriveTimeframeBias(level),
     zoneLow: level.zoneLow,
     zoneHigh: level.zoneHigh,
     representativePrice: level.price,
-    strengthScore: level.score,
-    strengthLabel: deriveStrengthLabel(level.score),
+    strengthScore,
+    strengthLabel:
+      legacyLabelMatch?.strengthLabel ?? deriveStructuralStrengthLabel(strengthScore),
     touchCount: level.touchCount,
-    confluenceCount: timeframeSources.length,
-    sourceTypes,
+    confluenceCount: Math.max(timeframeSources.length + level.roleFlipCount, 1),
+    sourceTypes: deriveSourceTypes(level),
     timeframeSources,
-    reactionQualityScore: clamp(level.scoreBreakdown.reactionQualityScore / 15, 0, 1),
-    rejectionScore: clamp((level.rejectionCount + level.failedBreakCount + level.reclaimCount) / Math.max(level.touchCount, 1), 0, 1),
-    displacementScore: clamp(level.scoreBreakdown.reactionMagnitudeScore / 10, 0, 1),
-    sessionSignificanceScore: clamp(level.scoreBreakdown.volumeScore / 10, 0, 1),
-    followThroughScore: clamp(level.averageReactionMovePct / 0.08, 0, 1),
-    sourceEvidenceCount: Math.max(level.touchCount, sourceTypes.length),
-    firstTimestamp:
-      level.roleFlipEvidence?.formationTimestamp ??
-      level.firstTimestamp ??
-      generatedAt,
-    lastTimestamp:
-      level.roleFlipEvidence?.reactionTimestamp ??
-      level.lastTimestamp ??
-      level.firstTimestamp ??
-      generatedAt,
-    isExtension: false,
+    reactionQualityScore: deriveReactionScore(level),
+    rejectionScore: deriveRejectionScore(level),
+    displacementScore: deriveDisplacementScore(level),
+    sessionSignificanceScore: deriveSessionSignificanceScore(level),
+    followThroughScore: deriveFollowThroughScore(level),
+    gapContinuationScore: undefined,
+    sourceEvidenceCount: Math.max(level.meaningfulTouchCount, timeframeSources.length),
+    firstTimestamp: deriveFirstTimestamp(level, generatedAt),
+    lastTimestamp: deriveLastTimestamp(level, generatedAt),
+    marketDataProvenance: level.marketDataProvenance,
+    sessionDate: undefined,
+    isExtension: level.selectionCategory === "anchor",
     freshness: deriveFreshness(level),
-    notes: [level.explanation],
+    notes: [
+      "runtime_compatibility_adapter:new_surfaced_selection",
+      legacyLabelMatch
+        ? `legacy_strength_label_match=${legacyLabelMatch.id}`
+        : "strength_label_source=projected_structural_strength",
+      `state=${level.state}`,
+      `durability=${level.durabilityLabel ?? "tested"}`,
+      `confidence=${level.confidence.toFixed(2)}`,
+      level.surfacedSelectionExplanation,
+      ...level.surfacedSelectionNotes,
+    ],
     enrichedAnalysis: toEnrichedAnalysis(level),
-    ...(level.roleFlipEvidence
-      ? { roleFlipEvidence: { ...level.roleFlipEvidence } }
-      : {}),
   };
 }
 
@@ -372,168 +370,15 @@ function cloneRuntimeZone(zone: FinalLevelZone): FinalLevelZone {
     timeframeSources: [...zone.timeframeSources],
     notes: [...zone.notes],
     enrichedAnalysis: cloneEnrichedAnalysis(zone.enrichedAnalysis),
-    ...(zone.roleFlipEvidence
-      ? { roleFlipEvidence: { ...zone.roleFlipEvidence } }
-      : {}),
-  };
-}
-
-function levelSourceContextMatches(zone: FinalLevelZone, level: RankedLevel): boolean {
-  const levelTimeframes = new Set(level.sourceTimeframes.map(normalizeRuntimeSourceTimeframe));
-  const timeframeMatches = zone.timeframeSources.some((timeframe) => levelTimeframes.has(timeframe));
-  const levelOrigins = new Set(level.originKinds);
-  const sourceMatches = zone.sourceTypes.some((sourceType) => levelOrigins.has(sourceType));
-
-  return timeframeMatches || sourceMatches;
-}
-
-function levelPriceMatches(zone: FinalLevelZone, level: RankedLevel): boolean {
-  const zoneLow = Math.min(zone.zoneLow, zone.zoneHigh);
-  const zoneHigh = Math.max(zone.zoneLow, zone.zoneHigh);
-  const tolerance = Math.max(
-    Math.abs(zone.representativePrice) * 0.0025,
-    Math.abs(zoneHigh - zoneLow),
-    0.0001,
-  );
-
-  return (
-    level.price >= zoneLow - tolerance &&
-    level.price <= zoneHigh + tolerance &&
-    Math.abs(level.price - zone.representativePrice) <= tolerance
-  );
-}
-
-function findEnrichmentMatch(
-  zone: FinalLevelZone,
-  rankedLevels: RankedLevel[],
-): RankedLevel | undefined {
-  const idMatch = rankedLevels.find((level) =>
-    level.symbol === zone.symbol &&
-    level.type === zone.kind &&
-    level.id === zone.id,
-  );
-
-  if (idMatch) {
-    return idMatch;
-  }
-
-  return rankedLevels.find((level) =>
-    level.symbol === zone.symbol &&
-    level.type === zone.kind &&
-    levelPriceMatches(zone, level) &&
-    levelSourceContextMatches(zone, level),
-  );
-}
-
-function isSyntheticContinuationMapZone(zone: FinalLevelZone): boolean {
-  return zone.extensionMetadata?.extensionSource === "synthetic_continuation_map";
-}
-
-function recordUnenrichedRuntimeZone(
-  zone: FinalLevelZone,
-  diagnostics: EnrichmentDiagnostics,
-): void {
-  diagnostics.unenrichedZones += 1;
-  diagnostics.unmatchedRuntimeZoneIds.push(zone.id);
-
-  if (isSyntheticContinuationMapZone(zone)) {
-    diagnostics.unenrichedSyntheticZones += 1;
-    diagnostics.unmatchedSyntheticRuntimeZoneIds.push(zone.id);
-    return;
-  }
-
-  if (zone.isExtension) {
-    diagnostics.unenrichedExtensionZones += 1;
-    diagnostics.unmatchedExtensionRuntimeZoneIds.push(zone.id);
-    return;
-  }
-
-  diagnostics.unenrichedHistoricalZones += 1;
-  diagnostics.unmatchedHistoricalRuntimeZoneIds.push(zone.id);
-}
-
-function recordEnrichedRuntimeZone(
-  zone: FinalLevelZone,
-  diagnostics: EnrichmentDiagnostics,
-): void {
-  diagnostics.enrichedZones += 1;
-
-  if (zone.isExtension) {
-    diagnostics.enrichedExtensionZones += 1;
-    return;
-  }
-
-  diagnostics.enrichedHistoricalZones += 1;
-}
-
-function cloneRuntimeZoneWithEnrichment(
-  zone: FinalLevelZone,
-  rankedLevels: RankedLevel[],
-  diagnostics: EnrichmentDiagnostics,
-): FinalLevelZone {
-  const cloned = cloneRuntimeZone(zone);
-
-  if (isSyntheticContinuationMapZone(zone)) {
-    recordUnenrichedRuntimeZone(zone, diagnostics);
-    return {
-      ...cloned,
-      enrichedAnalysis: undefined,
-    };
-  }
-
-  const match = findEnrichmentMatch(zone, rankedLevels);
-
-  if (!match) {
-    recordUnenrichedRuntimeZone(zone, diagnostics);
-    return {
-      ...cloned,
-      enrichedAnalysis: undefined,
-    };
-  }
-
-  recordEnrichedRuntimeZone(zone, diagnostics);
-  return {
-    ...cloned,
-    enrichedAnalysis: toEnrichedAnalysis(match),
-  };
-}
-
-function cloneRuntimeZones(
-  zones: FinalLevelZone[],
-  rankedLevels: RankedLevel[],
-  diagnostics: EnrichmentDiagnostics,
-): FinalLevelZone[] {
-  return zones.map((zone) => cloneRuntimeZoneWithEnrichment(zone, rankedLevels, diagnostics));
-}
-
-function cloneLegacyRuntimeBuckets(
-  runtimeBuckets: LegacyRuntimeBuckets,
-  rankedLevels: RankedLevel[],
-  diagnostics: EnrichmentDiagnostics,
-): LegacyRuntimeBuckets {
-  return {
-    majorSupport: cloneRuntimeZones(runtimeBuckets.majorSupport, rankedLevels, diagnostics),
-    majorResistance: cloneRuntimeZones(runtimeBuckets.majorResistance, rankedLevels, diagnostics),
-    intermediateSupport: cloneRuntimeZones(runtimeBuckets.intermediateSupport, rankedLevels, diagnostics),
-    intermediateResistance: cloneRuntimeZones(runtimeBuckets.intermediateResistance, rankedLevels, diagnostics),
-    intradaySupport: cloneRuntimeZones(runtimeBuckets.intradaySupport, rankedLevels, diagnostics),
-    intradayResistance: cloneRuntimeZones(runtimeBuckets.intradayResistance, rankedLevels, diagnostics),
   };
 }
 
 function cloneExtensionLevels(
-  extensionLevels: LevelEngineOutput["extensionLevels"] | undefined,
+  extensionLevels: LevelEngineOutput["extensionLevels"],
   rankedLevels: RankedLevel[],
-  diagnostics: EnrichmentDiagnostics,
+  accumulator: EnrichmentAccumulator,
   surfacedRuntimeZones: FinalLevelZone[],
 ): LevelEngineOutput["extensionLevels"] {
-  if (!extensionLevels) {
-    return {
-      support: [],
-      resistance: [],
-    };
-  }
-
   const overlapsSurfacedRow = (extension: FinalLevelZone): boolean =>
     surfacedRuntimeZones.some((surfaced) => {
       if (extension.kind !== surfaced.kind) {
@@ -555,30 +400,217 @@ function cloneExtensionLevels(
     });
 
   return {
-    support: cloneRuntimeZones(
-      extensionLevels.support.filter((zone) => !overlapsSurfacedRow(zone)),
-      rankedLevels,
-      diagnostics,
-    ),
-    resistance: cloneRuntimeZones(
-      extensionLevels.resistance.filter((zone) => !overlapsSurfacedRow(zone)),
-      rankedLevels,
-      diagnostics,
-    ),
+    support: extensionLevels.support
+      .filter((zone) => !overlapsSurfacedRow(zone))
+      .map((zone) => cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator)),
+    resistance: extensionLevels.resistance
+      .filter((zone) => !overlapsSurfacedRow(zone))
+      .map((zone) => cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator)),
+  };
+}
+
+function normalizedTimeframeSet(timeframes: readonly SourceTimeframe[]): Set<CandleTimeframe> {
+  return new Set(timeframes.map(normalizeRuntimeSourceTimeframe));
+}
+
+function levelSourceContextMatches(zone: FinalLevelZone, level: RankedLevel): boolean {
+  const levelTimeframes = normalizedTimeframeSet(level.sourceTimeframes);
+  const timeframeMatches = zone.timeframeSources.some((timeframe) =>
+    levelTimeframes.has(timeframe),
+  );
+  const originMatches = level.originKinds.some((origin) =>
+    (zone.sourceTypes as readonly string[]).includes(origin),
+  );
+
+  return timeframeMatches && originMatches;
+}
+
+function levelPriceMatches(zone: FinalLevelZone, level: RankedLevel): boolean {
+  const runtimeZone = {
+    zoneLow: Math.min(zone.zoneLow, zone.zoneHigh),
+    zoneHigh: Math.max(zone.zoneLow, zone.zoneHigh),
+  };
+  const rankedZone = {
+    zoneLow: Math.min(level.zoneLow, level.zoneHigh),
+    zoneHigh: Math.max(level.zoneLow, level.zoneHigh),
+  };
+
+  return (
+    isPriceInsideZone(level.price, runtimeZone.zoneLow, runtimeZone.zoneHigh) ||
+    isPriceInsideZone(zone.representativePrice, rankedZone.zoneLow, rankedZone.zoneHigh) ||
+    zonesOverlap(runtimeZone, rankedZone) ||
+    priceDistancePct(zone.representativePrice, level.price) <= 0.006
+  );
+}
+
+function findEnrichmentMatch(
+  zone: FinalLevelZone,
+  rankedLevels: RankedLevel[],
+): RankedLevel | null {
+  const matches = rankedLevels
+    .filter((level) => level.symbol === zone.symbol)
+    .filter((level) => level.type === zone.kind)
+    .filter((level) => levelSourceContextMatches(zone, level))
+    .filter((level) => levelPriceMatches(zone, level))
+    .sort((left, right) => {
+      const leftInside = isPriceInsideZone(
+        left.price,
+        Math.min(zone.zoneLow, zone.zoneHigh),
+        Math.max(zone.zoneLow, zone.zoneHigh),
+      );
+      const rightInside = isPriceInsideZone(
+        right.price,
+        Math.min(zone.zoneLow, zone.zoneHigh),
+        Math.max(zone.zoneLow, zone.zoneHigh),
+      );
+
+      return (
+        Number(rightInside) - Number(leftInside) ||
+        Number(right.isClusterRepresentative) - Number(left.isClusterRepresentative) ||
+        left.rank - right.rank ||
+        priceDistancePct(zone.representativePrice, left.price) -
+          priceDistancePct(zone.representativePrice, right.price)
+      );
+    });
+
+  return matches[0] ?? null;
+}
+
+function flattenLegacyRuntimeBuckets(
+  runtimeBuckets: LegacyRuntimeBuckets | undefined,
+): FinalLevelZone[] {
+  if (!runtimeBuckets) {
+    return [];
+  }
+
+  return [
+    ...runtimeBuckets.majorSupport,
+    ...runtimeBuckets.majorResistance,
+    ...runtimeBuckets.intermediateSupport,
+    ...runtimeBuckets.intermediateResistance,
+    ...runtimeBuckets.intradaySupport,
+    ...runtimeBuckets.intradayResistance,
+  ];
+}
+
+function findLegacyRuntimeLabelMatch(
+  level: RankedLevel,
+  legacyZones: FinalLevelZone[],
+): FinalLevelZone | null {
+  const matches = legacyZones
+    .filter((zone) => zone.symbol === level.symbol)
+    .filter((zone) => zone.kind === level.type)
+    .filter((zone) => levelSourceContextMatches(zone, level))
+    .filter((zone) => levelPriceMatches(zone, level))
+    .sort((left, right) => {
+      const leftInside = isPriceInsideZone(
+        level.price,
+        Math.min(left.zoneLow, left.zoneHigh),
+        Math.max(left.zoneLow, left.zoneHigh),
+      );
+      const rightInside = isPriceInsideZone(
+        level.price,
+        Math.min(right.zoneLow, right.zoneHigh),
+        Math.max(right.zoneLow, right.zoneHigh),
+      );
+
+      return (
+        Number(rightInside) - Number(leftInside) ||
+        priceDistancePct(level.price, left.representativePrice) -
+          priceDistancePct(level.price, right.representativePrice)
+      );
+    });
+
+  return matches[0] ?? null;
+}
+
+function cloneRuntimeZoneWithEnrichment(
+  zone: FinalLevelZone,
+  rankedLevels: RankedLevel[],
+  accumulator: EnrichmentAccumulator,
+): FinalLevelZone {
+  const cloned = cloneRuntimeZone(zone);
+  const match = findEnrichmentMatch(cloned, rankedLevels);
+
+  if (!match) {
+    accumulator.unmatchedRuntimeZoneIds.push(cloned.id);
+    return cloned;
+  }
+
+  return {
+    ...cloned,
+    enrichedAnalysis: toEnrichedAnalysis(match),
+  };
+}
+
+function cloneRuntimeZones(
+  zones: FinalLevelZone[],
+  rankedLevels: RankedLevel[],
+  accumulator: EnrichmentAccumulator,
+): FinalLevelZone[] {
+  return zones.map((zone) => cloneRuntimeZoneWithEnrichment(zone, rankedLevels, accumulator));
+}
+
+function cloneLegacyRuntimeBuckets(
+  runtimeBuckets: LegacyRuntimeBuckets,
+  rankedLevels: RankedLevel[],
+  accumulator: EnrichmentAccumulator,
+): LegacyRuntimeBuckets {
+  return {
+    majorSupport: cloneRuntimeZones(runtimeBuckets.majorSupport, rankedLevels, accumulator),
+    majorResistance: cloneRuntimeZones(runtimeBuckets.majorResistance, rankedLevels, accumulator),
+    intermediateSupport: cloneRuntimeZones(runtimeBuckets.intermediateSupport, rankedLevels, accumulator),
+    intermediateResistance: cloneRuntimeZones(runtimeBuckets.intermediateResistance, rankedLevels, accumulator),
+    intradaySupport: cloneRuntimeZones(runtimeBuckets.intradaySupport, rankedLevels, accumulator),
+    intradayResistance: cloneRuntimeZones(runtimeBuckets.intradayResistance, rankedLevels, accumulator),
+  };
+}
+
+function runtimeZones(output: LevelEngineOutput): FinalLevelZone[] {
+  return [
+    ...output.majorSupport,
+    ...output.majorResistance,
+    ...output.intermediateSupport,
+    ...output.intermediateResistance,
+    ...output.intradaySupport,
+    ...output.intradayResistance,
+    ...output.extensionLevels.support,
+    ...output.extensionLevels.resistance,
+  ];
+}
+
+function buildEnrichmentDiagnostics(
+  output: LevelEngineOutput,
+  accumulator: EnrichmentAccumulator,
+): EnrichmentDiagnostics {
+  const zones = runtimeZones(output);
+  const enrichedZones = zones.filter((zone) => zone.enrichedAnalysis).length;
+
+  return {
+    totalRuntimeZones: zones.length,
+    enrichedZones,
+    unenrichedZones: zones.length - enrichedZones,
+    unmatchedRuntimeZoneIds: [...accumulator.unmatchedRuntimeZoneIds],
+    unmatchedReason:
+      accumulator.unmatchedRuntimeZoneIds.length > 0 ? "no_safe_ranked_level_match" : null,
   };
 }
 
 function pushBucketedZone(
   buckets: Record<RuntimeBucket, FinalLevelZone[]>,
-  level: RankedLevel,
+  level: SurfacedLevelSelection,
   generatedAt: number,
+  legacyLabelZones: FinalLevelZone[],
 ): void {
-  buckets[bucketForTimeframes(level.sourceTimeframes)].push(toRuntimeZone(level, generatedAt));
+  buckets[bucketForSurfacedLevel(level)].push(
+    toRuntimeZone(level, generatedAt, legacyLabelZones),
+  );
 }
 
 function buildActionableBuckets(
-  levels: RankedLevel[],
+  levels: SurfacedLevelSelection[],
   generatedAt: number,
+  legacyLabelZones: FinalLevelZone[],
 ): Record<RuntimeBucket, FinalLevelZone[]> {
   const buckets: Record<RuntimeBucket, FinalLevelZone[]> = {
     major: [],
@@ -587,7 +619,7 @@ function buildActionableBuckets(
   };
 
   for (const level of levels) {
-    pushBucketedZone(buckets, level, generatedAt);
+    pushBucketedZone(buckets, level, generatedAt, legacyLabelZones);
   }
 
   return buckets;
@@ -596,35 +628,53 @@ function buildActionableBuckets(
 export function buildNewRuntimeCompatibleLevelOutput(
   input: LevelRuntimeOutputAdapterInput,
 ): NewRuntimeCompatibleLevelOutput {
+  const symbol = input.symbol.toUpperCase();
+  const scoreConfig = input.scoreConfig ?? LEVEL_SCORE_CONFIG;
+  const surfacedSelectionConfig =
+    input.surfacedSelectionConfig ?? LEVEL_SURFACED_SELECTION_CONFIG;
   const generatedAt = input.generatedAt ?? Date.now();
-  const levelCandidates = buildLevelCandidates(input);
-  const scoringContext = buildScoringContext(input.symbol, input.candlesByTimeframe, input.metadata);
-  const rankedOutput = rankLevels(levelCandidates, scoringContext);
-  const surfacedSelection = selectSurfacedLevels(rankedOutput);
-  const rankedLevels = [...rankedOutput.supports, ...rankedOutput.resistances];
-  const diagnostics: EnrichmentDiagnostics = {
-    totalRuntimeZones: 0,
-    enrichedZones: 0,
-    unenrichedZones: 0,
+  const levelCandidates =
+    input.levelCandidates ??
+    input.rawCandidates.map((candidate) =>
+      convertRawCandidateToLevelCandidate(candidate, input.candlesByTimeframe),
+    );
+  const rankedOutput = rankLevels(
+    levelCandidates,
+    buildScoringContext(symbol, input.candlesByTimeframe, input.metadata),
+    scoreConfig,
+  );
+  const rankedLevels = [
+    ...rankedOutput.supports,
+    ...rankedOutput.resistances,
+  ];
+  const enrichmentAccumulator: EnrichmentAccumulator = {
     unmatchedRuntimeZoneIds: [],
-    enrichedHistoricalZones: 0,
-    unenrichedHistoricalZones: 0,
-    enrichedExtensionZones: 0,
-    unenrichedExtensionZones: 0,
-    unenrichedSyntheticZones: 0,
-    unmatchedHistoricalRuntimeZoneIds: [],
-    unmatchedExtensionRuntimeZoneIds: [],
-    unmatchedSyntheticRuntimeZoneIds: [],
   };
-  const supportBuckets = buildActionableBuckets(surfacedSelection.surfacedSupports, generatedAt);
-  const resistanceBuckets = buildActionableBuckets(surfacedSelection.surfacedResistances, generatedAt);
+  const surfacedSelection = selectSurfacedLevels(rankedOutput, surfacedSelectionConfig);
+  const legacyLabelZones = flattenLegacyRuntimeBuckets(input.legacyRuntimeBuckets);
+  const supportBuckets = buildActionableBuckets(
+    surfacedSelection.surfacedSupports,
+    generatedAt,
+    legacyLabelZones,
+  );
+  const resistanceBuckets = buildActionableBuckets(
+    surfacedSelection.surfacedResistances,
+    generatedAt,
+    legacyLabelZones,
+  );
+  const extensionSupport = surfacedSelection.deeperSupportAnchor
+    ? [toRuntimeZone(surfacedSelection.deeperSupportAnchor, generatedAt, legacyLabelZones)]
+    : [];
+  const extensionResistance = surfacedSelection.deeperResistanceAnchor
+    ? [toRuntimeZone(surfacedSelection.deeperResistanceAnchor, generatedAt, legacyLabelZones)]
+    : [];
   const runtimeBucketOwnership = input.runtimeBucketOwnership ??
     (input.legacyRuntimeBuckets ? "legacy" : "surfaced");
   if (runtimeBucketOwnership === "legacy" && !input.legacyRuntimeBuckets) {
     throw new Error("legacy runtime bucket ownership requires legacyRuntimeBuckets.");
   }
   const runtimeBuckets = runtimeBucketOwnership === "legacy"
-    ? cloneLegacyRuntimeBuckets(input.legacyRuntimeBuckets!, rankedLevels, diagnostics)
+    ? cloneLegacyRuntimeBuckets(input.legacyRuntimeBuckets!, rankedLevels, enrichmentAccumulator)
     : {
         majorSupport: supportBuckets.major,
         majorResistance: resistanceBuckets.major,
@@ -641,41 +691,73 @@ export function buildNewRuntimeCompatibleLevelOutput(
     ...runtimeBuckets.intradaySupport,
     ...runtimeBuckets.intradayResistance,
   ];
-  const extensionLevels = cloneExtensionLevels(
-    input.legacyExtensionLevels,
-    rankedLevels,
-    diagnostics,
-    surfacedRuntimeZones,
-  );
+  const extensionLevels = input.legacyExtensionLevels
+    ? cloneExtensionLevels(
+        input.legacyExtensionLevels,
+        rankedLevels,
+        enrichmentAccumulator,
+        surfacedRuntimeZones,
+      )
+    : {
+        support: extensionSupport,
+        resistance: extensionResistance,
+      };
+
   const output: LevelEngineOutput = {
-    symbol: input.symbol.toUpperCase(),
+    symbol,
     generatedAt,
     metadata: input.metadata,
-    ...runtimeBuckets,
+    majorSupport: runtimeBuckets.majorSupport,
+    majorResistance: runtimeBuckets.majorResistance,
+    intermediateSupport: runtimeBuckets.intermediateSupport,
+    intermediateResistance: runtimeBuckets.intermediateResistance,
+    intradaySupport: runtimeBuckets.intradaySupport,
+    intradayResistance: runtimeBuckets.intradayResistance,
     extensionLevels,
+    ...(input.legacyRuntimeBuckets
+      ? {
+          fullLadderLevels: {
+            support: [
+              ...(input.legacyFullLadderLevels?.support ?? []),
+              ...input.legacyRuntimeBuckets.majorSupport,
+              ...input.legacyRuntimeBuckets.intermediateSupport,
+              ...input.legacyRuntimeBuckets.intradaySupport,
+              ...(input.legacyExtensionLevels?.support ?? []),
+            ],
+            resistance: [
+              ...(input.legacyFullLadderLevels?.resistance ?? []),
+              ...input.legacyRuntimeBuckets.majorResistance,
+              ...input.legacyRuntimeBuckets.intermediateResistance,
+              ...input.legacyRuntimeBuckets.intradayResistance,
+              ...(input.legacyExtensionLevels?.resistance ?? []),
+            ],
+          },
+        }
+      : {}),
     specialLevels: input.specialLevels,
   };
-  diagnostics.totalRuntimeZones = diagnostics.enrichedZones + diagnostics.unenrichedZones;
+  const enrichmentDiagnostics = buildEnrichmentDiagnostics(output, enrichmentAccumulator);
 
   return {
     output,
     rankedOutput,
     surfacedSelection,
     comparableOutput: normalizeSurfacedSelectionOutput(surfacedSelection, 12),
-    enrichmentDiagnostics: diagnostics,
+    enrichmentDiagnostics,
     mappingNotes: [
       "The new surfaced adapter is projected into the legacy bucketed LevelEngineOutput contract for runtime compatibility.",
-      "The complete ranked candidate inventory remains internal; surfaced selection keeps nearest levels first and, above twelve rows per side, samples the complete detected distance range while preserving the outermost and outermost higher-timeframe anchors. Percentage bands do not cap the ladder.",
       runtimeBucketOwnership === "legacy"
         ? "Runtime buckets reuse the legacy FinalLevelZone transport buckets supplied by the old runtime path so bucket coverage, nearest levels, and legacy strength labels remain stable while richer surfaced selection stays observational."
         : "Runtime buckets are owned by the projected surfaced selection; changing runtime mode back to old bypasses this projection and returns the untouched legacy output.",
+      legacyLabelZones.length > 0
+        ? "Projected runtime zones preserve legacy strengthScore and strengthLabel when price, side, timeframe, and source context match safely; unmatched zones use structuralStrengthScore rather than proximity-weighted surfacedSelectionScore."
+        : "Projected runtime zones without legacy match context derive transport labels from structuralStrengthScore rather than proximity-weighted surfacedSelectionScore.",
       input.legacyExtensionLevels
-        ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path for practical forward planning."
-        : "Extension levels remain empty unless a legacy extension ladder is supplied.",
-      "Enrichment diagnostics classify unmatched runtime zones as historical, extension, or synthetic continuation-map rows so synthetic forward-planning rows are not treated as historical enrichment failures.",
-      diagnostics.unenrichedZones > 0
-        ? `enrichedAnalysis attached to ${diagnostics.enrichedZones} runtime zones; ${diagnostics.unenrichedZones} remain undefined because no safe ranked-level match was available (${diagnostics.unenrichedHistoricalZones} historical, ${diagnostics.unenrichedExtensionZones} extension, ${diagnostics.unenrichedSyntheticZones} synthetic).`
-        : `enrichedAnalysis attached to all ${diagnostics.enrichedZones} matched runtime zones as additive shadow metadata.`,
+        ? "Extension levels reuse the legacy extension ladder supplied by the old runtime path so forward-planning coverage is not limited to one surfaced anchor per side."
+        : "Extension levels fall back to surfaced deeper anchors when no legacy extension ladder is supplied.",
+      enrichmentDiagnostics.unenrichedZones > 0
+        ? `enrichedAnalysis attached to ${enrichmentDiagnostics.enrichedZones} runtime zones; ${enrichmentDiagnostics.unenrichedZones} remain undefined because no safe ranked-level match was available.`
+        : `enrichedAnalysis attached to all ${enrichmentDiagnostics.enrichedZones} runtime zones as additive shadow metadata.`,
     ],
   };
 }

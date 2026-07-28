@@ -1,4 +1,4 @@
-import type { BaseCandleProviderResponse, Candle, CandleTimeframe } from "./candle-types.js";
+import type { BaseCandleProviderResponse, Candle, CandleFetchTimeframe } from "./candle-types.js";
 import { classifyIntradayCandleTimestamp } from "./candle-session-classifier.js";
 import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "./provider-types.js";
 
@@ -44,8 +44,10 @@ type YahooCandleFetchResult = {
 
 const DEFAULT_BASE_URL = "https://query1.finance.yahoo.com";
 
-function toYahooInterval(timeframe: CandleTimeframe): "5m" | "60m" | "1d" {
+function toYahooInterval(timeframe: CandleFetchTimeframe): "1m" | "5m" | "60m" | "1d" {
   switch (timeframe) {
+    case "1m":
+      return "1m";
     case "5m":
       return "5m";
     case "4h":
@@ -55,8 +57,10 @@ function toYahooInterval(timeframe: CandleTimeframe): "5m" | "60m" | "1d" {
   }
 }
 
-function sourceIntervalMs(timeframe: CandleTimeframe): number {
+function sourceIntervalMs(timeframe: CandleFetchTimeframe): number {
   switch (timeframe) {
+    case "1m":
+      return 60_000;
     case "5m":
       return 5 * 60_000;
     case "4h":
@@ -182,7 +186,7 @@ export class YahooHistoricalCandleProvider implements HistoricalCandleProvider {
 
   private async fetchYahooCandles(
     symbol: string,
-    timeframe: CandleTimeframe,
+    timeframe: CandleFetchTimeframe,
     plan: HistoricalFetchPlan,
   ): Promise<YahooCandleFetchResult> {
     const interval = toYahooInterval(timeframe);

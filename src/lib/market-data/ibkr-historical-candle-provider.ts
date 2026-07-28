@@ -1,18 +1,7 @@
 import { EventName, IBApi, WhatToShow } from "@stoqey/ib";
 
-import type {
-  BaseCandleProviderResponse,
-  Candle,
-  ProviderCandleTimeframe,
-} from "./candle-types.js";
-import type {
-  BaseProviderCandleResponse,
-  HistoricalCandleProvider,
-  HistoricalFetchPlan,
-  HistoricalFetchRequest,
-  ProviderHistoricalFetchPlan,
-  ProviderHistoricalFetchRequest,
-} from "./provider-types.js";
+import type { BaseCandleProviderResponse, Candle, CandleFetchTimeframe } from "./candle-types.js";
+import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "./provider-types.js";
 import { sharedIbkrPacingQueue } from "./ibkr-pacing-queue.js";
 
 type HistoricalDataListener = (
@@ -64,8 +53,84 @@ type IbkrHistoricalBar = {
   volume: number;
 };
 
+type IbkrHistoricalContractAlias = {
+  conId: number;
+  symbol: string;
+  exchange: string;
+  primaryExchange?: string;
+  currency: string;
+  reason: string;
+};
+
+type IbkrHistoricalContract = {
+  conId?: number;
+  symbol: string;
+  secType: "STK";
+  exchange: string;
+  currency: string;
+};
+
+type IbkrHistoricalContractResolution = {
+  contract: IbkrHistoricalContract;
+  alias: IbkrHistoricalContractAlias | null;
+};
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 const HISTORICAL_DATA_END_EVENT = "historicalDataEnd";
+const HISTORICAL_CONTRACT_ALIASES: Record<string, IbkrHistoricalContractAlias> = {
+  "BRK/A": {
+    conId: 5222,
+    symbol: "BRK A",
+    exchange: "SMART",
+    primaryExchange: "NYSE",
+    currency: "USD",
+    reason: "ibkr_class_share_symbol_format",
+  },
+  "BRK/B": {
+    conId: 72063691,
+    symbol: "BRK B",
+    exchange: "SMART",
+    primaryExchange: "NYSE",
+    currency: "USD",
+    reason: "ibkr_class_share_symbol_format",
+  },
+  MAXN: {
+    conId: 733975592,
+    symbol: "MAXNQ",
+    exchange: "SMART",
+    primaryExchange: "PINK",
+    currency: "USD",
+    reason: "post_delisting_symbol_change",
+  },
+};
+
+export function ibkrHistoricalContractAliasMetadata(
+  rawSymbol: string,
+): Record<string, string | number | boolean | null> {
+  const symbol = rawSymbol.trim().toUpperCase();
+  const alias = HISTORICAL_CONTRACT_ALIASES[symbol];
+  if (!alias) {
+    return {
+      ibkrRequestedSymbol: symbol,
+      ibkrResolvedSymbol: symbol,
+      ibkrResolvedConId: null,
+      ibkrResolvedExchange: "SMART",
+      ibkrResolvedPrimaryExchange: null,
+      ibkrContractAliasUsed: false,
+      ibkrHistoricalAliasReason: null,
+    };
+  }
+
+  return {
+    ibkrRequestedSymbol: symbol,
+    ibkrResolvedSymbol: alias.symbol,
+    ibkrResolvedConId: alias.conId,
+    ibkrResolvedExchange: alias.exchange,
+    ibkrResolvedPrimaryExchange: alias.primaryExchange ?? null,
+    ibkrContractAliasUsed: true,
+    ibkrHistoricalAliasReason: alias.reason,
+  };
+}
 
 function formatIbkrEndDate(timestamp: number): string {
   const date = new Date(timestamp);
@@ -91,22 +156,15 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
   async fetchCandles(
     request: HistoricalFetchRequest,
     plan: HistoricalFetchPlan,
-  ): Promise<BaseCandleProviderResponse>;
-  async fetchCandles(
-    request: ProviderHistoricalFetchRequest,
-    plan: ProviderHistoricalFetchPlan,
-  ): Promise<BaseProviderCandleResponse>;
-  async fetchCandles(
-    request: ProviderHistoricalFetchRequest,
-    plan: ProviderHistoricalFetchPlan,
-  ): Promise<BaseProviderCandleResponse> {
+  ): Promise<BaseCandleProviderResponse> {
     this.validateRequest(request);
 
     const reqId = IbkrHistoricalCandleProvider.nextRequestId++;
     const symbol = request.symbol.trim().toUpperCase();
+    const resolution = this.resolveContract(symbol);
     const fetchStartTimestamp = Date.now();
     const bars = await sharedIbkrPacingQueue.enqueue(() =>
-      this.requestHistoricalBars(reqId, symbol, request, plan),
+      this.requestHistoricalBars(reqId, symbol, resolution, request, plan),
     );
     const fetchEndTimestamp = Date.now();
 
@@ -129,6 +187,10 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
       providerMetadata: {
         durationStr: plan.providerRequest.durationStr ?? null,
         barSizeSetting: plan.providerRequest.barSizeSetting,
+        whatToShow: WhatToShow.TRADES,
+        useRTH: false,
+        providerAdjustmentMode: "raw",
+        ...ibkrHistoricalContractAliasMetadata(symbol),
       },
     };
   }
@@ -137,7 +199,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     return this.ib as unknown as IBApiHistoricalClient;
   }
 
-  private validateRequest(request: ProviderHistoricalFetchRequest): void {
+  private validateRequest(request: HistoricalFetchRequest): void {
     if (!request.symbol.trim()) {
       throw new Error("symbol is required.");
     }
@@ -150,8 +212,9 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
   private requestHistoricalBars(
     reqId: number,
     symbol: string,
-    request: ProviderHistoricalFetchRequest,
-    plan: ProviderHistoricalFetchPlan,
+    resolution: IbkrHistoricalContractResolution,
+    request: HistoricalFetchRequest,
+    plan: HistoricalFetchPlan,
   ): Promise<IbkrHistoricalBar[]> {
     return new Promise<IbkrHistoricalBar[]>((resolve, reject) => {
       const bars: IbkrHistoricalBar[] = [];
@@ -246,9 +309,12 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
               ? error
               : "Unknown IBKR historical data error.";
         const errorCode = typeof code === "number" ? ` (code ${code})` : "";
+        const aliasGuidance = code === 200 && resolution.alias === null
+          ? " No validated historical contract alias is configured for this symbol; if it was renamed, delisted, or moved to OTC/PINK, qualify the current IBKR contract and add an explicit alias before using market-data feedback."
+          : "";
 
         finalizeReject(
-          new Error(`Failed to fetch IBKR historical data for ${symbol}${errorCode}: ${message}`),
+          new Error(`Failed to fetch IBKR historical data for ${symbol}${errorCode}: ${message}.${aliasGuidance}`),
         );
       };
 
@@ -267,12 +333,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
       try {
         this.ibClient.reqHistoricalData(
           reqId,
-          {
-            symbol,
-            secType: "STK",
-            exchange: "SMART",
-            currency: "USD",
-          },
+          resolution.contract,
           formatIbkrEndDate(plan.requestEndTimestamp),
           plan.providerRequest.durationStr ?? this.getFallbackDuration(request.timeframe),
           plan.providerRequest.barSizeSetting,
@@ -291,13 +352,39 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     });
   }
 
+  private resolveContract(symbol: string): IbkrHistoricalContractResolution {
+    const alias = HISTORICAL_CONTRACT_ALIASES[symbol];
+    if (alias) {
+      return {
+        contract: {
+          conId: alias.conId,
+          symbol: alias.symbol,
+          secType: "STK",
+          exchange: alias.exchange,
+          currency: alias.currency,
+        },
+        alias,
+      };
+    }
+
+    return {
+      contract: {
+        symbol,
+        secType: "STK",
+        exchange: "SMART",
+        currency: "USD",
+      },
+      alias: null,
+    };
+  }
+
   private mapBarToCandle(
     bar: IbkrHistoricalBar,
     symbol: string,
-    timeframe: ProviderCandleTimeframe,
+    timeframe: CandleFetchTimeframe,
     index: number,
   ): Candle {
-    const timestamp = this.parseIbkrTimestamp(bar.time);
+    const timestamp = this.parseIbkrTimestamp(bar.time, timeframe);
 
     if (!Number.isFinite(timestamp) || timestamp <= 0) {
       throw new Error(
@@ -315,7 +402,13 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     };
   }
 
-  private parseIbkrTimestamp(rawTime: string | number): number {
+  private parseIbkrTimestamp(rawTime: string | number, timeframe: CandleFetchTimeframe): number {
+    const rawText = String(rawTime).trim();
+    const dailyTimestamp = this.tryParseIbkrDailyTimestamp(rawText, timeframe);
+    if (dailyTimestamp !== null) {
+      return dailyTimestamp;
+    }
+
     if (typeof rawTime === "number") {
       const timestamp = rawTime * 1000;
       if (!Number.isFinite(timestamp)) {
@@ -325,20 +418,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
       return timestamp;
     }
 
-    const trimmed = rawTime.trim();
-
-    if (/^\d{8}$/.test(trimmed)) {
-      const year = Number(trimmed.slice(0, 4));
-      const monthIndex = Number(trimmed.slice(4, 6)) - 1;
-      const day = Number(trimmed.slice(6, 8));
-      const timestamp = new Date(year, monthIndex, day).getTime();
-
-      if (!Number.isFinite(timestamp)) {
-        throw new Error(`Invalid IBKR daily timestamp: ${rawTime}`);
-      }
-
-      return timestamp;
-    }
+    const trimmed = rawText;
 
     if (/^\d+$/.test(trimmed)) {
       const numericValue = Number(trimmed);
@@ -378,12 +458,65 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     return fallbackTimestamp;
   }
 
-  private getFallbackDuration(timeframe: ProviderCandleTimeframe): string {
+  private tryParseIbkrDailyTimestamp(rawText: string, timeframe: CandleFetchTimeframe): number | null {
+    const firstEightDigits = rawText.match(/^(\d{8})\d*$/)?.[1];
+    if (!firstEightDigits) {
+      return null;
+    }
+
+    if (!this.isValidIbkrDailyDate(firstEightDigits)) {
+      return null;
+    }
+
+    if (timeframe !== "daily") {
+      throw new Error(
+        `IBKR returned daily-style timestamp for ${timeframe} candle: ${rawText}`,
+      );
+    }
+
+    return this.parseIbkrDailyDate(firstEightDigits);
+  }
+
+  private isValidIbkrDailyDate(rawDate: string): boolean {
+    if (!/^\d{8}$/.test(rawDate)) {
+      return false;
+    }
+    const year = Number(rawDate.slice(0, 4));
+    const month = Number(rawDate.slice(4, 6));
+    const day = Number(rawDate.slice(6, 8));
+    if (year < 1900 || year > 2100) {
+      return false;
+    }
+    const date = new Date(year, month - 1, day);
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    );
+  }
+
+  private parseIbkrDailyDate(rawDate: string): number {
+    if (!this.isValidIbkrDailyDate(rawDate)) {
+      throw new Error(`Invalid IBKR daily timestamp: ${rawDate}`);
+    }
+    const year = Number(rawDate.slice(0, 4));
+    const monthIndex = Number(rawDate.slice(4, 6)) - 1;
+    const day = Number(rawDate.slice(6, 8));
+    const timestamp = new Date(year, monthIndex, day).getTime();
+
+    if (!Number.isFinite(timestamp)) {
+      throw new Error(`Invalid IBKR daily timestamp: ${rawDate}`);
+    }
+
+    return timestamp;
+  }
+
+  private getFallbackDuration(timeframe: CandleFetchTimeframe): string {
     switch (timeframe) {
+      case "1m":
+        return "2 D";
       case "5m":
         return "3 D";
-      case "15m":
-        return "4 D";
       case "4h":
         return "2 M";
       case "daily":
@@ -395,7 +528,7 @@ export class IbkrHistoricalCandleProvider implements HistoricalCandleProvider {
     value: number,
     fieldName: string,
     symbol: string,
-    timeframe: ProviderCandleTimeframe,
+    timeframe: CandleFetchTimeframe,
     index: number,
   ): number {
     if (!Number.isFinite(value)) {

@@ -64,6 +64,7 @@ test("EodhdLivePriceProvider subscribes active symbols and emits normalized trad
   const updates: LivePriceUpdate[] = [];
   const provider = new EodhdLivePriceProvider({
     apiToken: "test-token",
+    dispatchIntervalMs: 0,
     socketFactory: (url) => {
       assert.match(url, /api_token=test-token/);
       const socket = new FakeWebSocket();
@@ -104,6 +105,7 @@ test("EodhdLivePriceProvider dedupes active symbols before subscribing", async (
   const sockets: FakeWebSocket[] = [];
   const provider = new EodhdLivePriceProvider({
     apiToken: "test-token",
+    dispatchIntervalMs: 0,
     maxSymbols: 2,
     socketFactory: () => {
       const socket = new FakeWebSocket();
@@ -136,6 +138,7 @@ test("EodhdLivePriceProvider subscribes EODHD stock stream symbols while preserv
   const updates: LivePriceUpdate[] = [];
   const provider = new EodhdLivePriceProvider({
     apiToken: "test-token",
+    dispatchIntervalMs: 0,
     socketFactory: () => {
       const socket = new FakeWebSocket();
       sockets.push(socket);
@@ -182,6 +185,7 @@ test("EodhdLivePriceProvider handles batched trade messages", async () => {
   const updates: LivePriceUpdate[] = [];
   const provider = new EodhdLivePriceProvider({
     apiToken: "test-token",
+    dispatchIntervalMs: 0,
     socketFactory: () => {
       const socket = new FakeWebSocket();
       sockets.push(socket);
@@ -204,11 +208,92 @@ test("EodhdLivePriceProvider handles batched trade messages", async () => {
   await provider.stop();
 });
 
+test("EodhdLivePriceProvider coalesces a trade burst to the latest update per symbol", async () => {
+  const sockets: FakeWebSocket[] = [];
+  const updates: LivePriceUpdate[] = [];
+  const provider = new EodhdLivePriceProvider({
+    apiToken: "test-token",
+    dispatchIntervalMs: 5,
+    socketFactory: () => {
+      const socket = new FakeWebSocket();
+      sockets.push(socket);
+      return socket;
+    },
+  });
+
+  await provider.start(entries, (update) => {
+    updates.push(update);
+  });
+  sockets[0]!.open();
+  sockets[0]!.message(JSON.stringify([
+    ...Array.from({ length: 500 }, (_, index) => ({
+      s: "AAPL",
+      p: 200 + index / 100,
+      v: 1,
+      t: 1_725_198_451_000 + index,
+    })),
+    ...Array.from({ length: 500 }, (_, index) => ({
+      s: "MSFT",
+      p: 500 + index / 100,
+      v: 2,
+      t: 1_725_198_452_000 + index,
+    })),
+  ]));
+
+  await waitMs(20);
+
+  assert.equal(updates.length, 2);
+  assert.deepEqual(updates, [
+    {
+      symbol: "AAPL",
+      timestamp: 1_725_198_451_499,
+      lastPrice: 204.99,
+      volume: 500,
+    },
+    {
+      symbol: "MSFT",
+      timestamp: 1_725_198_452_499,
+      lastPrice: 504.99,
+      volume: 1_000,
+    },
+  ]);
+
+  await provider.stop();
+});
+
+test("EodhdLivePriceProvider drops a late trade after a newer quote was dispatched", async () => {
+  const sockets: FakeWebSocket[] = [];
+  const updates: LivePriceUpdate[] = [];
+  const provider = new EodhdLivePriceProvider({
+    apiToken: "test-token",
+    dispatchIntervalMs: 5,
+    socketFactory: () => {
+      const socket = new FakeWebSocket();
+      sockets.push(socket);
+      return socket;
+    },
+  });
+
+  await provider.start(entries, (update) => {
+    updates.push(update);
+  });
+  sockets[0]!.open();
+  sockets[0]!.message(JSON.stringify({ s: "AAPL", p: 205, v: 10, t: 2_000 }));
+  await waitMs(10);
+  sockets[0]!.message(JSON.stringify({ s: "AAPL", p: 199, v: 10, t: 1_999 }));
+  await waitMs(10);
+
+  assert.deepEqual(updates.map((update) => update.lastPrice), [205]);
+
+  await provider.stop();
+});
+
 test("EodhdLivePriceProvider ignores dark-pool and unsubscribed symbol prints", async () => {
   const sockets: FakeWebSocket[] = [];
   const updates: LivePriceUpdate[] = [];
   const provider = new EodhdLivePriceProvider({
     apiToken: "test-token",
+    dispatchIntervalMs: 0,
     socketFactory: () => {
       const socket = new FakeWebSocket();
       sockets.push(socket);
@@ -234,6 +319,7 @@ test("EodhdLivePriceProvider reconnects and resubscribes active symbols after a 
   const sockets: FakeWebSocket[] = [];
   const provider = new EodhdLivePriceProvider({
     apiToken: "test-token",
+    dispatchIntervalMs: 0,
     reconnectDelayMs: 1,
     socketFactory: () => {
       const socket = new FakeWebSocket();
@@ -262,6 +348,7 @@ test("EodhdLivePriceProvider ignores stale socket events after restart", async (
   const updates: LivePriceUpdate[] = [];
   const provider = new EodhdLivePriceProvider({
     apiToken: "test-token",
+    dispatchIntervalMs: 0,
     reconnectDelayMs: 1,
     socketFactory: () => {
       const socket = new FakeWebSocket();
@@ -308,6 +395,7 @@ test("EodhdLivePriceProvider ignores stale socket events after restart", async (
 test("EodhdLivePriceProvider enforces configured symbol limit", async () => {
   const provider = new EodhdLivePriceProvider({
     apiToken: "test-token",
+    dispatchIntervalMs: 0,
     maxSymbols: 1,
     socketFactory: () => new FakeWebSocket(),
   });

@@ -11,7 +11,6 @@ import type {
   LevelExtensionPayload,
   LevelSnapshotPayload,
 } from "../lib/alerts/alert-types.js";
-import type { MonitoringEvent } from "../lib/monitoring/monitoring-types.js";
 import { WebsitePublishingDiscordGateway } from "../lib/live-watchlist/website-publishing-discord-gateway.js";
 import type {
   LiveWatchlistCardPatch,
@@ -57,42 +56,8 @@ class RecordingDiscordGateway implements DiscordThreadGateway {
   }
 }
 
-function testMonitoringEvent(symbol = "ABCD", timestamp = 1000): MonitoringEvent {
-  return {
-    id: `${symbol}-event`,
-    episodeId: `${symbol}-episode`,
-    symbol,
-    type: "breakout",
-    eventType: "breakout",
-    zoneId: `${symbol}-zone`,
-    zoneKind: "resistance",
-    level: 1.23,
-    triggerPrice: 1.24,
-    strength: 0.7,
-    confidence: 0.8,
-    priority: 70,
-    bias: "bullish",
-    pressureScore: 0.6,
-    eventContext: {
-      monitoredZoneId: `${symbol}-monitored-zone`,
-      canonicalZoneId: `${symbol}-zone`,
-      zoneFreshness: "fresh",
-      zoneOrigin: "canonical",
-      remapStatus: "new",
-      remappedFromZoneIds: [],
-      dataQualityDegraded: false,
-      recentlyRefreshed: false,
-      recentlyPromotedExtension: false,
-      ladderPosition: "inner",
-      zoneStrengthLabel: "moderate",
-    },
-    timestamp,
-    notes: [],
-  };
-}
-
 describe("website publishing Discord gateway", () => {
-  it("announces new tickers in the watchlist channel without creating Discord threads", async () => {
+  it("reserves the website route before announcing new tickers in Discord", async () => {
     const events: string[] = [];
     const gateway = new WebsitePublishingDiscordGateway(
       new RecordingDiscordGateway(events),
@@ -102,6 +67,8 @@ describe("website publishing Discord gateway", () => {
 
     const created = await router.ensureThread("abcd");
     const migrated = await router.ensureThread("ABCD", "legacy-thread-id");
+    assert.deepEqual(events, []);
+    await router.announceTickerAdded("abcd");
 
     assert.deepEqual(created, {
       threadId: "watchlist:ABCD",
@@ -135,7 +102,6 @@ describe("website publishing Discord gateway", () => {
       body: "Holding above support.",
       symbol: "ABCD",
       timestamp: 1000,
-      event: testMonitoringEvent("ABCD", 1000),
       metadata: { messageKind: "intelligent_alert" },
     });
 
@@ -162,7 +128,6 @@ describe("website publishing Discord gateway", () => {
       body: "Holding above support.",
       symbol: "ABCD",
       timestamp: 1000,
-      event: testMonitoringEvent("ABCD", 1000),
       metadata: { messageKind: "intelligent_alert" },
     });
 
@@ -198,5 +163,54 @@ describe("website publishing Discord gateway", () => {
     });
 
     assert.deepEqual(events, ["website:ABCD", "website:ABCD"]);
+  });
+
+  it("keeps the website Trader Read card removed from snapshots and alerts while visibility is off", async () => {
+    const patches: LiveWatchlistCardPatch[] = [];
+    let liveTraderReadCardVisible = false;
+    const publisher: LiveWatchlistPublisher = {
+      async publish(patch: LiveWatchlistCardPatch): Promise<void> {
+        patches.push(patch);
+      },
+    };
+    const gateway = new WebsitePublishingDiscordGateway(
+      new RecordingDiscordGateway([]),
+      publisher,
+      undefined,
+      {
+        pullbackReadEnabled: true,
+        isLiveTraderReadCardVisible: () => liveTraderReadCardVisible,
+      },
+    );
+
+    await gateway.sendLevelSnapshot("thread-1", {
+      symbol: "HIDE",
+      currentPrice: 1.23,
+      supportZones: [{ representativePrice: 1.1 }],
+      resistanceZones: [{ representativePrice: 1.4 }],
+      timestamp: 1000,
+    });
+    await gateway.sendMessage("thread-1", {
+      title: "HIDE trader read",
+      body: "Holding above support.",
+      symbol: "HIDE",
+      timestamp: 2000,
+      metadata: { messageKind: "intelligent_alert" },
+    });
+
+    assert.equal(patches.length, 2);
+    assert.equal(patches[0]?.cards.liveTraderRead, null);
+    assert.equal(patches[1]?.cards.liveTraderRead, null);
+
+    liveTraderReadCardVisible = true;
+    await gateway.sendLevelSnapshot("thread-1", {
+      symbol: "HIDE",
+      currentPrice: 1.23,
+      supportZones: [{ representativePrice: 1.1 }],
+      resistanceZones: [{ representativePrice: 1.4 }],
+      timestamp: 3000,
+    });
+
+    assert.equal(patches[2]?.cards.liveTraderRead?.source, "level_snapshot");
   });
 });

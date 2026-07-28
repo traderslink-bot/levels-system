@@ -1,17 +1,22 @@
 import { IBApi } from "@stoqey/ib";
 
 import type { CandleProviderName } from "./candle-types.js";
+import { EodhdHistoricalCandleProvider } from "./eodhd-historical-candle-provider.js";
 import { StubHistoricalCandleProvider } from "./candle-fetch-service.js";
 import { IbkrHistoricalCandleProvider } from "./ibkr-historical-candle-provider.js";
-import { TwelveDataHistoricalCandleProvider } from "./providers/twelve-data-historical-candle-provider.js";
+import { YahooHistoricalCandleProvider } from "./yahoo-historical-candle-provider.js";
 import type { HistoricalCandleProvider } from "./provider-types.js";
 import { resolveProviderPriority } from "./provider-priority.js";
 
 export type HistoricalProviderFactoryOptions = {
   provider?: CandleProviderName;
   ib?: IBApi;
-  twelveDataApiKey?: string;
   ibkrTimeoutMs?: number;
+  eodhdApiToken?: string;
+  eodhdExchangeSuffix?: string;
+  eodhdBaseUrl?: string;
+  yahooBaseUrl?: string;
+  yahooFetchFn?: typeof fetch;
 };
 
 export function createHistoricalCandleProvider(
@@ -20,12 +25,23 @@ export function createHistoricalCandleProvider(
   const priority = resolveProviderPriority(options.provider);
 
   for (const providerName of priority) {
-    if (providerName === "twelve_data" && options.twelveDataApiKey?.trim()) {
-      return new TwelveDataHistoricalCandleProvider(options.twelveDataApiKey);
-    }
-
     if (providerName === "ibkr" && options.ib) {
       return new IbkrHistoricalCandleProvider(options.ib, options.ibkrTimeoutMs);
+    }
+
+    if (providerName === "eodhd") {
+      return new EodhdHistoricalCandleProvider({
+        apiToken: options.eodhdApiToken,
+        exchangeSuffix: options.eodhdExchangeSuffix,
+        baseUrl: options.eodhdBaseUrl,
+      });
+    }
+
+    if (providerName === "yahoo") {
+      return new YahooHistoricalCandleProvider({
+        baseUrl: options.yahooBaseUrl,
+        fetchFn: options.yahooFetchFn,
+      });
     }
 
     if (providerName === "stub") {

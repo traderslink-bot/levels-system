@@ -33,14 +33,14 @@ function buildOutput(
   };
 }
 
-function candle(timestamp: number, open: number, high: number, low: number, close: number): Candle {
+function candle(timestamp: number, open: number, high: number, low: number, close: number, volume = 100000): Candle {
   return {
     timestamp,
     open,
     high,
     low,
     close,
-    volume: 100000,
+    volume,
   };
 }
 
@@ -312,4 +312,116 @@ test("validateForwardReactions ignores non-actionable levels on the wrong side o
   assert.equal(report.byKindSource.surfacedResistance.evaluated, 1);
   assert.equal(report.bySurfacedSupportBucket["5m"].evaluated, 1);
   assert.equal(report.bySurfacedSupportBucket.daily.evaluated, 0);
+});
+
+test("validateForwardReactions tags elevated-volume resistance rejection as useful volume evidence", () => {
+  const output = buildOutput({
+    intradayResistance: [
+      buildValidationZone({
+        id: "R-volume-reject",
+        symbol: "GXAI",
+        kind: "resistance",
+        representativePrice: 1.75,
+        zoneLow: 1.74,
+        zoneHigh: 1.76,
+        strengthLabel: "strong",
+      }),
+    ],
+  });
+  const baselineCandles = [
+    candle(-6, 1.55, 1.57, 1.54, 1.56, 1000),
+    candle(-5, 1.56, 1.58, 1.55, 1.57, 1000),
+    candle(-4, 1.57, 1.59, 1.56, 1.58, 1000),
+    candle(-3, 1.58, 1.60, 1.57, 1.59, 1000),
+    candle(-2, 1.59, 1.61, 1.58, 1.60, 1000),
+    candle(-1, 1.60, 1.62, 1.59, 1.61, 1000),
+  ];
+  const futureCandles = [
+    candle(1, 1.70, 1.76, 1.69, 1.72, 3000),
+    candle(2, 1.72, 1.73, 1.68, 1.69, 1800),
+    candle(3, 1.69, 1.70, 1.64, 1.66, 1600),
+  ];
+
+  const report = validateForwardReactions({ output, futureCandles, baselineCandles });
+  const result = report.levelResults[0]!;
+
+  assert.equal(result.outcome, "respected");
+  assert.equal(result.volumeContext.reliability, "reliable");
+  assert.equal(result.volumeContext.label, "heavy");
+  assert.equal(result.volumeContext.relativeVolumeRatio, 3);
+  assert.equal(report.volumeEvidence.highVolumeTouches, 1);
+  assert.equal(report.volumeEvidence.highVolumeUsefulWhenTouchedRate, 1);
+  assert.equal(report.volumeEvidence.highVolumeRespectRate, 1);
+  assert.equal(report.volumeEvidence.highVolumeBreakRate, 0);
+  assert.equal(report.byVolumeLabel.heavy.usefulWhenTouchedRate, 1);
+});
+
+test("validateForwardReactions tags elevated-volume resistance break as consumed level evidence", () => {
+  const output = buildOutput({
+    intradayResistance: [
+      buildValidationZone({
+        id: "R-volume-break",
+        symbol: "GXAI",
+        kind: "resistance",
+        representativePrice: 1.75,
+        zoneLow: 1.74,
+        zoneHigh: 1.76,
+        strengthLabel: "strong",
+      }),
+    ],
+  });
+  const baselineCandles = [
+    candle(-6, 1.55, 1.57, 1.54, 1.56, 1000),
+    candle(-5, 1.56, 1.58, 1.55, 1.57, 1000),
+    candle(-4, 1.57, 1.59, 1.56, 1.58, 1000),
+    candle(-3, 1.58, 1.60, 1.57, 1.59, 1000),
+    candle(-2, 1.59, 1.61, 1.58, 1.60, 1000),
+    candle(-1, 1.60, 1.62, 1.59, 1.61, 1000),
+  ];
+  const futureCandles = [
+    candle(1, 1.74, 1.79, 1.742, 1.785, 3200),
+    candle(2, 1.785, 1.82, 1.78, 1.81, 3500),
+  ];
+
+  const report = validateForwardReactions({ output, futureCandles, baselineCandles });
+  const result = report.levelResults[0]!;
+
+  assert.equal(result.outcome, "broken");
+  assert.equal(result.volumeContext.reliability, "reliable");
+  assert.equal(result.volumeContext.label, "heavy");
+  assert.equal(report.volumeEvidence.highVolumeTouches, 1);
+  assert.equal(report.volumeEvidence.highVolumeUsefulWhenTouchedRate, 0);
+  assert.equal(report.volumeEvidence.highVolumeRespectRate, 0);
+  assert.equal(report.volumeEvidence.highVolumeBreakRate, 1);
+  assert.equal(report.byVolumeLabel.heavy.breakRate, 1);
+});
+
+test("validateForwardReactions keeps volume evidence unavailable when prior volume baseline is thin", () => {
+  const output = buildOutput({
+    intradaySupport: [
+      buildValidationZone({
+        id: "S-thin-volume",
+        symbol: "GXAI",
+        kind: "support",
+        representativePrice: 1.45,
+        zoneLow: 1.44,
+        zoneHigh: 1.46,
+      }),
+    ],
+  });
+  const futureCandles = [
+    candle(1, 1.47, 1.48, 1.44, 1.46, 5000),
+    candle(2, 1.46, 1.53, 1.45, 1.51, 3000),
+  ];
+
+  const report = validateForwardReactions({ output, futureCandles });
+  const result = report.levelResults[0]!;
+
+  assert.equal(result.touched, true);
+  assert.equal(result.volumeContext.reliability, "unavailable");
+  assert.equal(result.volumeContext.label, "unknown");
+  assert.equal(result.volumeContext.touchVolume, 5000);
+  assert.equal(report.volumeEvidence.reliable, 0);
+  assert.equal(report.volumeEvidence.unreliable, 1);
+  assert.equal(report.byVolumeLabel.unknown.touched, 1);
 });

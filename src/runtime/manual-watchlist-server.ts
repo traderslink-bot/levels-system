@@ -1,601 +1,329 @@
 import "dotenv/config";
 
+import { spawn } from "node:child_process";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
+import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
+import { createHistoricalCandleProvider } from "../lib/market-data/provider-factory.js";
+import { YahooHistoricalCandleProvider } from "../lib/market-data/yahoo-historical-candle-provider.js";
+import { CoordinatedCandleFetchService } from "../lib/market-data/coordinated-candle-fetch-service.js";
+import { DayTradeAdapterService } from "../lib/day-trade-adapter/day-trade-adapter-service.js";
+import { buildTradeCandleContext } from "../lib/market-data/trade-candle-context.js";
+import {
+  ValidationCachedCandleFetchService,
+  resolveValidationCandleCacheMode,
+} from "../lib/validation/validation-candle-cache.js";
+import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-commentary-service.js";
 import { createTradersLinkAiReadServiceFromEnv } from "../lib/ai/traderslink-ai-read-service.js";
 import { TradersLinkAiReadCostLedger } from "../lib/ai/traderslink-ai-read-cost-ledger.js";
+import { TradersLinkAiReadRunLedger } from "../lib/ai/traderslink-ai-read-run-ledger.js";
 import { TradersLinkAiReadSettingsPersistence } from "../lib/ai/traderslink-ai-read-settings.js";
-import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
-import { EodhdHistoricalCandleProvider } from "../lib/market-data/eodhd-historical-candle-provider.js";
-import { IbkrHistoricalCandleProvider } from "../lib/market-data/ibkr-historical-candle-provider.js";
-import { YahooHistoricalCandleProvider } from "../lib/market-data/yahoo-historical-candle-provider.js";
-import { DiscordAlertRouter } from "../lib/alerts/alert-router.js";
-import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
-import { LocalDiscordThreadGateway } from "../lib/alerts/local-discord-thread-gateway.js";
-import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
-import { createDailyWatchlistRecapServiceFromEnv } from "../lib/live-watchlist/daily-watchlist-recap.js";
-import type {
-  LiveWatchlistMarketDataStatus,
-  LiveWatchlistPublisher,
-} from "../lib/live-watchlist/live-watchlist-types.js";
-import { WebsitePublishingDiscordGateway } from "../lib/live-watchlist/website-publishing-discord-gateway.js";
-import { EodhdLivePriceProvider } from "../lib/monitoring/eodhd-live-price-provider.js";
-import { IBKRLivePriceProvider } from "../lib/monitoring/ibkr-live-price-provider.js";
+import { createFinnhubClientFromEnv } from "../lib/stock-context/finnhub-client.js";
+import { createYahooClientFromEnv } from "../lib/stock-context/yahoo-client.js";
+import { CombinedStockContextProvider } from "../lib/stock-context/stock-context-provider.js";
+import {
+  createLivePriceProvider,
+  resolveLivePriceProviderName,
+  type LivePriceProviderName,
+} from "../lib/monitoring/live-price-provider-factory.js";
 import { LevelStore } from "../lib/monitoring/level-store.js";
 import {
-  LEVEL_INTELLIGENCE_ALERT_PREVIEW_DRY_RUN_ENV,
+  DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS,
   ManualWatchlistRuntimeManager,
-  type ManualWatchlistRuntimeManagerOptions,
-  resolveLevelIntelligenceAlertPreviewDryRun,
+  resolveMarketStructureStandalonePostMode,
+  type ManualWatchlistHistoricalLookbacks,
 } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
+
 import {
   AdaptiveScoringEngine,
   DEFAULT_ADAPTIVE_SCORING_CONFIG,
 } from "../lib/monitoring/adaptive-scoring.js";
+import {
+  createCompositeManualWatchlistLifecycleListener,
+  createConsoleManualWatchlistLifecycleListener,
+  createManualWatchlistLifecycleFileListener,
+  isMarketStructureLifecycleEvent,
+} from "../lib/monitoring/manual-watchlist-runtime-events.js";
 import { AdaptiveStatePersistence } from "../lib/monitoring/adaptive-state-persistence.js";
 import { OpportunityRuntimeController } from "../lib/monitoring/opportunity-runtime-controller.js";
+import { createMonitoringEventDiagnosticListener } from "../lib/monitoring/monitoring-event-diagnostic-logger.js";
 import { WatchlistMonitor } from "../lib/monitoring/watchlist-monitor.js";
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
+import {
+  migrateLegacyManualWatchlistFile,
+  resolveDurableManualWatchlistFile,
+  resolveManualWatchlistDurableDirectory,
+} from "../lib/monitoring/manual-watchlist-durable-storage.js";
+import { getWatchlistEntrySessionGroup } from "../lib/monitoring/watchlist-entry-session.js";
 import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
-import { createIbkrClient } from "../scripts/shared/ibkr-runtime.js";
+import {
+  createIbkrClient,
+  isIbkrConnected,
+  isIbkrReconnecting,
+} from "../scripts/shared/ibkr-runtime.js";
+import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
+import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import { createDailyWatchlistRecapServiceFromEnv } from "../lib/live-watchlist/daily-watchlist-recap.js";
+import { resolveLiveWatchlistPullbackReadEnabled } from "../lib/live-watchlist/pullback-read.js";
+import type { LiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-types.js";
+import {
+  LOCAL_BIND_HOST,
+  RequestBodyParseError,
+  readJsonBody,
+  sendJson,
+} from "./manual-watchlist-http.js";
+import { resolveMarketDataStatus } from "./manual-watchlist-market-data-status.js";
+import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
+import { TRADE_PLAN_REVIEW_PAGE } from "./trade-plan-review-page.js";
+import { AI_CLEAN_READ_PAGE } from "./ai-clean-read-page.js";
+import {
+  appendTradePlanReviewNote,
+  buildTradePlanReviewPayload,
+  type TradePlanReviewNote,
+} from "./trade-plan-review.js";
+import {
+  AI_CLEAN_READ_REASONING_EFFORT,
+  DEFAULT_AI_CLEAN_READ_MODEL,
+  appendAiCleanReadComment,
+  appendAiCleanReadRecord,
+  buildAiCleanReadPayload,
+  createOpenAICleanReadServiceFromEnv,
+  resolveLatestCleanReadSnapshotInput,
+} from "./ai-clean-read.js";
+import { resolveLiveThreadPostingProfile } from "../lib/monitoring/live-thread-post-policy.js";
+import {
+  AutoWatchlistSelector,
+  DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG,
+  type AutoWatchlistSelectorThresholds,
+} from "../lib/auto-watchlist/auto-watchlist-selector.js";
 
+const MANUAL_WATCHLIST_RUNTIME_IDENTITY = {
+  checkoutRole: "canonical-levels-v2",
+  runtimeRoot: process.cwd(),
+  entrypointPath: fileURLToPath(import.meta.url),
+} as const;
 const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
+const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
+const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
+const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
+const AI_MODEL_ENV = "LEVEL_AI_MODEL";
+const AI_CLEAN_READ_MODEL_ENV = "LEVEL_CLEAN_READ_AI_MODEL";
+const LEGACY_OPENAI_FEATURES_ENV = "LEVEL_LEGACY_OPENAI_FEATURES_ENABLED";
+const MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV = "MANUAL_WATCHLIST_IBKR_TIMEOUT_MS";
+const MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_ENV = "MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS";
+const MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_ENV = "MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS";
+const MANUAL_WATCHLIST_CANDLE_CACHE_MODE_ENV = "MANUAL_WATCHLIST_CANDLE_CACHE_MODE";
+const MANUAL_WATCHLIST_CANDLE_CACHE_DIR_ENV = "MANUAL_WATCHLIST_CANDLE_CACHE_DIR";
+const MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE_ENV = "MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE";
+const MANUAL_WATCHLIST_HISTORICAL_PROVIDER_ENV = "LEVEL_HISTORICAL_CANDLE_PROVIDER";
+const MANUAL_WATCHLIST_LIVE_PRICE_PROVIDER_ENV = "LEVEL_LIVE_PRICE_PROVIDER";
+const MANUAL_WATCHLIST_PROVIDER_CONFIG_PATH_ENV = "LEVEL_MANUAL_PROVIDER_CONFIG_PATH";
+const MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV = "LEVEL_MANUAL_LOOKBACK_DAILY";
+const MANUAL_WATCHLIST_LOOKBACK_4H_ENV = "LEVEL_MANUAL_LOOKBACK_4H";
+const MANUAL_WATCHLIST_LOOKBACK_5M_ENV = "LEVEL_MANUAL_LOOKBACK_5M";
+const WATCHLIST_POSTING_PROFILE_ENV = "WATCHLIST_POSTING_PROFILE";
+const MARKET_STRUCTURE_STANDALONE_POSTS_ENV = "MARKET_STRUCTURE_STANDALONE_POSTS";
 const LIVE_WATCHLIST_HEALTH_PUBLISH_INTERVAL_MS = 15_000;
-const HISTORICAL_PROVIDER_ENV = "LEVEL_HISTORICAL_CANDLE_PROVIDER";
-const LIVE_PRICE_PROVIDER_ENV = "LEVEL_LIVE_PRICE_PROVIDER";
-
-type ManualWatchlistProviderName = "ibkr" | "eodhd";
-
-function resolveManualWatchlistProviderName(value: string | undefined): ManualWatchlistProviderName {
-  return value?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
+let lastPublishedLiveWatchlistHealthStatus: string | null = null;
+let pendingLiveWatchlistHealthStatus: string | null = null;
+const DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS = 90_000;
+const DEFAULT_MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS = 90_000;
+const DEFAULT_MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS = 5000;
+const DEFAULT_EODHD_MANUAL_WATCHLIST_4H_LOOKBACK = 900;
+function openManualWatchlistInBrowser(url: string): void {
+  const [command, args] = process.platform === "win32"
+    ? ["cmd.exe", ["/c", "start", "", url]]
+    : process.platform === "darwin"
+      ? ["open", [url]]
+      : ["xdg-open", [url]];
+  const browser = spawn(command, args, { detached: true, stdio: "ignore" });
+  browser.unref();
 }
-
-function resolveBoolean(value: string | undefined, fallback: boolean): boolean {
-  const normalized = value?.trim().toLowerCase();
-  if (!normalized) {
-    return fallback;
-  }
-  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-}
-
-type DiscordRuntimeEnv = {
-  botToken: string | null;
-  watchlistChannelId: string | null;
-  guildId: string | null;
+type DiscordMessage = {
+  id: string;
+  content?: string;
+  thread?: {
+    id?: string;
+    name?: string;
+  };
 };
 
-function readDiscordRuntimeEnv(): DiscordRuntimeEnv {
-  return {
-    botToken: process.env.DISCORD_BOT_TOKEN?.trim() || null,
-    watchlistChannelId: process.env.DISCORD_WATCHLIST_CHANNEL_ID?.trim() || null,
-    guildId: process.env.DISCORD_GUILD_ID?.trim() || null,
-  };
-}
+type DiscordThreadChannel = {
+  id: string;
+  name?: string;
+  parent_id?: string | null;
+};
 
-function logDiscordRuntimeDiagnostics(env: DiscordRuntimeEnv, mode: "real" | "fallback"): void {
-  console.log("[ManualWatchlistRuntime] Discord env diagnostics:");
-  console.log(`- DISCORD_BOT_TOKEN: ${env.botToken ? "present" : "missing"}`);
-  console.log(
-    `- DISCORD_WATCHLIST_CHANNEL_ID: ${env.watchlistChannelId ? "present" : "missing"}`,
-  );
-  console.log(`- DISCORD_GUILD_ID: ${env.guildId ? "present" : "missing"}`);
-  console.log(
-    `- Discord gateway mode: ${
-      mode === "real" ? "real Discord REST gateway" : "local persisted gateway fallback"
-    }`,
-  );
-}
+type DiscordThreadListResponse = {
+  threads?: DiscordThreadChannel[];
+};
 
-function logTraderReadRuntimeMode(aiConfigured: boolean): void {
-  console.log(
-    aiConfigured
-      ? "[ManualWatchlistRuntime] TradersLink AI Read enabled; deterministic Trader Read remains available as the baseline."
-      : "[ManualWatchlistRuntime] TradersLink AI Read disabled; deterministic Trader Read remains available.",
-  );
-}
+type DiscordChannelCleanupResult = {
+  threadDeleteCount: number;
+  parentMessageDeleteCount: number;
+  skippedParentMessageCount: number;
+  deletedThreads: Array<{ id: string; name: string }>;
+  deletedParentMessages: Array<{ id: string; label: string }>;
+};
 
-function createDiscordAlertRouter(
-  liveWatchlistPublisher: LiveWatchlistPublisher | null,
-): DiscordAlertRouter {
-  const env = readDiscordRuntimeEnv();
-  const hasAnyDiscordConfig = Boolean(env.botToken || env.watchlistChannelId || env.guildId);
-  const shouldUseRealDiscord = Boolean(env.botToken && env.watchlistChannelId);
+const DISCORD_API_BASE_URL = "https://discord.com/api/v10";
+const DISCORD_CLEANUP_PAGE_LIMIT = 100;
+const DISCORD_CLEANUP_PARENT_MESSAGE_PAGE_LIMIT = 50;
+const DISCORD_CLEANUP_RETRY_DELAY_MS = 1000;
+const RUNTIME_HISTORICAL_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
+const RUNTIME_LIVE_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
+const PROVIDER_CONFIG_VERSION = 1;
+const AUTO_WATCHLIST_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>(
+  Object.keys(DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG) as Array<keyof AutoWatchlistSelectorThresholds>,
+);
 
-  if (hasAnyDiscordConfig && !shouldUseRealDiscord) {
-    throw new Error(
-      "Incomplete Discord runtime configuration. Set both DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID to use the real Discord gateway, or remove the partial Discord env values to use the local fallback.",
-    );
+type RuntimeHistoricalProviderName = (typeof RUNTIME_HISTORICAL_PROVIDER_OPTIONS)[number];
+
+type RuntimeProviderConfig = {
+  version: typeof PROVIDER_CONFIG_VERSION;
+  lastUpdated: number;
+  historicalProvider: RuntimeHistoricalProviderName;
+  liveProvider: LivePriceProviderName;
+};
+
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) {
+    return false;
   }
 
-  if (shouldUseRealDiscord) {
-    logDiscordRuntimeDiagnostics(env, "real");
-    if (!env.guildId) {
-      console.log(
-        "[ManualWatchlistRuntime] DISCORD_GUILD_ID is missing. Real Discord posting will still work, but exact-name thread recovery will be limited.",
-      );
-    }
-
-    const gateway = new DiscordRestThreadGateway({
-        botToken: env.botToken!,
-        watchlistChannelId: env.watchlistChannelId!,
-        guildId: env.guildId ?? undefined,
-    });
-    return new DiscordAlertRouter(
-      new WebsitePublishingDiscordGateway(gateway, liveWatchlistPublisher),
-    );
-  }
-
-  logDiscordRuntimeDiagnostics(env, "fallback");
-  console.log(
-    "[ManualWatchlistRuntime] Set DISCORD_BOT_TOKEN and DISCORD_WATCHLIST_CHANNEL_ID in .env for real Discord posting.",
-  );
-  return new DiscordAlertRouter(
-    new WebsitePublishingDiscordGateway(
-      new LocalDiscordThreadGateway(),
-      liveWatchlistPublisher,
-    ),
-  );
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
-function createLevelIntelligenceAlertPreviewDryRunOptions():
-  | ManualWatchlistRuntimeManagerOptions["levelIntelligenceAlertPreviewDryRun"]
-  | undefined {
-  const enabled = resolveLevelIntelligenceAlertPreviewDryRun(
-    process.env[LEVEL_INTELLIGENCE_ALERT_PREVIEW_DRY_RUN_ENV],
-  );
-
-  if (!enabled) {
+function parseAutoWatchlistThresholds(
+  raw: unknown,
+): Partial<AutoWatchlistSelectorThresholds> | undefined {
+  if (raw === undefined) {
     return undefined;
   }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error("thresholds must be an object.");
+  }
+  const parsed: Partial<AutoWatchlistSelectorThresholds> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!AUTO_WATCHLIST_THRESHOLD_KEYS.has(key as keyof AutoWatchlistSelectorThresholds)) {
+      throw new Error(`Unknown automatic selector threshold: ${key}.`);
+    }
+    (parsed as Record<string, unknown>)[key] = value;
+  }
+  return parsed;
+}
 
-  console.log(
-    "[ManualWatchlistRuntime] Level Intelligence alert preview dry-run sidecar enabled.",
-  );
-  return {
-    enabled: true,
-    onPreview: (result) => {
-      console.log(result.content);
-    },
+function resolvePositiveIntegerEnv(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function resolveHistoricalProviderName(raw: string | undefined): RuntimeHistoricalProviderName {
+  return raw?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
+}
+
+function parseRuntimeHistoricalProviderName(raw: unknown): RuntimeHistoricalProviderName | null {
+  const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return normalized === "ibkr" || normalized === "eodhd" ? normalized : null;
+}
+
+function parseRuntimeLiveProviderName(raw: unknown): LivePriceProviderName | null {
+  const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return normalized === "ibkr" || normalized === "eodhd" ? normalized : null;
+}
+
+function resolveProviderConfigPath(): string {
+  return process.env[MANUAL_WATCHLIST_PROVIDER_CONFIG_PATH_ENV]?.trim() ||
+    resolveDurableManualWatchlistFile("manual-watchlist-provider-config.json");
+}
+
+function loadRuntimeProviderConfig(path: string): RuntimeProviderConfig | null {
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+    const historicalProvider = parseRuntimeHistoricalProviderName(parsed.historicalProvider);
+    const liveProvider = parseRuntimeLiveProviderName(parsed.liveProvider) ?? "ibkr";
+    if (parsed.version !== PROVIDER_CONFIG_VERSION || !historicalProvider) {
+      return null;
+    }
+
+    return {
+      version: PROVIDER_CONFIG_VERSION,
+      lastUpdated:
+        typeof parsed.lastUpdated === "number" && Number.isFinite(parsed.lastUpdated)
+          ? parsed.lastUpdated
+          : 0,
+      historicalProvider,
+      liveProvider,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ManualWatchlistRuntime] Failed to load provider config at ${path}: ${message}`);
+    }
+
+    return null;
+  }
+}
+
+function saveRuntimeProviderConfig(
+  path: string,
+  config: Omit<RuntimeProviderConfig, "version" | "lastUpdated">,
+): void {
+  const persisted: RuntimeProviderConfig = {
+    version: PROVIDER_CONFIG_VERSION,
+    lastUpdated: Date.now(),
+    ...config,
   };
+  const tempPath = `${path}.tmp`;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(tempPath, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
+  renameSync(tempPath, path);
 }
 
-const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Manual Watchlist</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; background: #f5f7fb; color: #1f2937; }
-    main { max-width: 1080px; margin: 0 auto; }
-    form, section { background: #fff; border: 1px solid #d7dee8; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    label { display: block; font-size: 14px; margin-bottom: 6px; }
-    input { width: 100%; padding: 10px; border: 1px solid #c7d0dc; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
-    button { padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; background: #1d4ed8; color: #fff; }
-    ul { list-style: none; padding: 0; margin: 0; }
-    li { display: flex; justify-content: space-between; gap: 16px; align-items: center; border-top: 1px solid #e5e7eb; padding: 14px 0; }
-    li:first-child { border-top: 0; }
-    .meta { color: #4b5563; font-size: 13px; }
-    .status { min-height: 20px; font-size: 14px; margin-bottom: 12px; color: #1d4ed8; }
-    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-    .secondary { background: #475569; }
-    .switch { display: inline-flex; align-items: center; gap: 8px; background: #475569; }
-    .switch[aria-checked="true"] { background: #047857; }
-    .switch-dot { width: 14px; height: 14px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.3); }
-    button:disabled { cursor: not-allowed; opacity: .5; }
-    .danger { background: #b91c1c; }
-    .cost-note { color: #4b5563; font-size: 13px; line-height: 1.45; }
-    .control-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-    .control-row h2 { margin: 0 0 6px; }
-    .control-row p { margin: 0; }
-    .cost-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0 18px; }
-    .cost-metric { border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; padding: 12px; }
-    .cost-metric span { display: block; color: #64748b; font-size: 12px; }
-    .cost-metric strong { display: block; margin-top: 4px; font-size: 20px; }
-    .cost-metric small { color: #475569; font-size: 11px; }
-    .cost-table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { border-top: 1px solid #e5e7eb; padding: 9px 8px; text-align: right; white-space: nowrap; }
-    th:first-child, td:first-child { text-align: left; }
-    th { color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-    .cost-breakdowns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
-    .cost-breakdowns > div { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
-    .cost-breakdowns h3 { margin: 0 0 6px; font-size: 14px; }
-    .cost-breakdowns p { margin: 4px 0; color: #475569; font-size: 12px; }
-    @media (max-width: 680px) {
-      li { align-items: flex-start; flex-direction: column; }
-      .actions { justify-content: flex-start; }
-      .control-row { align-items: flex-start; flex-direction: column; }
-      .cost-grid, .cost-breakdowns { grid-template-columns: 1fr; }
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <form id="watchlist-form">
-      <h1>Manual Watchlist</h1>
-      <div class="status" id="status"></div>
-      <label for="symbol">npm run watchlist:manual</label>
-      <label for="symbol">Symbol</label>
-      <input id="symbol" name="symbol" maxlength="10" required />
-      <label for="note">Note (optional)</label>
-      <input id="note" name="note" maxlength="200" />
-      <button type="submit">Add / Activate</button>
-    </form>
+function resolveDefaultManualWatchlistHistoricalLookbacks(
+  providerName: RuntimeHistoricalProviderName,
+): ManualWatchlistHistoricalLookbacks {
+  if (providerName === "eodhd") {
+    return {
+      ...DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS,
+      "4h": DEFAULT_EODHD_MANUAL_WATCHLIST_4H_LOOKBACK,
+    };
+  }
 
-    <section>
-      <h2>Active Tickers</h2>
-      <ul id="active-list"></ul>
-    </section>
-
-    <section>
-      <div class="control-row">
-        <div>
-          <h2>AI Research Controls</h2>
-          <p class="cost-note">External web research is optional and costs extra. Your local press-release/SEC database stays active either way. Changing this setting does not regenerate existing reads.</p>
-        </div>
-        <button id="external-research-toggle" type="button" class="switch" role="switch" aria-checked="false">
-          <span class="switch-dot" aria-hidden="true"></span>
-          <span id="external-research-label">External web research: Off</span>
-        </button>
-      </div>
-    </section>
-
-    <section>
-      <h2>TradersLink AI Read Expense Tracking</h2>
-      <p class="cost-note" id="cost-note">Loading estimated OpenAI usage...</p>
-      <div class="cost-grid" id="cost-grid"></div>
-      <div class="cost-table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Reads</th>
-              <th>Web searches</th>
-              <th>Tokens</th>
-              <th>Total cost</th>
-              <th>Avg / read</th>
-              <th>Last reason</th>
-              <th>Last generated</th>
-            </tr>
-          </thead>
-          <tbody id="cost-ticker-body"></tbody>
-        </table>
-      </div>
-      <div class="cost-breakdowns">
-        <div><h3>Cost by refresh reason</h3><div id="cost-trigger-list"></div></div>
-        <div><h3>Cost by model</h3><div id="cost-model-list"></div></div>
-      </div>
-    </section>
-  </main>
-
-  <script>
-    const statusEl = document.getElementById("status");
-    const listEl = document.getElementById("active-list");
-    const formEl = document.getElementById("watchlist-form");
-    const symbolEl = document.getElementById("symbol");
-    const noteEl = document.getElementById("note");
-    const costNoteEl = document.getElementById("cost-note");
-    const costGridEl = document.getElementById("cost-grid");
-    const costTickerBodyEl = document.getElementById("cost-ticker-body");
-    const costTriggerListEl = document.getElementById("cost-trigger-list");
-    const costModelListEl = document.getElementById("cost-model-list");
-    const externalResearchToggleEl = document.getElementById("external-research-toggle");
-    const externalResearchLabelEl = document.getElementById("external-research-label");
-
-    function setStatus(message, isError = false) {
-      statusEl.textContent = message;
-      statusEl.style.color = isError ? "#b91c1c" : "#1d4ed8";
-    }
-
-    function formatUsd(value) {
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        minimumFractionDigits: 4,
-        maximumFractionDigits: 6,
-      }).format(Number(value || 0));
-    }
-
-    function formatCount(value) {
-      return new Intl.NumberFormat("en-US").format(Number(value || 0));
-    }
-
-    function formatReason(value) {
-      return String(value || "unknown").replaceAll("_", " ");
-    }
-
-    function renderCostSummary(summary) {
-      if (!summary || !summary.windows) {
-        costNoteEl.textContent = "No expense summary is available.";
-        return;
-      }
-      costNoteEl.textContent = summary.estimateNotice;
-      costGridEl.innerHTML = "";
-      const windows = [
-        ["Today", summary.windows.today],
-        ["Last 7 days", summary.windows.last7Days],
-        ["Last 30 days", summary.windows.last30Days],
-        ["All time", summary.windows.allTime],
-      ];
-      for (const [label, totals] of windows) {
-        const metric = document.createElement("div");
-        metric.className = "cost-metric";
-        const title = document.createElement("span");
-        title.textContent = label;
-        const value = document.createElement("strong");
-        value.textContent = formatUsd(totals.estimatedTotalCostUsd);
-        const detail = document.createElement("small");
-        detail.textContent = formatCount(totals.requestCount) + " reads | " +
-          formatCount(totals.webSearchCallCount) + " searches" +
-          (totals.unpricedRequestCount ? " | " + totals.unpricedRequestCount + " unpriced" : "");
-        metric.append(title, value, detail);
-        costGridEl.appendChild(metric);
-      }
-
-      costTickerBodyEl.innerHTML = "";
-      if (!summary.perTicker.length) {
-        const row = document.createElement("tr");
-        const cell = document.createElement("td");
-        cell.colSpan = 8;
-        cell.textContent = "No AI Read usage has been recorded yet.";
-        row.appendChild(cell);
-        costTickerBodyEl.appendChild(row);
-      }
-      for (const ticker of summary.perTicker) {
-        const row = document.createElement("tr");
-        const values = [
-          ticker.symbol,
-          formatCount(ticker.requestCount),
-          formatCount(ticker.webSearchCallCount),
-          formatCount(ticker.totalTokens),
-          formatUsd(ticker.estimatedTotalCostUsd),
-          formatUsd(ticker.averageCostPerRequestUsd),
-          formatReason(ticker.lastTrigger),
-          new Date(ticker.lastGeneratedAt).toLocaleString(),
-        ];
-        for (const value of values) {
-          const cell = document.createElement("td");
-          cell.textContent = value;
-          row.appendChild(cell);
-        }
-        costTickerBodyEl.appendChild(row);
-      }
-
-      const renderBreakdown = (element, items, labelKey) => {
-        element.innerHTML = "";
-        if (!items.length) {
-          const empty = document.createElement("p");
-          empty.textContent = "No usage yet.";
-          element.appendChild(empty);
-          return;
-        }
-        for (const item of items) {
-          const line = document.createElement("p");
-          line.textContent = formatReason(item[labelKey]) + ": " +
-            formatUsd(item.totals.estimatedTotalCostUsd) + " (" +
-            formatCount(item.totals.requestCount) + " reads)";
-          element.appendChild(line);
-        }
-      };
-      renderBreakdown(costTriggerListEl, summary.byTrigger, "trigger");
-      renderBreakdown(costModelListEl, summary.byModel, "model");
-    }
-
-    function renderExternalResearch(enabled) {
-      externalResearchToggleEl.setAttribute("aria-checked", enabled ? "true" : "false");
-      externalResearchLabelEl.textContent = "External web research: " + (enabled ? "On" : "Off");
-      externalResearchToggleEl.dataset.enabled = enabled ? "true" : "false";
-    }
-
-    function renderEntries(entries, aiReadConfigured) {
-      listEl.innerHTML = "";
-      if (entries.length === 0) {
-        const empty = document.createElement("li");
-        empty.textContent = "No active tickers";
-        listEl.appendChild(empty);
-        return;
-      }
-
-      for (const entry of entries) {
-        const item = document.createElement("li");
-        const meta = document.createElement("div");
-        const symbol = document.createElement("strong");
-        symbol.textContent = entry.symbol;
-        const details = document.createElement("div");
-        details.className = "meta";
-        details.textContent = "thread: " + (entry.discordThreadId || "none") + (entry.note ? " | note: " + entry.note : "");
-        meta.appendChild(symbol);
-        meta.appendChild(details);
-
-        const actions = document.createElement("div");
-        actions.className = "actions";
-
-        const visible = entry.tradersLinkAiReadCardVisible !== false;
-        const toggle = document.createElement("button");
-        toggle.type = "button";
-        toggle.className = "switch";
-        toggle.setAttribute("role", "switch");
-        toggle.setAttribute("aria-checked", visible ? "true" : "false");
-        toggle.setAttribute("aria-label", "Show TradersLink AI Read for " + entry.symbol);
-        const dot = document.createElement("span");
-        dot.className = "switch-dot";
-        dot.setAttribute("aria-hidden", "true");
-        const toggleLabel = document.createElement("span");
-        toggleLabel.textContent = "AI Read: " + (visible ? "Shown" : "Hidden");
-        toggle.appendChild(dot);
-        toggle.appendChild(toggleLabel);
-        toggle.addEventListener("click", async () => {
-          toggle.disabled = true;
-          const response = await fetch("/api/watchlist/ai-read-visibility", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ symbol: entry.symbol, visible: !visible }),
-          });
-          const payload = await response.json();
-          if (!response.ok) {
-            toggle.disabled = false;
-            setStatus(payload.error || "AI Read visibility update failed", true);
-            return;
-          }
-          setStatus("TradersLink AI Read " + (!visible ? "shown" : "hidden") + " for " + entry.symbol);
-          await loadEntries();
-        });
-
-        const refresh = document.createElement("button");
-        refresh.type = "button";
-        refresh.className = "secondary";
-        refresh.textContent = "Refresh AI Read";
-        refresh.disabled = !aiReadConfigured || !visible;
-        refresh.title = aiReadConfigured ? "Generate a fresh read now" : "OpenAI is not configured";
-        refresh.addEventListener("click", async () => {
-          refresh.disabled = true;
-          setStatus("Refreshing TradersLink AI Read for " + entry.symbol + "...");
-          const response = await fetch("/api/watchlist/ai-read-refresh", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ symbol: entry.symbol }),
-          });
-          const payload = await response.json();
-          refresh.disabled = false;
-          if (!response.ok) {
-            setStatus(payload.error || "AI Read refresh failed", true);
-            return;
-          }
-          setStatus(payload.generated ? "Refreshed TradersLink AI Read for " + entry.symbol : "An AI Read refresh is already running for " + entry.symbol);
-        });
-
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = "Deactivate";
-        button.className = "danger";
-        button.addEventListener("click", async () => {
-          const response = await fetch("/api/watchlist/deactivate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ symbol: entry.symbol }),
-          });
-          const payload = await response.json();
-          if (!response.ok) {
-            setStatus(payload.error || "Deactivate failed", true);
-            return;
-          }
-          setStatus("Deactivated " + payload.entry.symbol);
-          await loadEntries();
-        });
-
-        item.appendChild(meta);
-        actions.appendChild(toggle);
-        actions.appendChild(refresh);
-        actions.appendChild(button);
-        item.appendChild(actions);
-        listEl.appendChild(item);
-      }
-    }
-
-    async function loadEntries() {
-      const response = await fetch("/api/watchlist");
-      const payload = await response.json();
-      renderEntries(payload.activeEntries || [], payload.aiReadConfigured === true);
-      renderCostSummary(payload.aiReadCostSummary);
-      renderExternalResearch(payload.aiReadExternalResearchEnabled === true);
-    }
-
-    externalResearchToggleEl.addEventListener("click", async () => {
-      const enabled = externalResearchToggleEl.dataset.enabled !== "true";
-      externalResearchToggleEl.disabled = true;
-      const response = await fetch("/api/watchlist/ai-read-external-research", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled }),
-      });
-      const payload = await response.json();
-      externalResearchToggleEl.disabled = false;
-      if (!response.ok) {
-        setStatus(payload.error || "External research update failed", true);
-        return;
-      }
-      renderExternalResearch(payload.enabled === true);
-      setStatus(
-        "External web research " + (payload.enabled ? "enabled" : "disabled") +
-        ". Local press-release/SEC research remains enabled.",
-      );
-    });
-
-    formEl.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const response = await fetch("/api/watchlist/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          symbol: symbolEl.value,
-          note: noteEl.value,
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setStatus(payload.error || "Activate failed", true);
-        return;
-      }
-      setStatus("Activated " + payload.entry.symbol + " in thread " + payload.entry.discordThreadId);
-      symbolEl.value = "";
-      noteEl.value = "";
-      await loadEntries();
-    });
-
-    loadEntries().catch((error) => {
-      setStatus(String(error), true);
-    });
-  </script>
-</body>
-</html>
-`;
-
-function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
-  response.statusCode = statusCode;
-  response.setHeader("Content-Type", "application/json; charset=utf-8");
-  response.end(`${JSON.stringify(payload)}\n`);
+  return DEFAULT_MANUAL_WATCHLIST_HISTORICAL_LOOKBACKS;
 }
 
-async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
+function resolveManualWatchlistHistoricalLookbacks(
+  providerName: RuntimeHistoricalProviderName,
+): ManualWatchlistHistoricalLookbacks {
+  const defaults = resolveDefaultManualWatchlistHistoricalLookbacks(providerName);
 
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-
-  if (chunks.length === 0) {
-    return {};
-  }
-
-  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-}
-
-function resolveMarketDataStatus(args: {
-  startupState: "booting" | "ready" | "error";
-  priceFeedStatus?: "live" | "stale" | "waiting";
-}): LiveWatchlistMarketDataStatus {
-  if (args.startupState === "error") {
-    return "offline";
-  }
-  if (args.startupState === "booting") {
-    return "starting";
-  }
-  switch (args.priceFeedStatus) {
-    case "live":
-      return "live";
-    case "stale":
-      return "stale";
-    case "waiting":
-    default:
-      return "starting";
-  }
+  return {
+    daily: resolvePositiveIntegerEnv(
+      process.env[MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV],
+      defaults.daily,
+    ),
+    "4h": resolvePositiveIntegerEnv(
+      process.env[MANUAL_WATCHLIST_LOOKBACK_4H_ENV],
+      defaults["4h"],
+    ),
+    "5m": resolvePositiveIntegerEnv(
+      process.env[MANUAL_WATCHLIST_LOOKBACK_5M_ENV],
+      defaults["5m"],
+    ),
+  };
 }
 
 function publishLiveWatchlistHealth(args: {
   publisher: LiveWatchlistPublisher | null;
   manager: ManualWatchlistRuntimeManager;
   startupState: "booting" | "ready" | "error";
+  liveProviderName: LivePriceProviderName;
+  ibkrConnected: boolean;
+  ibkrReconnecting: boolean;
 }): void {
   if (!args.publisher?.publishHealth) {
     return;
@@ -603,42 +331,307 @@ function publishLiveWatchlistHealth(args: {
 
   const health = args.manager.getRuntimeHealth();
   const marketDataStatus = resolveMarketDataStatus({
+    liveProviderName: args.liveProviderName,
     startupState: args.startupState,
+    ibkrConnected: args.ibkrConnected,
+    ibkrReconnecting: args.ibkrReconnecting,
     priceFeedStatus: health.providerHealth.priceFeedStatus,
   });
+  if (
+    marketDataStatus === lastPublishedLiveWatchlistHealthStatus ||
+    marketDataStatus === pendingLiveWatchlistHealthStatus
+  ) {
+    return;
+  }
+  pendingLiveWatchlistHealthStatus = marketDataStatus;
   void args.publisher
     .publishHealth({
       type: "health",
       marketDataStatus,
-      marketDataUpdatedAt: health.lastPriceUpdateAt ?? Date.now(),
+      marketDataUpdatedAt: health.lastPriceUpdateAt,
+    })
+    .then(() => {
+      lastPublishedLiveWatchlistHealthStatus = marketDataStatus;
+      if (pendingLiveWatchlistHealthStatus === marketDataStatus) {
+        pendingLiveWatchlistHealthStatus = null;
+      }
     })
     .catch((error) => {
+      if (pendingLiveWatchlistHealthStatus === marketDataStatus) {
+        pendingLiveWatchlistHealthStatus = null;
+      }
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[ManualWatchlistRuntime] Failed to publish live watchlist health: ${message}`);
     });
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function discordCleanupRequest<T>(
+  path: string,
+  botToken: string,
+  init: RequestInit = {},
+): Promise<T | null> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch(`${DISCORD_API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        "Content-Type": "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
+
+    if (response.ok) {
+      const text = await response.text();
+      return text.trim() ? (JSON.parse(text) as T) : null;
+    }
+
+    if (response.status === 404 && init.method === "DELETE") {
+      return null;
+    }
+
+    if (response.status === 429 || response.status >= 500) {
+      const retryAfterSeconds = Number(response.headers.get("retry-after") ?? "");
+      await delay(
+        Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
+          ? retryAfterSeconds * 1000
+          : DISCORD_CLEANUP_RETRY_DELAY_MS,
+      );
+      continue;
+    }
+
+    const body = await response.text();
+    throw new Error(
+      `Discord cleanup request failed (${response.status}) for ${path}: ${body || response.statusText}`,
+    );
+  }
+
+  throw new Error(`Discord cleanup request failed after retries for ${path}.`);
+}
+
+async function fetchWatchlistParentMessages(
+  watchlistChannelId: string,
+  botToken: string,
+): Promise<DiscordMessage[]> {
+  const messages: DiscordMessage[] = [];
+  let before: string | null = null;
+
+  for (let page = 0; page < DISCORD_CLEANUP_PARENT_MESSAGE_PAGE_LIMIT; page += 1) {
+    const query = new URLSearchParams({ limit: String(DISCORD_CLEANUP_PAGE_LIMIT) });
+    if (before) {
+      query.set("before", before);
+    }
+    const batch = await discordCleanupRequest<DiscordMessage[]>(
+      `/channels/${watchlistChannelId}/messages?${query.toString()}`,
+      botToken,
+    );
+    if (!batch || batch.length === 0) {
+      break;
+    }
+
+    messages.push(...batch);
+    before = batch[batch.length - 1]?.id ?? null;
+    if (batch.length < DISCORD_CLEANUP_PAGE_LIMIT || !before) {
+      break;
+    }
+  }
+
+  return messages;
+}
+
+async function fetchWatchlistThreads(
+  watchlistChannelId: string,
+  guildId: string | undefined,
+  botToken: string,
+): Promise<DiscordThreadChannel[]> {
+  const threads: DiscordThreadChannel[] = [];
+
+  if (guildId) {
+    const active = await discordCleanupRequest<DiscordThreadListResponse>(
+      `/guilds/${guildId}/threads/active`,
+      botToken,
+    );
+    threads.push(...(active?.threads ?? []).filter((thread) => thread.parent_id === watchlistChannelId));
+  }
+
+  const archived = await discordCleanupRequest<DiscordThreadListResponse>(
+    `/channels/${watchlistChannelId}/threads/archived/public?limit=${DISCORD_CLEANUP_PAGE_LIMIT}`,
+    botToken,
+  );
+  threads.push(...(archived?.threads ?? []).filter((thread) => thread.parent_id === watchlistChannelId));
+
+  const seen = new Set<string>();
+  return threads.filter((thread) => {
+    if (seen.has(thread.id)) {
+      return false;
+    }
+    seen.add(thread.id);
+    return true;
+  });
+}
+
+async function clearDiscordWatchlistChannel(): Promise<DiscordChannelCleanupResult> {
+  const botToken = process.env.DISCORD_BOT_TOKEN?.trim();
+  const watchlistChannelId = process.env.DISCORD_WATCHLIST_CHANNEL_ID?.trim();
+  const guildId = process.env.DISCORD_GUILD_ID?.trim() || undefined;
+
+  if (!botToken) {
+    throw new Error("DISCORD_BOT_TOKEN is required to clear Discord posts.");
+  }
+  if (!watchlistChannelId) {
+    throw new Error("DISCORD_WATCHLIST_CHANNEL_ID is required to clear Discord posts.");
+  }
+
+  const [threads, parentMessages] = await Promise.all([
+    fetchWatchlistThreads(watchlistChannelId, guildId, botToken),
+    fetchWatchlistParentMessages(watchlistChannelId, botToken),
+  ]);
+
+  const deletedThreads: Array<{ id: string; name: string }> = [];
+  for (const thread of threads) {
+    await discordCleanupRequest(`/channels/${thread.id}`, botToken, { method: "DELETE" });
+    deletedThreads.push({ id: thread.id, name: thread.name ?? thread.id });
+  }
+
+  const deletedParentMessages: Array<{ id: string; label: string }> = [];
+  let skippedParentMessageCount = 0;
+  for (const message of parentMessages) {
+    try {
+      await discordCleanupRequest(
+        `/channels/${watchlistChannelId}/messages/${message.id}`,
+        botToken,
+        { method: "DELETE" },
+      );
+      deletedParentMessages.push({
+        id: message.id,
+        label: message.thread?.name ?? message.content?.slice(0, 30) ?? "message",
+      });
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : String(error);
+      if (messageText.includes("(403)") || messageText.includes("(404)")) {
+        skippedParentMessageCount += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return {
+    threadDeleteCount: deletedThreads.length,
+    parentMessageDeleteCount: deletedParentMessages.length,
+    skippedParentMessageCount,
+    deletedThreads,
+    deletedParentMessages,
+  };
+}
+
 async function main(): Promise<void> {
-  const historicalProviderName = resolveManualWatchlistProviderName(
-    process.env[HISTORICAL_PROVIDER_ENV],
+  const ib = createIbkrClient();
+  const durableDataDirectory = resolveManualWatchlistDurableDirectory();
+  const legacyArtifactsDirectory = join(process.cwd(), "artifacts");
+  const durableFiles = {
+    providerConfig: resolveDurableManualWatchlistFile("manual-watchlist-provider-config.json"),
+    aiReadSettings: resolveDurableManualWatchlistFile("traderslink-ai-read-settings.json"),
+    autoSelectorConfig: resolveDurableManualWatchlistFile("auto-watchlist-selector-config.json"),
+    watchlistState: resolveDurableManualWatchlistFile("manual-watchlist-state.json"),
+    adaptiveState: resolveDurableManualWatchlistFile("adaptive-state.json"),
+    aiReadCostLedger: resolveDurableManualWatchlistFile("traderslink-ai-read-cost-ledger.jsonl"),
+    aiReadRunLedger: resolveDurableManualWatchlistFile("traderslink-ai-read-run-events.jsonl"),
+  };
+  for (const [fileName, durablePath] of Object.entries({
+    "manual-watchlist-provider-config.json": durableFiles.providerConfig,
+    "traderslink-ai-read-settings.json": durableFiles.aiReadSettings,
+    "auto-watchlist-selector-config.json": durableFiles.autoSelectorConfig,
+    "manual-watchlist-state.json": durableFiles.watchlistState,
+    "adaptive-state.json": durableFiles.adaptiveState,
+    "traderslink-ai-read-cost-ledger.jsonl": durableFiles.aiReadCostLedger,
+    "traderslink-ai-read-run-events.jsonl": durableFiles.aiReadRunLedger,
+  })) {
+    migrateLegacyManualWatchlistFile(
+      durablePath,
+      join(legacyArtifactsDirectory, fileName),
+    );
+  }
+  const manualWatchlistIbkrTimeoutMs = Number(
+    process.env[MANUAL_WATCHLIST_IBKR_TIMEOUT_ENV] ?? DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
   );
-  const liveProviderName = resolveManualWatchlistProviderName(
-    process.env[LIVE_PRICE_PROVIDER_ENV],
+  const manualWatchlistLevelSeedTimeoutMs = resolvePositiveIntegerEnv(
+    process.env[MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_ENV],
+    DEFAULT_MANUAL_WATCHLIST_LEVEL_SEED_TIMEOUT_MS,
   );
-  const needsIbkr = historicalProviderName === "ibkr" || liveProviderName === "ibkr";
-  const ib = needsIbkr ? createIbkrClient() : null;
-  const historicalProvider = historicalProviderName === "eodhd"
-    ? new EodhdHistoricalCandleProvider()
-    : new IbkrHistoricalCandleProvider(ib!);
-  const liveProvider = liveProviderName === "eodhd"
-    ? new EodhdLivePriceProvider()
-    : new IBKRLivePriceProvider(ib!);
-  const candleService = new CandleFetchService(historicalProvider);
+  const manualWatchlistFastLevelClearCoalesceMs = resolvePositiveIntegerEnv(
+    process.env[MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_ENV],
+    DEFAULT_MANUAL_WATCHLIST_FAST_LEVEL_CLEAR_COALESCE_MS,
+  );
+  const providerConfigPath = resolveProviderConfigPath();
+  const persistedProviderConfig = loadRuntimeProviderConfig(providerConfigPath);
+  let historicalProviderName = resolveHistoricalProviderName(
+    persistedProviderConfig?.historicalProvider ??
+      process.env[MANUAL_WATCHLIST_HISTORICAL_PROVIDER_ENV],
+  );
+  let liveProviderName = resolveLivePriceProviderName(
+    persistedProviderConfig?.liveProvider ??
+      process.env[MANUAL_WATCHLIST_LIVE_PRICE_PROVIDER_ENV],
+  );
+  const historicalLookbackBars = resolveManualWatchlistHistoricalLookbacks(historicalProviderName);
+  const historicalProvider = createHistoricalCandleProvider({
+    provider: historicalProviderName,
+    ib,
+    ibkrTimeoutMs: Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+      ? manualWatchlistIbkrTimeoutMs
+      : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+  });
+  const liveProvider = createLivePriceProvider({
+    provider: liveProviderName,
+    ib,
+  });
+  const rawCandleService = new CandleFetchService(historicalProvider);
+  const requestedCandleCacheMode = resolveValidationCandleCacheMode(
+    process.env[MANUAL_WATCHLIST_CANDLE_CACHE_MODE_ENV],
+  );
+  const candleCacheDirectoryPath = process.env[MANUAL_WATCHLIST_CANDLE_CACHE_DIR_ENV]?.trim() ||
+    join(process.cwd(), ".validation-cache", "candles");
+  const startupCandleCacheEnabled =
+    requestedCandleCacheMode !== "off" &&
+    process.env[MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE_ENV]?.trim() !== "0";
+  const runtimeCandleCacheMode =
+    startupCandleCacheEnabled && requestedCandleCacheMode === "read_write"
+      ? "refresh"
+      : requestedCandleCacheMode;
+  const candleService =
+    runtimeCandleCacheMode === "off"
+      ? rawCandleService
+      : new ValidationCachedCandleFetchService(rawCandleService, {
+          cacheDirectoryPath: candleCacheDirectoryPath,
+          mode: runtimeCandleCacheMode,
+        });
+  const startupCachedCandleFetchService = startupCandleCacheEnabled
+    ? new ValidationCachedCandleFetchService(rawCandleService, {
+        cacheDirectoryPath: candleCacheDirectoryPath,
+        mode: "replay",
+      })
+    : null;
   const levelStore = new LevelStore();
-  const monitor = new WatchlistMonitor(levelStore, liveProvider);
+  const monitoringEventDiagnosticsEnabled = isTruthyEnv(
+    process.env[MONITORING_EVENT_DIAGNOSTICS_ENV],
+  );
+  const monitor = new WatchlistMonitor(
+    levelStore,
+    liveProvider,
+    undefined,
+    monitoringEventDiagnosticsEnabled
+      ? {
+          diagnosticListener: createMonitoringEventDiagnosticListener(),
+        }
+      : undefined,
+  );
   const adaptiveStatePersistence = new AdaptiveStatePersistence({
     minMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.minMultiplier,
     maxMultiplier: DEFAULT_ADAPTIVE_SCORING_CONFIG.maxMultiplier,
+    filePath: durableFiles.adaptiveState,
   });
   const initialAdaptiveState = adaptiveStatePersistence.load() ?? undefined;
   const adaptiveScoringEngine = new AdaptiveScoringEngine(
@@ -650,128 +643,1538 @@ async function main(): Promise<void> {
     adaptiveScoringEngine,
     adaptiveStatePersistence,
   });
-  const levelIntelligenceAlertPreviewDryRun = createLevelIntelligenceAlertPreviewDryRunOptions();
+  const legacyOpenAiFeaturesEnabled = isTruthyEnv(
+    process.env[LEGACY_OPENAI_FEATURES_ENV],
+  );
+  const aiCommentaryRequested = isTruthyEnv(process.env[AI_COMMENTARY_ENV]);
+  const aiCommentaryEnabled = legacyOpenAiFeaturesEnabled && aiCommentaryRequested;
+  const aiCommentaryModel = process.env[AI_MODEL_ENV]?.trim() || "gpt-5-mini";
+  const aiCleanReadModel =
+    process.env[AI_CLEAN_READ_MODEL_ENV]?.trim() || DEFAULT_AI_CLEAN_READ_MODEL;
+  const postingProfile = resolveLiveThreadPostingProfile(process.env[WATCHLIST_POSTING_PROFILE_ENV]);
+  const marketStructureStandalonePostMode = resolveMarketStructureStandalonePostMode(
+    process.env[MARKET_STRUCTURE_STANDALONE_POSTS_ENV],
+  );
+  const pullbackReadEnabled = resolveLiveWatchlistPullbackReadEnabled();
+  const sharedYahooCandleFetchService = new CoordinatedCandleFetchService(
+    new CandleFetchService(new YahooHistoricalCandleProvider()),
+  );
+  const recentIntradayCandleFetchService = (
+    pullbackReadEnabled || Boolean(process.env.OPENAI_API_KEY?.trim())
+  )
+    ? sharedYahooCandleFetchService
+    : null;
+  // EODHD is still the source of truth for daily/4h levels, but its 5m
+  // endpoint can be empty during the live session. Keep deterministic level
+  // detection supplied with a recent chart series in that case.
+  const levelIntradayFallbackCandleFetchService = sharedYahooCandleFetchService;
+  const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
+  const marketStructureLifecyclePath = sessionDirectory
+    ? join(sessionDirectory, "market-structure-lifecycle.jsonl")
+    : null;
+  const watchlistLifecyclePath = sessionDirectory
+    ? join(sessionDirectory, "watchlist-lifecycle-events.jsonl")
+    : join("artifacts", "watchlist-lifecycle-events.jsonl");
+  const marketStructureStoryMemoryPath = sessionDirectory
+    ? join(sessionDirectory, "market-structure-story-memory.json")
+    : null;
+  const lifecycleFileListeners = [
+    createManualWatchlistLifecycleFileListener(watchlistLifecyclePath, {
+      include: (event) =>
+        event.event === "activation_queued" ||
+        event.event === "activation_started" ||
+        event.event === "activation_completed" ||
+        event.event === "activation_failed" ||
+        event.event === "activation_marked_failed" ||
+        event.event === "activation_retry_scheduled" ||
+        event.event === "restore_started" ||
+        event.event === "restore_completed" ||
+        event.event === "restore_failed" ||
+        event.event === "restore_skipped" ||
+        event.event === "deactivated",
+    }),
+    ...(marketStructureLifecyclePath
+      ? [
+          createManualWatchlistLifecycleFileListener(marketStructureLifecyclePath, {
+            include: isMarketStructureLifecycleEvent,
+          }),
+        ]
+      : []),
+  ];
+  const lifecycleListener = createCompositeManualWatchlistLifecycleListener([
+    createConsoleManualWatchlistLifecycleListener(),
+    ...lifecycleFileListeners,
+  ]);
+  const openAiApiKeyPresent = Boolean(process.env.OPENAI_API_KEY?.trim());
+  const aiCommentaryService = aiCommentaryEnabled
+    ? createOpenAITraderCommentaryServiceFromEnv()
+    : null;
+  const aiCleanReadService = legacyOpenAiFeaturesEnabled
+    ? createOpenAICleanReadServiceFromEnv()
+    : null;
   const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
   const dailyWatchlistRecapService = createDailyWatchlistRecapServiceFromEnv();
   const tradersLinkAiReadService = createTradersLinkAiReadServiceFromEnv();
-  const tradersLinkAiReadCandleFetchService = tradersLinkAiReadService
-    ? new CandleFetchService(new YahooHistoricalCandleProvider())
-    : null;
   const tradersLinkAiReadSettingsPersistence = new TradersLinkAiReadSettingsPersistence({
     ...(process.env.TRADERSLINK_AI_READ_SETTINGS_FILE?.trim()
       ? { filePath: process.env.TRADERSLINK_AI_READ_SETTINGS_FILE.trim() }
-      : {}),
+      : { filePath: durableFiles.aiReadSettings }),
   });
   const persistedTradersLinkAiReadSettings = tradersLinkAiReadSettingsPersistence.load();
+  let aiReadModelSettings = {
+    model: persistedTradersLinkAiReadSettings?.model ??
+      (tradersLinkAiReadService?.getConfiguredModel() === "gpt-5.6-luna"
+        ? "gpt-5.6-luna"
+        : "gpt-5.6-terra"),
+    reasoningEffort:
+      persistedTradersLinkAiReadSettings?.reasoningEffort ??
+      tradersLinkAiReadService?.getReasoningEffort() ??
+      "medium",
+  } as const;
+  let liveTraderReadCardVisible =
+    persistedTradersLinkAiReadSettings?.liveTraderReadCardVisible ?? true;
   let aiReadExternalResearchEnabled =
     persistedTradersLinkAiReadSettings?.externalResearchEnabled ??
     tradersLinkAiReadService?.isExternalResearchEnabled() ??
     false;
+  let aiReadDailyCostBudget = {
+    enabled: persistedTradersLinkAiReadSettings?.dailyCostBudgetEnabled ?? false,
+    dailyLimitUsd: persistedTradersLinkAiReadSettings?.dailyCostBudgetUsd ?? 1,
+  };
+  let aiReadBoundaryRefreshSettings = {
+    enabled: persistedTradersLinkAiReadSettings?.automaticBoundaryRefreshesEnabled ?? true,
+    maxPerTickerPerNewYorkDate:
+      persistedTradersLinkAiReadSettings?.automaticBoundaryRefreshesPerTicker ?? 2,
+  };
+  let aiReadGenerationSettings = {
+    enabled: persistedTradersLinkAiReadSettings?.generationEnabled ?? true,
+    premarketEnabled:
+      persistedTradersLinkAiReadSettings?.premarketGenerationEnabled ?? true,
+    regularEnabled:
+      persistedTradersLinkAiReadSettings?.regularGenerationEnabled ?? true,
+    postmarketEnabled:
+      persistedTradersLinkAiReadSettings?.postmarketGenerationEnabled ?? true,
+    topRegularActivationEnabled:
+      persistedTradersLinkAiReadSettings?.topRegularActivationGenerationEnabled ?? true,
+  };
   tradersLinkAiReadService?.setExternalResearchEnabled(aiReadExternalResearchEnabled);
+  tradersLinkAiReadService?.setRuntimeConfiguration(aiReadModelSettings);
   if (!persistedTradersLinkAiReadSettings) {
-    tradersLinkAiReadSettingsPersistence.save(aiReadExternalResearchEnabled);
+    tradersLinkAiReadSettingsPersistence.save({
+      model: aiReadModelSettings.model,
+      reasoningEffort: aiReadModelSettings.reasoningEffort,
+      externalResearchEnabled: aiReadExternalResearchEnabled,
+      generationEnabled: aiReadGenerationSettings.enabled,
+      premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+      regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+      postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+      topRegularActivationGenerationEnabled:
+        aiReadGenerationSettings.topRegularActivationEnabled,
+      liveTraderReadCardVisible: true,
+      potentialGainCardVisible: true,
+      watchlistLifecycleLabelsVisible: false,
+      reversalWatchlistVisible: true,
+      topRegularWatchlistVisible: true,
+      dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+      dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+      automaticBoundaryRefreshesEnabled: aiReadBoundaryRefreshSettings.enabled,
+      automaticBoundaryRefreshesPerTicker: aiReadBoundaryRefreshSettings.maxPerTickerPerNewYorkDate,
+    });
   }
   const tradersLinkAiReadCostLedger = new TradersLinkAiReadCostLedger({
     ...(process.env.TRADERSLINK_AI_READ_COST_LEDGER_FILE?.trim()
       ? { filePath: process.env.TRADERSLINK_AI_READ_COST_LEDGER_FILE.trim() }
-      : {}),
+      : { filePath: durableFiles.aiReadCostLedger }),
   });
-  logTraderReadRuntimeMode(Boolean(tradersLinkAiReadService && liveWatchlistPublisher));
-  console.log(
-    `[ManualWatchlistRuntime] Live website watchlist publisher ${
-      liveWatchlistPublisher ? "enabled" : "disabled"
-    }.`,
-  );
+  const tradersLinkAiReadRunLedger = new TradersLinkAiReadRunLedger({
+    filePath: durableFiles.aiReadRunLedger,
+  });
+  const finnhubClient = createFinnhubClientFromEnv();
+  const yahooClient = createYahooClientFromEnv();
+  const stockContextProvider =
+    finnhubClient || yahooClient
+      ? new CombinedStockContextProvider({
+          finnhubClient,
+          yahooClient,
+        })
+      : null;
   const manager = new ManualWatchlistRuntimeManager({
     candleFetchService: candleService,
+    startupCachedCandleFetchService,
     levelStore,
     monitor,
-    discordAlertRouter: createDiscordAlertRouter(liveWatchlistPublisher),
+    discordAlertRouter: createDiscordAlertRouter({
+      isLiveTraderReadCardVisible: () => liveTraderReadCardVisible,
+    }),
     opportunityRuntimeController,
+    historicalLookbackBars,
+    aiCommentaryService,
+    stockContextProvider,
+    watchlistStatePersistence: new WatchlistStatePersistence({
+      filePath: durableFiles.watchlistState,
+    }),
+    lifecycleListener,
+    optionalPostSettleDelayMs: 250,
+    postingProfile,
+    levelSeedTimeoutMs: manualWatchlistLevelSeedTimeoutMs,
+    fastLevelClearCoalesceMs: manualWatchlistFastLevelClearCoalesceMs,
+    marketStructureStoryMemoryPath,
+    marketStructureStandalonePostMode,
     liveWatchlistPublisher,
     tradersLinkAiReadService,
     tradersLinkAiReadCostLedger,
-    tradersLinkAiReadCandleFetchService,
-    tradersLinkAiReadStartupRefreshEnabled: resolveBoolean(
+    tradersLinkAiReadRunLedger,
+    initialTradersLinkAiReadDailyCostBudget: aiReadDailyCostBudget,
+    initialTradersLinkAiReadGenerationSettings: aiReadGenerationSettings,
+    initialTradersLinkAiReadBoundaryRefreshSettings: aiReadBoundaryRefreshSettings,
+    tradersLinkAiReadStartupRefreshEnabled: isTruthyEnv(
       process.env.TRADERSLINK_AI_READ_STARTUP_REFRESH_ENABLED,
-      false,
     ),
-    watchlistStatePersistence: new WatchlistStatePersistence(),
-    ...(levelIntelligenceAlertPreviewDryRun
-      ? { levelIntelligenceAlertPreviewDryRun }
-      : {}),
+    initialLiveTraderReadCardVisible: liveTraderReadCardVisible,
+    liveTraderReadCardVisibilityListener: (visible) => {
+      liveTraderReadCardVisible = visible;
+    },
+    initialPotentialGainCardVisible:
+      persistedTradersLinkAiReadSettings?.potentialGainCardVisible,
+    initialWatchlistLifecycleLabelsVisible:
+      persistedTradersLinkAiReadSettings?.watchlistLifecycleLabelsVisible,
+    initialReversalWatchlistVisible:
+      persistedTradersLinkAiReadSettings?.reversalWatchlistVisible,
+    initialTopRegularWatchlistVisible:
+      persistedTradersLinkAiReadSettings?.topRegularWatchlistVisible,
+    pullbackReadEnabled,
+    recentIntradayCandleFetchService,
+    levelIntradayFallbackCandleFetchService,
+    tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
+    opportunityDiagnosticsEnabled: monitoringEventDiagnosticsEnabled,
+    autoCleanReadGenerator: aiCleanReadService
+      ? async (input) => {
+          const result = await aiCleanReadService.generateCleanRead(input);
+          return appendAiCleanReadRecord(sessionDirectory, input, result);
+        }
+      : null,
   });
+  const dayTradeAdapter = new DayTradeAdapterService(
+    sharedYahooCandleFetchService,
+    (symbol) => manager.getDayTradeAdapterMarketContext(symbol),
+  );
+  let dayTradeAdapterRefreshTimer: NodeJS.Timeout | null = null;
+  const refreshActiveDayTradeAdapters = async (): Promise<void> => {
+    if (!dayTradeAdapter.getStatus().enabled) return;
+    await Promise.allSettled(
+      manager.getActiveEntries().map((entry) => dayTradeAdapter.refresh(entry.symbol)),
+    );
+  };
+  const setDayTradeAdapterEnabled = (enabled: boolean): void => {
+    dayTradeAdapter.setEnabled(enabled);
+    if (dayTradeAdapterRefreshTimer) {
+      clearInterval(dayTradeAdapterRefreshTimer);
+      dayTradeAdapterRefreshTimer = null;
+    }
+    if (enabled) {
+      void refreshActiveDayTradeAdapters();
+      dayTradeAdapterRefreshTimer = setInterval(() => {
+        void refreshActiveDayTradeAdapters();
+      }, 60_000);
+      dayTradeAdapterRefreshTimer.unref();
+    }
+  };
   let startupState: "booting" | "ready" | "error" = "booting";
+  let startupError: string | null = null;
+  const autoWatchlistSelector = new AutoWatchlistSelector({
+    configPath: durableFiles.autoSelectorConfig,
+    yahooClient,
+    finnhubClient,
+    getActiveSymbols: () => manager.getActiveEntries().map((entry) => entry.symbol),
+    getActiveEntries: () => manager.getActiveEntries().map((entry) => ({
+      symbol: entry.symbol,
+      tags: entry.tags,
+      note: entry.note,
+      activatedAt: entry.activatedAt,
+    })),
+    isRuntimeReady: () => startupState === "ready" && manager.getRuntimeHealth().isStarted,
+    activateSymbol: (input) => manager.queueActivation(input),
+    deactivateSymbol: (symbol) => manager.deactivateSymbol(symbol, { source: "auto" }),
+    setSymbolFollowup: (symbol, followup, options) =>
+      manager.setAutoWatchlistFollowup(symbol, followup, options),
+    onPremarketVolumeSnapshot: (snapshots) => manager.ingestPremarketVolumeSnapshots(snapshots),
+  });
+  const liveWatchlistHealthPublisher = liveWatchlistPublisher;
   const liveWatchlistHealthTimer = setInterval(() => {
     publishLiveWatchlistHealth({
-      publisher: liveWatchlistPublisher,
+      publisher: liveWatchlistHealthPublisher,
       manager,
       startupState,
+      liveProviderName,
+      ibkrConnected: isIbkrConnected(ib),
+      ibkrReconnecting: isIbkrReconnecting(ib),
     });
   }, LIVE_WATCHLIST_HEALTH_PUBLISH_INTERVAL_MS);
 
-  try {
-    if (ib) {
-      await waitForIbkrConnection(ib);
+  const bootRuntime = async (): Promise<void> => {
+    try {
+      const needsIbkrConnection = historicalProviderName === "ibkr" || liveProviderName === "ibkr";
+      if (needsIbkrConnection) {
+        await waitForIbkrConnection(ib);
+      }
+      startupState = "ready";
+      startupError = null;
+      console.log(
+        `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Live price provider path: ${liveProviderName}`,
+      );
+      if (requestedCandleCacheMode !== "off") {
+        console.log(
+          `[ManualWatchlistRuntime] Candle cache: requested=${requestedCandleCacheMode}, runtime=${runtimeCandleCacheMode}, startup=${startupCandleCacheEnabled ? "enabled" : "disabled"}, path=${candleCacheDirectoryPath}.`,
+        );
+      }
+      console.log(
+        `[ManualWatchlistRuntime] IBKR historical timeout: ${Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0 ? manualWatchlistIbkrTimeoutMs : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS}ms.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Level seed timeout: ${manualWatchlistLevelSeedTimeoutMs}ms.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Fast level-clear coalesce window: ${manualWatchlistFastLevelClearCoalesceMs}ms.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Historical lookbacks: daily=${historicalLookbackBars.daily}, 4h=${historicalLookbackBars["4h"]}, 5m=${historicalLookbackBars["5m"]}.`,
+      );
+      console.log(`[ManualWatchlistRuntime] Posting profile: ${postingProfile}.`);
+      console.log(
+        `[ManualWatchlistRuntime] Market structure standalone posts: ${marketStructureStandalonePostMode}.`,
+      );
+      if (marketStructureLifecyclePath) {
+        console.log(
+          `[ManualWatchlistRuntime] Market structure lifecycle log: ${marketStructureLifecyclePath}.`,
+        );
+      }
+      if (monitoringEventDiagnosticsEnabled) {
+        console.log(
+          `[ManualWatchlistRuntime] Monitoring event diagnostics enabled via ${MONITORING_EVENT_DIAGNOSTICS_ENV}.`,
+        );
+      }
+      if (aiCommentaryEnabled) {
+        console.log(
+          `[ManualWatchlistRuntime] AI commentary ${aiCommentaryService ? "enabled" : "requested but OPENAI_API_KEY is missing"}.`,
+        );
+      } else if (aiCommentaryRequested) {
+        console.log(
+          `[ManualWatchlistRuntime] Legacy Discord AI commentary disabled; ${LEGACY_OPENAI_FEATURES_ENV}=1 is required to re-enable it.`,
+        );
+      }
+      console.log(
+        `[ManualWatchlistRuntime] Finnhub stock context ${finnhubClient ? "enabled" : "disabled (FINNHUB_API_KEY missing)"}.`,
+      );
+      console.log(
+        `[ManualWatchlistRuntime] Yahoo stock context ${yahooClient ? "enabled" : "disabled (YAHOO_STOCK_CONTEXT_ENABLED=false)"}.`,
+      );
+      await manager.start();
+      autoWatchlistSelector.start();
+      void (async () => {
+        const deadline = Date.now() + 120_000;
+        while (Date.now() < deadline) {
+          const health = manager.getRuntimeHealth();
+          const restoreCount =
+            health.lifecycleCounts.restoring + health.lifecycleCounts.activating;
+          if (health.pendingActivationCount === 0 && restoreCount === 0) break;
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        for (const entry of autoWatchlistSelector.getFollowupPublicationStates()) {
+          await manager.setAutoWatchlistFollowup(entry.symbol, true, {
+            reversalWatchEligible: entry.reversalWatchEligible,
+            reversalWatchAttemptReady: entry.reversalWatchAttemptReady,
+          });
+        }
+      })().catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[ManualWatchlistRuntime] Failed to restore follow-up publishing state: ${message}`,
+        );
+      });
+      dailyWatchlistRecapService?.start();
+      publishLiveWatchlistHealth({
+        publisher: liveWatchlistHealthPublisher,
+        manager,
+        startupState,
+        liveProviderName,
+        ibkrConnected: isIbkrConnected(ib),
+        ibkrReconnecting: isIbkrReconnecting(ib),
+      });
+      console.log("[ManualWatchlistRuntime] Runtime startup complete.");
+    } catch (error) {
+      startupState = "error";
+      startupError = error instanceof Error ? error.message : String(error);
+      publishLiveWatchlistHealth({
+        publisher: liveWatchlistHealthPublisher,
+        manager,
+        startupState,
+        liveProviderName,
+        ibkrConnected: isIbkrConnected(ib),
+        ibkrReconnecting: isIbkrReconnecting(ib),
+      });
+      console.error(`[ManualWatchlistRuntime] Startup failed: ${startupError}`);
     }
-    console.log(
-      `[ManualWatchlistRuntime] Candle provider path: ${candleService.getProviderName()}`,
-    );
-    console.log(`[ManualWatchlistRuntime] Live price provider path: ${liveProviderName}`);
-    await manager.start();
-    dailyWatchlistRecapService?.start();
-    startupState = "ready";
-    publishLiveWatchlistHealth({
-      publisher: liveWatchlistPublisher,
-      manager,
-      startupState,
-    });
-  } catch (error) {
-    startupState = "error";
-    publishLiveWatchlistHealth({
-      publisher: liveWatchlistPublisher,
-      manager,
-      startupState,
-    });
-    throw error;
-  }
+  };
 
   const server = createServer(async (request, response) => {
-    const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+    const url = new URL(request.url ?? "/", `http://${LOCAL_BIND_HOST}`);
 
     if (request.method === "GET" && url.pathname === "/") {
       response.statusCode = 200;
       response.setHeader("Content-Type", "text/html; charset=utf-8");
+      response.setHeader("Cache-Control", "no-store");
       response.end(MANUAL_WATCHLIST_PAGE);
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/trade-plan-review") {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "text/html; charset=utf-8");
+      response.end(TRADE_PLAN_REVIEW_PAGE);
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/ai-clean-read") {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "text/html; charset=utf-8");
+      response.end(AI_CLEAN_READ_PAGE);
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/api/watchlist") {
+      const selectorStatus = autoWatchlistSelector.getStatus();
+      const activityBySymbol = new Map(
+        selectorStatus.recentDecisions.map((decision) => [decision.symbol, {
+          session: decision.session,
+          volume: decision.sessionVolume,
+          dataAvailable: decision.activityDataAvailable,
+        }]),
+      );
+      const managedBySymbol = new Map(
+        selectorStatus.managedEntries.map((entry) => [entry.symbol, entry]),
+      );
       sendJson(response, 200, {
+        activeEntries: manager.getActiveEntries().map((entry) => ({
+          ...entry,
+          selectorSessionActivity: activityBySymbol.get(entry.symbol) ?? null,
+          selectorManagedState: managedBySymbol.get(entry.symbol)?.state ?? null,
+          selectorStatusReason: managedBySymbol.get(entry.symbol)?.statusReason ?? null,
+          selectorCurrentSlotScore: managedBySymbol.get(entry.symbol)?.lastSlotSurvivalScore ?? null,
+        })),
         startupState,
-        activeEntries: manager.getActiveEntries(),
-        aiReadConfigured: manager.isTradersLinkAiReadConfigured(),
-        aiReadExternalResearchEnabled,
-        aiReadCostSummary: tradersLinkAiReadCostLedger.summarize(),
+        startupError,
       });
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/api/runtime/status") {
+      const compact = url.searchParams.get("compact") === "1";
+      const runtimeHealth = manager.getRuntimeHealth();
+      const aiReadCostSnapshot = compact ? null : manager.getTradersLinkAiReadCostSnapshot();
+      sendJson(response, 200, {
+        providerName: candleService.getProviderName(),
+        diagnosticsEnabled: monitoringEventDiagnosticsEnabled,
+        aiCommentaryEnabled: aiCommentaryService !== null,
+        aiReadConfigured: manager.isTradersLinkAiReadConfigured(),
+        aiReadExternalResearchEnabled,
+        aiReadModel: tradersLinkAiReadService?.getConfiguredModel() ?? null,
+        aiReadReasoningEffort: tradersLinkAiReadService?.getReasoningEffort() ?? null,
+        aiReadDailyCostBudget: manager.getTradersLinkAiReadDailyCostBudget(),
+        ...(aiReadCostSnapshot
+          ? {
+              aiReadDailyCostBudgetStatus: aiReadCostSnapshot.dailyCostBudgetStatus,
+              aiReadCostSummary: aiReadCostSnapshot.summary,
+            }
+          : {}),
+        runtimeConfig: {
+          runtimeIdentity: MANUAL_WATCHLIST_RUNTIME_IDENTITY,
+          bindHost: LOCAL_BIND_HOST,
+          port: PORT,
+          historicalProvider: candleService.getProviderName(),
+          availableHistoricalProviders: RUNTIME_HISTORICAL_PROVIDER_OPTIONS,
+          historicalProviderRuntimeMutable: true,
+          providerConfigPath,
+          durableDataDirectory,
+          aiReadRunLedgerPath: durableFiles.aiReadRunLedger,
+          publicWatchlistUrl:
+            process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL?.trim() ||
+            "https://traderslink.pro/watchlist",
+          liveProvider: liveProviderName,
+          availableLiveProviders: RUNTIME_LIVE_PROVIDER_OPTIONS,
+          liveProviderRuntimeMutable: true,
+          ibkrHistoricalTimeoutMs:
+            Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+              ? manualWatchlistIbkrTimeoutMs
+              : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+          levelSeedTimeoutMs: manualWatchlistLevelSeedTimeoutMs,
+          fastLevelClearCoalesceMs: manualWatchlistFastLevelClearCoalesceMs,
+          candleCacheMode: requestedCandleCacheMode,
+          runtimeCandleCacheMode,
+          candleCacheDirectoryPath,
+          startupCandleCacheEnabled,
+          historicalLookbackBars: manager.getHistoricalLookbackBars(),
+          postingProfile,
+          marketStructureStandalonePostMode,
+          marketStructureLifecyclePath,
+          marketStructureStoryMemoryPath,
+          monitoringDiagnosticsRequested: monitoringEventDiagnosticsEnabled,
+          legacyOpenAiFeaturesEnabled,
+          aiCommentaryRequested,
+          aiCommentaryServiceAvailable: aiCommentaryService !== null,
+          aiCommentaryModel,
+          openAiApiKeyPresent,
+          aiCommentaryRoute: legacyOpenAiFeaturesEnabled
+            ? "symbol recaps and live alert AI reads"
+            : "disabled legacy Discord route",
+          aiCleanReadModel,
+          aiCleanReadReasoningEffort: AI_CLEAN_READ_REASONING_EFFORT,
+          aiCleanReadRoute: legacyOpenAiFeaturesEnabled
+            ? "automatic initial watchlist activation and manual clean-read UI"
+            : "disabled legacy local route",
+        },
+        activeSymbolCount: manager.getActiveEntries().length,
+        ibkrConnected: isIbkrConnected(ib),
+        ibkrReconnecting: isIbkrReconnecting(ib),
+        runtimeHealth,
+        ...(!compact ? { autoWatchlistSelector: autoWatchlistSelector.getStatus() } : {}),
+        sessionDirectory,
+        startupState,
+        startupError,
+      });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/runtime/day-trade-adapter") {
+      const symbol = url.searchParams.get("symbol")?.trim().toUpperCase() || undefined;
+      sendJson(response, 200, dayTradeAdapter.getStatus(symbol));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/day-trade-adapter") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.enabled !== "boolean") {
+          sendJson(response, 400, { error: "Boolean enabled value is required." });
+          return;
+        }
+        setDayTradeAdapterEnabled(body.enabled);
+        sendJson(response, 200, dayTradeAdapter.getStatus());
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        sendJson(response, 500, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/day-trade-adapter/refresh") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol.trim().toUpperCase() : "";
+        if (!symbol) {
+          sendJson(response, 400, { error: "symbol is required." });
+          return;
+        }
+        const result = await dayTradeAdapter.refresh(symbol, body.force === true);
+        sendJson(response, 200, {
+          ok: true,
+          result,
+          status: dayTradeAdapter.getStatus(symbol),
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        sendJson(response, 500, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/runtime/ai-read-audit") {
+      const symbol = url.searchParams.get("symbol")?.trim().toUpperCase() || undefined;
+      const requestedLimit = Number(url.searchParams.get("limit") ?? "100");
+      const limit = Number.isFinite(requestedLimit) ? Math.min(500, Math.max(1, Math.floor(requestedLimit))) : 100;
+      sendJson(response, 200, manager.getTradersLinkAiReadAudit({ symbol, limit }));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-external-research") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.enabled !== "boolean") {
+          sendJson(response, 400, { error: "Boolean enabled value is required." });
+          return;
+        }
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: body.enabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        aiReadExternalResearchEnabled = body.enabled;
+        tradersLinkAiReadService?.setExternalResearchEnabled(body.enabled);
+        sendJson(response, 200, {
+          ok: true,
+          enabled: body.enabled,
+          localResearchEnabled: true,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-model") {
+      try {
+        const body = await readJsonBody(request);
+        const model =
+          body.model === "gpt-5.6-luna" || body.model === "gpt-5.6-terra"
+            ? body.model
+            : null;
+        const reasoningEffort =
+          body.reasoningEffort === "low" ||
+          body.reasoningEffort === "medium" ||
+          body.reasoningEffort === "high" ||
+          body.reasoningEffort === "xhigh"
+            ? body.reasoningEffort
+            : null;
+        if (!model || !reasoningEffort) {
+          sendJson(response, 400, {
+            error: "Choose Luna or Terra and a low, medium, high, or xhigh effort.",
+          });
+          return;
+        }
+        aiReadModelSettings = { model, reasoningEffort };
+        tradersLinkAiReadService?.setRuntimeConfiguration(aiReadModelSettings);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          model,
+          reasoningEffort,
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, { ok: true, ...aiReadModelSettings });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        sendJson(response, 500, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-cost-budget") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.enabled !== "boolean") {
+          sendJson(response, 400, { error: "Boolean enabled value is required." });
+          return;
+        }
+        const dailyLimitUsd = typeof body.dailyLimitUsd === "number" ? body.dailyLimitUsd : Number.NaN;
+        aiReadDailyCostBudget = manager.setTradersLinkAiReadDailyCostBudget({
+          enabled: body.enabled,
+          dailyLimitUsd,
+        });
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          budget: aiReadDailyCostBudget,
+          status: manager.getTradersLinkAiReadDailyCostBudgetStatus(),
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 400, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-generation") {
+      try {
+        const body = await readJsonBody(request);
+        if (
+          typeof body.enabled !== "boolean" ||
+          typeof body.premarketEnabled !== "boolean" ||
+          typeof body.regularEnabled !== "boolean" ||
+          typeof body.postmarketEnabled !== "boolean" ||
+          typeof body.topRegularActivationEnabled !== "boolean"
+        ) {
+          sendJson(response, 400, {
+            error:
+              "Boolean enabled, premarketEnabled, regularEnabled, postmarketEnabled, and topRegularActivationEnabled values are required.",
+          });
+          return;
+        }
+        aiReadGenerationSettings = manager.setTradersLinkAiReadGenerationSettings({
+          enabled: body.enabled,
+          premarketEnabled: body.premarketEnabled,
+          regularEnabled: body.regularEnabled,
+          postmarketEnabled: body.postmarketEnabled,
+          topRegularActivationEnabled: body.topRegularActivationEnabled,
+        });
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          settings: aiReadGenerationSettings,
+          availability: manager.getTradersLinkAiReadGenerationAvailability(),
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-boundary-refreshes") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.enabled !== "boolean") {
+          sendJson(response, 400, { error: "Boolean enabled value is required." });
+          return;
+        }
+        const limit = typeof body.maxPerTickerPerNewYorkDate === "number"
+          ? body.maxPerTickerPerNewYorkDate
+          : Number.NaN;
+        aiReadBoundaryRefreshSettings = manager.setTradersLinkAiReadBoundaryRefreshSettings({
+          enabled: body.enabled,
+          maxPerTickerPerNewYorkDate: limit,
+        });
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+          automaticBoundaryRefreshesEnabled: aiReadBoundaryRefreshSettings.enabled,
+          automaticBoundaryRefreshesPerTicker:
+            aiReadBoundaryRefreshSettings.maxPerTickerPerNewYorkDate,
+        });
+        sendJson(response, 200, { ok: true, settings: aiReadBoundaryRefreshSettings });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 400, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/auto-watchlist-selector") {
+      try {
+        const body = await readJsonBody(request);
+        if (body.enabled !== undefined && typeof body.enabled !== "boolean") {
+          sendJson(response, 400, { error: "enabled must be true or false." });
+          return;
+        }
+        const thresholds = parseAutoWatchlistThresholds(body.thresholds);
+        const status = await autoWatchlistSelector.updateConfiguration({
+          enabled: body.enabled as boolean | undefined,
+          thresholds,
+        });
+        sendJson(response, 200, { ok: true, status });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 400, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/auto-watchlist-selector/preview") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, { error: "Runtime must be ready before running a preview scan." });
+        return;
+      }
+      try {
+        const status = await autoWatchlistSelector.previewScan();
+        sendJson(response, 200, { ok: true, status });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/historical-provider") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        const requestedProvider = parseRuntimeHistoricalProviderName(
+          body.historicalProvider ?? body.provider,
+        );
+        if (!requestedProvider) {
+          sendJson(response, 400, {
+            error: "historicalProvider must be ibkr or eodhd.",
+          });
+          return;
+        }
+
+        const previousHistoricalProvider = candleService.getProviderName();
+        if (requestedProvider === previousHistoricalProvider) {
+          saveRuntimeProviderConfig(providerConfigPath, {
+            historicalProvider: requestedProvider,
+            liveProvider: liveProviderName,
+          });
+          sendJson(response, 200, {
+            ok: true,
+            changed: false,
+            persisted: true,
+            providerConfigPath,
+            historicalProvider: previousHistoricalProvider,
+            liveProvider: liveProviderName,
+            activeSymbolCount: manager.getActiveEntries().length,
+          });
+          return;
+        }
+
+        const nextProvider = createHistoricalCandleProvider({
+          provider: requestedProvider,
+          ib,
+          ibkrTimeoutMs:
+            Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+              ? manualWatchlistIbkrTimeoutMs
+              : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+        });
+
+        if (requestedProvider === "ibkr") {
+          await waitForIbkrConnection(
+            ib,
+            Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+              ? manualWatchlistIbkrTimeoutMs
+              : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+          );
+        }
+
+        saveRuntimeProviderConfig(providerConfigPath, {
+          historicalProvider: requestedProvider,
+          liveProvider: liveProviderName,
+        });
+        rawCandleService.setProvider(nextProvider);
+        historicalProviderName = requestedProvider;
+        console.log(
+          `[ManualWatchlistRuntime] Historical candle provider changed from ${previousHistoricalProvider} to ${requestedProvider}.`,
+        );
+
+        sendJson(response, 200, {
+          ok: true,
+          changed: true,
+          persisted: true,
+          providerConfigPath,
+          previousHistoricalProvider,
+          historicalProvider: candleService.getProviderName(),
+          liveProvider: liveProviderName,
+          activeSymbolCount: manager.getActiveEntries().length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        const statusCode =
+          message.includes("EODHD_API_TOKEN") || message.includes("IBKR connection")
+            ? 503
+            : 500;
+        console.error(`[ManualWatchlistRuntime] Historical provider switch failed: ${message}`);
+        sendJson(response, statusCode, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/live-provider") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        const requestedProvider = parseRuntimeLiveProviderName(
+          body.liveProvider ?? body.provider,
+        );
+        if (!requestedProvider) {
+          sendJson(response, 400, {
+            error: "liveProvider must be ibkr or eodhd.",
+          });
+          return;
+        }
+
+        const previousLiveProvider = liveProviderName;
+        if (requestedProvider === previousLiveProvider) {
+          saveRuntimeProviderConfig(providerConfigPath, {
+            historicalProvider: historicalProviderName,
+            liveProvider: requestedProvider,
+          });
+          sendJson(response, 200, {
+            ok: true,
+            changed: false,
+            persisted: true,
+            providerConfigPath,
+            historicalProvider: candleService.getProviderName(),
+            liveProvider: previousLiveProvider,
+            activeSymbolCount: manager.getActiveEntries().length,
+          });
+          return;
+        }
+
+        const nextProvider = createLivePriceProvider({
+          provider: requestedProvider,
+          ib,
+        });
+
+        if (requestedProvider === "ibkr") {
+          await waitForIbkrConnection(
+            ib,
+            Number.isFinite(manualWatchlistIbkrTimeoutMs) && manualWatchlistIbkrTimeoutMs > 0
+              ? manualWatchlistIbkrTimeoutMs
+              : DEFAULT_MANUAL_WATCHLIST_IBKR_TIMEOUT_MS,
+          );
+        }
+
+        await manager.switchLivePriceProvider(nextProvider);
+        liveProviderName = requestedProvider;
+        let persisted = true;
+        let persistenceWarning: string | null = null;
+        try {
+          saveRuntimeProviderConfig(providerConfigPath, {
+            historicalProvider: historicalProviderName,
+            liveProvider: requestedProvider,
+          });
+        } catch (error) {
+          persisted = false;
+          persistenceWarning = error instanceof Error ? error.message : String(error);
+          console.error(
+            `[ManualWatchlistRuntime] Live provider switched but provider config save failed: ${persistenceWarning}`,
+          );
+        }
+        publishLiveWatchlistHealth({
+          publisher: liveWatchlistHealthPublisher,
+          manager,
+          startupState,
+          liveProviderName,
+          ibkrConnected: isIbkrConnected(ib),
+          ibkrReconnecting: isIbkrReconnecting(ib),
+        });
+        console.log(
+          `[ManualWatchlistRuntime] Live price provider changed from ${previousLiveProvider} to ${requestedProvider}.`,
+        );
+
+        sendJson(response, 200, {
+          ok: true,
+          changed: true,
+          persisted,
+          warning: persistenceWarning,
+          providerConfigPath,
+          previousLiveProvider,
+          historicalProvider: candleService.getProviderName(),
+          liveProvider: liveProviderName,
+          activeSymbolCount: manager.getActiveEntries().length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        const statusCode =
+          message.includes("EODHD_API_TOKEN") ||
+          message.includes("EODHD WebSocket") ||
+          message.includes("Global WebSocket") ||
+          message.includes("IBKR connection")
+            ? 503
+            : 500;
+        console.error(`[ManualWatchlistRuntime] Live provider switch failed: ${message}`);
+        sendJson(response, statusCode, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/live-trader-read-card") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.visible !== "boolean") {
+          sendJson(response, 400, {
+            error: "visible must be true or false.",
+          });
+          return;
+        }
+
+        const result = await manager.setLiveTraderReadCardVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: result.visible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        publishLiveWatchlistHealth({
+          publisher: liveWatchlistHealthPublisher,
+          manager,
+          startupState,
+          liveProviderName,
+          ibkrConnected: isIbkrConnected(ib),
+          ibkrReconnecting: isIbkrReconnecting(ib),
+        });
+        sendJson(response, 200, {
+          ok: true,
+          visible: result.visible,
+          refreshedSymbols: result.refreshedSymbols,
+          refreshedSymbolCount: result.refreshedSymbols.length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Trader Read card visibility change failed: ${message}`);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/potential-gain-card") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.visible !== "boolean") {
+          sendJson(response, 400, { error: "visible must be true or false." });
+          return;
+        }
+
+        const result = await manager.setPotentialGainCardVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: result.visible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          visible: result.visible,
+          refreshedSymbols: result.refreshedSymbols,
+          refreshedSymbolCount: result.refreshedSymbols.length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Potential Gain card visibility change failed: ${message}`);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/watchlist-lifecycle-labels") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.visible !== "boolean") {
+          sendJson(response, 400, { error: "visible must be true or false." });
+          return;
+        }
+
+        const result = await manager.setWatchlistLifecycleLabelsVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: result.visible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          visible: result.visible,
+          refreshedSymbols: result.refreshedSymbols,
+          refreshedSymbolCount: result.refreshedSymbols.length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Watchlist lifecycle label visibility change failed: ${message}`);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/reversal-watchlist") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.visible !== "boolean") {
+          sendJson(response, 400, { error: "Boolean visible value is required." });
+          return;
+        }
+        const result = await manager.setReversalWatchlistVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: result.visible,
+          topRegularWatchlistVisible: visibility.topRegularWatchlistVisible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          visible: result.visible,
+          refreshedSymbols: result.refreshedSymbols,
+          refreshedSymbolCount: result.refreshedSymbols.length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/top-regular-watchlist") {
+      try {
+        const body = await readJsonBody(request);
+        if (typeof body.visible !== "boolean") {
+          sendJson(response, 400, { error: "Boolean visible value is required." });
+          return;
+        }
+        const result = await manager.setTopRegularWatchlistVisible(body.visible);
+        const visibility = manager.getRuntimeHealth();
+        tradersLinkAiReadSettingsPersistence.save({
+          externalResearchEnabled: aiReadExternalResearchEnabled,
+          generationEnabled: aiReadGenerationSettings.enabled,
+          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          topRegularActivationGenerationEnabled:
+            aiReadGenerationSettings.topRegularActivationEnabled,
+          liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
+          potentialGainCardVisible: visibility.potentialGainCardVisible,
+          watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
+          reversalWatchlistVisible: visibility.reversalWatchlistVisible,
+          topRegularWatchlistVisible: result.visible,
+          dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
+          dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
+        });
+        sendJson(response, 200, {
+          ok: true,
+          visible: result.visible,
+          refreshedSymbols: result.refreshedSymbols,
+          refreshedSymbolCount: result.refreshedSymbols.length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/trade-plan-review") {
+      sendJson(response, 200, buildTradePlanReviewPayload(sessionDirectory));
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/ai-clean-read") {
+      sendJson(
+        response,
+        200,
+        buildAiCleanReadPayload({
+          sessionDirectory,
+          model: aiCleanReadModel,
+          openAiApiKeyPresent,
+        }),
+      );
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/ai-clean-read/generate") {
+      if (!aiCleanReadService) {
+        sendJson(response, 503, {
+          error: "OPENAI_API_KEY is required to generate AI clean reads.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request, 128 * 1024);
+        let symbol = typeof body.symbol === "string" ? body.symbol : "";
+        let currentPrice = typeof body.currentPrice === "string" ? body.currentPrice : "";
+        let ladderText = typeof body.ladderText === "string" ? body.ladderText : "";
+        const aiPromptNotes =
+          typeof body.aiPromptNotes === "string" ? body.aiPromptNotes : undefined;
+
+        if (!symbol.trim() || !currentPrice.trim() || !ladderText.trim()) {
+          const snapshot = resolveLatestCleanReadSnapshotInput(sessionDirectory, symbol);
+          if (snapshot) {
+            symbol = symbol.trim() || snapshot.input.symbol;
+            currentPrice = currentPrice.trim() || snapshot.input.currentPrice;
+            ladderText = ladderText.trim() || snapshot.input.ladderText;
+          }
+        }
+
+        if (!symbol.trim() || !currentPrice.trim() || !ladderText.trim()) {
+          const target = symbol.trim() ? ` for $${symbol.trim().toUpperCase()}` : "";
+          sendJson(response, 400, {
+            error:
+              `No posted support/resistance ladder was found${target}. Add/activate a ticker on the watchlist first, then retry the clean read.`,
+          });
+          return;
+        }
+
+        const result = await aiCleanReadService.generateCleanRead({
+          symbol,
+          currentPrice,
+          ladderText,
+          aiPromptNotes,
+        });
+        const record = appendAiCleanReadRecord(
+          sessionDirectory,
+          {
+            symbol,
+            currentPrice,
+            ladderText,
+            aiPromptNotes,
+          },
+          result,
+        );
+        sendJson(response, 200, { record });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/ai-clean-read/comments") {
+      try {
+        const body = await readJsonBody(request, 32 * 1024);
+        const cleanReadId =
+          typeof body.cleanReadId === "string" ? body.cleanReadId : null;
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const comments = typeof body.comments === "string" ? body.comments : "";
+        const comment = appendAiCleanReadComment(sessionDirectory, {
+          cleanReadId,
+          symbol,
+          comments,
+        });
+        sendJson(response, 200, { comment });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/trade-plan-review/notes") {
+      try {
+        const body = await readJsonBody(request, 32 * 1024);
+        const itemId = typeof body.itemId === "string" ? body.itemId : "";
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const verdict = typeof body.verdict === "string" ? body.verdict : "unreviewed";
+        const notes = typeof body.notes === "string" ? body.notes : "";
+        const tags = Array.isArray(body.tags)
+          ? body.tags.filter((tag): tag is string => typeof tag === "string")
+          : [];
+        const allowedVerdicts: TradePlanReviewNote["verdict"][] = [
+          "unreviewed",
+          "useful",
+          "needs_work",
+          "ignore",
+        ];
+
+        if (!itemId.trim() || !symbol.trim()) {
+          sendJson(response, 400, { error: "itemId and symbol are required." });
+          return;
+        }
+        if (!allowedVerdicts.includes(verdict as TradePlanReviewNote["verdict"])) {
+          sendJson(response, 400, { error: "Invalid review verdict." });
+          return;
+        }
+
+        const note = appendTradePlanReviewNote(sessionDirectory, {
+          itemId,
+          symbol,
+          verdict: verdict as TradePlanReviewNote["verdict"],
+          notes,
+          tags,
+        });
+        sendJson(response, 200, { note });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/discord/clear-watchlist-channel") {
+      try {
+        const body = await readJsonBody(request);
+        const confirmation = typeof body.confirmation === "string" ? body.confirmation : "";
+        if (confirmation !== "DELETE_DISCORD_WATCHLIST") {
+          sendJson(response, 400, {
+            error: "Confirmation is required to clear Discord watchlist posts.",
+          });
+          return;
+        }
+
+        const localReset = await manager.resetDiscordThreadState();
+        const discordCleanup = await clearDiscordWatchlistChannel();
+        sendJson(response, 200, {
+          ok: true,
+          localReset,
+          discordCleanup,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Discord channel cleanup failed: ${message}`);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/watchlist/activate") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
       try {
         const body = await readJsonBody(request);
         const symbol = typeof body.symbol === "string" ? body.symbol : "";
         const note = typeof body.note === "string" ? body.note : undefined;
+        const watchlistGroup =
+          body.watchlistGroup === "top_regular" ||
+          body.watchlistGroup === "main" ||
+          body.watchlistGroup === "postmarket"
+            ? body.watchlistGroup
+            : null;
 
-        if (symbol.trim().length === 0) {
-          sendJson(response, 400, { error: "Symbol is required." });
+        if (symbol.trim().length === 0 || watchlistGroup === null) {
+          sendJson(response, 400, {
+            error: "Symbol and a valid watchlistGroup are required.",
+          });
           return;
         }
 
-        const entry = await manager.activateSymbol({ symbol, note });
-        sendJson(response, 200, { entry });
+        const entry = await manager.queueActivation({
+          symbol,
+          note,
+          watchlistGroup,
+          source: "manual",
+        });
+        sendJson(response, 202, { entry, queued: true });
       } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Activation failed: ${message}`);
         sendJson(response, 500, { error: message });
       }
       return;
@@ -795,8 +2198,66 @@ async function main(): Promise<void> {
 
         sendJson(response, 200, { entry });
       } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/remove-from-list") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        if (symbol.trim().length === 0) {
+          sendJson(response, 400, { error: "Symbol is required." });
+          return;
+        }
+        const entry = await manager.removeSymbolFromWatchlist(symbol);
+        if (!entry) {
+          sendJson(response, 404, { error: "Symbol was not found." });
+          return;
+        }
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/move-to-list") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const watchlistGroup =
+          body.watchlistGroup === "top_regular" ||
+          body.watchlistGroup === "main" ||
+          body.watchlistGroup === "postmarket"
+            ? body.watchlistGroup
+            : null;
+        if (symbol.trim().length === 0 || watchlistGroup === null) {
+          sendJson(response, 400, {
+            error: "Symbol and a valid watchlistGroup are required.",
+          });
+          return;
+        }
+        const entry = await manager.moveSymbolToWatchlistGroup(symbol, watchlistGroup);
+        sendJson(response, 200, { ok: true, entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 400, { error: message });
       }
       return;
     }
@@ -805,36 +2266,44 @@ async function main(): Promise<void> {
       try {
         const body = await readJsonBody(request);
         const symbol = typeof body.symbol === "string" ? body.symbol : "";
-        const visible = body.visible;
-        if (symbol.trim().length === 0 || typeof visible !== "boolean") {
-          sendJson(response, 400, { error: "Symbol and boolean visible value are required." });
+        if (symbol.trim().length === 0 || typeof body.visible !== "boolean") {
+          sendJson(response, 400, {
+            error: "Symbol and boolean visible value are required.",
+          });
           return;
         }
-        const entry = await manager.setTradersLinkAiReadCardVisible(symbol, visible);
+        const entry = await manager.setTradersLinkAiReadCardVisible(symbol, body.visible);
         if (!entry) {
           sendJson(response, 404, { error: "Symbol was not found." });
           return;
         }
-        sendJson(response, 200, { entry });
+        sendJson(response, 200, { ok: true, entry });
       } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
       }
       return;
     }
 
-    if (request.method === "POST" && url.pathname === "/api/watchlist/ai-read-external-research") {
+    if (request.method === "POST" && url.pathname === "/api/watchlist/ai-read-dip-buy-visibility") {
       try {
         const body = await readJsonBody(request);
-        const enabled = body.enabled;
-        if (typeof enabled !== "boolean") {
-          sendJson(response, 400, { error: "Boolean enabled value is required." });
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        const visible = body.visible;
+        if (symbol.trim().length === 0 || typeof visible !== "boolean") {
+          sendJson(response, 400, { error: "Symbol and boolean visible value are required." });
           return;
         }
-        tradersLinkAiReadSettingsPersistence.save(enabled);
-        aiReadExternalResearchEnabled = enabled;
-        tradersLinkAiReadService?.setExternalResearchEnabled(enabled);
-        sendJson(response, 200, { enabled });
+        const entry = await manager.setTradersLinkAiReadDipBuyPlanVisible(symbol, visible);
+        if (!entry) {
+          sendJson(response, 404, { error: "Symbol was not found." });
+          return;
+        }
+        sendJson(response, 200, { entry });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
@@ -851,8 +2320,143 @@ async function main(): Promise<void> {
           return;
         }
         const read = await manager.refreshTradersLinkAiRead(symbol);
-        sendJson(response, 200, { generated: Boolean(read), read });
+        const entry = manager.getEntries().find(
+          (candidate) => candidate.symbol === symbol.trim().toUpperCase(),
+        );
+        sendJson(response, 200, {
+          ok: true,
+          generated: Boolean(read),
+          read,
+          failure: entry?.tradersLinkAiReadFailure ?? null,
+        });
       } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/deactivate-bulk") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error:
+            startupState === "error"
+              ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+              : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+      try {
+        const body = await readJsonBody(request);
+        const scope = body.scope;
+        const confirmation = body.confirmation;
+        const publishedSymbols = Array.isArray(body.publishedSymbols)
+          ? body.publishedSymbols.filter((symbol): symbol is string => typeof symbol === "string")
+          : [];
+        if (
+          scope !== "all" &&
+          scope !== "top_regular" &&
+          scope !== "main" &&
+          scope !== "postmarket" &&
+          scope !== "reversal"
+        ) {
+          sendJson(response, 400, {
+            error: "scope must be all, top_regular, main, postmarket, or reversal.",
+          });
+          return;
+        }
+        if (confirmation !== "DEACTIVATE_WATCHLIST_TICKERS") {
+          sendJson(response, 400, { error: "Confirmation is required for bulk ticker removal." });
+          return;
+        }
+
+        const symbols = manager.getEntries()
+          .filter((entry) =>
+            (
+              scope === "all" ||
+              (scope === "reversal"
+                ? entry.tags.includes("auto-reversal-watch")
+                : getWatchlistEntrySessionGroup(entry) === scope)
+            ),
+          )
+          .map((entry) => entry.symbol);
+        const entries = await manager.deactivateSymbols(symbols, { source: "clear" });
+        const additionallyDeactivatedPublishedSymbols =
+          await manager.deactivatePublishedSymbols(
+            publishedSymbols.filter((symbol) => !symbols.includes(symbol)),
+          );
+        autoWatchlistSelector.resetSymbolsForFreshDiscovery([
+          ...symbols,
+          ...additionallyDeactivatedPublishedSymbols,
+        ]);
+        sendJson(response, 200, {
+          ok: true,
+          scope,
+          deactivatedCount: entries.length + additionallyDeactivatedPublishedSymbols.length,
+          deactivatedSymbols: [
+            ...entries.map((entry) => entry.symbol),
+            ...additionallyDeactivatedPublishedSymbols,
+          ],
+          resetSelectorSymbols: [
+            ...symbols,
+            ...additionallyDeactivatedPublishedSymbols,
+          ],
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/refresh-levels") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+
+        if (symbol.trim().length === 0) {
+          sendJson(response, 400, { error: "Symbol is required." });
+          return;
+        }
+
+        const entry = await manager.refreshSymbolLevels(symbol);
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/repost-snapshot") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+
+        if (symbol.trim().length === 0) {
+          sendJson(response, 400, { error: "Symbol is required." });
+          return;
+        }
+
+        const entry = await manager.repostLevelSnapshot(symbol);
+        sendJson(response, 200, { entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
       }
@@ -870,11 +2474,12 @@ async function main(): Promise<void> {
 
     shuttingDown = true;
     clearInterval(liveWatchlistHealthTimer);
+    autoWatchlistSelector.stop();
     dailyWatchlistRecapService?.stop();
-    await liveWatchlistPublisher?.publishHealth?.({
+    await liveWatchlistHealthPublisher?.publishHealth?.({
       type: "health",
       marketDataStatus: "offline",
-      marketDataUpdatedAt: Date.now(),
+      marketDataUpdatedAt: manager.getRuntimeHealth().lastPriceUpdateAt,
     });
     if (signal) {
       console.log(`Received ${signal}. Shutting down manual watchlist server...`);
@@ -882,7 +2487,7 @@ async function main(): Promise<void> {
 
     server.close();
     await manager.stop();
-    ib?.disconnect();
+    ib.disconnect();
   };
 
   process.once("SIGINT", () => {
@@ -893,9 +2498,15 @@ async function main(): Promise<void> {
     void shutdown("SIGTERM").finally(() => process.exit(0));
   });
 
-  server.listen(PORT, () => {
+  server.listen(PORT, LOCAL_BIND_HOST, () => {
     console.log(`Manual watchlist server running at http://127.0.0.1:${PORT}`);
+    openManualWatchlistInBrowser(`http://127.0.0.1:${PORT}`);
+    console.log(
+      `[ManualWatchlistRuntimeIdentity] ${JSON.stringify(MANUAL_WATCHLIST_RUNTIME_IDENTITY)}`,
+    );
   });
+
+  void bootRuntime();
 }
 
 main().catch((error) => {

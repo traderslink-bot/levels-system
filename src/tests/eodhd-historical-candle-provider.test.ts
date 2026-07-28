@@ -3,272 +3,413 @@ import test from "node:test";
 
 import { EodhdHistoricalCandleProvider } from "../lib/market-data/eodhd-historical-candle-provider.js";
 import { buildHistoricalFetchPlan } from "../lib/market-data/fetch-planning.js";
+import type { HistoricalFetchRequest } from "../lib/market-data/provider-types.js";
 
-test("EodhdHistoricalCandleProvider maps adjusted daily candles", async () => {
-  const requests: string[] = [];
-  const provider = new EodhdHistoricalCandleProvider({
-    apiToken: "test-token",
-    fetchFn: (async (input: string | URL | Request) => {
-      requests.push(String(input));
-      return new Response(JSON.stringify([
-        {
-          date: "2026-07-14",
-          open: 10,
-          high: 12,
-          low: 9,
-          close: 11,
-          adjusted_close: 5.5,
-          volume: 1000,
-        },
-      ]), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }) as typeof fetch,
-  });
-  const request = {
-    symbol: "test",
-    timeframe: "daily" as const,
-    lookbackBars: 1,
-    endTimeMs: Date.parse("2026-07-15T00:00:00.000Z"),
+function createFetch(payload: unknown, urls: string[]): typeof fetch {
+  return (async (url: string | URL | Request) => {
+    urls.push(String(url));
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return payload;
+      },
+    };
+  }) as typeof fetch;
+}
+
+function createFetchByEndpoint(
+  payloads: {
+    intraday?: unknown;
+    eod?: unknown;
+  },
+  urls: string[],
+): typeof fetch {
+  return (async (url: string | URL | Request) => {
+    const value = String(url);
+    urls.push(value);
+    const pathname = new URL(value).pathname;
+    const payload = pathname.includes("/intraday/")
+      ? payloads.intraday
+      : pathname.includes("/eod/")
+        ? payloads.eod
+        : undefined;
+
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return payload ?? [];
+      },
+    };
+  }) as typeof fetch;
+}
+
+function urlSearchParam(url: string, name: string): string | null {
+  return new URL(url).searchParams.get(name);
+}
+
+test("EODHD 4h deep lookback planning reaches February JZXN structure from July", () => {
+  const request: HistoricalFetchRequest = {
+    symbol: "JZXN",
+    timeframe: "4h",
+    lookbackBars: 900,
+    endTimeMs: Date.parse("2026-07-09T20:00:00.000Z"),
   };
 
-  const result = await provider.fetchCandles(
-    request,
-    buildHistoricalFetchPlan(request, "eodhd"),
-  );
+  const plan = buildHistoricalFetchPlan(request, "eodhd");
 
-  assert.equal(result.provider, "eodhd");
-  assert.equal(result.symbol, "TEST");
-  assert.equal(result.candles.length, 1);
-  assert.equal(result.providerMetadata?.useRTH, true);
-  assert.equal(result.providerMetadata?.sessionCoverage, "regular_only");
-  assert.deepEqual(result.candles[0], {
-    timestamp: Date.parse("2026-07-14T16:00:00.000Z"),
-    open: 5,
-    high: 6,
-    low: 4.5,
-    close: 5.5,
+  assert.ok(plan.requestStartTimestamp <= Date.parse("2026-02-10T00:00:00.000Z"));
+  assert.equal(plan.provider, "eodhd");
+  assert.equal(plan.requestedLookbackBars, 900);
+});
+
+test("EodhdHistoricalCandleProvider maps 5m intraday bars into normalized candles", async () => {
+  const urls: string[] = [];
+  const provider = new EodhdHistoricalCandleProvider({
+    apiToken: "test-token",
+    fetchFn: createFetch([
+      {
+        timestamp: 1_720_000_000,
+        open: 1,
+        high: 1.2,
+        low: 0.9,
+        close: 1.1,
+        volume: 1234,
+      },
+    ], urls),
+  });
+  const request: HistoricalFetchRequest = {
+    symbol: "aapl",
+    timeframe: "5m",
+    lookbackBars: 1,
+    endTimeMs: 1_720_001_000_000,
+  };
+
+  const response = await provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd"));
+
+  assert.equal(response.provider, "eodhd");
+  assert.equal(response.symbol, "AAPL");
+  assert.equal(response.candles.length, 1);
+  assert.deepEqual(response.candles[0], {
+    timestamp: 1_720_000_000_000,
+    open: 1,
+    high: 1.2,
+    low: 0.9,
+    close: 1.1,
+    volume: 1234,
+  });
+  assert.match(urls[0]!, /\/intraday\/AAPL\.US\?/);
+  assert.match(urls[0]!, /interval=5m/);
+});
+
+test("EodhdHistoricalCandleProvider treats EODHD datetime fallback as UTC", async () => {
+  const urls: string[] = [];
+  const provider = new EodhdHistoricalCandleProvider({
+    apiToken: "test-token",
+    fetchFn: createFetch([
+      {
+        datetime: "2026-05-01 13:30:00",
+        open: 1,
+        high: 1.2,
+        low: 0.9,
+        close: 1.1,
+        volume: null,
+      },
+    ], urls),
+  });
+  const request: HistoricalFetchRequest = {
+    symbol: "AAPL",
+    timeframe: "5m",
+    lookbackBars: 1,
+    endTimeMs: Date.parse("2026-05-01T13:35:00.000Z"),
+  };
+
+  const response = await provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd"));
+
+  assert.equal(response.candles[0]?.timestamp, Date.parse("2026-05-01T13:30:00.000Z"));
+  assert.equal(response.candles[0]?.volume, 0);
+});
+
+test("EodhdHistoricalCandleProvider fetches daily candles through the EOD endpoint on an adjusted price basis", async () => {
+  const urls: string[] = [];
+  const provider = new EodhdHistoricalCandleProvider({
+    apiToken: "test-token",
+    fetchFn: createFetch([
+      {
+        date: "2026-05-01",
+        open: 10,
+        high: 12,
+        low: 9,
+        close: 11,
+        adjusted_close: 10.75,
+        volume: 12345,
+      },
+    ], urls),
+  });
+  const request: HistoricalFetchRequest = {
+    symbol: "AAPL.US",
+    timeframe: "daily",
+    lookbackBars: 1,
+    endTimeMs: Date.parse("2026-05-02T00:00:00.000Z"),
+  };
+
+  const response = await provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd"));
+
+  assert.equal(response.candles[0]?.timestamp, Date.parse("2026-05-01T00:00:00.000Z"));
+  assert.equal(response.candles[0]?.open, 9.772727);
+  assert.equal(response.candles[0]?.high, 11.727273);
+  assert.equal(response.candles[0]?.low, 8.795455);
+  assert.equal(response.candles[0]?.close, 10.75);
+  assert.equal(response.providerMetadata?.eodhdInterval, "d");
+  assert.equal(response.providerMetadata?.providerAdjustmentMode, "adjusted_close_ratio");
+  assert.match(urls[0]!, /\/eod\/AAPL\.US\?/);
+  assert.equal(urlSearchParam(urls[0]!, "period"), "d");
+  assert.equal(urlSearchParam(urls[0]!, "fmt"), "json");
+});
+
+test("EodhdHistoricalCandleProvider adjusts pre-split daily resistance into the current price basis", async () => {
+  const urls: string[] = [];
+  const provider = new EodhdHistoricalCandleProvider({
+    apiToken: "test-token",
+    fetchFn: createFetch([
+      {
+        date: "2026-05-18",
+        open: 0.303,
+        high: 0.534,
+        low: 0.225,
+        close: 0.235,
+        adjusted_close: 5.875,
+        volume: 30606768,
+      },
+    ], urls),
+  });
+  const request: HistoricalFetchRequest = {
+    symbol: "VRAX",
+    timeframe: "daily",
+    lookbackBars: 1,
+    endTimeMs: Date.parse("2026-05-19T00:00:00.000Z"),
+  };
+
+  const response = await provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd"));
+
+  assert.deepEqual(response.candles[0], {
+    timestamp: Date.parse("2026-05-18T00:00:00.000Z"),
+    open: 7.575,
+    high: 13.35,
+    low: 5.625,
+    close: 5.875,
+    volume: 30606768,
+  });
+});
+
+test("EodhdHistoricalCandleProvider records material reverse-split transitions in provider metadata", async () => {
+  const provider = new EodhdHistoricalCandleProvider({
+    apiToken: "test-token",
+    fetchFn: createFetch([
+      {
+        date: "2026-07-16",
+        open: 0.2,
+        high: 0.23,
+        low: 0.19,
+        close: 0.21,
+        adjusted_close: 4.2,
+        volume: 1000,
+      },
+      {
+        date: "2026-07-17",
+        open: 4.1,
+        high: 4.2,
+        low: 2.1,
+        close: 2.2,
+        adjusted_close: 2.2,
+        volume: 2000,
+      },
+    ], []),
+  });
+  const request: HistoricalFetchRequest = {
+    symbol: "VIVK",
+    timeframe: "daily",
+    lookbackBars: 2,
+    endTimeMs: Date.parse("2026-07-18T00:00:00.000Z"),
+  };
+
+  const response = await provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd"));
+
+  assert.equal(response.providerMetadata?.splitAdjustmentApplied, true);
+  assert.equal(response.providerMetadata?.detectedReverseSplitCount, 1);
+  assert.deepEqual(JSON.parse(String(response.providerMetadata?.detectedSplitEvents)), [{
+    date: "2026-07-17",
+    eventType: "reverse_split",
+    priorAdjustmentFactor: 20,
+    adjustmentFactor: 1,
+    priceAdjustmentFactor: 0.05,
+    source: "adjusted_close_ratio",
+  }]);
+});
+
+test("EodhdHistoricalCandleProvider aggregates 1h EODHD bars into session-anchored 4h candles", async () => {
+  const urls: string[] = [];
+  const firstTimestamp = Date.parse("2026-05-01T09:30:00-04:00");
+  const provider = new EodhdHistoricalCandleProvider({
+    apiToken: "test-token",
+    fetchFn: createFetch([
+      { timestamp: Math.floor(firstTimestamp / 1000), open: 10, high: 11, low: 9, close: 10.5, volume: 100 },
+      { timestamp: Math.floor((firstTimestamp + 60 * 60_000) / 1000), open: 10.5, high: 12, low: 10, close: 11.5, volume: 200 },
+      { timestamp: Math.floor((firstTimestamp + 2 * 60 * 60_000) / 1000), open: 11.5, high: 12.5, low: 11, close: 12, volume: 300 },
+      { timestamp: Math.floor((firstTimestamp + 3 * 60 * 60_000) / 1000), open: 12, high: 13, low: 11.8, close: 12.8, volume: 400 },
+    ], urls),
+  });
+  const request: HistoricalFetchRequest = {
+    symbol: "AAPL",
+    timeframe: "4h",
+    lookbackBars: 1,
+    endTimeMs: Date.parse("2026-05-01T14:00:00-04:00"),
+  };
+  const plan = buildHistoricalFetchPlan(request, "eodhd");
+
+  const response = await provider.fetchCandles(request, plan);
+
+  assert.equal(response.candles.length, 1);
+  assert.equal(response.candles[0]?.timestamp, firstTimestamp);
+  assert.equal(response.candles[0]?.open, 10);
+  assert.equal(response.candles[0]?.high, 13);
+  assert.equal(response.candles[0]?.low, 9);
+  assert.equal(response.candles[0]?.close, 12.8);
+  assert.equal(response.candles[0]?.volume, 1000);
+  assert.match(urls[0]!, /interval=1h/);
+  assert.equal(
+    urlSearchParam(urls[0]!, "from"),
+    String(Math.floor((plan.requestStartTimestamp - 3 * 60 * 60_000) / 1000)),
+  );
+});
+
+test("EodhdHistoricalCandleProvider drops invalid intraday OHLC bars before 4h aggregation", async () => {
+  const urls: string[] = [];
+  const firstTimestamp = Date.parse("2026-05-01T09:30:00-04:00");
+  const provider = new EodhdHistoricalCandleProvider({
+    apiToken: "test-token",
+    fetchFn: createFetchByEndpoint({
+      intraday: [
+        { timestamp: Math.floor(firstTimestamp / 1000), open: 0, high: 22.5, low: 0, close: 22.468, volume: 9546 },
+        { timestamp: Math.floor((firstTimestamp + 60 * 60_000) / 1000), open: 10.5, high: 12, low: 10, close: 11.5, volume: 200 },
+        { timestamp: Math.floor((firstTimestamp + 2 * 60 * 60_000) / 1000), open: 11.5, high: 12.5, low: 11, close: 12, volume: 300 },
+        { timestamp: Math.floor((firstTimestamp + 3 * 60 * 60_000) / 1000), open: 12, high: 13, low: 11.8, close: 12.8, volume: 400 },
+      ],
+      eod: [],
+    }, urls),
+  });
+  const request: HistoricalFetchRequest = {
+    symbol: "JLHL",
+    timeframe: "4h",
+    lookbackBars: 1,
+    endTimeMs: Date.parse("2026-05-01T14:00:00-04:00"),
+  };
+
+  const response = await provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd"));
+
+  assert.equal(response.candles.length, 1);
+  assert.deepEqual(response.candles[0], {
+    timestamp: firstTimestamp + 60 * 60_000,
+    open: 10.5,
+    high: 13,
+    low: 10,
+    close: 12.8,
+    volume: 900,
+  });
+  assert.equal(response.providerMetadata?.eodhdDroppedInvalidOhlcBars, 1);
+});
+
+test("EodhdHistoricalCandleProvider adjusts intraday bars before 4h aggregation", async () => {
+  const urls: string[] = [];
+  const firstTimestamp = Date.parse("2026-05-18T09:30:00-04:00");
+  const provider = new EodhdHistoricalCandleProvider({
+    apiToken: "test-token",
+    fetchFn: createFetchByEndpoint({
+      intraday: [
+        { timestamp: Math.floor(firstTimestamp / 1000), open: 0.303, high: 0.4, low: 0.225, close: 0.32, volume: 100 },
+        { timestamp: Math.floor((firstTimestamp + 60 * 60_000) / 1000), open: 0.32, high: 0.534, low: 0.3, close: 0.45, volume: 200 },
+        { timestamp: Math.floor((firstTimestamp + 2 * 60 * 60_000) / 1000), open: 0.45, high: 0.5, low: 0.4, close: 0.42, volume: 300 },
+        { timestamp: Math.floor((firstTimestamp + 3 * 60 * 60_000) / 1000), open: 0.42, high: 0.48, low: 0.35, close: 0.4, volume: 400 },
+      ],
+      eod: [
+        {
+          date: "2026-05-18",
+          open: 0.303,
+          high: 0.534,
+          low: 0.225,
+          close: 0.235,
+          adjusted_close: 5.875,
+          volume: 30606768,
+        },
+      ],
+    }, urls),
+  });
+  const request: HistoricalFetchRequest = {
+    symbol: "VRAX",
+    timeframe: "4h",
+    lookbackBars: 1,
+    endTimeMs: Date.parse("2026-05-18T14:00:00-04:00"),
+  };
+
+  const response = await provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd"));
+
+  assert.equal(response.candles.length, 1);
+  assert.deepEqual(response.candles[0], {
+    timestamp: firstTimestamp,
+    open: 7.575,
+    high: 13.35,
+    low: 5.625,
+    close: 10,
     volume: 1000,
   });
-  assert.match(requests[0]!, /\/eod\/TEST\.US/);
+  assert.equal(response.providerMetadata?.providerAdjustmentMode, "adjusted_close_ratio");
+  assert.match(urls[0]!, /\/intraday\/VRAX\.US\?/);
+  assert.match(urls[1]!, /\/eod\/VRAX\.US\?/);
 });
 
-test("EodhdHistoricalCandleProvider replaces a declared mixed split basis with Yahoo current-basis candles", async () => {
-  const requests: string[] = [];
+test("EodhdHistoricalCandleProvider does not aggregate 4h buckets across session dates", async () => {
+  const urls: string[] = [];
+  const dayOne = Date.parse("2026-05-01T14:00:00-04:00");
+  const dayTwo = Date.parse("2026-05-04T09:30:00-04:00");
   const provider = new EodhdHistoricalCandleProvider({
     apiToken: "test-token",
-    yahooBaseUrl: "https://query1.finance.yahoo.test",
-    fetchFn: (async (input: string | URL | Request) => {
-      const url = String(input);
-      requests.push(url);
-
-      if (url.includes("/eod/NVVE.US")) {
-        return new Response(JSON.stringify([
-          {
-            date: "2026-07-02",
-            open: 0.0197,
-            high: 0.0207,
-            low: 0.0177,
-            close: 0.0178,
-            adjusted_close: 0.32,
-            volume: 351700,
-          },
-          {
-            date: "2026-07-06",
-            open: 5.97,
-            high: 6.39,
-            low: 4.75,
-            close: 4.89,
-            adjusted_close: 4.89,
-            volume: 589400,
-          },
-        ]), { status: 200 });
-      }
-
-      if (url.includes("/splits/NVVE.US")) {
-        return new Response(JSON.stringify([
-          { date: "2026-07-06", split: "1/18" },
-        ]), { status: 200 });
-      }
-
-      if (url.startsWith("https://query1.finance.yahoo.test/")) {
-        return new Response(JSON.stringify({
-          chart: {
-            result: [{
-              timestamp: [
-                Date.parse("2026-07-02T13:30:00.000Z") / 1000,
-                Date.parse("2026-07-06T13:30:00.000Z") / 1000,
-              ],
-              indicators: {
-                quote: [{
-                  open: [6.39, 5.97],
-                  high: [6.70, 6.39],
-                  low: [5.75, 4.75],
-                  close: [5.76, 4.89],
-                  volume: [19539, 589400],
-                }],
-              },
-            }],
-            error: null,
-          },
-        }), { status: 200 });
-      }
-
-      return new Response("not found", { status: 404 });
-    }) as typeof fetch,
+    fetchFn: createFetch([
+      { timestamp: Math.floor(dayOne / 1000), open: 10, high: 11, low: 9, close: 10.5, volume: 100 },
+      { timestamp: Math.floor((dayOne + 60 * 60_000) / 1000), open: 10.5, high: 12, low: 10, close: 11.5, volume: 200 },
+      { timestamp: Math.floor((dayOne + 2 * 60 * 60_000) / 1000), open: 11.5, high: 12.5, low: 11, close: 12, volume: 300 },
+      { timestamp: Math.floor(dayTwo / 1000), open: 13, high: 14, low: 12.5, close: 13.5, volume: 400 },
+    ], urls),
   });
-  const request = {
-    symbol: "NVVE",
-    timeframe: "daily" as const,
+  const request: HistoricalFetchRequest = {
+    symbol: "AAPL",
+    timeframe: "4h",
     lookbackBars: 2,
-    endTimeMs: Date.parse("2026-07-08T00:00:00.000Z"),
+    endTimeMs: Date.parse("2026-05-04T10:30:00-04:00"),
   };
 
-  const result = await provider.fetchCandles(
-    request,
-    buildHistoricalFetchPlan(request, "eodhd"),
-  );
+  const response = await provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd"));
 
-  assert.deepEqual(result.candles.map((candle) => candle.close), [5.76, 4.89]);
-  assert.equal(result.providerMetadata?.priceBasisSource, "yahoo_current_basis_fallback");
-  assert.equal(result.providerMetadata?.providerAdjustmentMode, "split_only_current_basis");
-  assert.equal(result.providerMetadata?.splitBasisMismatchDetected, true);
-  assert.equal(result.providerMetadata?.splitBasisMismatchDate, "2026-07-06");
-  assert.equal(result.providerMetadata?.splitBasisExpectedMultiplier, 18);
-  assert.ok(requests.some((url) => url.includes("/splits/NVVE.US")));
-  assert.ok(requests.some((url) => url.startsWith("https://query1.finance.yahoo.test/")));
+  assert.deepEqual(response.candles.map((candle) => candle.timestamp), [dayOne, dayTwo]);
+  assert.equal(response.candles[0]?.volume, 600);
+  assert.equal(response.candles[1]?.open, 13);
 });
 
-test("EodhdHistoricalCandleProvider fails closed when a mixed split basis cannot be replaced", async () => {
+test("EodhdHistoricalCandleProvider surfaces EODHD error payload messages", async () => {
+  const urls: string[] = [];
   const provider = new EodhdHistoricalCandleProvider({
     apiToken: "test-token",
-    yahooBaseUrl: "https://query1.finance.yahoo.test",
-    fetchFn: (async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.includes("/eod/NVVE.US")) {
-        return new Response(JSON.stringify([
-          { date: "2026-07-02", open: 0.02, high: 0.021, low: 0.017, close: 0.018, adjusted_close: 0.32, volume: 100 },
-          { date: "2026-07-06", open: 5.97, high: 6.39, low: 4.75, close: 4.89, adjusted_close: 4.89, volume: 100 },
-        ]), { status: 200 });
-      }
-      if (url.includes("/splits/NVVE.US")) {
-        return new Response(JSON.stringify([{ date: "2026-07-06", split: "1/18" }]), { status: 200 });
-      }
-      return new Response("upstream unavailable", { status: 503 });
-    }) as typeof fetch,
+    fetchFn: createFetch({ error: "Invalid API token." }, urls),
   });
-  const request = {
-    symbol: "NVVE",
-    timeframe: "daily" as const,
-    lookbackBars: 2,
-    endTimeMs: Date.parse("2026-07-08T00:00:00.000Z"),
+  const request: HistoricalFetchRequest = {
+    symbol: "AAPL",
+    timeframe: "5m",
+    lookbackBars: 1,
+    endTimeMs: Date.parse("2026-05-01T13:35:00.000Z"),
   };
 
   await assert.rejects(
     provider.fetchCandles(request, buildHistoricalFetchPlan(request, "eodhd")),
-    /mixed split basis.*current-basis fallback failed/i,
+    /EODHD returned an error payload: Invalid API token\./,
   );
-});
-
-test("EodhdHistoricalCandleProvider drops real-shape null intraday placeholders", async () => {
-  const provider = new EodhdHistoricalCandleProvider({
-    apiToken: "test-token",
-    fetchFn: (async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.includes("/intraday/NVVE.US")) {
-        return new Response(JSON.stringify([
-          { timestamp: 1783349100, open: 4.119999, high: 4.119999, low: 4.119999, close: 4.119999, volume: 1541 },
-          { timestamp: 1783349400, open: null, high: null, low: null, close: null, volume: null },
-          { timestamp: 1783349700, open: 4.28, high: 4.349999, low: 4.224199, close: 4.224199, volume: 2449 },
-          { timestamp: 1783352700, open: 4.3926, high: 4.499899, low: 4.21, close: 4.21, volume: 2236 },
-          { timestamp: 1783353000, open: null, high: null, low: null, close: null, volume: null },
-          { timestamp: 1783353300, open: 4.499899, high: 4.499899, low: 4.499899, close: 4.499899, volume: 723 },
-        ]), { status: 200 });
-      }
-      if (url.includes("/eod/NVVE.US")) {
-        return new Response(JSON.stringify([
-          { date: "2026-07-06", open: 5.97, high: 6.41, low: 3.791, close: 4.89, adjusted_close: 4.89, volume: 282200 },
-        ]), { status: 200 });
-      }
-      return new Response(JSON.stringify([]), { status: 200 });
-    }) as typeof fetch,
-  });
-  const request = {
-    symbol: "NVVE",
-    timeframe: "5m" as const,
-    lookbackBars: 6,
-    endTimeMs: Date.parse("2026-07-07T00:00:00.000Z"),
-  };
-
-  const result = await provider.fetchCandles(
-    request,
-    buildHistoricalFetchPlan(request, "eodhd"),
-  );
-
-  assert.equal(result.candles.length, 4);
-  assert.equal(result.providerMetadata?.eodhdDroppedInvalidOhlcBars, 2);
-  assert.equal(result.providerMetadata?.priceBasisDroppedInvalidOhlcBars, 2);
-  assert.ok(result.candles.every((candle) => candle.open > 0 && candle.low > 0));
-});
-
-test("EodhdHistoricalCandleProvider drops incomplete and off-session four-hour source rows", async () => {
-  const hourlyRows = [
-    { datetime: "2026-07-10 13:30:00", open: 20, high: 20.2, low: 19.9, close: 20.1, volume: 1000 },
-    { datetime: "2026-07-10 14:30:00", open: 20.1, high: 20.3, low: 20, close: 20.2, volume: 1100 },
-    { datetime: "2026-07-10 15:30:00", open: 20.2, high: 20.4, low: 20.1, close: 20.3, volume: 1200 },
-    { datetime: "2026-07-10 16:30:00", open: 20.3, high: 20.5, low: 20.2, close: 20.4, volume: 1300 },
-    { datetime: "2026-07-10 17:30:00", open: 20.4, high: 20.6, low: 20.3, close: 20.5, volume: 1400 },
-    { datetime: "2026-07-10 18:30:00", open: 20.5, high: 20.7, low: 20.4, close: 20.6, volume: 1500 },
-    { datetime: "2026-07-10 19:30:00", open: 20.6, high: 20.8, low: 20.5, close: 20.7, volume: 1600 },
-    { datetime: "2026-07-10 20:30:00", open: 20.7, high: 20.9, low: 20.6, close: 20.8, volume: 1700 },
-    { datetime: "2026-07-10 21:30:00", open: 20.8, high: 21, low: 20.7, close: 20.9, volume: 1800 },
-    { datetime: "2026-07-13 13:30:00", open: 21.5, high: 22, low: 21.3, close: 21.8, volume: 2000 },
-    { datetime: "2026-07-13 14:30:00", open: 0, high: 22.5, low: 0, close: 22.468, volume: 9546 },
-    { datetime: "2026-07-13 15:30:00", open: 21.8, high: 22.2, low: 21.6, close: 22.1, volume: 2200 },
-    { datetime: "2026-07-13 16:30:00", open: 22.1, high: 22.4, low: 21.9, close: 22.3, volume: 2300 },
-    { datetime: "2026-07-13 17:30:00", open: 22.3, high: 22.6, low: 22.1, close: 22.5, volume: 2400 },
-    { datetime: "2026-07-13 18:30:00", open: 22.5, high: 22.7, low: 22.2, close: 22.4, volume: 2500 },
-    { datetime: "2026-07-13 19:30:00", open: 22.4, high: 22.8, low: 22.3, close: 22.7, volume: 2600 },
-    { datetime: "2026-07-13 20:30:00", open: 22.7, high: 22.9, low: 22.5, close: 22.8, volume: 2700 },
-    { datetime: "2026-07-13 21:30:00", open: 22.8, high: 23, low: 22.6, close: 22.9, volume: 2800 },
-  ];
-  const provider = new EodhdHistoricalCandleProvider({
-    apiToken: "test-token",
-    fetchFn: (async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.includes("/intraday/JLHL.US")) {
-        return new Response(JSON.stringify(hourlyRows), { status: 200 });
-      }
-      if (url.includes("/eod/JLHL.US")) {
-        return new Response(JSON.stringify([
-          { date: "2026-07-13", open: 21.5, high: 23, low: 21.3, close: 22.9, adjusted_close: 22.9, volume: 12000 },
-        ]), { status: 200 });
-      }
-      return new Response(JSON.stringify([]), { status: 200 });
-    }) as typeof fetch,
-  });
-  const request = {
-    symbol: "JLHL",
-    timeframe: "4h" as const,
-    lookbackBars: 3,
-    endTimeMs: Date.parse("2026-07-14T00:00:00.000Z"),
-  };
-
-  const result = await provider.fetchCandles(
-    request,
-    buildHistoricalFetchPlan(request, "eodhd"),
-  );
-
-  assert.equal(result.candles.length, 3);
-  assert.equal(result.providerMetadata?.eodhdDroppedInvalidOhlcBars, 1);
-  assert.equal(result.providerMetadata?.eodhdIncompleteFourHourBuckets, 1);
-  assert.equal(result.providerMetadata?.eodhdDroppedOffSessionFourHourBars, 4);
-  assert.deepEqual(result.candles.map((candle) => candle.volume), [4600, 4500, 7500]);
-  assert.deepEqual(result.candles.map((candle) => candle.timestamp), [
-    Date.parse("2026-07-10T13:30:00.000Z"),
-    Date.parse("2026-07-10T17:30:00.000Z"),
-    Date.parse("2026-07-13T17:30:00.000Z"),
-  ]);
-  assert.ok(result.candles.every((candle) => candle.open > 0 && candle.low > 0));
 });

@@ -8,6 +8,78 @@ import type { FinalLevelZone, LevelEngineOutput } from "./level-types.js";
 
 type SurfaceBucket = "daily" | "4h" | "5m";
 const SURFACED_FORWARD_PLANNING_RANGE_PCT = 0.5;
+const LOW_PRICE_FORWARD_PLANNING_RANGE_PCT = 1;
+const ACTIVE_TRADER_FORWARD_PLANNING_RANGE_PCT = 1.25;
+const ACTIVE_TRADER_MIN_FORWARD_PLANNING_RANGE_PCT = 0.65;
+const ACTIVE_TRADER_FORWARD_PLANNING_DOLLAR_WINDOW = 15;
+const ACTIVE_RUNNER_CROSSED_RESISTANCE_REFERENCE_THRESHOLD = 50;
+const ACTIVE_RUNNER_CROSSED_RESISTANCE_LOOKBACK_PCT = 0.3;
+const DEFAULT_EXTENSION_LEVELS_PER_SIDE = 3;
+const ACTIVE_TRADER_EXTENSION_LEVELS_PER_SIDE = 6;
+const LOW_PRICE_EXTENSION_LEVELS_PER_SIDE = 10;
+const LOW_PRICE_RUNNER_THRESHOLD = 2;
+const GAP_FILL_THRESHOLD_PCT = 0.18;
+const ACTIVE_TRADER_GAP_FILL_THRESHOLD_PCT = 0.04;
+const ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD = 30;
+const GAP_FILL_MAX_ADDITIONS_PER_SIDE = 6;
+const ACTIVE_TRADER_GAP_FILL_MAX_ADDITIONS_PER_SIDE = 14;
+const ACTIVE_TRADER_HIGH_CONFIDENCE_FILL_MAX_ADDITIONS_PER_SIDE = 8;
+
+function forwardPlanningRangePctForReference(referencePrice: number | undefined): number {
+  if (!referencePrice || referencePrice <= 0) {
+    return SURFACED_FORWARD_PLANNING_RANGE_PCT;
+  }
+  if (referencePrice < LOW_PRICE_RUNNER_THRESHOLD) {
+    return LOW_PRICE_FORWARD_PLANNING_RANGE_PCT;
+  }
+  if (referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD) {
+    return Math.min(
+      ACTIVE_TRADER_FORWARD_PLANNING_RANGE_PCT,
+      Math.max(
+        ACTIVE_TRADER_MIN_FORWARD_PLANNING_RANGE_PCT,
+        ACTIVE_TRADER_FORWARD_PLANNING_DOLLAR_WINDOW / referencePrice,
+      ),
+    );
+  }
+  return SURFACED_FORWARD_PLANNING_RANGE_PCT;
+}
+
+function maxExtensionLevelsPerSideForReference(referencePrice: number | undefined): number {
+  if (!referencePrice || referencePrice <= 0) {
+    return DEFAULT_EXTENSION_LEVELS_PER_SIDE;
+  }
+  if (referencePrice < LOW_PRICE_RUNNER_THRESHOLD) {
+    return LOW_PRICE_EXTENSION_LEVELS_PER_SIDE;
+  }
+  if (referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD) {
+    return ACTIVE_TRADER_EXTENSION_LEVELS_PER_SIDE;
+  }
+  return DEFAULT_EXTENSION_LEVELS_PER_SIDE;
+}
+
+function gapFillThresholdPctForReference(referencePrice: number | undefined): number {
+  return referencePrice && referencePrice > 0 && referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD
+    ? ACTIVE_TRADER_GAP_FILL_THRESHOLD_PCT
+    : GAP_FILL_THRESHOLD_PCT;
+}
+
+function maxGapFillAdditionsForReference(referencePrice: number | undefined): number {
+  return referencePrice && referencePrice > 0 && referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD
+    ? ACTIVE_TRADER_GAP_FILL_MAX_ADDITIONS_PER_SIDE
+    : GAP_FILL_MAX_ADDITIONS_PER_SIDE;
+}
+
+function highConfidenceFillMaxAdditionsForReference(referencePrice: number | undefined): number {
+  return referencePrice && referencePrice > 0 && referencePrice < ACTIVE_TRADER_GAP_FILL_REFERENCE_THRESHOLD
+    ? ACTIVE_TRADER_HIGH_CONFIDENCE_FILL_MAX_ADDITIONS_PER_SIDE
+    : 0;
+}
+
+function crossedResistanceLookbackPctForReference(referencePrice: number | undefined): number {
+  return referencePrice && referencePrice > 0 && referencePrice < ACTIVE_RUNNER_CROSSED_RESISTANCE_REFERENCE_THRESHOLD
+    ? ACTIVE_RUNNER_CROSSED_RESISTANCE_LOOKBACK_PCT
+    : 0;
+}
 
 function freshnessRank(zone: FinalLevelZone): number {
   if (zone.freshness === "fresh") {
@@ -49,6 +121,19 @@ function timeframeBiasRank(zone: FinalLevelZone): number {
   return 1;
 }
 
+function isActionableCrossedResistanceZone(zone: FinalLevelZone): boolean {
+  return (
+    zone.strengthLabel !== "weak" &&
+    timeframeBiasRank(zone) >= 2 &&
+    (
+      zone.sourceEvidenceCount >= 1 ||
+      zone.rejectionScore >= 0.38 ||
+      zone.displacementScore >= 0.5 ||
+      zone.followThroughScore >= 0.5
+    )
+  );
+}
+
 function preferredBucketForZone(zone: FinalLevelZone): CandleTimeframe {
   const timeframeOrder: CandleTimeframe[] = ["daily", "4h", "5m"];
 
@@ -85,12 +170,21 @@ function filterPracticalSurfacedResistanceZones(
     return zones;
   }
 
-  const maxPracticalPrice = referencePrice * (1 + SURFACED_FORWARD_PLANNING_RANGE_PCT);
-  return zones.filter(
-    (zone) =>
-      zone.representativePrice > referencePrice &&
-      zone.representativePrice <= maxPracticalPrice,
-  );
+  const maxPracticalPrice = referencePrice * (1 + forwardPlanningRangePctForReference(referencePrice));
+  const crossedResistanceLookbackPct = crossedResistanceLookbackPctForReference(referencePrice);
+  const crossedResistanceFloor = referencePrice * (1 - crossedResistanceLookbackPct);
+  return zones.filter((zone) => {
+    if (zone.representativePrice > referencePrice) {
+      return zone.representativePrice <= maxPracticalPrice;
+    }
+
+    return (
+      crossedResistanceLookbackPct > 0 &&
+      zone.representativePrice < referencePrice &&
+      zone.representativePrice >= crossedResistanceFloor &&
+      isActionableCrossedResistanceZone(zone)
+    );
+  });
 }
 
 function filterActionableSurfacedSupportZones(
@@ -150,120 +244,298 @@ function selectSpacedZones(params: {
   bucket: SurfaceBucket;
   maxCount: number;
   config: LevelEngineConfig;
-  side: "support" | "resistance";
-  referencePrice?: number;
 }): FinalLevelZone[] {
-  if (params.maxCount <= 0) {
-    return [];
-  }
-
   const selected: FinalLevelZone[] = [];
   const spacingPct = params.config.surfacedSpacingPct[params.bucket];
   const localBandPct = Math.max(
     params.config.maxMergedZoneWidthPct,
     Math.min(spacingPct * 8, 0.06),
   );
-  const nearestToReference =
-    params.referencePrice && params.referencePrice > 0
-      ? [...params.zones]
-          .filter((zone) =>
-            params.side === "support"
-              ? zone.representativePrice < params.referencePrice!
-              : zone.representativePrice > params.referencePrice!,
-          )
-          .sort((left, right) =>
-            params.side === "support"
-              ? right.representativePrice - left.representativePrice
-              : left.representativePrice - right.representativePrice,
-          )
-          .slice(0, Math.min(2, params.maxCount))
-      : [];
-  const closestSeedId = nearestToReference[0]?.id;
-
-  const distanceToReference = (zone: FinalLevelZone): number =>
-    params.referencePrice && params.referencePrice > 0
-      ? Math.abs(zone.representativePrice - params.referencePrice)
-      : Number.POSITIVE_INFINITY;
-
-  const preferredTightRepresentative = (
-    incumbent: FinalLevelZone,
-    challenger: FinalLevelZone,
-  ): FinalLevelZone => {
-    if (materiallyDominatesInBand(challenger, incumbent)) {
-      return challenger;
-    }
-    if (materiallyDominatesInBand(incumbent, challenger)) {
-      return incumbent;
-    }
-    if (challenger.strengthScore !== incumbent.strengthScore) {
-      return challenger.strengthScore > incumbent.strengthScore ? challenger : incumbent;
-    }
-    if (challenger.confluenceCount !== incumbent.confluenceCount) {
-      return challenger.confluenceCount > incumbent.confluenceCount ? challenger : incumbent;
-    }
-    return distanceToReference(challenger) < distanceToReference(incumbent)
-      ? challenger
-      : incumbent;
-  };
-
-  const considerZone = (zone: FinalLevelZone): void => {
-    if (selected.some((existing) => existing.id === zone.id)) {
-      return;
-    }
-
-    const tightConflicts = selected.filter(
-      (existing) => proximityPct(existing, zone) <= spacingPct,
-    );
-    if (tightConflicts.length > 0) {
-      const winner = tightConflicts.reduce(preferredTightRepresentative, zone);
-      if (winner.id !== zone.id) {
-        // The challenger can bridge two already-valid spaced levels. If an
-        // incumbent wins, retain the complete incumbent set; deleting every
-        // conflict here would let one weak bridge collapse two useful levels.
-        return;
-      }
-      for (const conflict of tightConflicts) {
-        selected.splice(selected.indexOf(conflict), 1);
-      }
-      selected.push(zone);
-      return;
-    }
-
-    const dominantIncumbent = selected.some(
-      (existing) =>
-        proximityPct(existing, zone) <= localBandPct &&
-        materiallyDominatesInBand(existing, zone),
-    );
-    if (dominantIncumbent) {
-      return;
-    }
-
-    for (const existing of [...selected]) {
-      if (
-        existing.id !== closestSeedId &&
-        proximityPct(existing, zone) <= localBandPct &&
-        materiallyDominatesInBand(zone, existing)
-      ) {
-        selected.splice(selected.indexOf(existing), 1);
-      }
-    }
-
-    if (selected.length < params.maxCount) {
-      selected.push(zone);
-    }
-  };
-
-  for (const zone of nearestToReference) {
-    considerZone(zone);
-  }
 
   for (const zone of sortZones(params.zones)) {
-    considerZone(zone);
+    const tooCloseToSelected = selected.some((existing) => {
+      const distancePct = proximityPct(existing, zone);
+      const tightClose = distancePct <= spacingPct;
+      const localBandClose = distancePct <= localBandPct;
+      const strongerExisting =
+        existing.strengthScore >= zone.strengthScore &&
+        existing.confluenceCount >= zone.confluenceCount;
+      const dominantBandIncumbent = materiallyDominatesInBand(existing, zone);
+
+      return (tightClose && strongerExisting) || (localBandClose && dominantBandIncumbent);
+    });
+
+    if (tooCloseToSelected) {
+      continue;
+    }
+
+    selected.push(zone);
+    if (selected.length >= params.maxCount) {
+      break;
+    }
   }
 
-  // Preserve the established strongest-first bucket contract after the
-  // reference-aware spacing pass chooses which zones survive.
-  return sortZones(selected);
+  return selected;
+}
+
+function forwardSortZones(
+  zones: FinalLevelZone[],
+  side: "support" | "resistance",
+): FinalLevelZone[] {
+  return [...zones].sort((left, right) =>
+    side === "support"
+      ? right.representativePrice - left.representativePrice
+      : left.representativePrice - right.representativePrice,
+  );
+}
+
+function uniqueByDisplayPrice(zones: FinalLevelZone[]): FinalLevelZone[] {
+  const seen = new Set<string>();
+  const unique: FinalLevelZone[] = [];
+
+  for (const zone of zones) {
+    const key = zone.representativePrice.toFixed(zone.representativePrice >= 1 ? 2 : 4);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(zone);
+  }
+
+  return unique;
+}
+
+function gapPctBetween(left: FinalLevelZone, right: FinalLevelZone): number {
+  return Math.abs(left.representativePrice - right.representativePrice) /
+    Math.max(Math.min(left.representativePrice, right.representativePrice), 0.0001);
+}
+
+function isBetweenGap(zone: FinalLevelZone, left: FinalLevelZone, right: FinalLevelZone): boolean {
+  const low = Math.min(left.representativePrice, right.representativePrice);
+  const high = Math.max(left.representativePrice, right.representativePrice);
+  return zone.representativePrice > low && zone.representativePrice < high;
+}
+
+function splitBalanceScore(zone: FinalLevelZone, left: FinalLevelZone, right: FinalLevelZone): number {
+  const low = Math.min(left.representativePrice, right.representativePrice);
+  const high = Math.max(left.representativePrice, right.representativePrice);
+  const width = Math.max(high - low, 0.0001);
+  return Math.min(zone.representativePrice - low, high - zone.representativePrice) / width;
+}
+
+function gapFillCandidateScore(
+  zone: FinalLevelZone,
+  left: FinalLevelZone,
+  right: FinalLevelZone,
+): number {
+  const structuralBias = zone.timeframeBias === "daily"
+    ? 10
+    : zone.timeframeBias === "4h"
+      ? 6
+      : 0;
+  const confluenceBias = zone.confluenceCount * 2;
+  const balanceBias = splitBalanceScore(zone, left, right) * 20;
+
+  return zone.strengthScore + structuralBias + confluenceBias + balanceBias;
+}
+
+function findBestGapFillCandidate(params: {
+  allForwardZones: FinalLevelZone[];
+  selectedZones: FinalLevelZone[];
+  left: FinalLevelZone;
+  right: FinalLevelZone;
+  config: LevelEngineConfig;
+}): FinalLevelZone | null {
+  const selectedIds = new Set(params.selectedZones.map((zone) => zone.id));
+  const candidateFloor = params.config.scoreThresholds.moderate * 0.65;
+  const candidates = params.allForwardZones
+    .filter((zone) => !selectedIds.has(zone.id))
+    .filter((zone) => isBetweenGap(zone, params.left, params.right))
+    .filter((zone) => zone.timeframeBias === "daily" || zone.timeframeBias === "4h" || zone.timeframeBias === "mixed")
+    .filter((zone) => zone.strengthScore >= candidateFloor)
+    .filter((zone) => splitBalanceScore(zone, params.left, params.right) >= 0.12)
+    .sort(
+      (left, right) =>
+        gapFillCandidateScore(right, params.left, params.right) -
+        gapFillCandidateScore(left, params.left, params.right),
+    );
+
+  return candidates[0] ?? null;
+}
+
+function fillForwardGaps(params: {
+  allForwardZones: FinalLevelZone[];
+  selectedZones: FinalLevelZone[];
+  side: "support" | "resistance";
+  config: LevelEngineConfig;
+  referencePrice?: number;
+}): FinalLevelZone[] {
+  const additions: FinalLevelZone[] = [];
+  const gapFillThresholdPct = gapFillThresholdPctForReference(params.referencePrice);
+  const maxAdditions = maxGapFillAdditionsForReference(params.referencePrice);
+
+  for (let count = 0; count < maxAdditions; count += 1) {
+    const selectedWithAdditions = uniqueByDisplayPrice([...params.selectedZones, ...additions]);
+    const sortedSelected = forwardSortZones(selectedWithAdditions, params.side);
+    const gaps = sortedSelected
+      .slice(1)
+      .map((zone, index) => ({
+        left: sortedSelected[index]!,
+        right: zone,
+        gapPct: gapPctBetween(sortedSelected[index]!, zone),
+      }))
+      .filter((gap) => gap.gapPct >= gapFillThresholdPct)
+      .sort((left, right) => right.gapPct - left.gapPct);
+    if (gaps.length === 0) {
+      break;
+    }
+
+    let candidate: FinalLevelZone | null = null;
+    for (const gap of gaps) {
+      candidate = findBestGapFillCandidate({
+        allForwardZones: params.allForwardZones,
+        selectedZones: selectedWithAdditions,
+        left: gap.left,
+        right: gap.right,
+        config: params.config,
+      });
+      if (candidate) {
+        break;
+      }
+    }
+
+    if (!candidate) {
+      break;
+    }
+
+    additions.push(candidate);
+  }
+
+  return additions;
+}
+
+function fillHighConfidenceForwardZones(params: {
+  allForwardZones: FinalLevelZone[];
+  selectedZones: FinalLevelZone[];
+  side: "support" | "resistance";
+  referencePrice?: number;
+  config: LevelEngineConfig;
+}): FinalLevelZone[] {
+  const maxAdditions = highConfidenceFillMaxAdditionsForReference(params.referencePrice);
+  if (maxAdditions <= 0) {
+    return [];
+  }
+
+  const selectedIds = new Set(params.selectedZones.map((zone) => zone.id));
+  const selectedWithAdditions: FinalLevelZone[] = [...params.selectedZones];
+  const highConfidenceFloor = params.config.scoreThresholds.strong;
+  const candidates = forwardSortZones(
+    params.allForwardZones
+      .filter((zone) => !selectedIds.has(zone.id))
+      .filter((zone) => zone.strengthScore >= highConfidenceFloor)
+      .filter((zone) => zone.timeframeBias === "daily" || zone.timeframeBias === "4h" || zone.timeframeBias === "mixed"),
+    params.side,
+  );
+  const additions: FinalLevelZone[] = [];
+
+  for (const candidate of candidates) {
+    if (additions.length >= maxAdditions) {
+      break;
+    }
+
+    const alreadyCovered = selectedWithAdditions.some(
+      (zone) => proximityPct(zone, candidate) <= params.config.overlapMergeTolerancePct,
+    );
+    if (alreadyCovered) {
+      continue;
+    }
+
+    additions.push(candidate);
+    selectedWithAdditions.push(candidate);
+  }
+
+  return additions;
+}
+
+function addZonesToOwnedBuckets(params: {
+  zones: FinalLevelZone[];
+  daily: FinalLevelZone[];
+  intermediate: FinalLevelZone[];
+  intraday: FinalLevelZone[];
+}): void {
+  for (const zone of params.zones) {
+    const bucket = preferredBucketForZone(zone);
+    if (bucket === "daily") {
+      params.daily.push(zone);
+    } else if (bucket === "4h") {
+      params.intermediate.push(zone);
+    } else {
+      params.intraday.push(zone);
+    }
+  }
+}
+
+function nearestForwardZone(params: {
+  zones: FinalLevelZone[];
+  referencePrice: number | undefined;
+  side: "support" | "resistance";
+}): FinalLevelZone | null {
+  if (!params.referencePrice || params.referencePrice <= 0) {
+    return null;
+  }
+
+  const sorted = forwardSortZones(
+    params.side === "support"
+      ? params.zones.filter((zone) => zone.representativePrice < params.referencePrice!)
+      : params.zones.filter((zone) => zone.representativePrice > params.referencePrice!),
+    params.side,
+  );
+
+  return sorted[0] ?? null;
+}
+
+function ensureNearestForwardZone(params: {
+  allForwardZones: FinalLevelZone[];
+  selectedZones: FinalLevelZone[];
+  referencePrice: number | undefined;
+  side: "support" | "resistance";
+  config: LevelEngineConfig;
+}): FinalLevelZone[] {
+  const nearestCandidate = nearestForwardZone({
+    zones: params.allForwardZones,
+    referencePrice: params.referencePrice,
+    side: params.side,
+  });
+  if (!nearestCandidate) {
+    return [];
+  }
+
+  const selectedIds = new Set(params.selectedZones.map((zone) => zone.id));
+  if (selectedIds.has(nearestCandidate.id)) {
+    return [];
+  }
+
+  const nearestSelected = nearestForwardZone({
+    zones: params.selectedZones,
+    referencePrice: params.referencePrice,
+    side: params.side,
+  });
+  const selectedDistance = nearestSelected && params.referencePrice
+    ? Math.abs(nearestSelected.representativePrice - params.referencePrice) / params.referencePrice
+    : Number.POSITIVE_INFINITY;
+  const candidateDistance = params.referencePrice
+    ? Math.abs(nearestCandidate.representativePrice - params.referencePrice) / params.referencePrice
+    : Number.POSITIVE_INFINITY;
+  const candidateFloor = params.config.scoreThresholds.moderate * 0.55;
+
+  if (
+    nearestCandidate.strengthScore >= candidateFloor &&
+    (candidateDistance <= 0.12 || selectedDistance - candidateDistance >= 0.04)
+  ) {
+    return [nearestCandidate];
+  }
+
+  return [];
 }
 
 export function rankLevelZones(params: {
@@ -289,16 +561,12 @@ export function rankLevelZones(params: {
     bucket: "daily",
     maxCount: config.timeframeConfig.daily.maxOutputPerSide,
     config,
-    side: "support",
-    referencePrice: metadata.referencePrice,
   });
   const dailyResistance = selectSpacedZones({
     zones: byOwnedBucket(surfacedResistanceZones, "daily"),
     bucket: "daily",
     maxCount: config.timeframeConfig.daily.maxOutputPerSide,
     config,
-    side: "resistance",
-    referencePrice: metadata.referencePrice,
   });
 
   const intermediateSupport = selectSpacedZones({
@@ -306,16 +574,12 @@ export function rankLevelZones(params: {
     bucket: "4h",
     maxCount: config.timeframeConfig["4h"].maxOutputPerSide,
     config,
-    side: "support",
-    referencePrice: metadata.referencePrice,
   });
   const intermediateResistance = selectSpacedZones({
     zones: byOwnedBucket(surfacedResistanceZones, "4h"),
     bucket: "4h",
     maxCount: config.timeframeConfig["4h"].maxOutputPerSide,
     config,
-    side: "resistance",
-    referencePrice: metadata.referencePrice,
   });
 
   const intradaySupport = selectSpacedZones({
@@ -323,18 +587,98 @@ export function rankLevelZones(params: {
     bucket: "5m",
     maxCount: config.timeframeConfig["5m"].maxOutputPerSide,
     config,
-    side: "support",
-    referencePrice: metadata.referencePrice,
   });
   const intradayResistance = selectSpacedZones({
     zones: byOwnedBucket(surfacedResistanceZones, "5m"),
     bucket: "5m",
     maxCount: config.timeframeConfig["5m"].maxOutputPerSide,
     config,
-    side: "resistance",
-    referencePrice: metadata.referencePrice,
   });
 
+  const nearestSupportFillers = ensureNearestForwardZone({
+    allForwardZones: actionableSupportZones,
+    selectedZones: [...dailySupport, ...intermediateSupport, ...intradaySupport],
+    referencePrice: metadata.referencePrice,
+    side: "support",
+    config,
+  });
+  addZonesToOwnedBuckets({
+    zones: nearestSupportFillers,
+    daily: dailySupport,
+    intermediate: intermediateSupport,
+    intraday: intradaySupport,
+  });
+
+  const supportGapFillers = fillForwardGaps({
+    allForwardZones: actionableSupportZones,
+    selectedZones: [...dailySupport, ...intermediateSupport, ...intradaySupport],
+    side: "support",
+    config,
+    referencePrice: metadata.referencePrice,
+  });
+  addZonesToOwnedBuckets({
+    zones: supportGapFillers,
+    daily: dailySupport,
+    intermediate: intermediateSupport,
+    intraday: intradaySupport,
+  });
+  const supportHighConfidenceFillers = fillHighConfidenceForwardZones({
+    allForwardZones: actionableSupportZones,
+    selectedZones: [...dailySupport, ...intermediateSupport, ...intradaySupport],
+    side: "support",
+    referencePrice: metadata.referencePrice,
+    config,
+  });
+  addZonesToOwnedBuckets({
+    zones: supportHighConfidenceFillers,
+    daily: dailySupport,
+    intermediate: intermediateSupport,
+    intraday: intradaySupport,
+  });
+
+  const nearestResistanceFillers = ensureNearestForwardZone({
+    allForwardZones: surfacedResistanceZones,
+    selectedZones: [...dailyResistance, ...intermediateResistance, ...intradayResistance],
+    referencePrice: metadata.referencePrice,
+    side: "resistance",
+    config,
+  });
+  addZonesToOwnedBuckets({
+    zones: nearestResistanceFillers,
+    daily: dailyResistance,
+    intermediate: intermediateResistance,
+    intraday: intradayResistance,
+  });
+
+  const resistanceGapFillers = fillForwardGaps({
+    allForwardZones: surfacedResistanceZones,
+    selectedZones: [...dailyResistance, ...intermediateResistance, ...intradayResistance],
+    side: "resistance",
+    config,
+    referencePrice: metadata.referencePrice,
+  });
+  addZonesToOwnedBuckets({
+    zones: resistanceGapFillers,
+    daily: dailyResistance,
+    intermediate: intermediateResistance,
+    intraday: intradayResistance,
+  });
+  const resistanceHighConfidenceFillers = fillHighConfidenceForwardZones({
+    allForwardZones: surfacedResistanceZones,
+    selectedZones: [...dailyResistance, ...intermediateResistance, ...intradayResistance],
+    side: "resistance",
+    referencePrice: metadata.referencePrice,
+    config,
+  });
+  addZonesToOwnedBuckets({
+    zones: resistanceHighConfidenceFillers,
+    daily: dailyResistance,
+    intermediate: intermediateResistance,
+    intraday: intradayResistance,
+  });
+
+  const forwardPlanningRangePct = forwardPlanningRangePctForReference(metadata.referencePrice);
+  const maxExtensionPerSide = maxExtensionLevelsPerSideForReference(metadata.referencePrice);
   const extensionLevels = buildLevelExtensions({
     supportZones,
     resistanceZones,
@@ -343,6 +687,10 @@ export function rankLevelZones(params: {
     spacingPct: config.extensionSpacingPct,
     searchWindowPct: config.extensionSearchWindowPct,
     referencePrice: metadata.referencePrice,
+    forwardPlanningRangePct,
+    maxExtensionPerSide,
+    preservePracticalResistanceCoverage: maxExtensionPerSide > DEFAULT_EXTENSION_LEVELS_PER_SIDE,
+    allowSyntheticResistanceExtensions: true,
   });
 
   return {

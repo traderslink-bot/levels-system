@@ -1,5 +1,40 @@
-// 2026-05-27 09:20 PM America/Toronto
-// Structure engine exports used by rescue no-lookahead tests.
-
-export * from "./candle-market-structure.js";
-export * from "./formal-market-structure.js";
+export {
+  buildCandleMarketStructureContext,
+  type BuildCandleMarketStructureRequest,
+  type CandleMarketStructureConfidence,
+  type CandleMarketStructureContext,
+  type CandleMarketStructureDiagnostic,
+  type CandleMarketStructureDiagnosticCode,
+  type CandleMarketStructureOptions,
+  type CandleMarketStructurePivotEvent,
+  type CandleMarketStructurePivots,
+  type CandleMarketStructureRange,
+  type CandleMarketStructureState,
+  type CandleMarketStructureTrend,
+  type CandleStructurePivot,
+} from "./candle-market-structure.js";
+export {
+  buildStableMarketStructureContext,
+  scoreMarketStructureMateriality,
+  type BuildStableMarketStructureRequest,
+  type StableMarketStructureContext,
+  type StableMarketStructureDecision,
+  type StableMarketStructureDecisionReason,
+} from "./stable-market-structure.js";
+export {
+  buildFormalMarketStructureContext,
+  type BuildFormalMarketStructureRequest,
+  type FormalBreakConfirmation,
+  type FormalMarketStructureContext,
+  type FormalMarketStructureDiagnostic,
+  type FormalMarketStructureOptions,
+  type FormalStructureBias,
+  type FormalStructureConfidenceLabel,
+  type FormalStructureEvent,
+  type FormalStructureEventType,
+  type FormalStructureSwing,
+  type FormalStructureTimeframe,
+  type FormalSwingKind,
+  type FormalSwingLabel,
+  type FormalSwingScope,
+} from "./formal-market-structure.js";

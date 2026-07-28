@@ -3,6 +3,7 @@
 
 import type { Candle, CandleTimeframe } from "../market-data/candle-types.js";
 import { buildSwingCandidateEvidence } from "./level-candidate-quality.js";
+import { buildRawCandidateMarketDataProvenance } from "./level-market-data-provenance.js";
 import type { RawLevelCandidate, SwingPoint } from "./level-types.js";
 
 function clamp(value: number, min: number = 0, max: number = 1): number {
@@ -33,7 +34,6 @@ function median(values: number[]): number {
   if (sorted.length % 2 === 1) {
     return sorted[middle] ?? 0;
   }
-
   return ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
 }
 
@@ -47,12 +47,10 @@ function addUniquePivotPoint(
   if (!Number.isFinite(price) || price <= 0) {
     return;
   }
-
   const key = `${candleIndex}:${round(price)}`;
   if (seen.has(key)) {
     return;
   }
-
   seen.add(key);
   points.push({ price: round(price), timestamp, candleIndex });
 }
@@ -107,7 +105,6 @@ function buildRepeatedOhlcPivotCandidates(params: {
       groups.push([point]);
       continue;
     }
-
     last.push(point);
   }
 
@@ -148,6 +145,11 @@ function buildRepeatedOhlcPivotCandidates(params: {
       gapStructure: false,
       firstTimestamp: Math.min(...group.map((point) => point.timestamp)),
       lastTimestamp: Math.max(...group.map((point) => point.timestamp)),
+      marketDataProvenance: buildRawCandidateMarketDataProvenance({
+        formedAt: Math.min(...group.map((point) => point.timestamp)),
+        sourceLastSeenAt: Math.max(...group.map((point) => point.timestamp)),
+        repeatedSourceConfirmation: true,
+      }),
       notes: [
         `Derived from repeated ${params.timeframe} OHLC ${params.kind} pivot.`,
         `ohlcPivotTouches=${group.length}`,
@@ -249,6 +251,7 @@ function buildLowPriceExpansionShelfCandidates(params: {
       gapStructure: false,
       firstTimestamp: candle.timestamp,
       lastTimestamp: candle.timestamp,
+      marketDataProvenance: buildRawCandidateMarketDataProvenance({ formedAt: candle.timestamp }),
       notes: [
         `Derived from ${params.timeframe} low-price expansion shelf high.`,
         `futureExpansionRatio=${expansionRatio.toFixed(4)}`,
@@ -260,198 +263,159 @@ function buildLowPriceExpansionShelfCandidates(params: {
   return candidates;
 }
 
-type BreakoutBaseDetectionConfig = {
-  baseLookbackBars: number;
-  followThroughBars: number;
-  maxBaseWidthPct: number;
-  minBreakPct: number;
-  minExpansionPct: number;
-  minVolumeRatio: number;
-  duplicateTolerancePct: number;
-};
-
-function breakoutBaseDetectionConfig(
-  timeframe: CandleTimeframe,
-): BreakoutBaseDetectionConfig | null {
-  if (timeframe === "5m") {
-    return {
-      baseLookbackBars: 8,
-      followThroughBars: 8,
-      maxBaseWidthPct: 0.14,
-      minBreakPct: 0.018,
-      minExpansionPct: 0.16,
-      minVolumeRatio: 1.15,
-      duplicateTolerancePct: 0.018,
-    };
-  }
-
-  if (timeframe === "4h") {
-    return {
-      baseLookbackBars: 6,
-      followThroughBars: 4,
-      maxBaseWidthPct: 0.18,
-      minBreakPct: 0.02,
-      minExpansionPct: 0.22,
-      minVolumeRatio: 1.08,
-      duplicateTolerancePct: 0.024,
-    };
-  }
-
-  return null;
-}
-
-function countNearPrice(prices: number[], target: number, tolerancePct: number): number {
-  return prices.filter(
-    (price) =>
-      Math.abs(price - target) / Math.max(Math.max(price, target), 0.0001) <= tolerancePct,
-  ).length;
-}
-
-function hasEnoughVolumeExpansion(
-  baseCandles: Candle[],
-  breakoutCandle: Candle,
-  minVolumeRatio: number,
-): boolean {
-  const baseVolumes = baseCandles.map((candle) => candle.volume).filter((volume) => volume > 0);
-  if (baseVolumes.length < Math.max(3, Math.floor(baseCandles.length / 2))) {
-    return true;
-  }
-
-  const baseMedianVolume = median(baseVolumes);
-  if (baseMedianVolume <= 0 || breakoutCandle.volume <= 0) {
-    return true;
-  }
-
-  return breakoutCandle.volume / baseMedianVolume >= minVolumeRatio;
-}
-
-function duplicateBreakoutBaseCandidate(
-  candidates: RawLevelCandidate[],
-  price: number,
-  tolerancePct: number,
-): RawLevelCandidate | undefined {
-  return candidates.find(
-    (candidate) =>
-      Math.abs(candidate.price - price) /
-        Math.max(Math.max(candidate.price, price), 0.0001) <=
-      tolerancePct,
-  );
-}
-
-function buildBreakoutBaseSupportCandidates(params: {
+function buildLowPriceBreakdownShelfCandidates(params: {
   symbol: string;
   timeframe: CandleTimeframe;
   candles: Candle[];
+  swings: SwingPoint[];
 }): RawLevelCandidate[] {
-  const config = breakoutBaseDetectionConfig(params.timeframe);
-  if (!config || params.candles.length < config.baseLookbackBars + 2) {
+  if (params.timeframe === "5m") {
     return [];
   }
 
   const candidates: RawLevelCandidate[] = [];
 
-  for (
-    let index = config.baseLookbackBars;
-    index < params.candles.length;
-    index += 1
-  ) {
-    const baseCandles = params.candles.slice(index - config.baseLookbackBars, index);
-    const breakoutCandle = params.candles[index]!;
-    const evidenceBaseCandles = params.timeframe === "5m"
-      ? baseCandles.filter((candle) => candle.volume > 0)
-      : baseCandles;
-    if (
-      (params.timeframe === "5m" && breakoutCandle.volume <= 0) ||
-      evidenceBaseCandles.length < Math.min(3, config.baseLookbackBars)
-    ) {
-      continue;
-    }
-    const baseHigh = Math.max(...evidenceBaseCandles.map((candle) => candle.high));
-    const baseLow = Math.min(...evidenceBaseCandles.map((candle) => candle.low));
-    if (!Number.isFinite(baseHigh) || !Number.isFinite(baseLow) || baseHigh <= 0 || baseLow <= 0) {
+  for (let index = 1; index < params.candles.length - 1; index += 1) {
+    const candle = params.candles[index]!;
+    if (candle.high <= 0 || candle.high >= 5 || isNearExistingSwing(candle.high, params.swings)) {
       continue;
     }
 
-    const baseWidthPct = (baseHigh - baseLow) / Math.max(baseHigh, 0.0001);
-    if (baseWidthPct > config.maxBaseWidthPct) {
+    const previousWindow = params.candles.slice(Math.max(0, index - 4), index);
+    const futureWindow = params.candles.slice(index + 1, Math.min(params.candles.length, index + 5));
+    if (previousWindow.length === 0 || futureWindow.length === 0) {
       continue;
     }
 
-    const breakTolerance = Math.max(baseHigh * config.minBreakPct, 0.0001);
-    if (
-      breakoutCandle.close <= baseHigh + breakTolerance ||
-      breakoutCandle.high <= baseHigh + breakTolerance
-    ) {
+    const range = Math.max(candle.high - candle.low, 0.0001);
+    const closeOffHighRatio = (candle.high - candle.close) / range;
+    if (closeOffHighRatio < 0.25) {
       continue;
     }
 
-    if (!hasEnoughVolumeExpansion(evidenceBaseCandles, breakoutCandle, config.minVolumeRatio)) {
+    const priorHigh = Math.max(...previousWindow.map((previous) => previous.high));
+    const futureHigh = Math.max(...futureWindow.map((future) => future.high));
+    const futureLow = Math.min(...futureWindow.map((future) => future.low));
+    const futureClose = Math.min(...futureWindow.map((future) => future.close));
+    const stepDownPct = (priorHigh - candle.high) / Math.max(candle.high, 0.0001);
+    const futureHighDropPct = (candle.high - futureHigh) / Math.max(candle.high, 0.0001);
+    const followThroughDropPct =
+      (candle.high - Math.min(futureLow, futureClose)) / Math.max(candle.high, 0.0001);
+    const steppedDownFromPrior = stepDownPct >= 0.08;
+    const acceptedLowerAfterward = futureHighDropPct >= 0.08 || followThroughDropPct >= 0.18;
+    if (!steppedDownFromPrior || !acceptedLowerAfterward) {
       continue;
     }
 
-    const followThroughWindow = params.candles
-      .slice(index, Math.min(params.candles.length, index + config.followThroughBars + 1))
-      .filter((candle) => params.timeframe !== "5m" || candle.volume > 0);
-    const futureHigh = Math.max(...followThroughWindow.map((candle) => candle.high));
-    const expansionPct = (futureHigh - baseHigh) / Math.max(baseHigh, 0.0001);
-    if (!Number.isFinite(expansionPct) || expansionPct < config.minExpansionPct) {
-      continue;
-    }
-
-    const price = round(baseHigh);
-    const duplicate = duplicateBreakoutBaseCandidate(
-      candidates,
+    const price = round(candle.high);
+    candidates.push({
+      id: `${params.symbol}-${params.timeframe}-breakdown-shelf-resistance-${index}-${candle.timestamp}`,
+      symbol: params.symbol,
       price,
-      config.duplicateTolerancePct,
-    );
-    if (duplicate && (duplicate.gapContinuationScore ?? 0) >= clamp(expansionPct / 0.6)) {
+      kind: "resistance",
+      timeframe: params.timeframe,
+      sourceType: "swing_high",
+      touchCount: 1,
+      reactionScore: round((candle.high - candle.low) * (1 + closeOffHighRatio)),
+      reactionQuality: round(clamp(0.28 + closeOffHighRatio * 0.34 + followThroughDropPct * 0.18)),
+      rejectionScore: round(clamp(closeOffHighRatio)),
+      displacementScore: round(clamp(0.28 + stepDownPct * 0.75 + followThroughDropPct * 0.45)),
+      sessionSignificance: params.timeframe === "daily" ? 0.84 : 0.6,
+      followThroughScore: round(clamp(0.46 + followThroughDropPct * 0.5 + closeOffHighRatio * 0.12)),
+      gapContinuationScore: 0,
+      repeatedReactionCount: 1,
+      gapStructure: false,
+      firstTimestamp: candle.timestamp,
+      lastTimestamp: candle.timestamp,
+      marketDataProvenance: buildRawCandidateMarketDataProvenance({ formedAt: candle.timestamp }),
+      notes: [
+        `Derived from ${params.timeframe} low-price breakdown shelf high.`,
+        `priorStepDownPct=${stepDownPct.toFixed(4)}`,
+        `futureHighDropPct=${futureHighDropPct.toFixed(4)}`,
+        `followThroughDropPct=${followThroughDropPct.toFixed(4)}`,
+        `closeOffHigh=${closeOffHighRatio.toFixed(4)}`,
+      ],
+    });
+  }
+
+  return candidates;
+}
+
+function buildLowPriceDemandShelfCandidates(params: {
+  symbol: string;
+  timeframe: CandleTimeframe;
+  candles: Candle[];
+  swings: SwingPoint[];
+}): RawLevelCandidate[] {
+  if (params.timeframe === "5m") {
+    return [];
+  }
+
+  const candidates: RawLevelCandidate[] = [];
+
+  for (let index = 1; index < params.candles.length; index += 1) {
+    const candle = params.candles[index]!;
+    if (candle.high <= 0 || candle.high >= 5) {
       continue;
     }
-    if (duplicate) {
-      candidates.splice(candidates.indexOf(duplicate), 1);
+
+    const range = Math.max(candle.high - candle.low, 0.0001);
+    const bodyLow = Math.min(candle.open, candle.close);
+    if (bodyLow <= candle.low) {
+      continue;
     }
 
-    const baseHighTouches = countNearPrice(
-      evidenceBaseCandles.map((candle) => candle.high),
-      baseHigh,
-      config.duplicateTolerancePct,
-    );
-    const compressionScore = clamp(1 - baseWidthPct / config.maxBaseWidthPct, 0.2, 1);
-    const expansionScore = clamp(expansionPct / 0.6, 0.28, 1);
-    const followThroughScore = clamp(0.34 + expansionPct * 1.25, 0.34, 0.92);
-    const volumeScore = hasEnoughVolumeExpansion(
-      evidenceBaseCandles,
-      breakoutCandle,
-      config.minVolumeRatio * 1.45,
-    )
-      ? 0.12
-      : 0;
+    const price = round(bodyLow);
+    const rangePct = range / Math.max(price, 0.0001);
+    const lowerWickRatio = (bodyLow - candle.low) / range;
+    const closeOffLowRatio = (candle.close - candle.low) / range;
+    const priorWindow = params.candles.slice(Math.max(0, index - 8), index);
+    const priorVolumes = priorWindow
+      .map((prior) => prior.volume ?? 0)
+      .filter((volume) => volume > 0);
+    const priorMedianVolume = priorVolumes.length > 0 ? median(priorVolumes) : 0;
+    const volumeRatio =
+      priorMedianVolume > 0 && (candle.volume ?? 0) > 0
+        ? (candle.volume ?? 0) / priorMedianVolume
+        : 1;
+    const volumeScore = clamp((volumeRatio - 1) / 6);
+    const isLargeLowPriceReaction =
+      rangePct >= (params.timeframe === "daily" ? 0.1 : 0.12) &&
+      (closeOffLowRatio >= 0.55 || lowerWickRatio >= 0.28);
+    const hasParticipation =
+      volumeRatio >= 1.8 ||
+      rangePct >= (params.timeframe === "daily" ? 0.24 : 0.28);
+
+    if (!isLargeLowPriceReaction || !hasParticipation) {
+      continue;
+    }
 
     candidates.push({
-      id: `${params.symbol}-${params.timeframe}-breakout-base-support-${index}-${breakoutCandle.timestamp}`,
+      id: `${params.symbol}-${params.timeframe}-demand-shelf-support-${index}-${candle.timestamp}`,
       symbol: params.symbol,
       price,
       kind: "support",
       timeframe: params.timeframe,
-      sourceType: "breakout_base",
-      touchCount: Math.max(1, baseHighTouches),
-      reactionScore: round(clamp(0.42 + expansionScore * 0.42 + compressionScore * 0.12)),
-      reactionQuality: round(clamp(0.38 + compressionScore * 0.28 + expansionScore * 0.2)),
-      rejectionScore: round(clamp(0.28 + baseHighTouches * 0.08 + compressionScore * 0.18, 0.28, 0.72)),
-      displacementScore: round(expansionScore),
-      sessionSignificance: params.timeframe === "5m" ? 0.72 + volumeScore : 0.78 + volumeScore,
-      followThroughScore: round(followThroughScore),
-      gapContinuationScore: round(expansionScore),
-      repeatedReactionCount: Math.max(1, baseHighTouches),
+      sourceType: "swing_low",
+      touchCount: 1,
+      reactionScore: round(range * (1 + closeOffLowRatio + volumeScore * 0.35)),
+      reactionQuality: round(clamp(0.24 + lowerWickRatio * 0.22 + closeOffLowRatio * 0.24 + volumeScore * 0.2)),
+      rejectionScore: round(clamp(lowerWickRatio * 0.55 + closeOffLowRatio * 0.45)),
+      displacementScore: round(clamp(rangePct / (params.timeframe === "daily" ? 0.42 : 0.34))),
+      sessionSignificance: round(clamp((params.timeframe === "daily" ? 0.74 : 0.62) + volumeScore * 0.22)),
+      followThroughScore: round(clamp(0.32 + closeOffLowRatio * 0.3 + Math.min(rangePct, 0.65) * 0.2 + volumeScore * 0.18)),
+      gapContinuationScore: 0,
+      repeatedReactionCount: 1,
       gapStructure: false,
-      firstTimestamp: evidenceBaseCandles[0]!.timestamp,
-      lastTimestamp: breakoutCandle.timestamp,
+      firstTimestamp: candle.timestamp,
+      lastTimestamp: candle.timestamp,
+      marketDataProvenance: buildRawCandidateMarketDataProvenance({ formedAt: candle.timestamp }),
       notes: [
-        `Derived from ${params.timeframe} breakout-base support.`,
-        `baseHigh=${price.toFixed(4)}`,
-        `baseWidthPct=${baseWidthPct.toFixed(4)}`,
-        `futureExpansionPct=${expansionPct.toFixed(4)}`,
-        `baseHighTouches=${baseHighTouches}`,
+        `Derived from ${params.timeframe} low-price demand shelf body floor.`,
+        `rangePct=${rangePct.toFixed(4)}`,
+        `lowerWick=${lowerWickRatio.toFixed(4)}`,
+        `closeOffLow=${closeOffLowRatio.toFixed(4)}`,
+        `volumeRatio=${volumeRatio.toFixed(4)}`,
       ],
     });
   }
@@ -464,14 +428,6 @@ export function buildRawLevelCandidates(params: {
   timeframe: CandleTimeframe;
   candles: Candle[];
   swings: SwingPoint[];
-  /**
-   * Experimental broad OHLC-density detector. Disabled by default because it
-   * treats ordinary range candles as independent pivot touches and can
-   * overwhelm confirmed swing evidence.
-   */
-  includeRepeatedOhlcPivots?: boolean;
-  /** Future bars required before a swing pivot is confirmed and actionable. */
-  swingConfirmationBars?: number;
 }): RawLevelCandidate[] {
   const { symbol, timeframe, candles, swings } = params;
 
@@ -488,11 +444,7 @@ export function buildRawLevelCandidates(params: {
       ...evidence,
       firstTimestamp: swing.timestamp,
       lastTimestamp: swing.timestamp,
-      confirmationTimestamp:
-        candles[Math.min(
-          swing.index + Math.max(0, params.swingConfirmationBars ?? 0),
-          candles.length - 1,
-        )]?.timestamp ?? swing.timestamp,
+      marketDataProvenance: buildRawCandidateMarketDataProvenance({ formedAt: swing.timestamp }),
       notes: [
         `Derived from ${timeframe} ${swing.kind} swing.`,
         `displacement=${swing.displacement.toFixed(4)}`,
@@ -505,148 +457,12 @@ export function buildRawLevelCandidates(params: {
     };
   });
 
-  const repeatedOhlcCandidates = params.includeRepeatedOhlcPivots
-    ? [
-        ...buildRepeatedOhlcPivotCandidates({ symbol, timeframe, candles, swings, kind: "support" }),
-        ...buildRepeatedOhlcPivotCandidates({ symbol, timeframe, candles, swings, kind: "resistance" }),
-      ]
-    : [];
-
   return [
     ...swingCandidates,
     ...buildLowPriceExpansionShelfCandidates({ symbol, timeframe, candles, swings }),
-    ...buildBreakoutBaseSupportCandidates({ symbol, timeframe, candles }),
-    ...repeatedOhlcCandidates,
+    ...buildLowPriceBreakdownShelfCandidates({ symbol, timeframe, candles, swings }),
+    ...buildLowPriceDemandShelfCandidates({ symbol, timeframe, candles, swings }),
+    ...buildRepeatedOhlcPivotCandidates({ symbol, timeframe, candles, swings, kind: "support" }),
+    ...buildRepeatedOhlcPivotCandidates({ symbol, timeframe, candles, swings, kind: "resistance" }),
   ];
-}
-
-function gapUpPct(previous: Candle, current: Candle): number {
-  return (current.open - previous.high) / Math.max(previous.high, 0.0001);
-}
-
-function supportWasConfirmedBroken(
-  candles: Candle[],
-  formationIndex: number,
-  supportPrice: number,
-): boolean {
-  const confirmationFloor = supportPrice * 0.99;
-  const decisiveBreakFloor = supportPrice * 0.95;
-
-  for (let index = formationIndex + 1; index < candles.length; index += 1) {
-    const candle = candles[index]!;
-    if (candle.close < decisiveBreakFloor) {
-      return true;
-    }
-
-    const nextCandle = candles[index + 1];
-    if (
-      candle.close < confirmationFloor &&
-      nextCandle &&
-      nextCandle.close < confirmationFloor
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-export function buildGapOriginSupportCandidates(params: {
-  symbol: string;
-  timeframe: CandleTimeframe;
-  candles: Candle[];
-}): RawLevelCandidate[] {
-  if (params.timeframe !== "daily" || params.candles.length < 2) {
-    return [];
-  }
-
-  const candidates: RawLevelCandidate[] = [];
-
-  for (let index = 1; index < params.candles.length; index += 1) {
-    const previous = params.candles[index - 1]!;
-    const current = params.candles[index]!;
-    const pct = gapUpPct(previous, current);
-    const keptGapZoneInPlay = current.low >= previous.high * 0.8;
-    const strongContinuation =
-      current.high > current.open &&
-      current.close >= previous.high &&
-      current.volume >= previous.volume * 1.5;
-
-    if (pct < 0.01 || !keptGapZoneInPlay || !strongContinuation) {
-      continue;
-    }
-
-    const originPrice = round(previous.high);
-    const originWasBroken = supportWasConfirmedBroken(
-      params.candles,
-      index,
-      originPrice,
-    );
-
-    if (!originWasBroken) {
-      candidates.push({
-        id: `${params.symbol}-${params.timeframe}-gap-up-origin-${current.timestamp}`,
-        symbol: params.symbol,
-        price: originPrice,
-        kind: "support",
-        timeframe: params.timeframe,
-        sourceType: "gap_up_origin",
-        touchCount: 1,
-        reactionScore: 1,
-        reactionQuality: 0.86,
-        rejectionScore: 0.7,
-        displacementScore: round(Math.min(pct * 8, 1)),
-        sessionSignificance: 1,
-        followThroughScore: 0.78,
-        gapContinuationScore: 1,
-        repeatedReactionCount: 1,
-        gapStructure: true,
-        firstTimestamp: previous.timestamp,
-        lastTimestamp: current.timestamp,
-        notes: [
-          "Derived from daily gap-up origin.",
-          `priorHigh=${originPrice.toFixed(4)}`,
-          `gapPct=${round(pct).toFixed(4)}`,
-        ],
-      });
-    }
-
-    const pullbackLowHeldGap =
-      current.low < current.open &&
-      current.low >= previous.close * 0.98 &&
-      current.low <= previous.high * 1.05;
-
-    if (
-      pullbackLowHeldGap &&
-      !supportWasConfirmedBroken(params.candles, index, round(current.low))
-    ) {
-      candidates.push({
-        id: `${params.symbol}-${params.timeframe}-gap-up-pullback-low-${current.timestamp}`,
-        symbol: params.symbol,
-        price: round(current.low),
-        kind: "support",
-        timeframe: params.timeframe,
-        sourceType: "gap_up_pullback_low",
-        touchCount: 1,
-        reactionScore: 0.92,
-        reactionQuality: 0.82,
-        rejectionScore: 0.64,
-        displacementScore: round(Math.min(pct * 7, 1)),
-        sessionSignificance: 0.96,
-        followThroughScore: 0.74,
-        gapContinuationScore: 0.9,
-        repeatedReactionCount: 1,
-        gapStructure: true,
-        firstTimestamp: current.timestamp,
-        lastTimestamp: current.timestamp,
-        notes: [
-          "Derived from daily gap-up pullback low.",
-          `pullbackLow=${round(current.low).toFixed(4)}`,
-          `gapPct=${round(pct).toFixed(4)}`,
-        ],
-      });
-    }
-  }
-
-  return candidates;
 }

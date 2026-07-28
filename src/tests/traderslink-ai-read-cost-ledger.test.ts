@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { appendFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -9,7 +9,8 @@ import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchl
 
 function read(symbol: string, generatedAt: number, totalCostUsd: number): TradersLinkAiReadPayload {
   return {
-    version: 2,
+    version: 3,
+    generationId: `${symbol}-${generatedAt}`,
     symbol,
     generatedAt,
     dataAsOf: generatedAt - 1_000,
@@ -25,6 +26,8 @@ function read(symbol: string, generatedAt: number, totalCostUsd: number): Trader
     breakoutContinuation: { label: "Continue", price: 1.2, rationale: "Test." },
     targets: [],
     downsideCheckpoints: [],
+    pullbackPlans: { shallow: null, deep: null },
+    failureRecovery: null,
     catalystRealityCheck: {
       status: "none",
       summary: "None.",
@@ -97,11 +100,221 @@ describe("TradersLinkAiReadCostLedger", () => {
       assert.equal(summary.windows.last7Days.estimatedTotalCostUsd, 0.045);
       assert.equal(summary.windows.allTime.estimatedTotalCostUsd, 0.075);
       assert.equal(summary.windows.allTime.webSearchCallCount, 3);
+      assert.deepEqual(summary.todayPerTicker.map((ticker) => ticker.symbol), ["TGHL"]);
+      assert.equal(summary.todayPerTicker[0]?.requestCount, 2);
+      assert.equal(summary.todayPerTicker[0]?.estimatedTotalCostUsd, 0.045);
       assert.equal(summary.perTicker[0]?.symbol, "TGHL");
       assert.equal(summary.perTicker[0]?.requestCount, 2);
+      assert.equal(summary.perTicker[0]?.planGenerationCount, 2);
       assert.equal(summary.perTicker[0]?.averageCostPerRequestUsd, 0.0225);
       assert.equal(summary.byTrigger.find((item) => item.trigger === "manual")?.totals.requestCount, 1);
       assert.equal(summary.byModel[0]?.model, "gpt-5.6-terra");
+      assert.deepEqual(summary.accountingHealth, {
+        healthy: true,
+        corruptLineCount: 0,
+        lastLoadError: null,
+      });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves valid totals but reports corrupt ledger lines as incomplete accounting", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-corrupt-"));
+    try {
+      const filePath = join(directory, "costs.jsonl");
+      const ledger = new TradersLinkAiReadCostLedger({ filePath });
+      const now = Date.parse("2026-07-17T18:00:00.000Z");
+      ledger.record({ read: read("TGHL", now - 60_000, 0.025), trigger: "manual" });
+      appendFileSync(filePath, "{not-json}\n{\"version\":99}\n", "utf8");
+
+      const summary = ledger.summarize(now);
+      assert.equal(summary.windows.allTime.requestCount, 1);
+      assert.equal(summary.windows.allTime.estimatedTotalCostUsd, 0.025);
+      assert.equal(summary.accountingHealth.healthy, false);
+      assert.equal(summary.accountingHealth.corruptLineCount, 2);
+      assert.match(summary.accountingHealth.lastLoadError ?? "", /2 malformed or unsupported/i);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("retains bounded diagnostics for rejected AI Read attempts", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-failure-"));
+    try {
+      const ledger = new TradersLinkAiReadCostLedger({ filePath: join(directory, "costs.jsonl") });
+      const generatedAt = Date.parse("2026-07-17T18:00:00.000Z");
+      ledger.recordAttempt({
+        trigger: "manual",
+        attempt: {
+          generationId: "VIVK-generation",
+          requestId: "resp_vivk",
+          clientRequestId: "VIVK-request-1",
+          symbol: "VIVK",
+          attemptType: "primary",
+          status: "invalid_output",
+          model: "gpt-5.6-luna",
+          dataAsOf: generatedAt - 1_000,
+          marketSession: "regular",
+          usedWebSearch: false,
+          usage: {
+            inputTokens: 10,
+            cachedInputTokens: 0,
+            outputTokens: 20,
+            totalTokens: 30,
+            webSearchCallCount: 0,
+            tokenCostUsd: 0.01,
+            webSearchCostUsd: 0,
+            estimatedTotalCostUsd: 0.01,
+            pricing: {
+              source: "built_in",
+              inputPer1M: 1,
+              cachedInputPer1M: 0.1,
+              outputPer1M: 6,
+              webSearchPer1KCalls: 10,
+            },
+          },
+          receivedAt: generatedAt,
+          startedAt: generatedAt - 500,
+          durationMs: 500,
+          timeoutMs: 90_000,
+          timeoutOverrunMs: 0,
+          error: "invalid tactical trade map: needsToHold ordering",
+          failureStage: "validation",
+          rejectedDraft: {
+            sha256: "abc123",
+            length: 5_000,
+            preview: "{\"currentRead\":\"[redacted-url]\"}",
+          },
+        },
+      });
+
+      const summary = ledger.summarize(generatedAt);
+      assert.equal(summary.recentFailures[0]?.symbol, "VIVK");
+      assert.equal(summary.recentFailures[0]?.failureStage, "validation");
+      assert.equal(summary.recentFailures[0]?.rejectedDraft?.length, 5_000);
+      assert.equal(ledger.load()[0]?.rejectedDraft?.sha256, "abc123");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("throws when an attempt cannot be durably appended", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-write-"));
+    try {
+      const ledger = new TradersLinkAiReadCostLedger({ filePath: directory });
+      const now = Date.parse("2026-07-17T18:00:00.000Z");
+      assert.throws(
+        () => ledger.record({ read: read("TGHL", now, 0.025), trigger: "manual" }),
+        /EISDIR|illegal operation on a directory/i,
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("uses a recent-request reserve to stop new reads before an enabled daily budget is exhausted", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-budget-"));
+    try {
+      const ledger = new TradersLinkAiReadCostLedger({ filePath: join(directory, "costs.jsonl") });
+      const now = Date.parse("2026-07-17T18:00:00.000Z");
+      ledger.record({ read: read("TGHL", now - 60_000, 0.025), trigger: "manual" });
+      ledger.record({ read: read("BIYA", now - 2 * 60_000, 0.02), trigger: "activation" });
+      const load = ledger.load.bind(ledger);
+      let loadCount = 0;
+      ledger.load = () => {
+        loadCount += 1;
+        return load();
+      };
+
+      const allowed = ledger.getDailyCostBudgetStatus({
+        enabled: true,
+        dailyLimitUsd: 0.1,
+        now,
+      });
+      assert.equal(allowed.spentUsd, 0.045);
+      assert.equal(allowed.projectedNextRequestUsd, 0.0225);
+      assert.equal(allowed.canStartRequest, true);
+      assert.equal(loadCount, 1);
+
+      const blocked = ledger.getDailyCostBudgetStatus({
+        enabled: true,
+        dailyLimitUsd: 0.05,
+        now,
+      });
+      assert.equal(blocked.canStartRequest, false);
+      assert.match(blocked.blockReason ?? "", /reserve/i);
+      assert.equal(loadCount, 2);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("covers unpriced requests with an uncertainty allowance instead of fail-closing the AI system", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-cost-unpriced-budget-"));
+    try {
+      const ledger = new TradersLinkAiReadCostLedger({ filePath: join(directory, "costs.jsonl") });
+      const now = Date.parse("2026-07-17T18:00:00.000Z");
+      ledger.record({ read: read("TGHL", now - 60_000, 0.025), trigger: "manual" });
+      ledger.recordAttempt({
+        trigger: "manual",
+        attempt: {
+          generationId: "VMAR-generation",
+          requestId: "VMAR-request",
+          clientRequestId: "VMAR-client-request",
+          symbol: "VMAR",
+          attemptType: "primary",
+          status: "transport_error",
+          model: "gpt-5.6-terra",
+          dataAsOf: now - 2_000,
+          marketSession: "regular",
+          usedWebSearch: false,
+          usage: {
+            inputTokens: 0,
+            cachedInputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            webSearchCallCount: 0,
+            tokenCostUsd: null,
+            webSearchCostUsd: 0,
+            estimatedTotalCostUsd: null,
+            pricing: {
+              source: "unknown",
+              inputPer1M: null,
+              cachedInputPer1M: null,
+              outputPer1M: null,
+              webSearchPer1KCalls: 10,
+            },
+          },
+          receivedAt: now - 30_000,
+          startedAt: now - 40_000,
+          durationMs: 10_000,
+          timeoutMs: 90_000,
+          timeoutOverrunMs: 0,
+          error: "transport error",
+          failureStage: "transport",
+        },
+      });
+
+      const status = ledger.getDailyCostBudgetStatus({
+        enabled: true,
+        dailyLimitUsd: 0.5,
+        now,
+      });
+      assert.equal(status.spentUsd, 0.025);
+      assert.equal(status.unpricedRequestCount, 1);
+      assert.equal(status.unpricedReserveUsd, 0.25);
+      assert.equal(status.guardedSpendUsd, 0.275);
+      assert.equal(status.canStartRequest, true);
+      assert.match(status.blockReason ?? "", /^$/);
+
+      const blocked = ledger.getDailyCostBudgetStatus({
+        enabled: true,
+        dailyLimitUsd: 0.3,
+        now,
+      });
+      assert.equal(blocked.canStartRequest, false);
+      assert.match(blocked.blockReason ?? "", /unpriced-request allowance/i);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

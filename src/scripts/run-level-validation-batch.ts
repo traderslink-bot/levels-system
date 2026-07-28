@@ -24,8 +24,11 @@ import {
 } from "../lib/validation/level-validation-batch.js";
 import { resolveValidationLookbacks } from "../lib/validation/validation-lookback-config.js";
 import { waitForIbkrConnection } from "./shared/ibkr-connection.js";
-import { createIbkrClient } from "./shared/ibkr-runtime.js";
-import { createValidationCandleFetchService } from "./shared/validation-candle-cache.js";
+import { createValidationIbkrClient } from "./shared/ibkr-runtime.js";
+import {
+  createReplayOnlyHistoricalProvider,
+  createValidationCandleFetchService,
+} from "./shared/validation-candle-cache.js";
 
 const DEFAULT_WINDOW_COUNT = 4;
 const DEFAULT_STEP_MINUTES = 15;
@@ -36,7 +39,7 @@ const RECOMMENDED_LIVE_BATCH_SIZE = 5;
 function resolveProviderName(): CandleProviderName {
   const requested = process.env.LEVEL_VALIDATION_PROVIDER?.trim().toLowerCase();
 
-  if (requested === "ibkr" || requested === "stub" || requested === "twelve_data") {
+  if (requested === "ibkr" || requested === "eodhd" || requested === "stub") {
     return requested;
   }
 
@@ -211,6 +214,7 @@ async function runSymbolValidation(params: {
     generatedAt: generationEndTimeMs,
   };
   let futureCandles;
+  let baselineCandles;
   try {
     const futureResponse = await params.candleFetchService.fetchCandles({
       symbol: params.symbol,
@@ -221,6 +225,9 @@ async function runSymbolValidation(params: {
     });
     futureCandles = futureResponse.candles.filter(
       (candle) => candle.timestamp > generationEndTimeMs,
+    );
+    baselineCandles = futureResponse.candles.filter(
+      (candle) => candle.timestamp <= generationEndTimeMs,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -244,6 +251,7 @@ async function runSymbolValidation(params: {
   const forwardReactionReport = validateForwardReactions({
     output: normalizedForwardOutput,
     futureCandles,
+    baselineCandles,
   });
   for (const line of formatForwardReactionReport(forwardReactionReport)) {
     console.log(`${line} | symbol=${params.symbol}`);
@@ -276,20 +284,22 @@ async function main(): Promise<void> {
   const lookbacks = resolveValidationLookbacks();
   const ibkrTimeoutMs = resolveOptionalPositiveInteger(process.env.LEVEL_VALIDATION_IBKR_TIMEOUT_MS);
   const stepMs = stepMinutes * 60 * 1000;
-  const needsIbkr = providerName === "ibkr";
-  const ib = needsIbkr ? createIbkrClient() : undefined;
+  const replayOnly = process.env.LEVEL_VALIDATION_CACHE_MODE?.trim().toLowerCase() === "replay";
+  const needsIbkr = providerName === "ibkr" && !replayOnly;
+  const ib = needsIbkr ? createValidationIbkrClient() : undefined;
 
   try {
     if (needsIbkr && ib) {
       await waitForIbkrConnection(ib);
     }
 
-    const provider = createHistoricalCandleProvider({
-      provider: providerName,
-      ib,
-      twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
-      ibkrTimeoutMs,
-    });
+    const provider = replayOnly
+      ? createReplayOnlyHistoricalProvider(providerName)
+      : createHistoricalCandleProvider({
+          provider: providerName,
+          ib,
+          ibkrTimeoutMs,
+        });
     const baseFetchService = new CandleFetchService(provider);
     const { candleFetchService, cacheMode, cacheDirectoryPath } =
       createValidationCandleFetchService(baseFetchService);

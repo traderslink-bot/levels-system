@@ -94,7 +94,7 @@ describe("level-ranker bucket ownership", () => {
     assert.equal(result.intradayResistance.length, 1);
   });
 
-  it("does not surface resistance beyond the practical forward planning range when reference price is available", () => {
+  it("retains farther structural resistance for downstream Full Ladder selection", () => {
     const nearZone = makeZone({
       id: "near",
       representativePrice: 11.5,
@@ -129,10 +129,10 @@ describe("level-ranker bucket ownership", () => {
     ];
 
     assert.ok(surfacedIds.includes("near"));
-    assert.ok(!surfacedIds.includes("too-far"));
+    assert.ok(surfacedIds.includes("too-far"));
   });
 
-  it("does not surface support or resistance on the wrong side of the live reference price", () => {
+  it("retains actionable crossed resistance for downstream role-flip evaluation", () => {
     const supportBelow = makeZone({
       id: "support-below",
       kind: "support",
@@ -190,54 +190,6 @@ describe("level-ranker bucket ownership", () => {
     assert.ok(surfacedSupportIds.includes("support-below"));
     assert.ok(!surfacedSupportIds.includes("support-above"));
     assert.ok(surfacedResistanceIds.includes("resistance-above"));
-    assert.ok(!surfacedResistanceIds.includes("resistance-below"));
-  });
-
-  it("preserves the nearest practical support levels before stronger far-away supports", () => {
-    const nearOrigin = makeZone({
-      id: "near-gap-origin",
-      kind: "support",
-      representativePrice: 5.18,
-      timeframeSources: ["daily"],
-      timeframeBias: "daily",
-      strengthScore: 20,
-      sourceTypes: ["gap_up_origin"],
-    });
-    const nearPullbackLow = makeZone({
-      id: "near-pullback-low",
-      kind: "support",
-      representativePrice: 4.75,
-      timeframeSources: ["daily"],
-      timeframeBias: "daily",
-      strengthScore: 19,
-      sourceTypes: ["gap_up_pullback_low"],
-    });
-    const farStrongSupports = [3.81, 1.36, 0.72].map((price, index) =>
-      makeZone({
-        id: `far-strong-${index}`,
-        kind: "support",
-        representativePrice: price,
-        timeframeSources: ["daily"],
-        timeframeBias: "daily",
-        strengthScore: 45 + index,
-      }),
-    );
-
-    const result = rankLevelZones({
-      symbol: "TEST",
-      supportZones: [nearOrigin, nearPullbackLow, ...farStrongSupports],
-      resistanceZones: [],
-      specialLevels: {},
-      metadata: {
-        ...testMetadata,
-        referencePrice: 7.25,
-      },
-      config: DEFAULT_LEVEL_ENGINE_CONFIG,
-    });
-
-    const surfacedSupportIds = result.majorSupport.map((zone) => zone.id);
-
-    assert.ok(surfacedSupportIds.includes("near-gap-origin"));
-    assert.ok(surfacedSupportIds.includes("near-pullback-low"));
+    assert.ok(surfacedResistanceIds.includes("resistance-below"));
   });
 });

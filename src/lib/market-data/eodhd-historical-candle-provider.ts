@@ -1,11 +1,11 @@
-import type { BaseCandleProviderResponse, Candle, CandleFetchTimeframe, CandleTimeframe } from "./candle-types.js";
+import type { BaseCandleProviderResponse, Candle, CandleFetchTimeframe } from "./candle-types.js";
+import { classifyIntradayCandleTimestamp } from "./candle-session-classifier.js";
 import type { HistoricalCandleProvider, HistoricalFetchPlan, HistoricalFetchRequest } from "./provider-types.js";
 
 export type EodhdHistoricalCandleProviderOptions = {
   apiToken?: string;
   exchangeSuffix?: string;
   baseUrl?: string;
-  yahooBaseUrl?: string;
   fetchFn?: typeof fetch;
 };
 
@@ -29,59 +29,23 @@ type EodhdDailyBar = {
   volume?: unknown;
 };
 
-type EodhdSplitEvent = {
-  date?: unknown;
-  split?: unknown;
-};
-
-type YahooChartResponse = {
-  chart?: {
-    result?: Array<{
-      timestamp?: number[] | null;
-      indicators?: {
-        quote?: Array<{
-          open?: Array<number | null> | null;
-          high?: Array<number | null> | null;
-          low?: Array<number | null> | null;
-          close?: Array<number | null> | null;
-          volume?: Array<number | null> | null;
-        }> | null;
-      };
-    }> | null;
-    error?: { code?: string; description?: string } | null;
-  };
-};
-
 const DEFAULT_BASE_URL = "https://eodhd.com/api";
-const DEFAULT_YAHOO_BASE_URL = "https://query1.finance.yahoo.com";
 const DEFAULT_EXCHANGE_SUFFIX = "US";
 const ADJUSTMENT_MODE = "adjusted_close_ratio";
-const NEW_YORK_TIMEZONE = "America/New_York";
-const EXTREME_PRICE_DISCONTINUITY_RATIO = 4;
-const SPLIT_RATIO_MATCH_TOLERANCE = 1.75;
-const sessionDateFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: NEW_YORK_TIMEZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
 
 type EodhdCandleFetchResult = {
   candles: Candle[];
   droppedInvalidOhlcBars: number;
-  incompleteFourHourBuckets?: number;
-  droppedOffSessionFourHourBars?: number;
-  priceBasisSource?: "eodhd_adjusted_close_ratio" | "yahoo_current_basis_fallback";
-  splitBasisMismatch?: EodhdSplitBasisMismatch;
+  splitEvents: EodhdSplitEvent[];
 };
 
-type EodhdSplitBasisMismatch = {
-  splitDate: string;
-  expectedPriceMultiplier: number;
-  observedPriceRatio: number;
+type EodhdSplitEvent = {
+  date: string;
+  eventType: "reverse_split" | "forward_split" | "material_adjustment";
+  priorAdjustmentFactor: number;
+  adjustmentFactor: number;
+  priceAdjustmentFactor: number;
+  source: "adjusted_close_ratio";
 };
 
 function envText(...names: string[]): string | undefined {
@@ -109,64 +73,12 @@ function isoDate(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 10);
 }
 
-function intradaySessionDate(timestamp: number): string {
-  const parts = sessionDateFormatter.formatToParts(new Date(timestamp));
-  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${byType.year}-${byType.month}-${byType.day}`;
-}
-
-function intradayMinuteOfDay(timestamp: number): number {
-  const parts = sessionDateFormatter.formatToParts(new Date(timestamp));
-  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return Number(byType.hour) * 60 + Number(byType.minute);
-}
-
 function eodDateTimestamp(date: unknown, symbol: string): number {
-  // Use a same-calendar-day session anchor. UTC midnight renders as the prior
-  // date in America/New_York and was shifting Formed/Confirmed labels back one
-  // day on the website.
-  const timestamp = Date.parse(`${String(date)}T16:00:00.000Z`);
+  const timestamp = Date.parse(`${String(date)}T00:00:00.000Z`);
   if (!Number.isFinite(timestamp)) {
     throw new Error(`EODHD returned invalid daily date for ${symbol}: ${String(date)}`);
   }
   return timestamp;
-}
-
-function splitPriceMultiplier(value: unknown): number | null {
-  const normalizedValue = typeof value === "number" ? String(value) : value;
-  if (typeof normalizedValue !== "string") {
-    return null;
-  }
-  const [newSharesText, oldSharesText = "1"] = normalizedValue.split("/");
-  const newShares = Number(newSharesText);
-  const oldShares = Number(oldSharesText);
-  if (
-    !Number.isFinite(newShares) ||
-    !Number.isFinite(oldShares) ||
-    newShares <= 0 ||
-    oldShares <= 0
-  ) {
-    return null;
-  }
-  return oldShares / newShares;
-}
-
-function sessionDateForTimestamp(timestamp: number): string {
-  return intradaySessionDate(timestamp);
-}
-
-function normalizeYahooSymbol(symbol: string): string {
-  return symbol.trim().toUpperCase().replace(/\.US$/, "").replaceAll(".", "-");
-}
-
-function yahooInterval(timeframe: CandleFetchTimeframe): "1d" | "60m" | "5m" {
-  if (timeframe === "daily") {
-    return "1d";
-  }
-  if (timeframe === "4h") {
-    return "60m";
-  }
-  return "5m";
 }
 
 function dailyAdjustmentFactor(bar: EodhdDailyBar, symbol: string): number {
@@ -177,6 +89,47 @@ function dailyAdjustmentFactor(bar: EodhdDailyBar, symbol: string): number {
 
   const adjustedClose = toFiniteNumber(bar.adjusted_close, "adjusted_close", symbol);
   return adjustedClose > 0 && close > 0 ? adjustedClose / close : 1;
+}
+
+function detectSplitEvents(bars: EodhdDailyBar[], symbol: string): EodhdSplitEvent[] {
+  const datedFactors = bars
+    .filter((bar) => bar.date !== undefined && bar.date !== null)
+    .map((bar) => ({ date: String(bar.date), factor: dailyAdjustmentFactor(bar, symbol) }))
+    .filter(({ factor }) => Number.isFinite(factor) && factor > 0)
+    .sort((left, right) => left.date.localeCompare(right.date));
+  const events: EodhdSplitEvent[] = [];
+
+  for (let index = 1; index < datedFactors.length; index += 1) {
+    const previous = datedFactors[index - 1]!;
+    const current = datedFactors[index]!;
+    const priceAdjustmentFactor = current.factor / previous.factor;
+    if (
+      !Number.isFinite(priceAdjustmentFactor) ||
+      (priceAdjustmentFactor >= 0.75 && priceAdjustmentFactor <= 1.333333)
+    ) {
+      continue;
+    }
+
+    events.push({
+      date: current.date,
+      eventType: priceAdjustmentFactor < 1 ? "reverse_split" : "forward_split",
+      priorAdjustmentFactor: previous.factor,
+      adjustmentFactor: current.factor,
+      priceAdjustmentFactor,
+      source: "adjusted_close_ratio",
+    });
+  }
+
+  return events;
+}
+
+function splitMetadata(events: EodhdSplitEvent[]): Record<string, string | number | boolean> {
+  return {
+    splitAdjustmentApplied: true,
+    detectedSplitEventCount: events.length,
+    detectedReverseSplitCount: events.filter((event) => event.eventType === "reverse_split").length,
+    detectedSplitEvents: JSON.stringify(events),
+  };
 }
 
 function normalizeEodhdSymbol(symbol: string, exchangeSuffix: string): string {
@@ -207,70 +160,33 @@ function eodhdSourceIntervalMs(timeframe: CandleFetchTimeframe): number {
   return 60 * 60_000;
 }
 
-function aggregateHourlyToFourHour(candles: Candle[]): {
-  candles: Candle[];
-  incompleteBucketCount: number;
-  droppedOffSessionBarCount: number;
-} {
-  const regularSessionAnchorMinute = 9 * 60 + 30;
-  const regularSessionEndMinute = 16 * 60;
-  const bucketMinutes = 4 * 60;
-  const buckets = new Map<string, { startTimestamp: number; candles: Candle[] }>();
-  let droppedOffSessionBarCount = 0;
+function aggregateHourlyToFourHour(candles: Candle[]): Candle[] {
+  const bySessionDate = new Map<string, Candle[]>();
 
   for (const candle of candles) {
-    const sessionDate = intradaySessionDate(candle.timestamp);
-    const minuteOfDay = intradayMinuteOfDay(candle.timestamp);
-    if (
-      minuteOfDay < regularSessionAnchorMinute ||
-      minuteOfDay >= regularSessionEndMinute
-    ) {
-      droppedOffSessionBarCount += 1;
-      continue;
-    }
-    const bucketStartMinute = regularSessionAnchorMinute +
-      Math.floor((minuteOfDay - regularSessionAnchorMinute) / bucketMinutes) * bucketMinutes;
-    const startTimestamp = candle.timestamp -
-      (minuteOfDay - bucketStartMinute) * 60_000;
-    const key = `${sessionDate}:${bucketStartMinute}`;
-    const bucket = buckets.get(key) ?? { startTimestamp, candles: [] };
-    bucket.candles.push(candle);
-    buckets.set(key, bucket);
+    const sessionDate = classifyIntradayCandleTimestamp(candle.timestamp).sessionDate;
+    bySessionDate.set(sessionDate, [...(bySessionDate.get(sessionDate) ?? []), candle]);
   }
 
-  let incompleteBucketCount = 0;
-  const aggregated = [...buckets.values()].flatMap((bucket) => {
-    const sorted = [...bucket.candles].sort((left, right) => left.timestamp - right.timestamp);
-    const expectedOffsets = new Set(sorted.map((candle) =>
-      Math.round((candle.timestamp - bucket.startTimestamp) / (60 * 60_000)),
-    ));
-    const bucketStartMinute = intradayMinuteOfDay(bucket.startTimestamp);
-    const expectedHourOffsets = bucketStartMinute === regularSessionAnchorMinute
-      ? [0, 1, 2, 3]
-      : [0, 1, 2];
-    if (
-      sorted.length !== expectedHourOffsets.length ||
-      !expectedHourOffsets.every((offset) => expectedOffsets.has(offset))
-    ) {
-      incompleteBucketCount += 1;
-      return [];
+  const aggregated: Candle[] = [];
+
+  for (const sessionCandles of bySessionDate.values()) {
+    const sorted = [...sessionCandles].sort((left, right) => left.timestamp - right.timestamp);
+
+    for (let index = 0; index < sorted.length; index += 4) {
+      const bucketCandles = sorted.slice(index, index + 4);
+      aggregated.push({
+        timestamp: bucketCandles[0]!.timestamp,
+        open: bucketCandles[0]!.open,
+        high: Math.max(...bucketCandles.map((candle) => candle.high)),
+        low: Math.min(...bucketCandles.map((candle) => candle.low)),
+        close: bucketCandles.at(-1)!.close,
+        volume: bucketCandles.reduce((sum, candle) => sum + candle.volume, 0),
+      });
     }
+  }
 
-    return [{
-      timestamp: bucket.startTimestamp,
-      open: sorted[0]!.open,
-      high: Math.max(...sorted.map((candle) => candle.high)),
-      low: Math.min(...sorted.map((candle) => candle.low)),
-      close: sorted.at(-1)!.close,
-      volume: sorted.reduce((sum, candle) => sum + candle.volume, 0),
-    }];
-  });
-
-  return {
-    candles: aggregated.sort((left, right) => left.timestamp - right.timestamp),
-    incompleteBucketCount,
-    droppedOffSessionBarCount,
-  };
+  return aggregated.sort((left, right) => left.timestamp - right.timestamp);
 }
 
 function hasTradableOhlc(candle: Candle): boolean {
@@ -299,6 +215,7 @@ function filterInvalidOhlcCandles(candles: Candle[]): EodhdCandleFetchResult {
   return {
     candles: filtered,
     droppedInvalidOhlcBars: candles.length - filtered.length,
+    splitEvents: [],
   };
 }
 
@@ -308,7 +225,6 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
   private readonly apiToken: string;
   private readonly exchangeSuffix: string;
   private readonly baseUrl: string;
-  private readonly yahooBaseUrl: string;
   private readonly fetchFn: typeof fetch;
 
   constructor(options: EodhdHistoricalCandleProviderOptions = {}) {
@@ -320,7 +236,6 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
     this.apiToken = apiToken;
     this.exchangeSuffix = options.exchangeSuffix ?? envText("EODHD_EXCHANGE_SUFFIX", "LEVEL_EODHD_EXCHANGE_SUFFIX") ?? DEFAULT_EXCHANGE_SUFFIX;
     this.baseUrl = options.baseUrl ?? envText("EODHD_BASE_URL", "LEVEL_EODHD_BASE_URL") ?? DEFAULT_BASE_URL;
-    this.yahooBaseUrl = options.yahooBaseUrl ?? DEFAULT_YAHOO_BASE_URL;
     this.fetchFn = options.fetchFn ?? fetch;
   }
 
@@ -331,28 +246,9 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
     const symbol = request.symbol.trim().toUpperCase();
     const eodhdSymbol = normalizeEodhdSymbol(symbol, this.exchangeSuffix);
     const fetchStartTimestamp = Date.now();
-    const eodhdResult = request.timeframe === "daily"
+    const result = request.timeframe === "daily"
       ? await this.fetchDailyCandles(eodhdSymbol, symbol, plan)
       : await this.fetchIntradayCandles(eodhdSymbol, symbol, request.timeframe, plan);
-    const splitBasisMismatch = await this.detectSplitBasisMismatch(
-      eodhdSymbol,
-      eodhdResult.candles,
-      plan,
-    );
-    let result = eodhdResult;
-
-    if (splitBasisMismatch) {
-      try {
-        result = await this.fetchYahooCurrentBasisCandles(symbol, request.timeframe, plan);
-        result.splitBasisMismatch = splitBasisMismatch;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `EODHD ${symbol} ${request.timeframe} candles have a mixed split basis around ${splitBasisMismatch.splitDate}; ` +
-          `the current-basis fallback failed: ${message}`,
-        );
-      }
-    }
     const fetchEndTimestamp = Date.now();
     const sorted = result.candles.sort((left, right) => left.timestamp - right.timestamp).slice(-plan.plannedBarCount);
 
@@ -371,25 +267,10 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
         eodhdSymbol,
         eodhdInterval: request.timeframe === "daily" ? "d" : eodhdInterval(request.timeframe),
         eodhdExchangeSuffix: this.exchangeSuffix,
-        providerAdjustmentMode: result.priceBasisSource === "yahoo_current_basis_fallback"
-          ? "split_only_current_basis"
-          : ADJUSTMENT_MODE,
-        priceBasisSource: result.priceBasisSource ?? "eodhd_adjusted_close_ratio",
-        splitBasisMismatchDetected: Boolean(result.splitBasisMismatch),
-        splitBasisMismatchDate: result.splitBasisMismatch?.splitDate ?? null,
-        splitBasisExpectedMultiplier: result.splitBasisMismatch?.expectedPriceMultiplier ?? null,
-        splitBasisObservedRatio: result.splitBasisMismatch?.observedPriceRatio ?? null,
-        eodhdDroppedInvalidOhlcBars: eodhdResult.droppedInvalidOhlcBars,
-        priceBasisDroppedInvalidOhlcBars: result.droppedInvalidOhlcBars,
-        eodhdIncompleteFourHourBuckets: eodhdResult.incompleteFourHourBuckets ?? 0,
-        priceBasisIncompleteFourHourBuckets: result.incompleteFourHourBuckets ?? 0,
-        eodhdDroppedOffSessionFourHourBars: eodhdResult.droppedOffSessionFourHourBars ?? 0,
-        priceBasisDroppedOffSessionFourHourBars: result.droppedOffSessionFourHourBars ?? 0,
-        // EODHD's historical US feed used here returns the regular session.
-        // Advertising extended-hours coverage made downstream diagnostics look
-        // more complete than the actual candle set.
-        useRTH: true,
-        sessionCoverage: "regular_only",
+        providerAdjustmentMode: ADJUSTMENT_MODE,
+        eodhdDroppedInvalidOhlcBars: result.droppedInvalidOhlcBars,
+        ...splitMetadata(result.splitEvents),
+        useRTH: false,
       },
     };
   }
@@ -434,7 +315,9 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
       });
     });
 
-    return filterInvalidOhlcCandles(candles);
+    const result = filterInvalidOhlcCandles(candles);
+    result.splitEvents = detectSplitEvents(payload, requestedSymbol);
+    return result;
   }
 
   private async fetchDailyAdjustmentFactors(
@@ -442,7 +325,7 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
     requestedSymbol: string,
     fromTimestamp: number,
     toTimestamp: number,
-  ): Promise<Map<string, number>> {
+  ): Promise<{ factors: Map<string, number>; splitEvents: EodhdSplitEvent[] }> {
     const payload = await this.fetchDailyBars(
       eodhdSymbol,
       fromTimestamp,
@@ -459,14 +342,14 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
       factors.set(String(bar.date), dailyAdjustmentFactor(bar, requestedSymbol));
     }
 
-    return factors;
+    return { factors, splitEvents: detectSplitEvents(payload, requestedSymbol) };
   }
 
   private intradayAdjustmentFactor(
     timestamp: number,
     adjustmentFactorsBySessionDate: Map<string, number>,
   ): number {
-    const sessionDate = intradaySessionDate(timestamp);
+    const sessionDate = classifyIntradayCandleTimestamp(timestamp).sessionDate;
     return adjustmentFactorsBySessionDate.get(sessionDate) ?? 1;
   }
 
@@ -488,184 +371,21 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
       to: String(Math.floor(plan.requestEndTimestamp / 1000)),
     });
     const payload = await this.fetchJson<EodhdIntradayBar[]>(url);
-    const adjustmentFactorsBySessionDate = await this.fetchDailyAdjustmentFactors(
+    const adjustmentFactors = await this.fetchDailyAdjustmentFactors(
       eodhdSymbol,
       requestedSymbol,
       expandedStartTimestamp - 24 * 60 * 60 * 1000,
       plan.requestEndTimestamp + 24 * 60 * 60 * 1000,
     );
     const mappedCandles = payload.map((bar) =>
-      this.mapIntradayBar(bar, requestedSymbol, adjustmentFactorsBySessionDate),
+      this.mapIntradayBar(bar, requestedSymbol, adjustmentFactors.factors),
     );
     const filtered = filterInvalidOhlcCandles(mappedCandles);
-    const aggregation = timeframe === "4h"
-      ? aggregateHourlyToFourHour(filtered.candles)
-      : null;
 
     return {
-      candles: aggregation?.candles ?? filtered.candles,
+      candles: timeframe === "4h" ? aggregateHourlyToFourHour(filtered.candles) : filtered.candles,
       droppedInvalidOhlcBars: filtered.droppedInvalidOhlcBars,
-      ...(aggregation
-        ? {
-            incompleteFourHourBuckets: aggregation.incompleteBucketCount,
-            droppedOffSessionFourHourBars: aggregation.droppedOffSessionBarCount,
-          }
-        : {}),
-    };
-  }
-
-  private async detectSplitBasisMismatch(
-    eodhdSymbol: string,
-    candles: Candle[],
-    plan: HistoricalFetchPlan,
-  ): Promise<EodhdSplitBasisMismatch | null> {
-    const sorted = [...candles].sort((left, right) => left.timestamp - right.timestamp);
-    const discontinuities: Array<{
-      previousDate: string;
-      currentDate: string;
-      observedPriceRatio: number;
-    }> = [];
-
-    for (let index = 1; index < sorted.length; index += 1) {
-      const previous = sorted[index - 1]!;
-      const current = sorted[index]!;
-      const observedPriceRatio = current.open / previous.close;
-      const discontinuityMagnitude = Math.max(observedPriceRatio, 1 / observedPriceRatio);
-      if (
-        Number.isFinite(discontinuityMagnitude) &&
-        discontinuityMagnitude >= EXTREME_PRICE_DISCONTINUITY_RATIO
-      ) {
-        discontinuities.push({
-          previousDate: sessionDateForTimestamp(previous.timestamp),
-          currentDate: sessionDateForTimestamp(current.timestamp),
-          observedPriceRatio,
-        });
-      }
-    }
-
-    if (discontinuities.length === 0) {
-      return null;
-    }
-
-    const splitEvents = await this.fetchSplitEvents(
-      eodhdSymbol,
-      plan.requestStartTimestamp,
-      plan.requestEndTimestamp,
-    );
-
-    for (const discontinuity of discontinuities) {
-      for (const event of splitEvents) {
-        const splitDate = typeof event.date === "string" ? event.date.trim() : "";
-        const expectedPriceMultiplier = splitPriceMultiplier(event.split);
-        if (
-          !splitDate ||
-          expectedPriceMultiplier === null ||
-          splitDate <= discontinuity.previousDate ||
-          splitDate > discontinuity.currentDate
-        ) {
-          continue;
-        }
-
-        const directionMatches = expectedPriceMultiplier >= 1
-          ? discontinuity.observedPriceRatio >= 1
-          : discontinuity.observedPriceRatio <= 1;
-        const observedMagnitude = Math.max(
-          discontinuity.observedPriceRatio,
-          1 / discontinuity.observedPriceRatio,
-        );
-        const expectedMagnitude = Math.max(
-          expectedPriceMultiplier,
-          1 / expectedPriceMultiplier,
-        );
-        const ratioDifference = Math.max(
-          observedMagnitude / expectedMagnitude,
-          expectedMagnitude / observedMagnitude,
-        );
-
-        if (directionMatches && ratioDifference <= SPLIT_RATIO_MATCH_TOLERANCE) {
-          return {
-            splitDate,
-            expectedPriceMultiplier,
-            observedPriceRatio: discontinuity.observedPriceRatio,
-          };
-        }
-      }
-    }
-
-    return null;
-  }
-
-  private async fetchSplitEvents(
-    eodhdSymbol: string,
-    fromTimestamp: number,
-    toTimestamp: number,
-  ): Promise<EodhdSplitEvent[]> {
-    const url = this.buildUrl(`/splits/${encodeURIComponent(eodhdSymbol)}`, {
-      fmt: "json",
-      from: isoDate(fromTimestamp),
-      to: isoDate(toTimestamp),
-    });
-    return this.fetchJson<EodhdSplitEvent[]>(url);
-  }
-
-  private async fetchYahooCurrentBasisCandles(
-    requestedSymbol: string,
-    timeframe: CandleTimeframe,
-    plan: HistoricalFetchPlan,
-  ): Promise<EodhdCandleFetchResult> {
-    const yahooSymbol = normalizeYahooSymbol(requestedSymbol);
-    const url = new URL(
-      `${this.yahooBaseUrl.replace(/\/$/, "")}/v8/finance/chart/${encodeURIComponent(yahooSymbol)}`,
-    );
-    url.searchParams.set("period1", String(Math.floor(plan.requestStartTimestamp / 1000)));
-    url.searchParams.set("period2", String(Math.ceil(plan.requestEndTimestamp / 1000)));
-    url.searchParams.set("interval", yahooInterval(timeframe));
-    url.searchParams.set("includePrePost", "false");
-    url.searchParams.set("events", "div,splits");
-
-    const payload = await this.fetchYahooJson(url.toString());
-    const chartError = payload.chart?.error;
-    if (chartError) {
-      throw new Error(
-        `Yahoo chart error ${chartError.code ?? "unknown"}: ${chartError.description ?? "no description"}`,
-      );
-    }
-
-    const chartResult = payload.chart?.result?.[0];
-    const timestamps = chartResult?.timestamp ?? [];
-    const quote = chartResult?.indicators?.quote?.[0];
-    if (!chartResult || !quote || timestamps.length === 0) {
-      throw new Error(`Yahoo returned no current-basis candles for ${requestedSymbol}.`);
-    }
-
-    const mappedCandles = timestamps.map((timestampSeconds, index): Candle => ({
-      timestamp: Number(timestampSeconds) * 1000,
-      open: Number(quote.open?.[index]),
-      high: Number(quote.high?.[index]),
-      low: Number(quote.low?.[index]),
-      close: Number(quote.close?.[index]),
-      volume: toVolume(quote.volume?.[index]),
-    }));
-    const filtered = filterInvalidOhlcCandles(mappedCandles);
-    const aggregation = timeframe === "4h"
-      ? aggregateHourlyToFourHour(filtered.candles)
-      : null;
-    const candles = aggregation?.candles ?? filtered.candles;
-
-    if (candles.length === 0) {
-      throw new Error(`Yahoo returned no valid current-basis candles for ${requestedSymbol}.`);
-    }
-
-    return {
-      candles,
-      droppedInvalidOhlcBars: filtered.droppedInvalidOhlcBars,
-      ...(aggregation
-        ? {
-            incompleteFourHourBuckets: aggregation.incompleteBucketCount,
-            droppedOffSessionFourHourBars: aggregation.droppedOffSessionBarCount,
-          }
-        : {}),
-      priceBasisSource: "yahoo_current_basis_fallback",
+      splitEvents: adjustmentFactors.splitEvents,
     };
   }
 
@@ -757,14 +477,6 @@ export class EodhdHistoricalCandleProvider implements HistoricalCandleProvider {
       throw new Error("EODHD returned a non-array candle payload.");
     }
     return payload as T;
-  }
-
-  private async fetchYahooJson(url: string): Promise<YahooChartResponse> {
-    const response = await this.fetchFn(url);
-    if (!response.ok) {
-      throw new Error(`Yahoo current-basis request failed with HTTP ${response.status}.`);
-    }
-    return await response.json() as YahooChartResponse;
   }
 
   private extractErrorPayloadMessage(payload: unknown): string | null {

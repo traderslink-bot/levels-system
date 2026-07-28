@@ -3,6 +3,8 @@
 // and optional raw event listener support for downstream alert intelligence.
 
 import type { FinalLevelZone } from "../levels/level-types.js";
+import type { Candle, CandleTimeframe } from "../market-data/candle-types.js";
+import type { FormalStructureTimeframe } from "../structure/index.js";
 import { DEFAULT_MONITORING_CONFIG, type MonitoringConfig } from "./monitoring-config.js";
 import { detectMonitoringEvents } from "./event-detector.js";
 import { createInitialInteractionState, updateInteractionState } from "./interaction-state-machine.js";
@@ -11,14 +13,32 @@ import { recordMonitoringEvent } from "./symbol-state.js";
 import type {
   LivePriceUpdate,
   MonitoringEvent,
+  MonitoringEventDiagnosticListener,
   MonitoringZoneContext,
+  RuntimeMarketStructureByTimeframe,
+  RuntimeMarketStructureSnapshot,
+  RuntimeMarketStructureTimeframeSnapshot,
   SymbolMonitoringState,
   WatchlistEntry,
   ZoneInteractionState,
 } from "./monitoring-types.js";
 import { LevelStore } from "./level-store.js";
+import { IntradayPriceStructureTracker } from "./intraday-price-structure.js";
+import { LiveFormalMarketStructureTracker } from "./live-formal-market-structure.js";
+import { LiveStableMarketStructureTracker } from "./live-stable-market-structure.js";
+import { VolumeActivityTracker } from "./volume-activity.js";
 
 export type MonitoringEventListener = (event: MonitoringEvent) => void;
+
+export type WatchlistMonitorOptions = {
+  diagnosticListener?: MonitoringEventDiagnosticListener;
+  priceAnomalyGuard?: {
+    enabled?: boolean;
+    maxSingleUpdateMovePct?: number;
+    confirmWindowMs?: number;
+    confirmTolerancePct?: number;
+  };
+};
 
 type PendingEvent = {
   event: MonitoringEvent;
@@ -26,15 +46,109 @@ type PendingEvent = {
   updatedState: ZoneInteractionState;
 };
 
+type PendingPriceAnomaly = {
+  lastPrice: number;
+  timestamp: number;
+  previousPrice: number;
+};
+
+const DEFAULT_PRICE_ANOMALY_MAX_MOVE_PCT = 0.35;
+const DEFAULT_PRICE_ANOMALY_CONFIRM_WINDOW_MS = 30_000;
+const DEFAULT_PRICE_ANOMALY_CONFIRM_TOLERANCE_PCT = 0.08;
+const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+
+type MarketStructureSeedSeries = {
+  candles: Candle[];
+  requestedEndTimestamp?: number;
+  fetchEndTimestamp?: number;
+};
+
+type MarketStructureSeedInput =
+  | Candle[]
+  | Partial<Record<CandleTimeframe, Candle[] | MarketStructureSeedSeries>>;
+
+function isCandleArray(value: MarketStructureSeedInput): value is Candle[] {
+  return Array.isArray(value);
+}
+
+function resolveSeedSeries(
+  seedInput: MarketStructureSeedInput,
+  timeframe: CandleTimeframe,
+  fallbackAsOfTimestamp: number,
+): { candles: Candle[]; asOfTimestamp: number } | null {
+  if (isCandleArray(seedInput)) {
+    if (timeframe !== "5m") {
+      return null;
+    }
+
+    return {
+      candles: seedInput,
+      asOfTimestamp: fallbackAsOfTimestamp,
+    };
+  }
+
+  const series = seedInput[timeframe];
+  if (!series) {
+    return null;
+  }
+
+  if (Array.isArray(series)) {
+    return {
+      candles: series,
+      asOfTimestamp: fallbackAsOfTimestamp,
+    };
+  }
+
+  return {
+    candles: series.candles,
+    asOfTimestamp: series.requestedEndTimestamp ?? series.fetchEndTimestamp ?? fallbackAsOfTimestamp,
+  };
+}
+
 export class WatchlistMonitor {
   private readonly symbolStates = new Map<string, SymbolMonitoringState>();
   private readonly emittedEventTimestamps = new Map<string, number>();
+  private readonly pendingPriceAnomalies = new Map<string, PendingPriceAnomaly>();
+  private readonly intradayStructureTracker = new IntradayPriceStructureTracker();
+  private readonly stableMarketStructureTracker = new LiveStableMarketStructureTracker();
+  private readonly formalMarketStructureTracker = new LiveFormalMarketStructureTracker();
+  private readonly higherTimeframeStableMarketStructureTrackers: Partial<
+    Record<FormalStructureTimeframe, LiveStableMarketStructureTracker>
+  > = {
+    "4h": new LiveStableMarketStructureTracker({
+      bucketMs: FOUR_HOURS_MS,
+      minCandles: 12,
+      maxCandles: 120,
+      persistenceBars: 2,
+    }),
+  };
+  private readonly higherTimeframeFormalMarketStructureTrackers: Partial<
+    Record<FormalStructureTimeframe, LiveFormalMarketStructureTracker>
+  > = {
+    "4h": new LiveFormalMarketStructureTracker({
+      bucketMs: FOUR_HOURS_MS,
+      timeframe: "4h",
+      minCandles: 24,
+      maxCandles: 160,
+      externalLeftBars: 3,
+      externalRightBars: 3,
+      followThroughBars: 1,
+    }),
+  };
+  private readonly volumeTracker = new VolumeActivityTracker();
 
   constructor(
     private readonly levelStore: LevelStore,
-    private readonly livePriceProvider: LivePriceProvider,
+    private livePriceProvider: LivePriceProvider,
     private readonly config: MonitoringConfig = DEFAULT_MONITORING_CONFIG,
+    private readonly options: WatchlistMonitorOptions = {},
   ) {}
+
+  setLivePriceProvider(provider: LivePriceProvider): LivePriceProvider {
+    const previousProvider = this.livePriceProvider;
+    this.livePriceProvider = provider;
+    return previousProvider;
+  }
 
   private ensureSymbolState(symbol: string): SymbolMonitoringState {
     const existing = this.symbolStates.get(symbol);
@@ -44,6 +158,7 @@ export class WatchlistMonitor {
     }
 
     const output = this.levelStore.getLevels(symbol);
+    this.applyVolumeBaseline(symbol, output);
 
     const state: SymbolMonitoringState = {
       symbol,
@@ -59,6 +174,13 @@ export class WatchlistMonitor {
       pressureScore: 0,
       recentEvents: [],
     };
+    const runtimeMarketStructure = this.getMarketStructureSnapshot(symbol);
+    if (runtimeMarketStructure) {
+      state.stableMarketStructure = runtimeMarketStructure.stable;
+      state.formalMarketStructure = runtimeMarketStructure.formal;
+      state.marketStructureByTimeframe = runtimeMarketStructure.timeframes;
+      state.runtimeMarketStructure = runtimeMarketStructure;
+    }
 
     for (const zone of [...state.supportZones, ...state.resistanceZones]) {
       state.interactions[zone.id] = createInitialInteractionState(symbol, zone);
@@ -77,6 +199,7 @@ export class WatchlistMonitor {
     }
 
     const output = this.levelStore.getLevels(symbol);
+    this.applyVolumeBaseline(symbol, output);
     const supportZones = this.levelStore.getSupportZones(symbol);
     const resistanceZones = this.levelStore.getResistanceZones(symbol);
     const zoneIds = new Set([...supportZones, ...resistanceZones].map((zone) => zone.id));
@@ -167,6 +290,176 @@ export class WatchlistMonitor {
     symbolState.levelStoreVersion = currentVersion;
   }
 
+  private applyVolumeBaseline(
+    symbol: string,
+    output: ReturnType<LevelStore["getLevels"]>,
+  ): void {
+    this.volumeTracker.setBaseline(
+      symbol,
+      output?.metadata.volumeBaselineByTimeframe?.["5m"],
+    );
+  }
+
+  seedMarketStructure(
+    symbolInput: string,
+    seedInput: MarketStructureSeedInput,
+    asOfTimestamp: number = Date.now(),
+  ): RuntimeMarketStructureSnapshot | null {
+    const symbol = symbolInput.toUpperCase();
+    const timeframeContexts: RuntimeMarketStructureByTimeframe = {};
+    const fiveMinuteSeries = resolveSeedSeries(seedInput, "5m", asOfTimestamp);
+    const fourHourSeries = resolveSeedSeries(seedInput, "4h", asOfTimestamp);
+
+    if (fiveMinuteSeries) {
+      const stable = this.stableMarketStructureTracker.seed(
+        symbol,
+        fiveMinuteSeries.candles,
+        fiveMinuteSeries.asOfTimestamp,
+      );
+      const formal = this.formalMarketStructureTracker.seed(
+        symbol,
+        fiveMinuteSeries.candles,
+        fiveMinuteSeries.asOfTimestamp,
+      );
+      if (stable || formal) {
+        timeframeContexts["5m"] = {
+          ...(stable ? { stable } : {}),
+          ...(formal ? { formal } : {}),
+        };
+      }
+    }
+
+    if (fourHourSeries) {
+      const stable = this.higherTimeframeStableMarketStructureTrackers["4h"]?.seed(
+        symbol,
+        fourHourSeries.candles,
+        fourHourSeries.asOfTimestamp,
+      );
+      const formal = this.higherTimeframeFormalMarketStructureTrackers["4h"]?.seed(
+        symbol,
+        fourHourSeries.candles,
+        fourHourSeries.asOfTimestamp,
+      );
+      if (stable || formal) {
+        timeframeContexts["4h"] = {
+          ...(stable ? { stable } : {}),
+          ...(formal ? { formal } : {}),
+        };
+      }
+    }
+
+    const snapshot = this.buildMarketStructureSnapshot(symbol, timeframeContexts);
+    const symbolState = this.symbolStates.get(symbol);
+
+    if (symbolState) {
+      this.applyMarketStructureSnapshotToSymbolState(symbolState, snapshot);
+    }
+
+    return snapshot;
+  }
+
+  getMarketStructureSnapshot(symbolInput: string): RuntimeMarketStructureSnapshot | null {
+    const symbol = symbolInput.toUpperCase();
+    const symbolState = this.symbolStates.get(symbol);
+    if (symbolState?.runtimeMarketStructure) {
+      return symbolState.runtimeMarketStructure;
+    }
+
+    const timeframes: RuntimeMarketStructureByTimeframe = {};
+    const tactical = this.getMarketStructureForTimeframe(symbol, "5m");
+    const fourHour = this.getMarketStructureForTimeframe(symbol, "4h");
+    if (tactical) {
+      timeframes["5m"] = tactical;
+    }
+    if (fourHour) {
+      timeframes["4h"] = fourHour;
+    }
+
+    return this.buildMarketStructureSnapshot(symbol, timeframes);
+  }
+
+  private getMarketStructureForTimeframe(
+    symbol: string,
+    timeframe: FormalStructureTimeframe,
+  ): RuntimeMarketStructureTimeframeSnapshot | null {
+    if (timeframe === "5m") {
+      const stable = this.stableMarketStructureTracker.getContext(symbol);
+      const formal = this.formalMarketStructureTracker.getContext(symbol);
+
+      if (!stable && !formal) {
+        return null;
+      }
+
+      return {
+        ...(stable ? { stable } : {}),
+        ...(formal ? { formal } : {}),
+      };
+    }
+
+    const stable = this.higherTimeframeStableMarketStructureTrackers[timeframe]?.getContext(symbol);
+    const formal = this.higherTimeframeFormalMarketStructureTrackers[timeframe]?.getContext(symbol);
+
+    if (!stable && !formal) {
+      return null;
+    }
+
+    return {
+      ...(stable ? { stable } : {}),
+      ...(formal ? { formal } : {}),
+    };
+  }
+
+  private buildMarketStructureSnapshot(
+    symbol: string,
+    seededTimeframes: RuntimeMarketStructureByTimeframe = {},
+  ): RuntimeMarketStructureSnapshot | null {
+    const timeframes: RuntimeMarketStructureByTimeframe = {
+      ...seededTimeframes,
+    };
+    const tactical = timeframes["5m"] ?? this.getMarketStructureForTimeframe(symbol, "5m");
+    const fourHour = timeframes["4h"] ?? this.getMarketStructureForTimeframe(symbol, "4h");
+
+    if (tactical) {
+      timeframes["5m"] = tactical;
+    }
+    if (fourHour) {
+      timeframes["4h"] = fourHour;
+    }
+
+    for (const timeframe of Object.keys(timeframes) as FormalStructureTimeframe[]) {
+      const context = timeframes[timeframe];
+      if (!context?.stable && !context?.formal) {
+        delete timeframes[timeframe];
+      }
+    }
+
+    const stable = tactical?.stable;
+    const formal = tactical?.formal;
+    const hasAnyTimeframe = Object.values(timeframes).some(
+      (context) => context?.stable || context?.formal,
+    );
+
+    if (!stable && !formal && !hasAnyTimeframe) {
+      return null;
+    }
+
+    return {
+      ...(stable ? { stable } : {}),
+      ...(formal ? { formal } : {}),
+      ...(hasAnyTimeframe ? { timeframes } : {}),
+    };
+  }
+
+  private applyMarketStructureSnapshotToSymbolState(
+    symbolState: SymbolMonitoringState,
+    snapshot: RuntimeMarketStructureSnapshot | null,
+  ): void {
+    symbolState.stableMarketStructure = snapshot?.stable;
+    symbolState.formalMarketStructure = snapshot?.formal;
+    symbolState.marketStructureByTimeframe = snapshot?.timeframes;
+    symbolState.runtimeMarketStructure = snapshot ?? undefined;
+  }
+
   private syncTrackedSymbols(entries: WatchlistEntry[]): void {
     const activeSymbols = new Set(
       entries
@@ -177,6 +470,13 @@ export class WatchlistMonitor {
     for (const symbol of this.symbolStates.keys()) {
       if (!activeSymbols.has(symbol)) {
         this.symbolStates.delete(symbol);
+        this.intradayStructureTracker.reset(symbol);
+        this.stableMarketStructureTracker.reset(symbol);
+        this.formalMarketStructureTracker.reset(symbol);
+        this.higherTimeframeStableMarketStructureTrackers["4h"]?.reset(symbol);
+        this.higherTimeframeFormalMarketStructureTrackers["4h"]?.reset(symbol);
+        this.volumeTracker.reset(symbol);
+        this.pendingPriceAnomalies.delete(symbol);
       }
     }
 
@@ -287,6 +587,7 @@ export class WatchlistMonitor {
         previousPrice: symbolState.previousPrice,
         symbolState,
         config: this.config,
+        diagnosticListener: this.options.diagnosticListener,
       });
 
       for (const event of events) {
@@ -338,6 +639,56 @@ export class WatchlistMonitor {
     }
   }
 
+  private shouldSuppressUnconfirmedPriceAnomaly(
+    symbolState: SymbolMonitoringState,
+    update: LivePriceUpdate,
+  ): boolean {
+    const guard = this.options.priceAnomalyGuard;
+    if (guard?.enabled === false) {
+      return false;
+    }
+
+    const previousPrice = symbolState.lastPrice;
+    if (
+      previousPrice === undefined ||
+      previousPrice <= 0 ||
+      !Number.isFinite(previousPrice) ||
+      !Number.isFinite(update.lastPrice) ||
+      update.lastPrice <= 0
+    ) {
+      return false;
+    }
+
+    const symbol = symbolState.symbol.toUpperCase();
+    const maxMovePct = guard?.maxSingleUpdateMovePct ?? DEFAULT_PRICE_ANOMALY_MAX_MOVE_PCT;
+    const movePct = Math.abs(update.lastPrice - previousPrice) / Math.max(Math.abs(previousPrice), 0.0001);
+
+    if (movePct <= maxMovePct) {
+      this.pendingPriceAnomalies.delete(symbol);
+      return false;
+    }
+
+    const pending = this.pendingPriceAnomalies.get(symbol);
+    const confirmWindowMs = guard?.confirmWindowMs ?? DEFAULT_PRICE_ANOMALY_CONFIRM_WINDOW_MS;
+    const confirmTolerancePct = guard?.confirmTolerancePct ?? DEFAULT_PRICE_ANOMALY_CONFIRM_TOLERANCE_PCT;
+    const confirmsPending =
+      pending !== undefined &&
+      update.timestamp - pending.timestamp <= confirmWindowMs &&
+      Math.abs(update.lastPrice - pending.lastPrice) / Math.max(Math.abs(pending.lastPrice), 0.0001) <= confirmTolerancePct;
+
+    if (confirmsPending) {
+      this.pendingPriceAnomalies.delete(symbol);
+      return false;
+    }
+
+    this.pendingPriceAnomalies.set(symbol, {
+      lastPrice: update.lastPrice,
+      timestamp: update.timestamp,
+      previousPrice,
+    });
+    return true;
+  }
+
   private handleUpdate(
     update: LivePriceUpdate,
     listener: MonitoringEventListener,
@@ -347,9 +698,46 @@ export class WatchlistMonitor {
     const symbolState = this.ensureSymbolState(symbol);
     this.reconcileSymbolState(symbolState);
 
+    if (this.shouldSuppressUnconfirmedPriceAnomaly(symbolState, update)) {
+      return;
+    }
+
     symbolState.previousPrice = symbolState.lastPrice;
     symbolState.lastPrice = update.lastPrice;
     symbolState.lastUpdateAt = update.timestamp;
+    symbolState.intradayStructure = this.intradayStructureTracker.update(update);
+    symbolState.stableMarketStructure = this.stableMarketStructureTracker.update(update);
+    symbolState.formalMarketStructure = this.formalMarketStructureTracker.update(update);
+    const fourHourStable = this.higherTimeframeStableMarketStructureTrackers["4h"]?.update(update);
+    const fourHourFormal = this.higherTimeframeFormalMarketStructureTrackers["4h"]?.update(update);
+    const seededTimeframes: RuntimeMarketStructureByTimeframe = {
+      ...(symbolState.marketStructureByTimeframe ?? {}),
+    };
+    if (symbolState.stableMarketStructure || symbolState.formalMarketStructure) {
+      seededTimeframes["5m"] = {
+        ...(symbolState.stableMarketStructure ? { stable: symbolState.stableMarketStructure } : {}),
+        ...(symbolState.formalMarketStructure ? { formal: symbolState.formalMarketStructure } : {}),
+      };
+    } else {
+      delete seededTimeframes["5m"];
+    }
+
+    const fourHourContext = {
+      ...(symbolState.marketStructureByTimeframe?.["4h"] ?? {}),
+      ...(fourHourStable ? { stable: fourHourStable } : {}),
+      ...(fourHourFormal ? { formal: fourHourFormal } : {}),
+    };
+    if (fourHourContext.stable || fourHourContext.formal) {
+      seededTimeframes["4h"] = fourHourContext;
+    } else {
+      delete seededTimeframes["4h"];
+    }
+
+    this.applyMarketStructureSnapshotToSymbolState(
+      symbolState,
+      this.buildMarketStructureSnapshot(symbol, seededTimeframes),
+    );
+    symbolState.volumeActivity = this.volumeTracker.update(update);
 
     const pending = [
       ...this.collectZoneEvents(symbolState, symbolState.supportZones, update),

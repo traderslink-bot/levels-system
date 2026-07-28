@@ -2,8 +2,13 @@
 // Filters low-value alerts before they reach the user.
 
 import type { IntelligentAlert } from "./alert-types.js";
+import { isAlertPrimaryCategoryLiveEnabled } from "../signals/signal-category-routing.js";
 
 export function shouldSuppressAlert(alert: IntelligentAlert): boolean {
+  if (!isAlertPrimaryCategoryLiveEnabled(alert)) {
+    return true;
+  }
+
   if (!alert.shouldNotify && alert.confidence === "low") {
     return true;
   }

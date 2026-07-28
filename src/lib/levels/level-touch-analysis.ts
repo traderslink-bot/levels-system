@@ -177,12 +177,6 @@ export function analyzeLevelTouches(
   timeframe: SourceTimeframe,
   config: LevelScoreConfig = LEVEL_SCORE_CONFIG,
 ): LevelTouchAnalysisResult {
-  // Five-minute feeds can contain flat zero-volume placeholders for intervals
-  // where no trade occurred. They preserve timeline continuity but are not
-  // independent touches, breaks, or follow-through evidence.
-  const evidenceCandles = timeframe === "5m"
-    ? candles.filter((candle) => candle.volume > 0)
-    : candles;
   const { zoneLow, zoneHigh } =
     level.zoneLow !== undefined && level.zoneHigh !== undefined
       ? { zoneLow: level.zoneLow, zoneHigh: level.zoneHigh }
@@ -194,30 +188,28 @@ export function analyzeLevelTouches(
   let firstTouchIndex: number | null = null;
   let lastMeaningfulTouchIndex: number | null = null;
 
-  evidenceCandles.forEach((candle, index) => {
+  candles.forEach((candle, index) => {
     const enteredZone = candle.high >= zoneLow && candle.low <= zoneHigh;
     const cleanBreakWithoutTouch =
-      level.type === "support" ? candle.close < zoneLow : candle.close > zoneHigh;
+      !priorBroken &&
+      (level.type === "support" ? candle.close < zoneLow : candle.close > zoneHigh);
+    const reclaimWithoutTouch =
+      priorBroken &&
+      (level.type === "support" ? candle.close > zoneHigh : candle.close < zoneLow);
 
-    if (!enteredZone && !cleanBreakWithoutTouch && !priorBroken) {
+    if (!enteredZone && !cleanBreakWithoutTouch && !reclaimWithoutTouch) {
       return;
     }
 
     const wickStrength = wickRejectStrength(candle, level.type);
     const bodyStrength = bodyRejectStrength(candle, level.type, mid);
-    const reaction = computeReactionMove(
-      evidenceCandles,
-      index,
-      level.price,
-      level.type,
-      config,
-    );
+    const reaction = computeReactionMove(candles, index, level.price, level.type, config);
     const touch: LevelTouch = {
       candleTimestamp: candle.timestamp,
       timeframe,
       reactionType: classifyReactionType({
         candle,
-        nextCandle: evidenceCandles[index + 1],
+        nextCandle: candles[index + 1],
         type: level.type,
         zoneLow,
         zoneHigh,
@@ -229,7 +221,7 @@ export function analyzeLevelTouches(
       touchDistancePct: touchDistancePct(candle, level.price),
       reactionMovePct: reaction.reactionMovePct,
       reactionMoveCandles: reaction.reactionMoveCandles,
-      volumeRatio: rollingVolumeRatio(evidenceCandles, index, config),
+      volumeRatio: rollingVolumeRatio(candles, index, config),
       closedAwayFromLevel: closeAwayFromLevel(candle, level.type, zoneLow, zoneHigh, config),
       wickRejectStrength: wickStrength,
       bodyRejectStrength: bodyStrength,
@@ -286,12 +278,7 @@ export function analyzeLevelTouches(
       volumeRatios.length > 0 ? volumeRatios.reduce((sum, value) => sum + value, 0) / volumeRatios.length : 1,
     cleanlinessStdDevPct: standardDeviation(touchAnchors),
     barsSinceLastReaction:
-      lastMeaningfulTouchIndex === null
-        ? evidenceCandles.length
-        : Math.max(evidenceCandles.length - 1 - lastMeaningfulTouchIndex, 0),
-    ageInBars:
-      firstTouchIndex === null
-        ? evidenceCandles.length
-        : Math.max(evidenceCandles.length - 1 - firstTouchIndex, 0),
+      lastMeaningfulTouchIndex === null ? candles.length : Math.max(candles.length - 1 - lastMeaningfulTouchIndex, 0),
+    ageInBars: firstTouchIndex === null ? candles.length : Math.max(candles.length - 1 - firstTouchIndex, 0),
   };
 }

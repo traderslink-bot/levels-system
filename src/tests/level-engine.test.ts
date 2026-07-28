@@ -117,45 +117,6 @@ test("buildRawLevelCandidates does not overvalue a gap that fills quickly", () =
   assert.ok((resistance.gapContinuationScore ?? 0) < 0.45);
 });
 
-test("buildRawLevelCandidates detects breakout-base support after a tight base expands", () => {
-  const baseTimestamp = Date.parse("2026-04-15T09:30:00Z");
-  const candles = [
-    { timestamp: baseTimestamp, open: 1.0, high: 1.04, low: 0.98, close: 1.02, volume: 900 },
-    { timestamp: baseTimestamp + 5 * 60 * 1000, open: 1.02, high: 1.05, low: 0.99, close: 1.01, volume: 950 },
-    { timestamp: baseTimestamp + 10 * 60 * 1000, open: 1.01, high: 1.052, low: 0.995, close: 1.03, volume: 980 },
-    { timestamp: baseTimestamp + 15 * 60 * 1000, open: 1.03, high: 1.047, low: 1.0, close: 1.02, volume: 930 },
-    { timestamp: baseTimestamp + 20 * 60 * 1000, open: 1.02, high: 1.049, low: 1.0, close: 1.04, volume: 1020 },
-    { timestamp: baseTimestamp + 25 * 60 * 1000, open: 1.04, high: 1.051, low: 1.01, close: 1.03, volume: 970 },
-    { timestamp: baseTimestamp + 30 * 60 * 1000, open: 1.03, high: 1.048, low: 1.0, close: 1.01, volume: 940 },
-    { timestamp: baseTimestamp + 35 * 60 * 1000, open: 1.01, high: 1.05, low: 1.0, close: 1.04, volume: 990 },
-    { timestamp: baseTimestamp + 40 * 60 * 1000, open: 1.05, high: 1.12, low: 1.045, close: 1.09, volume: 2600 },
-    { timestamp: baseTimestamp + 45 * 60 * 1000, open: 1.09, high: 1.2, low: 1.08, close: 1.18, volume: 3100 },
-    { timestamp: baseTimestamp + 50 * 60 * 1000, open: 1.18, high: 1.28, low: 1.16, close: 1.24, volume: 3400 },
-    { timestamp: baseTimestamp + 55 * 60 * 1000, open: 1.24, high: 1.3, low: 1.19, close: 1.22, volume: 2800 },
-  ];
-  const swings = detectSwingPoints(candles, {
-    swingWindow: 1,
-    minimumDisplacementPct: 0.05,
-    minimumSeparationBars: 2,
-  });
-
-  const candidates = buildRawLevelCandidates({
-    symbol: "BASE",
-    timeframe: "5m",
-    candles,
-    swings,
-  });
-  const breakoutBase = candidates.find(
-    (candidate) => candidate.sourceType === "breakout_base",
-  );
-
-  assert.ok(breakoutBase);
-  assert.equal(breakoutBase?.kind, "support");
-  assert.equal(breakoutBase?.price, 1.052);
-  assert.ok((breakoutBase?.gapContinuationScore ?? 0) > 0.3);
-  assert.match(breakoutBase?.notes.join(" ") ?? "", /breakout-base support/);
-});
-
 test("buildRawLevelCandidates detects an isolated meaningful wick-high as a raw resistance candidate", () => {
   const baseTimestamp = Date.parse("2026-04-10T13:30:00Z");
   const candles = [
@@ -188,6 +149,305 @@ test("buildRawLevelCandidates detects an isolated meaningful wick-high as a raw 
   }
   assert.ok(resistance.rejectionScore > 0.45);
   assert.ok(resistance.followThroughScore > 0.35);
+});
+
+test("detectSwingPoints can retain higher-timeframe barrier highs inside a rising sequence", () => {
+  const baseTimestamp = Date.parse("2026-04-20T13:30:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = [
+    { timestamp: baseTimestamp, open: 6.40, high: 6.80, low: 6.20, close: 6.72, volume: 1000 },
+    { timestamp: baseTimestamp + dayMs, open: 6.76, high: 7.12, low: 6.58, close: 6.88, volume: 1300 },
+    { timestamp: baseTimestamp + 2 * dayMs, open: 6.92, high: 7.20, low: 6.62, close: 7.02, volume: 1200 },
+    { timestamp: baseTimestamp + 3 * dayMs, open: 6.98, high: 7.28, low: 6.82, close: 7.05, volume: 1500 },
+    { timestamp: baseTimestamp + 4 * dayMs, open: 7.10, high: 7.35, low: 6.94, close: 7.08, volume: 1100 },
+    { timestamp: baseTimestamp + 5 * dayMs, open: 7.18, high: 7.73, low: 7.00, close: 7.24, volume: 2100 },
+    { timestamp: baseTimestamp + 6 * dayMs, open: 7.22, high: 7.38, low: 6.90, close: 6.96, volume: 1600 },
+  ];
+
+  const basicSwings = detectSwingPoints(candles, {
+    swingWindow: 1,
+    minimumDisplacementPct: 0.02,
+    minimumSeparationBars: 1,
+  });
+  const barrierAwareSwings = detectSwingPoints(candles, {
+    swingWindow: 1,
+    minimumDisplacementPct: 0.02,
+    minimumSeparationBars: 1,
+    includeBarrierCandles: true,
+  });
+
+  assert.equal(
+    basicSwings.some((swing) => swing.kind === "resistance" && swing.price === 7.12),
+    false,
+  );
+  assert.ok(barrierAwareSwings.some((swing) => swing.kind === "resistance" && swing.price === 7.12));
+  assert.ok(barrierAwareSwings.some((swing) => swing.kind === "resistance" && swing.price === 7.28));
+});
+
+test("detectSwingPoints keeps distinct nearby-in-time barrier levels when prices are materially different", () => {
+  const baseTimestamp = Date.parse("2026-02-10T14:30:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = [
+    { timestamp: baseTimestamp, open: 3.05, high: 3.20, low: 2.85, close: 2.94, volume: 1000 },
+    { timestamp: baseTimestamp + dayMs, open: 2.62, high: 2.72, low: 2.53, close: 2.53, volume: 1300 },
+    { timestamp: baseTimestamp + 2 * dayMs, open: 2.51, high: 2.64, low: 2.28, close: 2.30, volume: 1200 },
+    { timestamp: baseTimestamp + 3 * dayMs, open: 2.35, high: 2.41, low: 2.02, close: 2.03, volume: 1500 },
+    { timestamp: baseTimestamp + 4 * dayMs, open: 2.17, high: 2.36, low: 1.84, close: 1.86, volume: 2400 },
+    { timestamp: baseTimestamp + 5 * dayMs, open: 1.89, high: 2.25, low: 1.77, close: 2.07, volume: 1800 },
+    { timestamp: baseTimestamp + 6 * dayMs, open: 2.10, high: 2.33, low: 1.39, close: 1.60, volume: 2000 },
+  ];
+
+  const swings = detectSwingPoints(candles, {
+    swingWindow: 1,
+    minimumDisplacementPct: 0.02,
+    minimumSeparationBars: 4,
+    includeBarrierCandles: true,
+  });
+
+  assert.ok(swings.some((swing) => swing.kind === "resistance" && swing.price === 2.64));
+  assert.ok(swings.some((swing) => swing.kind === "resistance" && swing.price === 2.41));
+});
+
+test("buildRawLevelCandidates preserves low-priced shelf highs hidden below a later expansion spike", () => {
+  const baseTimestamp = Date.parse("2025-11-14T05:00:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = [
+    { timestamp: baseTimestamp, open: 1.86, high: 2.27, low: 1.75, close: 1.79, volume: 12000 },
+    { timestamp: baseTimestamp + dayMs, open: 1.79, high: 2.31, low: 1.68, close: 1.77, volume: 13000 },
+    { timestamp: baseTimestamp + dayMs * 2, open: 1.77, high: 1.77, low: 1.53, close: 1.69, volume: 61000 },
+    { timestamp: baseTimestamp + dayMs * 3, open: 1.68, high: 1.68, low: 1.57, close: 1.67, volume: 23000 },
+    { timestamp: baseTimestamp + dayMs * 4, open: 3.5, high: 6.3, low: 3.1, close: 3.5, volume: 5000000 },
+    { timestamp: baseTimestamp + dayMs * 5, open: 3.5, high: 5.65, low: 2.8, close: 3.1, volume: 3000000 },
+    { timestamp: baseTimestamp + dayMs * 6, open: 3.1, high: 4.75, low: 2.2, close: 2.4, volume: 2000000 },
+  ];
+
+  const swings = detectSwingPoints(candles, {
+    swingWindow: 3,
+    minimumDisplacementPct: 0.02,
+    minimumSeparationBars: 4,
+    includeBarrierCandles: true,
+  });
+  const candidates = buildRawLevelCandidates({
+    symbol: "MNDR",
+    timeframe: "daily",
+    candles,
+    swings,
+  });
+
+  assert.ok(
+    candidates.some(
+      (candidate) =>
+        candidate.kind === "resistance" &&
+        candidate.price === 1.77 &&
+        candidate.notes.some((note) => note.includes("expansion shelf")),
+    ),
+  );
+  assert.ok(
+    candidates.some(
+      (candidate) =>
+        candidate.kind === "resistance" &&
+        candidate.price === 1.68 &&
+        candidate.notes.some((note) => note.includes("expansion shelf")),
+    ),
+  );
+});
+
+test("buildRawLevelCandidates keeps low-priced overhead rejection shelves after a sharp step-down", () => {
+  const baseTimestamp = Date.parse("2026-05-15T05:00:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = [
+    { timestamp: baseTimestamp, open: 2.688, high: 3.2, low: 2.688, close: 2.944, volume: 822_509 },
+    { timestamp: baseTimestamp + dayMs, open: 2.688, high: 2.688, low: 2.048, close: 2.304, volume: 762_680 },
+    { timestamp: baseTimestamp + dayMs * 2, open: 1.92, high: 2.176, low: 1.664, close: 1.792, volume: 6_799_431 },
+    { timestamp: baseTimestamp + dayMs * 3, open: 1.92, high: 2.176, low: 1.536, close: 1.792, volume: 2_571_422 },
+    { timestamp: baseTimestamp + dayMs * 4, open: 1.63, high: 1.65, low: 1.39, close: 1.54, volume: 488_200 },
+    { timestamp: baseTimestamp + dayMs * 5, open: 1.35, high: 1.35, low: 1.22, close: 1.34, volume: 595_800 },
+    { timestamp: baseTimestamp + dayMs * 6, open: 1.11, high: 1.15, low: 1.015, close: 1.09, volume: 518_800 },
+  ];
+
+  const swings = detectSwingPoints(candles, {
+    swingWindow: 3,
+    minimumDisplacementPct: 0.02,
+    minimumSeparationBars: 4,
+    includeBarrierCandles: true,
+  });
+  const candidates = buildRawLevelCandidates({
+    symbol: "HAO",
+    timeframe: "daily",
+    candles,
+    swings,
+  });
+  const breakdownShelf = candidates.find(
+    (candidate) =>
+      candidate.kind === "resistance" &&
+      candidate.price === 2.688 &&
+      candidate.notes.some((note) => note.includes("breakdown shelf")),
+  );
+
+  assert.ok(breakdownShelf);
+
+  const resistanceZones = scoreLevelZones(
+    clusterRawLevelCandidates(
+      "HAO",
+      "resistance",
+      candidates,
+      DEFAULT_LEVEL_ENGINE_CONFIG.timeframeConfig.daily.clusterTolerancePct,
+      DEFAULT_LEVEL_ENGINE_CONFIG,
+      Date.parse("2026-07-10T12:00:00Z"),
+    ),
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+    Date.parse("2026-07-10T12:00:00Z"),
+  );
+  const output = rankLevelZones({
+    symbol: "HAO",
+    supportZones: [],
+    resistanceZones,
+    specialLevels: {},
+    metadata: {
+      providerByTimeframe: { daily: "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 1.4263,
+    },
+    config: DEFAULT_LEVEL_ENGINE_CONFIG,
+  });
+
+  assert.ok(output.majorResistance.some((zone) => zone.representativePrice === 2.688));
+});
+
+test("buildRawLevelCandidates captures low-priced 4h demand shelves after a washout reversal", () => {
+  const candles = [
+    { timestamp: Date.parse("2026-07-07T13:30:00Z"), open: 0.42, high: 0.4994, low: 0.415, close: 0.446, volume: 17_771 },
+    { timestamp: Date.parse("2026-07-07T17:30:00Z"), open: 0.4595, high: 0.489, low: 0.43, close: 0.4342, volume: 5_727 },
+    { timestamp: Date.parse("2026-07-08T13:30:00Z"), open: 0.428, high: 0.4522, low: 0.415, close: 0.4299, volume: 53_710 },
+    { timestamp: Date.parse("2026-07-08T17:30:00Z"), open: 0.4196, high: 0.45, low: 0.2251, close: 0.2911, volume: 655_883 },
+    { timestamp: Date.parse("2026-07-09T13:30:00Z"), open: 0.2833, high: 0.4788, low: 0.2623, close: 0.4244, volume: 11_455_756 },
+    { timestamp: Date.parse("2026-07-09T17:30:00Z"), open: 0.4236, high: 0.4236, low: 0.2281, close: 0.296, volume: 12_440_199 },
+  ];
+
+  const swings = detectSwingPoints(candles, {
+    swingWindow: 2,
+    minimumDisplacementPct: 0.012,
+    minimumSeparationBars: 3,
+    includeBarrierCandles: true,
+  });
+  const candidates = buildRawLevelCandidates({
+    symbol: "ZBAO",
+    timeframe: "4h",
+    candles,
+    swings,
+  });
+  const demandShelves = candidates.filter(
+    (candidate) =>
+      candidate.kind === "support" &&
+      candidate.notes.some((note) => note.includes("demand shelf")),
+  );
+
+  assert.equal(swings.some((swing) => swing.kind === "support" && swing.price === 0.2623), false);
+  assert.ok(demandShelves.some((candidate) => candidate.price >= 0.28 && candidate.price <= 0.3));
+  assert.ok(
+    demandShelves.some(
+      (candidate) =>
+        candidate.price === 0.296 &&
+        candidate.followThroughScore >= 0.55 &&
+        candidate.rejectionScore >= 0.3,
+    ),
+  );
+});
+
+test("buildRawLevelCandidates promotes repeated daily OHLC pivots as practical resistance", () => {
+  const baseTimestamp = Date.parse("2026-01-01T14:30:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = Array.from({ length: 48 }, (_, index) => {
+    const timestamp = baseTimestamp + index * dayMs;
+    if ([12, 16, 21, 27, 34].includes(index)) {
+      return {
+        timestamp,
+        open: 52.2 + (index % 3) * 0.7,
+        high: 55.1 + (index % 2) * 0.35,
+        low: 49.8,
+        close: 53.4,
+        volume: 700_000 + index,
+      };
+    }
+    return {
+      timestamp,
+      open: 42 + index * 0.08,
+      high: 44 + index * 0.08,
+      low: 40 + index * 0.08,
+      close: 41.5 + index * 0.08,
+      volume: 100_000 + index,
+    };
+  });
+
+  const candidates = buildRawLevelCandidates({
+    symbol: "DXYZ",
+    timeframe: "daily",
+    candles,
+    swings: [],
+  });
+  const pivot = candidates.find(
+    (candidate) =>
+      candidate.kind === "resistance" &&
+      candidate.notes.some((note) => note.includes("OHLC resistance pivot")) &&
+      candidate.price > 54 &&
+      candidate.price < 56,
+  );
+
+  assert.ok(pivot);
+  assert.ok((pivot?.repeatedReactionCount ?? 0) >= 4);
+});
+
+test("buildRawLevelCandidates emits role-flexible daily OHLC shelves for overhead resistance", () => {
+  const baseTimestamp = Date.parse("2026-01-01T14:30:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = Array.from({ length: 56 }, (_, index) => {
+    const timestamp = baseTimestamp + index * dayMs;
+    if ([10, 14, 18, 23, 29, 35].includes(index)) {
+      return {
+        timestamp,
+        open: 2.08,
+        high: 2.28,
+        low: 1.92 + (index % 3) * 0.015,
+        close: 2.16,
+        volume: 600_000 + index,
+      };
+    }
+    return {
+      timestamp,
+      open: 1.35 + index * 0.004,
+      high: 1.48 + index * 0.004,
+      low: 1.28 + index * 0.004,
+      close: 1.4 + index * 0.004,
+      volume: 100_000 + index,
+    };
+  });
+
+  const candidates = buildRawLevelCandidates({
+    symbol: "SEGG",
+    timeframe: "daily",
+    candles,
+    swings: [],
+  });
+
+  assert.ok(
+    candidates.some(
+      (candidate) =>
+        candidate.kind === "support" &&
+        candidate.price >= 1.92 &&
+        candidate.price <= 1.96 &&
+        candidate.notes.some((note) => note.includes("OHLC support pivot")),
+    ),
+  );
+  assert.ok(
+    candidates.some(
+      (candidate) =>
+        candidate.kind === "resistance" &&
+        candidate.price >= 1.92 &&
+        candidate.price <= 1.96 &&
+        candidate.notes.some((note) => note.includes("role-flexible resistance barrier")),
+    ),
+  );
 });
 
 test("clusterRawLevelCandidates preserves the strongest nearby wick-led representative instead of averaging it away", () => {
@@ -248,11 +508,42 @@ test("clusterRawLevelCandidates preserves the strongest nearby wick-led represen
   assert.equal(zones[0]?.zoneHigh, 1.75);
 });
 
-test("LevelEngine returns metadata, session-accurate special levels, and extension ladders", async (t) => {
-  t.mock.timers.enable({
-    apis: ["Date"],
-    now: new Date("2026-05-24T00:00:00Z"),
-  });
+test("clusterRawLevelCandidates derives freshness against the replay reference timestamp", () => {
+  const referenceTimestamp = Date.parse("2024-01-03T10:00:00Z");
+  const zones = clusterRawLevelCandidates(
+    "GXAI",
+    "support",
+    [
+      {
+        id: "S-replay",
+        symbol: "GXAI",
+        price: 1.42,
+        kind: "support" as const,
+        timeframe: "4h" as const,
+        sourceType: "swing_low" as const,
+        touchCount: 2,
+        reactionScore: 0.5,
+        reactionQuality: 0.58,
+        rejectionScore: 0.44,
+        displacementScore: 0.35,
+        sessionSignificance: 0.2,
+        followThroughScore: 0.62,
+        repeatedReactionCount: 1,
+        gapStructure: false,
+        firstTimestamp: referenceTimestamp - 4 * 60 * 60 * 1000,
+        lastTimestamp: referenceTimestamp - 60 * 60 * 1000,
+        notes: [],
+      },
+    ],
+    0.03,
+    DEFAULT_LEVEL_ENGINE_CONFIG,
+    referenceTimestamp,
+  );
+
+  assert.equal(zones[0]?.freshness, "fresh");
+});
+
+test("LevelEngine returns metadata, session-accurate special levels, and extension ladders", async () => {
   const baseTimestamp = Date.parse("2026-04-15T00:00:00Z");
   const dailyCandles = Array.from({ length: 40 }, (_, index) => ({
     timestamp: baseTimestamp + index * 24 * 60 * 60 * 1000,
@@ -416,6 +707,14 @@ test("LevelEngine returns metadata, session-accurate special levels, and extensi
   assert.equal(output.specialLevels.openingRangeHigh, 2.7);
   assert.ok(Array.isArray(output.extensionLevels.resistance));
   assert.ok(Array.isArray(output.extensionLevels.support));
+  assert.ok(Array.isArray(output.fullLadderLevels?.resistance));
+  assert.ok(
+    output.fullLadderLevels?.resistance.every(
+      (zone) =>
+        zone.strengthLabel !== "weak" &&
+        zone.timeframeSources.some((timeframe) => timeframe === "daily" || timeframe === "4h"),
+    ),
+  );
 });
 
 test("LevelEngine still generates structural levels when 5m is unavailable", async () => {
@@ -502,7 +801,169 @@ test("LevelEngine still generates structural levels when 5m is unavailable", asy
   assert.ok(output.majorResistance.length + output.intermediateResistance.length >= 0);
   assert.equal(output.specialLevels.premarketHigh, undefined);
   assert.ok(output.metadata.dataQualityFlags.includes("5m:unavailable"));
+  assert.equal(output.metadata.coverage, "limited");
+  assert.deepEqual(output.metadata.availableTimeframes, ["daily", "4h"]);
   assert.ok(Math.abs((output.metadata.referencePrice ?? 0) - 6.025) < 1e-9);
+});
+
+test("LevelEngine falls back to recent Yahoo 5m candles when EODHD 5m is empty", async () => {
+  const baseTimestamp = Date.parse("2026-07-24T13:30:00Z");
+  const higherTimeframeCandles = Array.from({ length: 20 }, (_, index) => ({
+    timestamp: baseTimestamp - (20 - index) * 24 * 60 * 60 * 1000,
+    open: 2 + index * 0.02,
+    high: 2.2 + index * 0.03,
+    low: 1.8 + index * 0.01,
+    close: 2.05 + index * 0.02,
+    volume: 10000 + index * 100,
+  }));
+  const fallbackFiveMinuteCandles = [
+    { timestamp: baseTimestamp, open: 2.8, high: 3.2, low: 2.7, close: 3.1, volume: 5000 },
+    { timestamp: baseTimestamp + 5 * 60 * 1000, open: 3.1, high: 3.8, low: 3.0, close: 3.2, volume: 8000 },
+    { timestamp: baseTimestamp + 10 * 60 * 1000, open: 3.2, high: 3.4, low: 3.0, close: 3.1, volume: 4000 },
+    { timestamp: baseTimestamp + 15 * 60 * 1000, open: 3.1, high: 3.3, low: 2.9, close: 3.0, volume: 4000 },
+    { timestamp: baseTimestamp + 20 * 60 * 1000, open: 3.0, high: 3.2, low: 2.8, close: 3.1, volume: 3000 },
+  ];
+  const response = (
+    timeframe: "daily" | "4h" | "5m",
+    provider: "eodhd" | "yahoo",
+    candles: typeof higherTimeframeCandles,
+  ): CandleProviderResponse => ({
+    provider,
+    symbol: "VIVK",
+    timeframe,
+    requestedLookbackBars: candles.length,
+    candles,
+    fetchStartTimestamp: 1,
+    fetchEndTimestamp: 2,
+    requestedStartTimestamp: candles[0]?.timestamp ?? baseTimestamp,
+    requestedEndTimestamp: candles.at(-1)?.timestamp ?? baseTimestamp,
+    sessionMetadataAvailable: timeframe === "5m",
+    actualBarsReturned: candles.length,
+    completenessStatus: "complete",
+    stale: false,
+    validationIssues: [],
+    sessionSummary: timeframe === "5m"
+      ? { premarketBars: 0, openingRangeBars: 5, regularBars: 5, afterHoursBars: 0, extendedBars: 0, unknownBars: 0, latestRegularSessionDate: "2026-07-24" }
+      : null,
+  });
+  const primary = new FakeHistoricalProvider({
+    daily: response("daily", "eodhd", higherTimeframeCandles),
+    "4h": response("4h", "eodhd", higherTimeframeCandles),
+    "5m": {
+      ...response("5m", "eodhd", []),
+      completenessStatus: "empty",
+      stale: true,
+      validationIssues: [{ code: "zero_results", severity: "error", message: "EODHD 5m unavailable" }],
+    },
+  });
+  const fallback = {
+    getProviderName: () => "yahoo" as const,
+    fetchCandles: async () => response("5m", "yahoo", fallbackFiveMinuteCandles),
+  };
+
+  const output = await new LevelEngine(
+    new CandleFetchService(primary as any),
+    undefined,
+    { fallbackFiveMinuteFetchService: fallback },
+  ).generateLevels({
+    symbol: "VIVK",
+    historicalRequests: {
+      daily: { symbol: "VIVK", timeframe: "daily", lookbackBars: 20 },
+      "4h": { symbol: "VIVK", timeframe: "4h", lookbackBars: 20 },
+      "5m": { symbol: "VIVK", timeframe: "5m", lookbackBars: 5 },
+    },
+  });
+
+  assert.equal(output.metadata.providerByTimeframe["5m"], "yahoo");
+  assert.equal(output.metadata.coverage, "full");
+  assert.ok(output.specialLevels.openingRangeHigh === 3.8);
+});
+
+test("LevelEngine builds an honest intraday-only map when daily and 4h history are unavailable", async () => {
+  const baseTimestamp = Date.parse("2026-07-14T13:30:00Z");
+  const emptyResponse = (timeframe: "daily" | "4h"): CandleProviderResponse => ({
+    provider: "stub",
+    symbol: "PMA",
+    timeframe,
+    requestedLookbackBars: 20,
+    candles: [],
+    fetchStartTimestamp: 1,
+    fetchEndTimestamp: 2,
+    requestedStartTimestamp: baseTimestamp,
+    requestedEndTimestamp: baseTimestamp,
+    sessionMetadataAvailable: false,
+    actualBarsReturned: 0,
+    completenessStatus: "empty",
+    stale: true,
+    validationIssues: [{ code: "zero_results", severity: "error", message: `${timeframe} unavailable` }],
+    sessionSummary: null,
+  });
+  const intradayCandles = Array.from({ length: 18 }, (_, index) => ({
+    timestamp: baseTimestamp + index * 5 * 60 * 1000,
+    open: 0.41 + index * 0.002,
+    high: 0.425 + index * 0.0025,
+    low: 0.4 + index * 0.0015,
+    close: 0.414 + index * 0.002,
+    volume: 20_000 + index * 1_000,
+  }));
+  const provider = new FakeHistoricalProvider({
+    daily: emptyResponse("daily"),
+    "4h": emptyResponse("4h"),
+    "5m": {
+      provider: "stub",
+      symbol: "PMA",
+      timeframe: "5m",
+      requestedLookbackBars: intradayCandles.length,
+      candles: intradayCandles,
+      fetchStartTimestamp: 1,
+      fetchEndTimestamp: 2,
+      requestedStartTimestamp: intradayCandles[0]!.timestamp,
+      requestedEndTimestamp: intradayCandles.at(-1)!.timestamp,
+      sessionMetadataAvailable: true,
+      actualBarsReturned: intradayCandles.length,
+      completenessStatus: "complete",
+      stale: false,
+      validationIssues: [],
+      sessionSummary: null,
+    },
+  });
+
+  const output = await new LevelEngine(new CandleFetchService(provider as any)).generateLevels({
+    symbol: "PMA",
+    historicalRequests: {
+      daily: { symbol: "PMA", timeframe: "daily", lookbackBars: 20 },
+      "4h": { symbol: "PMA", timeframe: "4h", lookbackBars: 20 },
+      "5m": { symbol: "PMA", timeframe: "5m", lookbackBars: intradayCandles.length },
+    },
+  });
+
+  assert.equal(output.metadata.coverage, "limited");
+  assert.deepEqual(output.metadata.availableTimeframes, ["5m"]);
+  assert.ok(output.metadata.dataQualityFlags.includes("daily:unavailable"));
+  assert.ok(output.metadata.dataQualityFlags.includes("4h:unavailable"));
+  assert.ok((output.metadata.referencePrice ?? 0) > 0);
+});
+
+test("LevelEngine rejects an empty map when every candle timeframe is unavailable", async () => {
+  const provider = {
+    providerName: "stub" as const,
+    async fetchCandles(): Promise<never> {
+      throw new Error("provider returned no history");
+    },
+  };
+  const engine = new LevelEngine(new CandleFetchService(provider));
+
+  await assert.rejects(
+    engine.generateLevels({
+      symbol: "GFUZ",
+      historicalRequests: {
+        daily: { symbol: "GFUZ", timeframe: "daily", lookbackBars: 20 },
+        "4h": { symbol: "GFUZ", timeframe: "4h", lookbackBars: 20 },
+        "5m": { symbol: "GFUZ", timeframe: "5m", lookbackBars: 20 },
+      },
+    }),
+    /no usable candle series were returned/i,
+  );
 });
 
 test("buildLevelExtensions exposes the next resistance and support ladder beyond surfaced zones", () => {
@@ -1514,6 +1975,127 @@ test("buildLevelExtensions prefers the practical far frontier over the absolute 
   assert.ok(!extensions.resistance.map((zone) => zone.id).includes("absolute-farthest"));
 });
 
+test("buildLevelExtensions can preserve the full practical resistance ladder for low-priced runners", () => {
+  const zone = (
+    id: string,
+    representativePrice: number,
+    timeframeBias: FinalLevelZone["timeframeBias"] = "daily",
+  ): FinalLevelZone => ({
+    id,
+    symbol: "MNDR",
+    kind: "resistance",
+    timeframeBias,
+    zoneLow: representativePrice,
+    zoneHigh: representativePrice,
+    representativePrice,
+    strengthScore: 22,
+    strengthLabel: "moderate",
+    touchCount: 1,
+    confluenceCount: timeframeBias === "mixed" ? 2 : 1,
+    sourceTypes: ["swing_high"],
+    timeframeSources: timeframeBias === "mixed" ? ["daily", "4h"] : [timeframeBias],
+    reactionQualityScore: 0.66,
+    rejectionScore: 0.42,
+    displacementScore: 0.58,
+    sessionSignificanceScore: 0.16,
+    followThroughScore: 0.48,
+    sourceEvidenceCount: 1,
+    firstTimestamp: 1,
+    lastTimestamp: 2,
+    isExtension: false,
+    freshness: "fresh",
+    notes: [],
+  });
+  const surfaced = zone("visible", 1.19, "mixed");
+  const resistanceZones: FinalLevelZone[] = [
+    surfaced,
+    zone("R133", 1.33, "daily"),
+    zone("R138", 1.38, "4h"),
+    zone("R151", 1.51, "daily"),
+    zone("R155", 1.55, "daily"),
+    zone("R162", 1.62, "4h"),
+    zone("R171", 1.71, "daily"),
+    zone("R184", 1.84, "daily"),
+  ];
+
+  const extensions = buildLevelExtensions({
+    supportZones: [],
+    resistanceZones,
+    surfacedSupport: [],
+    surfacedResistance: [surfaced],
+    spacingPct: 0.01,
+    searchWindowPct: 0.05,
+    referencePrice: 1.17,
+    forwardPlanningRangePct: 0.5,
+    maxExtensionPerSide: 10,
+    preservePracticalResistanceCoverage: true,
+  });
+
+  assert.deepEqual(
+    extensions.resistance.map((extension) => extension.representativePrice),
+    [1.33, 1.38, 1.51, 1.55, 1.62, 1.71],
+  );
+  assert.ok(!extensions.resistance.some((extension) => extension.representativePrice > 1.755));
+});
+
+test("buildLevelExtensions adds weak continuation extensions when historical resistance is exhausted", () => {
+  const zone = (id: string, representativePrice: number): FinalLevelZone => ({
+    id,
+    symbol: "XTLB",
+    kind: "resistance",
+    timeframeBias: "daily",
+    zoneLow: representativePrice,
+    zoneHigh: representativePrice,
+    representativePrice,
+    strengthScore: 22,
+    strengthLabel: "moderate",
+    touchCount: 1,
+    confluenceCount: 1,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["daily"],
+    reactionQualityScore: 0.66,
+    rejectionScore: 0.42,
+    displacementScore: 0.58,
+    sessionSignificanceScore: 0.16,
+    followThroughScore: 0.48,
+    sourceEvidenceCount: 1,
+    firstTimestamp: 1,
+    lastTimestamp: 2,
+    isExtension: false,
+    freshness: "fresh",
+    notes: [],
+  });
+  const surfaced = zone("visible", 3.49);
+  const realForward = zone("historical-forward", 3.93);
+
+  const extensions = buildLevelExtensions({
+    supportZones: [],
+    resistanceZones: [surfaced, realForward],
+    surfacedSupport: [],
+    surfacedResistance: [surfaced],
+    spacingPct: 0.01,
+    searchWindowPct: 0.05,
+    referencePrice: 3.46,
+    forwardPlanningRangePct: 0.5,
+    maxExtensionPerSide: 6,
+    allowSyntheticResistanceExtensions: true,
+  });
+
+  assert.ok(extensions.resistance.some((extension) => extension.id === "historical-forward"));
+  assert.ok(
+    extensions.resistance.some(
+      (extension) =>
+        extension.isExtension &&
+        extension.sourceEvidenceCount === 0 &&
+        extension.representativePrice >= 4.5,
+    ),
+  );
+  assert.ok(
+    Math.max(...extensions.resistance.map((extension) => extension.representativePrice)) >=
+      3.46 * 1.3,
+  );
+});
+
 test("scoreLevelZones promotes mixed higher-timeframe confluence above similar 5m-only reaction structure", () => {
   const baseZone = {
     symbol: "ALBT",
@@ -1781,6 +2363,244 @@ test("rankLevelZones surfaces mixed higher-timeframe zones once in the highest b
   assert.deepEqual(output.intradayResistance.map((zone) => zone.id), ["5m-1"]);
   assert.ok(!output.intermediateResistance.some((zone) => zone.id === "mix-1"));
   assert.ok(!output.intradayResistance.some((zone) => zone.id === "mix-1"));
+});
+
+test("rankLevelZones fills practical small-cap resistance gaps with in-between daily shelves", () => {
+  const zone = (id: string, price: number, strengthScore: number): FinalLevelZone => ({
+    id,
+    symbol: "CCM",
+    kind: "resistance",
+    timeframeBias: "daily",
+    zoneLow: price,
+    zoneHigh: price,
+    representativePrice: price,
+    strengthScore,
+    strengthLabel: strengthScore >= 25 ? "strong" : "moderate",
+    touchCount: 2,
+    confluenceCount: 1,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["daily"],
+    reactionQualityScore: 0.62,
+    rejectionScore: 0.42,
+    displacementScore: 0.5,
+    sessionSignificanceScore: 0.2,
+    followThroughScore: 0.52,
+    sourceEvidenceCount: 1,
+    firstTimestamp: 1,
+    lastTimestamp: 2,
+    sessionDate: undefined,
+    isExtension: false,
+    freshness: "fresh",
+    notes: [],
+  });
+
+  const output = rankLevelZones({
+    symbol: "CCM",
+    supportZones: [],
+    resistanceZones: [
+      zone("R-604", 6.04, 30),
+      zone("R-615", 6.15, 29),
+      zone("R-660", 6.6, 18),
+      zone("R-700", 7.0, 17),
+      zone("R-717", 7.17, 28),
+      zone("R-790", 7.9, 27),
+      zone("R-880", 8.8, 26),
+    ],
+    specialLevels: {},
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 5.91,
+    },
+    config: DEFAULT_LEVEL_ENGINE_CONFIG,
+  });
+
+  const surfacedPrices = output.majorResistance
+    .map((level) => level.representativePrice)
+    .sort((left, right) => left - right);
+
+  assert.ok(surfacedPrices.includes(6.6));
+  assert.ok(surfacedPrices.includes(7.0));
+  assert.ok(surfacedPrices.includes(7.17));
+});
+
+test("rankLevelZones preserves active-runner higher-timeframe checkpoints beyond the old 50 percent cap", () => {
+  const zone = (id: string, price: number, strengthScore: number): FinalLevelZone => ({
+    id,
+    symbol: "VEEE",
+    kind: "resistance",
+    timeframeBias: "mixed",
+    zoneLow: price,
+    zoneHigh: price,
+    representativePrice: price,
+    strengthScore,
+    strengthLabel: strengthScore >= 40 ? "major" : "strong",
+    touchCount: 2,
+    confluenceCount: 2,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["daily", "4h"],
+    reactionQualityScore: 0.66,
+    rejectionScore: 0.48,
+    displacementScore: 0.68,
+    sessionSignificanceScore: 0.18,
+    followThroughScore: 0.58,
+    sourceEvidenceCount: 2,
+    firstTimestamp: 1,
+    lastTimestamp: 2,
+    sessionDate: undefined,
+    isExtension: false,
+    freshness: "stale",
+    notes: [],
+  });
+
+  const output = rankLevelZones({
+    symbol: "VEEE",
+    supportZones: [],
+    resistanceZones: [
+      zone("R-1769", 17.69, 46),
+      zone("R-1813", 18.13, 32),
+      zone("R-2305", 23.05, 33),
+      zone("R-3866", 38.66, 34),
+    ],
+    specialLevels: {},
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 12.04,
+    },
+    config: DEFAULT_LEVEL_ENGINE_CONFIG,
+  });
+
+  const surfacedResistancePrices = [
+    ...output.majorResistance,
+    ...output.intermediateResistance,
+    ...output.intradayResistance,
+  ].map((level) => level.representativePrice);
+  const extensionResistancePrices = output.extensionLevels.resistance.map(
+    (level) => level.representativePrice,
+  );
+
+  assert.ok(surfacedResistancePrices.includes(23.05));
+  assert.ok(!surfacedResistancePrices.includes(38.66));
+  assert.ok(!extensionResistancePrices.includes(38.66));
+});
+
+test("rankLevelZones keeps crossed active-runner resistance available for live support role flips", () => {
+  const zone = (id: string, price: number, strengthScore: number): FinalLevelZone => ({
+    id,
+    symbol: "VEEE",
+    kind: "resistance",
+    timeframeBias: "mixed",
+    zoneLow: price,
+    zoneHigh: price,
+    representativePrice: price,
+    strengthScore,
+    strengthLabel: strengthScore >= 40 ? "major" : "strong",
+    touchCount: 2,
+    confluenceCount: 2,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["daily", "4h"],
+    reactionQualityScore: 0.66,
+    rejectionScore: 0.48,
+    displacementScore: 0.68,
+    sessionSignificanceScore: 0.18,
+    followThroughScore: 0.58,
+    sourceEvidenceCount: 2,
+    firstTimestamp: 1,
+    lastTimestamp: 2,
+    sessionDate: undefined,
+    isExtension: false,
+    freshness: "stale",
+    notes: [],
+  });
+
+  const output = rankLevelZones({
+    symbol: "VEEE",
+    supportZones: [],
+    resistanceZones: [
+      zone("R-1769", 17.69, 46),
+      zone("R-2305", 23.05, 33),
+      zone("R-3866", 38.66, 34),
+    ],
+    specialLevels: {},
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 29.26,
+    },
+    config: DEFAULT_LEVEL_ENGINE_CONFIG,
+  });
+
+  const surfacedResistancePrices = [
+    ...output.majorResistance,
+    ...output.intermediateResistance,
+    ...output.intradayResistance,
+  ].map((level) => level.representativePrice);
+
+  assert.ok(surfacedResistancePrices.includes(23.05));
+  assert.ok(surfacedResistancePrices.includes(38.66));
+  assert.ok(!surfacedResistancePrices.includes(17.69));
+});
+
+test("rankLevelZones preserves a reverse-split small-cap shelf before the next higher anchor", () => {
+  const zone = (id: string, price: number, strengthScore: number): FinalLevelZone => ({
+    id,
+    symbol: "CHNR",
+    kind: "resistance",
+    timeframeBias: "daily",
+    zoneLow: price,
+    zoneHigh: price,
+    representativePrice: price,
+    strengthScore,
+    strengthLabel: strengthScore >= 25 ? "strong" : "moderate",
+    touchCount: 2,
+    confluenceCount: 1,
+    sourceTypes: ["swing_high"],
+    timeframeSources: ["daily"],
+    reactionQualityScore: 0.62,
+    rejectionScore: 0.42,
+    displacementScore: 0.5,
+    sessionSignificanceScore: 0.2,
+    followThroughScore: 0.52,
+    sourceEvidenceCount: 1,
+    firstTimestamp: 1,
+    lastTimestamp: 2,
+    sessionDate: undefined,
+    isExtension: false,
+    freshness: "fresh",
+    notes: [],
+  });
+
+  const output = rankLevelZones({
+    symbol: "CHNR",
+    supportZones: [],
+    resistanceZones: [
+      zone("R-470", 4.7, 30),
+      zone("R-480", 4.8, 36),
+      zone("R-502", 5.02, 24),
+      zone("R-519", 5.19, 18),
+      zone("R-536", 5.36, 35),
+      zone("R-581", 5.81, 22),
+    ],
+    specialLevels: {},
+    metadata: {
+      providerByTimeframe: { daily: "stub", "4h": "stub", "5m": "stub" },
+      dataQualityFlags: [],
+      freshness: "fresh",
+      referencePrice: 4.67,
+    },
+    config: DEFAULT_LEVEL_ENGINE_CONFIG,
+  });
+
+  const surfacedPrices = output.majorResistance
+    .map((level) => level.representativePrice)
+    .sort((left, right) => left - right);
+
+  assert.ok(surfacedPrices.includes(5.19));
+  assert.ok(surfacedPrices.includes(5.36));
 });
 
 test("rankLevelZones suppresses weaker nearby band clutter while preserving stronger anchor levels", () => {

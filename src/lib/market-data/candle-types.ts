@@ -2,12 +2,9 @@
 // Shared candle type definitions for the levels system market-data layer.
 
 export type CandleTimeframe = "daily" | "4h" | "5m";
-export type LevelEngineEligibleTimeframe = CandleTimeframe;
-export type ProviderCandleTimeframe = "daily" | "4h" | "15m" | "5m";
-export type ValidationCacheCollectionTimeframe = ProviderCandleTimeframe;
-export type CandleFetchTimeframe = ProviderCandleTimeframe | "1m";
+export type CandleFetchTimeframe = "1m" | CandleTimeframe;
 
-export type CandleProviderName = "ibkr" | "eodhd" | "yahoo" | "stub" | "twelve_data";
+export type CandleProviderName = "ibkr" | "eodhd" | "yahoo" | "stub";
 
 export type Candle = {
   timestamp: number;
@@ -37,9 +34,7 @@ export type CandleValidationCode =
   | "suspicious_gap"
   | "stale_final_candle"
   | "missing_recent_candles"
-  | "incomplete_current_session_data"
-  | "sparse_traded_bars"
-  | "thin_last_print";
+  | "incomplete_current_session_data";
 
 export type CandleValidationIssue = {
   code: CandleValidationCode;
@@ -62,7 +57,7 @@ export type CandleSessionSummary = {
 export type BaseCandleProviderResponse = {
   provider: CandleProviderName;
   symbol: string;
-  timeframe: CandleTimeframe;
+  timeframe: CandleFetchTimeframe;
   requestedLookbackBars: number;
   candles: Candle[];
   fetchStartTimestamp: number;
@@ -83,36 +78,6 @@ export type CandleProviderResponse = BaseCandleProviderResponse & {
 
 export type CandleSeries = {
   symbol: string;
-  timeframe: CandleTimeframe;
+  timeframe: CandleFetchTimeframe;
   candles: Candle[];
 };
-
-export const LEVEL_ENGINE_ELIGIBLE_TIMEFRAMES: readonly LevelEngineEligibleTimeframe[] = [
-  "daily",
-  "4h",
-  "5m",
-];
-
-export const PROVIDER_CANDLE_TIMEFRAMES: readonly ProviderCandleTimeframe[] = [
-  "daily",
-  "4h",
-  "15m",
-  "5m",
-];
-
-export function isLevelEngineEligibleTimeframe(
-  timeframe: CandleFetchTimeframe,
-): timeframe is LevelEngineEligibleTimeframe {
-  return timeframe === "daily" || timeframe === "4h" || timeframe === "5m";
-}
-
-export function isProviderCandleTimeframe(
-  timeframe: CandleFetchTimeframe,
-): timeframe is ProviderCandleTimeframe {
-  return (
-    timeframe === "daily" ||
-    timeframe === "4h" ||
-    timeframe === "15m" ||
-    timeframe === "5m"
-  );
-}

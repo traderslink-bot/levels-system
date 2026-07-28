@@ -20,13 +20,22 @@ export type SwingPoint = {
 export type RawLevelCandidateSourceType =
   | "swing_high"
   | "swing_low"
-  | "breakout_base"
-  | "gap_up_origin"
-  | "gap_up_pullback_low"
   | "premarket_high"
   | "premarket_low"
   | "opening_range_high"
-  | "opening_range_low";
+  | "opening_range_low"
+  | "previous_day_high"
+  | "previous_day_low"
+  | "previous_day_close"
+  | "current_session_high"
+  | "current_session_low";
+
+export type LevelMarketDataProvenance = {
+  formedAt: number;
+  sourceLastSeenAt: number;
+  lastTestedAt?: number;
+  lastConfirmedAt?: number;
+};
 
 export type RawLevelCandidate = {
   id: string;
@@ -47,39 +56,11 @@ export type RawLevelCandidate = {
   gapStructure: boolean;
   firstTimestamp: number;
   lastTimestamp: number;
-  /** First timestamp at which a swing-derived candidate was knowable. */
-  confirmationTimestamp?: number;
+  marketDataProvenance?: LevelMarketDataProvenance;
   notes: string[];
 };
 
 export type LevelDataFreshness = "fresh" | "aging" | "stale";
-
-export type LevelExtensionSource =
-  | "historical_candidate"
-  | "synthetic_continuation_map";
-
-export type SyntheticExtensionGenerationMethod =
-  | "percentage_ladder"
-  | "round_number_ladder"
-  | "price_band_ladder"
-  | "prior_spacing_ladder";
-
-export type SyntheticExtensionEvidenceLimitation =
-  | "no_real_extension_candidate_available"
-  | "real_extension_coverage_below_threshold"
-  | "not_historical_support_resistance"
-  | "no_touch_or_rejection_history"
-  | "no_historical_confluence";
-
-export type LevelExtensionMetadata = {
-  extensionSource: LevelExtensionSource;
-  generationMethod?: SyntheticExtensionGenerationMethod;
-  referencePrice?: number;
-  targetCoveragePct?: number;
-  maxCoveragePct?: number;
-  syntheticIndex?: number;
-  evidenceLimitations?: SyntheticExtensionEvidenceLimitation[];
-};
 
 export type FinalLevelZone = {
   id: string;
@@ -104,13 +85,12 @@ export type FinalLevelZone = {
   sourceEvidenceCount: number;
   firstTimestamp: number;
   lastTimestamp: number;
+  marketDataProvenance?: LevelMarketDataProvenance;
   sessionDate?: string;
   isExtension: boolean;
   freshness: LevelDataFreshness;
   notes: string[];
-  extensionMetadata?: LevelExtensionMetadata;
   enrichedAnalysis?: EnrichedLevelAnalysis;
-  roleFlipEvidence?: RoleFlipEvidence;
 };
 
 export type LevelLadderExtension = {
@@ -121,8 +101,14 @@ export type LevelLadderExtension = {
 export type LevelOutputMetadata = {
   providerByTimeframe: Partial<Record<CandleTimeframe, string>>;
   dataQualityFlags: string[];
+  coverage?: "full" | "limited";
+  availableTimeframes?: CandleTimeframe[];
   freshness: LevelDataFreshness;
   referencePrice?: number;
+  volumeBaselineByTimeframe?: Partial<Record<CandleTimeframe, {
+    averageVolume: number;
+    sampleSize: number;
+  }>>;
 };
 
 export type LevelEngineOutput = {
@@ -136,11 +122,22 @@ export type LevelEngineOutput = {
   intradaySupport: FinalLevelZone[];
   intradayResistance: FinalLevelZone[];
   extensionLevels: LevelLadderExtension;
+  /**
+   * Complete evidence inventory for the Full Ladder. The active buckets may
+   * intentionally be selective for tactical pathing, while this sidecar keeps
+   * verified legacy daily/4h structure available for the separate Full Ladder.
+   */
+  fullLadderLevels?: LevelLadderExtension;
   specialLevels: {
     premarketHigh?: number;
     premarketLow?: number;
     openingRangeHigh?: number;
     openingRangeLow?: number;
+    previousDayHigh?: number;
+    previousDayLow?: number;
+    previousDayClose?: number;
+    currentSessionHigh?: number;
+    currentSessionLow?: number;
   };
 };
 
@@ -161,6 +158,12 @@ export type LevelState =
   | "broken"
   | "reclaimed"
   | "flipped";
+
+export type LevelDurabilityLabel =
+  | "fragile"
+  | "tested"
+  | "durable"
+  | "reinforced";
 
 export type LevelReactionType =
   | "tap"
@@ -199,17 +202,6 @@ export type LevelTouchAnalysisResult = {
   ageInBars: number;
 };
 
-export type RoleFlipEvidence = {
-  originalType: LevelType;
-  flippedType: LevelType;
-  timeframe: Extract<SourceTimeframe, "daily" | "4h">;
-  formationTimestamp: number;
-  firstBreakTimestamp: number;
-  confirmationTimestamp: number;
-  retestTimestamp: number;
-  reactionTimestamp: number;
-};
-
 export type LevelCandidate = {
   id: string;
   symbol: string;
@@ -219,8 +211,7 @@ export type LevelCandidate = {
   zoneHigh?: number;
   sourceTimeframes: SourceTimeframe[];
   originKinds: LevelOrigin[];
-  firstTimestamp?: number;
-  lastTimestamp?: number;
+  marketDataProvenance?: LevelMarketDataProvenance;
   analysisCandles?: Candle[];
   touches?: LevelTouch[];
   touchCount?: number;
@@ -230,7 +221,6 @@ export type LevelCandidate = {
   cleanBreakCount?: number;
   reclaimCount?: number;
   roleFlipCount?: number;
-  roleFlipEvidence?: RoleFlipEvidence;
   strongestReactionMovePct?: number;
   averageReactionMovePct?: number;
   bestVolumeRatio?: number;
@@ -253,6 +243,9 @@ export type LevelScoreBreakdown = {
   roleFlipScore: number;
   defenseScore: number;
   recencyScore: number;
+  durabilityScore?: number;
+  durabilityAdjustment?: number;
+  breakDamagePenalty: number;
   overtestPenalty: number;
   clusterPenalty: number;
   structuralStrengthScore: number;
@@ -287,8 +280,7 @@ export type RankedLevel = {
   zoneHigh: number;
   sourceTimeframes: SourceTimeframe[];
   originKinds: LevelOrigin[];
-  firstTimestamp?: number;
-  lastTimestamp?: number;
+  marketDataProvenance?: LevelMarketDataProvenance;
   touches: LevelTouch[];
   touchCount: number;
   meaningfulTouchCount: number;
@@ -297,7 +289,6 @@ export type RankedLevel = {
   cleanBreakCount: number;
   reclaimCount: number;
   roleFlipCount: number;
-  roleFlipEvidence?: RoleFlipEvidence;
   strongestReactionMovePct: number;
   averageReactionMovePct: number;
   bestVolumeRatio: number;
@@ -312,6 +303,7 @@ export type RankedLevel = {
   rank: number;
   confidence: number;
   state: LevelState;
+  durabilityLabel?: LevelDurabilityLabel;
   isClusterRepresentative: boolean;
   clusterId: string | null;
   explanation: string;

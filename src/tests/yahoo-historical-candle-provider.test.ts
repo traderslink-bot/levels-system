@@ -66,7 +66,7 @@ test("YahooHistoricalCandleProvider maps chart arrays into normalized OHLCV cand
   });
   const request: HistoricalFetchRequest = {
     symbol: "jzxn",
-    timeframe: "5m",
+    timeframe: "1m",
     lookbackBars: 2,
     endTimeMs: 1_720_000_120_000,
   };
@@ -94,7 +94,7 @@ test("YahooHistoricalCandleProvider maps chart arrays into normalized OHLCV cand
     },
   ]);
   assert.match(urls[0]!, /\/v8\/finance\/chart\/JZXN\?/);
-  assert.equal(new URL(urls[0]!).searchParams.get("interval"), "5m");
+  assert.equal(new URL(urls[0]!).searchParams.get("interval"), "1m");
   assert.equal(new URL(urls[0]!).searchParams.get("includePrePost"), "true");
 });
 
@@ -115,7 +115,7 @@ test("YahooHistoricalCandleProvider drops invalid chart rows before validation",
   });
   const request: HistoricalFetchRequest = {
     symbol: "JZXN",
-    timeframe: "5m",
+    timeframe: "1m",
     lookbackBars: 2,
     endTimeMs: 1_720_000_120_000,
   };

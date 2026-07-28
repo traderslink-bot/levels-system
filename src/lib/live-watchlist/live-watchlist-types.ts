@@ -7,15 +7,44 @@ import type {
 
 export type LiveWatchlistCardKind =
   | "companyInfo"
+  | "levelMap"
   | "fullLadder"
   | "nearestSupportResistance"
   | "liveTraderRead"
   | "tradersLinkAiRead"
   | "marketStructure"
-  | "recentNewsFilings";
+  | "technicalContext"
+  | "recentNewsFilings"
+  | "extendedQuote";
 
 export type LiveWatchlistStatus = "live" | "stale" | "deactivated";
-export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting";
+export type LiveWatchlistGroup = "top_regular" | "main" | "postmarket";
+export type LiveWatchlistSlotState = "active" | "followup";
+export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting" | "closed";
+export type LiveWatchlistTickerMarketDataStatus = "live" | "stale" | "halted";
+export type LiveWatchlistLifecycleStatus =
+  | "monitoring"
+  | "active"
+  | "pullback_watch"
+  | "recovery_watch"
+  | "recovery_attempt"
+  | "setup_fading"
+  | "standby";
+
+export type LiveWatchlistLifecycleRead = {
+  status: LiveWatchlistLifecycleStatus;
+  label: "Analysis Pending" | "Momentum Holding" | "Pullback Watch" | "Recovery Watch" | "Recovery Attempt" | "Setup Fading" | "Standby";
+  reason: string;
+  updatedAt: number;
+};
+
+export type LiveWatchlistVolumeContext = {
+  timeframe: "5m";
+  label: "unknown" | "thin" | "normal" | "expanding" | "strong" | "fading";
+  relativeVolumeRatio: number | null;
+  partial: boolean;
+  updatedAt: number;
+};
 
 export type LiveWatchlistCardContent = {
   title: string;
@@ -30,15 +59,28 @@ export type LiveWatchlistCardPatch = {
   symbol: string;
   status?: LiveWatchlistStatus;
   updatedAt: number;
+  firstPostedAt?: number | null;
+  watchlistGroup?: LiveWatchlistGroup;
+  watchlistSlotState?: LiveWatchlistSlotState;
+  reversalWatchEligible?: boolean;
+  reversalWatchAttemptReady?: boolean;
+  reversalWatchlistVisible?: boolean;
+  topRegularWatchlistVisible?: boolean;
+  preserveExistingOnReactivation?: boolean;
+  potentialGainCardVisible?: boolean;
+  watchlistLifecycleLabelsVisible?: boolean;
+  watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
+  liveVolumeContext?: LiveWatchlistVolumeContext | null;
   tradersLinkAiReadCardVisible?: boolean;
-  cards: Partial<Record<LiveWatchlistCardKind, LiveWatchlistCardContent | null>>;
+  tradersLinkAiReadDipBuyPlanVisible?: boolean;
   levelMap?: LiveWatchlistLevelMap | null;
+  cards: Partial<Record<LiveWatchlistCardKind, LiveWatchlistCardContent | null>>;
 };
 
 export type LiveWatchlistHealthPatch = {
   type: "health";
   marketDataStatus: LiveWatchlistMarketDataStatus;
-  marketDataUpdatedAt: number;
+  marketDataUpdatedAt: number | null;
 };
 
 export type LiveWatchlistTickerDataPatch = {
@@ -46,12 +88,71 @@ export type LiveWatchlistTickerDataPatch = {
   symbol: string;
   status?: LiveWatchlistStatus;
   updatedAt: number;
+  marketDataObservedAt?: number;
+  marketDataRevision?: number;
+  marketDataStatus?: LiveWatchlistTickerMarketDataStatus;
+  marketDataStatusUpdatedAt?: number;
+  marketDataStatusReason?: string | null;
+  watchlistGroup?: LiveWatchlistGroup;
+  watchlistSlotState?: LiveWatchlistSlotState;
+  reversalWatchEligible?: boolean;
+  reversalWatchAttemptReady?: boolean;
+  reversalWatchlistVisible?: boolean;
+  topRegularWatchlistVisible?: boolean;
+  potentialGainCardVisible?: boolean;
+  watchlistLifecycleLabelsVisible?: boolean;
+  watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
   tradersLinkAiReadCardVisible?: boolean;
+  tradersLinkAiReadDipBuyPlanVisible?: boolean;
   latestPrice: number;
   nearestSupport: number | null;
   nearestResistance: number | null;
   nearestSupportLabel?: string | null;
   nearestResistanceLabel?: string | null;
+  levelMap?: LiveWatchlistLevelMap | null;
+  volume?: number | null;
+  extendedQuote?: LiveWatchlistExtendedQuote | null;
+  priorRegularClosePrice?: number | null;
+  moveFromPriorRegularClosePct?: number | null;
+  priorRegularCloseSource?: string | null;
+};
+
+export type LiveWatchlistExtendedQuote = {
+  source: "eodhd_live_v2";
+  symbol: string;
+  providerSymbol: string;
+  updatedAt: number;
+  fetchedAt: number;
+  name: string | null;
+  exchange: string | null;
+  currency: string | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  lastTradePrice: number | null;
+  lastTradeSize: number | null;
+  lastTradeTime: number | null;
+  bidPrice: number | null;
+  bidSize: number | null;
+  bidTime: number | null;
+  askPrice: number | null;
+  askSize: number | null;
+  askTime: number | null;
+  volume: number | null;
+  change: number | null;
+  changePercent: number | null;
+  previousClosePrice: number | null;
+  ethPrice: number | null;
+  ethVolume: number | null;
+  ethTime: number | null;
+  marketCap: number | null;
+  sharesOutstanding: number | null;
+  sharesFloat: number | null;
+  timestamp: number | null;
+};
+
+export type LiveWatchlistExtendedQuoteProvider = {
+  getExtendedQuote(symbol: string): Promise<LiveWatchlistExtendedQuote | null>;
 };
 
 export type TradersLinkAiReadBias = "bullish" | "neutral" | "bearish" | "mixed";
@@ -75,10 +176,41 @@ export type TradersLinkAiReadTarget = {
   condition: string;
 };
 
+export type TradersLinkAiReadPullbackScenario = {
+  zoneLow: number;
+  zoneHigh: number;
+  confirmationPrice: number;
+  confirmation: string;
+  invalidationPrice: number;
+  firstObjectivePrice: number | null;
+  rationale: string;
+  evidenceIds: string[];
+};
+
+export type TradersLinkAiReadFailureRecoveryPlan = {
+  recoveryZoneLow: number;
+  recoveryZoneHigh: number;
+  firstReclaimPrice: number;
+  setupRestorePrice: number;
+  firstObjectivePrice: number | null;
+  rationale: string;
+  evidenceIds: string[];
+};
+
+export type TradersLinkAiReadSourceEvidence = {
+  publishedAt: string | null;
+  filingType: string | null;
+  retrievedAt: string | null;
+  supportingExcerpt: string | null;
+  excerptKind: "article_summary" | "article_title" | "web_search_title";
+  supersessionStatus: "latest_in_retrieved_window" | "not_checked";
+};
+
 export type TradersLinkAiReadSource = {
   title: string;
   url: string;
-  sourceType: "press_release_sec_database" | "web_search";
+  sourceType: "press_release_sec_database" | "stocktitan_rss" | "web_search";
+  evidence?: TradersLinkAiReadSourceEvidence;
 };
 
 export type TradersLinkAiReadCatalystStatus =
@@ -132,6 +264,13 @@ export type TradersLinkAiReadCatalystContext = {
   sourceUrls: string[];
 };
 
+export type TradersLinkAiReadDilutionTimingLane = {
+  status: TradersLinkAiReadDilutionTimingStatus;
+  earliestDate: string | null;
+  trigger: TradersLinkAiReadDilutionTrigger;
+  summary: string;
+};
+
 export type TradersLinkAiReadDilutionRisk = {
   level: TradersLinkAiReadDilutionLevel;
   summary: string;
@@ -140,13 +279,6 @@ export type TradersLinkAiReadDilutionRisk = {
   canCompanyIssueToday: boolean | null;
   companyIssuance: TradersLinkAiReadDilutionTimingLane;
   publicResale: TradersLinkAiReadDilutionTimingLane;
-};
-
-export type TradersLinkAiReadDilutionTimingLane = {
-  status: TradersLinkAiReadDilutionTimingStatus;
-  earliestDate: string | null;
-  trigger: TradersLinkAiReadDilutionTrigger;
-  summary: string;
 };
 
 export type TradersLinkAiReadUsage = {
@@ -176,7 +308,9 @@ export type TradersLinkAiReadListingContext = {
 };
 
 export type TradersLinkAiReadPayload = {
-  version: 2;
+  version: 3;
+  /** Immutable id assigned before the first provider attempt for this read. */
+  generationId: string;
   symbol: string;
   generatedAt: number;
   dataAsOf: number;
@@ -192,6 +326,11 @@ export type TradersLinkAiReadPayload = {
   breakoutContinuation: TradersLinkAiReadLevel;
   targets: TradersLinkAiReadTarget[];
   downsideCheckpoints: TradersLinkAiReadTarget[];
+  pullbackPlans: {
+    shallow: TradersLinkAiReadPullbackScenario | null;
+    deep: TradersLinkAiReadPullbackScenario | null;
+  };
+  failureRecovery: TradersLinkAiReadFailureRecoveryPlan | null;
   catalystRealityCheck: TradersLinkAiReadCatalystContext;
   dilutionRisk: TradersLinkAiReadDilutionRisk;
   listingStatus: TradersLinkAiReadListingContext;
@@ -203,10 +342,20 @@ export type TradersLinkAiReadPayload = {
   usage: TradersLinkAiReadUsage;
 };
 
+export type LiveWatchlistPublishedPatch =
+  | LiveWatchlistCardPatch
+  | LiveWatchlistHealthPatch
+  | LiveWatchlistTickerDataPatch;
+
 export type LiveWatchlistPublisher = {
   publish(patch: LiveWatchlistCardPatch): Promise<void>;
   publishHealth?(patch: LiveWatchlistHealthPatch): Promise<void>;
   publishTickerData?(patch: LiveWatchlistTickerDataPatch): Promise<void>;
+  /** Optional durable-publisher acknowledgement, including replayed outbox items. */
+  onPublished?(listener: (patch: LiveWatchlistPublishedPatch) => void): () => void;
+  replayPending?(): Promise<void>;
+  /** Flushes any buffered local audit persistence without delaying normal publishes. */
+  flushPending?(): Promise<void>;
 };
 
 export type LiveWatchlistHttpPublisherOptions = {
@@ -229,10 +378,13 @@ export type LiveWatchlistNearestLevel = {
   sourceLabel?: string;
 };
 
-export type LiveWatchlistLevelEvidenceStatus =
-  | "detected_structure"
-  | "historically_tested"
-  | "synthetic_planning";
+export type LiveWatchlistLevelMapRangeState = "tight" | "normal" | "wide";
+
+export type LiveWatchlistAtrDistanceState =
+  | "inside_normal_noise"
+  | "nearby"
+  | "meaningful"
+  | "substantial";
 
 export type LiveWatchlistLevelMapLevel = {
   side: "support" | "resistance";
@@ -240,22 +392,45 @@ export type LiveWatchlistLevelMapLevel = {
   lowPrice?: number;
   highPrice?: number;
   distancePct: number;
-  lowDistancePct?: number;
-  highDistancePct?: number;
+  distanceAtr?: number;
+  atrDistanceState?: LiveWatchlistAtrDistanceState;
   strengthLabel?: LevelSnapshotDisplayZone["strengthLabel"];
   freshness?: LevelSnapshotDisplayZone["freshness"];
+  touchCount?: number;
+  confluenceCount?: number;
+  reactionQualityScore?: number;
+  rejectionScore?: number;
+  displacementScore?: number;
+  sessionSignificanceScore?: number;
+  sourceEvidenceCount?: number;
   sourceLabel?: string | null;
-  evidenceCount?: number;
-  firstEvidenceAt?: number;
-  lastEvidenceAt?: number;
-  timeframes?: Array<"daily" | "4h" | "5m">;
-  isClustered?: boolean;
-  evidenceStatus?: LiveWatchlistLevelEvidenceStatus;
+  marketDataProvenance?: LevelSnapshotDisplayZone["marketDataProvenance"];
+  roleFlipFromSide?: "support" | "resistance" | null;
   roleFlipState?: "original" | "testing" | "confirmed";
   label: string;
 };
 
-export type LiveWatchlistLevelMapRangeState = "tight" | "normal" | "wide";
+export type LiveWatchlistLevelDataQuality = {
+  status: "full" | "limited" | "unavailable";
+  availableTimeframes: Array<"daily" | "4h" | "5m">;
+  flags: string[];
+  message?: string;
+};
+
+export type LiveWatchlistReferenceLevel = {
+  key: "pmh" | "pml" | "orh" | "orl" | "hod" | "lod" | "pdh" | "pdl" | "pdc" | "vwap";
+  label: string;
+  price: number;
+  kind: "session" | "dynamic";
+};
+
+export type LiveWatchlistTradePlan = {
+  needsToHold: LiveWatchlistLevelMapLevel | null;
+  failureBelow: LiveWatchlistLevelMapLevel | null;
+  mustClear: LiveWatchlistLevelMapLevel | null;
+  targets: LiveWatchlistLevelMapLevel[];
+  openAir: boolean;
+};
 
 export type LiveWatchlistLevelMap = {
   currentPrice: number;
@@ -266,6 +441,18 @@ export type LiveWatchlistLevelMap = {
   nextStrongResistance: LiveWatchlistLevelMapLevel | null;
   supportLevels: LiveWatchlistLevelMapLevel[];
   resistanceLevels: LiveWatchlistLevelMapLevel[];
+  roleFlipConfirmationPct?: number;
+  tradePlan?: LiveWatchlistTradePlan;
+  dataQuality?: LiveWatchlistLevelDataQuality;
+  referenceLevels?: LiveWatchlistReferenceLevel[];
+  volatilityContext?: {
+    atr: number;
+    atrPct: number;
+    period: number;
+    timeframe: "5m";
+    completedCandleCount: number | null;
+    reliability: "reliable";
+  };
 };
 
 export type LiveWatchlistSnapshotSource =

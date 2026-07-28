@@ -13,19 +13,88 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
-
 describe("TradersLinkAiReadSettingsPersistence", () => {
-  it("persists the external research switch across restarts", () => {
+  it("persists AI research and global card switches across restarts", () => {
     const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-settings-"));
     tempDirectories.push(directory);
     const filePath = join(directory, "settings.json");
     const persistence = new TradersLinkAiReadSettingsPersistence({ filePath });
 
     assert.equal(persistence.load(), null);
-    persistence.save(false);
-    assert.equal(persistence.load()?.externalResearchEnabled, false);
-    persistence.save(true);
-    assert.equal(persistence.load()?.externalResearchEnabled, true);
+    persistence.save({
+      model: "gpt-5.6-luna",
+      reasoningEffort: "high",
+      externalResearchEnabled: false,
+      generationEnabled: false,
+      premarketGenerationEnabled: false,
+      regularGenerationEnabled: true,
+      postmarketGenerationEnabled: false,
+      topRegularActivationGenerationEnabled: false,
+      liveTraderReadCardVisible: false,
+      potentialGainCardVisible: true,
+      watchlistLifecycleLabelsVisible: true,
+      reversalWatchlistVisible: false,
+      topRegularWatchlistVisible: false,
+      dailyCostBudgetEnabled: false,
+      dailyCostBudgetUsd: 1,
+    });
+    assert.deepEqual(persistence.load(), {
+      version: 8,
+      lastUpdated: persistence.load()?.lastUpdated,
+      model: "gpt-5.6-luna",
+      reasoningEffort: "high",
+      externalResearchEnabled: false,
+      generationEnabled: false,
+      premarketGenerationEnabled: false,
+      regularGenerationEnabled: true,
+      postmarketGenerationEnabled: false,
+      topRegularActivationGenerationEnabled: false,
+      liveTraderReadCardVisible: false,
+      potentialGainCardVisible: true,
+      watchlistLifecycleLabelsVisible: true,
+      reversalWatchlistVisible: false,
+      topRegularWatchlistVisible: false,
+      dailyCostBudgetEnabled: false,
+      dailyCostBudgetUsd: 1,
+      automaticBoundaryRefreshesEnabled: true,
+      automaticBoundaryRefreshesPerTicker: 2,
+    });
+  });
+
+  it("migrates earlier settings with the daily cost guard safely off", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-settings-migration-"));
+    tempDirectories.push(directory);
+    const filePath = join(directory, "settings.json");
+    writeFileSync(filePath, JSON.stringify({
+      version: 2,
+      lastUpdated: 123,
+      externalResearchEnabled: false,
+      liveTraderReadCardVisible: true,
+      potentialGainCardVisible: true,
+    }));
+
+    const loaded = new TradersLinkAiReadSettingsPersistence({ filePath }).load();
+    assert.deepEqual(loaded, {
+      version: 8,
+      lastUpdated: 123,
+      model: "gpt-5.6-terra",
+      reasoningEffort: "medium",
+      externalResearchEnabled: false,
+      generationEnabled: true,
+      premarketGenerationEnabled: true,
+      regularGenerationEnabled: true,
+      postmarketGenerationEnabled: true,
+      topRegularActivationGenerationEnabled: true,
+      liveTraderReadCardVisible: true,
+      potentialGainCardVisible: true,
+      watchlistLifecycleLabelsVisible: false,
+      reversalWatchlistVisible: true,
+      topRegularWatchlistVisible: true,
+      dailyCostBudgetEnabled: false,
+      dailyCostBudgetUsd: 1,
+      automaticBoundaryRefreshesEnabled: true,
+      automaticBoundaryRefreshesPerTicker: 2,
+    });
   });
 
   it("rejects malformed settings instead of enabling research", () => {

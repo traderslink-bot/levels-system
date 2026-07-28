@@ -12,6 +12,7 @@ import {
   buildLiveWatchlistSnapshotPatch,
 } from "./live-watchlist-publisher.js";
 import type { LiveWatchlistPublisher } from "./live-watchlist-types.js";
+import type { LiveWatchlistTradeSetupReadMode } from "./trade-setup-read.js";
 
 const DEFAULT_PRE_DISCORD_PUBLISH_GRACE_MS = 1_500;
 const WATCHLIST_ROUTE_PREFIX = "watchlist:";
@@ -41,6 +42,11 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
     private readonly gateway: DiscordThreadGateway,
     private readonly publisher: LiveWatchlistPublisher | null,
     private readonly preDiscordPublishGraceMs = DEFAULT_PRE_DISCORD_PUBLISH_GRACE_MS,
+    private readonly options: {
+      pullbackReadEnabled?: boolean;
+      tradeSetupReadMode?: LiveWatchlistTradeSetupReadMode;
+      isLiveTraderReadCardVisible?: () => boolean;
+    } = {},
   ) {}
 
   async ensureSymbolRoute(
@@ -57,7 +63,6 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
       };
     }
 
-    await this.gateway.announceTickerAdded?.(route.name);
     return {
       threadId: route.id,
       reused: false,
@@ -76,8 +81,11 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
   }
 
   async createThread(name: string): Promise<DiscordThread> {
-    await this.gateway.announceTickerAdded?.(name);
     return buildWatchlistRoute(name);
+  }
+
+  async announceTickerAdded(name: string): Promise<void> {
+    await this.gateway.announceTickerAdded?.(normalizeSymbol(name));
   }
 
   async sendMessage(threadId: string, payload: AlertPayload): Promise<void> {
@@ -87,7 +95,10 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
 
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
     void threadId;
-    await this.publishBeforeDiscord(buildLiveWatchlistSnapshotPatch(payload));
+    await this.publishBeforeDiscord(buildLiveWatchlistSnapshotPatch(payload, {
+      pullbackReadEnabled: this.options.pullbackReadEnabled,
+      tradeSetupReadMode: this.options.tradeSetupReadMode,
+    }));
   }
 
   async sendLevelLadder(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
@@ -107,8 +118,17 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
       return;
     }
 
+    const websitePatch = this.options.isLiveTraderReadCardVisible?.() === false
+      ? {
+          ...patch,
+          cards: {
+            ...patch.cards,
+            liveTraderRead: null,
+          },
+        }
+      : patch;
     let timeout: ReturnType<typeof setTimeout> | null = null;
-    const publishPromise = this.publisher.publish(patch).catch((error) => {
+    const publishPromise = this.publisher.publish(websitePatch).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[WebsitePublishingDiscordGateway] Live watchlist publish failed: ${message}`);
     });
@@ -117,9 +137,6 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
       publishPromise,
       new Promise<void>((resolve) => {
         timeout = setTimeout(() => {
-          console.warn(
-            `[WebsitePublishingDiscordGateway] Live watchlist publish did not finish before Discord grace window for ${patch.symbol}.`,
-          );
           resolve();
         }, this.preDiscordPublishGraceMs);
       }),

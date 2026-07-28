@@ -1,5 +1,5 @@
 // 2026-04-18 08:40 AM America/Toronto
-// Runtime mode resolution for safe old/new/compare exploration.
+// Runtime surfaced-output mode resolution for safe old/new/compare exploration.
 
 export type LevelRuntimeMode = "old" | "new" | "compare";
 export type LevelRuntimeCompareActivePath = "old" | "new";
@@ -20,7 +20,9 @@ function normalizeEnvValue(value: string | null | undefined): string | null {
   return normalized ? normalized : null;
 }
 
-export function resolveLevelRuntimeMode(value?: string | null): LevelRuntimeMode {
+export function resolveLevelRuntimeMode(
+  value?: string | null,
+): LevelRuntimeMode {
   const normalized = normalizeEnvValue(value);
 
   if (normalized === "new" || normalized === "compare") {

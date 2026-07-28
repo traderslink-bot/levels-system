@@ -2,6 +2,7 @@
 // Main phase 1 support and resistance engine orchestrator with refined clustering and scoring.
 
 import type { CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
+import { buildVolumeBaselineFromCandles } from "../monitoring/volume-activity.js";
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import { DEFAULT_LEVEL_ENGINE_CONFIG, type LevelEngineConfig } from "./level-config.js";
 import { clusterRawLevelCandidates } from "./level-clusterer.js";
@@ -14,29 +15,22 @@ import type {
   LevelRuntimeMode,
 } from "./level-runtime-mode.js";
 import { buildNewRuntimeCompatibleLevelOutput } from "./level-runtime-output-adapter.js";
-import {
-  buildGapOriginSupportCandidates,
-  buildRawLevelCandidates,
-} from "./raw-level-candidate-builder.js";
+import { buildRawLevelCandidates } from "./raw-level-candidate-builder.js";
 import { rankLevelZones } from "./level-ranker.js";
 import { normalizeOldPathOutput } from "./level-ranking-comparison.js";
 import { scoreLevelZones } from "./level-scorer.js";
 import { buildSpecialLevelCandidates } from "./special-level-builder.js";
 import { detectSwingPoints } from "./swing-detector.js";
 import type {
+  FinalLevelZone,
   LevelDataFreshness,
   LevelEngineOutput,
-  LevelState,
-  LevelType,
   RawLevelCandidate,
-  RoleFlipEvidence,
-  SourceTimeframe,
 } from "./level-types.js";
 
 export type LevelEngineRequest = {
   symbol: string;
   historicalRequests: Record<CandleTimeframe, HistoricalFetchRequest>;
-  /** Live/current price used only to classify, rank, and extend detected levels. */
   referencePriceOverride?: number;
 };
 
@@ -44,39 +38,17 @@ export type LevelEngineRuntimeOptions = {
   runtimeMode?: LevelRuntimeMode;
   compareActivePath?: LevelRuntimeCompareActivePath;
   onComparisonLog?: (entry: LevelRuntimeComparisonLogEntry) => void;
-  /** Rich shadow-only evidence for offline/QA review; never changes output. */
-  onComparisonDetails?: (details: LevelRuntimeComparisonDetails) => void;
+  /**
+   * Recent intraday fallback used when the configured historical provider
+   * cannot return a usable 5m series. This is intentionally limited to 5m;
+   * daily and 4h levels must continue to come from the configured provider.
+   */
+  fallbackFiveMinuteFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName">;
 };
 
-export type LevelRuntimeRoleFlipComparisonDetail = {
-  id: string;
-  type: LevelType;
-  price: number;
-  state: LevelState;
-  sourceTimeframes: SourceTimeframe[];
-  evidence: RoleFlipEvidence;
-};
-
-export type LevelRuntimeSurfacedRowComparisonDetail = {
-  id: string;
-  type: LevelType;
-  price: number;
-  zoneLow: number;
-  zoneHigh: number;
-};
-
-export type LevelRuntimeComparisonDetails = {
-  symbol: string;
-  activePath: LevelRuntimeCompareActivePath;
-  surfacedRows: LevelRuntimeSurfacedRowComparisonDetail[];
-  confirmedRoleFlips: LevelRuntimeRoleFlipComparisonDetail[];
-};
-
-export type LevelEngineSeriesMap = Record<CandleTimeframe, CandleProviderResponse>;
-
-export type LevelEngineGenerationResult = {
+export type LevelEngineOutputWithCandleSeries = {
   output: LevelEngineOutput;
-  seriesByTimeframe: LevelEngineSeriesMap;
+  seriesMap: Record<CandleTimeframe, CandleProviderResponse>;
 };
 
 export class LevelEngine {
@@ -86,19 +58,25 @@ export class LevelEngine {
     private readonly runtimeOptions: LevelEngineRuntimeOptions = {},
   ) {}
 
-  private buildOptionalIntradayFallback(params: {
+  private buildUnavailableSeriesFallback(params: {
     symbol: string;
     request: HistoricalFetchRequest;
     fallbackProvider: CandleProviderResponse["provider"];
+    reason: string;
   }): CandleProviderResponse {
     const requestEndTimestamp = params.request.endTimeMs ?? Date.now();
-    const intervalMs = 5 * 60 * 1000;
+    const intervalMs =
+      params.request.timeframe === "daily"
+        ? 24 * 60 * 60 * 1000
+        : params.request.timeframe === "4h"
+          ? 4 * 60 * 60 * 1000
+          : 5 * 60 * 1000;
     const requestedStartTimestamp = requestEndTimestamp - params.request.lookbackBars * intervalMs;
 
     return {
       provider: params.fallbackProvider,
       symbol: params.symbol.toUpperCase(),
-      timeframe: "5m",
+      timeframe: params.request.timeframe,
       requestedLookbackBars: params.request.lookbackBars,
       candles: [],
       fetchStartTimestamp: requestEndTimestamp,
@@ -109,76 +87,116 @@ export class LevelEngine {
       actualBarsReturned: 0,
       completenessStatus: "empty",
       stale: true,
-      validationIssues: [],
+      validationIssues: [{
+        code: "zero_results",
+        severity: "error",
+        message: `${params.request.timeframe} candles are unavailable: ${params.reason}`,
+      }],
       sessionSummary: null,
       providerMetadata: {
-        degraded_reason: "optional_intraday_unavailable",
+        degraded_reason: "provider_or_validation_unavailable",
       },
     };
   }
 
+  private isSeriesUsable(series: CandleProviderResponse): boolean {
+    return series.candles.length > 0 &&
+      series.completenessStatus !== "empty" &&
+      !series.validationIssues.some((issue) => issue.severity === "error");
+  }
+
   private async loadSeries(
     request: LevelEngineRequest,
-  ): Promise<LevelEngineSeriesMap> {
+  ): Promise<Record<CandleTimeframe, CandleProviderResponse>> {
     const dailyPromise = this.fetchService.fetchCandles(request.historicalRequests.daily);
     const fourHourPromise = this.fetchService.fetchCandles(request.historicalRequests["4h"]);
     const fiveMinutePromise = this.fetchService.fetchCandles(request.historicalRequests["5m"]);
 
-    const [daily, fourHour, fiveMinuteResult] = await Promise.allSettled([
+    const [dailyResult, fourHourResult, fiveMinuteResult] = await Promise.allSettled([
       dailyPromise,
       fourHourPromise,
       fiveMinutePromise,
     ]);
 
-    if (daily.status !== "fulfilled") {
-      throw daily.reason;
-    }
+    const fallbackProvider = this.fetchService.getProviderName();
+    const resolveSeries = (
+      result: PromiseSettledResult<CandleProviderResponse>,
+      historicalRequest: HistoricalFetchRequest,
+    ): CandleProviderResponse => result.status === "fulfilled"
+      ? result.value
+      : this.buildUnavailableSeriesFallback({
+          symbol: request.symbol,
+          request: historicalRequest,
+          fallbackProvider,
+          reason: result.reason instanceof Error ? result.reason.message : "provider request failed",
+        });
 
-    if (fourHour.status !== "fulfilled") {
-      throw fourHour.reason;
-    }
-
-    const fiveMinute =
-      fiveMinuteResult.status === "fulfilled" &&
-      fiveMinuteResult.value.completenessStatus !== "empty" &&
-      !fiveMinuteResult.value.validationIssues.some((issue) => issue.severity === "error")
-        ? fiveMinuteResult.value
-        : this.buildOptionalIntradayFallback({
-            symbol: request.symbol,
-            request: request.historicalRequests["5m"],
-            fallbackProvider: daily.value.provider,
-          });
-
-    return {
-      daily: daily.value,
-      "4h": fourHour.value,
-      "5m": fiveMinute,
+    const seriesMap = {
+      daily: resolveSeries(dailyResult, request.historicalRequests.daily),
+      "4h": resolveSeries(fourHourResult, request.historicalRequests["4h"]),
+      "5m": resolveSeries(fiveMinuteResult, request.historicalRequests["5m"]),
     };
+
+    const fallback = this.runtimeOptions.fallbackFiveMinuteFetchService;
+    const primaryFiveMinute = seriesMap["5m"];
+    const shouldUseFiveMinuteFallback =
+      Boolean(fallback) &&
+      primaryFiveMinute.provider === "eodhd" &&
+      fallback!.getProviderName() !== "eodhd" &&
+      (primaryFiveMinute.completenessStatus === "empty" ||
+        primaryFiveMinute.stale ||
+        primaryFiveMinute.validationIssues.some((issue) =>
+          issue.code === "zero_results" ||
+          issue.code === "stale_final_candle" ||
+          issue.code === "missing_recent_candles" ||
+          issue.code === "incomplete_current_session_data",
+        ));
+
+    if (shouldUseFiveMinuteFallback) {
+      try {
+        const fallbackResponse = await fallback!.fetchCandles({
+          ...request.historicalRequests["5m"],
+          preferredProvider: fallback!.getProviderName(),
+        });
+        if (fallbackResponse.candles.length > 0 && !fallbackResponse.stale) {
+          seriesMap["5m"] = fallbackResponse;
+        }
+      } catch {
+        // Keep the primary response and its quality flags when the optional
+        // intraday fallback is unavailable.
+      }
+    }
+
+    return seriesMap;
   }
 
-  private assertSeriesUsable(seriesMap: LevelEngineSeriesMap): void {
-    for (const timeframe of ["daily", "4h"] as const) {
-      const series = seriesMap[timeframe];
-      const errors = series.validationIssues.filter((issue) => issue.severity === "error");
-
-      if (errors.length > 0) {
-        throw new Error(
-          `Cannot generate levels for ${series.symbol} ${timeframe} because candle validation failed: ${errors
-            .map((issue) => issue.code)
-            .join(", ")}`,
-        );
-      }
-
-      if (series.completenessStatus === "empty") {
-        throw new Error(`Cannot generate levels for ${series.symbol} ${timeframe} because no candles were returned.`);
-      }
+  private assertSeriesUsable(seriesMap: Record<CandleTimeframe, CandleProviderResponse>): void {
+    const availableTimeframes = (["daily", "4h", "5m"] as const)
+      .filter((timeframe) => this.isSeriesUsable(seriesMap[timeframe]));
+    if (availableTimeframes.length > 0) {
+      return;
     }
+
+    const symbol = seriesMap.daily.symbol;
+    const causes = (["daily", "4h", "5m"] as const).map((timeframe) => {
+      const series = seriesMap[timeframe];
+      const errors = series.validationIssues
+        .filter((issue) => issue.severity === "error")
+        .map((issue) => issue.code);
+      return `${timeframe}:${errors.join("+") || "empty"}`;
+    });
+    throw new Error(
+      `Cannot generate levels for ${symbol} because no usable candle series were returned (${causes.join(", ")}).`,
+    );
   }
 
   private deriveOutputMetadata(
-    seriesMap: LevelEngineSeriesMap,
+    seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+    referenceTimestamp: number,
     referencePriceOverride?: number,
   ): LevelEngineOutput["metadata"] {
+    const availableTimeframes = (["daily", "4h", "5m"] as const)
+      .filter((timeframe) => this.isSeriesUsable(seriesMap[timeframe]));
     const dataQualityFlags = [
       ...new Set(
         Object.values(seriesMap).flatMap((series) =>
@@ -186,25 +204,28 @@ export class LevelEngine {
         ),
       ),
     ];
-    if (seriesMap["5m"].candles.length === 0) {
-      dataQualityFlags.push("5m:unavailable");
+    for (const timeframe of ["daily", "4h", "5m"] as const) {
+      if (!availableTimeframes.includes(timeframe)) {
+        dataQualityFlags.push(`${timeframe}:unavailable`);
+      }
+      const providerMetadata = seriesMap[timeframe].providerMetadata;
+      if (providerMetadata?.detectedReverseSplitCount) {
+        dataQualityFlags.push(`${timeframe}:reverse_split_detected`);
+      }
     }
     const freshestTimestamp = Math.max(...Object.values(seriesMap).map((series) => series.candles.at(-1)?.timestamp ?? 0));
-    const ageHours = (Date.now() - freshestTimestamp) / (1000 * 60 * 60);
+    const ageHours = Math.max(0, referenceTimestamp - freshestTimestamp) / (1000 * 60 * 60);
     const freshness: LevelDataFreshness =
       ageHours <= 24 ? "fresh" : ageHours <= 24 * 7 ? "aging" : "stale";
-    const latestTradedFiveMinuteClose = [...seriesMap["5m"].candles]
-      .reverse()
-      .find((candle) => candle.volume > 0)?.close;
     const referencePrice =
       typeof referencePriceOverride === "number" &&
       Number.isFinite(referencePriceOverride) &&
       referencePriceOverride > 0
         ? referencePriceOverride
-        : latestTradedFiveMinuteClose ??
-          seriesMap["5m"].candles.at(-1)?.close ??
+        : seriesMap["5m"].candles.at(-1)?.close ??
           seriesMap["4h"].candles.at(-1)?.close ??
           seriesMap.daily.candles.at(-1)?.close;
+    const fiveMinuteVolumeBaseline = buildVolumeBaselineFromCandles(seriesMap["5m"].candles);
 
     return {
       providerByTimeframe: {
@@ -213,9 +234,28 @@ export class LevelEngine {
         "5m": seriesMap["5m"].provider,
       },
       dataQualityFlags,
+      coverage: availableTimeframes.length === 3 ? "full" : "limited",
+      availableTimeframes,
       freshness,
       referencePrice,
+      volumeBaselineByTimeframe: {
+        ...(fiveMinuteVolumeBaseline ? { "5m": fiveMinuteVolumeBaseline } : {}),
+      },
     };
+  }
+
+  private deriveReferenceTimestamp(
+    seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
+  ): number {
+    const timestamps = Object.values(seriesMap)
+      .map((series) => series.requestedEndTimestamp)
+      .filter((timestamp) => Number.isFinite(timestamp));
+
+    if (timestamps.length === 0) {
+      return Date.now();
+    }
+
+    return Math.max(...timestamps);
   }
 
   private buildOldOutput(params: {
@@ -223,6 +263,7 @@ export class LevelEngine {
     metadata: LevelEngineOutput["metadata"];
     rawCandidates: RawLevelCandidate[];
     specialLevels: LevelEngineOutput["specialLevels"];
+    referenceTimestamp: number;
   }): LevelEngineOutput {
     const supportTolerance = Math.max(
       this.config.timeframeConfig.daily.clusterTolerancePct,
@@ -237,8 +278,10 @@ export class LevelEngine {
         params.rawCandidates,
         supportTolerance,
         this.config,
+        params.referenceTimestamp,
       ),
       this.config,
+      params.referenceTimestamp,
     );
 
     const resistanceZones = scoreLevelZones(
@@ -248,11 +291,13 @@ export class LevelEngine {
         params.rawCandidates,
         resistanceTolerance,
         this.config,
+        params.referenceTimestamp,
       ),
       this.config,
+      params.referenceTimestamp,
     );
 
-    return rankLevelZones({
+    const rankedOutput = rankLevelZones({
       symbol: params.symbol,
       supportZones,
       resistanceZones,
@@ -260,21 +305,42 @@ export class LevelEngine {
       metadata: params.metadata,
       config: this.config,
     });
+
+    // The tactical ranker intentionally limits each owned timeframe so the
+    // normal runtime buckets stay actionable. Full Ladder is a separate
+    // surface: retain every chart-derived daily/4h (or mixed) zone that clears
+    // the engine's moderate evidence floor, before those per-timeframe caps.
+    // Intraday rows remain sourced from the retained tactical buckets, which
+    // avoids turning a live 5m swing stream into an unreadable history dump.
+    const isStructuralFullLadderZone = (zone: FinalLevelZone): boolean =>
+      zone.strengthLabel !== "weak" &&
+      zone.timeframeSources.some((timeframe) => timeframe === "daily" || timeframe === "4h");
+
+    return {
+      ...rankedOutput,
+      fullLadderLevels: {
+        support: supportZones.filter(isStructuralFullLadderZone),
+        resistance: resistanceZones.filter(isStructuralFullLadderZone),
+      },
+    };
   }
 
-  private generateLevelsFromSeries(
+  private buildOutputFromSeries(
     request: LevelEngineRequest,
-    seriesMap: LevelEngineSeriesMap,
+    seriesMap: Record<CandleTimeframe, CandleProviderResponse>,
   ): LevelEngineOutput {
+    this.assertSeriesUsable(seriesMap);
+    const referenceTimestamp = this.deriveReferenceTimestamp(seriesMap);
     const metadata = this.deriveOutputMetadata(
       seriesMap,
+      referenceTimestamp,
       request.referencePriceOverride,
     );
     const rawCandidates: RawLevelCandidate[] = [];
 
     for (const timeframe of ["daily", "4h", "5m"] as const) {
       const series = seriesMap[timeframe];
-      if (series.candles.length === 0) {
+      if (!this.isSeriesUsable(series)) {
         continue;
       }
       const swings = detectSwingPoints(
@@ -283,7 +349,7 @@ export class LevelEngine {
           swingWindow: this.config.timeframeConfig[timeframe].swingWindow,
           minimumDisplacementPct: this.config.timeframeConfig[timeframe].minimumDisplacementPct,
           minimumSeparationBars: this.config.timeframeConfig[timeframe].minimumSwingSeparationBars,
-          requirePositiveVolumeEvidence: timeframe === "5m",
+          includeBarrierCandles: timeframe === "daily" || timeframe === "4h",
         },
       );
 
@@ -293,19 +359,14 @@ export class LevelEngine {
           timeframe,
           candles: series.candles,
           swings,
-          swingConfirmationBars: this.config.timeframeConfig[timeframe].swingWindow,
-        }),
-        ...buildGapOriginSupportCandidates({
-          symbol: request.symbol.toUpperCase(),
-          timeframe,
-          candles: series.candles,
         }),
       );
     }
 
     const special = buildSpecialLevelCandidates(
       request.symbol.toUpperCase(),
-      seriesMap["5m"].candles.filter((candle) => candle.volume > 0),
+      this.isSeriesUsable(seriesMap["5m"]) ? seriesMap["5m"].candles : [],
+      this.isSeriesUsable(seriesMap.daily) ? seriesMap.daily.candles : [],
     );
 
     rawCandidates.push(...special.candidates);
@@ -315,6 +376,7 @@ export class LevelEngine {
       metadata,
       rawCandidates,
       specialLevels: special.summary,
+      referenceTimestamp,
     });
     const runtimeMode = this.runtimeOptions.runtimeMode ?? "old";
 
@@ -332,13 +394,10 @@ export class LevelEngine {
       },
       metadata,
       specialLevels: special.summary,
-      asOfTimestampByTimeframe: {
-        daily: seriesMap.daily.requestedEndTimestamp,
-        "4h": seriesMap["4h"].requestedEndTimestamp,
-        "5m": seriesMap["5m"].requestedEndTimestamp,
-      },
       runtimeBucketOwnership: "surfaced",
+      legacyRuntimeBuckets: oldOutput,
       legacyExtensionLevels: oldOutput.extensionLevels,
+      legacyFullLadderLevels: oldOutput.fullLadderLevels,
     });
 
     if (runtimeMode === "new") {
@@ -346,33 +405,6 @@ export class LevelEngine {
     }
 
     const compareActivePath = this.runtimeOptions.compareActivePath ?? "old";
-    this.runtimeOptions.onComparisonDetails?.({
-      symbol,
-      activePath: compareActivePath,
-      surfacedRows: [
-        ...newProjection.surfacedSelection.surfacedSupports,
-        ...newProjection.surfacedSelection.surfacedResistances,
-      ].map((level) => ({
-        id: level.id,
-        type: level.type,
-        price: level.price,
-        zoneLow: level.zoneLow,
-        zoneHigh: level.zoneHigh,
-      })),
-      confirmedRoleFlips: [
-        ...newProjection.surfacedSelection.surfacedSupports,
-        ...newProjection.surfacedSelection.surfacedResistances,
-      ]
-        .filter((level) => level.roleFlipEvidence !== undefined)
-        .map((level) => ({
-          id: level.id,
-          type: level.type,
-          price: level.price,
-          state: level.state,
-          sourceTimeframes: [...level.sourceTimeframes],
-          evidence: { ...level.roleFlipEvidence! },
-        })),
-    });
     this.runtimeOptions.onComparisonLog?.(
       buildLevelRuntimeComparisonLogEntry({
         symbol,
@@ -385,19 +417,18 @@ export class LevelEngine {
     return compareActivePath === "new" ? newProjection.output : oldOutput;
   }
 
-  async generateLevelsWithSeries(
+  async generateLevelsWithCandleSeries(
     request: LevelEngineRequest,
-  ): Promise<LevelEngineGenerationResult> {
-    const seriesByTimeframe = await this.loadSeries(request);
-    this.assertSeriesUsable(seriesByTimeframe);
-
+  ): Promise<LevelEngineOutputWithCandleSeries> {
+    const seriesMap = await this.loadSeries(request);
     return {
-      output: this.generateLevelsFromSeries(request, seriesByTimeframe),
-      seriesByTimeframe,
+      output: this.buildOutputFromSeries(request, seriesMap),
+      seriesMap,
     };
   }
 
   async generateLevels(request: LevelEngineRequest): Promise<LevelEngineOutput> {
-    return (await this.generateLevelsWithSeries(request)).output;
+    const { output } = await this.generateLevelsWithCandleSeries(request);
+    return output;
   }
 }

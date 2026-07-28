@@ -13,16 +13,18 @@ export function buildWatchlistDiscordLinkMessage(symbol: string): string {
 
   if (!watchlistUrl) {
     return [
-      "The watchlist has been updated.",
+      `${normalizedSymbol} added to the watchlist.`,
       "",
       `View ${normalizedSymbol} details when the watchlist link is configured.`,
     ].join("\n");
   }
 
+  const symbolUrl = `${watchlistUrl}/${encodeURIComponent(normalizedSymbol)}`;
+
   return [
-    "The watchlist has been updated.",
+    `${normalizedSymbol} added to the watchlist.`,
     "",
-    `View watchlist: ${watchlistUrl}`,
-    `View ${normalizedSymbol} details: ${watchlistUrl}/${encodeURIComponent(normalizedSymbol)}`,
+    `View the live watchlist: ${watchlistUrl}`,
+    `View ${normalizedSymbol} ticker page: ${symbolUrl}`,
   ].join("\n");
 }

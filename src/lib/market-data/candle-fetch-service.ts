@@ -21,6 +21,8 @@ function seededNumber(seed: number): number {
 
 function timeframeBasePrice(timeframe: HistoricalFetchRequest["timeframe"]): number {
   switch (timeframe) {
+    case "1m":
+      return 4.9;
     case "daily":
       return 4.2;
     case "4h":
@@ -33,7 +35,9 @@ function timeframeBasePrice(timeframe: HistoricalFetchRequest["timeframe"]): num
 function generateStubCandles(request: HistoricalFetchRequest): Candle[] {
   const now = request.endTimeMs ?? Date.now();
   const spacingMs =
-    request.timeframe === "daily"
+    request.timeframe === "1m"
+      ? 60 * 1000
+      : request.timeframe === "daily"
       ? 24 * 60 * 60 * 1000
       : request.timeframe === "4h"
         ? 4 * 60 * 60 * 1000
@@ -71,7 +75,9 @@ function generateStubCandles(request: HistoricalFetchRequest): Candle[] {
 function buildStubProviderResponse(request: HistoricalFetchRequest): BaseCandleProviderResponse {
   const requestEndTimestamp = request.endTimeMs ?? Date.now();
   const intervalMs =
-    request.timeframe === "daily"
+    request.timeframe === "1m"
+      ? 60 * 1000
+      : request.timeframe === "daily"
       ? 24 * 60 * 60 * 1000
       : request.timeframe === "4h"
         ? 4 * 60 * 60 * 1000
@@ -87,7 +93,7 @@ function buildStubProviderResponse(request: HistoricalFetchRequest): BaseCandleP
     fetchEndTimestamp: Date.now(),
     requestedStartTimestamp: requestEndTimestamp - request.lookbackBars * intervalMs,
     requestedEndTimestamp: requestEndTimestamp,
-    sessionMetadataAvailable: request.timeframe === "5m",
+    sessionMetadataAvailable: request.timeframe === "1m" || request.timeframe === "5m",
     providerMetadata: {
       source: "deterministic_stub",
     },
@@ -103,7 +109,7 @@ export class StubHistoricalCandleProvider implements HistoricalCandleProvider {
 }
 
 export class CandleFetchService {
-  private readonly provider: HistoricalCandleProvider;
+  private provider: HistoricalCandleProvider;
 
   constructor(providerOrOptions: HistoricalCandleProvider | CandleFetchServiceOptions) {
     if ("fetchCandles" in providerOrOptions) {
@@ -117,12 +123,20 @@ export class CandleFetchService {
         provider: providerOrOptions.providerName,
         ib: providerOrOptions.ib,
         ibkrTimeoutMs: providerOrOptions.ibkrTimeoutMs,
-        twelveDataApiKey: providerOrOptions.twelveDataApiKey,
+        eodhdApiToken: providerOrOptions.eodhdApiToken,
+        eodhdExchangeSuffix: providerOrOptions.eodhdExchangeSuffix,
+        eodhdBaseUrl: providerOrOptions.eodhdBaseUrl,
+        yahooBaseUrl: providerOrOptions.yahooBaseUrl,
+        yahooFetchFn: providerOrOptions.yahooFetchFn,
       });
   }
 
   getProviderName(): CandleProviderName {
     return this.provider.providerName;
+  }
+
+  setProvider(provider: HistoricalCandleProvider): void {
+    this.provider = provider;
   }
 
   async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
