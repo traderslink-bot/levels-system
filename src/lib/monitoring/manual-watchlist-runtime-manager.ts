@@ -4457,7 +4457,10 @@ export class ManualWatchlistRuntimeManager {
    * card, changing the Watchlist, or recording a generation outcome. This is
    * intentionally limited to the local experiment route.
    */
-  async prepareTradersLinkAiReadExperiment(symbolInput: string): Promise<Readonly<{
+  async prepareTradersLinkAiReadExperiment(
+    symbolInput: string,
+    options: Readonly<{ dailyCandleLimit?: number }> = {},
+  ): Promise<Readonly<{
     symbol: string;
     snapshot: LevelSnapshotPayload;
     priceAction: TradersLinkAiReadPriceActionContext;
@@ -4477,10 +4480,23 @@ export class ManualWatchlistRuntimeManager {
     if (!Number.isFinite(snapshot.currentPrice) || snapshot.currentPrice <= 0) {
       throw new Error(`${symbol} has no valid level snapshot price.`);
     }
+    const priceAction = await this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
+    const dailyCandleLimit = options.dailyCandleLimit;
+    if (
+      dailyCandleLimit !== undefined &&
+      (!Number.isInteger(dailyCandleLimit) || dailyCandleLimit < 60 || dailyCandleLimit > 180)
+    ) {
+      throw new Error("Experiment daily candle limit must be an integer from 60 through 180.");
+    }
     return Object.freeze({
       symbol,
       snapshot,
-      priceAction: await this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf),
+      priceAction: dailyCandleLimit === undefined
+        ? priceAction
+        : {
+            ...priceAction,
+            dailyCandles: priceAction.dailyCandles.slice(-dailyCandleLimit),
+          },
       dataAsOf,
     });
   }

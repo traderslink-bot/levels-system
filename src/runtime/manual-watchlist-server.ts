@@ -2357,9 +2357,14 @@ async function main(): Promise<void> {
           body.reasoningEffort === "xhigh"
             ? body.reasoningEffort
             : null;
-        if (!symbol || !model || !reasoningEffort) {
+        const dailyCandleLimit = body.dailyCandleLimit === undefined
+          ? undefined
+          : typeof body.dailyCandleLimit === "number" && Number.isInteger(body.dailyCandleLimit)
+            ? body.dailyCandleLimit
+            : null;
+        if (!symbol || !model || !reasoningEffort || dailyCandleLimit === null) {
           sendJson(response, 400, {
-            error: "Symbol, Terra or Luna model, and a valid reasoning effort are required.",
+            error: "Symbol, Terra or Luna model, valid reasoning effort, and optional integer daily candle limit are required.",
           });
           return;
         }
@@ -2370,7 +2375,7 @@ async function main(): Promise<void> {
         }
         experimentService.setRuntimeConfiguration({ model, reasoningEffort });
         experimentService.setExternalResearchEnabled(false);
-        const prepared = await manager.prepareTradersLinkAiReadExperiment(symbol);
+        const prepared = await manager.prepareTradersLinkAiReadExperiment(symbol, { dailyCandleLimit });
         const attempts: Array<{
           attemptType: string;
           status: string;
@@ -2402,6 +2407,7 @@ async function main(): Promise<void> {
           symbol: prepared.symbol,
           model,
           reasoningEffort,
+          dailyCandleLimit: dailyCandleLimit ?? null,
           priceAction: {
             source: prepared.priceAction.source,
             oneMinuteCandleCount: prepared.priceAction.oneMinuteCandles?.length ?? 0,
