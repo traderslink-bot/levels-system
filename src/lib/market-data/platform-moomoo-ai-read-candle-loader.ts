@@ -99,6 +99,25 @@ function aggregateCompletedFiveMinuteCandles(
     }));
 }
 
+function newYorkDayStart(timeMs: number): number {
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      hour12: false,
+      minute: "2-digit",
+      second: "2-digit",
+      timeZone: "America/New_York",
+    }).formatToParts(new Date(timeMs)).map((part) => [part.type, part.value]),
+  );
+  const hour = Number(values.hour);
+  const minute = Number(values.minute);
+  const second = Number(values.second);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || !Number.isInteger(second)) {
+    throw new Error("Unable to resolve the New York candle session date.");
+  }
+  return timeMs - (hour * 60 * 60 + minute * 60 + second) * 1_000 - (timeMs % 1_000);
+}
+
 /**
  * Uses the local Watchlist publisher credential only to request normalized
  * candles. Moomoo OAuth remains encrypted and server-only in Platform.
@@ -112,7 +131,7 @@ export function createPlatformMoomooAiReadCandleLoader(
 
   return async ({ symbol, asOfTimeMs }): Promise<MoomooAiReadCandleWindow> => {
     const endTimeMs = Math.min(asOfTimeMs, Date.now());
-    const startTimeMs = endTimeMs - 24 * 60 * 60 * 1_000;
+    const startTimeMs = newYorkDayStart(endTimeMs);
     const requestUrl = new URL(endpoint);
     requestUrl.search = new URLSearchParams({
       symbol: symbol.trim().toUpperCase(),
