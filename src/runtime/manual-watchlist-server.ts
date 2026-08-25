@@ -759,6 +759,7 @@ async function main(): Promise<void> {
     topRegularActivationEnabled:
       persistedTradersLinkAiReadSettings?.topRegularActivationGenerationEnabled ?? true,
   };
+  const aiReadExperimentResults: unknown[] = [];
   tradersLinkAiReadService?.setExternalResearchEnabled(aiReadExternalResearchEnabled);
   tradersLinkAiReadService?.setRuntimeConfiguration(aiReadModelSettings);
   if (!persistedTradersLinkAiReadSettings) {
@@ -2343,6 +2344,15 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/api/runtime/ai-read-experiment-results") {
+      sendJson(response, 200, {
+        experimental: true,
+        persisted: false,
+        results: aiReadExperimentResults,
+      });
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-experiment") {
       try {
         const body = await readJsonBody(request);
@@ -2398,7 +2408,7 @@ async function main(): Promise<void> {
             });
           },
         });
-        sendJson(response, 200, {
+        const result = {
           ok: true,
           experimental: true,
           published: false,
@@ -2416,7 +2426,10 @@ async function main(): Promise<void> {
           },
           attempts,
           read,
-        });
+        };
+        aiReadExperimentResults.unshift(result);
+        aiReadExperimentResults.splice(12);
+        sendJson(response, 200, result);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         sendJson(response, 500, { error: message });
