@@ -2343,6 +2343,81 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/api/runtime/ai-read-experiment") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol.trim().toUpperCase() : "";
+        const model = body.model === "gpt-5.6-terra" || body.model === "gpt-5.6-luna"
+          ? body.model
+          : null;
+        const reasoningEffort =
+          body.reasoningEffort === "low" ||
+          body.reasoningEffort === "medium" ||
+          body.reasoningEffort === "high" ||
+          body.reasoningEffort === "xhigh"
+            ? body.reasoningEffort
+            : null;
+        if (!symbol || !model || !reasoningEffort) {
+          sendJson(response, 400, {
+            error: "Symbol, Terra or Luna model, and a valid reasoning effort are required.",
+          });
+          return;
+        }
+        const experimentService = createTradersLinkAiReadServiceFromEnv();
+        if (!experimentService) {
+          sendJson(response, 503, { error: "TradersLink AI Read is not configured." });
+          return;
+        }
+        experimentService.setRuntimeConfiguration({ model, reasoningEffort });
+        experimentService.setExternalResearchEnabled(false);
+        const prepared = await manager.prepareTradersLinkAiReadExperiment(symbol);
+        const attempts: Array<{
+          attemptType: string;
+          status: string;
+          model: string;
+          usage: unknown;
+          durationMs: number;
+        }> = [];
+        const read = await experimentService.generate({
+          snapshot: prepared.snapshot,
+          research: { ticker: prepared.symbol, businessDays: 5, count: 0, articles: [] },
+          priceAction: prepared.priceAction,
+          dataAsOf: prepared.dataAsOf,
+          onAttempt: (attempt) => {
+            attempts.push({
+              attemptType: attempt.attemptType,
+              status: attempt.status,
+              model: attempt.model,
+              usage: attempt.usage,
+              durationMs: attempt.durationMs,
+            });
+          },
+        });
+        sendJson(response, 200, {
+          ok: true,
+          experimental: true,
+          published: false,
+          persisted: false,
+          catalystResearch: "excluded",
+          symbol: prepared.symbol,
+          model,
+          reasoningEffort,
+          priceAction: {
+            source: prepared.priceAction.source,
+            oneMinuteCandleCount: prepared.priceAction.oneMinuteCandles?.length ?? 0,
+            fiveMinuteCandleCount: prepared.priceAction.intradayCandles.length,
+            dailyCandleCount: prepared.priceAction.dailyCandles.length,
+          },
+          attempts,
+          read,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/watchlist/deactivate-bulk") {
       if (startupState !== "ready") {
         sendJson(response, 503, {

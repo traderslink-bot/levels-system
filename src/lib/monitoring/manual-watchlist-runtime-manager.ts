@@ -4452,6 +4452,39 @@ export class ManualWatchlistRuntimeManager {
     return this.generateTradersLinkAiRead(symbol, true, "manual");
   }
 
+  /**
+   * Builds the exact local AI Read input without invoking a model, publishing a
+   * card, changing the Watchlist, or recording a generation outcome. This is
+   * intentionally limited to the local experiment route.
+   */
+  async prepareTradersLinkAiReadExperiment(symbolInput: string): Promise<Readonly<{
+    symbol: string;
+    snapshot: LevelSnapshotPayload;
+    priceAction: TradersLinkAiReadPriceActionContext;
+    dataAsOf: number;
+  }>> {
+    const symbol = normalizeSymbol(symbolInput);
+    const entry = this.watchlistStore.getEntry(symbol);
+    if (!entry?.active) {
+      throw new Error(`${symbol} is not active.`);
+    }
+    const currentPrice = entry.lastPrice;
+    const dataAsOf = entry.lastPriceUpdateAt ?? Date.now();
+    if (!Number.isFinite(currentPrice) || (currentPrice ?? 0) <= 0) {
+      throw new Error(`${symbol} has no valid current price.`);
+    }
+    const snapshot = this.buildLevelSnapshotPayload(symbol, dataAsOf, currentPrice);
+    if (!Number.isFinite(snapshot.currentPrice) || snapshot.currentPrice <= 0) {
+      throw new Error(`${symbol} has no valid level snapshot price.`);
+    }
+    return Object.freeze({
+      symbol,
+      snapshot,
+      priceAction: await this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf),
+      dataAsOf,
+    });
+  }
+
   async setTradersLinkAiReadCardVisible(
     symbolInput: string,
     visible: boolean,
