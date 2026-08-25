@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { createHistoricalCandleProvider } from "../lib/market-data/provider-factory.js";
 import { YahooHistoricalCandleProvider } from "../lib/market-data/yahoo-historical-candle-provider.js";
+import { createPlatformMoomooAiReadCandleLoader } from "../lib/market-data/platform-moomoo-ai-read-candle-loader.js";
 import { CoordinatedCandleFetchService } from "../lib/market-data/coordinated-candle-fetch-service.js";
 import { DayTradeAdapterService } from "../lib/day-trade-adapter/day-trade-adapter-service.js";
 import { buildTradeCandleContext } from "../lib/market-data/trade-candle-context.js";
@@ -664,6 +665,7 @@ async function main(): Promise<void> {
   )
     ? sharedYahooCandleFetchService
     : null;
+  const tradersLinkAiReadMoomooCandleLoader = createPlatformMoomooAiReadCandleLoader();
   // EODHD is still the source of truth for daily/4h levels, but its 5m
   // endpoint can be empty during the live session. Keep deterministic level
   // detection supplied with a recent chart series in that case.
@@ -844,6 +846,7 @@ async function main(): Promise<void> {
       persistedTradersLinkAiReadSettings?.topRegularWatchlistVisible,
     pullbackReadEnabled,
     recentIntradayCandleFetchService,
+    tradersLinkAiReadMoomooCandleLoader,
     levelIntradayFallbackCandleFetchService,
     tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
     opportunityDiagnosticsEnabled: monitoringEventDiagnosticsEnabled,

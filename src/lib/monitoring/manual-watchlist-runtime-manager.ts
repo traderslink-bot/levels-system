@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
+import type { MoomooAiReadCandleLoader } from "../market-data/platform-moomoo-ai-read-candle-loader.js";
 import { NasdaqTradingHaltService, type NasdaqTradingHaltLookup } from "../auto-watchlist/nasdaq-trading-halt-service.js";
 import type { Candle, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
 import type {
@@ -272,6 +273,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   pullbackReadEnabled?: boolean;
   pullbackReadPollIntervalMs?: number;
   recentIntradayCandleFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName"> | null;
+  tradersLinkAiReadMoomooCandleLoader?: MoomooAiReadCandleLoader | null;
   levelIntradayFallbackCandleFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName"> | null;
   tradersLinkAiReadHistoricalCandleLoader?: (
     request: BuildTradeCandleContextRequest,
@@ -3674,6 +3676,7 @@ export class ManualWatchlistRuntimeManager {
     let source = this.technicalContextProviderBySymbol.get(symbol) ?? "runtime raw OHLCV";
     let recentIntradayProvider = source;
     const service = this.options.recentIntradayCandleFetchService;
+    const moomooCandleLoader = this.options.tradersLinkAiReadMoomooCandleLoader;
     const historicalLoader = this.options.tradersLinkAiReadHistoricalCandleLoader;
     const fetchAsOf = Math.max(dataAsOf, this.options.now?.() ?? Date.now());
     const historicalCoverageRequirement = resolveTradersLinkAiReadHistoricalCoverageRequirement(
@@ -3681,7 +3684,20 @@ export class ManualWatchlistRuntimeManager {
       fetchAsOf,
     );
 
-    if (service) {
+    if (moomooCandleLoader) {
+      try {
+        const fetched = await moomooCandleLoader({ symbol, asOfTimeMs: fetchAsOf });
+        oneMinuteCandles = normalizePullbackCandles([...fetched.oneMinuteCandles]);
+        intradayCandles = normalizePullbackCandles([...fetched.fiveMinuteCandles]);
+        if (intradayCandles.length > 0) {
+          recentIntradayProvider = "Moomoo Open API";
+          source = "Moomoo Open API current-session OHLCV";
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[TradersLinkAiRead] Moomoo same-day candle lookup failed for ${symbol}: ${message}`);
+      }
+    } else if (service) {
       const [oneMinuteResult, intradayResult, dailyResult] = await Promise.allSettled([
         service.fetchCandles({
           symbol,
@@ -3789,7 +3805,7 @@ export class ManualWatchlistRuntimeManager {
           ? historicalDailyResult.reason.message
           : String(historicalDailyResult.reason);
         console.warn(
-          `[TradersLinkAiRead] Historical daily candle lookup failed for ${symbol}; using Yahoo daily fallback: ${message}`,
+          `[TradersLinkAiRead] Historical daily candle lookup failed for ${symbol}; using stored daily fallback: ${message}`,
         );
       }
     }
