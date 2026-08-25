@@ -18,7 +18,9 @@ import {
   resolveValidationCandleCacheMode,
 } from "../lib/validation/validation-candle-cache.js";
 import { createOpenAITraderCommentaryServiceFromEnv } from "../lib/ai/trader-commentary-service.js";
-import { createTradersLinkAiReadServiceFromEnv } from "../lib/ai/traderslink-ai-read-service.js";
+import {
+  createTradersLinkAiReadServiceFromEnv,
+} from "../lib/ai/traderslink-ai-read-service.js";
 import { TradersLinkAiReadCostLedger } from "../lib/ai/traderslink-ai-read-cost-ledger.js";
 import { TradersLinkAiReadRunLedger } from "../lib/ai/traderslink-ai-read-run-ledger.js";
 import { TradersLinkAiReadSettingsPersistence } from "../lib/ai/traderslink-ai-read-settings.js";
@@ -69,7 +71,10 @@ import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
 import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
 import { createDailyWatchlistRecapServiceFromEnv } from "../lib/live-watchlist/daily-watchlist-recap.js";
 import { resolveLiveWatchlistPullbackReadEnabled } from "../lib/live-watchlist/pullback-read.js";
-import type { LiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-types.js";
+import type {
+  LiveWatchlistPublisher,
+  TradersLinkAiReadPayload,
+} from "../lib/live-watchlist/live-watchlist-types.js";
 import {
   LOCAL_BIND_HOST,
   RequestBodyParseError,
@@ -2393,21 +2398,48 @@ async function main(): Promise<void> {
           usage: unknown;
           durationMs: number;
         }> = [];
-        const read = await experimentService.generate({
-          snapshot: prepared.snapshot,
-          research: { ticker: prepared.symbol, businessDays: 5, count: 0, articles: [] },
-          priceAction: prepared.priceAction,
-          dataAsOf: prepared.dataAsOf,
-          onAttempt: (attempt) => {
-            attempts.push({
-              attemptType: attempt.attemptType,
-              status: attempt.status,
-              model: attempt.model,
-              usage: attempt.usage,
-              durationMs: attempt.durationMs,
-            });
-          },
-        });
+        let read: TradersLinkAiReadPayload;
+        try {
+          read = await experimentService.generate({
+            snapshot: prepared.snapshot,
+            research: { ticker: prepared.symbol, businessDays: 5, count: 0, articles: [] },
+            priceAction: prepared.priceAction,
+            dataAsOf: prepared.dataAsOf,
+            onAttempt: (attempt) => {
+              attempts.push({
+                attemptType: attempt.attemptType,
+                status: attempt.status,
+                model: attempt.model,
+                usage: attempt.usage,
+                durationMs: attempt.durationMs,
+              });
+            },
+          });
+        } catch (error) {
+          const result = {
+            ok: false,
+            experimental: true,
+            published: false,
+            persisted: false,
+            catalystResearch: "excluded",
+            symbol: prepared.symbol,
+            model,
+            reasoningEffort,
+            dailyCandleLimit: dailyCandleLimit ?? null,
+            priceAction: {
+              source: prepared.priceAction.source,
+              oneMinuteCandleCount: prepared.priceAction.oneMinuteCandles?.length ?? 0,
+              fiveMinuteCandleCount: prepared.priceAction.intradayCandles.length,
+              dailyCandleCount: prepared.priceAction.dailyCandles.length,
+            },
+            attempts,
+            error: error instanceof Error ? error.message : String(error),
+          };
+          aiReadExperimentResults.unshift(result);
+          aiReadExperimentResults.splice(12);
+          sendJson(response, 422, result);
+          return;
+        }
         const result = {
           ok: true,
           experimental: true,
