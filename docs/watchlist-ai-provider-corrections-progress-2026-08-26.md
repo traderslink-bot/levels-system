@@ -37,8 +37,8 @@ session-volume confirmation, and Finnhub Company Details resilience.
   checkout because no local ESLint binary is installed and `npx` cannot write
   its global npm cache; no dependency download was attempted.
 - [x] `npm.cmd run build` passed (`tsc -p tsconfig.json`) while completing the
-  separately authorized Stock Levels Railway compile follow-up; it also covers
-  this runtime source slice.
+  separately authorized Stock Levels Railway compile follow-up. The final
+  Admin-card placement change received a separate `git diff --check` review.
 - [ ] Railway staging review: verify CRE validator failure/attempt rendering,
   YYGH next-date reactivation, cached five-minute volume wording, factual
   Moomoo/Yahoo health transitions, immediate Apply Model state, and Company
