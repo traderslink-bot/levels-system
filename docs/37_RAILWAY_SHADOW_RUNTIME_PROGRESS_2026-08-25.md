@@ -30,19 +30,25 @@ Railway staging deployment `19477ef6-5c2d-4ce5-81bd-636786bfb2be` completed succ
    publisher is disabled by shadow mode.
 4. The hosted state has zero active symbols; the desktop runtime was not
    restarted and remains the only publisher.
-5. No public Railway domain, Discord configuration, Website ingest URL, or
-   Watchlist publisher credential was configured.
+5. No public Railway domain was configured.
 
-## Controlled state transfer
+## Live sender cutover
 
-Railway SSH was unavailable in the deployed service image. The shadow runtime
-therefore exposes one temporary, token-protected state-restore endpoint that
-accepts only the four named non-secret runtime-state files, only while shadow
-mode is enabled. It writes each file atomically to the private `/data` volume.
-The endpoint is disabled before the service becomes the live publisher.
+The owner authorized Railway to take over the existing Discord channel and
+Website publisher. A private Railway SSH session copied and SHA-256 verified
+the exact `manual-watchlist-state.json`, `traderslink-ai-read-settings.json`,
+`auto-watchlist-selector-config.json`, and `adaptive-state.json` files into
+the mounted volume. The desktop sender was stopped only after its port/process
+and runtime identity were verified.
 
-## Next checkpoint, not yet authorized
+Deployment `6e2a832b-b79e-4459-a144-38778fa6cab3` then started successfully
+with real Discord routing, Website publishing, EODHD historical/live feeds,
+and no public domain. The transferred state contains 13 saved entries and zero
+currently active symbols; Railway is the sole publisher until a normal
+activation or selector choice creates an active symbol.
 
-After the shadow is healthy, copy only the reviewed durable state needed for a
-like-for-like comparison, verify it produces matching levels privately, then
-design the owner-only dashboard admin surface and promotion plan.
+## Next checkpoint
+
+Build the owner-only Dashboard administration surface, then decide whether the
+runtime service should move from this controlled staging service to a separate
+production service after live market-session observation.

@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { spawn } from "node:child_process";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -119,13 +119,6 @@ const PORT = Number(process.env.PORT ?? process.env.MANUAL_WATCHLIST_PORT ?? 301
 const BIND_HOST = process.env.MANUAL_WATCHLIST_BIND_HOST?.trim() ||
   (isRailwayRuntime ? "0.0.0.0" : LOCAL_BIND_HOST);
 const RUNTIME_ACCESS_TOKEN_ENV = "MANUAL_WATCHLIST_RUNTIME_ACCESS_TOKEN";
-const SHADOW_RUNTIME_STATE_FILES = new Set([
-  "manual-watchlist-state.json",
-  "traderslink-ai-read-settings.json",
-  "auto-watchlist-selector-config.json",
-  "adaptive-state.json",
-]);
-const SHADOW_RUNTIME_STATE_RESTORE_MAX_BYTES = 128 * 1024;
 const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
 const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
 const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
@@ -1067,56 +1060,6 @@ async function main(): Promise<void> {
 
     if (isRailwayRuntime && !requestHasRuntimeAccess(request, runtimeAccessToken!)) {
       sendJson(response, 401, { error: "Runtime access token required." });
-      return;
-    }
-
-    if (request.method === "POST" && url.pathname === "/api/runtime/shadow-state-restore") {
-      if (process.env.MANUAL_WATCHLIST_SHADOW_MODE?.trim() !== "1") {
-        sendJson(response, 403, { error: "Shadow state restore is disabled outside shadow mode." });
-        return;
-      }
-
-      try {
-        const body = await readJsonBody(request, SHADOW_RUNTIME_STATE_RESTORE_MAX_BYTES);
-        const files = body.files;
-        if (!files || typeof files !== "object" || Array.isArray(files)) {
-          sendJson(response, 400, { error: "files must be an object of allowed base64 state files." });
-          return;
-        }
-
-        const entries = Object.entries(files);
-        if (entries.length === 0 || entries.some(([name, value]) =>
-          !SHADOW_RUNTIME_STATE_FILES.has(name) || typeof value !== "string"
-        )) {
-          sendJson(response, 400, { error: "Only complete allowed shadow state files can be restored." });
-          return;
-        }
-
-        mkdirSync(durableDataDirectory, { recursive: true });
-        const restored = entries.map(([name, encoded]) => {
-          const content = Buffer.from(encoded as string, "base64");
-          if (content.length === 0 || content.length > SHADOW_RUNTIME_STATE_RESTORE_MAX_BYTES) {
-            throw new Error(`Invalid shadow state file size for ${name}.`);
-          }
-          const destination = join(durableDataDirectory, name);
-          const temporary = `${destination}.shadow-restore`;
-          writeFileSync(temporary, content);
-          renameSync(temporary, destination);
-          return {
-            name,
-            bytes: content.length,
-            sha256: createHash("sha256").update(content).digest("hex"),
-          };
-        });
-        sendJson(response, 200, { ok: true, restored });
-      } catch (error) {
-        if (error instanceof RequestBodyParseError) {
-          sendJson(response, error.statusCode, { error: error.message });
-          return;
-        }
-        const message = error instanceof Error ? error.message : String(error);
-        sendJson(response, 400, { error: message });
-      }
       return;
     }
 
