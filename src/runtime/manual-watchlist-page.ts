@@ -563,6 +563,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         </div>
         <div class="inline-status" id="live-provider-status"></div>
       </div>
+      <div class="provider-control">
+        <label for="same-day-candle-provider-select">Same-Day Candle Provider</label>
+        <div class="inline-control">
+          <select id="same-day-candle-provider-select" name="same-day-candle-provider">
+            <option value="yahoo">Yahoo</option>
+            <option value="moomoo">Moomoo</option>
+          </select>
+          <button id="apply-same-day-candle-provider-button" type="button">Apply</button>
+        </div>
+        <div class="inline-status" id="same-day-candle-provider-status"></div>
+      </div>
       <div class="notice" id="ai-notice"></div>
       <div class="runtime-grid" id="config-grid"></div>
     </section>
@@ -610,6 +621,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const liveProviderSelectEl = document.getElementById("live-provider-select");
     const applyLiveProviderButtonEl = document.getElementById("apply-live-provider-button");
     const liveProviderStatusEl = document.getElementById("live-provider-status");
+    const sameDayCandleProviderSelectEl = document.getElementById("same-day-candle-provider-select");
+    const applySameDayCandleProviderButtonEl = document.getElementById("apply-same-day-candle-provider-button");
+    const sameDayCandleProviderStatusEl = document.getElementById("same-day-candle-provider-status");
     const liveTraderReadVisibleToggleEl = document.getElementById("live-trader-read-visible-toggle");
     const liveTraderReadVisibleLabelEl = document.getElementById("live-trader-read-visible-label");
     const liveTraderReadVisibleStatusEl = document.getElementById("live-trader-read-visible-status");
@@ -743,10 +757,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const noteEl = document.getElementById("note");
     let currentHistoricalProvider = "";
     let currentLiveProvider = "";
+    let currentSameDayCandleProvider = "";
     let providerSelectionDirty = false;
     let providerApplyInFlight = false;
     let liveProviderSelectionDirty = false;
     let liveProviderApplyInFlight = false;
+    let sameDayCandleProviderSelectionDirty = false;
+    let sameDayCandleProviderApplyInFlight = false;
     let liveTraderReadVisible = true;
     let liveTraderReadVisibilityInFlight = false;
     let potentialGainVisible = true;
@@ -788,6 +805,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       applyHistoricalProviderButtonEl,
       liveProviderSelectEl,
       applyLiveProviderButtonEl,
+      sameDayCandleProviderSelectEl,
+      applySameDayCandleProviderButtonEl,
       liveTraderReadVisibleToggleEl,
       potentialGainVisibleToggleEl,
       watchlistLifecycleLabelsVisibleToggleEl,
@@ -882,6 +901,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
       if (value === "ibkr") {
         return "IBKR";
+      }
+      if (value === "moomoo") {
+        return "Moomoo";
+      }
+      if (value === "yahoo") {
+        return "Yahoo";
       }
       return lifecycleLabel(value);
     }
@@ -1143,6 +1168,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Discord Delivery", lifecycleLabel(health.discordStatus || "waiting")],
         ["Last Post Age", lastPost],
         ["Historical Data", lifecycleLabel(health.historicalDataStatus || "waiting")],
+        ["Same-Day Candles", providerLabel(status.runtimeConfig?.sameDayCandleProvider || "yahoo") +
+          " | " + lifecycleLabel(status.runtimeConfig?.sameDayCandleProviderHealth?.status || "unavailable")],
         ["Pending Seeds", String(health.pendingActivationCount || 0)],
         ["Stuck Seeds", String(health.stuckActivationCount || 0)],
         ["Seed Attempts", String(seedStats.attempts || 0)],
@@ -1204,6 +1231,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       applyLiveProviderButtonEl.disabled = liveProviderApplyInFlight || !hasChanged;
     }
 
+    function updateSameDayCandleProviderApplyState() {
+      const selected = sameDayCandleProviderSelectEl.value;
+      const hasChanged = selected && selected !== currentSameDayCandleProvider;
+      applySameDayCandleProviderButtonEl.disabled = sameDayCandleProviderApplyInFlight || !hasChanged;
+    }
+
     function renderHistoricalProviderControl(config) {
       const providers = Array.isArray(config.availableHistoricalProviders) && config.availableHistoricalProviders.length > 0
         ? config.availableHistoricalProviders
@@ -1248,6 +1281,31 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       liveProviderSelectEl.disabled = config.liveProviderRuntimeMutable === false;
       liveProviderStatusEl.textContent = "Active: " + providerLabel(activeProvider);
       updateLiveProviderApplyState();
+    }
+
+    function renderSameDayCandleProviderControl(config) {
+      const providers = Array.isArray(config.availableSameDayCandleProviders) && config.availableSameDayCandleProviders.length > 0
+        ? config.availableSameDayCandleProviders
+        : ["yahoo", "moomoo"];
+      const activeProvider = config.sameDayCandleProvider || "yahoo";
+      const priorSelection = sameDayCandleProviderSelectEl.value;
+      const health = config.sameDayCandleProviderHealth || {};
+      currentSameDayCandleProvider = activeProvider;
+      sameDayCandleProviderSelectEl.innerHTML = "";
+      for (const provider of providers) {
+        const option = document.createElement("option");
+        option.value = provider;
+        option.textContent = providerLabel(provider);
+        sameDayCandleProviderSelectEl.appendChild(option);
+      }
+      const canKeepSelection = sameDayCandleProviderSelectionDirty && providers.includes(priorSelection);
+      sameDayCandleProviderSelectEl.value = canKeepSelection ? priorSelection : activeProvider;
+      sameDayCandleProviderSelectEl.disabled = config.sameDayCandleProviderRuntimeMutable === false;
+      sameDayCandleProviderStatusEl.textContent =
+        "Active: " + providerLabel(activeProvider) +
+        " | " + lifecycleLabel(health.status || "unavailable") +
+        (health.lastError ? " | " + health.lastError : "");
+      updateSameDayCandleProviderApplyState();
     }
 
     function renderLiveTraderReadVisibilityControl(status, options) {
@@ -1954,6 +2012,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       configGridEl.innerHTML = "";
       renderHistoricalProviderControl(config);
       renderLiveProviderControl(config);
+      renderSameDayCandleProviderControl(config);
       renderLiveTraderReadVisibilityControl(status);
       renderPotentialGainVisibilityControl(status);
       renderWatchlistLifecycleLabelsVisibilityControl(status);
@@ -1968,6 +2027,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Server", (config.bindHost || "127.0.0.1") + ":" + (config.port || "3010")],
         ["Historical Provider", config.historicalProvider],
         ["Live Provider", config.liveProvider],
+        ["Same-Day Candle Provider", config.sameDayCandleProvider],
         ["Trader Read Card", health.liveTraderReadCardVisible === false ? "hidden" : "visible"],
         ["Potential Gain Card", health.potentialGainCardVisible === false ? "hidden" : "visible"],
         ["Lifecycle Labels", health.watchlistLifecycleLabelsVisible === true ? "visible" : "hidden"],
@@ -2425,10 +2485,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       dayTradeAdapterToggleEl.checked = Boolean(payload.enabled);
       dayTradeAdapterLabelEl.textContent = payload.enabled ? "Enabled" : "Disabled";
       const coordinator = payload.coordinator || {};
+      const yahooCoordinator = coordinator.yahooCoordinator || coordinator;
       dayTradeAdapterStatusEl.textContent =
-        "Yahoo requests " + String(coordinator.requestCount || 0) +
-        " | cache hits " + String(coordinator.cacheHitCount || 0) +
-        " | in-flight dedupe " + String(coordinator.inFlightDeduplicationCount || 0) +
+        providerLabel(payload.provider || coordinator.selectedProvider || "unavailable") +
+        " | " + lifecycleLabel(coordinator.status || "ready") +
+        " | requests " + String(yahooCoordinator.requestCount || 0) +
+        " | cache hits " + String(yahooCoordinator.cacheHitCount || 0) +
+        " | in-flight dedupe " + String(yahooCoordinator.inFlightDeduplicationCount || 0) +
         (coordinator.lastError ? " | last error: " + coordinator.lastError : "");
       const results = Array.isArray(payload.results) ? payload.results : [];
       if (!results.length) {
@@ -2684,6 +2747,41 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       } finally {
         liveProviderApplyInFlight = false;
         updateLiveProviderApplyState();
+      }
+    }
+
+    async function applySameDayCandleProviderSelection() {
+      const selectedProvider = sameDayCandleProviderSelectEl.value;
+      if (!selectedProvider || selectedProvider === currentSameDayCandleProvider) {
+        updateSameDayCandleProviderApplyState();
+        return;
+      }
+      sameDayCandleProviderApplyInFlight = true;
+      updateSameDayCandleProviderApplyState();
+      setStatus("Switching same-day candle provider to " + providerLabel(selectedProvider) + "...");
+      try {
+        const response = await fetch("/api/runtime/same-day-candle-provider", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sameDayCandleProvider: selectedProvider }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          setStatus(payload.error || "Same-day candle provider switch failed", true);
+          return;
+        }
+        sameDayCandleProviderSelectionDirty = false;
+        currentSameDayCandleProvider = payload.sameDayCandleProvider || selectedProvider;
+        setStatus(
+          (payload.changed ? "Same-day candle provider switched to " : "Same-day candle provider already set to ") +
+          providerLabel(currentSameDayCandleProvider) + " and saved for restart.",
+        );
+        await Promise.all([loadRuntimeStatus(true), loadDayTradeAdapter()]);
+      } catch (error) {
+        setStatus(String(error), true);
+      } finally {
+        sameDayCandleProviderApplyInFlight = false;
+        updateSameDayCandleProviderApplyState();
       }
     }
 
@@ -3359,6 +3457,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       updateLiveProviderApplyState();
     });
     applyLiveProviderButtonEl.addEventListener("click", applyLiveProviderSelection);
+    sameDayCandleProviderSelectEl.addEventListener("change", () => {
+      sameDayCandleProviderSelectionDirty = true;
+      updateSameDayCandleProviderApplyState();
+    });
+    applySameDayCandleProviderButtonEl.addEventListener("click", applySameDayCandleProviderSelection);
     liveTraderReadVisibleToggleEl.addEventListener("change", applyLiveTraderReadVisibilitySelection);
     potentialGainVisibleToggleEl.addEventListener("change", applyPotentialGainVisibilitySelection);
     watchlistLifecycleLabelsVisibleToggleEl.addEventListener("change", applyWatchlistLifecycleLabelsVisibilitySelection);

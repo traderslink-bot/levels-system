@@ -1463,6 +1463,8 @@ type YahooCurrentSessionRangeFallback = {
   high: number;
   dailyCandles: Candle[];
   observedAt: number;
+  sameDayProvider: string;
+  dailyProvider: string;
 };
 
 const LEVEL_REFRESH_THRESHOLD_PCT = 0.01;
@@ -1700,7 +1702,7 @@ function buildVerifiedFiftyTwoWeekLow(params: {
   return {
     price,
     observedAt: params.yahooSessionRange?.observedAt ?? params.timestamp,
-    sourceLabel: "verified Yahoo daily-candle 52-week low",
+    sourceLabel: `verified ${params.yahooSessionRange?.dailyProvider === "yahoo" ? "Yahoo" : params.yahooSessionRange?.dailyProvider.toUpperCase()} daily-candle 52-week low`,
   };
 }
 
@@ -1739,7 +1741,7 @@ function buildYahooCurrentSessionLowSupportFallback(params: {
   });
 
   return {
-    id: `${params.symbol}-yahoo-current-session-low-${formatSnapshotLevel(price)}`,
+    id: `${params.symbol}-${params.yahooSessionRange?.sameDayProvider ?? "same-day"}-current-session-low-${formatSnapshotLevel(price)}`,
     symbol: params.symbol,
     kind: "support",
     timeframeBias: "5m",
@@ -1764,7 +1766,7 @@ function buildYahooCurrentSessionLowSupportFallback(params: {
     isExtension: false,
     freshness: "fresh",
     notes: [
-      "yahoo_current_session_support_fallback",
+      `${params.yahooSessionRange?.sameDayProvider ?? "same_day"}_current_session_support_fallback`,
       ...(isFiftyTwoWeekLow ? ["reliable_52_week_low"] : []),
     ],
   };
@@ -7033,7 +7035,7 @@ export class ManualWatchlistRuntimeManager {
   private async refreshYahooCurrentSessionSupportFallback(symbolInput: string): Promise<void> {
     const symbol = normalizeSymbol(symbolInput);
     const service = this.options.levelIntradayFallbackCandleFetchService;
-    if (!service || service.getProviderName() !== "yahoo") {
+    if (!service) {
       this.yahooCurrentSessionSupportFallbackBySymbol.delete(symbol);
       return;
     }
@@ -7046,14 +7048,12 @@ export class ManualWatchlistRuntimeManager {
           timeframe: "5m",
           lookbackBars: YAHOO_SESSION_SUPPORT_5M_LOOKBACK_BARS,
           endTimeMs: observedAt,
-          preferredProvider: "yahoo",
         }),
-        service.fetchCandles({
+        this.options.candleFetchService.fetchCandles({
           symbol,
           timeframe: "daily",
           lookbackBars: YAHOO_SESSION_SUPPORT_DAILY_LOOKBACK_BARS,
           endTimeMs: observedAt,
-          preferredProvider: "yahoo",
         }),
       ]);
       const intradayCandles = normalizePullbackCandles(intradayResult.candles);
@@ -7069,7 +7069,9 @@ export class ManualWatchlistRuntimeManager {
         !Number.isFinite(currentSessionHigh) ||
         currentSessionHigh <= 0
       ) {
-        this.yahooCurrentSessionSupportFallbackBySymbol.delete(symbol);
+        console.warn(
+          `[ManualWatchlistRuntimeManager] ${service.getProviderName()} returned no accepted current-session range for ${symbol}; preserving the last accepted range.`,
+        );
         return;
       }
 
@@ -7078,11 +7080,12 @@ export class ManualWatchlistRuntimeManager {
         high: currentSessionHigh,
         dailyCandles,
         observedAt,
+        sameDayProvider: intradayResult.provider,
+        dailyProvider: dailyResult.provider,
       });
     } catch (error) {
-      this.yahooCurrentSessionSupportFallbackBySymbol.delete(symbol);
       console.warn(
-        `[ManualWatchlistRuntimeManager] Yahoo current-session support fallback failed for ${symbol}: ${error instanceof Error ? error.message : String(error)}`,
+        `[ManualWatchlistRuntimeManager] ${service.getProviderName()} current-session support fallback failed for ${symbol}; preserving the last accepted range: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

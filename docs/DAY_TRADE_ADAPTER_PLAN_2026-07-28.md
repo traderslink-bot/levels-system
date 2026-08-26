@@ -10,7 +10,9 @@ runtime ATR context. It must not call OpenAI or publish a second website plan.
 ## Data contract
 
 - Current price: existing timestamped live-price entry.
-- Intraday candles: shared, cached Yahoo 1-minute and 5-minute responses.
+- Intraday candles: the persisted same-day provider selected in Watchlist Admin,
+  using either coordinated Yahoo 1-minute/5-minute responses or the existing
+  secure Platform Moomoo Open API bridge.
 - VWAP and EMA: existing runtime technical context calculated from candles.
 - ATR: existing completed-five-minute runtime ATR context. Do not calculate a
   separate Yahoo ATR for the adapter.
@@ -40,8 +42,10 @@ completed candles confirm them.
 - Admin UI only.
 - AI Read continues independently for comparison.
 - No public watchlist publication.
-- Shared Yahoo coordinator deduplicates in-flight requests, caches successful
-  responses, applies conservative request spacing, and reports diagnostics.
+- Yahoo continues through its shared coordinator. Moomoo continues through the
+  encrypted, server-only Platform connection; runtime configuration never
+  stores OAuth credentials. Provider failure never silently crosses to the
+  other provider and does not erase the last accepted deterministic result.
 - Keep the latest 20 material plan transitions per symbol in memory.
 
 ## Acceptance gates
@@ -51,9 +55,8 @@ completed candles confirm them.
 3. Missing ATR reduces confidence without disabling all level interpretation.
 4. Forming candles can provide provisional evidence but cannot confirm a break,
    hold, or reclaim.
-5. Yahoo failures, staleness, validation issues, and cache/backoff state are
-   visible in admin diagnostics.
+5. Selected-provider failures, staleness, availability, and Yahoo cache/backoff
+   state are visible in admin diagnostics.
 6. AI Read remains available and no website payload changes are made.
 7. Targeted engine and runtime endpoint tests pass.
 8. Live smoke testing uses an unoccupied port and records Yahoo request counts.
-

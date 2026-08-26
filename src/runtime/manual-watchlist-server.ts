@@ -11,6 +11,11 @@ import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { createHistoricalCandleProvider } from "../lib/market-data/provider-factory.js";
 import { YahooHistoricalCandleProvider } from "../lib/market-data/yahoo-historical-candle-provider.js";
 import { createPlatformMoomooAiReadCandleLoader } from "../lib/market-data/platform-moomoo-ai-read-candle-loader.js";
+import {
+  SAME_DAY_CANDLE_PROVIDER_OPTIONS,
+  SelectableSameDayCandleService,
+  type SameDayCandleProviderName,
+} from "../lib/market-data/selectable-same-day-candle-service.js";
 import { CoordinatedCandleFetchService } from "../lib/market-data/coordinated-candle-fetch-service.js";
 import { DayTradeAdapterService } from "../lib/day-trade-adapter/day-trade-adapter-service.js";
 import { buildTradeCandleContext } from "../lib/market-data/trade-candle-context.js";
@@ -133,6 +138,7 @@ const MANUAL_WATCHLIST_CANDLE_CACHE_DIR_ENV = "MANUAL_WATCHLIST_CANDLE_CACHE_DIR
 const MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE_ENV = "MANUAL_WATCHLIST_STARTUP_CANDLE_CACHE";
 const MANUAL_WATCHLIST_HISTORICAL_PROVIDER_ENV = "LEVEL_HISTORICAL_CANDLE_PROVIDER";
 const MANUAL_WATCHLIST_LIVE_PRICE_PROVIDER_ENV = "LEVEL_LIVE_PRICE_PROVIDER";
+const MANUAL_WATCHLIST_SAME_DAY_CANDLE_PROVIDER_ENV = "LEVEL_SAME_DAY_CANDLE_PROVIDER";
 const MANUAL_WATCHLIST_PROVIDER_CONFIG_PATH_ENV = "LEVEL_MANUAL_PROVIDER_CONFIG_PATH";
 const MANUAL_WATCHLIST_LOOKBACK_DAILY_ENV = "LEVEL_MANUAL_LOOKBACK_DAILY";
 const MANUAL_WATCHLIST_LOOKBACK_4H_ENV = "LEVEL_MANUAL_LOOKBACK_4H";
@@ -196,7 +202,7 @@ const DISCORD_CLEANUP_PARENT_MESSAGE_PAGE_LIMIT = 50;
 const DISCORD_CLEANUP_RETRY_DELAY_MS = 1000;
 const RUNTIME_HISTORICAL_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
 const RUNTIME_LIVE_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
-const PROVIDER_CONFIG_VERSION = 1;
+const PROVIDER_CONFIG_VERSION = 2;
 const AUTO_WATCHLIST_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>(
   Object.keys(DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG) as Array<keyof AutoWatchlistSelectorThresholds>,
 );
@@ -208,6 +214,7 @@ type RuntimeProviderConfig = {
   lastUpdated: number;
   historicalProvider: RuntimeHistoricalProviderName;
   liveProvider: LivePriceProviderName;
+  sameDayCandleProvider: SameDayCandleProviderName;
 };
 
 function isTruthyEnv(value: string | undefined): boolean {
@@ -256,6 +263,11 @@ function parseRuntimeLiveProviderName(raw: unknown): LivePriceProviderName | nul
   return normalized === "ibkr" || normalized === "eodhd" ? normalized : null;
 }
 
+function parseSameDayCandleProviderName(raw: unknown): SameDayCandleProviderName | null {
+  const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return normalized === "yahoo" || normalized === "moomoo" ? normalized : null;
+}
+
 function resolveProviderConfigPath(): string {
   return process.env[MANUAL_WATCHLIST_PROVIDER_CONFIG_PATH_ENV]?.trim() ||
     resolveDurableManualWatchlistFile("manual-watchlist-provider-config.json");
@@ -266,7 +278,8 @@ function loadRuntimeProviderConfig(path: string): RuntimeProviderConfig | null {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
     const historicalProvider = parseRuntimeHistoricalProviderName(parsed.historicalProvider);
     const liveProvider = parseRuntimeLiveProviderName(parsed.liveProvider) ?? "ibkr";
-    if (parsed.version !== PROVIDER_CONFIG_VERSION || !historicalProvider) {
+    const sameDayCandleProvider = parseSameDayCandleProviderName(parsed.sameDayCandleProvider) ?? "yahoo";
+    if ((parsed.version !== 1 && parsed.version !== PROVIDER_CONFIG_VERSION) || !historicalProvider) {
       return null;
     }
 
@@ -278,6 +291,7 @@ function loadRuntimeProviderConfig(path: string): RuntimeProviderConfig | null {
           : 0,
       historicalProvider,
       liveProvider,
+      sameDayCandleProvider,
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
@@ -601,6 +615,10 @@ async function main(): Promise<void> {
     persistedProviderConfig?.liveProvider ??
       process.env[MANUAL_WATCHLIST_LIVE_PRICE_PROVIDER_ENV],
   );
+  let sameDayCandleProviderName = parseSameDayCandleProviderName(
+    persistedProviderConfig?.sameDayCandleProvider ??
+      process.env[MANUAL_WATCHLIST_SAME_DAY_CANDLE_PROVIDER_ENV],
+  ) ?? "yahoo";
   const historicalLookbackBars = resolveManualWatchlistHistoricalLookbacks(historicalProviderName);
   const historicalProvider = createHistoricalCandleProvider({
     provider: historicalProviderName,
@@ -690,10 +708,15 @@ async function main(): Promise<void> {
     ? sharedYahooCandleFetchService
     : null;
   const tradersLinkAiReadMoomooCandleLoader = createPlatformMoomooAiReadCandleLoader();
+  const sameDayCandleService = new SelectableSameDayCandleService(
+    sameDayCandleProviderName,
+    sharedYahooCandleFetchService,
+    tradersLinkAiReadMoomooCandleLoader,
+  );
   // EODHD is still the source of truth for daily/4h levels, but its 5m
   // endpoint can be empty during the live session. Keep deterministic level
   // detection supplied with a recent chart series in that case.
-  const levelIntradayFallbackCandleFetchService = sharedYahooCandleFetchService;
+  const levelIntradayFallbackCandleFetchService = sameDayCandleService;
   const sessionDirectory = process.env[SESSION_DIRECTORY_ENV]?.trim() || null;
   const marketStructureLifecyclePath = sessionDirectory
     ? join(sessionDirectory, "market-structure-lifecycle.jsonl")
@@ -883,7 +906,7 @@ async function main(): Promise<void> {
       : null,
   });
   const dayTradeAdapter = new DayTradeAdapterService(
-    sharedYahooCandleFetchService,
+    sameDayCandleService,
     (symbol) => manager.getDayTradeAdapterMarketContext(symbol),
   );
   let dayTradeAdapterRefreshTimer: NodeJS.Timeout | null = null;
@@ -1137,6 +1160,10 @@ async function main(): Promise<void> {
           historicalProvider: candleService.getProviderName(),
           availableHistoricalProviders: RUNTIME_HISTORICAL_PROVIDER_OPTIONS,
           historicalProviderRuntimeMutable: true,
+          sameDayCandleProvider: sameDayCandleProviderName,
+          availableSameDayCandleProviders: SAME_DAY_CANDLE_PROVIDER_OPTIONS,
+          sameDayCandleProviderRuntimeMutable: true,
+          sameDayCandleProviderHealth: sameDayCandleService.getDiagnostics(),
           providerConfigPath,
           durableDataDirectory,
           aiReadRunLedgerPath: durableFiles.aiReadRunLedger,
@@ -1559,6 +1586,7 @@ async function main(): Promise<void> {
           saveRuntimeProviderConfig(providerConfigPath, {
             historicalProvider: requestedProvider,
             liveProvider: liveProviderName,
+            sameDayCandleProvider: sameDayCandleProviderName,
           });
           sendJson(response, 200, {
             ok: true,
@@ -1593,6 +1621,7 @@ async function main(): Promise<void> {
         saveRuntimeProviderConfig(providerConfigPath, {
           historicalProvider: requestedProvider,
           liveProvider: liveProviderName,
+          sameDayCandleProvider: sameDayCandleProviderName,
         });
         rawCandleService.setProvider(nextProvider);
         historicalProviderName = requestedProvider;
@@ -1654,6 +1683,7 @@ async function main(): Promise<void> {
           saveRuntimeProviderConfig(providerConfigPath, {
             historicalProvider: historicalProviderName,
             liveProvider: requestedProvider,
+            sameDayCandleProvider: sameDayCandleProviderName,
           });
           sendJson(response, 200, {
             ok: true,
@@ -1689,6 +1719,7 @@ async function main(): Promise<void> {
           saveRuntimeProviderConfig(providerConfigPath, {
             historicalProvider: historicalProviderName,
             liveProvider: requestedProvider,
+            sameDayCandleProvider: sameDayCandleProviderName,
           });
         } catch (error) {
           persisted = false;
@@ -1735,6 +1766,72 @@ async function main(): Promise<void> {
             : 500;
         console.error(`[ManualWatchlistRuntime] Live provider switch failed: ${message}`);
         sendJson(response, statusCode, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/same-day-candle-provider") {
+      if (startupState !== "ready") {
+        sendJson(response, 503, {
+          error: startupState === "error"
+            ? `Runtime startup failed: ${startupError ?? "unknown error"}`
+            : "Runtime is still starting. Try again when startup completes.",
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody(request);
+        const requestedProvider = parseSameDayCandleProviderName(
+          body.sameDayCandleProvider ?? body.provider,
+        );
+        if (!requestedProvider) {
+          sendJson(response, 400, {
+            error: "sameDayCandleProvider must be yahoo or moomoo.",
+          });
+          return;
+        }
+        if (requestedProvider === "moomoo" && !tradersLinkAiReadMoomooCandleLoader) {
+          sendJson(response, 503, {
+            error: "Moomoo same-day candles are unavailable because the secure Platform bridge is not configured.",
+          });
+          return;
+        }
+
+        const previousSameDayCandleProvider = sameDayCandleProviderName;
+        saveRuntimeProviderConfig(providerConfigPath, {
+          historicalProvider: historicalProviderName,
+          liveProvider: liveProviderName,
+          sameDayCandleProvider: requestedProvider,
+        });
+        sameDayCandleService.setProvider(requestedProvider);
+        sameDayCandleProviderName = requestedProvider;
+        if (dayTradeAdapter.getStatus().enabled) {
+          void refreshActiveDayTradeAdapters();
+        }
+        console.log(
+          `[ManualWatchlistRuntime] Same-day candle provider changed from ${previousSameDayCandleProvider} to ${requestedProvider}.`,
+        );
+        sendJson(response, 200, {
+          ok: true,
+          changed: requestedProvider !== previousSameDayCandleProvider,
+          persisted: true,
+          providerConfigPath,
+          historicalProvider: candleService.getProviderName(),
+          liveProvider: liveProviderName,
+          previousSameDayCandleProvider,
+          sameDayCandleProvider: sameDayCandleProviderName,
+          sameDayCandleProviderHealth: sameDayCandleService.getDiagnostics(),
+          activeSymbolCount: manager.getActiveEntries().length,
+        });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ManualWatchlistRuntime] Same-day candle provider switch failed: ${message}`);
+        sendJson(response, 500, { error: message });
       }
       return;
     }

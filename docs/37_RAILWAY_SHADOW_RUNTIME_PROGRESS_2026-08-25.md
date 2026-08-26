@@ -52,3 +52,13 @@ activation or selector choice creates an active symbol.
 Build the owner-only Dashboard administration surface, then decide whether the
 runtime service should move from this controlled staging service to a separate
 production service after live market-session observation.
+
+## Same-day candle provider checkpoint - 2026-08-26
+
+The runtime source now has a distinct persisted same-day candle provider with
+Yahoo and Moomoo options. Yahoo is the backward-compatible default. Moomoo uses
+the existing private Platform candle bridge, so OAuth material remains outside
+this runtime. The selected source feeds only the deterministic Day Trade
+Adapter and current-session technical fallback; EODHD historical daily/4-hour
+levels and the configured true live-price feed are unchanged. This checkpoint
+is local source only and has not restarted or changed the hosted runtime.

@@ -1,13 +1,13 @@
 import type { CandleFetchService } from "../market-data/candle-fetch-service.js";
-import type { CoordinatedCandleFetchDiagnostics } from "../market-data/coordinated-candle-fetch-service.js";
 import {
   buildDayTradeAdapterResult,
   type DayTradeAdapterMarketContext,
   type DayTradeAdapterResult,
 } from "./day-trade-adapter-engine.js";
 
-type AdapterCandleFetcher = Pick<CandleFetchService, "fetchCandles" | "getProviderName"> & {
-  getDiagnostics?: () => CoordinatedCandleFetchDiagnostics;
+type AdapterCandleFetcher = Pick<CandleFetchService, "fetchCandles"> & {
+  getProviderName: () => string;
+  getDiagnostics?: () => unknown;
 };
 
 export type DayTradeAdapterTransition = {
@@ -22,6 +22,7 @@ export class DayTradeAdapterService {
   private readonly results = new Map<string, DayTradeAdapterResult>();
   private readonly transitions = new Map<string, DayTradeAdapterTransition[]>();
   private readonly refreshInFlight = new Map<string, Promise<DayTradeAdapterResult>>();
+  private readonly lastFailures = new Map<string, { timestamp: number; message: string }>();
 
   constructor(
     private readonly candleFetcher: AdapterCandleFetcher,
@@ -38,6 +39,9 @@ export class DayTradeAdapterService {
       enabled: this.enabled,
       provider: this.candleFetcher.getProviderName(),
       coordinator: this.candleFetcher.getDiagnostics?.() ?? null,
+      failures: normalized
+        ? Object.fromEntries([...this.lastFailures].filter(([symbol]) => symbol === normalized))
+        : Object.fromEntries(this.lastFailures),
       results: normalized
         ? [...this.results.values()].filter((result) => result.symbol === normalized)
         : [...this.results.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)),
@@ -55,9 +59,17 @@ export class DayTradeAdapterService {
     if (!symbol) throw new Error("symbol is required.");
     const pending = this.refreshInFlight.get(symbol);
     if (pending) return pending;
-    const refresh = this.performRefresh(symbol).finally(() => {
-      this.refreshInFlight.delete(symbol);
-    });
+    const refresh = this.performRefresh(symbol)
+      .catch((error) => {
+        this.lastFailures.set(symbol, {
+          timestamp: Date.now(),
+          message: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      })
+      .finally(() => {
+        this.refreshInFlight.delete(symbol);
+      });
     this.refreshInFlight.set(symbol, refresh);
     return refresh;
   }
@@ -70,18 +82,17 @@ export class DayTradeAdapterService {
         timeframe: "1m",
         lookbackBars: 600,
         endTimeMs: market.timestamp,
-        preferredProvider: "yahoo",
       }),
       this.candleFetcher.fetchCandles({
         symbol,
         timeframe: "5m",
         lookbackBars: 720,
         endTimeMs: market.timestamp,
-        preferredProvider: "yahoo",
       }),
     ]);
     const result = buildDayTradeAdapterResult({ market, oneMinute, fiveMinute });
     const previous = this.results.get(symbol);
+    this.lastFailures.delete(symbol);
     this.results.set(symbol, result);
     if (!previous || previous.state !== result.state || previous.summary !== result.summary) {
       const history = this.transitions.get(symbol) ?? [];
