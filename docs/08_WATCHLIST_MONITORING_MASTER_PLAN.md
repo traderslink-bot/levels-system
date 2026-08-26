@@ -15,6 +15,13 @@ The current system now also supports:
 - persisted active/inactive watchlist state
 - persisted Discord thread reuse per symbol
 
+## Current infrastructure checkpoint
+
+The Railway shadow-runtime move is tracked in
+[`37_RAILWAY_SHADOW_RUNTIME_PROGRESS_2026-08-25.md`](./37_RAILWAY_SHADOW_RUNTIME_PROGRESS_2026-08-25.md).
+It is deliberately a non-publishing staging copy until runtime parity is
+verified; the desktop runtime remains the active publisher.
+
 ## Core idea
 
 The monitoring system should:

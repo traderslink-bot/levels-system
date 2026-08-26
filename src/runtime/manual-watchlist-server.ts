@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { spawn } from "node:child_process";
+import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -111,7 +112,13 @@ const MANUAL_WATCHLIST_RUNTIME_IDENTITY = {
   runtimeRoot: process.cwd(),
   entrypointPath: fileURLToPath(import.meta.url),
 } as const;
-const PORT = Number(process.env.MANUAL_WATCHLIST_PORT ?? 3010);
+const isRailwayRuntime = Boolean(
+  process.env.RAILWAY_ENVIRONMENT?.trim() || process.env.RAILWAY_PROJECT_ID?.trim(),
+);
+const PORT = Number(process.env.PORT ?? process.env.MANUAL_WATCHLIST_PORT ?? 3010);
+const BIND_HOST = process.env.MANUAL_WATCHLIST_BIND_HOST?.trim() ||
+  (isRailwayRuntime ? "0.0.0.0" : LOCAL_BIND_HOST);
+const RUNTIME_ACCESS_TOKEN_ENV = "MANUAL_WATCHLIST_RUNTIME_ACCESS_TOKEN";
 const MONITORING_EVENT_DIAGNOSTICS_ENV = "LEVEL_MONITORING_EVENT_DIAGNOSTICS";
 const SESSION_DIRECTORY_ENV = "LEVEL_MANUAL_SESSION_DIRECTORY";
 const AI_COMMENTARY_ENV = "LEVEL_AI_COMMENTARY";
@@ -147,6 +154,14 @@ function openManualWatchlistInBrowser(url: string): void {
       : ["xdg-open", [url]];
   const browser = spawn(command, args, { detached: true, stdio: "ignore" });
   browser.unref();
+}
+
+function requestHasRuntimeAccess(request: IncomingMessage, accessToken: string): boolean {
+  const authorization = request.headers.authorization;
+  if (!authorization?.startsWith("Bearer ")) return false;
+  const presented = Buffer.from(authorization.slice("Bearer ".length));
+  const expected = Buffer.from(accessToken);
+  return presented.length === expected.length && timingSafeEqual(presented, expected);
 }
 type DiscordMessage = {
   id: string;
@@ -535,6 +550,10 @@ async function clearDiscordWatchlistChannel(): Promise<DiscordChannelCleanupResu
 }
 
 async function main(): Promise<void> {
+  const runtimeAccessToken = process.env[RUNTIME_ACCESS_TOKEN_ENV]?.trim() || null;
+  if (isRailwayRuntime && !runtimeAccessToken) {
+    throw new Error(`${RUNTIME_ACCESS_TOKEN_ENV} is required when running on Railway.`);
+  }
   const ib = createIbkrClient();
   const durableDataDirectory = resolveManualWatchlistDurableDirectory();
   const legacyArtifactsDirectory = join(process.cwd(), "artifacts");
@@ -1031,6 +1050,19 @@ async function main(): Promise<void> {
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", `http://${LOCAL_BIND_HOST}`);
 
+    if (request.method === "GET" && url.pathname === "/api/runtime/healthz") {
+      sendJson(response, startupState === "ready" ? 200 : 503, {
+        status: startupState,
+        shadowMode: process.env.MANUAL_WATCHLIST_SHADOW_MODE?.trim() === "1",
+      });
+      return;
+    }
+
+    if (isRailwayRuntime && !requestHasRuntimeAccess(request, runtimeAccessToken!)) {
+      sendJson(response, 401, { error: "Runtime access token required." });
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/") {
       response.statusCode = 200;
       response.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -1100,7 +1132,7 @@ async function main(): Promise<void> {
           : {}),
         runtimeConfig: {
           runtimeIdentity: MANUAL_WATCHLIST_RUNTIME_IDENTITY,
-          bindHost: LOCAL_BIND_HOST,
+          bindHost: BIND_HOST,
           port: PORT,
           historicalProvider: candleService.getProviderName(),
           availableHistoricalProviders: RUNTIME_HISTORICAL_PROVIDER_OPTIONS,
@@ -2627,9 +2659,12 @@ async function main(): Promise<void> {
     void shutdown("SIGTERM").finally(() => process.exit(0));
   });
 
-  server.listen(PORT, LOCAL_BIND_HOST, () => {
-    console.log(`Manual watchlist server running at http://127.0.0.1:${PORT}`);
-    openManualWatchlistInBrowser(`http://127.0.0.1:${PORT}`);
+  server.listen(PORT, BIND_HOST, () => {
+    const runtimeUrl = `http://${BIND_HOST}:${PORT}`;
+    console.log(`Manual watchlist server running at ${runtimeUrl}`);
+    if (!isRailwayRuntime && BIND_HOST === LOCAL_BIND_HOST) {
+      openManualWatchlistInBrowser(`http://127.0.0.1:${PORT}`);
+    }
     console.log(
       `[ManualWatchlistRuntimeIdentity] ${JSON.stringify(MANUAL_WATCHLIST_RUNTIME_IDENTITY)}`,
     );

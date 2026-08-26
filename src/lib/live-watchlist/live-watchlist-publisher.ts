@@ -2171,6 +2171,12 @@ export class LiveWatchlistHttpPublisher implements LiveWatchlistPublisher {
 export function createLiveWatchlistPublisherFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): LiveWatchlistPublisher | null {
+  if (env.MANUAL_WATCHLIST_SHADOW_MODE?.trim() === "1") {
+    console.log(
+      "[ManualWatchlistRuntime] Live website publishing is disabled because shadow mode is enabled.",
+    );
+    return null;
+  }
   const ingestUrl = env.TRADERSLINK_WATCHLIST_INGEST_URL?.trim();
   const token = env.TRADERSLINK_WATCHLIST_PUBLISHER_TOKEN?.trim();
   if (!ingestUrl || !token) {
