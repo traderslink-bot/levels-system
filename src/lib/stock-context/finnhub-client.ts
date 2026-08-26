@@ -98,10 +98,26 @@ export class FinnhubClient {
       throw new Error("A ticker symbol is required.");
     }
 
-    const [quote, profile] = await Promise.all([
+    // Company details must not disappear just because the quote endpoint is
+    // unavailable or delayed. The profile and quote are independent Finnhub
+    // facts, and callers can safely omit the empty quote from presentation.
+    const [quoteResult, profileResult] = await Promise.allSettled([
       this.getQuote(symbol),
       this.getCompanyProfile(symbol),
     ]);
+
+    const quote = quoteResult.status === "fulfilled"
+      ? quoteResult.value
+      : { c: 0, d: 0, dp: 0, h: 0, l: 0, o: 0, pc: 0, t: 0 };
+    const profile = profileResult.status === "fulfilled"
+      ? profileResult.value
+      : { ticker: symbol };
+
+    if (quoteResult.status === "rejected" && profileResult.status === "rejected") {
+      const quoteError = quoteResult.reason instanceof Error ? quoteResult.reason.message : String(quoteResult.reason);
+      const profileError = profileResult.reason instanceof Error ? profileResult.reason.message : String(profileResult.reason);
+      throw new Error(`Finnhub quote and company profile requests failed: ${quoteError}; ${profileError}`);
+    }
 
     return {
       symbol,

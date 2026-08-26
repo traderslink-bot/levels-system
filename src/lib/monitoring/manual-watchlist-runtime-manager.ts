@@ -3673,6 +3673,10 @@ export class ManualWatchlistRuntimeManager {
       confidence?: string;
       lastReadGeneratedAt?: number;
       activatedAt?: number;
+      attemptCount: number;
+      requestCount: number;
+      latestFailureAt?: number;
+      latestFailureStage?: string;
     }>;
   } {
     const ledger = this.options.tradersLinkAiReadRunLedger;
@@ -3681,14 +3685,28 @@ export class ManualWatchlistRuntimeManager {
     const filteredEvents = symbol
       ? events.filter((event) => event.symbol === symbol)
       : events;
+    const eventsBySymbol = new Map<string, TradersLinkAiReadRunEvent[]>();
+    for (const event of filteredEvents) {
+      const existing = eventsBySymbol.get(event.symbol) ?? [];
+      existing.push(event);
+      eventsBySymbol.set(event.symbol, existing);
+    }
     const currentEntries = this.watchlistStore.getEntries()
       .filter((entry) => !symbol || entry.symbol === symbol)
       .map((entry) => {
+        const entryEvents = eventsBySymbol.get(entry.symbol) ?? [];
+        const lastPublishedAt = entry.tradersLinkAiReadBoundaryState?.generatedAt ?? 0;
+        const latestFailedEvent = entryEvents.find((event) =>
+          event.outcome === "failed" && event.occurredAt >= lastPublishedAt,
+        );
+        const currentGenerationEvents = latestFailedEvent?.generationId
+          ? entryEvents.filter((event) => event.generationId === latestFailedEvent.generationId)
+          : entryEvents;
         const status = (entry.tradersLinkAiReadCardVisible === false
           ? "hidden"
           : !entry.active
             ? "inactive"
-            : entry.tradersLinkAiReadFailure
+            : entry.tradersLinkAiReadFailure || latestFailedEvent
               ? "failed"
               : entry.pendingTradersLinkAiReadGeneration
                 ? "publishing_pending"
@@ -3702,6 +3720,8 @@ export class ManualWatchlistRuntimeManager {
           status,
           ...(entry.tradersLinkAiReadFailure
             ? { reason: `${entry.tradersLinkAiReadFailure.stage}: ${entry.tradersLinkAiReadFailure.reason}` }
+            : latestFailedEvent?.reason
+              ? { reason: `${latestFailedEvent.stage}: ${latestFailedEvent.reason}` }
             : status === "missing"
               ? { reason: "No published read, pending generation, or recorded failure is present." }
               : {}),
@@ -3712,6 +3732,16 @@ export class ManualWatchlistRuntimeManager {
             ? { lastReadGeneratedAt: entry.tradersLinkAiReadBoundaryState.generatedAt }
             : {}),
           ...(entry.activatedAt ? { activatedAt: entry.activatedAt } : {}),
+          attemptCount: currentGenerationEvents.filter((event) => event.stage === "attempt").length,
+          requestCount: currentGenerationEvents.filter(
+            (event) => event.stage === "request" && event.outcome === "request_started",
+          ).length,
+          ...(latestFailedEvent
+            ? {
+                latestFailureAt: latestFailedEvent.occurredAt,
+                latestFailureStage: latestFailedEvent.failureStage ?? latestFailedEvent.stage,
+              }
+            : {}),
         };
       });
     return {
@@ -11502,6 +11532,35 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
+  getLiveFiveMinuteVolumeConfirmation(symbolInput: string): {
+    available: boolean;
+    label: LiveWatchlistPullbackVolumeRead["label"];
+    currentVolume: number | null;
+    averageVolume: number | null;
+    relativeVolumeRatio: number | null;
+    partial: boolean;
+    reason: string;
+  } {
+    const symbol = normalizeSymbol(symbolInput);
+    const timestamp = this.options.now?.() ?? Date.now();
+    const read = this.resolveLiveVolumeRead(
+      symbol,
+      buildPullbackVolumeRead(this.technicalContextCandleStore.getCandles(symbol), {
+        nowMs: timestamp,
+      }),
+      timestamp,
+    );
+    return {
+      available: read?.label !== "unknown" && read?.relativeVolumeRatio !== null,
+      label: read?.label ?? "unknown",
+      currentVolume: read?.currentVolume ?? null,
+      averageVolume: read?.averageVolume ?? null,
+      relativeVolumeRatio: read?.relativeVolumeRatio ?? null,
+      partial: read?.partial === true,
+      reason: read?.reason ?? "No reliable live 5-minute volume confirmation is cached for this ticker.",
+    };
+  }
+
   private buildProviderHealth(pendingActivationCount: number): ManualWatchlistProviderHealth {
     const now = this.options.now?.() ?? Date.now();
     const marketSession = classifyUsEquityMarketSession(now).session;
@@ -11701,8 +11760,18 @@ export class ManualWatchlistRuntimeManager {
       !existing?.active &&
       Boolean(existing?.discordThreadId) &&
       isSameNewYorkTradingDate(input.preservedActivatedAt ?? existing?.activatedAt, Date.now());
-    if (existing?.tradersLinkAiReadBoundaryState) {
+    if (reuseExistingSameDayContext && existing?.tradersLinkAiReadBoundaryState) {
       this.aiReadState.set(symbol, existing.tradersLinkAiReadBoundaryState);
+    } else if (!reuseExistingSameDayContext) {
+      // Yesterday's published boundaries are useful evidence, but they must
+      // not silently suppress a fresh activation on a new New York trading
+      // date. The request and spend guards below remain date-scoped.
+      this.aiReadState.delete(symbol);
+      this.watchlistStore.patchEntry(symbol, {
+        tradersLinkAiReadBoundaryState: undefined,
+        pendingTradersLinkAiReadGeneration: undefined,
+        tradersLinkAiReadFailure: null,
+      });
     }
 
     try {

@@ -620,7 +620,7 @@ async function main(): Promise<void> {
   let sameDayCandleProviderName = parseSameDayCandleProviderName(
     persistedProviderConfig?.sameDayCandleProvider ??
       process.env[MANUAL_WATCHLIST_SAME_DAY_CANDLE_PROVIDER_ENV],
-  ) ?? "yahoo";
+  ) ?? "moomoo";
   const historicalLookbackBars = resolveManualWatchlistHistoricalLookbacks(historicalProviderName);
   const historicalProvider = createHistoricalCandleProvider({
     provider: historicalProviderName,
@@ -1147,6 +1147,11 @@ async function main(): Promise<void> {
         activeEntries: manager.getActiveEntries().map((entry) => ({
           ...entry,
           selectorSessionActivity: activityBySymbol.get(entry.symbol) ?? null,
+          // Manual and carried-over tickers do not have an Auto Selector
+          // decision. Surface the already-cached live five-minute read for
+          // those slots instead of calling missing session volume a provider
+          // outage or inventing a total-session number.
+          liveFiveMinuteVolume: manager.getLiveFiveMinuteVolumeConfirmation(entry.symbol),
           selectorManagedState: managedBySymbol.get(entry.symbol)?.state ?? null,
           selectorStatusReason: managedBySymbol.get(entry.symbol)?.statusReason ?? null,
           selectorCurrentSlotScore: managedBySymbol.get(entry.symbol)?.lastSlotSurvivalScore ?? null,
@@ -1229,6 +1234,13 @@ async function main(): Promise<void> {
         activeSymbolCount: manager.getActiveEntries().length,
         ibkrConnected: isIbkrConnected(ib),
         ibkrReconnecting: isIbkrReconnecting(ib),
+        marketDataStatus: resolveMarketDataStatus({
+          liveProviderName,
+          startupState,
+          ibkrConnected: isIbkrConnected(ib),
+          ibkrReconnecting: isIbkrReconnecting(ib),
+          priceFeedStatus: runtimeHealth.providerHealth.priceFeedStatus,
+        }),
         runtimeHealth,
         ...(!compact ? { autoWatchlistSelector: autoWatchlistSelector.getStatus() } : {}),
         sessionDirectory,
@@ -1814,13 +1826,6 @@ async function main(): Promise<void> {
           });
           return;
         }
-        if (requestedProvider === "moomoo" && !tradersLinkAiReadMoomooCandleLoader) {
-          sendJson(response, 503, {
-            error: "Moomoo same-day candles are unavailable because the secure Platform bridge is not configured.",
-          });
-          return;
-        }
-
         const previousSameDayCandleProvider = sameDayCandleProviderName;
         saveRuntimeProviderConfig(providerConfigPath, {
           historicalProvider: historicalProviderName,

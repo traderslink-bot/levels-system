@@ -16,6 +16,13 @@ type SameDayYahooService = Pick<CandleFetchService, "fetchCandles" | "getProvide
 
 export type SameDayCandleProviderHealth = {
   selectedProvider: SameDayCandleProviderName;
+  primaryProvider: SameDayCandleProviderName;
+  activeProvider: SameDayCandleProviderName | null;
+  fallbackProvider: "yahoo" | null;
+  fallbackActive: boolean;
+  lastFallbackAt: number | null;
+  fallbackReason: string | null;
+  moomooConnectionStatus: "connected" | "disconnected" | "waiting";
   available: boolean;
   status: "ready" | "unavailable" | "stale";
   lastAttemptAt: number | null;
@@ -27,6 +34,11 @@ export type SameDayCandleProviderHealth = {
 
 export class SelectableSameDayCandleService {
   private selectedProvider: SameDayCandleProviderName;
+  private activeProvider: SameDayCandleProviderName | null = null;
+  private lastMoomooSuccessAt: number | null = null;
+  private lastMoomooErrorAt: number | null = null;
+  private lastFallbackAt: number | null = null;
+  private fallbackReason: string | null = null;
   private lastAttemptAt: number | null = null;
   private lastSuccessAt: number | null = null;
   private lastErrorAt: number | null = null;
@@ -56,15 +68,32 @@ export class SelectableSameDayCandleService {
   }
 
   getDiagnostics(): SameDayCandleProviderHealth {
-    const available = this.selectedProvider === "yahoo" || this.moomooLoader !== null;
+    const moomooConnectionStatus = this.moomooLoader === null
+      ? "disconnected"
+      : this.lastMoomooSuccessAt !== null &&
+          (this.lastMoomooErrorAt === null || this.lastMoomooSuccessAt >= this.lastMoomooErrorAt)
+        ? "connected"
+        : this.lastMoomooErrorAt !== null
+          ? "disconnected"
+          : "waiting";
+    const fallbackActive = this.activeProvider === "yahoo" && this.selectedProvider === "moomoo";
     return {
       selectedProvider: this.selectedProvider,
-      available,
-      status: !available
-        ? "unavailable"
-        : this.lastErrorAt !== null && (this.lastSuccessAt === null || this.lastErrorAt > this.lastSuccessAt)
-          ? "stale"
-          : "ready",
+      primaryProvider: this.selectedProvider,
+      activeProvider: this.activeProvider,
+      fallbackProvider: this.selectedProvider === "moomoo" ? "yahoo" : null,
+      fallbackActive,
+      lastFallbackAt: this.lastFallbackAt,
+      fallbackReason: this.fallbackReason,
+      moomooConnectionStatus,
+      available: true,
+      status: this.lastErrorAt !== null && (this.lastSuccessAt === null || this.lastErrorAt > this.lastSuccessAt)
+        ? "stale"
+        : fallbackActive || this.lastSuccessAt !== null
+          ? "ready"
+          : this.selectedProvider === "moomoo" && this.moomooLoader === null
+            ? "unavailable"
+            : "ready",
       lastAttemptAt: this.lastAttemptAt,
       lastSuccessAt: this.lastSuccessAt,
       lastErrorAt: this.lastErrorAt,
@@ -77,15 +106,59 @@ export class SelectableSameDayCandleService {
     this.lastAttemptAt = this.now();
     try {
       const result = this.selectedProvider === "yahoo"
-        ? await this.yahooService.fetchCandles({ ...request, preferredProvider: "yahoo" })
-        : await this.fetchMoomooCandles(request);
+        ? await this.fetchYahooCandles(request)
+        : await this.fetchMoomooWithYahooFallback(request);
       this.lastSuccessAt = this.now();
       this.lastError = null;
       return result;
     } catch (error) {
+      this.activeProvider = null;
       this.lastErrorAt = this.now();
       this.lastError = error instanceof Error ? error.message : String(error);
       throw error;
+    }
+  }
+
+  private hasAcceptedSameDayResponse(response: CandleProviderResponse): boolean {
+    return response.actualBarsReturned > 0 &&
+      response.completenessStatus !== "empty" &&
+      !response.validationIssues.some((issue) => issue.severity === "error");
+  }
+
+  private async fetchYahooCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    const result = await this.yahooService.fetchCandles({ ...request, preferredProvider: "yahoo" });
+    if (!this.hasAcceptedSameDayResponse(result)) {
+      throw new Error("Yahoo did not return an accepted same-day candle response.");
+    }
+    this.activeProvider = "yahoo";
+    this.fallbackReason = null;
+    return result;
+  }
+
+  private async fetchMoomooWithYahooFallback(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    try {
+      const result = await this.fetchMoomooCandles(request);
+      if (!this.hasAcceptedSameDayResponse(result)) {
+        throw new Error("Moomoo did not return an accepted same-day candle response.");
+      }
+      this.lastMoomooSuccessAt = this.now();
+      this.activeProvider = "moomoo";
+      this.fallbackReason = null;
+      return result;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.lastMoomooErrorAt = this.now();
+      this.lastFallbackAt = this.now();
+      this.fallbackReason = reason;
+      try {
+        const fallback = await this.fetchYahooCandles(request);
+        this.activeProvider = "yahoo";
+        this.fallbackReason = reason;
+        return fallback;
+      } catch (fallbackError) {
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        throw new Error(`Moomoo same-day candles failed (${reason}); Yahoo fallback failed (${fallbackMessage}).`);
+      }
     }
   }
 

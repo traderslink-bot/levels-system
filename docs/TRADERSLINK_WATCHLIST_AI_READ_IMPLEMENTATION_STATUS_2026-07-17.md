@@ -93,3 +93,11 @@ These are intentional, explicitly tracked audit gaps—not hidden failures:
 ## Deployment state
 
 The cost-control release (`e68a118`) was fast-forwarded into the Desktop-BAT runtime checkout and the normal watchlist runtime was restarted on 2026-07-17. The live runtime reports `gpt-5.6-luna`, `medium` reasoning, external research disabled, and the optional spend guard disabled at its default $1.00 threshold. The later calendar, evidence, security-master, and website reconciliation commits were rolled out later the same day. Website PR #99 is merged and deployed; the runtime now runs the Levels remediation head `061db96`.
+
+## 2026-08-26 correction follow-up
+
+The bounded Watchlist Admin, AI lifecycle, provider-health, session-volume and
+Finnhub Company Details correction work is tracked in
+[Watchlist AI and Provider Corrections Progress](watchlist-ai-provider-corrections-progress-2026-08-26.md).
+It is a subsequent implementation slice; the historical release evidence above
+is retained unchanged.

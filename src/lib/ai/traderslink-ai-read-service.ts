@@ -1147,6 +1147,7 @@ function claimedCurrentPremarketHigh(text: string): number | null {
       if (/\b(?:prior|previous|yesterday(?:'s)?|daily|regular(?: session)?|postmarket|after[- ]hours)\b/i.test(preceding)) {
         continue;
       }
+      const following = sentence.slice(highIndex + highMatch[0].length, highIndex + 72);
       const precedingPrice = priceMatches
         .filter((match) => match.end <= highIndex)
         .map((match) => ({ ...match, distance: highIndex - match.end }))
@@ -1155,9 +1156,19 @@ function claimedCurrentPremarketHigh(text: string): number | null {
         .filter((match) => match.index >= highIndex + highMatch[0].length)
         .map((match) => ({ ...match, distance: match.index - highIndex - highMatch[0].length }))
         .sort((left, right) => left.distance - right.distance)[0];
-      const nearestPrice = precedingPrice && precedingPrice.distance <= 45
-        ? precedingPrice
-        : followingPrice;
+      const valueNamedAsHigh = followingPrice && followingPrice.distance <= 45 &&
+        /^(?:\s*(?:was|is|at|of|near|around|:|-)?\s*\$?\d+(?:\.\d+)?\b)/i.test(following);
+      // Do not treat an earlier opening area as the high merely because the
+      // sentence later says that price rejected before reaching the actual
+      // high. Only a price directly tied to the high label may satisfy this
+      // authoritative-session guard.
+      const valueBeforeHigh = precedingPrice && precedingPrice.distance <= 40 &&
+        /(?:\$?\d+(?:\.\d+)?\s*(?:(?:is|was|as|at|for|near)\s*)?(?:(?:the|an?|authoritative|actual|current|today's)\s+)*(?:premarket|session)?\s*$)/i.test(preceding);
+      const nearestPrice = valueNamedAsHigh
+        ? followingPrice
+        : valueBeforeHigh
+          ? precedingPrice
+          : null;
       if (nearestPrice && nearestPrice.distance <= 45) {
         return nearestPrice.value;
       }

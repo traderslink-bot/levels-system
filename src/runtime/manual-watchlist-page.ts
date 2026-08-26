@@ -567,8 +567,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <label for="same-day-candle-provider-select">Same-Day Candle Provider</label>
         <div class="inline-control">
           <select id="same-day-candle-provider-select" name="same-day-candle-provider">
-            <option value="yahoo">Yahoo</option>
             <option value="moomoo">Moomoo</option>
+            <option value="yahoo">Yahoo</option>
           </select>
           <button id="apply-same-day-candle-provider-button" type="button">Apply</button>
         </div>
@@ -983,16 +983,34 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       appendMetaValue(details, "last price", lastLiveText);
       appendMetaValue(details, "price", formatNumber(entry.lastPrice));
       const selectorActivity = entry.selectorSessionActivity;
-      const sessionVolumeLabel = selectorActivity?.session
-        ? lifecycleLabel(selectorActivity.session) + " volume"
-        : "session volume";
-      appendMetaValue(
-        details,
-        sessionVolumeLabel,
-        selectorActivity?.dataAvailable === true
-          ? formatShareVolume(selectorActivity.volume)
-          : "unavailable",
-      );
+      const liveFiveMinuteVolume = entry.liveFiveMinuteVolume;
+      if (selectorActivity?.dataAvailable === true) {
+        appendMetaValue(
+          details,
+          selectorActivity.session ? lifecycleLabel(selectorActivity.session) + " volume" : "session volume",
+          formatShareVolume(selectorActivity.volume),
+        );
+      } else if (liveFiveMinuteVolume?.available === true &&
+        typeof liveFiveMinuteVolume.relativeVolumeRatio === "number") {
+        const current = typeof liveFiveMinuteVolume.currentVolume === "number"
+          ? formatShareVolume(liveFiveMinuteVolume.currentVolume)
+          : null;
+        const average = typeof liveFiveMinuteVolume.averageVolume === "number"
+          ? formatShareVolume(liveFiveMinuteVolume.averageVolume)
+          : null;
+        appendMetaValue(
+          details,
+          "live 5-minute confirmation",
+          liveFiveMinuteVolume.relativeVolumeRatio.toFixed(2) + "x recent 5-minute average" +
+            (current && average ? " (" + current + " / " + average + ")" : ""),
+        );
+      } else {
+        appendMetaValue(
+          details,
+          "session volume",
+          "unavailable" + (liveFiveMinuteVolume?.reason ? " (" + liveFiveMinuteVolume.reason + ")" : ""),
+        );
+      }
       appendMetaValue(details, "price age", priceFreshness);
       appendMetaValue(details, "last post", lastThreadPostText);
       appendMetaValue(details, "post type", entry.lastThreadPostKind);
@@ -1089,6 +1107,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderProviderHealth(status);
 
       const health = status.runtimeHealth || {};
+      const sameDayHealth = status.runtimeConfig?.sameDayCandleProviderHealth || {};
       const lastPrice = health.lastPriceUpdateAt
         ? health.lastPriceUpdateSymbol + " at " + formatTime(health.lastPriceUpdateAt)
         : "";
@@ -1103,6 +1122,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Startup", status.startupState],
         ["IBKR", status.ibkrConnected ? "connected" : status.ibkrReconnecting ? "reconnecting" : "disconnected"],
         ["Provider", status.providerName],
+        ["Watchlist Market Data", lifecycleLabel(status.marketDataStatus || "offline")],
+        ["Moomoo Connection", lifecycleLabel(sameDayHealth.moomooConnectionStatus || "waiting")],
         ["Last Price", lastPrice],
         ["Last Website Post", lastPost],
         ["Last Website Failure", lastDeliveryFailure],
@@ -1142,6 +1163,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     function renderProviderHealth(status) {
       const health = status.runtimeHealth?.providerHealth || {};
+      const sameDayHealth = status.runtimeConfig?.sameDayCandleProviderHealth || {};
       const seedStats = health.seedStats || {};
       providerHealthGridEl.innerHTML = "";
       restartReadinessListEl.innerHTML = "";
@@ -1163,13 +1185,20 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             : "")
         : "";
       const cards = [
+        ["Watchlist Market Data", lifecycleLabel(status.marketDataStatus || "offline")],
         ["Price Feed", lifecycleLabel(health.priceFeedStatus || "waiting")],
         ["Last Price Age", lastPrice],
         ["Discord Delivery", lifecycleLabel(health.discordStatus || "waiting")],
         ["Last Post Age", lastPost],
         ["Historical Data", lifecycleLabel(health.historicalDataStatus || "waiting")],
-        ["Same-Day Candles", providerLabel(status.runtimeConfig?.sameDayCandleProvider || "yahoo") +
-          " | " + lifecycleLabel(status.runtimeConfig?.sameDayCandleProviderHealth?.status || "unavailable")],
+        ["Moomoo Connection", lifecycleLabel(sameDayHealth.moomooConnectionStatus || "waiting")],
+        ["Same-Day Candles", providerLabel(sameDayHealth.primaryProvider || status.runtimeConfig?.sameDayCandleProvider || "moomoo") +
+          " primary | " +
+          (sameDayHealth.activeProvider
+            ? providerLabel(sameDayHealth.activeProvider) + " active"
+            : "awaiting first accepted response") +
+          (sameDayHealth.fallbackActive ? " | Yahoo fallback active" : "") +
+          " | " + lifecycleLabel(sameDayHealth.status || "unavailable")],
         ["Pending Seeds", String(health.pendingActivationCount || 0)],
         ["Stuck Seeds", String(health.stuckActivationCount || 0)],
         ["Seed Attempts", String(seedStats.attempts || 0)],
@@ -1286,8 +1315,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     function renderSameDayCandleProviderControl(config) {
       const providers = Array.isArray(config.availableSameDayCandleProviders) && config.availableSameDayCandleProviders.length > 0
         ? config.availableSameDayCandleProviders
-        : ["yahoo", "moomoo"];
-      const activeProvider = config.sameDayCandleProvider || "yahoo";
+        : ["moomoo", "yahoo"];
+      const activeProvider = config.sameDayCandleProvider || "moomoo";
       const priorSelection = sameDayCandleProviderSelectEl.value;
       const health = config.sameDayCandleProviderHealth || {};
       currentSameDayCandleProvider = activeProvider;
@@ -1302,9 +1331,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       sameDayCandleProviderSelectEl.value = canKeepSelection ? priorSelection : activeProvider;
       sameDayCandleProviderSelectEl.disabled = config.sameDayCandleProviderRuntimeMutable === false;
       sameDayCandleProviderStatusEl.textContent =
-        "Active: " + providerLabel(activeProvider) +
+        "Primary: " + providerLabel(health.primaryProvider || activeProvider) +
+        " | active: " + (health.activeProvider ? providerLabel(health.activeProvider) : "awaiting first accepted response") +
+        (health.fallbackActive ? " | Yahoo fallback active" : "") +
         " | " + lifecycleLabel(health.status || "unavailable") +
-        (health.lastError ? " | " + health.lastError : "");
+        (health.fallbackReason ? " | Moomoo: " + health.fallbackReason : health.lastError ? " | " + health.lastError : "");
       updateSameDayCandleProviderApplyState();
     }
 
@@ -1643,6 +1674,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Lifecycle", row.current?.active === false ? "Inactive" : "Active"],
         ["Last read", row.current?.lastReadGeneratedAt ? formatTime(row.current.lastReadGeneratedAt) : "None"],
         ["Latest trigger", row.latestEvent?.trigger || "None"],
+        ["Requests", String(row.current?.requestCount ?? row.events.filter((event) => event.stage === "request" && event.outcome === "request_started").length)],
+        ["Attempts", String(row.current?.attemptCount ?? row.events.filter((event) => event.stage === "attempt").length)],
+        ["Latest failure", row.current?.latestFailureAt
+          ? formatTime(row.current.latestFailureAt) + " / " + auditStatusLabel(row.current.latestFailureStage || "failed")
+          : "None"],
         ["Events shown", String(row.events.length)],
       ].forEach(([label, value]) => aiReadDetailGridEl.appendChild(createRuntimeCard(label, value)));
 
@@ -1666,6 +1702,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           event.attemptType ? "attempt: " + event.attemptType : "",
           event.model ? "model: " + event.model : "",
           event.requestId ? "request: " + event.requestId : "",
+          event.generationId ? "generation: " + event.generationId : "",
+          event.failureStage ? "failure stage: " + event.failureStage : "",
           event.durationMs ? "duration: " + event.durationMs + "ms" : "",
           event.estimatedCostUsd !== undefined && event.estimatedCostUsd !== null ? "cost: " + formatAiReadCost(event.estimatedCostUsd) : "",
           event.reason || "",
@@ -3157,7 +3195,16 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             (payload.model === "gpt-5.6-luna" ? "Luna" : "Terra") +
             " at " + payload.reasoningEffort + " effort.",
         );
-        await loadRuntimeStatus();
+        // The successful response is authoritative. Update the visible
+        // current-model sentence immediately instead of waiting for the next
+        // status refresh.
+        aiReadModelSelectEl.value = payload.model;
+        aiReadReasoningEffortSelectEl.value = payload.reasoningEffort;
+        aiReadModelStatusEl.textContent =
+          "Current: " + (payload.model === "gpt-5.6-luna" ? "Luna" : "Terra") +
+          " at " + payload.reasoningEffort +
+          " effort. The other model is used as the fallback.";
+        void loadRuntimeStatus().catch((error) => setStatus(String(error), true));
       } catch (error) {
         setStatus(String(error), true);
       } finally {
