@@ -11905,7 +11905,7 @@ export class ManualWatchlistRuntimeManager {
           threadId,
           payload: snapshotPayload,
         });
-        this.publishRecentWebsiteArticles(symbol);
+        await this.publishRecentWebsiteArticles(symbol);
       }
       if (this.isTradersLinkAiReadConfigured() && this.liveWatchlistPublisher) {
         const latestEntry = this.watchlistStore.getEntry(symbol) ?? activatedEntry;
@@ -12022,14 +12022,17 @@ export class ManualWatchlistRuntimeManager {
     }
   }
 
-  private publishRecentWebsiteArticles(symbol: string): void {
+  private async publishRecentWebsiteArticles(symbol: string): Promise<void> {
     const normalizedSymbol = normalizeSymbol(symbol);
-    void (async () => {
+    try {
       const result = await publishRecentWebsiteArticlesForSymbol({
         symbol: normalizedSymbol,
         publisher: this.liveWatchlistPublisher,
         execFileImpl: this.options.recentWebsiteArticlesExecFileImpl,
       });
+      if (result) {
+        this.aiReadResearchBySymbol.set(normalizedSymbol, result);
+      }
       const freshness = result
         ? deriveRecentWebsiteArticleCatalystFreshness({ result })
         : "lookup_unavailable";
@@ -12050,12 +12053,12 @@ export class ManualWatchlistRuntimeManager {
       }
       this.refreshPotentialMoveReadFromStoredChartContext(normalizedSymbol);
       this.publishWebsiteSnapshotRefresh(normalizedSymbol, Date.now());
-    })().catch((error) => {
+    } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(
         `[ManualWatchlistRuntimeManager] Failed to refresh catalyst-aware trader read for ${normalizedSymbol}: ${message}`,
       );
-    });
+    }
   }
 
   private pressReleaseCatalystContextEnabled(): boolean {

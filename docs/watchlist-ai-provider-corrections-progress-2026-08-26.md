@@ -1,6 +1,6 @@
 # Watchlist AI and Provider Corrections Progress
 
-**Status:** Preview-ready; Railway staging review pending
+**Status:** Active owner iteration; no staging review or deployment requested
 
 **Scope:** Watchlist Admin immediate AI settings state, factual provider
 health/fallback, AI generation failure visibility, new-trading-day activation,
@@ -29,6 +29,16 @@ session-volume confirmation, and Finnhub Company Details resilience.
 - [x] Finnhub quote and profile retrieval are independent, so factual Company
   Details can render from a successful profile response when a quote request is
   unavailable.
+- [x] Fresh activation awaits the canonical TradersLink website-article lookup
+  and caches its result before the initial AI Read is scheduled. This prevents
+  a concurrent initial lookup from missing an already-published internal
+  article and incorrectly reaching the StockTitan title fallback first.
+- [x] AI Operations defaults to `All tickers` instead of a filtered attention
+  view.
+- [x] The AI Read prompt asks for a farther final target when supplied daily
+  history establishes a distinct, evidence-backed continuation boundary within
+  roughly 50% of current price; it must still omit unsupported range rather
+  than manufacture a target.
 
 ## Verification and release boundary
 
@@ -39,10 +49,13 @@ session-volume confirmation, and Finnhub Company Details resilience.
 - [x] `npm.cmd run build` passed (`tsc -p tsconfig.json`) while completing the
   separately authorized Stock Levels Railway compile follow-up. The final
   Admin-card placement change received a separate `git diff --check` review.
-- [ ] Railway staging review: verify CRE validator failure/attempt rendering,
-  YYGH next-date reactivation, cached five-minute volume wording, factual
-  Moomoo/Yahoo health transitions, immediate Apply Model state, and Company
-  Details with the hosted runtime.
+- [ ] Owner iteration continues before any staging request. The Potential Path
+  header note needs owner-approved wording. A later coordinated staging review
+  must verify CRE validator failure/attempt rendering, YYGH next-date
+  reactivation, canonical article precedence, cached five-minute volume
+  wording, factual Moomoo/Yahoo health transitions, immediate Apply Model
+  state, AI Operations default filtering, wider evidence-backed targets, and
+  Company Details.
 
 No provider request, runtime start/restart, migration, hosted configuration
 change, deployment, build, broad test suite, or paid AI request is part of

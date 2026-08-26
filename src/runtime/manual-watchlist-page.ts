@@ -498,8 +498,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           </div>
           <div class="ai-read-console-controls">
             <select id="ai-read-audit-status-filter" class="ai-read-filter-select" aria-label="AI Read status filter">
-              <option value="needs_attention">Needs attention</option>
               <option value="all">All tickers</option>
+              <option value="needs_attention">Needs attention</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
               <option value="published">Published</option>
