@@ -128,7 +128,7 @@ export type TradersLinkAiReadAttempt = {
   attemptType: "primary" | "correction" | "fallback";
   status: "success" | "invalid_output" | "transport_error";
   model: string;
-  reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
+  reasoningEffort?: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
   dataAsOf: number;
   marketSession: TradersLinkAiReadMarketSession;
   usedWebSearch: boolean;
