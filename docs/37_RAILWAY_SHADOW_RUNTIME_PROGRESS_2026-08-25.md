@@ -33,6 +33,14 @@ Railway staging deployment `19477ef6-5c2d-4ce5-81bd-636786bfb2be` completed succ
 5. No public Railway domain, Discord configuration, Website ingest URL, or
    Watchlist publisher credential was configured.
 
+## Controlled state transfer
+
+Railway SSH was unavailable in the deployed service image. The shadow runtime
+therefore exposes one temporary, token-protected state-restore endpoint that
+accepts only the four named non-secret runtime-state files, only while shadow
+mode is enabled. It writes each file atomically to the private `/data` volume.
+The endpoint is disabled before the service becomes the live publisher.
+
 ## Next checkpoint, not yet authorized
 
 After the shadow is healthy, copy only the reviewed durable state needed for a
