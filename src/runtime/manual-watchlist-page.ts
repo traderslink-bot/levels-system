@@ -498,7 +498,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <div class="ai-read-console-toolbar">
           <div>
             <div class="ai-read-console-title">AI Read Operations</div>
-            <div class="ai-read-console-subtitle">Grouped by ticker. Select a row to inspect the latest operation, then expand its complete prior history of outcomes, reasons, requests, attempts, and cost.</div>
+            <div class="ai-read-console-subtitle">Active watchlist tickers only. Select a row to inspect the latest operation, then expand its complete prior history of outcomes, reasons, requests, attempts, and cost. Removed and inactive ticker records remain preserved for a later long-term view.</div>
           </div>
           <div class="ai-read-console-controls">
             <select id="ai-read-audit-status-filter" class="ai-read-filter-select" aria-label="AI Read status filter">

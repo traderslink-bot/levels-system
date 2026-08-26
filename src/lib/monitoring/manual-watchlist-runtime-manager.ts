@@ -3687,18 +3687,18 @@ export class ManualWatchlistRuntimeManager {
   } {
     const ledger = this.options.tradersLinkAiReadRunLedger;
     const symbol = options.symbol?.trim().toUpperCase();
+    const activeEntries = this.watchlistStore.getActiveEntries()
+      .filter((entry) => !symbol || entry.symbol === symbol);
+    const activeSymbols = new Set(activeEntries.map((entry) => entry.symbol));
     const events = ledger?.load() ?? [];
-    const filteredEvents = symbol
-      ? events.filter((event) => event.symbol === symbol)
-      : events;
+    const filteredEvents = events.filter((event) => activeSymbols.has(event.symbol));
     const eventsBySymbol = new Map<string, TradersLinkAiReadRunEvent[]>();
     for (const event of filteredEvents) {
       const existing = eventsBySymbol.get(event.symbol) ?? [];
       existing.push(event);
       eventsBySymbol.set(event.symbol, existing);
     }
-    const currentEntries = this.watchlistStore.getEntries()
-      .filter((entry) => !symbol || entry.symbol === symbol)
+    const currentEntries = activeEntries
       .map((entry) => {
         const entryEvents = eventsBySymbol.get(entry.symbol) ?? [];
         const lastPublishedAt = entry.tradersLinkAiReadBoundaryState?.generatedAt ?? 0;
@@ -3761,7 +3761,10 @@ export class ManualWatchlistRuntimeManager {
       },
       recentEvents: options.includeFullHistory && symbol
         ? filteredEvents
-        : (ledger?.recent({ symbol, limit: options.limit }) ?? []),
+        : filteredEvents
+          .slice()
+          .sort((left, right) => right.occurredAt - left.occurredAt)
+          .slice(0, options.limit ?? 100),
       currentEntries,
     };
   }

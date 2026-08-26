@@ -44,6 +44,10 @@ session-volume confirmation, and Finnhub Company Details resilience.
   expandable prior-operations section. Every recorded trigger, request,
   attempt, model/effort, identifier, failure, reason, and cost remains visible
   instead of being overwritten by a later generation.
+- [x] AI Operations shows only active Watchlist tickers. Removal or
+  deactivation no longer leaves a ticker in this operational view, while its
+  durable run-ledger records remain preserved for the later long-term history
+  surface.
 
 ## VMAR hosted durable-audit reconstruction (read-only)
 
