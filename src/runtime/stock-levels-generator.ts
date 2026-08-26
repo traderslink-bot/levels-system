@@ -28,6 +28,7 @@ export function createStockLevelsGenerator(input: {
   generateExistingWatchlistLevels: (request: {
     symbol: string;
     referencePriceOverride: number;
+    calculationProfile: "dashboard_eodhd_daily_4h";
   }) => Promise<{ output: LevelEngineOutput }>;
 }) {
   const cached = new Map<string, { expiresAt: number; map: NonNullable<StockLevelsRuntimeResponse["map"]> }>();
@@ -61,6 +62,7 @@ export function createStockLevelsGenerator(input: {
       const { output } = await input.generateExistingWatchlistLevels({
         symbol,
         referencePriceOverride: referencePrice,
+        calculationProfile: "dashboard_eodhd_daily_4h",
       });
       const presentation = buildLiveWatchlistPotentialPathPresentation(
         buildLevelSnapshotPayloadFromEngineOutput({

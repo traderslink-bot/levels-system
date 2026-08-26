@@ -7245,14 +7245,19 @@ export class ManualWatchlistRuntimeManager {
   async generateLevelsWithWatchlistConfiguration(input: {
     symbol: string;
     referencePriceOverride: number | undefined;
+    calculationProfile?: "watchlist" | "dashboard_eodhd_daily_4h";
+    historicalFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName">;
   }) {
+    const dashboardHistoricalOnly = input.calculationProfile === "dashboard_eodhd_daily_4h";
     return this.levelEngine.generateLevelsWithCandleSeries({
       symbol: input.symbol,
       historicalRequests: this.buildLevelSeedHistoricalRequests(
         input.symbol,
-        this.options.candleFetchService,
+        input.historicalFetchService ?? this.options.candleFetchService,
       ),
       referencePriceOverride: input.referencePriceOverride,
+      ...(input.historicalFetchService ? { historicalFetchService: input.historicalFetchService } : {}),
+      ...(dashboardHistoricalOnly ? { includeFiveMinute: false } : {}),
     });
   }
 

@@ -32,6 +32,10 @@ export type LevelEngineRequest = {
   symbol: string;
   historicalRequests: Record<CandleTimeframe, HistoricalFetchRequest>;
   referencePriceOverride?: number;
+  /** Overrides the configured Watchlist fetcher for an isolated shared calculation. */
+  historicalFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName">;
+  /** Excludes the 5m fetch and its fallback before any provider request is made. */
+  includeFiveMinute?: boolean;
 };
 
 export type LevelEngineRuntimeOptions = {
@@ -108,9 +112,17 @@ export class LevelEngine {
   private async loadSeries(
     request: LevelEngineRequest,
   ): Promise<Record<CandleTimeframe, CandleProviderResponse>> {
-    const dailyPromise = this.fetchService.fetchCandles(request.historicalRequests.daily);
-    const fourHourPromise = this.fetchService.fetchCandles(request.historicalRequests["4h"]);
-    const fiveMinutePromise = this.fetchService.fetchCandles(request.historicalRequests["5m"]);
+    const fetchService = request.historicalFetchService ?? this.fetchService;
+    const dailyPromise = fetchService.fetchCandles(request.historicalRequests.daily);
+    const fourHourPromise = fetchService.fetchCandles(request.historicalRequests["4h"]);
+    const fiveMinutePromise = request.includeFiveMinute === false
+      ? Promise.resolve(this.buildUnavailableSeriesFallback({
+          symbol: request.symbol,
+          request: request.historicalRequests["5m"],
+          fallbackProvider: fetchService.getProviderName(),
+          reason: "5m input is excluded by this calculation profile",
+        }))
+      : fetchService.fetchCandles(request.historicalRequests["5m"]);
 
     const [dailyResult, fourHourResult, fiveMinuteResult] = await Promise.allSettled([
       dailyPromise,
@@ -118,7 +130,7 @@ export class LevelEngine {
       fiveMinutePromise,
     ]);
 
-    const fallbackProvider = this.fetchService.getProviderName();
+    const fallbackProvider = fetchService.getProviderName();
     const resolveSeries = (
       result: PromiseSettledResult<CandleProviderResponse>,
       historicalRequest: HistoricalFetchRequest,
@@ -140,6 +152,7 @@ export class LevelEngine {
     const fallback = this.runtimeOptions.fallbackFiveMinuteFetchService;
     const primaryFiveMinute = seriesMap["5m"];
     const shouldUseFiveMinuteFallback =
+      request.includeFiveMinute !== false &&
       Boolean(fallback) &&
       primaryFiveMinute.provider === "eodhd" &&
       fallback!.getProviderName() !== "eodhd" &&

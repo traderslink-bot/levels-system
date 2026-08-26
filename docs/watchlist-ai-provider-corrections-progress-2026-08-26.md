@@ -6,6 +6,14 @@
 health/fallback, AI generation failure visibility, new-trading-day activation,
 session-volume confirmation, and Finnhub Company Details resilience.
 
+## Dashboard Stock Levels historical-only input boundary
+
+- [x] Dashboard `/levels` uses the shared canonical generator with its explicit
+  `dashboard_eodhd_daily_4h` profile. That profile supplies EODHD daily and 4h
+  requests only; it excludes 5m fetches and fallback before any same-day
+  provider is requested. Watchlist generation retains its existing default
+  provider and 5m behavior.
+
 ## Completed implementation
 
 - [x] The successful Apply Model response updates the visible current

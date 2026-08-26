@@ -634,6 +634,13 @@ async function main(): Promise<void> {
     ib,
   });
   const rawCandleService = new CandleFetchService(historicalProvider);
+  const dashboardEodhdHistoricalCandleService = (() => {
+    try {
+      return new CandleFetchService(createHistoricalCandleProvider({ provider: "eodhd" }));
+    } catch {
+      return null;
+    }
+  })();
   const requestedCandleCacheMode = resolveValidationCandleCacheMode(
     process.env[MANUAL_WATCHLIST_CANDLE_CACHE_MODE_ENV],
   );
@@ -909,8 +916,15 @@ async function main(): Promise<void> {
   });
   const stockLevelsGenerator = createStockLevelsGenerator({
     extendedQuoteProvider: createEodhdExtendedQuoteProviderFromEnv(),
-    generateExistingWatchlistLevels: (request) =>
-      manager.generateLevelsWithWatchlistConfiguration(request),
+    generateExistingWatchlistLevels: (request) => {
+      if (!dashboardEodhdHistoricalCandleService) {
+        throw new Error("EODHD historical levels are unavailable.");
+      }
+      return manager.generateLevelsWithWatchlistConfiguration({
+        ...request,
+        historicalFetchService: dashboardEodhdHistoricalCandleService,
+      });
+    },
   });
   const dayTradeAdapter = new DayTradeAdapterService(
     sameDayCandleService,
