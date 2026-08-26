@@ -42,8 +42,14 @@ export function createStockLevelsGenerator(input: {
     // security-type metadata does not determine whether the existing map can
     // be calculated from sufficient provider data.
     const quote = await input.extendedQuoteProvider?.getExtendedQuote(symbol);
+    if (!quote) {
+      return {
+        code: "reference_price_unavailable",
+        message: "A trustworthy EODHD reference price is unavailable for this stock.",
+      };
+    }
 
-    const referencePrice = quote?.lastTradePrice ?? quote?.ethPrice ?? null;
+    const referencePrice = quote.lastTradePrice ?? quote.ethPrice ?? null;
     if (!(typeof referencePrice === "number" && Number.isFinite(referencePrice) && referencePrice > 0)) {
       return {
         code: "reference_price_unavailable",
