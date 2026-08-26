@@ -2199,6 +2199,70 @@ function buildSnapshotDisplayZones(
   }));
 }
 
+/**
+ * Pure preparation boundary for the existing Watchlist snapshot publisher.
+ * Watchlist callers may supply their already-prepared snapshot context; an
+ * on-demand caller supplies only a fresh engine output and factual price/time.
+ */
+export function buildLevelSnapshotPayloadFromEngineOutput(input: Omit<
+  LevelSnapshotPayload,
+  "supportZones" | "resistanceZones" | "ladderSupportZones" | "ladderResistanceZones" | "specialLevels" | "levelDataQuality"
+> & {
+  output?: LevelEngineOutput | null;
+  supportZones?: LevelSnapshotDisplayZone[];
+  resistanceZones?: LevelSnapshotDisplayZone[];
+  ladderSupportZones?: LevelSnapshotDisplayZone[];
+  ladderResistanceZones?: LevelSnapshotDisplayZone[];
+  specialLevels?: LevelSnapshotPayload["specialLevels"];
+  levelDataQuality?: LevelSnapshotPayload["levelDataQuality"];
+}): LevelSnapshotPayload {
+  const { output: outputInput, ...payload } = input;
+  const output = outputInput ?? undefined;
+  const supportSource = [
+    ...(output?.majorSupport ?? []),
+    ...(output?.intermediateSupport ?? []),
+    ...(output?.intradaySupport ?? []),
+  ];
+  const resistanceSource = [
+    ...(output?.majorResistance ?? []),
+    ...(output?.intermediateResistance ?? []),
+    ...(output?.intradayResistance ?? []),
+  ];
+  const ladderSupportSource = output?.fullLadderLevels?.support ?? [
+    ...supportSource,
+    ...(output?.extensionLevels.support ?? []),
+  ];
+  const ladderResistanceSource = output?.fullLadderLevels?.resistance ?? [
+    ...resistanceSource,
+    ...(output?.extensionLevels.resistance ?? []),
+  ];
+  const availableTimeframes = output?.metadata.availableTimeframes ??
+    (["daily", "4h", "5m"] as const).filter(
+      (timeframe) => output?.metadata.providerByTimeframe[timeframe] !== undefined,
+    );
+  const coverage = output?.metadata.coverage ??
+    (availableTimeframes.length === 3 ? "full" : "limited");
+
+  return {
+    ...payload,
+    supportZones: payload.supportZones ?? buildSnapshotDisplayZones(supportSource, payload.currentPrice, "support"),
+    resistanceZones: payload.resistanceZones ?? buildSnapshotDisplayZones(resistanceSource, payload.currentPrice, "resistance"),
+    ladderSupportZones: payload.ladderSupportZones ?? buildSnapshotDisplayZones(ladderSupportSource, payload.currentPrice, "support"),
+    ladderResistanceZones: payload.ladderResistanceZones ?? buildSnapshotDisplayZones(ladderResistanceSource, payload.currentPrice, "resistance"),
+    specialLevels: payload.specialLevels ?? output?.specialLevels,
+    levelDataQuality: payload.levelDataQuality ?? (output
+      ? {
+          status: coverage,
+          availableTimeframes: [...availableTimeframes],
+          flags: output.metadata.dataQualityFlags,
+          ...(coverage === "limited"
+            ? { message: "Limited-history map: use the available intraday structure, but verify higher-timeframe levels manually." }
+            : {}),
+        }
+      : undefined),
+  };
+}
+
 type SnapshotProvenancePolicyResult = {
   zones: FinalLevelZone[];
   wouldSuppressIds: Set<string>;
@@ -4881,7 +4945,8 @@ export class ManualWatchlistRuntimeManager {
       (availableTimeframes.length === 3 ? "full" : "limited");
     const roleFlipCandles = this.technicalContextCandleStore.getCandles(symbol);
 
-    return {
+    return buildLevelSnapshotPayloadFromEngineOutput({
+      output: levelsOutput,
       symbol,
       currentPrice: normalizedPrice,
       supportZones: supportDisplayZones,
@@ -4941,7 +5006,7 @@ export class ManualWatchlistRuntimeManager {
         ...buildRecentAtrRoleFlipContext(roleFlipCandles, normalizedPrice, timestamp),
         tickSize: inferredSmallCapTickSize(normalizedPrice),
       },
-    };
+    });
   }
 
   private resolveWebsiteSpecialLevels(

@@ -1,22 +1,12 @@
-import type { FinalLevelZone, LevelEngineOutput } from "../lib/levels/level-types.js";
+import type { LevelEngineOutput } from "../lib/levels/level-types.js";
+import {
+  buildLiveWatchlistPotentialPathPresentation,
+} from "../lib/live-watchlist/live-watchlist-publisher.js";
 import type { LiveWatchlistExtendedQuoteProvider } from "../lib/live-watchlist/live-watchlist-types.js";
+import { buildLevelSnapshotPayloadFromEngineOutput } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const SYMBOL = /^[A-Z][A-Z0-9.-]{0,9}$/u;
-
-type Side = "support" | "resistance";
-
-type Level = {
-  side: Side;
-  price: number;
-  distancePct: number;
-  strength: "weak" | "moderate" | "strong" | "major";
-  type: string;
-  timeframeSources: readonly string[];
-  formedAt: number | null;
-  lastTestedAt: number | null;
-  lastConfirmedAt: number | null;
-};
 
 export type StockLevelsRuntimeResponse = {
   map?: {
@@ -25,90 +15,13 @@ export type StockLevelsRuntimeResponse = {
     referencePriceAsOf: number;
     calculatedAt: number;
     cacheStatus: "hit" | "fresh";
-    nearestSupport: Level | null;
-    nearestResistance: Level | null;
-    support: readonly Level[];
-    resistance: readonly Level[];
-    fullLadder: { support: readonly Level[]; resistance: readonly Level[] };
+    levelMap: ReturnType<typeof buildLiveWatchlistPotentialPathPresentation>["levelMap"];
+    fullLadderCard: ReturnType<typeof buildLiveWatchlistPotentialPathPresentation>["fullLadderCard"];
+    nearestSupportResistanceCard: ReturnType<typeof buildLiveWatchlistPotentialPathPresentation>["nearestSupportResistanceCard"];
   };
   code?: "invalid_symbol" | "unsupported_equity" | "reference_price_unavailable" | "market_data_unavailable";
   message?: string;
 };
-
-function serializeLevel(side: Side, zone: FinalLevelZone, referencePrice: number): Level {
-  return {
-    side,
-    price: zone.representativePrice,
-    distancePct: (zone.representativePrice - referencePrice) / referencePrice,
-    strength: zone.strengthLabel,
-    type: zone.sourceTypes.join(", ") || zone.kind,
-    timeframeSources: zone.timeframeSources,
-    formedAt: zone.marketDataProvenance?.formedAt ?? zone.firstTimestamp ?? null,
-    lastTestedAt: zone.marketDataProvenance?.lastTestedAt ?? null,
-    lastConfirmedAt: zone.marketDataProvenance?.lastConfirmedAt ?? null,
-  };
-}
-
-function serializeZones(
-  side: Side,
-  zones: readonly FinalLevelZone[],
-  referencePrice: number,
-): readonly Level[] {
-  return zones.map((zone) => serializeLevel(side, zone, referencePrice));
-}
-
-function existingSurfaceZones(output: LevelEngineOutput, side: Side): readonly FinalLevelZone[] {
-  return side === "support"
-    ? [
-        ...output.majorSupport,
-        ...output.intermediateSupport,
-        ...output.intradaySupport,
-        ...output.extensionLevels.support,
-      ]
-    : [
-        ...output.majorResistance,
-        ...output.intermediateResistance,
-        ...output.intradayResistance,
-        ...output.extensionLevels.resistance,
-      ];
-}
-
-function serializeExistingOutput(input: {
-  output: LevelEngineOutput;
-  referencePrice: number;
-  referencePriceAsOf: number;
-}): NonNullable<StockLevelsRuntimeResponse["map"]> {
-  const support = serializeZones(
-    "support",
-    existingSurfaceZones(input.output, "support"),
-    input.referencePrice,
-  );
-  const resistance = serializeZones(
-    "resistance",
-    existingSurfaceZones(input.output, "resistance"),
-    input.referencePrice,
-  );
-  const fullLadder = input.output.fullLadderLevels;
-
-  return {
-    symbol: input.output.symbol,
-    referencePrice: input.referencePrice,
-    referencePriceAsOf: input.referencePriceAsOf,
-    calculatedAt: input.output.generatedAt,
-    cacheStatus: "fresh",
-    // The engine's existing bucket ordering is retained exactly. The first
-    // returned surface row is only labelled here; no stock-levels sorting,
-    // de-duplication, filtering, ranking, or nearest-level calculation occurs.
-    nearestSupport: support[0] ?? null,
-    nearestResistance: resistance[0] ?? null,
-    support,
-    resistance,
-    fullLadder: {
-      support: serializeZones("support", fullLadder?.support ?? [], input.referencePrice),
-      resistance: serializeZones("resistance", fullLadder?.resistance ?? [], input.referencePrice),
-    },
-  };
-}
 
 export function createStockLevelsGenerator(input: {
   extendedQuoteProvider: LiveWatchlistExtendedQuoteProvider | null;
@@ -147,12 +60,25 @@ export function createStockLevelsGenerator(input: {
         symbol,
         referencePriceOverride: referencePrice,
       });
-      return {
-        map: serializeExistingOutput({
+      const presentation = buildLiveWatchlistPotentialPathPresentation(
+        buildLevelSnapshotPayloadFromEngineOutput({
           output,
+          symbol: output.symbol,
+          currentPrice: referencePrice,
+          timestamp: output.generatedAt,
+        }),
+      );
+      return {
+        map: {
+          symbol: output.symbol,
           referencePrice,
           referencePriceAsOf: quote.updatedAt,
-        }),
+          calculatedAt: output.generatedAt,
+          cacheStatus: "fresh",
+          levelMap: presentation.levelMap,
+          fullLadderCard: presentation.fullLadderCard,
+          nearestSupportResistanceCard: presentation.nearestSupportResistanceCard,
+        },
       };
     } catch {
       return {

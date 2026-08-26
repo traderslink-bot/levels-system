@@ -1402,13 +1402,20 @@ export function buildLiveWatchlistLevelsUnavailablePatch(args: {
   };
 }
 
-export function buildLiveWatchlistSnapshotPatch(
+export type LiveWatchlistPotentialPathPresentation = Readonly<{
+  levelMap: LiveWatchlistLevelMap | null;
+  fullLadderCard: LiveWatchlistCardContent | null;
+  nearestSupportResistanceCard: LiveWatchlistCardContent | null;
+}>;
+
+/**
+ * Pure Potential Path Levels presentation shared by the Watchlist publisher
+ * and the non-mutating Stock Levels surface. It receives a factual snapshot;
+ * it does not read or write Watchlist state or publish anything.
+ */
+export function buildLiveWatchlistPotentialPathPresentation(
   payload: LevelSnapshotPayload,
-  options: {
-    pullbackReadEnabled?: boolean;
-    tradeSetupReadMode?: LiveWatchlistTradeSetupReadMode;
-  } = {},
-): LiveWatchlistCardPatch {
+): LiveWatchlistPotentialPathPresentation {
   const updatedAt = payload.timestamp;
   const gapRiskZones = buildLiveWatchlistExtremeGapRiskZones({
     currentPrice: payload.currentPrice,
@@ -1431,30 +1438,6 @@ export function buildLiveWatchlistSnapshotPatch(
     technicalContext: payload.technicalContext,
     dataQuality: payload.levelDataQuality,
     roleFlipContext: payload.roleFlipContext,
-    priorRegularClosePrice: payload.priorRegularClosePrice,
-  });
-  const traderReadLevelMap = buildLiveWatchlistLevelMap({
-    currentPrice: payload.currentPrice,
-    supportZones: closestSupportZones,
-    resistanceZones: closestResistanceZones,
-    preferStructuralLevels: true,
-    specialLevels: payload.specialLevels,
-    technicalContext: payload.technicalContext,
-    dataQuality: payload.levelDataQuality,
-    roleFlipContext: payload.roleFlipContext,
-    selectionMode: "full_context",
-    priorRegularClosePrice: payload.priorRegularClosePrice,
-  });
-  const tradeSetupLevelMap = buildLiveWatchlistLevelMap({
-    currentPrice: payload.currentPrice,
-    supportZones: closestSupportZones,
-    resistanceZones: closestResistanceZones,
-    preferStructuralLevels: true,
-    specialLevels: payload.specialLevels,
-    technicalContext: payload.technicalContext,
-    dataQuality: payload.levelDataQuality,
-    roleFlipContext: payload.roleFlipContext,
-    selectionMode: "trade_setup",
     priorRegularClosePrice: payload.priorRegularClosePrice,
   });
   const ladder = formatLevelLadderMessage({
@@ -1482,6 +1465,83 @@ export function buildLiveWatchlistSnapshotPatch(
     ),
   });
   const ladderTitle = `${payload.symbol} full level ladder`;
+
+  return {
+    levelMap,
+    fullLadderCard: ladder
+      ? buildCard({
+          title: ladderTitle,
+          body: cleanFullLadderBody(ladder, ladderTitle),
+          updatedAt,
+          priceWhenPosted: payload.currentPrice,
+          source: "level_snapshot",
+        })
+      : null,
+    nearestSupportResistanceCard: levelMap
+      ? buildCard({
+          title: "Potential Path Levels",
+          body: formatPotentialPathLevelsCardBody(levelMap),
+          updatedAt,
+          priceWhenPosted: payload.currentPrice,
+          source: "level_snapshot",
+          metadata: {
+            nearestSupport: levelMap.nearestSupport?.price ?? null,
+            nearestSupportDistancePct: levelMap.nearestSupport?.distancePct ?? null,
+            nearestSupportDistanceAtr: levelMap.nearestSupport?.distanceAtr ?? null,
+            nearestSupportAtrDistanceState: levelMap.nearestSupport?.atrDistanceState ?? null,
+            nearestSupportLabel: levelMap.nearestSupport?.label ?? null,
+            nearestResistance: levelMap.nearestResistance?.price ?? null,
+            nearestResistanceDistancePct: levelMap.nearestResistance?.distancePct ?? null,
+            nearestResistanceDistanceAtr: levelMap.nearestResistance?.distanceAtr ?? null,
+            nearestResistanceAtrDistanceState: levelMap.nearestResistance?.atrDistanceState ?? null,
+            nearestResistanceLabel: levelMap.nearestResistance?.label ?? null,
+            atr5m: levelMap.volatilityContext?.atr ?? null,
+            atr5mPct: levelMap.volatilityContext?.atrPct ?? null,
+            atrPeriod: levelMap.volatilityContext?.period ?? null,
+            supportCount: closestSupportZones.length,
+            resistanceCount: closestResistanceZones.length,
+          },
+        })
+      : null,
+  };
+}
+
+export function buildLiveWatchlistSnapshotPatch(
+  payload: LevelSnapshotPayload,
+  options: {
+    pullbackReadEnabled?: boolean;
+    tradeSetupReadMode?: LiveWatchlistTradeSetupReadMode;
+  } = {},
+): LiveWatchlistCardPatch {
+  const updatedAt = payload.timestamp;
+  const potentialPath = buildLiveWatchlistPotentialPathPresentation(payload);
+  const closestSupportZones = payload.ladderSupportZones ?? payload.supportZones;
+  const closestResistanceZones = payload.ladderResistanceZones ?? payload.resistanceZones;
+  const { levelMap } = potentialPath;
+  const traderReadLevelMap = buildLiveWatchlistLevelMap({
+    currentPrice: payload.currentPrice,
+    supportZones: closestSupportZones,
+    resistanceZones: closestResistanceZones,
+    preferStructuralLevels: true,
+    specialLevels: payload.specialLevels,
+    technicalContext: payload.technicalContext,
+    dataQuality: payload.levelDataQuality,
+    roleFlipContext: payload.roleFlipContext,
+    selectionMode: "full_context",
+    priorRegularClosePrice: payload.priorRegularClosePrice,
+  });
+  const tradeSetupLevelMap = buildLiveWatchlistLevelMap({
+    currentPrice: payload.currentPrice,
+    supportZones: closestSupportZones,
+    resistanceZones: closestResistanceZones,
+    preferStructuralLevels: true,
+    specialLevels: payload.specialLevels,
+    technicalContext: payload.technicalContext,
+    dataQuality: payload.levelDataQuality,
+    roleFlipContext: payload.roleFlipContext,
+    selectionMode: "trade_setup",
+    priorRegularClosePrice: payload.priorRegularClosePrice,
+  });
   const snapshotMessage = formatLevelSnapshotMessage(payload);
   const traderReadSnapshotMessage = formatLevelSnapshotMessage(
     buildLevelMapTraderReadPayload(payload, traderReadLevelMap),
@@ -1547,41 +1607,8 @@ export function buildLiveWatchlistSnapshotPatch(
     levelMap,
     cards: {
       levelMap: null,
-      fullLadder: ladder
-        ? buildCard({
-            title: ladderTitle,
-            body: cleanFullLadderBody(ladder, ladderTitle),
-            updatedAt,
-            priceWhenPosted: payload.currentPrice,
-            source: "level_snapshot",
-          })
-        : null,
-      nearestSupportResistance: levelMap
-        ? buildCard({
-            title: "Potential Path Levels",
-            body: formatPotentialPathLevelsCardBody(levelMap),
-            updatedAt,
-            priceWhenPosted: payload.currentPrice,
-            source: "level_snapshot",
-            metadata: {
-              nearestSupport: levelMap.nearestSupport?.price ?? null,
-              nearestSupportDistancePct: levelMap.nearestSupport?.distancePct ?? null,
-              nearestSupportDistanceAtr: levelMap.nearestSupport?.distanceAtr ?? null,
-              nearestSupportAtrDistanceState: levelMap.nearestSupport?.atrDistanceState ?? null,
-              nearestSupportLabel: levelMap.nearestSupport?.label ?? null,
-              nearestResistance: levelMap.nearestResistance?.price ?? null,
-              nearestResistanceDistancePct: levelMap.nearestResistance?.distancePct ?? null,
-              nearestResistanceDistanceAtr: levelMap.nearestResistance?.distanceAtr ?? null,
-              nearestResistanceAtrDistanceState: levelMap.nearestResistance?.atrDistanceState ?? null,
-              nearestResistanceLabel: levelMap.nearestResistance?.label ?? null,
-              atr5m: levelMap.volatilityContext?.atr ?? null,
-              atr5mPct: levelMap.volatilityContext?.atrPct ?? null,
-              atrPeriod: levelMap.volatilityContext?.period ?? null,
-              supportCount: closestSupportZones.length,
-              resistanceCount: closestResistanceZones.length,
-            },
-          })
-        : null,
+      fullLadder: potentialPath.fullLadderCard,
+      nearestSupportResistance: potentialPath.nearestSupportResistanceCard,
       liveTraderRead: buildCard({
         title: "Live Trader Read",
         body: liveTraderReadBody,
