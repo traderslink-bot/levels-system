@@ -113,6 +113,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .ai-read-timeline-item { border-left: 3px solid #93c5fd; padding: 7px 0 7px 10px; background: rgba(255,255,255,0.72); }
     .ai-read-timeline-item strong { color: #0f172a; }
     .ai-read-timeline-item span { color: #64748b; font-size: 12px; display: block; margin-top: 2px; overflow-wrap: anywhere; }
+    .ai-read-history { margin-top: 10px; border-top: 1px solid #bfdbfe; padding-top: 10px; }
+    .ai-read-history summary { cursor: pointer; color: #1d4ed8; font-size: 13px; font-weight: 750; }
+    .ai-read-history-operation { display: grid; gap: 7px; margin-top: 10px; }
+    .ai-read-history-operation-title { color: #334155; font-size: 12px; font-weight: 750; }
     @media (max-width: 640px) {
       body { margin: 12px; }
       li { align-items: flex-start; flex-direction: column; }
@@ -494,7 +498,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <div class="ai-read-console-toolbar">
           <div>
             <div class="ai-read-console-title">AI Read Operations</div>
-            <div class="ai-read-console-subtitle">Grouped by ticker. Select a row to inspect the expected outcome, actual outcome, reasons, requests, and timeline.</div>
+            <div class="ai-read-console-subtitle">Grouped by ticker. Select a row to inspect the latest operation, then expand its complete prior history of outcomes, reasons, requests, attempts, and cost.</div>
           </div>
           <div class="ai-read-console-controls">
             <select id="ai-read-audit-status-filter" class="ai-read-filter-select" aria-label="AI Read status filter">
@@ -793,6 +797,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     let aiReadCostPeriod = "today";
     let aiReadAuditPayload = null;
     let aiReadAuditSelectedSymbol = null;
+    let aiReadAuditHistoryPayload = null;
+    let aiReadAuditHistorySymbol = null;
     let autoSelectorEnabled = false;
     let autoSelectorSettingsDirty = false;
     let autoSelectorRequestInFlight = false;
@@ -1659,8 +1665,57 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    function groupAiReadAuditOperations(events) {
+      const groups = new Map();
+      for (const event of events) {
+        const key = event.generationId
+          ? "generation:" + event.generationId
+          : event.runId
+            ? "run:" + event.runId
+            : "event:" + String(event.eventId || event.occurredAt || Math.random());
+        const operation = groups.get(key) || { key, events: [] };
+        operation.events.push(event);
+        groups.set(key, operation);
+      }
+      return [...groups.values()]
+        .map((operation) => ({
+          ...operation,
+          events: operation.events.sort((left, right) => Number(right.occurredAt || 0) - Number(left.occurredAt || 0)),
+        }))
+        .sort((left, right) => Number(right.events[0]?.occurredAt || 0) - Number(left.events[0]?.occurredAt || 0));
+    }
+
+    function appendAiReadTimelineEvent(container, event) {
+      const item = document.createElement("div");
+      item.className = "ai-read-timeline-item";
+      const title = document.createElement("strong");
+      title.textContent = auditStatusLabel(event.outcome) + " / " + auditStatusLabel(event.stage);
+      const detail = document.createElement("span");
+      const identifiers = [
+        formatTime(event.occurredAt),
+        event.trigger ? "trigger: " + event.trigger : "",
+        event.attemptType ? "attempt: " + event.attemptType : "",
+        event.model ? "model: " + event.model : "",
+        event.reasoningEffort ? "effort: " + event.reasoningEffort : "",
+        event.requestId ? "request: " + event.requestId : "",
+        event.generationId ? "generation: " + event.generationId : "",
+        event.failureStage ? "failure stage: " + event.failureStage : "",
+        event.durationMs ? "duration: " + event.durationMs + "ms" : "",
+        event.estimatedCostUsd !== undefined && event.estimatedCostUsd !== null ? "cost: " + formatAiReadCost(event.estimatedCostUsd) : "",
+        event.stage === "preflight" && event.outcome === "not_needed" ? "zero-cost decision; no model request started" : "",
+        event.reason || "",
+      ].filter(Boolean);
+      detail.textContent = identifiers.join(" | ");
+      item.appendChild(title);
+      item.appendChild(detail);
+      container.appendChild(item);
+    }
+
     function renderAiReadDetail() {
-      const row = buildAiReadAuditRows(aiReadAuditPayload || {}).find((candidate) => candidate.symbol === aiReadAuditSelectedSymbol);
+      const detailPayload = aiReadAuditHistorySymbol === aiReadAuditSelectedSymbol
+        ? aiReadAuditHistoryPayload
+        : aiReadAuditPayload;
+      const row = buildAiReadAuditRows(detailPayload || {}).find((candidate) => candidate.symbol === aiReadAuditSelectedSymbol);
       if (!row) {
         aiReadDetailEl.hidden = true;
         return;
@@ -1690,28 +1745,37 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         aiReadAuditEventListEl.appendChild(empty);
         return;
       }
-      for (const event of row.events) {
-        const item = document.createElement("div");
-        item.className = "ai-read-timeline-item";
-        const title = document.createElement("strong");
-        title.textContent = auditStatusLabel(event.outcome) + " / " + auditStatusLabel(event.stage);
-        const detail = document.createElement("span");
-        const identifiers = [
-          formatTime(event.occurredAt),
-          event.trigger ? "trigger: " + event.trigger : "",
-          event.attemptType ? "attempt: " + event.attemptType : "",
-          event.model ? "model: " + event.model : "",
-          event.requestId ? "request: " + event.requestId : "",
-          event.generationId ? "generation: " + event.generationId : "",
-          event.failureStage ? "failure stage: " + event.failureStage : "",
-          event.durationMs ? "duration: " + event.durationMs + "ms" : "",
-          event.estimatedCostUsd !== undefined && event.estimatedCostUsd !== null ? "cost: " + formatAiReadCost(event.estimatedCostUsd) : "",
-          event.reason || "",
-        ].filter(Boolean);
-        detail.textContent = identifiers.join(" | ");
-        item.appendChild(title);
-        item.appendChild(detail);
-        aiReadAuditEventListEl.appendChild(item);
+      const operations = groupAiReadAuditOperations(row.events);
+      const latestOperation = operations[0];
+      if (latestOperation) {
+        const latestTitle = document.createElement("div");
+        latestTitle.className = "ai-read-history-operation-title";
+        latestTitle.textContent = "Most recent operation";
+        aiReadAuditEventListEl.appendChild(latestTitle);
+        for (const event of latestOperation.events) {
+          appendAiReadTimelineEvent(aiReadAuditEventListEl, event);
+        }
+      }
+      if (operations.length > 1) {
+        const history = document.createElement("details");
+        history.className = "ai-read-history";
+        const summary = document.createElement("summary");
+        summary.textContent = "Prior operations (" + String(operations.length - 1) + ")";
+        history.appendChild(summary);
+        for (const operation of operations.slice(1)) {
+          const operationEl = document.createElement("div");
+          operationEl.className = "ai-read-history-operation";
+          const operationTitle = document.createElement("div");
+          operationTitle.className = "ai-read-history-operation-title";
+          const latestEvent = operation.events[0];
+          operationTitle.textContent = auditStatusLabel(latestEvent?.outcome) + " / " + auditStatusLabel(latestEvent?.stage);
+          operationEl.appendChild(operationTitle);
+          for (const event of operation.events) {
+            appendAiReadTimelineEvent(operationEl, event);
+          }
+          history.appendChild(operationEl);
+        }
+        aiReadAuditEventListEl.appendChild(history);
       }
     }
 
@@ -1785,6 +1849,16 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const query = symbol ? "?symbol=" + encodeURIComponent(symbol) + "&limit=150" : "?limit=150";
       const payload = await fetchJson("/api/runtime/ai-read-audit" + query);
       renderAiReadAudit(payload);
+    }
+
+    async function loadAiReadAuditHistory(symbol) {
+      const payload = await fetchJson(
+        "/api/runtime/ai-read-audit?symbol=" + encodeURIComponent(symbol) + "&history=all",
+      );
+      if (aiReadAuditSelectedSymbol !== symbol) return;
+      aiReadAuditHistoryPayload = payload;
+      aiReadAuditHistorySymbol = symbol;
+      renderAiReadDetail();
     }
 
     function renderAutoSelectorControl(status) {
@@ -3534,10 +3608,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const target = event.target instanceof Element ? event.target.closest("[data-ai-read-symbol]") : null;
       if (!target) return;
       aiReadAuditSelectedSymbol = target.dataset.aiReadSymbol || null;
+      aiReadAuditHistoryPayload = null;
+      aiReadAuditHistorySymbol = null;
       renderAiReadDetail();
+      if (aiReadAuditSelectedSymbol) {
+        void loadAiReadAuditHistory(aiReadAuditSelectedSymbol).catch((error) => setStatus(String(error), true));
+      }
     });
     aiReadDetailCloseEl.addEventListener("click", () => {
       aiReadAuditSelectedSymbol = null;
+      aiReadAuditHistoryPayload = null;
+      aiReadAuditHistorySymbol = null;
       aiReadDetailEl.hidden = true;
     });
     aiReadAuditRefreshEl.addEventListener("click", async () => {

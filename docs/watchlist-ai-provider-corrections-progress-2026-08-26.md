@@ -39,6 +39,11 @@ session-volume confirmation, and Finnhub Company Details resilience.
   history establishes a distinct, evidence-backed continuation boundary within
   roughly 50% of current price; it must still omit unsupported range rather
   than manufacture a target.
+- [x] AI Operations keeps the current ticker grouping and most-recent result,
+  then loads the selected ticker's complete durable run-ledger history into an
+  expandable prior-operations section. Every recorded trigger, request,
+  attempt, model/effort, identifier, failure, reason, and cost remains visible
+  instead of being overwritten by a later generation.
 
 ## Verification and release boundary
 

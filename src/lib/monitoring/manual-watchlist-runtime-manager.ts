@@ -3642,6 +3642,7 @@ export class ManualWatchlistRuntimeManager {
     occurredAt?: number;
     generationId?: string;
     model?: string;
+    reasoningEffort?: "low" | "medium" | "high" | "xhigh";
     dataAsOf?: number;
   }): void {
     this.recordTradersLinkAiReadRunEvent({
@@ -3655,11 +3656,16 @@ export class ManualWatchlistRuntimeManager {
       ...(params.occurredAt ? { occurredAt: params.occurredAt } : {}),
       ...(params.generationId ? { generationId: params.generationId } : {}),
       ...(params.model ? { model: params.model } : {}),
+      ...(params.reasoningEffort ? { reasoningEffort: params.reasoningEffort } : {}),
       ...(params.dataAsOf ? { dataAsOf: params.dataAsOf } : {}),
     });
   }
 
-  getTradersLinkAiReadAudit(options: { symbol?: string; limit?: number } = {}): {
+  getTradersLinkAiReadAudit(options: {
+    symbol?: string;
+    limit?: number;
+    includeFullHistory?: boolean;
+  } = {}): {
     generatedAt: number;
     storagePath: string | null;
     summary: TradersLinkAiReadAuditSummary;
@@ -3753,7 +3759,9 @@ export class ManualWatchlistRuntimeManager {
         byStage: {},
         bySymbol: [],
       },
-      recentEvents: (ledger?.recent({ symbol, limit: options.limit }) ?? []),
+      recentEvents: options.includeFullHistory && symbol
+        ? filteredEvents
+        : (ledger?.recent({ symbol, limit: options.limit }) ?? []),
       currentEntries,
     };
   }
@@ -4235,6 +4243,7 @@ export class ManualWatchlistRuntimeManager {
           runId,
           generationId,
           model: service.getConfiguredModel(),
+          reasoningEffort: service.getReasoningEffort(),
           dataAsOf,
         });
         read = await service.generate({
@@ -4262,6 +4271,7 @@ export class ManualWatchlistRuntimeManager {
               clientRequestId: attempt.clientRequestId,
               attemptType: attempt.attemptType,
               model: attempt.model,
+              reasoningEffort: attempt.reasoningEffort,
               marketSession: attempt.marketSession,
               dataAsOf: attempt.dataAsOf,
               startedAt: attempt.startedAt,

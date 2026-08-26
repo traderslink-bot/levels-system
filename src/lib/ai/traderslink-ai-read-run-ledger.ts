@@ -40,6 +40,7 @@ export type TradersLinkAiReadRunEvent = {
   clientRequestId?: string;
   attemptType?: "primary" | "correction" | "fallback" | "publication";
   model?: string;
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
   marketSession?: string;
   dataAsOf?: number;
   startedAt?: number;

@@ -1307,7 +1307,12 @@ async function main(): Promise<void> {
       const symbol = url.searchParams.get("symbol")?.trim().toUpperCase() || undefined;
       const requestedLimit = Number(url.searchParams.get("limit") ?? "100");
       const limit = Number.isFinite(requestedLimit) ? Math.min(500, Math.max(1, Math.floor(requestedLimit))) : 100;
-      sendJson(response, 200, manager.getTradersLinkAiReadAudit({ symbol, limit }));
+      const includeFullHistory = symbol !== undefined && url.searchParams.get("history") === "all";
+      sendJson(response, 200, manager.getTradersLinkAiReadAudit({
+        symbol,
+        limit,
+        includeFullHistory,
+      }));
       return;
     }
 

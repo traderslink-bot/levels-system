@@ -20,6 +20,7 @@ export type TradersLinkAiReadCostLedgerEntry = {
   generatedAt: number;
   dataAsOf: number;
   model: string;
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
   trigger: TradersLinkAiReadCostTrigger;
   marketSession: TradersLinkAiReadPayload["marketSession"];
   usedWebSearch: boolean;
@@ -277,6 +278,7 @@ export class TradersLinkAiReadCostLedger {
       generatedAt: args.attempt.receivedAt,
       dataAsOf: args.attempt.dataAsOf,
       model: args.attempt.model,
+      reasoningEffort: args.attempt.reasoningEffort,
       trigger: args.trigger,
       marketSession: args.attempt.marketSession,
       usedWebSearch: args.attempt.usedWebSearch,
