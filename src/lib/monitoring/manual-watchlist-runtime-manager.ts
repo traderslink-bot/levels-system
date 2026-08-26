@@ -7105,9 +7105,8 @@ export class ManualWatchlistRuntimeManager {
         }
 
         const referencePriceOverride = this.resolveLevelSeedReferencePrice(symbol);
-        const { output, seriesMap } = await this.levelEngine.generateLevelsWithCandleSeries({
+        const { output, seriesMap } = await this.generateLevelsWithWatchlistConfiguration({
           symbol,
-          historicalRequests: this.buildLevelSeedHistoricalRequests(symbol, this.options.candleFetchService),
           referencePriceOverride,
         });
         await this.refreshYahooCurrentSessionSupportFallback(symbol);
@@ -7128,6 +7127,25 @@ export class ManualWatchlistRuntimeManager {
         throw error;
       }
     })();
+  }
+
+  /**
+   * The one pure LevelEngine call used by Watchlist seeding and the isolated
+   * Stock Levels runtime boundary. Callers receive the untouched engine result;
+   * only Watchlist seeding continues into its store/monitor lifecycle.
+   */
+  async generateLevelsWithWatchlistConfiguration(input: {
+    symbol: string;
+    referencePriceOverride: number | undefined;
+  }) {
+    return this.levelEngine.generateLevelsWithCandleSeries({
+      symbol: input.symbol,
+      historicalRequests: this.buildLevelSeedHistoricalRequests(
+        input.symbol,
+        this.options.candleFetchService,
+      ),
+      referencePriceOverride: input.referencePriceOverride,
+    });
   }
 
   private async seedLevelsForSymbol(

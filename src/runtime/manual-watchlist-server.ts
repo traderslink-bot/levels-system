@@ -75,6 +75,7 @@ import {
 } from "../scripts/shared/ibkr-runtime.js";
 import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
 import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import { createEodhdExtendedQuoteProviderFromEnv } from "../lib/live-watchlist/eodhd-extended-quote-provider.js";
 import { createDailyWatchlistRecapServiceFromEnv } from "../lib/live-watchlist/daily-watchlist-recap.js";
 import { resolveLiveWatchlistPullbackReadEnabled } from "../lib/live-watchlist/pullback-read.js";
 import type {
@@ -91,6 +92,7 @@ import { resolveMarketDataStatus } from "./manual-watchlist-market-data-status.j
 import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
 import { TRADE_PLAN_REVIEW_PAGE } from "./trade-plan-review-page.js";
 import { AI_CLEAN_READ_PAGE } from "./ai-clean-read-page.js";
+import { createStockLevelsGenerator } from "./stock-levels-generator.js";
 import {
   appendTradePlanReviewNote,
   buildTradePlanReviewPayload,
@@ -905,6 +907,11 @@ async function main(): Promise<void> {
         }
       : null,
   });
+  const stockLevelsGenerator = createStockLevelsGenerator({
+    extendedQuoteProvider: createEodhdExtendedQuoteProviderFromEnv(),
+    generateExistingWatchlistLevels: (request) =>
+      manager.generateLevelsWithWatchlistConfiguration(request),
+  });
   const dayTradeAdapter = new DayTradeAdapterService(
     sameDayCandleService,
     (symbol) => manager.getDayTradeAdapterMarketContext(symbol),
@@ -1083,6 +1090,22 @@ async function main(): Promise<void> {
 
     if (isRailwayRuntime && !requestHasRuntimeAccess(request, runtimeAccessToken!)) {
       sendJson(response, 401, { error: "Runtime access token required." });
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/stock-levels") {
+      if (!runtimeAccessToken || !requestHasRuntimeAccess(request, runtimeAccessToken)) {
+        sendJson(response, 401, { error: "Runtime access token required." });
+        return;
+      }
+      try {
+        const body = await readJsonBody(request) as { symbol?: unknown };
+        const result = await stockLevelsGenerator.generate(body.symbol);
+        sendJson(response, result.map ? 200 : 422, result);
+      } catch (error) {
+        const message = error instanceof RequestBodyParseError ? "Invalid request body." : "Stock Levels is unavailable.";
+        sendJson(response, 400, { error: message });
+      }
       return;
     }
 
