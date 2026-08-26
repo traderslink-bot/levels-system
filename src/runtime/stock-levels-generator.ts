@@ -40,7 +40,7 @@ export function createStockLevelsGenerator(input: {
 
     const quote = await input.extendedQuoteProvider?.getExtendedQuote(symbol);
     const exchange = quote?.exchange?.trim().toUpperCase() ?? "";
-    if (!(exchange.includes("NASDAQ") || exchange.includes("NYSE"))) {
+    if (!quote || !(exchange.includes("NASDAQ") || exchange.includes("NYSE"))) {
       return {
         code: "unsupported_equity",
         message: "Stock Levels is available for Nasdaq and NYSE common stocks only.",
