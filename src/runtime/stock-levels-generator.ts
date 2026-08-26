@@ -19,7 +19,7 @@ export type StockLevelsRuntimeResponse = {
     fullLadderCard: ReturnType<typeof buildLiveWatchlistPotentialPathPresentation>["fullLadderCard"];
     nearestSupportResistanceCard: ReturnType<typeof buildLiveWatchlistPotentialPathPresentation>["nearestSupportResistanceCard"];
   };
-  code?: "invalid_symbol" | "unsupported_equity" | "reference_price_unavailable" | "market_data_unavailable";
+  code?: "invalid_symbol" | "reference_price_unavailable" | "market_data_unavailable";
   message?: string;
 };
 
@@ -35,17 +35,13 @@ export function createStockLevelsGenerator(input: {
 
   async function calculate(symbol: string): Promise<StockLevelsRuntimeResponse> {
     if (!SYMBOL.test(symbol)) {
-      return { code: "invalid_symbol", message: "Enter a Nasdaq or NYSE stock ticker." };
+      return { code: "invalid_symbol", message: "Enter a stock ticker." };
     }
 
+    // A valid real-time quote is a reference-price fact. Optional exchange or
+    // security-type metadata does not determine whether the existing map can
+    // be calculated from sufficient provider data.
     const quote = await input.extendedQuoteProvider?.getExtendedQuote(symbol);
-    const exchange = quote?.exchange?.trim().toUpperCase() ?? "";
-    if (!quote || !(exchange.includes("NASDAQ") || exchange.includes("NYSE"))) {
-      return {
-        code: "unsupported_equity",
-        message: "Stock Levels is available for Nasdaq and NYSE common stocks only.",
-      };
-    }
 
     const referencePrice = quote?.lastTradePrice ?? quote?.ethPrice ?? null;
     if (!(typeof referencePrice === "number" && Number.isFinite(referencePrice) && referencePrice > 0)) {
