@@ -19,12 +19,19 @@ from the hosted copy.
 - do not create a public domain, migrate the current active watchlist state,
   expose the admin controls, or release the hosted runtime to production yet
 
-## Completion evidence required for this checkpoint
+## Completed first checkpoint
 
-1. Railway reports a successful build and healthy deployment.
+Railway staging deployment `19477ef6-5c2d-4ce5-81bd-636786bfb2be` completed successfully on
+2026-08-25 for service `traderlink-watchlist-runtime-staging`.
+
+1. Railway health succeeded through `/api/runtime/healthz`.
 2. The service has its own mounted `/data` volume.
-3. The runtime log identifies shadow mode and has no external publisher enabled.
-4. No desktop runtime restart or Watchlist/Discord publication is triggered.
+3. Runtime logs confirm EODHD historical/live providers and that the website
+   publisher is disabled by shadow mode.
+4. The hosted state has zero active symbols; the desktop runtime was not
+   restarted and remains the only publisher.
+5. No public Railway domain, Discord configuration, Website ingest URL, or
+   Watchlist publisher credential was configured.
 
 ## Next checkpoint, not yet authorized
 
