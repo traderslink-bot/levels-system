@@ -2,6 +2,8 @@
 
 **New-ticker announcement progress:** [Watchlist Discord Everyone Announcement Progress](watchlist-discord-everyone-announcement-progress-2026-08-27.md)
 
+**Daily recap planning:** [Watchlist Daily Recaps Admin Review Progress](watchlist-daily-recaps-admin-review-progress-2026-08-27.md)
+
 ## Current state
 
 The project now has a working manual watchlist operations layer for Discord-oriented delivery.
@@ -178,6 +180,9 @@ notification.
 ## Remaining Discord-facing work later
 
 The next safe Discord-facing expansions later are:
+- replace the existing scheduled top-three Watchlist recap with the
+  owner-reviewed, on-demand Daily Recaps workflow only after the replacement
+  path is active and verified
 - slash commands or bot-side manual activation
 - richer thread starter formatting if needed
 - permission and failure-mode hardening against the live Discord API
