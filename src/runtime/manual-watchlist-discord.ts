@@ -17,6 +17,7 @@ type DiscordRuntimeEnv = {
   botToken: string | null;
   watchlistChannelId: string | null;
   guildId: string | null;
+  premiumRoleId: string | null;
 };
 
 function readDiscordRuntimeEnv(): DiscordRuntimeEnv {
@@ -24,6 +25,7 @@ function readDiscordRuntimeEnv(): DiscordRuntimeEnv {
     botToken: process.env.DISCORD_BOT_TOKEN?.trim() || null,
     watchlistChannelId: process.env.DISCORD_WATCHLIST_CHANNEL_ID?.trim() || null,
     guildId: process.env.DISCORD_GUILD_ID?.trim() || null,
+    premiumRoleId: process.env.DISCORD_PREMIUM_ROLE_ID?.trim() || null,
   };
 }
 
@@ -67,7 +69,9 @@ export function createDiscordAlertRouter(options: {
   isLiveTraderReadCardVisible?: () => boolean;
 } = {}): DiscordAlertRouter {
   const env = readDiscordRuntimeEnv();
-  const hasAnyDiscordConfig = Boolean(env.botToken || env.watchlistChannelId || env.guildId);
+  const hasAnyDiscordConfig = Boolean(
+    env.botToken || env.watchlistChannelId || env.guildId || env.premiumRoleId,
+  );
   const shouldUseRealDiscord = Boolean(env.botToken && env.watchlistChannelId);
   const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
   const pullbackReadEnabled = resolveLiveWatchlistPullbackReadEnabled();
@@ -101,6 +105,11 @@ export function createDiscordAlertRouter(options: {
 
   if (shouldUseRealDiscord) {
     logDiscordRuntimeDiagnostics(env, "real");
+    if (!env.premiumRoleId) {
+      throw new Error(
+        "Incomplete Discord runtime configuration. DISCORD_PREMIUM_ROLE_ID is required for new-ticker Watchlist announcements.",
+      );
+    }
     if (!env.guildId) {
       console.log(
         "[ManualWatchlistRuntime] DISCORD_GUILD_ID is missing. Real Discord posting will still work, but exact-name thread recovery will be limited.",
@@ -115,6 +124,7 @@ export function createDiscordAlertRouter(options: {
             botToken: env.botToken!,
             watchlistChannelId: env.watchlistChannelId!,
             guildId: env.guildId ?? undefined,
+            premiumRoleId: env.premiumRoleId,
           }),
         ),
         liveWatchlistPublisher,

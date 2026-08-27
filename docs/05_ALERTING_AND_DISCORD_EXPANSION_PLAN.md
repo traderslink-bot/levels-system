@@ -139,6 +139,8 @@ The manual watchlist runtime can now post into real Discord threads when these e
 - `DISCORD_BOT_TOKEN`
 - `DISCORD_WATCHLIST_CHANNEL_ID`
 - `DISCORD_GUILD_ID` (recommended for thread recovery by exact symbol name)
+- `DISCORD_PREMIUM_ROLE_ID` (server-only; required for the new-ticker
+  announcement and never logged or sent to Platform clients)
 
 Current runtime behavior:
 - if Discord credentials are configured, `src/runtime/manual-watchlist-server.ts` uses the real Discord REST thread gateway
@@ -146,19 +148,23 @@ Current runtime behavior:
 
 The real gateway currently:
 - posts a starter message in the watchlist channel
-- sends `@everyone` only on the separate new-ticker Watchlist-added
-  announcement after a newly created, non-same-day activation; its payload
-  explicitly allows only the everyone mention
+- sends `@everyone` and the configured Premium Members role only on the
+  separate new-ticker Watchlist-added announcement after a newly created,
+  non-same-day activation; its payload explicitly allows everyone and only
+  that configured role
 - creates the symbol-named thread from that starter message
 - posts initial level snapshots, extension posts, and event alerts into that thread
 - reuses stored thread ids when valid
 - attempts exact-name recovery through active guild threads and archived public threads when configured to do so
 
-The `@everyone` announcement requires the Discord bot to have the
-`MENTION_EVERYONE` permission in the Watchlist channel, including no
-conflicting channel override. No runtime configuration value grants or changes
-that permission. Discord member notification settings can still suppress a
-push notification.
+The new-ticker announcement requires a configured, valid server-only Premium
+role setting and the Discord bot's `MENTION_EVERYONE` permission in the
+Watchlist channel, including no conflicting channel override. The role must be
+mentionable or the bot must retain that permission. No runtime configuration
+value grants or changes the permission, and the runtime fails closed rather
+than send a partial announcement when the Premium role setting is missing or
+invalid. Discord member notification settings can still suppress a push
+notification.
 
 ## What this phase does not do
 

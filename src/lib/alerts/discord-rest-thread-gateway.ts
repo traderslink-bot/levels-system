@@ -35,6 +35,7 @@ export type DiscordRestThreadGatewayOptions = {
   botToken: string;
   watchlistChannelId: string;
   guildId?: string;
+  premiumRoleId?: string;
   fetchImpl?: FetchLike;
   apiBaseUrl?: string;
   autoArchiveDurationMinutes?: 60 | 1440 | 4320 | 10080;
@@ -70,6 +71,14 @@ function normalizeNonEmpty(value: string | undefined, label: string): string {
   const normalized = value?.trim();
   if (!normalized) {
     throw new Error(`${label} is required for Discord REST gateway.`);
+  }
+  return normalized;
+}
+
+function normalizeDiscordSnowflake(value: string | undefined, label: string): string {
+  const normalized = normalizeNonEmpty(value, label);
+  if (!/^\d{17,20}$/.test(normalized)) {
+    throw new Error(`${label} must be a valid Discord snowflake.`);
   }
   return normalized;
 }
@@ -167,6 +176,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   private readonly botToken: string;
   private readonly watchlistChannelId: string;
   private readonly guildId?: string;
+  private readonly premiumRoleId: string | null;
   private readonly fetchImpl: FetchLike;
   private readonly apiBaseUrl: string;
   private readonly autoArchiveDurationMinutes: 60 | 1440 | 4320 | 10080;
@@ -182,6 +192,9 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
       "Discord watchlist channel id",
     );
     this.guildId = options.guildId?.trim() || undefined;
+    this.premiumRoleId = options.premiumRoleId === undefined
+      ? null
+      : normalizeDiscordSnowflake(options.premiumRoleId, "Discord Premium role id");
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.apiBaseUrl = options.apiBaseUrl?.trim() || DEFAULT_API_BASE_URL;
     this.autoArchiveDurationMinutes = options.autoArchiveDurationMinutes ?? 1440;
@@ -285,14 +298,21 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   }
 
   private async postTickerAddedAnnouncement(content: string): Promise<DiscordMessageResponse> {
-    const [firstChunk, ...remainingChunks] = splitDiscordContent(`@everyone\n\n${content}`);
+    if (!this.premiumRoleId) {
+      throw new Error(
+        "Discord Premium role configuration is required for new-ticker Watchlist announcements.",
+      );
+    }
+    const [firstChunk, ...remainingChunks] = splitDiscordContent(
+      `@everyone\n<@&${this.premiumRoleId}>\n\n${content}`,
+    );
     const firstResponse = await this.request<DiscordMessageResponse>(
       `/channels/${this.watchlistChannelId}/messages`,
       {
         method: "POST",
         body: JSON.stringify({
           content: firstChunk ?? "@everyone",
-          allowed_mentions: { parse: ["everyone"] },
+          allowed_mentions: { parse: ["everyone"], roles: [this.premiumRoleId] },
         }),
       },
     );
