@@ -1,6 +1,6 @@
 # Watchlist Daily Recaps Admin Review Progress
 
-**Status:** Formal planning only; runtime implementation not authorized
+**Status:** Product plan owner-approved; runtime implementation not authorized
 
 **Controlling alert plan:** [Alerting and Discord Expansion Plan](05_ALERTING_AND_DISCORD_EXPANSION_PLAN.md)
 
@@ -47,6 +47,11 @@ The future runtime portion is deliberately narrow:
 5. prevent repeated requests with the same idempotency key from creating a
    second Discord message.
 
+The final trade-recap body is owner editable. Runtime appends `@everyone` and
+the configured Premium Members role at the bottom, using the existing
+server-only role setting without exposing its id. No edit, owner, generator or
+system label is added to Discord.
+
 Platform owns evidence, deterministic generation, review state, the correction
 queue and the final preview. Runtime does not recreate that UI or store a
 second mutable draft.
@@ -79,14 +84,21 @@ post.
   later movement is ignored.
 - No provider or OpenAI request is introduced by recap generation.
 
-## Open product decisions
+## Owner-approved product decisions
 
 - [x] Near-zone distance is 10% from the nearest edge; no separate minimum
   later-gain threshold controls recap eligibility.
-- [ ] Daily recap Discord role mentions and their placement.
-- [ ] Durable retention period.
-- [ ] Direct owner editing versus correction/regeneration in deterministic
-  version 1.
+- [x] Append `@everyone` and the configured Premium Members role at the bottom
+  of the final recap.
+- [x] Use manual cleanup only, show **Cleanup recommended** after 30 days and
+  never auto-delete.
+- [x] Retain **Needs correction** until explicit resolve/delete.
+- [x] Allow post-success deletion of heavy evidence while retaining the exact
+  posted body, time, Discord receipt/link and idempotency key until explicit
+  deletion.
+- [x] Allow the owner to edit the entire ticker recap and combined post while
+  preserving generated, edited and posted revisions internally and showing no
+  edit/system label in Discord.
 
 ## Checkpoint restrictions
 
