@@ -1402,6 +1402,11 @@ function assertTradersLinkAiTradeMap(
 ): void {
   const tolerance = Math.max(currentPrice * 0.005, 0.0001);
   const tacticalSpacing = tacticalTradeMapSpacing(currentPrice, priceAction);
+  const recentBars = priceAction.intradayCandles.slice(-24);
+  const averageTrueRange = recentBars.length > 0
+    ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) /
+      recentBars.length
+    : 0;
   const unsupportedAnalysisLanguage =
     /\b(?:4h|four[- ]hour|confluence|supplied (?:level|support|resistance)|support stack|resistance stack|next level)\b/i;
   const unsupportedZeroVolumeClaim =
