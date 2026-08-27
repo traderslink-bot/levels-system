@@ -11,10 +11,10 @@ created Watchlist ticker finishes its initial non-same-day activation. This is t
 `threadRouting.created && !reuseExistingSameDayContext` boundary.
 
 The change is limited to the real Discord REST gateway's
-`announceTickerAdded` sender. It prepends literal `@everyone` and the
-server-only configured Premium Members role marker to the existing Watchlist
-link message, then permits only those mentions through Discord
-`allowed_mentions`.
+`announceTickerAdded` sender. It preserves the existing Watchlist link message,
+then appends a blank line, literal `@everyone`, and the server-only configured
+Premium Members role marker at the bottom. It permits only those mentions
+through Discord `allowed_mentions`.
 
 ## Exclusions
 

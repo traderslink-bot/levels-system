@@ -304,7 +304,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
       );
     }
     const [firstChunk, ...remainingChunks] = splitDiscordContent(
-      `@everyone\n<@&${this.premiumRoleId}>\n\n${content}`,
+      `${content}\n\n@everyone\n<@&${this.premiumRoleId}>`,
     );
     const firstResponse = await this.request<DiscordMessageResponse>(
       `/channels/${this.watchlistChannelId}/messages`,
