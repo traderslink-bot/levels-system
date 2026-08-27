@@ -8,6 +8,7 @@ import {
   resolveTradersLinkAiReadReferenceQuote,
   type TradersLinkAiReadPriceActionContext,
 } from "./traderslink-ai-read-price-action.js";
+import { buildLiveWatchlistPotentialPathPresentation } from "../live-watchlist/live-watchlist-publisher.js";
 import type {
   TradersLinkAiReadBias,
   TradersLinkAiReadCatalystContext,
@@ -20,6 +21,7 @@ import type {
   TradersLinkAiReadPayload,
   TradersLinkAiReadPullbackScenario,
   TradersLinkAiReadFailureRecoveryPlan,
+  LiveWatchlistLevelMapLevel,
   TradersLinkAiReadSource,
   TradersLinkAiReadTarget,
   TradersLinkAiReadUsage,
@@ -33,6 +35,8 @@ const DEFAULT_FALLBACK_MODEL = "gpt-5.6-luna";
 const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 8_000;
 const DEFAULT_WEB_SEARCH_PRICE_PER_1K_CALLS = 10;
+const OUTER_DAILY_TARGET_MIN_DISTANCE_PCT = 0.3;
+const OUTER_DAILY_TARGET_MAX_DISTANCE_PCT = 0.5;
 
 export type ModelTokenPricing = {
   inputPer1M: number;
@@ -1299,6 +1303,97 @@ function availablePullbackCandidates(
   });
 }
 
+function tacticalTradeMapSpacing(
+  currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext,
+): number {
+  const tolerance = Math.max(currentPrice * 0.005, 0.0001);
+  const recentBars = priceAction.intradayCandles.slice(-24);
+  const averageTrueRange = recentBars.length > 0
+    ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) /
+      recentBars.length
+    : 0;
+  return Math.max(tolerance, averageTrueRange * 0.25);
+}
+
+function outerDailyTargetStrengthRank(
+  value: LevelSnapshotPayload["resistanceZones"][number]["strengthLabel"],
+): number {
+  return value === "major" ? 2 : value === "strong" ? 1 : 0;
+}
+
+function outerDailyTargetCondition(candidate: LiveWatchlistLevelMapLevel): string {
+  return `Daily resistance — ${candidate.label}; supplied daily candle structure confirms this Potential Path level.`;
+}
+
+function appendFactualOuterDailyResistanceTarget(
+  read: ModelRead,
+  snapshot: LevelSnapshotPayload,
+  currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext,
+): ModelRead {
+  const breakoutContinuationPrice = read.breakoutContinuation.price;
+  if (
+    breakoutContinuationPrice === null ||
+    !Number.isFinite(breakoutContinuationPrice) ||
+    breakoutContinuationPrice <= 0
+  ) {
+    return read;
+  }
+
+  const existingTargetPrices = read.targets
+    .map((target) => target.price)
+    .filter((price): price is number => price !== null && Number.isFinite(price));
+  const furthestExistingTarget = Math.max(breakoutContinuationPrice, ...existingTargetPrices);
+  const minimumOuterPrice = breakoutContinuationPrice * (1 + OUTER_DAILY_TARGET_MIN_DISTANCE_PCT);
+  if (furthestExistingTarget >= minimumOuterPrice) {
+    return read;
+  }
+
+  const maximumOuterPrice = breakoutContinuationPrice * (1 + OUTER_DAILY_TARGET_MAX_DISTANCE_PCT);
+  const tacticalSpacing = tacticalTradeMapSpacing(currentPrice, priceAction);
+  const candidates = buildLiveWatchlistPotentialPathPresentation(snapshot)
+    .levelMap
+    ?.resistanceLevels
+    .filter((level) =>
+      Number.isFinite(level.price) &&
+      level.price >= minimumOuterPrice &&
+      level.price <= maximumOuterPrice &&
+      level.price - furthestExistingTarget >= tacticalSpacing &&
+      (level.strengthLabel === "strong" || level.strengthLabel === "major") &&
+      (level.sourceLabel === "daily structure" || level.sourceLabel === "daily confluence"),
+    ) ?? [];
+  if (candidates.length === 0) {
+    return read;
+  }
+
+  const candidate = [...candidates].sort((left, right) => {
+    const priceDiff = right.price - left.price;
+    if (priceDiff !== 0) return priceDiff;
+    const strengthDiff = outerDailyTargetStrengthRank(right.strengthLabel) -
+      outerDailyTargetStrengthRank(left.strengthLabel);
+    if (strengthDiff !== 0) return strengthDiff;
+    const confluenceDiff = Number(right.sourceLabel === "daily confluence") -
+      Number(left.sourceLabel === "daily confluence");
+    if (confluenceDiff !== 0) return confluenceDiff;
+    const sourceEvidenceDiff = (right.sourceEvidenceCount ?? 0) - (left.sourceEvidenceCount ?? 0);
+    if (sourceEvidenceDiff !== 0) return sourceEvidenceDiff;
+    return (right.confluenceCount ?? 0) - (left.confluenceCount ?? 0);
+  })[0]!;
+
+  return {
+    ...read,
+    targets: [
+      ...read.targets,
+      {
+        label: "Daily resistance",
+        price: candidate.price,
+        condition: outerDailyTargetCondition(candidate),
+      },
+    ],
+  };
+}
+
 function assertTradersLinkAiTradeMap(
   read: ModelRead,
   currentPrice: number,
@@ -1306,12 +1401,7 @@ function assertTradersLinkAiTradeMap(
   dataAsOf: number,
 ): void {
   const tolerance = Math.max(currentPrice * 0.005, 0.0001);
-  const recentBars = priceAction.intradayCandles.slice(-24);
-  const averageTrueRange = recentBars.length > 0
-    ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) /
-      recentBars.length
-    : 0;
-  const tacticalSpacing = Math.max(tolerance, averageTrueRange * 0.25);
+  const tacticalSpacing = tacticalTradeMapSpacing(currentPrice, priceAction);
   const unsupportedAnalysisLanguage =
     /\b(?:4h|four[- ]hour|confluence|supplied (?:level|support|resistance)|support stack|resistance stack|next level)\b/i;
   const unsupportedZeroVolumeClaim =
@@ -2309,7 +2399,19 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         input.priceAction,
       );
       assertTradersLinkAiTradeMap(normalized, referenceQuote.price, input.priceAction, dataAsOf);
-      return normalized;
+      const withFactualOuterTarget = appendFactualOuterDailyResistanceTarget(
+        normalized,
+        input.snapshot,
+        referenceQuote.price,
+        input.priceAction,
+      );
+      assertTradersLinkAiTradeMap(
+        withFactualOuterTarget,
+        referenceQuote.price,
+        input.priceAction,
+        dataAsOf,
+      );
+      return withFactualOuterTarget;
     };
     let availableSources = dedupeSources([
       ...databaseSources(input.research),

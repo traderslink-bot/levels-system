@@ -2,6 +2,8 @@
 
 **Status:** Active owner iteration; no staging review or deployment requested
 
+**Outer-target safeguard:** [Watchlist AI Read Outer Target Safeguard Progress](watchlist-ai-read-outer-target-safeguard-progress-2026-08-27.md)
+
 **Scope:** Watchlist Admin immediate AI settings state, factual provider
 health/fallback, AI generation failure visibility, new-trading-day activation,
 session-volume confirmation, and Finnhub Company Details resilience.
@@ -47,6 +49,13 @@ session-volume confirmation, and Finnhub Company Details resilience.
   history establishes a distinct, evidence-backed continuation boundary within
   roughly 50% of current price; it must still omit unsupported range rather
   than manufacture a target.
+- [x] After the AI draft passes its existing validation, the runtime appends a
+  factual `Daily resistance` target only when the furthest returned upside
+  target remains below 30% above breakout continuation and the current
+  Potential Path contains a materially spaced strong/major daily
+  structure/confluence resistance between 30% and 50%. Its visible description
+  preserves the exact Potential Path label. The original AI targets stay in
+  order; no candidate means no inserted estimate or extra AI request.
 - [x] AI Operations keeps the current ticker grouping and most-recent result,
   then loads the selected ticker's complete durable run-ledger history into an
   expandable prior-operations section. Every recorded trigger, request,
