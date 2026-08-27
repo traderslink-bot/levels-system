@@ -1,5 +1,7 @@
 # Alerting and Discord Expansion Plan
 
+**New-ticker announcement progress:** [Watchlist Discord Everyone Announcement Progress](watchlist-discord-everyone-announcement-progress-2026-08-27.md)
+
 ## Current state
 
 The project now has a working manual watchlist operations layer for Discord-oriented delivery.
@@ -144,10 +146,19 @@ Current runtime behavior:
 
 The real gateway currently:
 - posts a starter message in the watchlist channel
+- sends `@everyone` only on the separate new-ticker Watchlist-added
+  announcement after a newly created, non-same-day activation; its payload
+  explicitly allows only the everyone mention
 - creates the symbol-named thread from that starter message
 - posts initial level snapshots, extension posts, and event alerts into that thread
 - reuses stored thread ids when valid
 - attempts exact-name recovery through active guild threads and archived public threads when configured to do so
+
+The `@everyone` announcement requires the Discord bot to have the
+`MENTION_EVERYONE` permission in the Watchlist channel, including no
+conflicting channel override. No runtime configuration value grants or changes
+that permission. Discord member notification settings can still suppress a
+push notification.
 
 ## What this phase does not do
 

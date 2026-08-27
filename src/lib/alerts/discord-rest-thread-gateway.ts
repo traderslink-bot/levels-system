@@ -284,6 +284,26 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     return firstResponse;
   }
 
+  private async postTickerAddedAnnouncement(content: string): Promise<DiscordMessageResponse> {
+    const [firstChunk, ...remainingChunks] = splitDiscordContent(`@everyone\n\n${content}`);
+    const firstResponse = await this.request<DiscordMessageResponse>(
+      `/channels/${this.watchlistChannelId}/messages`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          content: firstChunk ?? "@everyone",
+          allowed_mentions: { parse: ["everyone"] },
+        }),
+      },
+    );
+
+    for (const chunk of remainingChunks) {
+      await this.postSingleMessage(this.watchlistChannelId, chunk);
+    }
+
+    return firstResponse;
+  }
+
   private async deleteMessage(channelId: string, messageId: string): Promise<void> {
     await this.request<unknown>(`/channels/${channelId}/messages/${messageId}`, {
       method: "DELETE",
@@ -291,8 +311,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   }
 
   async announceTickerAdded(name: string): Promise<void> {
-    await this.postMessage(
-      this.watchlistChannelId,
+    await this.postTickerAddedAnnouncement(
       buildWatchlistDiscordLinkMessage(name),
     );
   }
