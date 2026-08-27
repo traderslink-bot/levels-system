@@ -2,9 +2,10 @@ import type { CandleProviderResponse } from "./candle-types.js";
 import { finalizeCandleProviderResponse } from "./candle-quality.js";
 import type { CandleFetchService, HistoricalFetchRequest } from "./candle-fetch-service.js";
 import type { CoordinatedCandleFetchDiagnostics } from "./coordinated-candle-fetch-service.js";
-import type {
-  MoomooAiReadCandleLoader,
-  MoomooAiReadCandleWindow,
+import {
+  MoomooAiReadCandleLoadError,
+  type MoomooAiReadCandleLoader,
+  type MoomooAiReadCandleWindow,
 } from "./platform-moomoo-ai-read-candle-loader.js";
 
 export const SAME_DAY_CANDLE_PROVIDER_OPTIONS = ["yahoo", "moomoo"] as const;
@@ -23,6 +24,7 @@ export type SameDayCandleProviderHealth = {
   lastFallbackAt: number | null;
   fallbackReason: string | null;
   moomooConnectionStatus: "connected" | "disconnected" | "waiting";
+  lastMoomooReachableAt: number | null;
   available: boolean;
   status: "ready" | "unavailable" | "stale";
   lastAttemptAt: number | null;
@@ -36,6 +38,7 @@ export class SelectableSameDayCandleService {
   private selectedProvider: SameDayCandleProviderName;
   private activeProvider: SameDayCandleProviderName | null = null;
   private lastMoomooSuccessAt: number | null = null;
+  private lastMoomooReachableAt: number | null = null;
   private lastMoomooErrorAt: number | null = null;
   private lastFallbackAt: number | null = null;
   private fallbackReason: string | null = null;
@@ -70,8 +73,8 @@ export class SelectableSameDayCandleService {
   getDiagnostics(): SameDayCandleProviderHealth {
     const moomooConnectionStatus = this.moomooLoader === null
       ? "disconnected"
-      : this.lastMoomooSuccessAt !== null &&
-          (this.lastMoomooErrorAt === null || this.lastMoomooSuccessAt >= this.lastMoomooErrorAt)
+      : this.lastMoomooReachableAt !== null &&
+          (this.lastMoomooErrorAt === null || this.lastMoomooReachableAt >= this.lastMoomooErrorAt)
         ? "connected"
         : this.lastMoomooErrorAt !== null
           ? "disconnected"
@@ -86,6 +89,7 @@ export class SelectableSameDayCandleService {
       lastFallbackAt: this.lastFallbackAt,
       fallbackReason: this.fallbackReason,
       moomooConnectionStatus,
+      lastMoomooReachableAt: this.lastMoomooReachableAt,
       available: true,
       status: this.lastErrorAt !== null && (this.lastSuccessAt === null || this.lastErrorAt > this.lastSuccessAt)
         ? "stale"
@@ -141,14 +145,27 @@ export class SelectableSameDayCandleService {
       if (!this.hasAcceptedSameDayResponse(result)) {
         throw new Error("Moomoo did not return an accepted same-day candle response.");
       }
-      this.lastMoomooSuccessAt = this.now();
+      const timestamp = this.now();
+      this.lastMoomooSuccessAt = timestamp;
+      this.lastMoomooReachableAt = timestamp;
       this.activeProvider = "moomoo";
       this.fallbackReason = null;
       return result;
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      this.lastMoomooErrorAt = this.now();
-      this.lastFallbackAt = this.now();
+      const coverageUnavailable = error instanceof MoomooAiReadCandleLoadError &&
+        error.failure === "coverage_unavailable";
+      const reason = coverageUnavailable
+        ? "No current-session Moomoo candle coverage."
+        : error instanceof Error
+          ? error.message
+          : String(error);
+      const timestamp = this.now();
+      if (coverageUnavailable) {
+        this.lastMoomooReachableAt = timestamp;
+      } else {
+        this.lastMoomooErrorAt = timestamp;
+      }
+      this.lastFallbackAt = timestamp;
       this.fallbackReason = reason;
       try {
         const fallback = await this.fetchYahooCandles(request);

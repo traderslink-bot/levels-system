@@ -5,6 +5,18 @@ export type MoomooAiReadCandleWindow = Readonly<{
   fiveMinuteCandles: readonly Candle[];
 }>;
 
+export type MoomooAiReadCandleLoadFailure = "coverage_unavailable" | "bridge_unavailable";
+
+export class MoomooAiReadCandleLoadError extends Error {
+  constructor(
+    readonly failure: MoomooAiReadCandleLoadFailure,
+    message: string,
+  ) {
+    super(message);
+    this.name = "MoomooAiReadCandleLoadError";
+  }
+}
+
 export type MoomooAiReadCandleLoader = (input: Readonly<{
   symbol: string;
   asOfTimeMs: number;
@@ -22,6 +34,7 @@ type RemoteCandle = Readonly<{
 type RemoteResponse = Readonly<{
   status?: unknown;
   provider?: unknown;
+  code?: unknown;
   candles?: unknown;
 }>;
 
@@ -145,16 +158,35 @@ export function createPlatformMoomooAiReadCandleLoader(
         headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
       });
     } catch {
-      throw new Error("Moomoo Open API candle bridge request failed.");
+      throw new MoomooAiReadCandleLoadError(
+        "bridge_unavailable",
+        "Moomoo Open API candle bridge request failed.",
+      );
     }
     let payload: RemoteResponse;
     try {
       payload = await response.json() as RemoteResponse;
     } catch {
-      throw new Error("Moomoo Open API candle bridge response was not JSON.");
+      throw new MoomooAiReadCandleLoadError(
+        "bridge_unavailable",
+        "Moomoo Open API candle bridge response was not JSON.",
+      );
+    }
+    if (
+      response.status === 503 &&
+      payload.status === "unavailable" &&
+      payload.code === "coverage_unavailable"
+    ) {
+      throw new MoomooAiReadCandleLoadError(
+        "coverage_unavailable",
+        "No current-session Moomoo candle coverage.",
+      );
     }
     if (!response.ok || payload.status !== "ready" || payload.provider !== "moomoo_open_api") {
-      throw new Error("Moomoo Open API candle bridge is unavailable.");
+      throw new MoomooAiReadCandleLoadError(
+        "bridge_unavailable",
+        "Moomoo Open API candle bridge is unavailable.",
+      );
     }
     const oneMinuteCandles = parseCandles(payload.candles, endTimeMs);
     if (oneMinuteCandles.length === 0) {

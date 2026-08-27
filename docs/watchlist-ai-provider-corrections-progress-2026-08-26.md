@@ -23,7 +23,10 @@ session-volume confirmation, and Finnhub Company Details resilience.
 - [x] Admin now distinguishes factual Watchlist market-data status, Moomoo
   connection state, primary/active same-day candle source, and Yahoo fallback
   state. Moomoo remains the default primary source; Yahoo is requested only
-  after an unavailable, rejected, or failed Moomoo response.
+  after an unavailable, rejected, or failed Moomoo response. An authenticated
+  `coverage_unavailable` bridge response means no current-session Moomoo
+  candles, not a disconnected bridge: the connection remains reachable and
+  the fallback records that factual coverage reason.
 - [x] AI audit entries preserve request/attempt counts and expose failed
   generations with their latest failure stage, timestamp, and reason.
 - [x] A removed symbol activated on a later New York trading date clears the
