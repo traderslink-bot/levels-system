@@ -644,7 +644,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       price: 1.42,
       priorPlanGeneratedAt: DATA_AS_OF - 60_000,
     });
-    assert.equal(packet.primaryCatalystResearch.source, "TradersLink press-release/SEC database");
+    assert.equal(packet.primaryCatalystResearch.source, "TradersLink processed article");
     assert.equal(packet.primaryCatalystResearch.articles.length, 1);
     assert.equal(
       packet.primaryCatalystResearch.articles[0]?.sourceSummary,
