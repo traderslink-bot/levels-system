@@ -142,6 +142,7 @@ describe("applyStockTitanRssFallback", () => {
       localResearch,
       symbol: "PAPL",
       referenceTimeMs: REFERENCE_TIME,
+      authorizedBy: "no_eligible_article",
       lookup,
     });
     assert.equal(localResult, localResearch);
@@ -151,6 +152,7 @@ describe("applyStockTitanRssFallback", () => {
       localResearch: { ...localResearch, count: 0, articles: [] },
       symbol: "PAPL",
       referenceTimeMs: REFERENCE_TIME,
+      authorizedBy: "no_eligible_article",
       lookup,
     });
     assert.equal(fallbackCalls, 1);
