@@ -392,8 +392,12 @@ export async function applyStockTitanRssFallback(args: {
   localResearch: RecentWebsiteArticleLookupResult;
   symbol: string;
   referenceTimeMs: number;
+  authorizedBy: "no_eligible_article";
   lookup?: StockTitanCatalystFeedLookup;
 }): Promise<RecentWebsiteArticleLookupResult> {
+  if (args.authorizedBy !== "no_eligible_article") {
+    return args.localResearch;
+  }
   if (args.localResearch.count > 0 && args.localResearch.articles.length > 0) {
     return args.localResearch;
   }

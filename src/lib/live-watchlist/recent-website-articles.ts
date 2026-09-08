@@ -27,6 +27,16 @@ export type RecentWebsiteArticle = {
   positives?: string[];
   negatives?: string[];
   sourceKind?: "traderslink_press_release_sec_database" | "stocktitan_rss";
+  /** Canonical Platform content supplied only to the private AI request packet. */
+  processedContent?: string;
+  articleId?: string;
+  revision?: string;
+  contentSha256?: string;
+  targetSessionDate?: string;
+  publishedDateEt?: string;
+  recency?: "current_day" | "older_within_window";
+  windowStartDateEt?: string;
+  windowEndDateEt?: string;
 };
 
 export type RecentWebsiteArticleLookupResult = {
@@ -272,6 +282,21 @@ export function buildRecentWebsiteArticlesPatch(args: {
   }
 
   const updatedAt = args.updatedAt ?? Date.now();
+  const displayArticles = articles.map((article) => ({
+    ticker: article.ticker,
+    url: article.url,
+    articlePath: article.articlePath,
+    title: article.title,
+    publishedAt: article.publishedAt,
+    eventType: article.eventType,
+    filingType: article.filingType,
+    sourceUrl: article.sourceUrl,
+    observedAt: article.observedAt,
+    summary: article.summary,
+    positives: article.positives,
+    negatives: article.negatives,
+    sourceKind: article.sourceKind,
+  }));
   return {
     symbol,
     status: "live",
@@ -279,7 +304,7 @@ export function buildRecentWebsiteArticlesPatch(args: {
     cards: {
       recentNewsFilings: {
         title: "Known Recent News / SEC Filings",
-        body: JSON.stringify({ articles }, null, 2),
+        body: JSON.stringify({ articles: displayArticles }, null, 2),
         updatedAt,
         priceWhenPosted: null,
         source: "website_article_lookup",
