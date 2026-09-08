@@ -97,6 +97,14 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function articleRecency(
+  value: unknown,
+): "current_day" | "older_within_window" | undefined {
+  return value === "current_day" || value === "older_within_window"
+    ? value
+    : undefined;
+}
+
 function exactString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -199,7 +207,7 @@ function normalizeEligibleResponse(args: {
     ? newYorkDateKey(Date.parse(publishedAt))
     : null;
   const publishedDateEt = exactString(article.publishedDateEt);
-  const recency = article.recency;
+  const recency = articleRecency(article.recency);
   const expectedRecency = publishedDate === args.targetSessionDate
     ? "current_day"
     : "older_within_window";
