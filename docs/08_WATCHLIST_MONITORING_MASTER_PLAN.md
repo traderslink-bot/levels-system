@@ -15,6 +15,12 @@ The current system now also supports:
 - persisted active/inactive watchlist state
 - persisted Discord thread reuse per symbol
 
+## Stock Levels repair checkpoint - 2026-09-09
+
+- [x] Local current-price fallback and static-map side classification implemented.
+- [ ] Hosted release and rendered acceptance.
+- Progress: [Stock Levels price repair](stock-levels-price-repair-2026-09-09.md).
+
 ## Current infrastructure checkpoint
 
 The Railway shadow-runtime move is tracked in

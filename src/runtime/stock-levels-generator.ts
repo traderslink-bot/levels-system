@@ -4,8 +4,8 @@ import {
 } from "../lib/live-watchlist/live-watchlist-publisher.js";
 import type { LiveWatchlistExtendedQuoteProvider } from "../lib/live-watchlist/live-watchlist-types.js";
 import { buildLevelSnapshotPayloadFromEngineOutput } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
+import { isUsableStockLevelsPrice, resolveStockLevelsReferencePrice } from "./stock-levels-reference-price.js";
 
-const CACHE_TTL_MS = 15 * 60 * 1000;
 const SYMBOL = /^[A-Z][A-Z0-9.-]{0,9}$/u;
 
 export type StockLevelsRuntimeResponse = {
@@ -31,7 +31,6 @@ export function createStockLevelsGenerator(input: {
     calculationProfile: "dashboard_eodhd_daily_4h";
   }) => Promise<{ output: LevelEngineOutput }>;
 }) {
-  const cached = new Map<string, { expiresAt: number; map: NonNullable<StockLevelsRuntimeResponse["map"]> }>();
   const inFlight = new Map<string, Promise<StockLevelsRuntimeResponse>>();
 
   async function calculate(symbol: string): Promise<StockLevelsRuntimeResponse> {
@@ -39,24 +38,11 @@ export function createStockLevelsGenerator(input: {
       return { code: "invalid_symbol", message: "Enter a stock ticker." };
     }
 
-    // A valid real-time quote is a reference-price fact. Optional exchange or
-    // security-type metadata does not determine whether the existing map can
-    // be calculated from sufficient provider data.
-    const quote = await input.extendedQuoteProvider?.getExtendedQuote(symbol);
+    const quote = await resolveStockLevelsReferencePrice(symbol, input.extendedQuoteProvider);
     if (!quote) {
-      return {
-        code: "reference_price_unavailable",
-        message: "A trustworthy EODHD reference price is unavailable for this stock.",
-      };
+      return { code: "reference_price_unavailable", message: "A recent current-session price is unavailable from EODHD and Yahoo. Try again shortly." };
     }
-
-    const referencePrice = quote.lastTradePrice ?? quote.ethPrice ?? null;
-    if (!(typeof referencePrice === "number" && Number.isFinite(referencePrice) && referencePrice > 0)) {
-      return {
-        code: "reference_price_unavailable",
-        message: "A trustworthy EODHD reference price is unavailable for this stock.",
-      };
-    }
+    const referencePrice = quote.price;
 
     try {
       const { output } = await input.generateExistingWatchlistLevels({
@@ -64,19 +50,29 @@ export function createStockLevelsGenerator(input: {
         referencePriceOverride: referencePrice,
         calculationProfile: "dashboard_eodhd_daily_4h",
       });
-      const presentation = buildLiveWatchlistPotentialPathPresentation(
-        buildLevelSnapshotPayloadFromEngineOutput({
-          output,
-          symbol: output.symbol,
-          currentPrice: referencePrice,
-          timestamp: output.generatedAt,
-        }),
-      );
+      if (!isUsableStockLevelsPrice(quote)) {
+        return { code: "reference_price_unavailable", message: "The reference price expired during calculation. Please regenerate." };
+      }
+      const payload = buildLevelSnapshotPayloadFromEngineOutput({
+        output, symbol: output.symbol, currentPrice: referencePrice, timestamp: output.generatedAt,
+      });
+      // Stock Levels is a price-relative static map. Watchlist's confirmation
+      // buffer remains unchanged for its separate monitoring consumers.
+      const zones = [...payload.supportZones, ...payload.resistanceZones];
+      const ladderZones = [...(payload.ladderSupportZones ?? payload.supportZones),
+        ...(payload.ladderResistanceZones ?? payload.resistanceZones)];
+      const presentation = buildLiveWatchlistPotentialPathPresentation({
+        ...payload,
+        supportZones: zones.filter((zone) => zone.representativePrice < referencePrice),
+        resistanceZones: zones.filter((zone) => zone.representativePrice >= referencePrice),
+        ladderSupportZones: ladderZones.filter((zone) => zone.representativePrice < referencePrice),
+        ladderResistanceZones: ladderZones.filter((zone) => zone.representativePrice >= referencePrice),
+      });
       return {
         map: {
           symbol: output.symbol,
           referencePrice,
-          referencePriceAsOf: quote.updatedAt,
+          referencePriceAsOf: quote.asOf,
           calculatedAt: output.generatedAt,
           cacheStatus: "fresh",
           levelMap: presentation.levelMap,
@@ -95,23 +91,12 @@ export function createStockLevelsGenerator(input: {
   return {
     async generate(inputSymbol: unknown): Promise<StockLevelsRuntimeResponse> {
       const symbol = typeof inputSymbol === "string" ? inputSymbol.trim().toUpperCase() : "";
-      const hit = cached.get(symbol);
-      if (hit && hit.expiresAt > Date.now()) {
-        return { map: { ...hit.map, cacheStatus: "hit" } };
-      }
-
       const existing = inFlight.get(symbol);
       if (existing) {
         return existing;
       }
 
       const work = calculate(symbol)
-        .then((result) => {
-          if (result.map) {
-            cached.set(symbol, { expiresAt: Date.now() + CACHE_TTL_MS, map: result.map });
-          }
-          return result;
-        })
         .finally(() => inFlight.delete(symbol));
       inFlight.set(symbol, work);
       return work;
