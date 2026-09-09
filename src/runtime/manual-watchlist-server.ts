@@ -75,7 +75,6 @@ import {
 } from "../scripts/shared/ibkr-runtime.js";
 import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
 import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
-import { createEodhdExtendedQuoteProviderFromEnv } from "../lib/live-watchlist/eodhd-extended-quote-provider.js";
 import {
   createDailyWatchlistRecapServiceFromEnv,
   createReviewedDailyWatchlistRecapPosterFromEnv,
@@ -922,7 +921,6 @@ async function main(): Promise<void> {
       : null,
   });
   const stockLevelsGenerator = createStockLevelsGenerator({
-    extendedQuoteProvider: createEodhdExtendedQuoteProviderFromEnv(),
     generateExistingWatchlistLevels: (request) => {
       if (!dashboardEodhdHistoricalCandleService) {
         throw new Error("EODHD historical levels are unavailable.");

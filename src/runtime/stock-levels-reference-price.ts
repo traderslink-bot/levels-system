@@ -1,7 +1,7 @@
-import type { LiveWatchlistExtendedQuoteProvider } from "../lib/live-watchlist/live-watchlist-types.js";
+import { requestEodhdCurrentTrade } from "./stock-levels-live-price.js";
 
 export type StockLevelsReferencePrice = { price: number; asOf: number; source: "eodhd" | "yahoo" };
-const MAX_OPEN_AGE_MS = 20 * 60_000;
+const MAX_OPEN_AGE_MS = 60_000;
 const MAX_CLOSED_AGE_MS = 96 * 60 * 60_000;
 const eastern = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
@@ -35,20 +35,18 @@ function newest(quotes: Array<StockLevelsReferencePrice | null>, now: number) {
 
 export async function resolveStockLevelsReferencePrice(
   symbol: string,
-  provider: LiveWatchlistExtendedQuoteProvider | null,
   fetchFn: typeof fetch = fetch,
 ): Promise<StockLevelsReferencePrice | null> {
-  try {
-    const quote = await provider?.getExtendedQuote(symbol);
-    if (quote?.symbol === symbol) {
-      const selected = newest([
-        candidate(quote.lastTradePrice, quote.lastTradeTime, "eodhd"),
-        candidate(quote.ethPrice, quote.ethTime, "eodhd"),
-      ], Date.now());
-      if (selected) return selected;
-    }
-  } catch { /* A failed EODHD request must still try Yahoo. */ }
+  const yahoo = await requestYahooReferencePrice(symbol, fetchFn);
+  if (yahoo) return yahoo;
+  // Delayed HTTP quotes are deliberately excluded from current-price lookup.
+  return requestEodhdCurrentTrade(symbol, isUsableStockLevelsPrice);
+}
 
+async function requestYahooReferencePrice(
+  symbol: string,
+  fetchFn: typeof fetch,
+): Promise<StockLevelsReferencePrice | null> {
   try {
     // Yahoo intraday observations are used ONLY to obtain the latest price/time.
     // They are never supplied to the daily/4h historical level calculation.

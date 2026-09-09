@@ -15,6 +15,12 @@ The current system now also supports:
 - persisted active/inactive watchlist state
 - persisted Discord thread reuse per symbol
 
+## AGRZ current-price follow-up - 2026-09-09
+
+- [x] Yahoo primary, 60-second active-session freshness and live EODHD fallback implemented.
+- [ ] Serialized runtime release and live AGRZ acceptance.
+- Progress: [AGRZ freshness correction](stock-levels-agrz-freshness-2026-09-09.md).
+
 ## Stock Levels repair checkpoint - 2026-09-09
 
 - [x] Local current-price fallback and static-map side classification implemented.

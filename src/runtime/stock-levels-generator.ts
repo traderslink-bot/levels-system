@@ -2,7 +2,6 @@ import type { LevelEngineOutput } from "../lib/levels/level-types.js";
 import {
   buildLiveWatchlistPotentialPathPresentation,
 } from "../lib/live-watchlist/live-watchlist-publisher.js";
-import type { LiveWatchlistExtendedQuoteProvider } from "../lib/live-watchlist/live-watchlist-types.js";
 import { buildLevelSnapshotPayloadFromEngineOutput } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { isUsableStockLevelsPrice, resolveStockLevelsReferencePrice } from "./stock-levels-reference-price.js";
 
@@ -24,7 +23,6 @@ export type StockLevelsRuntimeResponse = {
 };
 
 export function createStockLevelsGenerator(input: {
-  extendedQuoteProvider: LiveWatchlistExtendedQuoteProvider | null;
   generateExistingWatchlistLevels: (request: {
     symbol: string;
     referencePriceOverride: number;
@@ -38,7 +36,7 @@ export function createStockLevelsGenerator(input: {
       return { code: "invalid_symbol", message: "Enter a stock ticker." };
     }
 
-    const quote = await resolveStockLevelsReferencePrice(symbol, input.extendedQuoteProvider);
+    const quote = await resolveStockLevelsReferencePrice(symbol);
     if (!quote) {
       return { code: "reference_price_unavailable", message: "A recent current-session price is unavailable from EODHD and Yahoo. Try again shortly." };
     }
