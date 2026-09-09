@@ -304,7 +304,7 @@ export class ReviewedDailyWatchlistRecapPoster {
     this.receiptPath = options.receiptPath ?? DEFAULT_REVIEWED_DAILY_WATCHLIST_RECAP_RECEIPT_FILE;
   }
 
-  post(bodyTextValue: unknown, idempotencyKeyValue: unknown): Promise<ReviewedDailyWatchlistRecapReceipt> {
+  post(bodyTextValue: unknown, idempotencyKeyValue: unknown, resolution?: { outcome: "not_posted" | "posted"; messageId?: string; channelId?: string }): Promise<ReviewedDailyWatchlistRecapReceipt> {
     const bodyText = typeof bodyTextValue === "string" ? bodyTextValue.trim() : "";
     const idempotencyKey = typeof idempotencyKeyValue === "string" ? idempotencyKeyValue.trim() : "";
     assertReviewedRecapInput(bodyText, idempotencyKey);
@@ -315,6 +315,15 @@ export class ReviewedDailyWatchlistRecapPoster {
     if (prior) return Promise.resolve(prior);
     const active = this.inFlight.get(idempotencyKey);
     if (active) return active;
+    if (resolution && stored.attempts?.[idempotencyKey]?.pending) {
+      const attempt = stored.attempts[idempotencyKey];
+      if (resolution.outcome === "posted") {
+        if (!/^\d{10,25}$/u.test(resolution.messageId ?? "") || !/^\d{10,25}$/u.test(resolution.channelId ?? "")) throw new Error("Invalid reviewed recap delivery confirmation.");
+        attempt.messages.push({ id: resolution.messageId!, channel_id: resolution.channelId! });
+      } else if (resolution.outcome !== "not_posted") throw new Error("Invalid reviewed recap delivery confirmation.");
+      attempt.pending = false;
+      saveReviewedReceipts(this.receiptPath, stored);
+    }
     if (stored.attempts?.[idempotencyKey]?.pending) throw new Error("Reviewed recap delivery needs reconciliation before retry.");
     const promise = this.postOnce(bodyText, idempotencyKey).finally(() => {
       this.inFlight.delete(idempotencyKey);
@@ -347,7 +356,16 @@ export class ReviewedDailyWatchlistRecapPoster {
           allowed_mentions: { parse: ["everyone"], roles: [this.options.premiumRoleId] },
         }),
       }, DISCORD_WEBHOOK_TIMEOUT_MS);
-      if (!response.ok) throw new Error(`Discord reviewed recap webhook failed with ${response.status}.`);
+      if (!response.ok) {
+        // Explicit rejections did not create a message; the same saved attempt may retry.
+        if ([400, 401, 403, 404, 405, 413, 429].includes(response.status)) {
+          attempt.pending = false;
+          const rejected = loadReviewedReceipts(this.receiptPath);
+          rejected.attempts = { ...rejected.attempts, [idempotencyKey]: attempt };
+          saveReviewedReceipts(this.receiptPath, rejected);
+        }
+        throw new Error(`Discord reviewed recap webhook failed with ${response.status}.`);
+      }
       lastMessage = await response.json() as { id?: unknown; channel_id?: unknown };
       if (typeof lastMessage.id !== "string" || typeof lastMessage.channel_id !== "string") throw new Error("Reviewed recap delivery receipt is invalid.");
       attempt.messages.push({ id: lastMessage.id, channel_id: lastMessage.channel_id });

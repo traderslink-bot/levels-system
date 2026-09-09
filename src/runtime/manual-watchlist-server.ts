@@ -1143,10 +1143,12 @@ async function main(): Promise<void> {
         const body = await readJsonBody(request) as {
           bodyText?: unknown;
           idempotencyKey?: unknown;
+          deliveryResolution?: { outcome: "not_posted" | "posted"; messageId?: string; channelId?: string };
         };
         const receipt = await reviewedDailyWatchlistRecapPoster.post(
           body.bodyText,
           body.idempotencyKey,
+          body.deliveryResolution,
         );
         sendJson(response, 200, { posted: true, receipt });
       } catch (error) {

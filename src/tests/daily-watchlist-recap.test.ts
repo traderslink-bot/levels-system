@@ -240,3 +240,40 @@ test("a long owner paragraph is split and completed delivery survives restart", 
   assert.equal(sent.length, 2);
   assert.throws(() => new ReviewedDailyWatchlistRecapPoster(options).post("Different text", key), /key reuse/);
 });
+
+test("explicit Discord rate-limit rejection can retry the same attempt", async () => {
+  const receiptPath = join(mkdtempSync(join(tmpdir(), "recap-rejected-")), "receipts.json");
+  let sends = 0;
+  const poster = new ReviewedDailyWatchlistRecapPoster({ webhookUrl: "https://example.test/webhook", premiumRoleId: "123456789012345678", receiptPath,
+    fetchImpl: async () => { sends += 1; return sends === 1 ? new Response("", { status: 429 }) : Response.json({ id: "message-1", channel_id: "channel-1" }); },
+  });
+  const key = "12345678-1234-4123-8123-123456789abc";
+  await assert.rejects(poster.post("PDSB recap", key), /429/);
+  assert.equal((await poster.post("PDSB recap", key)).discordMessageId, "message-1");
+  assert.equal(sends, 2);
+});
+
+test("owner confirmation of an already delivered message avoids resending it", async () => {
+  const receiptPath = join(mkdtempSync(join(tmpdir(), "recap-confirmed-")), "receipts.json");
+  let sends = 0;
+  const poster = new ReviewedDailyWatchlistRecapPoster({ webhookUrl: "https://example.test/webhook", premiumRoleId: "123456789012345678", receiptPath,
+    fetchImpl: async () => { sends += 1; throw new Error("lost response"); },
+  });
+  const key = "12345678-1234-4123-8123-123456789abc";
+  await assert.rejects(poster.post("PDSB recap", key));
+  const receipt = await poster.post("PDSB recap", key, { outcome: "posted", messageId: "123456789012345678", channelId: "223456789012345678" });
+  assert.equal(receipt.discordMessageId, "123456789012345678");
+  assert.equal(sends, 1);
+});
+
+test("owner confirmation that the uncertain message is absent allows retry", async () => {
+  const receiptPath = join(mkdtempSync(join(tmpdir(), "recap-absent-")), "receipts.json");
+  let sends = 0;
+  const poster = new ReviewedDailyWatchlistRecapPoster({ webhookUrl: "https://example.test/webhook", premiumRoleId: "123456789012345678", receiptPath,
+    fetchImpl: async () => { sends += 1; if (sends === 1) throw new Error("lost response"); return Response.json({ id: "message-1", channel_id: "channel-1" }); },
+  });
+  const key = "12345678-1234-4123-8123-123456789abc";
+  await assert.rejects(poster.post("PDSB recap", key));
+  assert.equal((await poster.post("PDSB recap", key, { outcome: "not_posted" })).discordMessageId, "message-1");
+  assert.equal(sends, 2);
+});

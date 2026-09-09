@@ -74,6 +74,11 @@ second mutable draft.
   rejection. Pending delivery is saved before each Discord request; completed
   message receipts are saved individually. An uncertain delivery must be
   reconciled before retrying, and an unreadable receipt file never resets history.
+- [x] Second QA: explicit Discord rejections (including 429) permit the same
+  attempt to retry. An authenticated owner can confirm an uncertain message as
+  absent or provide its delivered message/channel IDs via Platform's message-link
+  control, then continue remaining parts. All 12 runtime tests pass with mocked
+  Discord only; production delivery remains unverified.
 - [ ] Hosted destination configuration, deployment and a private-channel test
   remain release-coordinator work after explicit owner handoff.
 
@@ -94,8 +99,9 @@ post.
 - Pullback-zone language requires accepted price facts after that AI Read was
   published.
 - A zone that was merely approached cannot be described as reached or tested.
-- **Near** means within 10% of the nearest published zone edge. At more than
-  10%, recap language does not connect the move to that zone.
+- Owner clarification supersedes the earlier near-zone cutoff: an actual dip
+  and recovery can be described even when price turns before the published area.
+  There is no fixed proximity cutoff and the recap does not claim the area was reached.
 - A Needs-to-hold level can support a valid defense or reclaim recap regardless
   of the initial percentage decline from the Watchlist posted price. **Held**,
   **reclaimed** and **approached** remain separate factual outcomes.
