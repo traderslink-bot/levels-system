@@ -207,3 +207,36 @@ test("reviewed recap poster rejects owner-body mentions before Discord", () => {
     /Invalid reviewed recap body/u,
   );
 });
+
+test("lost Discord response leaves a durable uncertain attempt and never resends on retry", async () => {
+  const receiptPath = join(mkdtempSync(join(tmpdir(), "recap-uncertain-")), "receipts.json");
+  let sends = 0;
+  const options = {
+    webhookUrl: "https://example.test/webhook", premiumRoleId: "123456789012345678", receiptPath,
+    fetchImpl: (async () => { sends += 1; throw new Error("response lost"); }) as typeof fetch,
+  };
+  const key = "12345678-1234-4123-8123-123456789abc";
+  await assert.rejects(new ReviewedDailyWatchlistRecapPoster(options).post("PDSB recap", key), /response lost/);
+  assert.throws(() => new ReviewedDailyWatchlistRecapPoster(options).post("PDSB recap", key), /reconciliation/);
+  assert.equal(sends, 1);
+});
+
+test("a long owner paragraph is split and completed delivery survives restart", async () => {
+  const receiptPath = join(mkdtempSync(join(tmpdir(), "recap-long-")), "receipts.json");
+  const sent: string[] = [];
+  const options = {
+    webhookUrl: "https://example.test/webhook", premiumRoleId: "123456789012345678", receiptPath,
+    fetchImpl: (async (_input, init) => {
+      sent.push(JSON.parse(String(init?.body)).content as string);
+      return Response.json({ id: String(sent.length), channel_id: "channel-1" });
+    }) as typeof fetch,
+  };
+  const key = "12345678-1234-4123-8123-123456789abc";
+  const body = "PDSB moved higher. ".repeat(150);
+  const first = await new ReviewedDailyWatchlistRecapPoster(options).post(body, key);
+  assert.equal(sent.length, 2);
+  assert.ok(sent.every((content) => content.length <= 2000));
+  assert.deepEqual(await new ReviewedDailyWatchlistRecapPoster(options).post(body, key), first);
+  assert.equal(sent.length, 2);
+  assert.throws(() => new ReviewedDailyWatchlistRecapPoster(options).post("Different text", key), /key reuse/);
+});

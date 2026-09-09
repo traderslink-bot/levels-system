@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { createHash } from "node:crypto";
 
 export const DAILY_WATCHLIST_RECAP_WEBHOOK_ENV =
   "DISCORD_WATCHLIST_DAILY_RECAP_WEBHOOK_URL";
@@ -34,6 +35,7 @@ export type ReviewedDailyWatchlistRecapReceipt = {
 
 type ReviewedDailyWatchlistRecapReceiptStore = {
   receipts: Record<string, ReviewedDailyWatchlistRecapReceipt>;
+  attempts?: Record<string, { bodyHash: string; pending: boolean; messages: Array<{ id: string; channel_id: string }> }>;
 };
 
 export type ReviewedDailyWatchlistRecapPosterOptions = {
@@ -226,11 +228,11 @@ function saveReceipt(path: string, receipt: DailyWatchlistRecapReceipt): void {
 function loadReviewedReceipts(path: string): ReviewedDailyWatchlistRecapReceiptStore {
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<ReviewedDailyWatchlistRecapReceiptStore>;
-    return parsed && typeof parsed.receipts === "object" && parsed.receipts !== null
-      ? { receipts: parsed.receipts as Record<string, ReviewedDailyWatchlistRecapReceipt> }
-      : { receipts: {} };
-  } catch {
-    return { receipts: {} };
+    if (!parsed || !parsed.receipts || typeof parsed.receipts !== "object" || Array.isArray(parsed.receipts)) throw new Error("Invalid recap receipt store.");
+    return { receipts: parsed.receipts, attempts: parsed.attempts ?? {} };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { receipts: {}, attempts: {} };
+    throw new Error("Reviewed recap receipt store is unavailable.");
   }
 }
 
@@ -264,7 +266,17 @@ function splitReviewedRecapBody(bodyText: string, finalSuffix: string): string[]
   let current = "";
   for (const paragraph of paragraphs) {
     if (paragraph.length > maximumBodyLength) {
-      throw new Error("A reviewed recap paragraph is too long for Discord.");
+      if (current) { chunks.push(current); current = ""; }
+      let remaining = paragraph;
+      while (remaining.length > maximumBodyLength) {
+        let cut = remaining.lastIndexOf(" ", maximumBodyLength);
+        if (cut < 1) cut = maximumBodyLength;
+        if (/[\uD800-\uDBFF]/u.test(remaining[cut - 1])) cut -= 1;
+        chunks.push(remaining.slice(0, cut));
+        remaining = remaining.slice(cut);
+      }
+      current = remaining;
+      continue;
     }
     const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
     if (candidate.length > maximumBodyLength) {
@@ -296,10 +308,14 @@ export class ReviewedDailyWatchlistRecapPoster {
     const bodyText = typeof bodyTextValue === "string" ? bodyTextValue.trim() : "";
     const idempotencyKey = typeof idempotencyKeyValue === "string" ? idempotencyKeyValue.trim() : "";
     assertReviewedRecapInput(bodyText, idempotencyKey);
-    const prior = loadReviewedReceipts(this.receiptPath).receipts[idempotencyKey];
+    const stored = loadReviewedReceipts(this.receiptPath);
+    const bodyHash = createHash("sha256").update(bodyText).digest("hex");
+    if (stored.attempts?.[idempotencyKey] && stored.attempts[idempotencyKey].bodyHash !== bodyHash) throw new Error("Invalid reviewed recap key reuse.");
+    const prior = stored.receipts[idempotencyKey];
     if (prior) return Promise.resolve(prior);
     const active = this.inFlight.get(idempotencyKey);
     if (active) return active;
+    if (stored.attempts?.[idempotencyKey]?.pending) throw new Error("Reviewed recap delivery needs reconciliation before retry.");
     const promise = this.postOnce(bodyText, idempotencyKey).finally(() => {
       this.inFlight.delete(idempotencyKey);
     });
@@ -314,7 +330,13 @@ export class ReviewedDailyWatchlistRecapPoster {
     const suffix = `\n\n@everyone\n<@&${this.options.premiumRoleId}>`;
     const messages = splitReviewedRecapBody(bodyText, suffix);
     let lastMessage: { id?: unknown; channel_id?: unknown } = {};
-    for (const content of messages) {
+    const initial = loadReviewedReceipts(this.receiptPath);
+    const attempt = initial.attempts?.[idempotencyKey] ?? { bodyHash: createHash("sha256").update(bodyText).digest("hex"), pending: false, messages: [] };
+    for (const content of messages.slice(attempt.messages.length)) {
+      attempt.pending = true;
+      const beforeSend = loadReviewedReceipts(this.receiptPath);
+      beforeSend.attempts = { ...beforeSend.attempts, [idempotencyKey]: attempt };
+      saveReviewedReceipts(this.receiptPath, beforeSend);
       const webhookUrl = new URL(this.options.webhookUrl);
       webhookUrl.searchParams.set("wait", "true");
       const response = await fetchWithTimeout(this.fetchImpl, webhookUrl.toString(), {
@@ -327,7 +349,14 @@ export class ReviewedDailyWatchlistRecapPoster {
       }, DISCORD_WEBHOOK_TIMEOUT_MS);
       if (!response.ok) throw new Error(`Discord reviewed recap webhook failed with ${response.status}.`);
       lastMessage = await response.json() as { id?: unknown; channel_id?: unknown };
+      if (typeof lastMessage.id !== "string" || typeof lastMessage.channel_id !== "string") throw new Error("Reviewed recap delivery receipt is invalid.");
+      attempt.messages.push({ id: lastMessage.id, channel_id: lastMessage.channel_id });
+      attempt.pending = false;
+      const afterSend = loadReviewedReceipts(this.receiptPath);
+      afterSend.attempts = { ...afterSend.attempts, [idempotencyKey]: attempt };
+      saveReviewedReceipts(this.receiptPath, afterSend);
     }
+    lastMessage = attempt.messages.at(-1) ?? {};
     const receipt = Object.freeze({
       idempotencyKey,
       postedAt: this.now(),

@@ -69,6 +69,11 @@ second mutable draft.
 - [x] Successful receipts are stored durably by idempotency key; a repeated
   request returns the prior receipt without posting again.
 - [x] The focused Daily Recap test file passes 7/7 with no live Discord call.
+- [x] QA correction checkpoint: 9/9 focused tests pass, including lost-response
+  suppression, long owner paragraphs, restart receipt reuse and changed-body key
+  rejection. Pending delivery is saved before each Discord request; completed
+  message receipts are saved individually. An uncertain delivery must be
+  reconciled before retrying, and an unreadable receipt file never resets history.
 - [ ] Hosted destination configuration, deployment and a private-channel test
   remain release-coordinator work after explicit owner handoff.
 
